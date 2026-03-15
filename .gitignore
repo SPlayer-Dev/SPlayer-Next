@@ -4,3 +4,8 @@ out
 .DS_Store
 .eslintcache
 *.log*
+
+# Rust build artifacts
+native/audio-engine/target/
+native/audio-engine/*.node
+native/audio-engine/index.d.ts

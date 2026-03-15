@@ -1,0 +1,25 @@
+[package]
+name = "audio-engine"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "2", features = ["napi6", "serde-json"] }
+napi-derive = "2"
+# 本地开发用动态链接（需设置 FFMPEG_DIR），CI 用 static feature 从源码编译
+ffmpeg-next = "7"
+rodio = { version = "0.20", default-features = false }
+parking_lot = "0.12"
+anyhow = "1"
+spectrum-analyzer = "1"
+rustfft = "6"
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+lto = true
+strip = "symbols"

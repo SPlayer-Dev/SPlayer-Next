@@ -1,4 +1,5 @@
 import { registerSystemIpc } from './system'
+import { registerPlayerIpc } from './player'
 
 /**
  * 注册所有 IPC 事件处理
@@ -6,8 +7,8 @@ import { registerSystemIpc } from './system'
  */
 export const registerIpcHandlers = (): void => {
   registerSystemIpc()
+  registerPlayerIpc()
   // 按需添加更多模块:
-  // registerPlayerIpc()
   // registerPlaylistIpc()
   // registerLyricIpc()
 }

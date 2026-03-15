@@ -8,7 +8,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'electron/main/index.ts')
-        }
+        },
+        external: ['@splayer/audio-engine']
       }
     }
   },

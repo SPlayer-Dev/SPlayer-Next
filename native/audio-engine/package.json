@@ -1,0 +1,13 @@
+{
+  "name": "@splayer/audio-engine",
+  "version": "0.1.0",
+  "main": "audio-engine.node",
+  "types": "index.d.ts",
+  "scripts": {
+    "build": "napi build --release",
+    "build:debug": "napi build"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.0"
+  }
+}
