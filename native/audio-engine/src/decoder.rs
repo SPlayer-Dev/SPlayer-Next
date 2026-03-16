@@ -1,126 +1,92 @@
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 
 use anyhow::{Context, Result};
+use ffmpeg_next as ffmpeg;
+use ffmpeg_next::ChannelLayout;
+use ffmpeg_next::Dictionary;
 use parking_lot::{Condvar, Mutex};
 
-/// A chunk of decoded PCM audio data
-#[derive(Clone)]
+/// 解码后的 PCM 音频数据块
 pub struct AudioChunk {
-    /// Interleaved f32 samples
-    pub samples: Vec<f32>,
-    /// Sample rate of this chunk
-    pub sample_rate: u32,
-    /// Number of channels
-    pub channels: u16,
+    /// 交错排列的 f32 播放样本（L R L R ...）
+    pub player_samples: Vec<f32>,
+    /// 单声道 f32 样本，用于 FFT 频谱分析
+    pub fft_samples: Vec<f32>,
 }
 
-/// Shared ring buffer between decoder thread and audio output
-pub struct SharedBuffer {
-    inner: Mutex<SharedBufferInner>,
-    /// Signal when buffer has space (producer waits)
-    not_full: Condvar,
-    /// Signal when buffer has data (consumer waits)
-    not_empty: Condvar,
+/// 解码线程与播放迭代器之间的共享状态
+pub struct Shared {
+    buffer: Mutex<VecDeque<AudioChunk>>,
+    condvar: Condvar,
+    is_eof: AtomicBool,
+    is_stopping: AtomicBool,
 }
 
-struct SharedBufferInner {
-    queue: VecDeque<AudioChunk>,
-    capacity: usize,
-    finished: bool,
-    abort: bool,
-}
+/// 共享缓冲区最大容量（背压阈值）
+const FRAME_BUFFER_CAPACITY: usize = 64;
 
-impl SharedBuffer {
-    pub fn new(capacity: usize) -> Arc<Self> {
+impl Shared {
+    pub fn new() -> Arc<Self> {
         Arc::new(Self {
-            inner: Mutex::new(SharedBufferInner {
-                queue: VecDeque::with_capacity(capacity),
-                capacity,
-                finished: false,
-                abort: false,
-            }),
-            not_full: Condvar::new(),
-            not_empty: Condvar::new(),
+            buffer: Mutex::new(VecDeque::with_capacity(FRAME_BUFFER_CAPACITY)),
+            condvar: Condvar::new(),
+            is_eof: AtomicBool::new(false),
+            is_stopping: AtomicBool::new(false),
         })
     }
 
-    /// Push a chunk, blocking if buffer is full. Returns false if aborted.
-    pub fn push(&self, chunk: AudioChunk) -> bool {
-        let mut inner = self.inner.lock();
-        while inner.queue.len() >= inner.capacity && !inner.abort {
-            self.not_full.wait(&mut inner);
+    /// 推入数据块，缓冲区满时阻塞等待（背压）
+    pub fn push(&self, chunk: AudioChunk) {
+        let mut buf = self.buffer.lock();
+        while buf.len() >= FRAME_BUFFER_CAPACITY && !self.is_stopping.load(Ordering::Acquire) {
+            self.condvar.wait(&mut buf);
         }
-        if inner.abort {
-            return false;
+        if self.is_stopping.load(Ordering::Acquire) {
+            return;
         }
-        inner.queue.push_back(chunk);
-        self.not_empty.notify_one();
-        true
+        buf.push_back(chunk);
+        self.condvar.notify_one();
     }
 
-    /// Pop a chunk, blocking if buffer is empty. Returns None if finished and empty.
+    /// 弹出数据块，缓冲区空时阻塞等待。
+    /// 仅在 EOF 或停止且缓冲区为空时返回 None。
     pub fn pop(&self) -> Option<AudioChunk> {
-        let mut inner = self.inner.lock();
+        let mut buf = self.buffer.lock();
         loop {
-            if let Some(chunk) = inner.queue.pop_front() {
-                self.not_full.notify_one();
+            if let Some(chunk) = buf.pop_front() {
+                self.condvar.notify_one();
                 return Some(chunk);
             }
-            if inner.finished || inner.abort {
+            if self.is_eof.load(Ordering::Acquire) || self.is_stopping.load(Ordering::Acquire) {
                 return None;
             }
-            self.not_empty.wait(&mut inner);
+            self.condvar.wait(&mut buf);
         }
     }
 
-    /// Try to pop without blocking
-    pub fn try_pop(&self) -> Option<AudioChunk> {
-        let mut inner = self.inner.lock();
-        let chunk = inner.queue.pop_front();
-        if chunk.is_some() {
-            self.not_full.notify_one();
-        }
-        chunk
+    /// 标记解码完成
+    pub fn mark_eof(&self) {
+        self.is_eof.store(true, Ordering::Release);
+        self.condvar.notify_all();
     }
 
-    /// Mark decoding as finished (no more chunks will be pushed)
-    pub fn mark_finished(&self) {
-        let mut inner = self.inner.lock();
-        inner.finished = true;
-        self.not_empty.notify_all();
+    /// 发出停止信号，唤醒双方
+    pub fn stop(&self) {
+        self.is_stopping.store(true, Ordering::Release);
+        self.condvar.notify_all();
     }
 
-    /// Abort decoding — unblock both sides
-    pub fn abort(&self) {
-        let mut inner = self.inner.lock();
-        inner.abort = true;
-        self.not_full.notify_all();
-        self.not_empty.notify_all();
-    }
-
-    /// Clear the buffer (used during seek)
-    pub fn clear(&self) {
-        let mut inner = self.inner.lock();
-        inner.queue.clear();
-        inner.finished = false;
-        self.not_full.notify_all();
-    }
-
-    /// Check if the buffer is finished and empty
+    /// 检查播放是否已结束（EOF 且缓冲区为空）
     pub fn is_done(&self) -> bool {
-        let inner = self.inner.lock();
-        inner.finished && inner.queue.is_empty()
-    }
-
-    /// Number of chunks currently buffered
-    pub fn len(&self) -> usize {
-        self.inner.lock().queue.len()
+        let buf = self.buffer.lock();
+        self.is_eof.load(Ordering::Acquire) && buf.is_empty()
     }
 }
 
-/// Metadata extracted from the audio file
+/// 音频元数据
 #[derive(Clone, Default)]
 pub struct AudioMetadata {
     pub title: Option<String>,
@@ -129,52 +95,82 @@ pub struct AudioMetadata {
     pub duration_secs: f64,
     pub sample_rate: u32,
     pub channels: u16,
-    pub cover: Option<Vec<u8>>,
 }
 
-/// Target format for resampling
+/// 播放输出目标格式
 const TARGET_SAMPLE_RATE: u32 = 48000;
 const TARGET_CHANNELS: u16 = 2;
-/// FFT always receives mono 44100Hz
+/// FFT 分析目标格式：单声道 44100Hz
 pub const FFT_SAMPLE_RATE: u32 = 44100;
 
-/// Start a decoder thread for the given source (file path or URL).
-/// Returns (SharedBuffer, metadata) on success.
-pub fn start_decode(
-    source: &str,
-    fft_buffer: Option<Arc<Mutex<Vec<f32>>>>,
-) -> Result<(Arc<SharedBuffer>, AudioMetadata)> {
-    // Open input with FFmpeg
-    let mut ictx = ffmpeg_next::format::input(&source)
-        .with_context(|| format!("Failed to open: {}", source))?;
+/// 网络流读取失败最大重试次数
+const NETWORK_READ_RETRIES: u32 = 3;
+/// 重试间隔（毫秒）
+const NETWORK_RETRY_DELAY_MS: u64 = 500;
 
-    // Find the best audio stream
-    let stream = ictx
+/// 解码会话所需的资源
+struct DecoderData {
+    input_ctx: ffmpeg::format::context::Input,
+    decoder: ffmpeg::decoder::Audio,
+    audio_stream_index: usize,
+    resampler: Option<ffmpeg::software::resampling::Context>,
+    fft_resampler: Option<ffmpeg::software::resampling::Context>,
+}
+
+/// 启动解码线程，返回音频元数据
+pub fn start_decode(source: &str, shared: Arc<Shared>) -> Result<AudioMetadata> {
+    let input_ctx = open_input(source)?;
+
+    let stream = input_ctx
         .streams()
-        .best(ffmpeg_next::media::Type::Audio)
+        .best(ffmpeg::media::Type::Audio)
         .context("No audio stream found")?;
-    let stream_index = stream.index();
+    let audio_stream_index = stream.index();
 
-    // Extract metadata
-    let duration_secs = if ictx.duration() > 0 {
-        ictx.duration() as f64 / f64::from(ffmpeg_next::ffi::AV_TIME_BASE)
+    // 优先从流的 time_base 获取时长（更准确）
+    let time_base = stream.time_base();
+    let stream_duration = stream.duration();
+    let duration_secs = if stream_duration > 0 {
+        stream_duration as f64 * time_base.0 as f64 / time_base.1 as f64
+    } else if input_ctx.duration() > 0 {
+        input_ctx.duration() as f64 / f64::from(ffmpeg::ffi::AV_TIME_BASE)
     } else {
         0.0
     };
 
-    let metadata_dict = ictx.metadata();
+    let metadata_dict = input_ctx.metadata();
     let title = metadata_dict.get("title").map(|s| s.to_string());
     let artist = metadata_dict.get("artist").map(|s| s.to_string());
     let album = metadata_dict.get("album").map(|s| s.to_string());
 
-    // Set up the decoder
-    let context =
-        ffmpeg_next::codec::context::Context::from_parameters(stream.parameters().clone())?;
-    let mut audio_decoder = context.decoder().audio()?;
+    let decoder_ctx = ffmpeg::codec::context::Context::from_parameters(stream.parameters())?;
+    let decoder = decoder_ctx.decoder().audio()?;
 
-    let src_rate = audio_decoder.rate();
-    let src_channels = audio_decoder.channels() as u16;
-    let src_format = audio_decoder.format();
+    let src_format = decoder.format();
+    let src_layout = decoder.channel_layout();
+    let src_rate = decoder.rate();
+
+    // 使用平面 F32 格式输出（与参考实现一致）
+    let target_format = ffmpeg::format::Sample::F32(ffmpeg::format::sample::Type::Planar);
+    let target_layout = ChannelLayout::default(TARGET_CHANNELS as i32);
+
+    let resampler = create_resampler(
+        src_format,
+        src_layout,
+        src_rate,
+        target_format,
+        target_layout,
+        TARGET_SAMPLE_RATE,
+    )?;
+
+    let fft_resampler = create_resampler(
+        src_format,
+        src_layout,
+        src_rate,
+        ffmpeg::format::Sample::F32(ffmpeg::format::sample::Type::Planar),
+        ChannelLayout::MONO,
+        FFT_SAMPLE_RATE,
+    )?;
 
     let metadata = AudioMetadata {
         title,
@@ -183,212 +179,295 @@ pub fn start_decode(
         duration_secs,
         sample_rate: TARGET_SAMPLE_RATE,
         channels: TARGET_CHANNELS,
-        cover: None, // TODO: extract embedded cover art
     };
 
-    let buffer = SharedBuffer::new(64);
-    let buffer_clone = Arc::clone(&buffer);
-
-    // Configure resampler for playback output (stereo, target sample rate)
-    let mut resampler = ffmpeg_next::software::resampling::Context::get(
-        src_format,
-        ffmpeg_next::ChannelLayout::default(src_channels as i32),
-        src_rate,
-        ffmpeg_next::format::Sample::F32(ffmpeg_next::format::sample::Type::Packed),
-        ffmpeg_next::ChannelLayout::default(TARGET_CHANNELS as i32),
-        TARGET_SAMPLE_RATE,
-    )?;
-
-    // Configure resampler for FFT (mono, 44100 Hz)
-    let mut fft_resampler = if fft_buffer.is_some() {
-        Some(ffmpeg_next::software::resampling::Context::get(
-            src_format,
-            ffmpeg_next::ChannelLayout::default(src_channels as i32),
-            src_rate,
-            ffmpeg_next::format::Sample::F32(ffmpeg_next::format::sample::Type::Packed),
-            ffmpeg_next::ChannelLayout::default(1),
-            FFT_SAMPLE_RATE,
-        )?)
-    } else {
-        None
+    let mut data = DecoderData {
+        input_ctx,
+        decoder,
+        audio_stream_index,
+        resampler,
+        fft_resampler,
     };
-
-    let source_owned = source.to_string();
 
     thread::spawn(move || {
-        let _result = decode_loop(
-            &mut ictx,
-            &mut audio_decoder,
-            &mut resampler,
-            &mut fft_resampler,
-            stream_index,
-            &buffer_clone,
-            &fft_buffer,
-        );
-        buffer_clone.mark_finished();
+        run_decoding_loop(&mut data, &shared);
+        shared.mark_eof();
     });
 
-    Ok((buffer, metadata))
+    Ok(metadata)
 }
 
-fn decode_loop(
-    ictx: &mut ffmpeg_next::format::context::Input,
-    decoder: &mut ffmpeg_next::decoder::Audio,
-    resampler: &mut ffmpeg_next::software::resampling::Context,
-    fft_resampler: &mut Option<ffmpeg_next::software::resampling::Context>,
-    stream_index: usize,
-    buffer: &SharedBuffer,
-    fft_buffer: &Option<Arc<Mutex<Vec<f32>>>>,
-) -> Result<()> {
-    let mut decoded_frame = ffmpeg_next::frame::Audio::empty();
-    let mut resampled_frame = ffmpeg_next::frame::Audio::empty();
-    let mut fft_frame = ffmpeg_next::frame::Audio::empty();
+/// 从指定位置开始解码（seek 后重新解码）
+pub fn seek_decode(source: &str, position_secs: f64, shared: &Shared) -> Result<()> {
+    let mut input_ctx = open_input(source)?;
 
-    for (stream, packet) in ictx.packets() {
-        if stream.index() != stream_index {
-            continue;
-        }
-
-        decoder.send_packet(&packet)?;
-
-        while decoder.receive_frame(&mut decoded_frame).is_ok() {
-            // Resample for playback
-            resampler.run(&decoded_frame, &mut resampled_frame)?;
-            let data = resampled_frame.data(0);
-            let samples: Vec<f32> = data
-                .chunks_exact(4)
-                .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
-                .collect();
-
-            let chunk = AudioChunk {
-                samples,
-                sample_rate: TARGET_SAMPLE_RATE,
-                channels: TARGET_CHANNELS,
-            };
-
-            if !buffer.push(chunk) {
-                return Ok(()); // aborted
-            }
-
-            // Resample for FFT
-            if let (Some(ref mut fft_res), Some(ref fft_buf)) = (fft_resampler, fft_buffer) {
-                fft_res.run(&decoded_frame, &mut fft_frame)?;
-                let fft_data = fft_frame.data(0);
-                let fft_samples: Vec<f32> = fft_data
-                    .chunks_exact(4)
-                    .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
-                    .collect();
-
-                let mut buf = fft_buf.lock();
-                buf.extend_from_slice(&fft_samples);
-                // Keep only the latest 8192 samples for FFT ring buffer
-                if buf.len() > 8192 {
-                    let drain_count = buf.len() - 8192;
-                    buf.drain(..drain_count);
-                }
-            }
-        }
+    // 使用开放范围的 seek（与参考实现一致）
+    let ts = (position_secs * ffmpeg::ffi::AV_TIME_BASE as f64) as i64;
+    if input_ctx.seek(ts, ..).is_err() {
+        let _ = input_ctx.seek(ts, ..ts);
     }
 
-    // Flush decoder
-    decoder.send_eof()?;
-    while decoder.receive_frame(&mut decoded_frame).is_ok() {
-        resampler.run(&decoded_frame, &mut resampled_frame)?;
-        let data = resampled_frame.data(0);
-        let samples: Vec<f32> = data
-            .chunks_exact(4)
-            .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
-            .collect();
-
-        let chunk = AudioChunk {
-            samples,
-            sample_rate: TARGET_SAMPLE_RATE,
-            channels: TARGET_CHANNELS,
-        };
-
-        if !buffer.push(chunk) {
-            return Ok(());
-        }
-    }
-
-    Ok(())
-}
-
-/// Seek to a position in seconds. Must be called from the decoder thread context
-/// or by restarting decode with a seek position.
-pub fn seek_decode(
-    source: &str,
-    position_secs: f64,
-    buffer: &SharedBuffer,
-    fft_buffer: Option<Arc<Mutex<Vec<f32>>>>,
-) -> Result<()> {
-    buffer.abort();
-    buffer.clear();
-
-    // Clear FFT buffer
-    if let Some(ref fft_buf) = fft_buffer {
-        fft_buf.lock().clear();
-    }
-
-    let mut ictx = ffmpeg_next::format::input(&source)?;
-
-    // Seek to timestamp
-    let ts = (position_secs * f64::from(ffmpeg_next::ffi::AV_TIME_BASE)) as i64;
-    ictx.seek(ts, ..ts)?;
-
-    let stream = ictx
+    let stream = input_ctx
         .streams()
-        .best(ffmpeg_next::media::Type::Audio)
-        .context("No audio stream")?;
-    let stream_index = stream.index();
+        .best(ffmpeg::media::Type::Audio)
+        .context("No audio stream found")?;
+    let audio_stream_index = stream.index();
 
-    let context =
-        ffmpeg_next::codec::context::Context::from_parameters(stream.parameters().clone())?;
-    let mut audio_decoder = context.decoder().audio()?;
+    let decoder_ctx = ffmpeg::codec::context::Context::from_parameters(stream.parameters())?;
+    let decoder = decoder_ctx.decoder().audio()?;
 
-    let src_rate = audio_decoder.rate();
-    let src_channels = audio_decoder.channels() as u16;
-    let src_format = audio_decoder.format();
+    let src_format = decoder.format();
+    let src_layout = decoder.channel_layout();
+    let src_rate = decoder.rate();
 
-    let mut resampler = ffmpeg_next::software::resampling::Context::get(
+    let target_format = ffmpeg::format::Sample::F32(ffmpeg::format::sample::Type::Planar);
+    let target_layout = ChannelLayout::default(TARGET_CHANNELS as i32);
+
+    let resampler = create_resampler(
         src_format,
-        ffmpeg_next::ChannelLayout::default(src_channels as i32),
+        src_layout,
         src_rate,
-        ffmpeg_next::format::Sample::F32(ffmpeg_next::format::sample::Type::Packed),
-        ffmpeg_next::ChannelLayout::default(TARGET_CHANNELS as i32),
+        target_format,
+        target_layout,
         TARGET_SAMPLE_RATE,
     )?;
 
-    let mut fft_resampler = if fft_buffer.is_some() {
-        Some(ffmpeg_next::software::resampling::Context::get(
-            src_format,
-            ffmpeg_next::ChannelLayout::default(src_channels as i32),
-            src_rate,
-            ffmpeg_next::format::Sample::F32(ffmpeg_next::format::sample::Type::Packed),
-            ffmpeg_next::ChannelLayout::default(1),
-            FFT_SAMPLE_RATE,
-        )?)
-    } else {
-        None
-    };
-
-    // Reset abort flag so buffer accepts new data
-    {
-        let mut inner = buffer.inner.lock();
-        inner.abort = false;
-        inner.finished = false;
-    }
-
-    decode_loop(
-        &mut ictx,
-        &mut audio_decoder,
-        &mut resampler,
-        &mut fft_resampler,
-        stream_index,
-        buffer,
-        &fft_buffer,
+    let fft_resampler = create_resampler(
+        src_format,
+        src_layout,
+        src_rate,
+        ffmpeg::format::Sample::F32(ffmpeg::format::sample::Type::Planar),
+        ChannelLayout::MONO,
+        FFT_SAMPLE_RATE,
     )?;
 
-    buffer.mark_finished();
+    let mut data = DecoderData {
+        input_ctx,
+        decoder,
+        audio_stream_index,
+        resampler,
+        fft_resampler,
+    };
+
+    run_decoding_loop(&mut data, shared);
+    shared.mark_eof();
     Ok(())
+}
+
+/// 打开音频输入，网络地址自动启用 HTTP 重连
+fn open_input(source: &str) -> Result<ffmpeg::format::context::Input> {
+    let is_network = source.starts_with("http://") || source.starts_with("https://");
+
+    if is_network {
+        let mut opts = Dictionary::new();
+        opts.set("reconnect", "1");
+        opts.set("reconnect_streamed", "1");
+        opts.set("reconnect_delay_max", "5");
+        ffmpeg::format::input_with_dictionary(source, opts)
+            .with_context(|| format!("Failed to open: {source}"))
+    } else {
+        ffmpeg::format::input(source)
+            .with_context(|| format!("Failed to open: {source}"))
+    }
+}
+
+/// 仅在格式/声道/采样率不同时创建重采样器
+fn create_resampler(
+    src_format: ffmpeg::format::Sample,
+    src_layout: ChannelLayout,
+    src_rate: u32,
+    target_format: ffmpeg::format::Sample,
+    target_layout: ChannelLayout,
+    target_rate: u32,
+) -> Result<Option<ffmpeg::software::resampling::Context>> {
+    if src_format != target_format || src_layout != target_layout || src_rate != target_rate {
+        let resampler = ffmpeg::software::resampling::Context::get(
+            src_format,
+            src_layout,
+            src_rate,
+            target_format,
+            target_layout,
+            target_rate,
+        )?;
+        Ok(Some(resampler))
+    } else {
+        Ok(None)
+    }
+}
+
+/// 核心解码循环
+fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
+    let mut player_scratch = Vec::new();
+    let mut fft_scratch = Vec::new();
+    let mut eof_sent = false;
+    let mut consecutive_read_failures: u32 = 0;
+
+    loop {
+        // 背压：缓冲区满时阻塞等待消费
+        {
+            let mut buf = shared.buffer.lock();
+            while buf.len() >= FRAME_BUFFER_CAPACITY
+                && !shared.is_stopping.load(Ordering::Acquire)
+            {
+                shared.condvar.wait(&mut buf);
+            }
+            if shared.is_stopping.load(Ordering::Acquire) {
+                return;
+            }
+        }
+
+        let mut decoded = ffmpeg::frame::Audio::empty();
+        match data.decoder.receive_frame(&mut decoded) {
+            Ok(_) => {
+                consecutive_read_failures = 0;
+
+                // 部分文件不设置 channel_layout，需要填默认值
+                if decoded.channel_layout().is_empty() {
+                    let default_layout = ChannelLayout::default(decoded.channels() as i32);
+                    decoded.set_channel_layout(default_layout);
+                }
+
+                player_scratch.clear();
+                fft_scratch.clear();
+
+                resample_frame(data, &mut decoded, &mut player_scratch, &mut fft_scratch);
+
+                let chunk = AudioChunk {
+                    player_samples: std::mem::take(&mut player_scratch),
+                    fft_samples: std::mem::take(&mut fft_scratch),
+                };
+
+                shared.push(chunk);
+            }
+            Err(ffmpeg::Error::Eof) => {
+                return;
+            }
+            Err(ffmpeg::Error::Other { errno }) if errno == ffmpeg::ffi::EAGAIN => {
+                if eof_sent {
+                    // 已发送 EOF，解码器清空完毕
+                    return;
+                }
+
+                // 读取下一个数据包
+                match data.input_ctx.packets().next() {
+                    Some((stream, packet))
+                        if stream.index() == data.audio_stream_index =>
+                    {
+                        consecutive_read_failures = 0;
+                        if data.decoder.send_packet(&packet).is_err() {
+                            return;
+                        }
+                    }
+                    None => {
+                        // 未读到数据包：可能是真正的文件结束，也可能是网络中断
+                        consecutive_read_failures += 1;
+
+                        if consecutive_read_failures <= NETWORK_READ_RETRIES {
+                            // 网络流可能恢复，等待后重试
+                            std::thread::sleep(std::time::Duration::from_millis(
+                                NETWORK_RETRY_DELAY_MS,
+                            ));
+                            continue;
+                        }
+
+                        // 重试耗尽，刷新解码器
+                        let _ = data.decoder.send_eof();
+                        eof_sent = true;
+                    }
+                    _ => {
+                        // 非音频包，跳过
+                    }
+                }
+                continue;
+            }
+            Err(_) => {
+                // 其他解码错误，重试后放弃
+                consecutive_read_failures += 1;
+                if consecutive_read_failures <= NETWORK_READ_RETRIES {
+                    std::thread::sleep(std::time::Duration::from_millis(
+                        NETWORK_RETRY_DELAY_MS,
+                    ));
+                    continue;
+                }
+                return;
+            }
+        }
+    }
+}
+
+/// 对解码帧进行重采样，分别输出播放数据和 FFT 数据
+fn resample_frame(
+    data: &mut DecoderData,
+    decoded: &mut ffmpeg::frame::Audio,
+    player_buf: &mut Vec<f32>,
+    fft_buf: &mut Vec<f32>,
+) {
+    // 播放重采样
+    if let Some(ref mut resampler) = data.resampler {
+        if let Some(frame) = try_resample(resampler, decoded) {
+            interleave_planar_frame(player_buf, &frame, frame.samples());
+        }
+    } else {
+        interleave_planar_frame(player_buf, decoded, decoded.samples());
+    }
+
+    // FFT 重采样（单声道）
+    if let Some(ref mut resampler) = data.fft_resampler {
+        if let Some(frame) = try_resample(resampler, decoded) {
+            let samples = frame.samples();
+            if samples > 0 {
+                fft_buf.extend_from_slice(&frame.plane::<f32>(0)[..samples]);
+            }
+        }
+    } else {
+        let samples = decoded.samples();
+        if samples > 0 {
+            fft_buf.extend_from_slice(&decoded.plane::<f32>(0)[..samples]);
+        }
+    }
+}
+
+/// 执行重采样，为每次调用创建正确尺寸的输出帧
+fn try_resample(
+    resampler: &mut ffmpeg::software::resampling::Context,
+    decoded: &ffmpeg::frame::Audio,
+) -> Option<ffmpeg::frame::Audio> {
+    let output_samples =
+        (decoded.samples() as f64 * resampler.output().rate as f64 / decoded.rate() as f64).ceil()
+            as usize;
+
+    let mut output_frame = ffmpeg::frame::Audio::new(
+        resampler.output().format,
+        output_samples,
+        resampler.output().channel_layout,
+    );
+
+    if resampler.run(decoded, &mut output_frame).is_ok() {
+        Some(output_frame)
+    } else {
+        None
+    }
+}
+
+/// 将平面格式（L L L... R R R...）转为交错格式（L R L R ...）
+fn interleave_planar_frame(
+    sample_buffer: &mut Vec<f32>,
+    frame: &ffmpeg::frame::Audio,
+    samples_written: usize,
+) {
+    if samples_written == 0 {
+        return;
+    }
+    let left_plane = &frame.plane::<f32>(0)[..samples_written];
+
+    if frame.channels() >= 2 {
+        let right_plane = &frame.plane::<f32>(1)[..samples_written];
+        let interleaved = left_plane
+            .iter()
+            .zip(right_plane.iter())
+            .flat_map(|(&l, &r)| [l, r]);
+        sample_buffer.extend(interleaved);
+    } else {
+        sample_buffer.extend(left_plane.iter().copied());
+    }
 }

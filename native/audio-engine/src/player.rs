@@ -1,28 +1,30 @@
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
-use parking_lot::Mutex;
 use rodio::{OutputStream, OutputStreamHandle, Sink, Source};
 
-use crate::decoder::{self, AudioChunk, AudioMetadata, SharedBuffer};
+use crate::decoder::{self, AudioMetadata, Shared};
 use crate::fft::FftAnalyzer;
 
-/// A rodio::Source implementation that reads from the SharedBuffer
+/// rodio 音频源，从共享缓冲区拉取样本。
+/// 使用 condvar 阻塞等待数据，不会返回静音填充。
 struct DecoderSource {
-    buffer: Arc<SharedBuffer>,
-    current_chunk: Vec<f32>,
-    cursor: usize,
+    shared: Arc<Shared>,
+    fft: Arc<FftAnalyzer>,
+    /// 本地缓冲，减少锁竞争
+    local_buffer: VecDeque<f32>,
     sample_rate: u32,
     channels: u16,
 }
 
 impl DecoderSource {
-    fn new(buffer: Arc<SharedBuffer>, sample_rate: u32, channels: u16) -> Self {
+    fn new(shared: Arc<Shared>, fft: Arc<FftAnalyzer>, sample_rate: u32, channels: u16) -> Self {
         Self {
-            buffer,
-            current_chunk: Vec::new(),
-            cursor: 0,
+            shared,
+            fft,
+            local_buffer: VecDeque::new(),
             sample_rate,
             channels,
         }
@@ -33,27 +35,26 @@ impl Iterator for DecoderSource {
     type Item = f32;
 
     fn next(&mut self) -> Option<f32> {
-        // If we still have samples in current chunk, return one
-        if self.cursor < self.current_chunk.len() {
-            let sample = self.current_chunk[self.cursor];
-            self.cursor += 1;
+        // 快速路径：从本地缓冲返回
+        if let Some(sample) = self.local_buffer.pop_front() {
             return Some(sample);
         }
 
-        // Try to get the next chunk from the buffer
-        match self.buffer.try_pop() {
-            Some(chunk) => {
-                self.current_chunk = chunk.samples;
-                self.cursor = 1;
-                self.current_chunk.first().copied()
+        // 慢速路径：从共享缓冲区阻塞获取，跳过空数据块
+        loop {
+            let chunk = self.shared.pop()?;
+
+            // 将 FFT 样本推送给分析器
+            if !chunk.fft_samples.is_empty() {
+                self.fft.push_samples(&chunk.fft_samples);
             }
-            None => {
-                if self.buffer.is_done() {
-                    None // Stream finished
-                } else {
-                    Some(0.0) // Buffer underrun — output silence
-                }
+
+            // 填充本地缓冲
+            if !chunk.player_samples.is_empty() {
+                self.local_buffer.extend(chunk.player_samples);
+                return self.local_buffer.pop_front();
             }
+            // 空数据块（重采样器预热期），继续获取下一个
         }
     }
 }
@@ -76,7 +77,7 @@ impl Source for DecoderSource {
     }
 }
 
-/// Player state
+/// 播放状态
 #[derive(Clone, Copy, PartialEq)]
 pub enum PlayerState {
     Idle,
@@ -85,26 +86,20 @@ pub enum PlayerState {
     Stopped,
 }
 
-/// Inner player that manages audio output, decoding, and state
+/// 内部播放器，管理音频输出、解码和状态
 pub struct InnerPlayer {
-    /// rodio OutputStream — must be kept alive for audio output
     _stream: OutputStream,
-    /// Handle used to create sinks
     stream_handle: OutputStreamHandle,
-    /// Current audio sink
     sink: Option<Sink>,
-    /// Shared buffer between decoder and playback
-    buffer: Option<Arc<SharedBuffer>>,
-    /// FFT analyzer
-    fft: FftAnalyzer,
-    /// Current metadata
+    shared: Option<Arc<Shared>>,
+    fft: Arc<FftAnalyzer>,
     metadata: Option<AudioMetadata>,
-    /// Playback state
     state: PlayerState,
-    /// Position tracking
+    /// 播放位置基准（秒）
     position_base: f64,
+    /// 播放起始时刻（用于计算实时位置）
     play_start: Option<Instant>,
-    /// Current source path/URL (for seek/reload)
+    /// 当前音频源路径/地址
     current_source: Option<String>,
 }
 
@@ -117,8 +112,8 @@ impl InnerPlayer {
             _stream: stream,
             stream_handle,
             sink: None,
-            buffer: None,
-            fft: FftAnalyzer::new(decoder::FFT_SAMPLE_RATE),
+            shared: None,
+            fft: Arc::new(FftAnalyzer::new(decoder::FFT_SAMPLE_RATE)),
             metadata: None,
             state: PlayerState::Idle,
             position_base: 0.0,
@@ -127,25 +122,19 @@ impl InnerPlayer {
         })
     }
 
-    /// Load and start playing an audio source (file path or URL)
+    /// 加载并播放音频源（本地路径或网络地址）
     pub fn load(&mut self, source: &str) -> Result<AudioMetadata> {
-        // Stop current playback
         self.stop_internal();
-
-        // Reset FFT
         self.fft.reset();
 
-        // Start decoding
-        let fft_buffer = Some(self.fft.buffer());
-        let (buffer, metadata) = decoder::start_decode(source, fft_buffer)?;
+        let shared = Shared::new();
+        let metadata = decoder::start_decode(source, Arc::clone(&shared))?;
 
-        // Create a new sink
-        let sink = Sink::try_new(&self.stream_handle)
-            .context("Failed to create audio sink")?;
+        let sink = Sink::try_new(&self.stream_handle).context("Failed to create audio sink")?;
 
-        // Create the source adapter
         let decoder_source = DecoderSource::new(
-            Arc::clone(&buffer),
+            Arc::clone(&shared),
+            Arc::clone(&self.fft),
             metadata.sample_rate,
             metadata.channels,
         );
@@ -153,7 +142,7 @@ impl InnerPlayer {
         sink.append(decoder_source);
 
         self.sink = Some(sink);
-        self.buffer = Some(buffer);
+        self.shared = Some(shared);
         self.metadata = Some(metadata.clone());
         self.state = PlayerState::Playing;
         self.position_base = 0.0;
@@ -163,20 +152,29 @@ impl InnerPlayer {
         Ok(metadata)
     }
 
-    /// Resume playback
-    pub fn play(&mut self) {
-        if let Some(ref sink) = self.sink {
-            sink.play();
-            self.play_start = Some(Instant::now());
-            self.state = PlayerState::Playing;
+    /// 恢复播放。如果已停止或播放结束，自动从头重新加载。
+    pub fn play(&mut self) -> Result<()> {
+        // 暂停状态：直接恢复
+        if self.state == PlayerState::Paused {
+            if let Some(ref sink) = self.sink {
+                sink.play();
+                self.play_start = Some(Instant::now());
+                self.state = PlayerState::Playing;
+                return Ok(());
+            }
         }
+
+        // 停止/结束状态：从头重新加载
+        if let Some(source) = self.current_source.clone() {
+            self.load(&source)?;
+        }
+        Ok(())
     }
 
-    /// Pause playback
+    /// 暂停播放
     pub fn pause(&mut self) {
         if let Some(ref sink) = self.sink {
             sink.pause();
-            // Accumulate played time into position_base
             if let Some(start) = self.play_start.take() {
                 self.position_base += start.elapsed().as_secs_f64();
             }
@@ -184,64 +182,55 @@ impl InnerPlayer {
         }
     }
 
-    /// Stop playback and release resources
+    /// 停止播放并释放资源
     pub fn stop(&mut self) {
         self.stop_internal();
         self.state = PlayerState::Stopped;
     }
 
     fn stop_internal(&mut self) {
-        // Abort the decoder buffer to unblock the decoder thread
-        if let Some(ref buffer) = self.buffer {
-            buffer.abort();
+        // 先通知解码线程停止
+        if let Some(ref shared) = self.shared {
+            shared.stop();
         }
-
-        // Drop the sink to stop playback
+        // 再释放 Sink（会 drop DecoderSource，解除迭代器阻塞）
         if let Some(sink) = self.sink.take() {
             sink.stop();
         }
-
-        self.buffer = None;
+        self.shared = None;
         self.play_start = None;
         self.position_base = 0.0;
     }
 
-    /// Seek to a position in seconds
+    /// 跳转到指定位置（秒）
     pub fn seek(&mut self, position_secs: f64) -> Result<()> {
-        let source = self
-            .current_source
-            .clone()
-            .context("No source loaded")?;
+        let source = self.current_source.clone().context("No source loaded")?;
 
-        // Stop current playback
-        if let Some(ref buffer) = self.buffer {
-            buffer.abort();
+        // 停止当前播放
+        if let Some(ref shared) = self.shared {
+            shared.stop();
         }
         if let Some(sink) = self.sink.take() {
             sink.stop();
         }
 
-        // Reset FFT
         self.fft.reset();
 
-        // Restart decode from new position
-        let fft_buffer = Some(self.fft.buffer());
-        let buffer = SharedBuffer::new(64);
-        let buffer_clone = Arc::clone(&buffer);
+        // 创建新的共享状态用于 seek 后的解码
+        let shared = Shared::new();
+        let shared_clone = Arc::clone(&shared);
 
-        let source_clone = source.clone();
-        let fft_buf = fft_buffer.clone();
+        let source_clone = source;
         std::thread::spawn(move || {
-            let _ = decoder::seek_decode(&source_clone, position_secs, &buffer_clone, fft_buf);
+            let _ = decoder::seek_decode(&source_clone, position_secs, &shared_clone);
         });
 
-        // Create new sink
-        let sink = Sink::try_new(&self.stream_handle)
-            .context("Failed to create audio sink")?;
+        let sink = Sink::try_new(&self.stream_handle).context("Failed to create audio sink")?;
 
-        let metadata = self.metadata.as_ref().unwrap();
+        let metadata = self.metadata.as_ref().context("No metadata available")?;
         let decoder_source = DecoderSource::new(
-            Arc::clone(&buffer),
+            Arc::clone(&shared),
+            Arc::clone(&self.fft),
             metadata.sample_rate,
             metadata.channels,
         );
@@ -249,7 +238,7 @@ impl InnerPlayer {
         sink.append(decoder_source);
 
         self.sink = Some(sink);
-        self.buffer = Some(buffer);
+        self.shared = Some(shared);
         self.position_base = position_secs;
         self.play_start = Some(Instant::now());
         self.state = PlayerState::Playing;
@@ -257,19 +246,19 @@ impl InnerPlayer {
         Ok(())
     }
 
-    /// Set volume (0.0 to 1.0)
+    /// 设置音量（0.0 ~ 1.0）
     pub fn set_volume(&mut self, volume: f32) {
         if let Some(ref sink) = self.sink {
             sink.set_volume(volume);
         }
     }
 
-    /// Get current volume
+    /// 获取当前音量
     pub fn volume(&self) -> f32 {
         self.sink.as_ref().map(|s| s.volume()).unwrap_or(1.0)
     }
 
-    /// Get current playback position in seconds
+    /// 获取当前播放位置（秒）
     pub fn position(&self) -> f64 {
         match (self.state, self.play_start) {
             (PlayerState::Playing, Some(start)) => {
@@ -279,7 +268,7 @@ impl InnerPlayer {
         }
     }
 
-    /// Get duration in seconds
+    /// 获取总时长（秒）
     pub fn duration(&self) -> f64 {
         self.metadata
             .as_ref()
@@ -287,28 +276,21 @@ impl InnerPlayer {
             .unwrap_or(0.0)
     }
 
-    /// Get current player state
+    /// 获取当前播放状态
     pub fn state(&self) -> PlayerState {
         self.state
     }
 
-    /// Get current metadata
-    pub fn metadata(&self) -> Option<&AudioMetadata> {
-        self.metadata.as_ref()
-    }
-
-    /// Get FFT spectrum data (128 frequency bins)
+    /// 获取 FFT 频谱数据（128 个频段）
     pub fn fft_data(&self) -> Vec<f32> {
         self.fft.analyze()
     }
 
-    /// Check if playback has reached the end
+    /// 检查播放是否已结束
     pub fn is_finished(&self) -> bool {
-        if let Some(ref buffer) = self.buffer {
-            if let Some(ref sink) = self.sink {
-                return buffer.is_done() && sink.empty();
-            }
+        match (&self.shared, &self.sink) {
+            (Some(shared), Some(sink)) => shared.is_done() && sink.empty(),
+            _ => false,
         }
-        false
     }
 }

@@ -45,15 +45,15 @@ applemusic-like-lyrics/
 
 **技术栈**：
 
-| 层 | 技术 |
-|----|------|
-| 桌面框架 | Tauri 2.0（Rust + WebView） |
-| 前端 | React + TypeScript + Jotai 状态管理 |
-| 音频解码 | FFmpeg（通过 ffmpeg-next） |
-| 音频输出 | rodio + cpal |
-| 歌词解析 | Rust → WASM（nom + quick-xml） |
-| 歌词渲染 | 自研弹簧物理引擎（DOM/Canvas） |
-| 构建 | Vite + Cargo |
+| 层       | 技术                                |
+| -------- | ----------------------------------- |
+| 桌面框架 | Tauri 2.0（Rust + WebView）         |
+| 前端     | React + TypeScript + Jotai 状态管理 |
+| 音频解码 | FFmpeg（通过 ffmpeg-next）          |
+| 音频输出 | rodio + cpal                        |
+| 歌词解析 | Rust → WASM（nom + quick-xml）      |
+| 歌词渲染 | 自研弹簧物理引擎（DOM/Canvas）      |
+| 构建     | Vite + Cargo                        |
 
 ---
 
@@ -239,9 +239,9 @@ let file_path = match song_data {
 
 原项目存在**两套输出方案**：
 
-| 方案 | 使用场景 | 实现方式 |
-|------|---------|---------|
-| **rodio Sink** | 当前主流程 | `Sink::connect_new()` → `sink.append(source)` |
+| 方案              | 使用场景    | 实现方式                                              |
+| ----------------- | ----------- | ----------------------------------------------------- |
+| **rodio Sink**    | 当前主流程  | `Sink::connect_new()` → `sink.append(source)`         |
 | **cpal 直接输出** | 备用/旧方案 | `cpal::Device::build_output_stream()` + SPSC 环形缓冲 |
 
 **rodio 方案**（当前使用）：
@@ -256,6 +256,7 @@ self.sink.append(source);  // source = FFmpegDecoder (实现了 Source trait)
 Sink 内部会在自己的线程中不断调用 `source.next()` 拉取采样，写入 `OutputStream`。
 
 **cpal 备用方案**的特点：
+
 - SPSC 环形缓冲 (`rb::SpscRb`) 做无锁传输
 - 音量控制在回调中做帧级平滑渐变（避免爆音/咔哒声）
 - 自动检测默认输出设备变化（每秒轮询）
@@ -329,11 +330,11 @@ fft_player.push_samples(&chunk.fft_samples)
 
 ### 2.7 平台媒体控制
 
-| 平台 | 实现 | 功能 |
-|------|------|------|
-| Windows | `windows` crate (SMTC) | 任务栏/锁屏控件 |
-| macOS | `objc2-media-player` (MPNowPlayingInfoCenter) | 控制中心/Touch Bar |
-| Linux | `mpris-server` (D-Bus MPRIS) | 桌面媒体控件 |
+| 平台    | 实现                                          | 功能               |
+| ------- | --------------------------------------------- | ------------------ |
+| Windows | `windows` crate (SMTC)                        | 任务栏/锁屏控件    |
+| macOS   | `objc2-media-player` (MPNowPlayingInfoCenter) | 控制中心/Touch Bar |
+| Linux   | `mpris-server` (D-Bus MPRIS)                  | 桌面媒体控件       |
 
 同步的信息：标题、艺术家、时长、当前位置、封面、播放状态。
 
@@ -354,15 +355,15 @@ ffmpeg-sys-next = { git = "https://github.com/apoint123/rust-ffmpeg-sys" }
 
 **已启用 vs 已禁用**：
 
-| FFmpeg 库 | Feature | 状态 | 作用 |
-|-----------|---------|------|------|
-| libavcodec | `codec` | 启用 | 编解码器（音频 + 视频） |
-| libavformat | `format` | 启用 | 容器解封装 |
-| libswresample | `software-resampling` | 启用 | 音频重采样 |
-| libswscale | `software-scaling` | **禁用** | 视频图像缩放 |
-| libavfilter | `filtering` | **禁用** | 音视频滤镜 |
-| libavdevice | `device` | **禁用** | 设备采集 |
-| libpostproc | `postprocessing` | **禁用** | 视频后处理 |
+| FFmpeg 库     | Feature               | 状态     | 作用                    |
+| ------------- | --------------------- | -------- | ----------------------- |
+| libavcodec    | `codec`               | 启用     | 编解码器（音频 + 视频） |
+| libavformat   | `format`              | 启用     | 容器解封装              |
+| libswresample | `software-resampling` | 启用     | 音频重采样              |
+| libswscale    | `software-scaling`    | **禁用** | 视频图像缩放            |
+| libavfilter   | `filtering`           | **禁用** | 音视频滤镜              |
+| libavdevice   | `device`              | **禁用** | 设备采集                |
+| libpostproc   | `postprocessing`      | **禁用** | 视频后处理              |
 
 > `codec` feature 是粗粒度的，同时包含音频和视频编解码器。ffmpeg-next 的 feature 不支持单独禁用视频 codec，需要在编译 FFmpeg C 源码时用 `--disable-decoder=h264,hevc,...` 处理。
 
@@ -395,16 +396,16 @@ Rust 编译为 WASM，通过 `wasm-bindgen` 暴露给前端。
 
 **支持的格式**：
 
-| 格式 | 文件 | 解析库 | 说明 |
-|------|------|--------|------|
-| LRC | `lrc.rs` | nom | 标准时间标签格式 `[mm:ss.ms]text` |
-| TTML | `ttml/` | quick-xml + nom | Apple Music 格式，逐字时间 |
-| YRC | `yrc.rs` | nom | 网易云格式，base64 编码 |
-| QRC | `qrc.rs` | nom | QQ 音乐格式，加密 |
-| EQRC | `eqrc/` | nom | QRC 加密变体 |
-| LYS | `lys.rs` | nom | 荔枝 FM 格式 |
-| ESLRC | `eslrc.rs` | nom | 扩展简单歌词 |
-| ASS | `ass.rs` | nom | Advanced SubStation Alpha 字幕 |
+| 格式  | 文件       | 解析库          | 说明                              |
+| ----- | ---------- | --------------- | --------------------------------- |
+| LRC   | `lrc.rs`   | nom             | 标准时间标签格式 `[mm:ss.ms]text` |
+| TTML  | `ttml/`    | quick-xml + nom | Apple Music 格式，逐字时间        |
+| YRC   | `yrc.rs`   | nom             | 网易云格式，base64 编码           |
+| QRC   | `qrc.rs`   | nom             | QQ 音乐格式，加密                 |
+| EQRC  | `eqrc/`    | nom             | QRC 加密变体                      |
+| LYS   | `lys.rs`   | nom             | 荔枝 FM 格式                      |
+| ESLRC | `eslrc.rs` | nom             | 扩展简单歌词                      |
+| ASS   | `ass.rs`   | nom             | Advanced SubStation Alpha 字幕    |
 
 **统一数据结构**：
 
@@ -482,12 +483,12 @@ readLocalMusicMetadata(filePath)
 
 ```typescript
 enum LoadResult {
-    Loadable,              // 可加载
-    Disabled,              // .js.disabled 后缀
-    MissingMetadata,       // 缺少 id/version/icon
-    InvaildExtensionFile,  // 非 .js 文件
-    MissingDependency,     // 依赖缺失
-    ExtensionIdConflict,   // ID 冲突
+  Loadable, // 可加载
+  Disabled, // .js.disabled 后缀
+  MissingMetadata, // 缺少 id/version/icon
+  InvaildExtensionFile, // 非 .js 文件
+  MissingDependency, // 依赖缺失
+  ExtensionIdConflict, // ID 冲突
 }
 ```
 
@@ -501,10 +502,10 @@ enum LoadResult {
 
 **协议版本**：
 
-| 版本 | 格式 | 说明 |
-|------|------|------|
-| v1 | 二进制 | 旧版兼容 |
-| v2 | JSON + 可选二进制 | 当前主版本 |
+| 版本 | 格式              | 说明       |
+| ---- | ----------------- | ---------- |
+| v1   | 二进制            | 旧版兼容   |
+| v2   | JSON + 可选二进制 | 当前主版本 |
 
 **v2 消息结构**：
 
@@ -537,6 +538,7 @@ enum StateUpdate {
 ```
 
 **Tauri 侧服务器**（`packages/player/src-tauri/src/server.rs`）：
+
 - 多客户端支持 (`HashMap<SocketAddr, ConnectionInfo>`)
 - 首条消息自动检测 v1/v2 协议
 - 双格式广播（v1 客户端收二进制，v2 客户端收 JSON）
@@ -547,18 +549,18 @@ enum StateUpdate {
 
 ### 6.1 方案对比
 
-| | 方案 A: napi-rs + FFmpeg | 方案 B: Web Audio API | 方案 C: napi-rs + Symphonia |
-|--|------------------------|----------------------|---------------------------|
-| **格式支持** | 全部（APE/WMA/DSD/TTA/...） | MP3/AAC/FLAC/OGG/WAV | MP3/AAC/FLAC/OGG/WAV/ALAC |
-| **网络流** | FFmpeg 原生支持 | 浏览器原生支持 | 需自定义 MediaSource |
-| **内存占用** | ~15-25 MB | **~3-8 MB** | **~3-7 MB** |
-| **CPU 占用** | 低（原生解码） | **最低**（复用 Chromium） | 低（原生解码） |
-| **动态库依赖** | FFmpeg .dll/.so 或静态链接 | **无** | **无** |
-| **编译复杂度** | 高（C 交叉编译） | **无需编译** | **低**（纯 cargo build） |
-| **二进制体积** | +8-15 MB（精简后） | **0** | **+2-4 MB** |
-| **FFT 频谱** | 自行实现 | AnalyserNode 内置 | 自行实现 |
-| **Seek** | FFmpeg seek | currentTime 赋值 | 自定义 MediaSource seek |
-| **Gapless 播放** | 可实现 | 需要 AudioWorklet | 可实现 |
+|                  | 方案 A: napi-rs + FFmpeg    | 方案 B: Web Audio API     | 方案 C: napi-rs + Symphonia |
+| ---------------- | --------------------------- | ------------------------- | --------------------------- |
+| **格式支持**     | 全部（APE/WMA/DSD/TTA/...） | MP3/AAC/FLAC/OGG/WAV      | MP3/AAC/FLAC/OGG/WAV/ALAC   |
+| **网络流**       | FFmpeg 原生支持             | 浏览器原生支持            | 需自定义 MediaSource        |
+| **内存占用**     | ~15-25 MB                   | **~3-8 MB**               | **~3-7 MB**                 |
+| **CPU 占用**     | 低（原生解码）              | **最低**（复用 Chromium） | 低（原生解码）              |
+| **动态库依赖**   | FFmpeg .dll/.so 或静态链接  | **无**                    | **无**                      |
+| **编译复杂度**   | 高（C 交叉编译）            | **无需编译**              | **低**（纯 cargo build）    |
+| **二进制体积**   | +8-15 MB（精简后）          | **0**                     | **+2-4 MB**                 |
+| **FFT 频谱**     | 自行实现                    | AnalyserNode 内置         | 自行实现                    |
+| **Seek**         | FFmpeg seek                 | currentTime 赋值          | 自定义 MediaSource seek     |
+| **Gapless 播放** | 可实现                      | 需要 AudioWorklet         | 可实现                      |
 
 ### 6.2 方案 A：napi-rs + FFmpeg（全格式）
 
@@ -1116,77 +1118,85 @@ impl InnerPlayer {
 #### Electron 主进程桥接 (main/player.ts)
 
 ```typescript
-import { ipcMain, BrowserWindow } from 'electron'
-import { AudioPlayer } from 'player-native'
+import { ipcMain, BrowserWindow } from "electron";
+import { AudioPlayer } from "player-native";
 
-let player: AudioPlayer | null = null
+let player: AudioPlayer | null = null;
 
 export function setupPlayer(win: BrowserWindow) {
-  player = new AudioPlayer()
+  player = new AudioPlayer();
 
   player.onEvent((event) => {
-    win.webContents.send('player:event', event)
-  })
+    win.webContents.send("player:event", event);
+  });
 
   // 60fps 位置更新
   setInterval(() => {
     if (player?.isPlaying()) {
-      win.webContents.send('player:event', {
-        eventType: 'position',
+      win.webContents.send("player:event", {
+        eventType: "position",
         position: player.getPosition(),
         duration: player.getDuration(),
-      })
+      });
     }
-  }, 16)
+  }, 16);
 
-  ipcMain.handle('player:load', (_, url: string) => player!.load(url))
-  ipcMain.handle('player:play', () => player!.play())
-  ipcMain.handle('player:pause', () => player!.pause())
-  ipcMain.handle('player:stop', () => player!.stop())
-  ipcMain.handle('player:seek', (_, pos: number) => player!.seek(pos))
-  ipcMain.handle('player:setVolume', (_, vol: number) => player!.setVolume(vol))
-  ipcMain.handle('player:getMetadata', () => player!.getMetadata())
-  ipcMain.handle('player:getFft', (_, size: number) => player!.getFftData(size))
+  ipcMain.handle("player:load", (_, url: string) => player!.load(url));
+  ipcMain.handle("player:play", () => player!.play());
+  ipcMain.handle("player:pause", () => player!.pause());
+  ipcMain.handle("player:stop", () => player!.stop());
+  ipcMain.handle("player:seek", (_, pos: number) => player!.seek(pos));
+  ipcMain.handle("player:setVolume", (_, vol: number) => player!.setVolume(vol));
+  ipcMain.handle("player:getMetadata", () => player!.getMetadata());
+  ipcMain.handle("player:getFft", (_, size: number) => player!.getFftData(size));
 }
 ```
 
 #### 渲染进程 Vue Composable (renderer/composables/usePlayer.ts)
 
 ```typescript
-import { ref, onUnmounted } from 'vue'
-const { ipcRenderer } = window.require('electron')
+import { ref, onUnmounted } from "vue";
+const { ipcRenderer } = window.require("electron");
 
 export function usePlayer() {
-  const position = ref(0)
-  const duration = ref(0)
-  const playing = ref(false)
+  const position = ref(0);
+  const duration = ref(0);
+  const playing = ref(false);
 
   const handler = (_: any, event: any) => {
     switch (event.eventType) {
-      case 'position':
-        position.value = event.position
-        duration.value = event.duration
-        break
-      case 'loaded':
-        duration.value = event.duration
-        break
-      case 'ended':
-        playing.value = false
-        break
+      case "position":
+        position.value = event.position;
+        duration.value = event.duration;
+        break;
+      case "loaded":
+        duration.value = event.duration;
+        break;
+      case "ended":
+        playing.value = false;
+        break;
     }
-  }
+  };
 
-  ipcRenderer.on('player:event', handler)
-  onUnmounted(() => ipcRenderer.removeListener('player:event', handler))
+  ipcRenderer.on("player:event", handler);
+  onUnmounted(() => ipcRenderer.removeListener("player:event", handler));
 
   return {
-    position, duration, playing,
-    load: (url: string) => ipcRenderer.invoke('player:load', url),
-    play: async () => { await ipcRenderer.invoke('player:play'); playing.value = true },
-    pause: async () => { await ipcRenderer.invoke('player:pause'); playing.value = false },
-    seek: (pos: number) => ipcRenderer.invoke('player:seek', pos),
-    setVolume: (vol: number) => ipcRenderer.invoke('player:setVolume', vol),
-  }
+    position,
+    duration,
+    playing,
+    load: (url: string) => ipcRenderer.invoke("player:load", url),
+    play: async () => {
+      await ipcRenderer.invoke("player:play");
+      playing.value = true;
+    },
+    pause: async () => {
+      await ipcRenderer.invoke("player:pause");
+      playing.value = false;
+    },
+    seek: (pos: number) => ipcRenderer.invoke("player:seek", pos),
+    setVolume: (vol: number) => ipcRenderer.invoke("player:setVolume", vol),
+  };
 }
 ```
 
@@ -1200,74 +1210,74 @@ export function usePlayer() {
 // renderer/player/StreamPlayer.ts
 
 export class StreamPlayer {
-  private audio: HTMLAudioElement
-  private ctx: AudioContext
-  private analyser: AnalyserNode
-  private gainNode: GainNode
-  private source: MediaElementAudioSourceNode
-  private animationId: number | null = null
+  private audio: HTMLAudioElement;
+  private ctx: AudioContext;
+  private analyser: AnalyserNode;
+  private gainNode: GainNode;
+  private source: MediaElementAudioSourceNode;
+  private animationId: number | null = null;
 
   // 回调
-  onPosition?: (position: number, duration: number) => void
-  onEnded?: () => void
-  onError?: (error: string) => void
-  onLoaded?: (duration: number) => void
+  onPosition?: (position: number, duration: number) => void;
+  onEnded?: () => void;
+  onError?: (error: string) => void;
+  onLoaded?: (duration: number) => void;
 
   constructor() {
-    this.audio = new Audio()
-    this.audio.crossOrigin = 'anonymous'
-    this.audio.preload = 'auto'
+    this.audio = new Audio();
+    this.audio.crossOrigin = "anonymous";
+    this.audio.preload = "auto";
 
-    this.ctx = new AudioContext()
+    this.ctx = new AudioContext();
 
     // Web Audio 图
-    this.source = this.ctx.createMediaElementSource(this.audio)
-    this.analyser = this.ctx.createAnalyser()
-    this.analyser.fftSize = 2048
-    this.gainNode = this.ctx.createGain()
+    this.source = this.ctx.createMediaElementSource(this.audio);
+    this.analyser = this.ctx.createAnalyser();
+    this.analyser.fftSize = 2048;
+    this.gainNode = this.ctx.createGain();
 
-    this.source.connect(this.analyser)
-    this.analyser.connect(this.gainNode)
-    this.gainNode.connect(this.ctx.destination)
+    this.source.connect(this.analyser);
+    this.analyser.connect(this.gainNode);
+    this.gainNode.connect(this.ctx.destination);
 
     // 事件绑定
-    this.audio.addEventListener('loadedmetadata', () => {
-      this.onLoaded?.(this.audio.duration)
-    })
-    this.audio.addEventListener('ended', () => {
-      this.stopPositionLoop()
-      this.onEnded?.()
-    })
-    this.audio.addEventListener('error', (e) => {
-      this.onError?.(this.audio.error?.message || 'Unknown error')
-    })
+    this.audio.addEventListener("loadedmetadata", () => {
+      this.onLoaded?.(this.audio.duration);
+    });
+    this.audio.addEventListener("ended", () => {
+      this.stopPositionLoop();
+      this.onEnded?.();
+    });
+    this.audio.addEventListener("error", (e) => {
+      this.onError?.(this.audio.error?.message || "Unknown error");
+    });
   }
 
   load(url: string) {
-    this.audio.src = url
-    this.audio.load()
+    this.audio.src = url;
+    this.audio.load();
   }
 
   async play() {
-    if (this.ctx.state === 'suspended') await this.ctx.resume()
-    await this.audio.play()
-    this.startPositionLoop()
+    if (this.ctx.state === "suspended") await this.ctx.resume();
+    await this.audio.play();
+    this.startPositionLoop();
   }
 
   pause() {
-    this.audio.pause()
-    this.stopPositionLoop()
+    this.audio.pause();
+    this.stopPositionLoop();
   }
 
   stop() {
-    this.audio.pause()
-    this.audio.currentTime = 0
-    this.audio.removeAttribute('src')
-    this.stopPositionLoop()
+    this.audio.pause();
+    this.audio.currentTime = 0;
+    this.audio.removeAttribute("src");
+    this.stopPositionLoop();
   }
 
   seek(time: number) {
-    this.audio.currentTime = time
+    this.audio.currentTime = time;
   }
 
   setVolume(volume: number) {
@@ -1275,65 +1285,71 @@ export class StreamPlayer {
     this.gainNode.gain.setTargetAtTime(
       Math.max(0, Math.min(1, volume)),
       this.ctx.currentTime,
-      0.015  // 15ms 平滑过渡，避免爆音
-    )
+      0.015, // 15ms 平滑过渡，避免爆音
+    );
   }
 
-  get position(): number { return this.audio.currentTime }
-  get duration(): number { return this.audio.duration || 0 }
-  get isPlaying(): boolean { return !this.audio.paused }
+  get position(): number {
+    return this.audio.currentTime;
+  }
+  get duration(): number {
+    return this.audio.duration || 0;
+  }
+  get isPlaying(): boolean {
+    return !this.audio.paused;
+  }
 
   // 获取 FFT 频谱数据
   getFrequencyData(size?: number): Float32Array {
-    const data = new Float32Array(this.analyser.frequencyBinCount)
-    this.analyser.getFloatFrequencyData(data) // dB 值, 范围 -100 ~ 0
+    const data = new Float32Array(this.analyser.frequencyBinCount);
+    this.analyser.getFloatFrequencyData(data); // dB 值, 范围 -100 ~ 0
     if (size && size < data.length) {
       // 降采样到指定大小
-      const result = new Float32Array(size)
-      const step = data.length / size
+      const result = new Float32Array(size);
+      const step = data.length / size;
       for (let i = 0; i < size; i++) {
-        result[i] = data[Math.floor(i * step)]
+        result[i] = data[Math.floor(i * step)];
       }
-      return result
+      return result;
     }
-    return data
+    return data;
   }
 
   // 获取时域波形数据
   getTimeDomainData(): Float32Array {
-    const data = new Float32Array(this.analyser.frequencyBinCount)
-    this.analyser.getFloatTimeDomainData(data)
-    return data
+    const data = new Float32Array(this.analyser.frequencyBinCount);
+    this.analyser.getFloatTimeDomainData(data);
+    return data;
   }
 
   // 获取缓冲进度 (0-1)
   getBufferedProgress(): number {
     if (this.audio.buffered.length > 0) {
-      return this.audio.buffered.end(this.audio.buffered.length - 1) / this.duration
+      return this.audio.buffered.end(this.audio.buffered.length - 1) / this.duration;
     }
-    return 0
+    return 0;
   }
 
   private startPositionLoop() {
     const tick = () => {
-      this.onPosition?.(this.audio.currentTime, this.audio.duration || 0)
-      this.animationId = requestAnimationFrame(tick)
-    }
-    this.animationId = requestAnimationFrame(tick)
+      this.onPosition?.(this.audio.currentTime, this.audio.duration || 0);
+      this.animationId = requestAnimationFrame(tick);
+    };
+    this.animationId = requestAnimationFrame(tick);
   }
 
   private stopPositionLoop() {
     if (this.animationId !== null) {
-      cancelAnimationFrame(this.animationId)
-      this.animationId = null
+      cancelAnimationFrame(this.animationId);
+      this.animationId = null;
     }
   }
 
   destroy() {
-    this.stopPositionLoop()
-    this.audio.pause()
-    this.audio.removeAttribute('src')
-    this.ctx.close()
+    this.stopPositionLoop();
+    this.audio.pause();
+    this.audio.removeAttribute("src");
+    this.ctx.close();
   }
 }
 ```
@@ -1342,42 +1358,59 @@ export class StreamPlayer {
 
 ```typescript
 // renderer/composables/useWebPlayer.ts
-import { ref, onUnmounted } from 'vue'
-import { StreamPlayer } from '../player/StreamPlayer'
+import { ref, onUnmounted } from "vue";
+import { StreamPlayer } from "../player/StreamPlayer";
 
 export function usePlayer() {
-  const position = ref(0)
-  const duration = ref(0)
-  const playing = ref(false)
-  const buffered = ref(0)
-  const fftData = ref<Float32Array>(new Float32Array(0))
+  const position = ref(0);
+  const duration = ref(0);
+  const playing = ref(false);
+  const buffered = ref(0);
+  const fftData = ref<Float32Array>(new Float32Array(0));
 
-  const player = new StreamPlayer()
+  const player = new StreamPlayer();
 
   player.onPosition = (pos, dur) => {
-    position.value = pos
-    duration.value = dur
-    buffered.value = player.getBufferedProgress()
-  }
-  player.onLoaded = (dur) => { duration.value = dur }
-  player.onEnded = () => { playing.value = false }
+    position.value = pos;
+    duration.value = dur;
+    buffered.value = player.getBufferedProgress();
+  };
+  player.onLoaded = (dur) => {
+    duration.value = dur;
+  };
+  player.onEnded = () => {
+    playing.value = false;
+  };
 
-  onUnmounted(() => player.destroy())
+  onUnmounted(() => player.destroy());
 
   return {
-    position, duration, playing, buffered, fftData,
+    position,
+    duration,
+    playing,
+    buffered,
+    fftData,
 
     load: (url: string) => player.load(url),
-    play: async () => { await player.play(); playing.value = true },
-    pause: () => { player.pause(); playing.value = false },
-    stop: () => { player.stop(); playing.value = false },
+    play: async () => {
+      await player.play();
+      playing.value = true;
+    },
+    pause: () => {
+      player.pause();
+      playing.value = false;
+    },
+    stop: () => {
+      player.stop();
+      playing.value = false;
+    },
     seek: (pos: number) => player.seek(pos),
     setVolume: (vol: number) => player.setVolume(vol),
     getFft: (size = 128) => {
-      fftData.value = player.getFrequencyData(size)
-      return fftData.value
+      fftData.value = player.getFrequencyData(size);
+      return fftData.value;
     },
-  }
+  };
 }
 ```
 

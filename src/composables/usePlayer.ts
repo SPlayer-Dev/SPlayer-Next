@@ -1,13 +1,13 @@
-import { storeToRefs } from 'pinia'
-import { onMounted, onUnmounted } from 'vue'
-import { usePlayerStore } from '@/stores/player'
+import { storeToRefs } from "pinia";
+import { onMounted, onUnmounted } from "vue";
+import { usePlayerStore } from "@/stores/player";
 
 /**
  * Composable for audio player interaction.
  * Automatically initializes event listener on mount and cleans up on unmount.
  */
 export function usePlayer() {
-  const store = usePlayerStore()
+  const store = usePlayerStore();
 
   const {
     state,
@@ -20,16 +20,16 @@ export function usePlayer() {
     currentSource,
     isPlaying,
     isPaused,
-    progress
-  } = storeToRefs(store)
+    progress,
+  } = storeToRefs(store);
 
   onMounted(() => {
-    store.init()
-  })
+    store.init();
+  });
 
   onUnmounted(() => {
-    store.dispose()
-  })
+    store.dispose();
+  });
 
   return {
     // Reactive state
@@ -50,6 +50,6 @@ export function usePlayer() {
     pause: store.pause,
     stop: store.stop,
     seek: store.seek,
-    setVolume: store.setVolume
-  }
+    setVolume: store.setVolume,
+  };
 }

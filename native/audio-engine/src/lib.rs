@@ -1,37 +1,42 @@
-#[macro_use]
-extern crate napi_derive;
-
 mod decoder;
 mod fft;
 mod player;
 
-use napi::{Error, Result};
+use napi::bindgen_prelude::*;
+use napi_derive::napi;
 use parking_lot::Mutex;
 use player::{InnerPlayer, PlayerState};
 
-/// Audio metadata returned to JS
+/// 音频元数据，返回给 JS 侧
 #[napi(object)]
 pub struct JsAudioMetadata {
     pub title: Option<String>,
     pub artist: Option<String>,
     pub album: Option<String>,
+    /// 时长（秒）
     pub duration: f64,
+    /// 采样率
     pub sample_rate: u32,
+    /// 声道数
     pub channels: u32,
 }
 
-/// Player status returned to JS
+/// 播放器状态快照，返回给 JS 侧
 #[napi(object)]
 pub struct JsPlayerStatus {
-    /// "idle" | "playing" | "paused" | "stopped"
+    /// 播放状态："idle" | "playing" | "paused" | "stopped"
     pub state: String,
+    /// 当前播放位置（秒）
     pub position: f64,
+    /// 总时长（秒）
     pub duration: f64,
+    /// 音量（0.0 ~ 1.0）
     pub volume: f64,
+    /// 是否已播放完毕
     pub is_finished: bool,
 }
 
-/// The main AudioPlayer class exposed to Node.js via napi-rs
+/// 音频播放器，通过 napi-rs 暴露给 Node.js
 #[napi]
 pub struct AudioPlayer {
     inner: Mutex<InnerPlayer>,
@@ -39,7 +44,7 @@ pub struct AudioPlayer {
 
 #[napi]
 impl AudioPlayer {
-    /// Create a new AudioPlayer instance
+    /// 创建新的播放器实例
     #[napi(constructor)]
     pub fn new() -> Result<Self> {
         let inner = InnerPlayer::new().map_err(|e| Error::from_reason(e.to_string()))?;
@@ -48,8 +53,7 @@ impl AudioPlayer {
         })
     }
 
-    /// Load an audio source (file path or URL) and start playback.
-    /// Returns audio metadata.
+    /// 加载音频源（本地路径或网络地址）并开始播放，返回音频元数据
     #[napi]
     pub fn load(&self, source: String) -> Result<JsAudioMetadata> {
         let mut player = self.inner.lock();
@@ -67,25 +71,28 @@ impl AudioPlayer {
         })
     }
 
-    /// Resume playback
+    /// 恢复播放。如果已停止或播放结束，自动从头重新加载。
     #[napi]
-    pub fn play(&self) {
-        self.inner.lock().play();
+    pub fn play(&self) -> Result<()> {
+        self.inner
+            .lock()
+            .play()
+            .map_err(|e| Error::from_reason(e.to_string()))
     }
 
-    /// Pause playback
+    /// 暂停播放
     #[napi]
     pub fn pause(&self) {
         self.inner.lock().pause();
     }
 
-    /// Stop playback
+    /// 停止播放并释放资源
     #[napi]
     pub fn stop(&self) {
         self.inner.lock().stop();
     }
 
-    /// Seek to a position in seconds
+    /// 跳转到指定播放位置（秒）
     #[napi]
     pub fn seek(&self, position: f64) -> Result<()> {
         self.inner
@@ -94,31 +101,31 @@ impl AudioPlayer {
             .map_err(|e| Error::from_reason(e.to_string()))
     }
 
-    /// Set volume (0.0 to 1.0)
+    /// 设置音量（0.0 ~ 1.0）
     #[napi]
     pub fn set_volume(&self, volume: f64) {
         self.inner.lock().set_volume(volume as f32);
     }
 
-    /// Get current volume (0.0 to 1.0)
+    /// 获取当前音量（0.0 ~ 1.0）
     #[napi]
     pub fn get_volume(&self) -> f64 {
         self.inner.lock().volume() as f64
     }
 
-    /// Get current playback position in seconds
+    /// 获取当前播放位置（秒）
     #[napi]
     pub fn get_position(&self) -> f64 {
         self.inner.lock().position()
     }
 
-    /// Get duration in seconds
+    /// 获取总时长（秒）
     #[napi]
     pub fn get_duration(&self) -> f64 {
         self.inner.lock().duration()
     }
 
-    /// Get current player status
+    /// 获取当前播放状态快照
     #[napi]
     pub fn get_status(&self) -> JsPlayerStatus {
         let player = self.inner.lock();
@@ -136,7 +143,7 @@ impl AudioPlayer {
         }
     }
 
-    /// Get FFT frequency spectrum data (128 bins, values 0.0-1.0)
+    /// 获取 FFT 频谱数据（128 个频段，值域 0.0 ~ 1.0）
     #[napi]
     pub fn get_fft_data(&self) -> Vec<f64> {
         self.inner

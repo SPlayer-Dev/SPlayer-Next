@@ -1,129 +1,162 @@
-import { ipcMain, BrowserWindow } from 'electron'
-import { loadNativeModule } from '../utils/nativeLoader'
+import { ipcMain, BrowserWindow, dialog } from "electron";
+import { loadNativeModule } from "../utils/nativeLoader";
 
-type AudioEngineModule = typeof import('@splayer/audio-engine')
+type AudioEngineModule = typeof import("@splayer/audio-engine");
 
-let audioEngine: AudioEngineModule | null = null
-let player: InstanceType<AudioEngineModule['AudioPlayer']> | null = null
-let positionTimer: ReturnType<typeof setInterval> | null = null
+let audioEngine: AudioEngineModule | null = null;
+let player: InstanceType<AudioEngineModule["AudioPlayer"]> | null = null;
+let positionTimer: ReturnType<typeof setInterval> | null = null;
 
-function getEngine(): AudioEngineModule {
+/** 获取原生音频引擎模块（懒加载） */
+const getEngine = (): AudioEngineModule => {
   if (!audioEngine) {
-    audioEngine = loadNativeModule<AudioEngineModule>('audio-engine.node', 'audio-engine')
+    audioEngine = loadNativeModule<AudioEngineModule>("audio-engine.node", "audio-engine");
     if (!audioEngine) {
-      throw new Error('[Player] audio-engine 原生模块加载失败')
+      throw new Error("[Player] audio-engine 原生模块加载失败");
     }
   }
-  return audioEngine
-}
+  return audioEngine;
+};
 
-function getPlayer(): InstanceType<AudioEngineModule['AudioPlayer']> {
+/** 获取播放器实例（懒加载） */
+const getPlayer = (): InstanceType<AudioEngineModule["AudioPlayer"]> => {
   if (!player) {
-    const engine = getEngine()
-    player = new engine.AudioPlayer()
+    const engine = getEngine();
+    player = new engine.AudioPlayer();
   }
-  return player
-}
+  return player;
+};
 
-/** 向所有窗口推送事件 */
-function broadcast(channel: string, data: unknown): void {
+/** 向所有窗口广播事件 */
+const broadcast = (channel: string, data: unknown): void => {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) {
-      win.webContents.send(channel, data)
+      win.webContents.send(channel, data);
     }
   }
-}
+};
 
-/** 30fps 位置推送 */
-function startPositionPush(): void {
-  stopPositionPush()
+/** 启动 30fps 播放状态推送 */
+const startPositionPush = (): void => {
+  stopPositionPush();
   positionTimer = setInterval(() => {
-    const p = getPlayer()
-    const status = p.getStatus()
-    broadcast('player:event', { type: 'status', data: status })
+    const p = getPlayer();
+    const status = p.getStatus();
+    broadcast("player:event", { type: "status", data: status });
 
     // 自动检测播放结束
-    if (status.isFinished && status.state === 'playing') {
-      broadcast('player:event', { type: 'ended' })
-      stopPositionPush()
+    if (status.isFinished && status.state === "playing") {
+      broadcast("player:event", { type: "ended" });
+      stopPositionPush();
     }
-  }, 33)
-}
+  }, 33);
+};
 
-function stopPositionPush(): void {
+/** 停止播放状态推送 */
+const stopPositionPush = (): void => {
   if (positionTimer !== null) {
-    clearInterval(positionTimer)
-    positionTimer = null
+    clearInterval(positionTimer);
+    positionTimer = null;
   }
-}
+};
 
+/** 注册播放器相关的所有 IPC 事件 */
 export const registerPlayerIpc = (): void => {
-  ipcMain.handle('player:load', async (_event, source: string) => {
+  // 加载音频文件（本地路径或网络地址），返回音频元数据
+  ipcMain.handle("player:load", (_event, source: string) => {
     try {
-      const metadata = getPlayer().load(source)
-      startPositionPush()
-      return { success: true, data: metadata }
+      const metadata = getPlayer().load(source);
+      startPositionPush();
+      return { success: true, data: metadata };
     } catch (error) {
-      return { success: false, error: String(error) }
+      return { success: false, error: String(error) };
     }
-  })
+  });
 
-  ipcMain.handle('player:play', async () => {
+  // 恢复播放
+  ipcMain.handle("player:play", () => {
     try {
-      getPlayer().play()
-      startPositionPush()
-      return { success: true }
+      getPlayer().play();
+      startPositionPush();
+      return { success: true };
     } catch (error) {
-      return { success: false, error: String(error) }
+      return { success: false, error: String(error) };
     }
-  })
+  });
 
-  ipcMain.handle('player:pause', async () => {
+  // 暂停播放
+  ipcMain.handle("player:pause", () => {
     try {
-      getPlayer().pause()
-      return { success: true }
+      getPlayer().pause();
+      return { success: true };
     } catch (error) {
-      return { success: false, error: String(error) }
+      return { success: false, error: String(error) };
     }
-  })
+  });
 
-  ipcMain.handle('player:stop', async () => {
+  // 停止播放并释放资源
+  ipcMain.handle("player:stop", () => {
     try {
-      getPlayer().stop()
-      stopPositionPush()
-      return { success: true }
+      getPlayer().stop();
+      stopPositionPush();
+      return { success: true };
     } catch (error) {
-      return { success: false, error: String(error) }
+      return { success: false, error: String(error) };
     }
-  })
+  });
 
-  ipcMain.handle('player:seek', async (_event, position: number) => {
+  // 跳转到指定播放位置（秒）
+  ipcMain.handle("player:seek", (_event, position: number) => {
     try {
-      getPlayer().seek(position)
-      return { success: true }
+      getPlayer().seek(position);
+      return { success: true };
     } catch (error) {
-      return { success: false, error: String(error) }
+      return { success: false, error: String(error) };
     }
-  })
+  });
 
-  ipcMain.handle('player:setVolume', async (_event, volume: number) => {
+  // 设置音量（0.0 ~ 1.0）
+  ipcMain.handle("player:setVolume", (_event, volume: number) => {
     try {
-      getPlayer().setVolume(volume)
-      return { success: true }
+      getPlayer().setVolume(volume);
+      return { success: true };
     } catch (error) {
-      return { success: false, error: String(error) }
+      return { success: false, error: String(error) };
     }
-  })
+  });
 
-  ipcMain.handle('player:getVolume', async () => {
-    return { success: true, data: getPlayer().getVolume() }
-  })
+  // 获取当前音量
+  ipcMain.handle("player:getVolume", () => {
+    return { success: true, data: getPlayer().getVolume() };
+  });
 
-  ipcMain.handle('player:getStatus', async () => {
-    return { success: true, data: getPlayer().getStatus() }
-  })
+  // 获取当前播放状态快照
+  ipcMain.handle("player:getStatus", () => {
+    return { success: true, data: getPlayer().getStatus() };
+  });
 
-  ipcMain.handle('player:getFftData', async () => {
-    return { success: true, data: getPlayer().getFftData() }
-  })
-}
+  // 获取 FFT 频谱数据（128 个频段，值域 0.0 ~ 1.0）
+  ipcMain.handle("player:getFftData", () => {
+    return { success: true, data: getPlayer().getFftData() };
+  });
+
+  // 打开文件选择对话框，返回用户选中的音频文件路径
+  ipcMain.handle("player:openFile", async () => {
+    const result = await dialog.showOpenDialog({
+      title: "选择音频文件",
+      filters: [
+        {
+          name: "音频文件",
+          extensions: ["mp3", "flac", "wav", "ogg", "aac", "m4a", "wma", "opus", "ape"],
+        },
+        { name: "所有文件", extensions: ["*"] },
+      ],
+      properties: ["openFile"],
+    });
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return { success: false, error: "未选择文件" };
+    }
+    return { success: true, data: result.filePaths[0] };
+  });
+};
