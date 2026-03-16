@@ -266,8 +266,7 @@ fn open_input(source: &str) -> Result<ffmpeg::format::context::Input> {
         ffmpeg::format::input_with_dictionary(source, opts)
             .with_context(|| format!("Failed to open: {source}"))
     } else {
-        ffmpeg::format::input(source)
-            .with_context(|| format!("Failed to open: {source}"))
+        ffmpeg::format::input(source).with_context(|| format!("Failed to open: {source}"))
     }
 }
 
@@ -306,8 +305,7 @@ fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
         // 背压：缓冲区满时阻塞等待消费
         {
             let mut buf = shared.buffer.lock();
-            while buf.len() >= FRAME_BUFFER_CAPACITY
-                && !shared.is_stopping.load(Ordering::Acquire)
+            while buf.len() >= FRAME_BUFFER_CAPACITY && !shared.is_stopping.load(Ordering::Acquire)
             {
                 shared.condvar.wait(&mut buf);
             }
@@ -350,9 +348,7 @@ fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
 
                 // 读取下一个数据包
                 match data.input_ctx.packets().next() {
-                    Some((stream, packet))
-                        if stream.index() == data.audio_stream_index =>
-                    {
+                    Some((stream, packet)) if stream.index() == data.audio_stream_index => {
                         consecutive_read_failures = 0;
                         if data.decoder.send_packet(&packet).is_err() {
                             return;
@@ -384,9 +380,7 @@ fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
                 // 其他解码错误，重试后放弃
                 consecutive_read_failures += 1;
                 if consecutive_read_failures <= NETWORK_READ_RETRIES {
-                    std::thread::sleep(std::time::Duration::from_millis(
-                        NETWORK_RETRY_DELAY_MS,
-                    ));
+                    std::thread::sleep(std::time::Duration::from_millis(NETWORK_RETRY_DELAY_MS));
                     continue;
                 }
                 return;
@@ -432,9 +426,9 @@ fn try_resample(
     resampler: &mut ffmpeg::software::resampling::Context,
     decoded: &ffmpeg::frame::Audio,
 ) -> Option<ffmpeg::frame::Audio> {
-    let output_samples =
-        (decoded.samples() as f64 * resampler.output().rate as f64 / decoded.rate() as f64).ceil()
-            as usize;
+    let output_samples = (decoded.samples() as f64 * resampler.output().rate as f64
+        / decoded.rate() as f64)
+        .ceil() as usize;
 
     let mut output_frame = ffmpeg::frame::Audio::new(
         resampler.output().format,

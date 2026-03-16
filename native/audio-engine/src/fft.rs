@@ -97,8 +97,7 @@ impl FftAnalyzer {
         let mut output = Vec::with_capacity(OUTPUT_BINS);
 
         for i in 0..OUTPUT_BINS {
-            let freq_lo =
-                (log_min + (log_max - log_min) * i as f32 / OUTPUT_BINS as f32).exp();
+            let freq_lo = (log_min + (log_max - log_min) * i as f32 / OUTPUT_BINS as f32).exp();
             let freq_hi =
                 (log_min + (log_max - log_min) * (i + 1) as f32 / OUTPUT_BINS as f32).exp();
 

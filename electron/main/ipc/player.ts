@@ -130,6 +130,21 @@ export const registerPlayerIpc = (): void => {
     return { success: true, data: getPlayer().getVolume() };
   });
 
+  // 设置暂停/恢复时的渐变时长（毫秒），0 表示禁用
+  ipcMain.handle("player:setFadeDuration", (_event, durationMs: number) => {
+    try {
+      getPlayer().setFadeDuration(durationMs);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // 获取当前渐变时长（毫秒）
+  ipcMain.handle("player:getFadeDuration", () => {
+    return { success: true, data: getPlayer().getFadeDuration() };
+  });
+
   // 获取当前播放状态快照
   ipcMain.handle("player:getStatus", () => {
     return { success: true, data: getPlayer().getStatus() };

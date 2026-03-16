@@ -113,6 +113,18 @@ impl AudioPlayer {
         self.inner.lock().volume() as f64
     }
 
+    /// 设置暂停/恢复时的渐变时长（毫秒），0 表示禁用渐变
+    #[napi]
+    pub fn set_fade_duration(&self, duration_ms: f64) {
+        self.inner.lock().set_fade_duration(duration_ms as u64);
+    }
+
+    /// 获取当前渐变时长（毫秒）
+    #[napi]
+    pub fn get_fade_duration(&self) -> f64 {
+        self.inner.lock().fade_duration() as f64
+    }
+
     /// 获取当前播放位置（秒）
     #[napi]
     pub fn get_position(&self) -> f64 {

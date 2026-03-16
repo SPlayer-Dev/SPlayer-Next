@@ -41,6 +41,8 @@ export interface PlayerApi {
   getVolume: () => Promise<IpcResponse<number>>;
   getStatus: () => Promise<IpcResponse<PlayerStatus>>;
   getFftData: () => Promise<IpcResponse<number[]>>;
+  setFadeDuration: (ms: number) => Promise<IpcResponse>;
+  getFadeDuration: () => Promise<IpcResponse<number>>;
   openFile: () => Promise<IpcResponse<string>>;
   onEvent: (callback: (event: PlayerEvent) => void) => () => void;
 }

@@ -18,6 +18,10 @@ const api = {
     setVolume: (volume: number) => ipcRenderer.invoke("player:setVolume", volume),
     // 获取当前音量
     getVolume: () => ipcRenderer.invoke("player:getVolume"),
+    // 设置暂停/恢复时的渐变时长（毫秒），0 表示禁用
+    setFadeDuration: (ms: number) => ipcRenderer.invoke("player:setFadeDuration", ms),
+    // 获取当前渐变时长（毫秒）
+    getFadeDuration: () => ipcRenderer.invoke("player:getFadeDuration"),
     // 获取播放状态快照
     getStatus: () => ipcRenderer.invoke("player:getStatus"),
     // 获取 FFT 频谱数据

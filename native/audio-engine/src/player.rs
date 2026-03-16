@@ -8,6 +8,23 @@ use rodio::{OutputStream, OutputStreamHandle, Sink, Source};
 use crate::decoder::{self, AudioMetadata, Shared};
 use crate::fft::FftAnalyzer;
 
+/// 渐变步数
+const FADE_STEPS: u32 = 20;
+
+/// 在 `from` 和 `to` 之间线性渐变音量
+fn fade_volume(sink: &Sink, from: f32, to: f32, duration_ms: u64) {
+    if duration_ms == 0 {
+        sink.set_volume(to);
+        return;
+    }
+    let step_duration = Duration::from_millis(duration_ms / FADE_STEPS as u64);
+    for i in 1..=FADE_STEPS {
+        let t = i as f32 / FADE_STEPS as f32;
+        sink.set_volume(from + (to - from) * t);
+        std::thread::sleep(step_duration);
+    }
+}
+
 /// rodio 音频源，从共享缓冲区拉取样本。
 /// 使用 condvar 阻塞等待数据，不会返回静音填充。
 struct DecoderSource {
@@ -101,6 +118,10 @@ pub struct InnerPlayer {
     play_start: Option<Instant>,
     /// 当前音频源路径/地址
     current_source: Option<String>,
+    /// 用户设置的目标音量（fade 期间 sink 音量会变化，需要记住目标值）
+    target_volume: f32,
+    /// 渐变时长（毫秒），0 表示禁用
+    fade_duration_ms: u64,
 }
 
 impl InnerPlayer {
@@ -119,6 +140,8 @@ impl InnerPlayer {
             position_base: 0.0,
             play_start: None,
             current_source: None,
+            target_volume: 1.0,
+            fade_duration_ms: 200,
         })
     }
 
@@ -139,6 +162,7 @@ impl InnerPlayer {
             metadata.channels,
         );
 
+        sink.set_volume(self.target_volume);
         sink.append(decoder_source);
 
         self.sink = Some(sink);
@@ -154,27 +178,38 @@ impl InnerPlayer {
 
     /// 恢复播放。如果已停止或播放结束，自动从头重新加载。
     pub fn play(&mut self) -> Result<()> {
-        // 暂停状态：直接恢复
-        if self.state == PlayerState::Paused {
-            if let Some(ref sink) = self.sink {
-                sink.play();
-                self.play_start = Some(Instant::now());
-                self.state = PlayerState::Playing;
-                return Ok(());
+        match self.state {
+            // 已经在播放，忽略
+            PlayerState::Playing => {}
+            // 暂停状态：渐入恢复
+            PlayerState::Paused => {
+                if let Some(ref sink) = self.sink {
+                    sink.set_volume(0.0);
+                    sink.play();
+                    self.play_start = Some(Instant::now());
+                    self.state = PlayerState::Playing;
+                    fade_volume(sink, 0.0, self.target_volume, self.fade_duration_ms);
+                }
             }
-        }
-
-        // 停止/结束状态：从头重新加载
-        if let Some(source) = self.current_source.clone() {
-            self.load(&source)?;
+            // 停止/空闲/播放结束：从头重新加载
+            PlayerState::Stopped | PlayerState::Idle => {
+                if let Some(source) = self.current_source.clone() {
+                    self.load(&source)?;
+                }
+            }
         }
         Ok(())
     }
 
-    /// 暂停播放
+    /// 暂停播放（渐出后暂停）
     pub fn pause(&mut self) {
+        if self.state != PlayerState::Playing {
+            return;
+        }
         if let Some(ref sink) = self.sink {
+            fade_volume(sink, self.target_volume, 0.0, self.fade_duration_ms);
             sink.pause();
+            sink.set_volume(self.target_volume);
             if let Some(start) = self.play_start.take() {
                 self.position_base += start.elapsed().as_secs_f64();
             }
@@ -235,6 +270,7 @@ impl InnerPlayer {
             metadata.channels,
         );
 
+        sink.set_volume(self.target_volume);
         sink.append(decoder_source);
 
         self.sink = Some(sink);
@@ -248,6 +284,7 @@ impl InnerPlayer {
 
     /// 设置音量（0.0 ~ 1.0）
     pub fn set_volume(&mut self, volume: f32) {
+        self.target_volume = volume;
         if let Some(ref sink) = self.sink {
             sink.set_volume(volume);
         }
@@ -255,7 +292,17 @@ impl InnerPlayer {
 
     /// 获取当前音量
     pub fn volume(&self) -> f32 {
-        self.sink.as_ref().map(|s| s.volume()).unwrap_or(1.0)
+        self.target_volume
+    }
+
+    /// 设置渐变时长（毫秒），0 表示禁用渐变
+    pub fn set_fade_duration(&mut self, duration_ms: u64) {
+        self.fade_duration_ms = duration_ms;
+    }
+
+    /// 获取渐变时长（毫秒）
+    pub fn fade_duration(&self) -> u64 {
+        self.fade_duration_ms
     }
 
     /// 获取当前播放位置（秒）
