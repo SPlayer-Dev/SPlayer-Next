@@ -1,14 +1,13 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import type { AudioMetadata, PlayerStatus, PlayerEvent, IpcResponse } from "@/types/player";
+import type { MusicMetadata, PlayerStatus, PlayerEvent, IpcResponse } from "@/types/player";
 
 export const usePlayerStore = defineStore("player", () => {
-  
   const state = ref<PlayerStatus["state"]>("idle");
   const position = ref(0);
   const duration = ref(0);
   const volume = ref(1);
-  const metadata = ref<AudioMetadata | null>(null);
+  const metadata = ref<MusicMetadata | null>(null);
   const fftData = ref<number[]>([]);
   const error = ref<string | null>(null);
   const currentSource = ref<string | null>(null);
@@ -29,7 +28,7 @@ export const usePlayerStore = defineStore("player", () => {
     return true;
   };
 
-  /** 加载音频源 */
+  /** 加载音频源（一次调用获取全部元信息：封面 + 歌词 + 基本信息） */
   const load = async (source: string): Promise<void> => {
     error.value = null;
     const result = await window.api.player.load(source);

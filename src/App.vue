@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { usePlayer } from "./composables/usePlayer";
 
 const {
@@ -23,6 +23,22 @@ const {
 const urlInput = ref("");
 /** 当前加载的文件名 */
 const fileName = ref("");
+
+/** 封面 URL（来自 splayer-file:// 协议） */
+const coverUrl = computed(() => metadata.value?.coverPath ?? null);
+
+/** 当前使用的歌词（优先外部歌词第一项，其次内嵌歌词） */
+const currentLyric = computed(() => {
+  const meta = metadata.value;
+  if (!meta) return null;
+  if (meta.externalLyrics.length > 0) {
+    return { format: meta.externalLyrics[0].format, content: meta.externalLyrics[0].content };
+  }
+  if (meta.embeddedLyric) {
+    return { format: "embedded", content: meta.embeddedLyric };
+  }
+  return null;
+});
 
 /** 从网络地址加载 */
 const loadFromUrl = async (): Promise<void> => {
@@ -93,14 +109,19 @@ const onVolumeChange = (e: Event): void => {
     <!-- 错误信息 -->
     <div v-if="error" class="error">{{ error }}</div>
 
-    <!-- 当前播放信息 -->
-    <div v-if="metadata" class="metadata">
-      <div class="now-playing">{{ fileName }}</div>
-      <div v-if="metadata.title" class="meta-item">
-        {{ metadata.title }}
-        <span v-if="metadata.artist"> - {{ metadata.artist }}</span>
+    <!-- 封面 + 元信息 -->
+    <div v-if="metadata" class="song-info">
+      <div v-if="coverUrl" class="cover-wrap">
+        <img :src="coverUrl" alt="cover" class="cover-img" />
       </div>
-      <div v-if="metadata.album" class="meta-item album">{{ metadata.album }}</div>
+      <div class="metadata">
+        <div class="now-playing">{{ fileName }}</div>
+        <div v-if="metadata.title" class="meta-item">
+          {{ metadata.title }}
+          <span v-if="metadata.artist"> - {{ metadata.artist }}</span>
+        </div>
+        <div v-if="metadata.album" class="meta-item album">{{ metadata.album }}</div>
+      </div>
     </div>
 
     <!-- 播放控制 -->
@@ -137,6 +158,19 @@ const onVolumeChange = (e: Event): void => {
         @input="onVolumeChange"
       />
       <span class="value">{{ Math.round(volume * 100) }}%</span>
+    </div>
+
+    <!-- 歌词区域 -->
+    <div v-if="currentLyric" class="lyric-section">
+      <div class="lyric-header">
+        歌词
+        <span class="lyric-format">[{{ currentLyric.format }}]</span>
+        <!-- 显示所有可用的歌词源 -->
+        <span v-if="metadata && metadata.externalLyrics.length > 1" class="lyric-sources">
+          ({{ metadata.externalLyrics.map((l) => l.format).join(", ") }})
+        </span>
+      </div>
+      <pre class="lyric-content">{{ currentLyric.content }}</pre>
     </div>
 
     <!-- 状态信息 -->
@@ -219,8 +253,28 @@ button:hover {
   text-align: center;
 }
 
+.song-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.cover-wrap {
+  flex-shrink: 0;
+}
+
+.cover-img {
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #2a2a2e;
+}
+
 .metadata {
-  text-align: center;
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
 }
 
@@ -228,10 +282,16 @@ button:hover {
   font-weight: 600;
   color: #fff;
   margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .meta-item {
   color: #aaa;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .album {
@@ -264,6 +324,43 @@ button:hover {
   color: #888;
   min-width: 36px;
   text-align: center;
+}
+
+.lyric-section {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.lyric-header {
+  font-size: 13px;
+  color: #aaa;
+  margin-bottom: 8px;
+}
+
+.lyric-format {
+  color: #5b7ee5;
+  font-size: 12px;
+  margin-left: 4px;
+}
+
+.lyric-sources {
+  color: #666;
+  font-size: 11px;
+  margin-left: 4px;
+}
+
+.lyric-content {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 12px;
+  background: #1e1e22;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.8;
+  color: #ccc;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
 }
 
 .status {

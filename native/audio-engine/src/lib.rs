@@ -1,5 +1,6 @@
 mod decoder;
 mod fft;
+mod metadata;
 mod player;
 
 use napi::bindgen_prelude::*;
@@ -7,9 +8,18 @@ use napi_derive::napi;
 use parking_lot::Mutex;
 use player::{InnerPlayer, PlayerState};
 
-/// 音频元数据，返回给 JS 侧
+/// 一条外部歌词，返回给 JS 侧
 #[napi(object)]
-pub struct JsAudioMetadata {
+pub struct JsExternalLyric {
+    /// 格式（如 "lrc", "ttml", "yrc", "qrc"）
+    pub format: String,
+    /// 歌词内容
+    pub content: String,
+}
+
+/// 歌曲完整元信息，返回给 JS 侧（load 时一次性返回）
+#[napi(object)]
+pub struct JsMusicMetadata {
     pub title: Option<String>,
     pub artist: Option<String>,
     pub album: Option<String>,
@@ -19,6 +29,12 @@ pub struct JsAudioMetadata {
     pub sample_rate: u32,
     /// 声道数
     pub channels: u32,
+    /// 内嵌歌词（从音频文件 tag 中读取）
+    pub embedded_lyric: Option<String>,
+    /// 同目录下找到的所有歌词文件
+    pub external_lyrics: Vec<JsExternalLyric>,
+    /// 封面图片缓存文件路径（不走 IPC 传输字节，前端直接加载文件）
+    pub cover_path: Option<String>,
 }
 
 /// 播放器状态快照，返回给 JS 侧
@@ -53,21 +69,37 @@ impl AudioPlayer {
         })
     }
 
-    /// 加载音频源（本地路径或网络地址）并开始播放，返回音频元数据
+    /// 设置封面缓存目录（在 load 前调用一次即可）
     #[napi]
-    pub fn load(&self, source: String) -> Result<JsAudioMetadata> {
+    pub fn set_cover_cache_dir(&self, dir: String) {
+        self.inner.lock().set_cover_cache_dir(dir);
+    }
+
+    /// 加载音频源并开始播放，返回完整元信息（含封面路径和歌词）
+    #[napi]
+    pub fn load(&self, source: String) -> Result<JsMusicMetadata> {
         let mut player = self.inner.lock();
-        let metadata = player
+        let meta = player
             .load(&source)
             .map_err(|e| Error::from_reason(e.to_string()))?;
 
-        Ok(JsAudioMetadata {
-            title: metadata.title,
-            artist: metadata.artist,
-            album: metadata.album,
-            duration: metadata.duration_secs,
-            sample_rate: metadata.sample_rate,
-            channels: metadata.channels as u32,
+        Ok(JsMusicMetadata {
+            title: meta.title,
+            artist: meta.artist,
+            album: meta.album,
+            duration: meta.duration_secs,
+            sample_rate: meta.sample_rate,
+            channels: meta.channels as u32,
+            embedded_lyric: meta.embedded_lyric,
+            external_lyrics: meta
+                .external_lyrics
+                .into_iter()
+                .map(|l| JsExternalLyric {
+                    format: l.format,
+                    content: l.content,
+                })
+                .collect(),
+            cover_path: meta.cover_path,
         })
     }
 

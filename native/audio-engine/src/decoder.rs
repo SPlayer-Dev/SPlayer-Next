@@ -9,6 +9,8 @@ use ffmpeg_next::ChannelLayout;
 use ffmpeg_next::Dictionary;
 use parking_lot::{Condvar, Mutex};
 
+use crate::metadata::{self, ExternalLyric};
+
 /// 解码后的 PCM 音频数据块
 pub struct AudioChunk {
     /// 交错排列的 f32 播放样本（L R L R ...）
@@ -86,7 +88,7 @@ impl Shared {
     }
 }
 
-/// 音频元数据
+/// 音频元数据（包含封面路径和歌词）
 #[derive(Clone, Default)]
 pub struct AudioMetadata {
     pub title: Option<String>,
@@ -95,6 +97,12 @@ pub struct AudioMetadata {
     pub duration_secs: f64,
     pub sample_rate: u32,
     pub channels: u16,
+    /// 内嵌歌词
+    pub embedded_lyric: Option<String>,
+    /// 同目录所有歌词文件
+    pub external_lyrics: Vec<ExternalLyric>,
+    /// 封面缓存文件路径
+    pub cover_path: Option<String>,
 }
 
 /// 播放输出目标格式
@@ -117,8 +125,14 @@ struct DecoderData {
     fft_resampler: Option<ffmpeg::software::resampling::Context>,
 }
 
-/// 启动解码线程，返回音频元数据和线程句柄
-pub fn start_decode(source: &str, shared: Arc<Shared>) -> Result<(AudioMetadata, JoinHandle<()>)> {
+/// 启动解码线程，返回音频元数据和线程句柄。
+///
+/// - `cover_cache_dir`: 封面缓存目录，传 Some 时提取封面并写入缓存
+pub fn start_decode(
+    source: &str,
+    shared: Arc<Shared>,
+    cover_cache_dir: Option<&str>,
+) -> Result<(AudioMetadata, JoinHandle<()>)> {
     let input_ctx = open_input(source)?;
 
     let stream = input_ctx
@@ -142,6 +156,12 @@ pub fn start_decode(source: &str, shared: Arc<Shared>) -> Result<(AudioMetadata,
     let title = metadata_dict.get("title").map(|s| s.to_string());
     let artist = metadata_dict.get("artist").map(|s| s.to_string());
     let album = metadata_dict.get("album").map(|s| s.to_string());
+
+    // 在同一个 input_ctx 上提取封面和内嵌歌词（不需要重新打开文件）
+    let cover_path = cover_cache_dir
+        .and_then(|dir| metadata::extract_cover(&input_ctx, source, dir));
+    let embedded_lyric = metadata::extract_embedded_lyric(&input_ctx);
+    let external_lyrics = metadata::find_all_external_lyrics(source);
 
     let decoder_ctx = ffmpeg::codec::context::Context::from_parameters(stream.parameters())?;
     let decoder = decoder_ctx.decoder().audio()?;
@@ -179,6 +199,9 @@ pub fn start_decode(source: &str, shared: Arc<Shared>) -> Result<(AudioMetadata,
         duration_secs,
         sample_rate: TARGET_SAMPLE_RATE,
         channels: TARGET_CHANNELS,
+        embedded_lyric,
+        external_lyrics,
+        cover_path,
     };
 
     let mut data = DecoderData {

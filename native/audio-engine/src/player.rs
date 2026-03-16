@@ -125,6 +125,8 @@ pub struct InnerPlayer {
     target_volume: f32,
     /// 渐变时长（毫秒），0 表示禁用
     fade_duration_ms: u64,
+    /// 封面缓存目录
+    cover_cache_dir: Option<String>,
 }
 
 impl InnerPlayer {
@@ -146,7 +148,13 @@ impl InnerPlayer {
             current_source: None,
             target_volume: 1.0,
             fade_duration_ms: 200,
+            cover_cache_dir: None,
         })
+    }
+
+    /// 设置封面缓存目录
+    pub fn set_cover_cache_dir(&mut self, dir: String) {
+        self.cover_cache_dir = Some(dir);
     }
 
     /// 加载并播放音频源（本地路径或网络地址）
@@ -155,7 +163,11 @@ impl InnerPlayer {
         self.fft.reset();
 
         let shared = Shared::new();
-        let (metadata, handle) = decoder::start_decode(source, Arc::clone(&shared))?;
+        let (metadata, handle) = decoder::start_decode(
+            source,
+            Arc::clone(&shared),
+            self.cover_cache_dir.as_deref(),
+        )?;
 
         let sink = Sink::try_new(&self.stream_handle).context("Failed to create audio sink")?;
 

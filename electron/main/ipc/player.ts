@@ -1,4 +1,5 @@
-import { ipcMain, BrowserWindow, dialog } from "electron";
+import { ipcMain, BrowserWindow, dialog, app } from "electron";
+import path from "node:path";
 import { loadNativeModule } from "../utils/nativeLoader";
 
 type AudioEngineModule = typeof import("@splayer/audio-engine");
@@ -21,13 +22,23 @@ const getEngine = (): AudioEngineModule => {
   return audioEngine;
 };
 
-/** 获取播放器实例（懒加载） */
+/** 获取播放器实例（懒加载），首次创建时设置封面缓存目录 */
 const getPlayer = (): InstanceType<AudioEngineModule["AudioPlayer"]> => {
   if (!player) {
     const engine = getEngine();
     player = new engine.AudioPlayer();
+    // 设置封面缓存目录
+    const coverCacheDir = path.join(app.getPath("userData"), "cover-cache");
+    player.setCoverCacheDir(coverCacheDir);
   }
   return player;
+};
+
+/** 将封面本地路径转为 splayer-file:// 协议 URL */
+const toCoverUrl = (coverPath: string | undefined | null): string | undefined => {
+  if (!coverPath) return undefined;
+  const normalized = coverPath.replace(/\\/g, "/");
+  return `splayer-file:///${normalized}`;
 };
 
 /** 向所有窗口广播事件 */
@@ -65,10 +76,12 @@ const stopPositionPush = (): void => {
 
 /** 注册播放器相关的所有 IPC 事件 */
 export const registerPlayerIpc = (): void => {
-  // 加载音频文件（本地路径或网络地址），返回音频元数据
+  // 加载音频文件，返回完整元信息（含封面路径和歌词），只打开一次 FFmpeg
   ipcMain.handle("player:load", (_event, source: string) => {
     try {
       const metadata = getPlayer().load(source);
+      // 将封面路径转为协议 URL
+      metadata.coverPath = toCoverUrl(metadata.coverPath);
       startPositionPush();
       return { success: true, data: metadata };
     } catch (error) {
