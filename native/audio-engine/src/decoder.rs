@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 
@@ -25,19 +25,53 @@ pub struct Shared {
     condvar: Condvar,
     is_eof: AtomicBool,
     is_stopping: AtomicBool,
+    /// 已被 rodio 消费的交错采样数（含所有声道，即 stereo 时每帧 +2）
+    samples_consumed: AtomicU64,
+    /// 输出采样率（创建时确定，不可变）
+    sample_rate: u32,
+    /// 输出声道数（创建时确定，不可变）
+    channels: u16,
+    /// 所有数据已被消费完毕（DecoderSource 返回 None 时设置）
+    /// 比 is_done() 更准确：is_done 只表示缓冲区空，all_consumed 表示 rodio 侧已消费完
+    all_consumed: AtomicBool,
 }
 
 /// 共享缓冲区最大容量（背压阈值）
 const FRAME_BUFFER_CAPACITY: usize = 64;
 
 impl Shared {
-    pub fn new() -> Arc<Self> {
+    pub fn new(sample_rate: u32, channels: u16) -> Arc<Self> {
         Arc::new(Self {
             buffer: Mutex::new(VecDeque::with_capacity(FRAME_BUFFER_CAPACITY)),
             condvar: Condvar::new(),
             is_eof: AtomicBool::new(false),
             is_stopping: AtomicBool::new(false),
+            samples_consumed: AtomicU64::new(0),
+            sample_rate,
+            channels,
+            all_consumed: AtomicBool::new(false),
         })
+    }
+
+    /// 批量累加已消费的采样数（由 DecoderSource 按 chunk 调用）
+    pub fn advance_consumed(&self, count: u64) {
+        self.samples_consumed.fetch_add(count, Ordering::Relaxed);
+    }
+
+    /// 标记所有数据已被消费完毕（DecoderSource 迭代结束时调用）
+    pub fn mark_all_consumed(&self) {
+        self.all_consumed.store(true, Ordering::Release);
+    }
+
+    /// 检查是否所有数据已被 rodio 消费完毕
+    pub fn is_all_consumed(&self) -> bool {
+        self.all_consumed.load(Ordering::Acquire)
+    }
+
+    /// 基于实际消费采样数的精确播放位置（秒）
+    pub fn consumed_position(&self) -> f64 {
+        let samples = self.samples_consumed.load(Ordering::Relaxed);
+        samples as f64 / self.sample_rate as f64 / self.channels as f64
     }
 
     /// 推入数据块，缓冲区满时阻塞等待（背压）
@@ -110,8 +144,8 @@ pub struct AudioMetadata {
 }
 
 /// 播放输出目标格式
-const TARGET_SAMPLE_RATE: u32 = 48000;
-const TARGET_CHANNELS: u16 = 2;
+pub const TARGET_SAMPLE_RATE: u32 = 48000;
+pub const TARGET_CHANNELS: u16 = 2;
 /// FFT 分析目标格式：单声道 44100Hz
 pub const FFT_SAMPLE_RATE: u32 = 44100;
 
@@ -157,9 +191,9 @@ pub fn start_decode(
     };
 
     let metadata_dict = input_ctx.metadata();
-    let title = metadata_dict.get("title").map(|s| s.to_string());
-    let artist = metadata_dict.get("artist").map(|s| s.to_string());
-    let album = metadata_dict.get("album").map(|s| s.to_string());
+    let title = metadata_dict.get("title").map(ToString::to_string);
+    let artist = metadata_dict.get("artist").map(ToString::to_string);
+    let album = metadata_dict.get("album").map(ToString::to_string);
 
     // 在同一个 input_ctx 上提取封面和内嵌歌词（不需要重新打开文件）
     let cover = cover_cache_dir
@@ -351,7 +385,7 @@ fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
 
         let mut decoded = ffmpeg::frame::Audio::empty();
         match data.decoder.receive_frame(&mut decoded) {
-            Ok(_) => {
+            Ok(()) => {
                 consecutive_read_failures = 0;
 
                 // 部分文件不设置 channel_layout，需要填默认值
@@ -409,7 +443,6 @@ fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
                         // 非音频包，跳过
                     }
                 }
-                continue;
             }
             Err(_) => {
                 // 其他解码错误，重试后放弃

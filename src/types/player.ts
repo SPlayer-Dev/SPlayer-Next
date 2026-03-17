@@ -28,6 +28,7 @@ export interface PlayerStatus {
 /** 主进程推送给渲染进程的播放事件 */
 export type PlayerEvent =
   | { type: "status"; data: PlayerStatus }
+  | { type: "position"; data: { position: number; duration: number } }
   | { type: "ended" }
   | { type: "error"; error: string };
 

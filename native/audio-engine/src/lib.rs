@@ -3,10 +3,13 @@ mod fft;
 mod metadata;
 mod player;
 
+use std::sync::Arc;
+
 use napi::bindgen_prelude::*;
+use napi::threadsafe_function::ThreadsafeFunctionCallMode;
 use napi_derive::napi;
 use parking_lot::Mutex;
-use player::{InnerPlayer, PlayerState};
+use player::{InnerPlayer, PlayerEvent, PlayerState};
 
 /// 一条外部歌词，返回给 JS 侧
 #[napi(object)]
@@ -39,6 +42,20 @@ pub struct JsMusicMetadata {
     pub external_lyrics: Vec<JsExternalLyric>,
     /// 封面缩略图路径（300x300，用于前端日常显示）
     pub cover: Option<String>,
+}
+
+/// 播放器事件，推送给 JS 侧
+#[napi(object)]
+pub struct JsPlayerEvent {
+    /// 事件类型："stateChanged" | "ended" | "position"
+    #[napi(js_name = "type")]
+    pub event_type: String,
+    /// 状态（仅 stateChanged 时有值）
+    pub state: Option<String>,
+    /// 位置（秒，仅 position 时有值）
+    pub position: Option<f64>,
+    /// 时长（秒，仅 position 时有值）
+    pub duration: Option<f64>,
 }
 
 /// 播放器状态快照，返回给 JS 侧
@@ -77,6 +94,42 @@ impl AudioPlayer {
     #[napi]
     pub fn set_cover_cache_dir(&self, dir: String) {
         self.inner.lock().set_cover_cache_dir(dir);
+    }
+
+    /// 注册事件回调，Rust 侧会在状态变化、位置更新、播放结束时主动调用
+    #[napi(ts_args_type = "callback: (event: JsPlayerEvent) => void")]
+    pub fn on_event(&self, callback: Function<JsPlayerEvent, ()>) -> Result<()> {
+        let tsfn = callback
+            .build_threadsafe_function()
+            .build()?;
+
+        // 用闭包包裹 tsfn，在内部做 PlayerEvent → JsPlayerEvent 转换
+        let emitter: player::EventEmitter = Arc::new(move |event: PlayerEvent| {
+            let js_event = match event {
+                PlayerEvent::StateChanged { state } => JsPlayerEvent {
+                    event_type: "stateChanged".to_string(),
+                    state: Some(state.to_string()),
+                    position: None,
+                    duration: None,
+                },
+                PlayerEvent::Ended => JsPlayerEvent {
+                    event_type: "ended".to_string(),
+                    state: None,
+                    position: None,
+                    duration: None,
+                },
+                PlayerEvent::Position { position, duration } => JsPlayerEvent {
+                    event_type: "position".to_string(),
+                    state: None,
+                    position: Some(position),
+                    duration: Some(duration),
+                },
+            };
+            tsfn.call(js_event, ThreadsafeFunctionCallMode::NonBlocking);
+        });
+
+        self.inner.lock().set_event_callback(emitter);
+        Ok(())
     }
 
     /// 加载音频源并开始播放，返回完整元信息（含封面路径和歌词）

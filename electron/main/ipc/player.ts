@@ -12,12 +12,12 @@ type AudioEngineModule = typeof import("@splayer/audio-engine");
 
 let audioEngine: AudioEngineModule | null = null;
 let playerInstance: InstanceType<AudioEngineModule["AudioPlayer"]> | null = null;
-let positionTimer: ReturnType<typeof setInterval> | null = null;
 
 /** 上一次推送给系统媒体控件的状态，用于避免重复发送 */
 let lastMediaState: string | null = null;
 
-
+/** 是否已注册原生事件回调 */
+let nativeEventRegistered = false;
 
 /** 获取原生音频引擎模块 */
 const engine = (): AudioEngineModule => {
@@ -32,7 +32,7 @@ const engine = (): AudioEngineModule => {
 
 /**
  * 获取播放器实例
- * 仅在首次创建时设置封面缓存目录
+ * 仅在首次创建时设置封面缓存目录并注册原生事件回调
  */
 const player = (): InstanceType<AudioEngineModule["AudioPlayer"]> => {
   if (!playerInstance) {
@@ -40,59 +40,60 @@ const player = (): InstanceType<AudioEngineModule["AudioPlayer"]> => {
     playerInstance = new mod.AudioPlayer();
     playerInstance.setCoverCacheDir(coverCacheDir);
   }
-  return playerInstance;
-};
 
-/** 启动播放状态推送 */
-const startPositionPush = (): void => {
-  stopPositionPush();
-  positionTimer = setInterval(() => {
-    const raw = player().getStatus();
-
-    // 推送给前端（毫秒）
-    broadcast("player:event", {
-      type: "status",
-      data: {
-        state: raw.state,
-        position: toMs(raw.position),
-        duration: toMs(raw.duration),
-        volume: raw.volume,
-        isFinished: raw.isFinished,
-      },
-    });
-
-    // 同步进度到系统媒体控件
-    mediaService.setTimeline({
-      currentMs: toMs(raw.position),
-      totalMs: toMs(raw.duration),
-    });
-
-    // 状态变化时同步到系统媒体控件
-    if (raw.state !== lastMediaState) {
-      lastMediaState = raw.state;
-      if (raw.state === "playing") {
-        mediaService.setPlayState({ status: "Playing" });
-      } else if (raw.state === "paused") {
-        mediaService.setPlayState({ status: "Paused" });
+  // 注册原生事件回调（仅一次）
+  if (!nativeEventRegistered) {
+    nativeEventRegistered = true;
+    playerInstance.onEvent((event: { type: string; state?: string; position?: number; duration?: number }) => {
+      switch (event.type) {
+        case "stateChanged": {
+          const state = event.state ?? "idle";
+          // 同步到系统媒体控件
+          if (state !== lastMediaState) {
+            lastMediaState = state;
+            if (state === "playing") {
+              mediaService.setPlayState({ status: "Playing" });
+            } else if (state === "paused") {
+              mediaService.setPlayState({ status: "Paused" });
+            } else if (state === "stopped") {
+              mediaService.setPlayState({ status: "Paused" });
+            }
+          }
+          broadcast("player:event", {
+            type: "status",
+            data: {
+              state,
+              position: toMs(playerInstance!.getPosition()),
+              duration: toMs(playerInstance!.getDuration()),
+              volume: playerInstance!.getVolume(),
+              isFinished: false,
+            },
+          });
+          break;
+        }
+        case "ended": {
+          lastMediaState = "stopped";
+          broadcast("player:event", { type: "ended" });
+          mediaService.setPlayState({ status: "Paused" });
+          break;
+        }
+        case "position": {
+          const posMs = toMs(event.position ?? 0);
+          const durMs = toMs(event.duration ?? 0);
+          // 只推送位置，不碰状态，避免竞态覆盖
+          broadcast("player:event", {
+            type: "position",
+            data: { position: posMs, duration: durMs },
+          });
+          // 同步进度到系统媒体控件
+          mediaService.setTimeline({ currentMs: posMs, totalMs: durMs });
+          break;
+        }
       }
-    }
-
-    // 自动检测播放结束
-    if (raw.isFinished && raw.state === "playing") {
-      lastMediaState = "stopped";
-      broadcast("player:event", { type: "ended" });
-      mediaService.setPlayState({ status: "Paused" });
-      stopPositionPush();
-    }
-  }, 33);
-};
-
-/** 停止播放状态推送 */
-const stopPositionPush = (): void => {
-  if (positionTimer !== null) {
-    clearInterval(positionTimer);
-    positionTimer = null;
+    });
   }
+
+  return playerInstance;
 };
 
 /** 注册播放器相关的所有 IPC 事件 */
@@ -151,7 +152,6 @@ export const registerPlayerIpc = (): void => {
         },
       };
 
-      startPositionPush();
       return { success: true, data };
     } catch (error) {
       return { success: false, error: String(error) };
@@ -162,9 +162,6 @@ export const registerPlayerIpc = (): void => {
   ipcMain.handle("player:play", () => {
     try {
       player().play();
-      mediaService.setPlayState({ status: "Playing" });
-      lastMediaState = "playing";
-      startPositionPush();
       return { success: true };
     } catch (error) {
       return { success: false, error: String(error) };
@@ -175,8 +172,6 @@ export const registerPlayerIpc = (): void => {
   ipcMain.handle("player:pause", () => {
     try {
       player().pause();
-      mediaService.setPlayState({ status: "Paused" });
-      lastMediaState = "paused";
       return { success: true };
     } catch (error) {
       return { success: false, error: String(error) };
@@ -187,9 +182,6 @@ export const registerPlayerIpc = (): void => {
   ipcMain.handle("player:stop", () => {
     try {
       player().stop();
-      mediaService.setPlayState({ status: "Paused" });
-      lastMediaState = "stopped";
-      stopPositionPush();
       return { success: true };
     } catch (error) {
       return { success: false, error: String(error) };
@@ -206,7 +198,6 @@ export const registerPlayerIpc = (): void => {
         totalMs: toMs(player().getDuration()),
         seeked: true,
       });
-      startPositionPush();
       return { success: true };
     } catch (error) {
       return { success: false, error: String(error) };
@@ -291,20 +282,12 @@ export const registerPlayerIpc = (): void => {
       switch (event.type) {
         case "Play":
           inst.play();
-          lastMediaState = "playing";
-          mediaService.setPlayState({ status: "Playing" });
-          startPositionPush();
           break;
         case "Pause":
           inst.pause();
-          lastMediaState = "paused";
-          mediaService.setPlayState({ status: "Paused" });
           break;
         case "Stop":
           inst.stop();
-          lastMediaState = "stopped";
-          mediaService.setPlayState({ status: "Paused" });
-          stopPositionPush();
           break;
         case "Seek":
           if (event.positionMs != null) {
@@ -314,7 +297,6 @@ export const registerPlayerIpc = (): void => {
               totalMs: toMs(inst.getDuration()),
               seeked: true,
             });
-            startPositionPush();
           }
           break;
         case "SetVolume":

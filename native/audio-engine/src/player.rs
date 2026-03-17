@@ -1,7 +1,8 @@
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
+use std::thread::{self, JoinHandle};
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use rodio::{OutputStream, OutputStreamHandle, Sink, Source};
@@ -9,20 +10,37 @@ use rodio::{OutputStream, OutputStreamHandle, Sink, Source};
 use crate::decoder::{self, AudioMetadata, Shared};
 use crate::fft::FftAnalyzer;
 
+/// 播放器推送给 JS 侧的事件类型
+#[derive(Clone, Debug)]
+pub enum PlayerEvent {
+    /// 状态变化（playing / paused / stopped / idle）
+    StateChanged { state: &'static str },
+    /// 播放结束
+    Ended,
+    /// 位置更新（秒）—— 由内部定时器推送
+    Position { position: f64, duration: f64 },
+}
+
+/// 事件发射器类型（跨线程安全）
+pub type EventEmitter = Arc<dyn Fn(PlayerEvent) + Send + Sync>;
+
 /// 渐变步数
 const FADE_STEPS: u32 = 20;
 
-/// 在 `from` 和 `to` 之间线性渐变音量
-fn fade_volume(sink: &Sink, from: f32, to: f32, duration_ms: u64) {
+/// 可取消的渐变：在独立线程中逐步调整音量，cancel 为 true 时提前退出
+fn fade_volume(sink: &Sink, from: f32, to: f32, duration_ms: u64, cancel: &AtomicBool) {
     if duration_ms == 0 {
         sink.set_volume(to);
         return;
     }
     let step_duration = Duration::from_millis(duration_ms / FADE_STEPS as u64);
     for i in 1..=FADE_STEPS {
+        if cancel.load(Ordering::Relaxed) {
+            return;
+        }
         let t = i as f32 / FADE_STEPS as f32;
         sink.set_volume(from + (to - from) * t);
-        std::thread::sleep(step_duration);
+        thread::sleep(step_duration);
     }
 }
 
@@ -53,26 +71,32 @@ impl Iterator for DecoderSource {
     type Item = f32;
 
     fn next(&mut self) -> Option<f32> {
-        // 快速路径：从本地缓冲返回
+        // 快速路径：从本地缓冲返回（无原子操作）
         if let Some(sample) = self.local_buffer.pop_front() {
             return Some(sample);
         }
 
         // 慢速路径：从共享缓冲区阻塞获取，跳过空数据块
         loop {
-            let chunk = self.shared.pop()?;
+            if let Some(chunk) = self.shared.pop() {
+                // 将 FFT 样本推送给分析器
+                if !chunk.fft_samples.is_empty() {
+                    self.fft.push_samples(&chunk.fft_samples);
+                }
 
-            // 将 FFT 样本推送给分析器
-            if !chunk.fft_samples.is_empty() {
-                self.fft.push_samples(&chunk.fft_samples);
+                // 填充本地缓冲，一次性批量计数（而非逐采样）
+                if !chunk.player_samples.is_empty() {
+                    let count = chunk.player_samples.len() as u64;
+                    self.local_buffer.extend(chunk.player_samples);
+                    self.shared.advance_consumed(count);
+                    return self.local_buffer.pop_front();
+                }
+                // 空数据块（重采样器预热期），继续获取下一个
+            } else {
+                // 数据源耗尽，标记消费完毕
+                self.shared.mark_all_consumed();
+                return None;
             }
-
-            // 填充本地缓冲
-            if !chunk.player_samples.is_empty() {
-                self.local_buffer.extend(chunk.player_samples);
-                return self.local_buffer.pop_front();
-            }
-            // 空数据块（重采样器预热期），继续获取下一个
         }
     }
 }
@@ -108,17 +132,16 @@ pub enum PlayerState {
 pub struct InnerPlayer {
     _stream: OutputStream,
     stream_handle: OutputStreamHandle,
-    sink: Option<Sink>,
+    /// 使用 Arc 包装，允许 fade 线程在 Mutex 外操作音量
+    sink: Option<Arc<Sink>>,
     shared: Option<Arc<Shared>>,
     /// 解码线程句柄，stop 时 join 确保线程清理
     decoder_thread: Option<JoinHandle<()>>,
     fft: Arc<FftAnalyzer>,
     metadata: Option<AudioMetadata>,
     state: PlayerState,
-    /// 播放位置基准（秒）
-    position_base: f64,
-    /// 播放起始时刻（用于计算实时位置）
-    play_start: Option<Instant>,
+    /// seek 偏移基准（秒），采样计数在此基础上累加
+    seek_base: f64,
     /// 当前音频源路径/地址
     current_source: Option<String>,
     /// 用户设置的目标音量（fade 期间 sink 音量会变化，需要记住目标值）
@@ -127,6 +150,12 @@ pub struct InnerPlayer {
     fade_duration_ms: u64,
     /// 封面缓存目录
     cover_cache_dir: Option<String>,
+    /// 事件回调（由 lib.rs 设置，内部转发到 JS ThreadsafeFunction）
+    event_callback: Option<EventEmitter>,
+    /// 位置推送定时器的停止信号
+    position_timer_stop: Option<Arc<AtomicBool>>,
+    /// 渐变取消信号（快速连续 play/pause 时取消上一次渐变）
+    fade_cancel: Option<Arc<AtomicBool>>,
 }
 
 impl InnerPlayer {
@@ -143,13 +172,100 @@ impl InnerPlayer {
             fft: Arc::new(FftAnalyzer::new(decoder::FFT_SAMPLE_RATE)),
             metadata: None,
             state: PlayerState::Idle,
-            position_base: 0.0,
-            play_start: None,
+            seek_base: 0.0,
             current_source: None,
             target_volume: 1.0,
             fade_duration_ms: 200,
             cover_cache_dir: None,
+            event_callback: None,
+            position_timer_stop: None,
+            fade_cancel: None,
         })
+    }
+
+    /// 注册事件回调（支持热替换：先停止旧的定时器/渐变，确保旧回调的 Arc 引用尽快释放）
+    pub fn set_event_callback(&mut self, cb: EventEmitter) {
+        self.stop_position_timer();
+        self.cancel_fade();
+        self.event_callback = Some(cb);
+    }
+
+    /// 发射事件
+    fn emit(&self, event: PlayerEvent) {
+        if let Some(cb) = &self.event_callback {
+            cb(event);
+        }
+    }
+
+    /// 取消正在进行的渐变
+    fn cancel_fade(&mut self) {
+        if let Some(flag) = self.fade_cancel.take() {
+            flag.store(true, Ordering::Relaxed);
+        }
+    }
+
+    /// 启动非阻塞渐变（独立线程执行，不阻塞调用方）
+    fn start_fade(&mut self, from: f32, to: f32, on_complete: Option<Box<dyn FnOnce() + Send>>) {
+        self.cancel_fade();
+
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.fade_cancel = Some(Arc::clone(&cancel));
+
+        if let Some(ref sink) = self.sink {
+            let sink = Arc::clone(sink);
+            let fade_ms = self.fade_duration_ms;
+            thread::spawn(move || {
+                fade_volume(&sink, from, to, fade_ms, &cancel);
+                // 渐变未被取消时执行完成回调
+                if !cancel.load(Ordering::Relaxed) {
+                    if let Some(f) = on_complete {
+                        f();
+                    }
+                }
+            });
+        }
+    }
+
+    /// 启动位置推送定时器（在独立线程中运行，每 200ms 推送一次位置）
+    fn start_position_timer(&mut self) {
+        self.stop_position_timer();
+
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        self.position_timer_stop = Some(Arc::clone(&stop_flag));
+
+        let shared = match &self.shared {
+            Some(s) => Arc::clone(s),
+            None => return,
+        };
+        let cb = match &self.event_callback {
+            Some(cb) => Arc::clone(cb),
+            None => return,
+        };
+        let seek_base = self.seek_base;
+        let duration = self.duration();
+
+        thread::spawn(move || {
+            while !stop_flag.load(Ordering::Relaxed) {
+                let position = seek_base + shared.consumed_position();
+                cb(PlayerEvent::Position { position, duration });
+
+                // 检测播放结束：all_consumed 表示 rodio 侧已消费完所有数据
+                if shared.is_all_consumed() {
+                    cb(PlayerEvent::Ended);
+                    cb(PlayerEvent::StateChanged { state: "stopped" });
+                    break;
+                }
+
+                thread::sleep(Duration::from_millis(200));
+            }
+        });
+    }
+
+    /// 停止位置推送定时器
+    fn stop_position_timer(&mut self) {
+        if let Some(flag) = self.position_timer_stop.take() {
+            flag.store(true, Ordering::Relaxed);
+        }
     }
 
     /// 设置封面缓存目录
@@ -162,14 +278,16 @@ impl InnerPlayer {
         self.stop_internal();
         self.fft.reset();
 
-        let shared = Shared::new();
+        let shared = Shared::new(decoder::TARGET_SAMPLE_RATE, decoder::TARGET_CHANNELS);
         let (metadata, handle) = decoder::start_decode(
             source,
             Arc::clone(&shared),
             self.cover_cache_dir.as_deref(),
         )?;
 
-        let sink = Sink::try_new(&self.stream_handle).context("Failed to create audio sink")?;
+        let sink = Arc::new(
+            Sink::try_new(&self.stream_handle).context("Failed to create audio sink")?,
+        );
 
         let decoder_source = DecoderSource::new(
             Arc::clone(&shared),
@@ -186,9 +304,11 @@ impl InnerPlayer {
         self.decoder_thread = Some(handle);
         self.metadata = Some(metadata.clone());
         self.state = PlayerState::Playing;
-        self.position_base = 0.0;
-        self.play_start = Some(Instant::now());
+        self.seek_base = 0.0;
         self.current_source = Some(source.to_string());
+
+        self.emit(PlayerEvent::StateChanged { state: "playing" });
+        self.start_position_timer();
 
         Ok(metadata)
     }
@@ -209,10 +329,14 @@ impl InnerPlayer {
                 if let Some(ref sink) = self.sink {
                     sink.set_volume(0.0);
                     sink.play();
-                    self.play_start = Some(Instant::now());
-                    self.state = PlayerState::Playing;
-                    fade_volume(sink, 0.0, self.target_volume, self.fade_duration_ms);
                 }
+
+                self.state = PlayerState::Playing;
+                self.emit(PlayerEvent::StateChanged { state: "playing" });
+                self.start_position_timer();
+
+                // 非阻塞渐入
+                self.start_fade(0.0, self.target_volume, None);
             }
             // 停止/空闲/播放结束：从头重新加载
             PlayerState::Stopped | PlayerState::Idle => {
@@ -224,29 +348,42 @@ impl InnerPlayer {
         Ok(())
     }
 
-    /// 暂停播放（渐出后暂停）
+    /// 暂停播放（非阻塞渐出，渐出完成后 sink.pause）
     pub fn pause(&mut self) {
         if self.state != PlayerState::Playing {
             return;
         }
-        if let Some(ref sink) = self.sink {
-            fade_volume(sink, self.target_volume, 0.0, self.fade_duration_ms);
-            sink.pause();
-            sink.set_volume(self.target_volume);
-            if let Some(start) = self.play_start.take() {
-                self.position_base += start.elapsed().as_secs_f64();
-            }
-            self.state = PlayerState::Paused;
-        }
+
+        // 立即切换状态、停止定时器、发射事件
+        self.stop_position_timer();
+        self.state = PlayerState::Paused;
+        self.emit(PlayerEvent::StateChanged { state: "paused" });
+
+        // 非阻塞渐出：fade 完成后在回调中执行 sink.pause + 恢复音量
+        let target_volume = self.target_volume;
+        let sink_for_callback = self.sink.as_ref().map(Arc::clone);
+        self.start_fade(
+            target_volume,
+            0.0,
+            Some(Box::new(move || {
+                if let Some(sink) = sink_for_callback {
+                    sink.pause();
+                    sink.set_volume(target_volume);
+                }
+            })),
+        );
     }
 
     /// 停止播放并释放资源
     pub fn stop(&mut self) {
         self.stop_internal();
         self.state = PlayerState::Stopped;
+        self.emit(PlayerEvent::StateChanged { state: "stopped" });
     }
 
     fn stop_internal(&mut self) {
+        self.cancel_fade();
+        self.stop_position_timer();
         // 先通知解码线程停止
         if let Some(ref shared) = self.shared {
             shared.stop();
@@ -260,13 +397,15 @@ impl InnerPlayer {
             let _ = handle.join();
         }
         self.shared = None;
-        self.play_start = None;
-        self.position_base = 0.0;
+        self.seek_base = 0.0;
     }
 
     /// 跳转到指定位置（秒）
     pub fn seek(&mut self, position_secs: f64) -> Result<()> {
         let source = self.current_source.clone().context("No source loaded")?;
+
+        self.cancel_fade();
+        self.stop_position_timer();
 
         // 停止当前播放和解码线程
         if let Some(ref shared) = self.shared {
@@ -282,7 +421,7 @@ impl InnerPlayer {
         self.fft.reset();
 
         // 创建新的共享状态用于 seek 后的解码
-        let shared = Shared::new();
+        let shared = Shared::new(decoder::TARGET_SAMPLE_RATE, decoder::TARGET_CHANNELS);
         let shared_for_thread = Arc::clone(&shared);
 
         let source_clone = source;
@@ -290,7 +429,9 @@ impl InnerPlayer {
             let _ = decoder::seek_decode(&source_clone, position_secs, &shared_for_thread);
         });
 
-        let sink = Sink::try_new(&self.stream_handle).context("Failed to create audio sink")?;
+        let sink = Arc::new(
+            Sink::try_new(&self.stream_handle).context("Failed to create audio sink")?,
+        );
 
         let metadata = self.metadata.as_ref().context("No metadata available")?;
         let decoder_source = DecoderSource::new(
@@ -306,9 +447,11 @@ impl InnerPlayer {
         self.sink = Some(sink);
         self.shared = Some(shared);
         self.decoder_thread = Some(handle);
-        self.position_base = position_secs;
-        self.play_start = Some(Instant::now());
+        self.seek_base = position_secs;
         self.state = PlayerState::Playing;
+
+        self.emit(PlayerEvent::StateChanged { state: "playing" });
+        self.start_position_timer();
 
         Ok(())
     }
@@ -336,13 +479,11 @@ impl InnerPlayer {
         self.fade_duration_ms
     }
 
-    /// 获取当前播放位置（秒）
+    /// 获取当前播放位置（秒），基于实际消费的采样数
     pub fn position(&self) -> f64 {
-        match (self.state, self.play_start) {
-            (PlayerState::Playing, Some(start)) => {
-                self.position_base + start.elapsed().as_secs_f64()
-            }
-            _ => self.position_base,
+        match &self.shared {
+            Some(shared) => self.seek_base + shared.consumed_position(),
+            None => self.seek_base,
         }
     }
 
@@ -350,8 +491,7 @@ impl InnerPlayer {
     pub fn duration(&self) -> f64 {
         self.metadata
             .as_ref()
-            .map(|m| m.duration_secs)
-            .unwrap_or(0.0)
+            .map_or(0.0, |m| m.duration_secs)
     }
 
     /// 获取当前播放状态

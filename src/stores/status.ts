@@ -12,6 +12,33 @@ export const useStatusStore = defineStore("status", () => {
   const error = ref<string | null>(null);
   const currentSource = ref<string | null>(null);
 
+  /** 上次从主进程同步的位置（毫秒）和本地时间戳 */
+  let lastSyncPosition = 0;
+  let lastSyncTime = 0;
+
+  /** rAF 句柄 */
+  let rafId: number | null = null;
+
+  /** 用 requestAnimationFrame 在两次同步之间插值，保持进度条 60fps 流畅 */
+  const startInterpolation = (): void => {
+    stopInterpolation();
+    const tick = (): void => {
+      if (state.value === "playing") {
+        const elapsed = performance.now() - lastSyncTime;
+        position.value = lastSyncPosition + elapsed;
+        rafId = requestAnimationFrame(tick);
+      }
+    };
+    rafId = requestAnimationFrame(tick);
+  };
+
+  const stopInterpolation = (): void => {
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+  };
+
   const isPlaying = computed(() => state.value === "playing");
   const isPaused = computed(() => state.value === "paused");
   const isLoading = computed(() => state.value === "loading");
@@ -30,14 +57,18 @@ export const useStatusStore = defineStore("status", () => {
   const load = async (source: string): Promise<void> => {
     error.value = null;
     state.value = "loading";
+    stopInterpolation();
     const result = await window.api.player.load(source);
     if (result.success && result.data) {
       const media = useMediaStore();
       media.setFromLoadResult(result.data);
       duration.value = result.data.track.duration;
       position.value = 0;
+      lastSyncPosition = 0;
+      lastSyncTime = performance.now();
       state.value = "playing";
       currentSource.value = source;
+      startInterpolation();
     } else {
       state.value = "idle";
       error.value = result.error ?? "Failed to load";
@@ -61,6 +92,7 @@ export const useStatusStore = defineStore("status", () => {
   const stop = async (): Promise<void> => {
     const result = await window.api.player.stop();
     if (handleResult(result)) {
+      stopInterpolation();
       state.value = "stopped";
       position.value = 0;
     }
@@ -70,6 +102,8 @@ export const useStatusStore = defineStore("status", () => {
   const seek = async (posMs: number): Promise<void> => {
     const result = await window.api.player.seek(posMs);
     if (handleResult(result)) {
+      lastSyncPosition = posMs;
+      lastSyncTime = performance.now();
       position.value = posMs;
     }
   };
@@ -85,16 +119,35 @@ export const useStatusStore = defineStore("status", () => {
   const handleEvent = (event: PlayerEvent): void => {
     switch (event.type) {
       case "status":
+        // 状态变化事件：更新全部状态
         state.value = event.data.state;
-        position.value = event.data.position;
         duration.value = event.data.duration;
         volume.value = event.data.volume;
+        lastSyncPosition = event.data.position;
+        lastSyncTime = performance.now();
+        position.value = event.data.position;
+        if (event.data.state === "playing") {
+          startInterpolation();
+        } else {
+          stopInterpolation();
+        }
+        break;
+      case "position":
+        // 位置校准事件：只更新位置，不碰状态
+        lastSyncPosition = event.data.position;
+        lastSyncTime = performance.now();
+        position.value = event.data.position;
+        if (event.data.duration > 0) {
+          duration.value = event.data.duration;
+        }
         break;
       case "ended":
+        stopInterpolation();
         state.value = "stopped";
         position.value = duration.value;
         break;
       case "error":
+        stopInterpolation();
         error.value = event.error;
         break;
     }
@@ -110,6 +163,7 @@ export const useStatusStore = defineStore("status", () => {
 
   /** 清理事件监听 */
   const dispose = (): void => {
+    stopInterpolation();
     if (unsubscribe) {
       unsubscribe();
       unsubscribe = null;

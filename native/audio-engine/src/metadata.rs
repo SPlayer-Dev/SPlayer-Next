@@ -71,8 +71,7 @@ fn read_attached_pic(input_ctx: &ffmpeg::format::context::Input) -> Option<Vec<u
                 let raw_stream = stream.as_ptr();
                 let pkt = &(*raw_stream).attached_pic;
                 if pkt.size > 0 && !pkt.data.is_null() {
-                    let data =
-                        std::slice::from_raw_parts(pkt.data as *const u8, pkt.size as usize);
+                    let data = std::slice::from_raw_parts(pkt.data.cast_const(), pkt.size as usize);
                     return Some(data.to_vec());
                 }
             }
@@ -95,7 +94,7 @@ pub fn extract_embedded_lyric(input_ctx: &ffmpeg::format::context::Input) -> Opt
     dict.get("lyrics")
         .or_else(|| dict.get("LYRICS"))
         .or_else(|| dict.get("UNSYNCEDLYRICS"))
-        .map(|s| s.to_string())
+        .map(ToString::to_string)
         .filter(|s| !s.is_empty())
 }
 
@@ -110,7 +109,7 @@ pub fn find_all_external_lyrics(source: &str) -> Vec<ExternalLyric> {
             if let Ok(content) = std::fs::read_to_string(&lyric_path) {
                 if !content.is_empty() {
                     lyrics.push(ExternalLyric {
-                        format: ext.to_string(),
+                        format: (*ext).to_string(),
                         content,
                     });
                 }
