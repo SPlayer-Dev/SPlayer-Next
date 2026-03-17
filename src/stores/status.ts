@@ -1,10 +1,10 @@
 import { defineStore } from "pinia";
 import { ref, computed, shallowRef } from "vue";
-import type { PlayerStatus, PlayerEvent, IpcResponse } from "@/types/player";
-import { useMediaStore, toMediaInfo } from "./media";
+import type { PlayerState, PlayerEvent, IpcResponse } from "@/types/player";
+import { useMediaStore } from "./media";
 
 export const useStatusStore = defineStore("status", () => {
-  const state = ref<PlayerStatus["state"]>("idle");
+  const state = ref<PlayerState>("idle");
   const position = ref(0);
   const duration = ref(0);
   const volume = ref(1);
@@ -14,6 +14,7 @@ export const useStatusStore = defineStore("status", () => {
 
   const isPlaying = computed(() => state.value === "playing");
   const isPaused = computed(() => state.value === "paused");
+  const isLoading = computed(() => state.value === "loading");
   const progress = computed(() => (duration.value > 0 ? position.value / duration.value : 0));
 
   /** 处理 IPC 返回结果，失败时设置 error */
@@ -28,15 +29,17 @@ export const useStatusStore = defineStore("status", () => {
   /** 加载音频源，写入 media store（静态信息）+ status store（播放状态） */
   const load = async (source: string): Promise<void> => {
     error.value = null;
+    state.value = "loading";
     const result = await window.api.player.load(source);
     if (result.success && result.data) {
       const media = useMediaStore();
-      media.setMedia(toMediaInfo(result.data));
-      duration.value = result.data.duration;
+      media.setFromLoadResult(result.data);
+      duration.value = result.data.track.duration;
       position.value = 0;
       state.value = "playing";
       currentSource.value = source;
     } else {
+      state.value = "idle";
       error.value = result.error ?? "Failed to load";
     }
   };
@@ -63,10 +66,11 @@ export const useStatusStore = defineStore("status", () => {
     }
   };
 
-  const seek = async (pos: number): Promise<void> => {
-    const result = await window.api.player.seek(pos);
+  /** 跳转到指定位置（毫秒） */
+  const seek = async (posMs: number): Promise<void> => {
+    const result = await window.api.player.seek(posMs);
     if (handleResult(result)) {
-      position.value = pos;
+      position.value = posMs;
     }
   };
 
@@ -113,7 +117,6 @@ export const useStatusStore = defineStore("status", () => {
   };
 
   return {
-    // 状态
     state,
     position,
     duration,
@@ -121,11 +124,10 @@ export const useStatusStore = defineStore("status", () => {
     fftData,
     error,
     currentSource,
-    // 计算属性
     isPlaying,
     isPaused,
+    isLoading,
     progress,
-    // 操作
     load,
     play,
     pause,

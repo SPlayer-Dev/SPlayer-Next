@@ -29,6 +29,10 @@ pub struct JsMusicMetadata {
     pub sample_rate: u32,
     /// 声道数
     pub channels: u32,
+    /// 比特率（bps）
+    pub bit_rate: i64,
+    /// 编码格式（如 "flac", "mp3", "aac"）
+    pub codec: String,
     /// 内嵌歌词（从音频文件 tag 中读取）
     pub embedded_lyric: Option<String>,
     /// 同目录下找到的所有歌词文件
@@ -90,6 +94,8 @@ impl AudioPlayer {
             duration: meta.duration_secs,
             sample_rate: meta.sample_rate,
             channels: meta.channels as u32,
+            bit_rate: meta.bit_rate,
+            codec: meta.codec,
             embedded_lyric: meta.embedded_lyric,
             external_lyrics: meta
                 .external_lyrics

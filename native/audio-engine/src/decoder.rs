@@ -97,6 +97,10 @@ pub struct AudioMetadata {
     pub duration_secs: f64,
     pub sample_rate: u32,
     pub channels: u16,
+    /// 比特率（bps）
+    pub bit_rate: i64,
+    /// 编码格式名称（如 "flac", "mp3", "aac"）
+    pub codec: String,
     /// 内嵌歌词
     pub embedded_lyric: Option<String>,
     /// 同目录所有歌词文件
@@ -163,6 +167,12 @@ pub fn start_decode(
     let embedded_lyric = metadata::extract_embedded_lyric(&input_ctx);
     let external_lyrics = metadata::find_all_external_lyrics(source);
 
+    // 音质信息
+    let bit_rate = unsafe { (*stream.parameters().as_ptr()).bit_rate };
+    let codec = ffmpeg::codec::decoder::find(stream.parameters().id())
+        .map(|c| c.name().to_string())
+        .unwrap_or_default();
+
     let decoder_ctx = ffmpeg::codec::context::Context::from_parameters(stream.parameters())?;
     let decoder = decoder_ctx.decoder().audio()?;
 
@@ -199,6 +209,8 @@ pub fn start_decode(
         duration_secs,
         sample_rate: TARGET_SAMPLE_RATE,
         channels: TARGET_CHANNELS,
+        bit_rate,
+        codec,
         embedded_lyric,
         external_lyrics,
         cover,

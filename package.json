@@ -25,12 +25,14 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "electron-updater": "^6.3.9",
-    "pinia": "^3.0.2"
+    "pinia": "^3.0.2",
+    "pinia-plugin-persistedstate": "^4.7.1"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
     "@electron-toolkit/tsconfig": "^2.0.0",
+    "@napi-rs/cli": "^3.5.1",
     "@types/node": "^22.19.1",
     "@vitejs/plugin-vue": "^6.0.2",
     "electron": "^39.2.6",
@@ -39,13 +41,12 @@
     "eslint": "^9.39.1",
     "eslint-plugin-vue": "^10.6.2",
     "prettier": "^3.7.4",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vite": "^7.2.6",
     "vue": "^3.5.25",
     "vue-eslint-parser": "^10.2.0",
-    "vue-tsc": "^3.1.6",
-    "tsx": "^4.21.0",
-    "@napi-rs/cli": "^3.5.1"
+    "vue-tsc": "^3.1.6"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

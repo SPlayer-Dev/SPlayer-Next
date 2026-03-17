@@ -7,25 +7,31 @@ import { useMediaStore } from "./stores/media";
 const status = useStatusStore();
 const media = useMediaStore();
 
-const { state, position, duration, volume, error, isPlaying, progress } = storeToRefs(status);
+const { state, position, duration, volume, error, isPlaying, isLoading, progress } =
+  storeToRefs(status);
 
 /** 网络地址输入 */
 const urlInput = ref("");
-/** 当前加载的文件名 */
-const fileName = ref("");
 
-/** 封面缩略图 URL（300x300，日常显示用） */
-const coverUrl = computed(() => media.info?.cover ?? null);
+/** 封面缩略图 URL */
+const coverUrl = computed(() => media.track?.cover ?? null);
 
-/** 当前使用的歌词（优先外部歌词第一项，其次内嵌歌词） */
+/** 歌手名拼接 */
+const artistName = computed(() =>
+  media.track?.artists.map((a) => a.name).join(" / ") ?? "",
+);
+
+/** 当前使用的歌词 */
 const currentLyric = computed(() => {
-  const info = media.info;
-  if (!info) return null;
-  if (info.externalLyrics.length > 0) {
-    return { format: info.externalLyrics[0].format, content: info.externalLyrics[0].content };
+  const det = media.detail;
+  const active = media.activeLyric;
+  if (!det || !active) return null;
+  if (active.type === "external") {
+    const lyric = det.externalLyrics.find((l) => l.format === active.format);
+    return lyric ? { format: lyric.format, content: lyric.content } : null;
   }
-  if (info.embeddedLyric) {
-    return { format: "embedded", content: info.embeddedLyric };
+  if (active.type === "embedded" && det.embeddedLyric) {
+    return { format: "embedded" as const, content: det.embeddedLyric };
   }
   return null;
 });
@@ -34,7 +40,6 @@ const currentLyric = computed(() => {
 const loadFromUrl = async (): Promise<void> => {
   const url = urlInput.value.trim();
   if (!url) return;
-  fileName.value = url.split("/").pop() ?? url;
   await status.load(url);
 };
 
@@ -42,9 +47,7 @@ const loadFromUrl = async (): Promise<void> => {
 const loadFromFile = async (): Promise<void> => {
   const result = await window.api.player.openFile();
   if (!result.success || !result.data) return;
-  const filePath = result.data;
-  fileName.value = filePath.split(/[/\\]/).pop() ?? filePath;
-  await status.load(filePath);
+  await status.load(result.data);
 };
 
 /** 切换播放/暂停 */
@@ -56,11 +59,12 @@ const togglePlay = (): void => {
   }
 };
 
-/** 格式化秒数为 mm:ss */
-const formatTime = (seconds: number): string => {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
+/** 格式化毫秒为 mm:ss */
+const formatTime = (ms: number): string => {
+  const totalSecs = Math.floor(ms / 1000);
+  const min = Math.floor(totalSecs / 60);
+  const sec = totalSecs % 60;
+  return `${min}:${sec.toString().padStart(2, "0")}`;
 };
 
 /** 进度条拖动 */
@@ -100,25 +104,22 @@ const onVolumeChange = (e: Event): void => {
     <div v-if="error" class="error">{{ error }}</div>
 
     <!-- 封面 + 元信息 -->
-    <div v-if="media.info" class="song-info">
+    <div v-if="media.track" class="song-info">
       <div v-if="coverUrl" class="cover-wrap">
         <img :src="coverUrl" alt="cover" class="cover-img" />
       </div>
       <div class="metadata">
-        <div class="now-playing">{{ fileName }}</div>
-        <div v-if="media.info.title" class="meta-item">
-          {{ media.info.title }}
-          <span v-if="media.info.artist"> - {{ media.info.artist }}</span>
-        </div>
-        <div v-if="media.info.album" class="meta-item album">{{ media.info.album }}</div>
+        <div class="now-playing">{{ media.track.title }}</div>
+        <div v-if="artistName" class="meta-item">{{ artistName }}</div>
+        <div v-if="media.track.album" class="meta-item album">{{ media.track.album.name }}</div>
       </div>
     </div>
 
     <!-- 播放控制 -->
     <div class="controls">
       <button @click="status.stop()">Stop</button>
-      <button class="play-btn" @click="togglePlay">
-        {{ isPlaying ? "Pause" : "Play" }}
+      <button class="play-btn" :disabled="isLoading" @click="togglePlay">
+        {{ isLoading ? "Loading..." : isPlaying ? "Pause" : "Play" }}
       </button>
     </div>
 
@@ -129,7 +130,7 @@ const onVolumeChange = (e: Event): void => {
         type="range"
         min="0"
         :max="duration"
-        step="0.1"
+        step="100"
         :value="position"
         @input="onSeek"
       />
@@ -156,8 +157,8 @@ const onVolumeChange = (e: Event): void => {
         歌词
         <span class="lyric-format">[{{ currentLyric.format }}]</span>
         <!-- 显示所有可用的歌词源 -->
-        <span v-if="media.info && media.info.externalLyrics.length > 1" class="lyric-sources">
-          ({{ media.info.externalLyrics.map((l) => l.format).join(", ") }})
+        <span v-if="media.detail && media.detail.externalLyrics.length > 1" class="lyric-sources">
+          ({{ media.detail.externalLyrics.map((l) => l.format).join(", ") }})
         </span>
       </div>
       <pre class="lyric-content">{{ currentLyric.content }}</pre>

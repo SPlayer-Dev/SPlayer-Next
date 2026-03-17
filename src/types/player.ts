@@ -1,43 +1,23 @@
-/** 歌词格式 */
-export type LyricFormat = "ttml" | "lys" | "yrc" | "qrc" | "eslrc" | "lrc";
+import type { Track, TrackDetail } from "./song";
 
-/** 同目录下的一条外部歌词文件 */
-export interface ExternalLyric {
-  /** 歌词格式 */
-  format: LyricFormat;
-  /** 歌词内容 */
-  content: string;
+/** 播放器加载后返回的完整数据（IPC 层组装） */
+export interface LoadResult {
+  /** 歌曲轻量信息 */
+  track: Track;
+  /** 歌曲详细信息 */
+  detail: TrackDetail;
 }
 
-/** 歌曲完整元信息（加载时一次性返回，含歌词、封面、基本信息） */
-export interface MusicMetadata {
-  /** 标题 */
-  title?: string;
-  /** 艺术家 */
-  artist?: string;
-  /** 专辑 */
-  album?: string;
-  /** 时长（秒） */
-  duration: number;
-  /** 采样率 */
-  sampleRate: number;
-  /** 声道数 */
-  channels: number;
-  /** 内嵌歌词（从音频文件 tag 中读取） */
-  embeddedLyric?: string;
-  /** 同目录下找到的所有外部歌词文件 */
-  externalLyrics: ExternalLyric[];
-  /** 封面缩略图 URL（300x300，用于日常显示） */
-  cover?: string;
-}
+/** 播放器状态 */
+export type PlayerState = "idle" | "loading" | "playing" | "paused" | "stopped";
 
 /** 播放器状态快照 */
 export interface PlayerStatus {
   /** 播放状态 */
-  state: "idle" | "playing" | "paused" | "stopped";
-  /** 当前播放位置（秒） */
+  state: PlayerState;
+  /** 当前播放位置（毫秒） */
   position: number;
-  /** 总时长（秒） */
+  /** 总时长（毫秒） */
   duration: number;
   /** 音量（0.0 ~ 1.0） */
   volume: number;
@@ -63,16 +43,16 @@ export interface IpcResponse<T = void> {
 
 /** 通过 preload 暴露的播放器 API */
 export interface PlayerApi {
-  /** 加载音频源（本地路径或网络地址），返回完整元信息 */
-  load: (source: string) => Promise<IpcResponse<MusicMetadata>>;
+  /** 加载音频源（本地路径或网络地址），返回歌曲信息 + 详情 */
+  load: (source: string) => Promise<IpcResponse<LoadResult>>;
   /** 恢复播放 */
   play: () => Promise<IpcResponse>;
   /** 暂停播放 */
   pause: () => Promise<IpcResponse>;
   /** 停止播放 */
   stop: () => Promise<IpcResponse>;
-  /** 跳转到指定位置（秒） */
-  seek: (position: number) => Promise<IpcResponse>;
+  /** 跳转到指定位置（毫秒） */
+  seek: (positionMs: number) => Promise<IpcResponse>;
   /** 设置音量（0.0 ~ 1.0） */
   setVolume: (volume: number) => Promise<IpcResponse>;
   /** 获取当前音量 */

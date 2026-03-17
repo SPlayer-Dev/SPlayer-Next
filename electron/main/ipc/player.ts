@@ -1,8 +1,10 @@
+import { createHash } from "node:crypto";
 import { ipcMain, dialog } from "electron";
 import { loadNativeModule } from "../utils/nativeLoader";
 import { coverCacheDir } from "../core/index";
 import { broadcast } from "../utils/broadcast";
 import { toCoverUrl } from "../utils/protocol";
+import { toMs } from "../utils/time";
 import { mediaService } from "../services/media";
 import type { MediaEvent } from "../services/media";
 
@@ -15,6 +17,8 @@ let positionTimer: ReturnType<typeof setInterval> | null = null;
 /** 上一次推送给系统媒体控件的状态，用于避免重复发送 */
 let lastMediaState: string | null = null;
 
+
+
 /** 获取原生音频引擎模块 */
 const engine = (): AudioEngineModule => {
   if (!audioEngine) {
@@ -26,7 +30,7 @@ const engine = (): AudioEngineModule => {
   return audioEngine;
 };
 
-/** 
+/**
  * 获取播放器实例
  * 仅在首次创建时设置封面缓存目录
  */
@@ -43,27 +47,38 @@ const player = (): InstanceType<AudioEngineModule["AudioPlayer"]> => {
 const startPositionPush = (): void => {
   stopPositionPush();
   positionTimer = setInterval(() => {
-    const status = player().getStatus();
-    broadcast("player:event", { type: "status", data: status });
+    const raw = player().getStatus();
+
+    // 推送给前端（毫秒）
+    broadcast("player:event", {
+      type: "status",
+      data: {
+        state: raw.state,
+        position: toMs(raw.position),
+        duration: toMs(raw.duration),
+        volume: raw.volume,
+        isFinished: raw.isFinished,
+      },
+    });
 
     // 同步进度到系统媒体控件
     mediaService.setTimeline({
-      currentMs: status.position * 1000,
-      totalMs: status.duration * 1000,
+      currentMs: toMs(raw.position),
+      totalMs: toMs(raw.duration),
     });
 
     // 状态变化时同步到系统媒体控件
-    if (status.state !== lastMediaState) {
-      lastMediaState = status.state;
-      if (status.state === "playing") {
+    if (raw.state !== lastMediaState) {
+      lastMediaState = raw.state;
+      if (raw.state === "playing") {
         mediaService.setPlayState({ status: "Playing" });
-      } else if (status.state === "paused") {
+      } else if (raw.state === "paused") {
         mediaService.setPlayState({ status: "Paused" });
       }
     }
 
     // 自动检测播放结束
-    if (status.isFinished && status.state === "playing") {
+    if (raw.isFinished && raw.state === "playing") {
       lastMediaState = "stopped";
       broadcast("player:event", { type: "ended" });
       mediaService.setPlayState({ status: "Paused" });
@@ -82,28 +97,62 @@ const stopPositionPush = (): void => {
 
 /** 注册播放器相关的所有 IPC 事件 */
 export const registerPlayerIpc = (): void => {
-  // 加载音频文件，返回完整元信息（含封面和歌词），只打开一次 FFmpeg
+  // 加载音频文件
   ipcMain.handle("player:load", (_event, source: string) => {
+    broadcast("player:event", {
+      type: "status",
+      data: { state: "loading", position: 0, duration: 0, volume: 0, isFinished: false },
+    });
+
     try {
       const inst = player();
-      const metadata = inst.load(source);
+      const meta = inst.load(source);
 
       // 向系统媒体控件发送元数据
       const coverRaw = inst.getCoverRaw();
+      const title = meta.title ?? "";
+      const artist = meta.artist ?? "";
+      const album = meta.album ?? "";
+      const durationMs = toMs(meta.duration);
+
       mediaService.setMetadata({
-        title: metadata.title ?? "",
-        artist: metadata.artist ?? "",
-        album: metadata.album ?? "",
+        title,
+        artist,
+        album,
         coverData: coverRaw ? Buffer.from(coverRaw) : undefined,
-        durationMs: metadata.duration * 1000,
+        durationMs,
       });
       lastMediaState = "playing";
       mediaService.setPlayState({ status: "Playing" });
 
-      // 封面磁盘路径 → cover:// 协议 URL
-      metadata.cover = toCoverUrl(metadata.cover);
+      // 本地文件 ID：路径的短 hash
+      const trackId = createHash("sha256").update(source).digest("hex").slice(0, 16);
+
+      const data = {
+        track: {
+          id: trackId,
+          source: "local",
+          path: source,
+          title: title || source.split(/[/\\]/).pop() || source,
+          artists: artist ? [{ name: artist }] : [],
+          album: album ? { name: album } : undefined,
+          duration: durationMs,
+          cover: toCoverUrl(meta.cover),
+        },
+        detail: {
+          quality: {
+            sampleRate: meta.sampleRate,
+            channels: meta.channels,
+            bitRate: meta.bitRate,
+            codec: meta.codec,
+          },
+          embeddedLyric: meta.embeddedLyric,
+          externalLyrics: meta.externalLyrics,
+        },
+      };
+
       startPositionPush();
-      return { success: true, data: metadata };
+      return { success: true, data };
     } catch (error) {
       return { success: false, error: String(error) };
     }
@@ -147,13 +196,14 @@ export const registerPlayerIpc = (): void => {
     }
   });
 
-  // 跳转到指定播放位置（秒）
-  ipcMain.handle("player:seek", (_event, position: number) => {
+  // 跳转到指定播放位置
+  ipcMain.handle("player:seek", (_event, positionMs: number) => {
     try {
-      player().seek(position);
+      const positionSecs = positionMs / 1000;
+      player().seek(positionSecs);
       mediaService.setTimeline({
-        currentMs: position * 1000,
-        totalMs: player().getDuration() * 1000,
+        currentMs: positionMs,
+        totalMs: toMs(player().getDuration()),
         seeked: true,
       });
       startPositionPush();
@@ -194,9 +244,19 @@ export const registerPlayerIpc = (): void => {
     return { success: true, data: player().getFadeDuration() };
   });
 
-  // 获取当前播放状态快照
+  // 获取当前播放状态快照（转毫秒）
   ipcMain.handle("player:getStatus", () => {
-    return { success: true, data: player().getStatus() };
+    const raw = player().getStatus();
+    return {
+      success: true,
+      data: {
+        state: raw.state,
+        position: toMs(raw.position),
+        duration: toMs(raw.duration),
+        volume: raw.volume,
+        isFinished: raw.isFinished,
+      },
+    };
   });
 
   // 获取 FFT 频谱数据（128 个频段，值域 0.0 ~ 1.0）
@@ -251,7 +311,7 @@ export const registerPlayerIpc = (): void => {
             inst.seek(event.positionMs / 1000);
             mediaService.setTimeline({
               currentMs: event.positionMs,
-              totalMs: inst.getDuration() * 1000,
+              totalMs: toMs(inst.getDuration()),
               seeked: true,
             });
             startPositionPush();

@@ -12,7 +12,7 @@ const api = {
     pause: () => ipcRenderer.invoke("player:pause"),
     // 停止播放
     stop: () => ipcRenderer.invoke("player:stop"),
-    // 跳转到指定位置（秒）
+    // 跳转到指定位置（毫秒）
     seek: (position: number) => ipcRenderer.invoke("player:seek", position),
     // 设置音量（0.0 ~ 1.0）
     setVolume: (volume: number) => ipcRenderer.invoke("player:setVolume", volume),
