@@ -9,10 +9,32 @@ import { mediaService } from "../services/media";
 export const coverCacheDir = path.join(app.getPath("userData"), "cover-cache");
 
 /**
+ * 配置 Chromium 启动参数以优化内存占用
+ */
+const configureMemoryOptimizations = (): void => {
+  // 限制 JS 堆内存上限
+  app.commandLine.appendSwitch("js-flags", "--max-old-space-size=256");
+  // 限制 GPU 进程使用的共享内存
+  app.commandLine.appendSwitch("gpu-rasterization-msaa-sample-count", "0");
+  // 禁用不需要的 Chromium 功能
+  app.commandLine.appendSwitch(
+    "disable-features",
+    [
+      "MediaRouter", // 不需要 Chromecast
+      "TranslateUI", // 不需要翻译
+      "SpareRendererForSitePerProcess", // 不需要备用渲染进程
+    ].join(","),
+  );
+  // 减少渲染进程内存分配器保留
+  app.commandLine.appendSwitch("renderer-process-limit", "1");
+};
+
+/**
  * 初始化应用
  */
 export const initApp = (): void => {
-  // 注册自定义协议（必须在 app ready 之前调用 registerSchemesAsPrivileged）
+  configureMemoryOptimizations();
+  // 注册自定义协议
   protocol.registerSchemesAsPrivileged([
     {
       scheme: "cover",
@@ -59,5 +81,10 @@ export const initApp = (): void => {
     if (process.platform !== "darwin") {
       app.quit();
     }
+  });
+
+  // 退出前清理原生模块资源
+  app.on("before-quit", () => {
+    mediaService.shutdown();
   });
 };

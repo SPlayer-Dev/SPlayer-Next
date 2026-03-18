@@ -1,1 +1,1 @@
-import type { LyricLine } from "@/types/lyric";
+// import type { LyricLine } from "@/types/lyric";
