@@ -14,6 +14,9 @@ const { state, position, duration, volume, error, isPlaying, isLoading, progress
 /** 网络地址输入 */
 const urlInput = ref("");
 
+/** 封面图片元素 */
+const coverImg = ref<HTMLImageElement>();
+
 /** 封面缩略图 URL */
 const coverUrl = computed(() => media.track?.cover ?? null);
 
@@ -168,7 +171,13 @@ const onVolumeChange = (e: Event): void => {
     <!-- 封面 + 元信息 -->
     <div v-if="media.track" class="flex items-center gap-4 w-full">
       <div v-if="coverUrl" class="shrink-0">
-        <img :src="coverUrl" alt="cover" class="w-20 h-20 rounded-lg object-cover bg-surface-alt" />
+        <img
+          ref="coverImg"
+          :src="coverUrl"
+          alt="cover"
+          class="w-20 h-20 rounded-lg object-cover bg-surface-alt"
+          @load="theme.updateCoverColor(coverImg ?? null)"
+        />
       </div>
       <div class="flex-1 min-w-0 text-sm">
         <div class="font-semibold text-on-surface truncate">{{ media.track.title }}</div>

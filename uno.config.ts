@@ -17,6 +17,7 @@ export default defineConfig({
       outline: "rgb(var(--s-outline) / <alpha-value>)",
       "outline-variant": "rgb(var(--s-outline-variant) / <alpha-value>)",
       error: "rgb(var(--s-error) / <alpha-value>)",
+      cover: "rgb(var(--s-cover) / <alpha-value>)",
     },
   },
   // 主题切换过渡动画
