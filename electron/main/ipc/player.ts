@@ -109,8 +109,7 @@ export const registerPlayerIpc = (): void => {
       const inst = player();
       const meta = inst.load(source);
 
-      // 向系统媒体控件发送元数据
-      const coverRaw = inst.getCoverRaw();
+      // 向系统媒体控件发送元数据（getCoverRaw 返回的已是 Buffer，无需再复制）
       const title = meta.title ?? "";
       const artist = meta.artist ?? "";
       const album = meta.album ?? "";
@@ -120,7 +119,7 @@ export const registerPlayerIpc = (): void => {
         title,
         artist,
         album,
-        coverData: coverRaw ? Buffer.from(coverRaw) : undefined,
+        coverData: inst.getCoverRaw() ?? undefined,
         durationMs,
       });
       lastMediaState = "playing";
@@ -308,4 +307,5 @@ export const registerPlayerIpc = (): void => {
       }
     } catch {}
   });
+
 };

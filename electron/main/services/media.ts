@@ -1,11 +1,6 @@
 import { loadNativeModule } from "../utils/nativeLoader";
 import { broadcast } from "../utils/broadcast";
-import type {
-  MediaEvent,
-  MetadataParam,
-  PlayStateParam,
-  TimelineParam,
-} from "@splayer/media-ctrl";
+import type { MediaEvent, MetadataParam, PlayStateParam, TimelineParam } from "@splayer/media-ctrl";
 
 export type { MediaEvent, MetadataParam, PlayStateParam, TimelineParam };
 
@@ -43,7 +38,9 @@ class MediaService {
 
   /** 关闭并清理资源 */
   shutdown(): void {
-    try { this.mc?.shutdown(); } catch {}
+    try {
+      this.mc?.shutdown();
+    } catch {}
   }
 
   /** 注册系统媒体事件处理器（播放/暂停/上下首等） */
@@ -53,27 +50,37 @@ class MediaService {
 
   /** 更新歌曲元数据 */
   setMetadata(param: MetadataParam): void {
-    try { this.mc?.setMetadata(param); } catch {}
+    try {
+      this.mc?.setMetadata(param);
+    } catch {}
   }
 
   /** 更新播放状态 */
   setPlayState(param: PlayStateParam): void {
-    try { this.mc?.setPlayState(param); } catch {}
+    try {
+      this.mc?.setPlayState(param);
+    } catch {}
   }
 
   /** 更新播放进度 */
   setTimeline(param: TimelineParam): void {
-    try { this.mc?.setTimeline(param); } catch {}
+    try {
+      this.mc?.setTimeline(param);
+    } catch {}
   }
 
   /** 更新播放速率 */
   setRate(rate: number): void {
-    try { this.mc?.setRate(rate); } catch {}
+    try {
+      this.mc?.setRate(rate);
+    } catch {}
   }
 
   /** 更新音量 */
   setVolume(volume: number): void {
-    try { this.mc?.setVolume(volume); } catch {}
+    try {
+      this.mc?.setVolume(volume);
+    } catch {}
   }
 }
 

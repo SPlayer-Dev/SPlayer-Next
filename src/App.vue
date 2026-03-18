@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
-import { storeToRefs } from "pinia";
 import { useStatusStore } from "./stores/status";
 import { useMediaStore } from "./stores/media";
 
@@ -17,9 +15,7 @@ const urlInput = ref("");
 const coverUrl = computed(() => media.track?.cover ?? null);
 
 /** 歌手名拼接 */
-const artistName = computed(() =>
-  media.track?.artists.map((a) => a.name).join(" / ") ?? "",
-);
+const artistName = computed(() => media.track?.artists.map((a) => a.name).join(" / ") ?? "");
 
 /** 当前使用的歌词 */
 const currentLyric = computed(() => {
@@ -81,7 +77,7 @@ const onVolumeChange = (e: Event): void => {
 </script>
 
 <template>
-  <div class="player-test">
+  <div class="flex flex-col items-center gap-4  mx-auto">
     <h2>SPlayer Audio Test</h2>
 
     <!-- 网络地址输入 -->
@@ -126,28 +122,14 @@ const onVolumeChange = (e: Event): void => {
     <!-- 进度条 -->
     <div class="progress-bar">
       <span class="time">{{ formatTime(position) }}</span>
-      <input
-        type="range"
-        min="0"
-        :max="duration"
-        step="100"
-        :value="position"
-        @input="onSeek"
-      />
+      <input type="range" min="0" :max="duration" step="100" :value="position" @input="onSeek" />
       <span class="time">{{ formatTime(duration) }}</span>
     </div>
 
     <!-- 音量控制 -->
     <div class="volume-bar">
       <span class="label">VOL</span>
-      <input
-        type="range"
-        min="0"
-        max="1"
-        step="0.01"
-        :value="volume"
-        @input="onVolumeChange"
-      />
+      <input type="range" min="0" max="1" step="0.01" :value="volume" @input="onVolumeChange" />
       <span class="value">{{ Math.round(volume * 100) }}%</span>
     </div>
 
@@ -165,23 +147,11 @@ const onVolumeChange = (e: Event): void => {
     </div>
 
     <!-- 状态信息 -->
-    <div class="status">
-      状态: {{ state }} | 进度: {{ Math.round(progress * 100) }}%
-    </div>
+    <div class="status">状态: {{ state }} | 进度: {{ Math.round(progress * 100) }}%</div>
   </div>
 </template>
 
 <style scoped>
-.player-test {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  padding: 32px;
-  max-width: 500px;
-  margin: 0 auto;
-  color: #e0e0e0;
-}
 
 h2 {
   margin: 0;

@@ -1,4 +1,5 @@
 import "./assets/main.css";
+import "virtual:uno.css";
 
 import { createApp } from "vue";
 import { createPinia } from "pinia";
@@ -12,7 +13,7 @@ pinia.use(piniaPersistedstate);
 const app = createApp(App);
 app.use(pinia);
 
-// pinia 就绪后初始化播放器事件监听，全生命周期只跑一次
+// 初始化播放器事件监听
 useStatusStore().init();
 
 app.mount("#app");

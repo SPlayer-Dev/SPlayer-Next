@@ -3,6 +3,7 @@ import path from "node:path";
 import { electronApp, optimizer } from "@electron-toolkit/utils";
 import { createMainWindow } from "../window";
 import { registerIpcHandlers } from "../ipc";
+import { mediaService } from "../services/media";
 
 /** 封面缓存目录（供 cover:// 协议解析使用） */
 export const coverCacheDir = path.join(app.getPath("userData"), "cover-cache");
@@ -38,11 +39,16 @@ export const initApp = (): void => {
       optimizer.watchWindowShortcuts(window);
     });
 
-    // 注册 IPC 处理
+    // 注册 IPC
     registerIpcHandlers();
 
     // 创建主窗口
     createMainWindow();
+
+    // 加载 native 模块
+    setImmediate(() => {
+      mediaService.init();
+    });
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createMainWindow();

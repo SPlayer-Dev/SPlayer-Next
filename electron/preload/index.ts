@@ -29,7 +29,9 @@ const api = {
     // 打开文件选择对话框
     openFile: () => ipcRenderer.invoke("player:openFile"),
     // 订阅主进程推送的播放事件，返回取消订阅函数
+    // 清除全部旧监听
     onEvent: (callback: (event: unknown) => void) => {
+      ipcRenderer.removeAllListeners("player:event");
       const handler = (_event: Electron.IpcRendererEvent, data: unknown): void => {
         callback(data);
       };

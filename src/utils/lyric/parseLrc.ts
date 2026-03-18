@@ -1,0 +1,1 @@
+import type { LyricLine } from "@/types/lyric";

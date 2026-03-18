@@ -1,13 +1,8 @@
-import { defineStore } from "pinia";
-import { shallowRef, ref } from "vue";
 import type { Track, TrackDetail, LyricFormat } from "@/types/song";
 import type { LoadResult } from "@/types/player";
 
 /** 当前使用的歌词来源 */
-export type ActiveLyric =
-  | { type: "embedded" }
-  | { type: "external"; format: LyricFormat }
-  | null;
+export type ActiveLyric = { type: "embedded" } | { type: "external"; format: LyricFormat } | null;
 
 export const useMediaStore = defineStore("media", () => {
   /** 当前歌曲轻量信息 */
@@ -50,9 +45,11 @@ export const useMediaStore = defineStore("media", () => {
   };
 
   return { track, detail, activeLyric, setFromLoadResult, setActiveLyric, clear };
-}, {
-  persist: {
-    storage: sessionStorage,
-    pick: ["track", "activeLyric"],
-  },
 });
+// persist 暂时关闭，排查内存问题
+// }, {
+//   persist: {
+//     storage: sessionStorage,
+//     pick: ["track", "activeLyric"],
+//   },
+// });

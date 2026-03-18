@@ -1,6 +1,10 @@
 import { resolve } from "path";
 import { defineConfig } from "electron-vite";
+import UnoCSS from "unocss/vite";
 import vue from "@vitejs/plugin-vue";
+import AutoImport from "unplugin-auto-import/vite";
+import RekaResolver from "reka-ui/resolver";
+import Components from "unplugin-vue-components/vite";
 
 export default defineConfig({
   main: {
@@ -13,10 +17,7 @@ export default defineConfig({
     },
     resolve: {
       alias: {
-        "@splayer/audio-engine": resolve(
-          __dirname,
-          "native/audio-engine",
-        ),
+        "@splayer/audio-engine": resolve(__dirname, "native/audio-engine"),
       },
     },
   },
@@ -46,6 +47,19 @@ export default defineConfig({
         "@": resolve("src"),
       },
     },
-    plugins: [vue()],
+    plugins: [
+      vue(),
+      UnoCSS(),
+      AutoImport({
+        imports: ["vue", "pinia", "vue-router", "@vueuse/core"],
+        eslintrc: {
+          enabled: true,
+          filepath: "./auto-eslint.mjs",
+        },
+      }),
+      Components({
+        resolvers: [RekaResolver()],
+      }),
+    ],
   },
 });
