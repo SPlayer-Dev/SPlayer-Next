@@ -2,7 +2,7 @@
 import { useStatusStore } from "./stores/status";
 import { useMediaStore } from "./stores/media";
 import { useThemeStore } from "./stores/theme";
-import { DEFAULT_PRIMARY } from "./utils/color";
+import type { ThemeSource } from "./types/theme";
 
 const status = useStatusStore();
 const media = useMediaStore();
@@ -64,24 +64,21 @@ const togglePlay = (): void => {
 /** 主题模式显示 */
 const modeLabel: Record<string, string> = { light: "浅色", dark: "深色", system: "系统" };
 
-/** 循环切换主题模式 */
-const toggleTheme = (): void => {
-  theme.cycleMode();
-};
+/** 主题类型选项 */
+const sourceOptions: { value: ThemeSource; label: string }[] = [
+  { value: "default", label: "默认" },
+  { value: "custom", label: "自定义" },
+  { value: "cover", label: "跟随封面" },
+  { value: "solid", label: "纯色" },
+];
 
-/** v-model 绑定的颜色字符串，ColorSlider 自动同步 HEX */
+/** v-model 绑定的颜色字符串 */
 const colorHex = ref(theme.customColor);
 
 /** 监听颜色变化，同步到主题 */
 watch(colorHex, (hex) => {
   theme.setCustomColor(hex);
 });
-
-/** 恢复默认主题 */
-const resetTheme = (): void => {
-  theme.setSource("default");
-  colorHex.value = DEFAULT_PRIMARY;
-};
 
 /** 格式化毫秒为 mm:ss */
 const formatTime = (ms: number): string => {
@@ -108,22 +105,16 @@ const onVolumeChange = (e: Event): void => {
   <div class="min-h-screen bg-surface text-on-surface flex flex-col items-center gap-4 p-8 max-w-xl mx-auto">
     <div class="flex items-center gap-3 w-full">
       <h2 class="text-lg font-semibold flex-1">SPlayer Audio Test</h2>
-      <!-- 纯色模式 -->
-      <button
-        class="px-2 py-1.5 rounded-lg text-xs border border-outline-variant"
-        :class="theme.source === 'solid' ? 'bg-primary text-on-primary' : 'text-on-surface-variant'"
-        @click="theme.setSource(theme.source === 'solid' ? 'default' : 'solid')"
+      <!-- 主题类型 -->
+      <select
+        class="px-2 py-1.5 rounded-lg text-sm border border-outline-variant bg-surface-alt text-on-surface outline-none"
+        :value="theme.source"
+        @change="theme.setSource(($event.target as HTMLSelectElement).value as ThemeSource)"
       >
-        纯色
-      </button>
-      <!-- 恢复默认 -->
-      <button
-        v-if="theme.source !== 'default' && theme.source !== 'solid'"
-        class="px-2 py-1.5 rounded-lg text-on-surface-variant text-xs border border-outline-variant"
-        @click="resetTheme"
-      >
-        Reset
-      </button>
+        <option v-for="opt in sourceOptions" :key="opt.value" :value="opt.value">
+          {{ opt.label }}
+        </option>
+      </select>
       <!-- 主色预览 -->
       <span
         class="block w-6 h-6 rounded-full border-2 border-outline-variant shrink-0"
@@ -132,7 +123,7 @@ const onVolumeChange = (e: Event): void => {
       <!-- 明暗切换 -->
       <button
         class="px-3 py-1.5 rounded-lg bg-surface-alt text-on-surface-variant text-sm border border-outline-variant"
-        @click="toggleTheme"
+        @click="theme.cycleMode()"
       >
         {{ modeLabel[theme.mode] }}
       </button>
@@ -257,8 +248,8 @@ const onVolumeChange = (e: Event): void => {
       状态: {{ state }} | 进度: {{ Math.round(progress * 100) }}%
     </div>
 
-    <!-- 颜色选择器 -->
-    <div class="w-full mt-4 flex items-center gap-3">
+    <!-- 颜色选择器（仅自定义时显示） -->
+    <div v-if="theme.source === 'custom'" class="w-full mt-4 flex items-center gap-3">
       <span class="text-xs text-on-surface-variant shrink-0">主题色</span>
       <ColorSliderRoot
         v-model="colorHex"

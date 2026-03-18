@@ -44,12 +44,13 @@ export const useThemeStore = defineStore(
     const apply = (withTransition = true): void => {
       const root = document.documentElement;
       if (withTransition) root.classList.add("theme-transition");
-      const palette =
-        source.value === "solid"
-          ? isDark.value
-            ? SOLID_PALETTE_DARK
-            : SOLID_PALETTE_LIGHT
-          : generatePalette(activeColor.value, isDark.value);
+      const useSolid =
+        source.value === "solid" || (source.value === "cover" && !coverColor.value);
+      const palette = useSolid
+        ? isDark.value
+          ? SOLID_PALETTE_DARK
+          : SOLID_PALETTE_LIGHT
+        : generatePalette(activeColor.value, isDark.value);
       applyThemeToDOM(palette, coverColor.value, isDark.value);
       if (withTransition) setTimeout(() => root.classList.remove("theme-transition"), 300);
     };

@@ -72,17 +72,17 @@ export const SOLID_PALETTE_LIGHT: ThemePalette = {
 /** 纯色色板 — 深色 */
 export const SOLID_PALETTE_DARK: ThemePalette = {
   primary: "230 230 230",
-  primaryContainer: "50 50 50",
-  onPrimary: "20 20 20",
-  onPrimaryContainer: "230 230 230",
-  secondary: "160 160 160",
-  secondaryContainer: "45 45 45",
-  surface: "18 18 18",
-  surfaceAlt: "28 28 28",
+  primaryContainer: "55 55 55",
+  onPrimary: "25 25 25",
+  onPrimaryContainer: "225 225 225",
+  secondary: "165 165 165",
+  secondaryContainer: "55 55 55",
+  surface: "30 30 30",
+  surfaceAlt: "40 40 40",
   onSurface: "230 230 230",
-  onSurfaceVariant: "160 160 160",
-  outline: "60 60 60",
-  outlineVariant: "40 40 40",
+  onSurfaceVariant: "165 165 165",
+  outline: "75 75 75",
+  outlineVariant: "50 50 50",
   error: "240 80 80",
 };
 
@@ -111,8 +111,12 @@ export const extractColorFromImage = (img: HTMLImageElement): string | null => {
     .slice(0, 5)
     .map(([argb]) => [(argb >> 16) & 0xff, (argb >> 8) & 0xff, argb & 0xff]);
   if (top5.every((c) => Math.max(...c) - Math.min(...c) < 5)) return null;
-  // Score 评分取最佳色，经 Material 主题提取 secondary 色相后提亮至 tone 90
+  // Score 评分取最佳色
   const ranked = Score.score(new Map(sorted.slice(0, 50)));
+  // 彩度检测：scored 色的 chroma 过低说明实际无有效彩色
+  const scoredHct = Hct.fromInt(ranked[0]);
+  if (scoredHct.chroma < 10) return null;
+  // 经 Material 主题提取 secondary 色相后提亮至 tone 90
   const theme: Theme = themeFromSourceColor(ranked[0]);
   const { hue, chroma } = theme.palettes.secondary;
   // 释放 canvas GPU 资源
