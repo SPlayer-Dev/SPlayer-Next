@@ -26,6 +26,8 @@ const api = {
     getStatus: () => ipcRenderer.invoke("player:getStatus"),
     // 获取 FFT 频谱数据
     getFftData: () => ipcRenderer.invoke("player:getFftData"),
+    // 重建音频输出设备
+    reinit: () => ipcRenderer.invoke("player:reinit"),
     // 打开文件选择对话框
     openFile: () => ipcRenderer.invoke("player:openFile"),
     // 订阅主进程推送的播放事件，返回取消订阅函数

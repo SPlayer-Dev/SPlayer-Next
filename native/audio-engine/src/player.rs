@@ -268,6 +268,52 @@ impl InnerPlayer {
         }
     }
 
+    /// 重新初始化音频输出设备（系统休眠唤醒后调用，恢复失效的 OutputStream 句柄）
+    ///
+    /// 保存当前播放状态（来源、位置、音量），重建音频输出后自动恢复：
+    /// - Playing → seek 到原位置继续播放
+    /// - Paused  → seek 到原位置并暂停
+    /// - 其他状态 → 仅重建输出，不恢复播放
+    pub fn reinit_output(&mut self) -> Result<()> {
+        // 保存当前状态
+        let prev_state = self.state;
+        let prev_source = self.current_source.clone();
+        let prev_position = self.position();
+        let prev_volume = self.target_volume;
+
+        // 停止当前播放（释放旧的 Sink / 解码线程）
+        self.stop_internal();
+
+        // 重建音频输出
+        let (stream, stream_handle) =
+            OutputStream::try_default().context("Failed to reopen audio output device")?;
+        self._stream = stream;
+        self.stream_handle = stream_handle;
+
+        // 恢复播放状态
+        match prev_state {
+            PlayerState::Playing | PlayerState::Paused => {
+                if let Some(source) = prev_source {
+                    self.load(&source)?;
+                    if prev_position > 0.5 {
+                        self.seek(prev_position)?;
+                    }
+                    if prev_state == PlayerState::Paused {
+                        self.pause();
+                    }
+                    self.set_volume(prev_volume);
+                } else {
+                    self.state = PlayerState::Idle;
+                }
+            }
+            _ => {
+                self.state = prev_state;
+            }
+        }
+
+        Ok(())
+    }
+
     /// 设置封面缓存目录
     pub fn set_cover_cache_dir(&mut self, dir: String) {
         self.cover_cache_dir = Some(dir);
@@ -279,15 +325,11 @@ impl InnerPlayer {
         self.fft.reset();
 
         let shared = Shared::new(decoder::TARGET_SAMPLE_RATE, decoder::TARGET_CHANNELS);
-        let (metadata, handle) = decoder::start_decode(
-            source,
-            Arc::clone(&shared),
-            self.cover_cache_dir.as_deref(),
-        )?;
+        let (metadata, handle) =
+            decoder::start_decode(source, Arc::clone(&shared), self.cover_cache_dir.as_deref())?;
 
-        let sink = Arc::new(
-            Sink::try_new(&self.stream_handle).context("Failed to create audio sink")?,
-        );
+        let sink =
+            Arc::new(Sink::try_new(&self.stream_handle).context("Failed to create audio sink")?);
 
         let decoder_source = DecoderSource::new(
             Arc::clone(&shared),
@@ -429,9 +471,8 @@ impl InnerPlayer {
             let _ = decoder::seek_decode(&source_clone, position_secs, &shared_for_thread);
         });
 
-        let sink = Arc::new(
-            Sink::try_new(&self.stream_handle).context("Failed to create audio sink")?,
-        );
+        let sink =
+            Arc::new(Sink::try_new(&self.stream_handle).context("Failed to create audio sink")?);
 
         let metadata = self.metadata.as_ref().context("No metadata available")?;
         let decoder_source = DecoderSource::new(
@@ -489,9 +530,7 @@ impl InnerPlayer {
 
     /// 获取总时长（秒）
     pub fn duration(&self) -> f64 {
-        self.metadata
-            .as_ref()
-            .map_or(0.0, |m| m.duration_secs)
+        self.metadata.as_ref().map_or(0.0, |m| m.duration_secs)
     }
 
     /// 获取当前播放状态

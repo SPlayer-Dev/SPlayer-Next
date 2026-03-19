@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { ipcMain, dialog } from "electron";
+import { ipcMain, dialog, powerMonitor } from "electron";
 import { loadNativeModule } from "../utils/nativeLoader";
 import { coverCacheDir } from "../core/index";
 import { broadcast } from "../utils/broadcast";
@@ -249,6 +249,16 @@ export const registerPlayerIpc = (): void => {
     };
   });
 
+  // 重建音频输出设备
+  ipcMain.handle("player:reinit", () => {
+    try {
+      player().reinitOutput();
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
   // 获取 FFT 频谱数据（128 个频段，值域 0.0 ~ 1.0）
   ipcMain.handle("player:getFftData", () => {
     return { success: true, data: player().getFftData() };
@@ -306,6 +316,22 @@ export const registerPlayerIpc = (): void => {
         // NextTrack / PrevTrack 等需要播放列表支持，后续实现
       }
     } catch {}
+  });
+
+  // 系统休眠唤醒后重建音频输出设备（OutputStream 句柄在休眠后会失效）
+  // Rust 侧 reinitOutput 会自动保存并恢复播放状态（位置、暂停/播放），对用户无感
+  powerMonitor.on("resume", () => {
+    if (!playerInstance) return;
+    try {
+      playerInstance.reinitOutput();
+    } catch (error) {
+      console.error("[Player] 唤醒后重建音频输出失败:", error);
+      // 重建失败时通知前端回到停止状态
+      broadcast("player:event", {
+        type: "status",
+        data: { state: "stopped", position: 0, duration: 0, volume: 0, isFinished: false },
+      });
+    }
   });
 
 };

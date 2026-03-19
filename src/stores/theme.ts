@@ -88,7 +88,6 @@ export const useThemeStore = defineStore(
         customColor.value = DEFAULT_PRIMARY;
       }
       apply(false);
-      // 统一由 watcher 驱动，setter 只改状态不调 apply，避免重复执行
       watch([isDark, activeColor, source, coverColor], () => apply());
     };
 

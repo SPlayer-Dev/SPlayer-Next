@@ -90,6 +90,15 @@ impl AudioPlayer {
         })
     }
 
+    /// 重新初始化音频输出设备（系统休眠唤醒后调用）
+    #[napi]
+    pub fn reinit_output(&self) -> Result<()> {
+        self.inner
+            .lock()
+            .reinit_output()
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
     /// 设置封面缓存目录（在 load 前调用一次即可）
     #[napi]
     pub fn set_cover_cache_dir(&self, dir: String) {
