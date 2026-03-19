@@ -67,6 +67,8 @@ fn read_attached_pic(input_ctx: &ffmpeg::format::context::Input) -> Option<Vec<u
             .disposition()
             .contains(ffmpeg::format::stream::Disposition::ATTACHED_PIC)
         {
+            // SAFETY: stream.as_ptr() 返回有效的 AVStream 指针，attached_pic 字段
+            // 在 ATTACHED_PIC disposition 下由 FFmpeg 保证初始化且生命周期与 input_ctx 一致
             unsafe {
                 let raw_stream = stream.as_ptr();
                 let pkt = &(*raw_stream).attached_pic;

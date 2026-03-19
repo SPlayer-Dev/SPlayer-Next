@@ -1,0 +1,83 @@
+use std::collections::VecDeque;
+use std::sync::Arc;
+use std::time::Duration;
+
+use rodio::Source;
+
+use crate::fft::FftAnalyzer;
+use crate::shared::Shared;
+
+/// rodio 音频源，从共享缓冲区拉取样本。
+/// 使用 condvar 阻塞等待数据，不会返回静音填充。
+pub struct DecoderSource {
+    shared: Arc<Shared>,
+    fft: Arc<FftAnalyzer>,
+    /// 本地缓冲，减少锁竞争
+    local_buffer: VecDeque<f32>,
+    sample_rate: u32,
+    channels: u16,
+}
+
+impl DecoderSource {
+    pub fn new(shared: Arc<Shared>, fft: Arc<FftAnalyzer>, sample_rate: u32, channels: u16) -> Self {
+        Self {
+            shared,
+            fft,
+            local_buffer: VecDeque::new(),
+            sample_rate,
+            channels,
+        }
+    }
+}
+
+impl Iterator for DecoderSource {
+    type Item = f32;
+
+    fn next(&mut self) -> Option<f32> {
+        // 快速路径：从本地缓冲返回（无原子操作）
+        if let Some(sample) = self.local_buffer.pop_front() {
+            return Some(sample);
+        }
+
+        // 慢速路径：从共享缓冲区阻塞获取，跳过空数据块
+        loop {
+            if let Some(chunk) = self.shared.pop() {
+                // 将 FFT 样本推送给分析器
+                if !chunk.fft_samples.is_empty() {
+                    self.fft.push_samples(&chunk.fft_samples);
+                }
+
+                // 填充本地缓冲，一次性批量计数（而非逐采样）
+                if !chunk.player_samples.is_empty() {
+                    let count = chunk.player_samples.len() as u64;
+                    self.local_buffer.extend(chunk.player_samples);
+                    self.shared.advance_consumed(count);
+                    return self.local_buffer.pop_front();
+                }
+                // 空数据块（重采样器预热期），继续获取下一个
+            } else {
+                // 数据源耗尽，标记消费完毕
+                self.shared.mark_all_consumed();
+                return None;
+            }
+        }
+    }
+}
+
+impl Source for DecoderSource {
+    fn current_frame_len(&self) -> Option<usize> {
+        None
+    }
+
+    fn channels(&self) -> u16 {
+        self.channels
+    }
+
+    fn sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
+
+    fn total_duration(&self) -> Option<Duration> {
+        None
+    }
+}

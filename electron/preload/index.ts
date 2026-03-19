@@ -26,6 +26,8 @@ const api = {
     getStatus: () => ipcRenderer.invoke("player:getStatus"),
     // 获取 FFT 频谱数据
     getFftData: () => ipcRenderer.invoke("player:getFftData"),
+    // 启用/禁用 FFT 频谱推送
+    setFftEnabled: (enabled: boolean) => ipcRenderer.invoke("player:setFftEnabled", enabled),
     // 重建音频输出设备
     reinit: () => ipcRenderer.invoke("player:reinit"),
     // 打开文件选择对话框

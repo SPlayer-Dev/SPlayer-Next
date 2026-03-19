@@ -1,14 +1,15 @@
-use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use rodio::{OutputStream, OutputStreamHandle, Sink, Source};
+use rodio::{OutputStream, OutputStreamHandle, Sink};
 
-use crate::decoder::{self, AudioMetadata, Shared};
+use crate::decoder;
 use crate::fft::FftAnalyzer;
+use crate::shared::{AudioMetadata, Shared};
+use crate::source::DecoderSource;
 
 /// 播放器推送给 JS 侧的事件类型
 #[derive(Clone, Debug)]
@@ -19,6 +20,8 @@ pub enum PlayerEvent {
     Ended,
     /// 位置更新（秒）—— 由内部定时器推送
     Position { position: f64, duration: f64 },
+    /// FFT 频谱数据推送
+    FftData { data: Vec<f32> },
 }
 
 /// 事件发射器类型（跨线程安全）
@@ -41,81 +44,6 @@ fn fade_volume(sink: &Sink, from: f32, to: f32, duration_ms: u64, cancel: &Atomi
         let t = i as f32 / FADE_STEPS as f32;
         sink.set_volume(from + (to - from) * t);
         thread::sleep(step_duration);
-    }
-}
-
-/// rodio 音频源，从共享缓冲区拉取样本。
-/// 使用 condvar 阻塞等待数据，不会返回静音填充。
-struct DecoderSource {
-    shared: Arc<Shared>,
-    fft: Arc<FftAnalyzer>,
-    /// 本地缓冲，减少锁竞争
-    local_buffer: VecDeque<f32>,
-    sample_rate: u32,
-    channels: u16,
-}
-
-impl DecoderSource {
-    fn new(shared: Arc<Shared>, fft: Arc<FftAnalyzer>, sample_rate: u32, channels: u16) -> Self {
-        Self {
-            shared,
-            fft,
-            local_buffer: VecDeque::new(),
-            sample_rate,
-            channels,
-        }
-    }
-}
-
-impl Iterator for DecoderSource {
-    type Item = f32;
-
-    fn next(&mut self) -> Option<f32> {
-        // 快速路径：从本地缓冲返回（无原子操作）
-        if let Some(sample) = self.local_buffer.pop_front() {
-            return Some(sample);
-        }
-
-        // 慢速路径：从共享缓冲区阻塞获取，跳过空数据块
-        loop {
-            if let Some(chunk) = self.shared.pop() {
-                // 将 FFT 样本推送给分析器
-                if !chunk.fft_samples.is_empty() {
-                    self.fft.push_samples(&chunk.fft_samples);
-                }
-
-                // 填充本地缓冲，一次性批量计数（而非逐采样）
-                if !chunk.player_samples.is_empty() {
-                    let count = chunk.player_samples.len() as u64;
-                    self.local_buffer.extend(chunk.player_samples);
-                    self.shared.advance_consumed(count);
-                    return self.local_buffer.pop_front();
-                }
-                // 空数据块（重采样器预热期），继续获取下一个
-            } else {
-                // 数据源耗尽，标记消费完毕
-                self.shared.mark_all_consumed();
-                return None;
-            }
-        }
-    }
-}
-
-impl Source for DecoderSource {
-    fn current_frame_len(&self) -> Option<usize> {
-        None
-    }
-
-    fn channels(&self) -> u16 {
-        self.channels
-    }
-
-    fn sample_rate(&self) -> u32 {
-        self.sample_rate
-    }
-
-    fn total_duration(&self) -> Option<Duration> {
-        None
     }
 }
 
@@ -156,6 +84,10 @@ pub struct InnerPlayer {
     position_timer_stop: Option<Arc<AtomicBool>>,
     /// 渐变取消信号（快速连续 play/pause 时取消上一次渐变）
     fade_cancel: Option<Arc<AtomicBool>>,
+    /// FFT 推送开关（前端需要显示频谱时才启用）
+    fft_enabled: Arc<AtomicBool>,
+    /// FFT 推送定时器的停止信号
+    fft_timer_stop: Option<Arc<AtomicBool>>,
 }
 
 impl InnerPlayer {
@@ -180,12 +112,15 @@ impl InnerPlayer {
             event_callback: None,
             position_timer_stop: None,
             fade_cancel: None,
+            fft_enabled: Arc::new(AtomicBool::new(false)),
+            fft_timer_stop: None,
         })
     }
 
     /// 注册事件回调（支持热替换：先停止旧的定时器/渐变，确保旧回调的 Arc 引用尽快释放）
     pub fn set_event_callback(&mut self, cb: EventEmitter) {
         self.stop_position_timer();
+        self.stop_fft_timer();
         self.cancel_fade();
         self.event_callback = Some(cb);
     }
@@ -268,6 +203,48 @@ impl InnerPlayer {
         }
     }
 
+    /// 启动 FFT 推送定时器（独立线程，每 50ms 推送一次频谱数据）
+    fn start_fft_timer(&mut self) {
+        self.stop_fft_timer();
+
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        self.fft_timer_stop = Some(Arc::clone(&stop_flag));
+
+        let fft_enabled = Arc::clone(&self.fft_enabled);
+        let fft = Arc::clone(&self.fft);
+        let cb = match &self.event_callback {
+            Some(cb) => Arc::clone(cb),
+            None => return,
+        };
+
+        thread::spawn(move || {
+            while !stop_flag.load(Ordering::Relaxed) {
+                if fft_enabled.load(Ordering::Relaxed) {
+                    let data = fft.analyze();
+                    cb(PlayerEvent::FftData { data });
+                }
+                thread::sleep(Duration::from_millis(50));
+            }
+        });
+    }
+
+    /// 停止 FFT 推送定时器
+    fn stop_fft_timer(&mut self) {
+        if let Some(flag) = self.fft_timer_stop.take() {
+            flag.store(true, Ordering::Relaxed);
+        }
+    }
+
+    /// 设置 FFT 推送开关
+    pub fn set_fft_enabled(&mut self, enabled: bool) {
+        self.fft_enabled.store(enabled, Ordering::Relaxed);
+    }
+
+    /// 获取 FFT 推送开关状态
+    pub fn fft_enabled(&self) -> bool {
+        self.fft_enabled.load(Ordering::Relaxed)
+    }
+
     /// 重新初始化音频输出设备（系统休眠唤醒后调用，恢复失效的 OutputStream 句柄）
     ///
     /// 保存当前播放状态（来源、位置、音量），重建音频输出后自动恢复：
@@ -344,15 +321,19 @@ impl InnerPlayer {
         self.sink = Some(sink);
         self.shared = Some(shared);
         self.decoder_thread = Some(handle);
-        self.metadata = Some(metadata.clone());
         self.state = PlayerState::Playing;
         self.seek_base = 0.0;
         self.current_source = Some(source.to_string());
 
+        // 先用 metadata 的字段构建 DecoderSource 后再存储，避免多余 clone
+        let result = metadata.clone();
+        self.metadata = Some(metadata);
+
         self.emit(PlayerEvent::StateChanged { state: "playing" });
         self.start_position_timer();
+        self.start_fft_timer();
 
-        Ok(metadata)
+        Ok(result)
     }
 
     /// 恢复播放。如果已停止、播放结束或空闲，自动从头重新加载。
@@ -376,6 +357,7 @@ impl InnerPlayer {
                 self.state = PlayerState::Playing;
                 self.emit(PlayerEvent::StateChanged { state: "playing" });
                 self.start_position_timer();
+                self.start_fft_timer();
 
                 // 非阻塞渐入
                 self.start_fade(0.0, self.target_volume, None);
@@ -398,6 +380,7 @@ impl InnerPlayer {
 
         // 立即切换状态、停止定时器、发射事件
         self.stop_position_timer();
+        self.stop_fft_timer();
         self.state = PlayerState::Paused;
         self.emit(PlayerEvent::StateChanged { state: "paused" });
 
@@ -426,6 +409,7 @@ impl InnerPlayer {
     fn stop_internal(&mut self) {
         self.cancel_fade();
         self.stop_position_timer();
+        self.stop_fft_timer();
         // 先通知解码线程停止
         if let Some(ref shared) = self.shared {
             shared.stop();
@@ -448,6 +432,7 @@ impl InnerPlayer {
 
         self.cancel_fade();
         self.stop_position_timer();
+        self.stop_fft_timer();
 
         // 停止当前播放和解码线程
         if let Some(ref shared) = self.shared {
@@ -493,6 +478,7 @@ impl InnerPlayer {
 
         self.emit(PlayerEvent::StateChanged { state: "playing" });
         self.start_position_timer();
+        self.start_fft_timer();
 
         Ok(())
     }

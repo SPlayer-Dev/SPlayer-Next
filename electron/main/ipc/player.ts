@@ -44,7 +44,7 @@ const player = (): InstanceType<AudioEngineModule["AudioPlayer"]> => {
   // 注册原生事件回调（仅一次）
   if (!nativeEventRegistered) {
     nativeEventRegistered = true;
-    playerInstance.onEvent((event: { type: string; state?: string; position?: number; duration?: number }) => {
+    playerInstance.onEvent((event: { type: string; state?: string; position?: number; duration?: number; fftData?: number[] }) => {
       switch (event.type) {
         case "stateChanged": {
           const state = event.state ?? "idle";
@@ -87,6 +87,13 @@ const player = (): InstanceType<AudioEngineModule["AudioPlayer"]> => {
           });
           // 同步进度到系统媒体控件
           mediaService.setTimeline({ currentMs: posMs, totalMs: durMs });
+          break;
+        }
+        case "fftData": {
+          broadcast("player:event", {
+            type: "fftData",
+            data: event.fftData ?? [],
+          });
           break;
         }
       }
@@ -253,6 +260,16 @@ export const registerPlayerIpc = (): void => {
   ipcMain.handle("player:reinit", () => {
     try {
       player().reinitOutput();
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // 启用/禁用 FFT 频谱推送（前端组件挂载时启用，卸载时禁用）
+  ipcMain.handle("player:setFftEnabled", (_event, enabled: boolean) => {
+    try {
+      player().setFftEnabled(enabled);
       return { success: true };
     } catch (error) {
       return { success: false, error: String(error) };

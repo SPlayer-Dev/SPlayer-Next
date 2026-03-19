@@ -2,6 +2,8 @@ mod decoder;
 mod fft;
 mod metadata;
 mod player;
+mod shared;
+mod source;
 
 use std::sync::Arc;
 
@@ -46,8 +48,9 @@ pub struct JsMusicMetadata {
 
 /// 播放器事件，推送给 JS 侧
 #[napi(object)]
+#[derive(Default)]
 pub struct JsPlayerEvent {
-    /// 事件类型："stateChanged" | "ended" | "position"
+    /// 事件类型："stateChanged" | "ended" | "position" | "fftData"
     #[napi(js_name = "type")]
     pub event_type: String,
     /// 状态（仅 stateChanged 时有值）
@@ -56,6 +59,8 @@ pub struct JsPlayerEvent {
     pub position: Option<f64>,
     /// 时长（秒，仅 position 时有值）
     pub duration: Option<f64>,
+    /// FFT 频谱数据（仅 fftData 时有值，128 个频段，值域 0.0 ~ 1.0）
+    pub fft_data: Option<Vec<f64>>,
 }
 
 /// 播放器状态快照，返回给 JS 侧
@@ -116,22 +121,24 @@ impl AudioPlayer {
         let emitter: player::EventEmitter = Arc::new(move |event: PlayerEvent| {
             let js_event = match event {
                 PlayerEvent::StateChanged { state } => JsPlayerEvent {
-                    event_type: "stateChanged".to_string(),
-                    state: Some(state.to_string()),
-                    position: None,
-                    duration: None,
+                    event_type: "stateChanged".into(),
+                    state: Some(state.into()),
+                    ..Default::default()
                 },
                 PlayerEvent::Ended => JsPlayerEvent {
-                    event_type: "ended".to_string(),
-                    state: None,
-                    position: None,
-                    duration: None,
+                    event_type: "ended".into(),
+                    ..Default::default()
                 },
                 PlayerEvent::Position { position, duration } => JsPlayerEvent {
-                    event_type: "position".to_string(),
-                    state: None,
+                    event_type: "position".into(),
                     position: Some(position),
                     duration: Some(duration),
+                    ..Default::default()
+                },
+                PlayerEvent::FftData { data } => JsPlayerEvent {
+                    event_type: "fftData".into(),
+                    fft_data: Some(data.into_iter().map(|v| v as f64).collect()),
+                    ..Default::default()
                 },
             };
             tsfn.call(js_event, ThreadsafeFunctionCallMode::NonBlocking);
@@ -253,6 +260,18 @@ impl AudioPlayer {
             volume: player.volume() as f64,
             is_finished: player.is_finished(),
         }
+    }
+
+    /// 启用/禁用 FFT 频谱推送（前端需要显示频谱时启用，不显示时禁用以节省性能）
+    #[napi]
+    pub fn set_fft_enabled(&self, enabled: bool) {
+        self.inner.lock().set_fft_enabled(enabled);
+    }
+
+    /// 获取 FFT 推送开关状态
+    #[napi]
+    pub fn get_fft_enabled(&self) -> bool {
+        self.inner.lock().fft_enabled()
     }
 
     /// 获取 FFT 频谱数据（128 个频段，值域 0.0 ~ 1.0）

@@ -1,0 +1,148 @@
+use std::collections::VecDeque;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Arc;
+
+use parking_lot::{Condvar, Mutex};
+
+use crate::metadata::ExternalLyric;
+
+/// 解码后的 PCM 音频数据块
+pub struct AudioChunk {
+    /// 交错排列的 f32 播放样本（L R L R ...）
+    pub player_samples: Vec<f32>,
+    /// 单声道 f32 样本，用于 FFT 频谱分析
+    pub fft_samples: Vec<f32>,
+}
+
+/// 解码线程与播放迭代器之间的共享状态
+pub struct Shared {
+    buffer: Mutex<VecDeque<AudioChunk>>,
+    condvar: Condvar,
+    is_eof: AtomicBool,
+    is_stopping: AtomicBool,
+    /// 已被 rodio 消费的交错采样数（含所有声道，即 stereo 时每帧 +2）
+    samples_consumed: AtomicU64,
+    /// 输出采样率（创建时确定，不可变）
+    sample_rate: u32,
+    /// 输出声道数（创建时确定，不可变）
+    channels: u16,
+    /// 所有数据已被消费完毕（DecoderSource 返回 None 时设置）
+    /// 比 is_done() 更准确：is_done 只表示缓冲区空，all_consumed 表示 rodio 侧已消费完
+    all_consumed: AtomicBool,
+}
+
+/// 共享缓冲区最大容量（背压阈值）
+pub const FRAME_BUFFER_CAPACITY: usize = 64;
+
+impl Shared {
+    pub fn new(sample_rate: u32, channels: u16) -> Arc<Self> {
+        Arc::new(Self {
+            buffer: Mutex::new(VecDeque::with_capacity(FRAME_BUFFER_CAPACITY)),
+            condvar: Condvar::new(),
+            is_eof: AtomicBool::new(false),
+            is_stopping: AtomicBool::new(false),
+            samples_consumed: AtomicU64::new(0),
+            sample_rate,
+            channels,
+            all_consumed: AtomicBool::new(false),
+        })
+    }
+
+    /// 批量累加已消费的采样数（由 DecoderSource 按 chunk 调用）
+    pub fn advance_consumed(&self, count: u64) {
+        self.samples_consumed.fetch_add(count, Ordering::Relaxed);
+    }
+
+    /// 标记所有数据已被消费完毕（DecoderSource 迭代结束时调用）
+    pub fn mark_all_consumed(&self) {
+        self.all_consumed.store(true, Ordering::Release);
+    }
+
+    /// 检查是否所有数据已被 rodio 消费完毕
+    pub fn is_all_consumed(&self) -> bool {
+        self.all_consumed.load(Ordering::Acquire)
+    }
+
+    /// 基于实际消费采样数的精确播放位置（秒）
+    pub fn consumed_position(&self) -> f64 {
+        let samples = self.samples_consumed.load(Ordering::Relaxed);
+        samples as f64 / self.sample_rate as f64 / self.channels as f64
+    }
+
+    /// 阻塞等待缓冲区有空间或收到停止信号，返回 false 表示应停止
+    pub fn wait_for_space(&self) -> bool {
+        let mut buf = self.buffer.lock();
+        while buf.len() >= FRAME_BUFFER_CAPACITY && !self.is_stopping.load(Ordering::Acquire) {
+            self.condvar.wait(&mut buf);
+        }
+        !self.is_stopping.load(Ordering::Acquire)
+    }
+
+    /// 推入数据块，缓冲区满时阻塞等待（背压）
+    pub fn push(&self, chunk: AudioChunk) {
+        let mut buf = self.buffer.lock();
+        while buf.len() >= FRAME_BUFFER_CAPACITY && !self.is_stopping.load(Ordering::Acquire) {
+            self.condvar.wait(&mut buf);
+        }
+        if self.is_stopping.load(Ordering::Acquire) {
+            return;
+        }
+        buf.push_back(chunk);
+        self.condvar.notify_one();
+    }
+
+    /// 弹出数据块，缓冲区空时阻塞等待。
+    /// 仅在 EOF 或停止且缓冲区为空时返回 None。
+    pub fn pop(&self) -> Option<AudioChunk> {
+        let mut buf = self.buffer.lock();
+        loop {
+            if let Some(chunk) = buf.pop_front() {
+                self.condvar.notify_one();
+                return Some(chunk);
+            }
+            if self.is_eof.load(Ordering::Acquire) || self.is_stopping.load(Ordering::Acquire) {
+                return None;
+            }
+            self.condvar.wait(&mut buf);
+        }
+    }
+
+    /// 标记解码完成
+    pub fn mark_eof(&self) {
+        self.is_eof.store(true, Ordering::Release);
+        self.condvar.notify_all();
+    }
+
+    /// 发出停止信号，唤醒双方
+    pub fn stop(&self) {
+        self.is_stopping.store(true, Ordering::Release);
+        self.condvar.notify_all();
+    }
+
+    /// 检查播放是否已结束（EOF 且缓冲区为空）
+    pub fn is_done(&self) -> bool {
+        let buf = self.buffer.lock();
+        self.is_eof.load(Ordering::Acquire) && buf.is_empty()
+    }
+}
+
+/// 音频元数据（包含封面路径和歌词）
+#[derive(Clone, Default)]
+pub struct AudioMetadata {
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    pub duration_secs: f64,
+    pub sample_rate: u32,
+    pub channels: u16,
+    /// 比特率（bps）
+    pub bit_rate: i64,
+    /// 编码格式名称（如 "flac", "mp3", "aac"）
+    pub codec: String,
+    /// 内嵌歌词
+    pub embedded_lyric: Option<String>,
+    /// 同目录所有歌词文件
+    pub external_lyrics: Vec<ExternalLyric>,
+    /// 封面缩略图缓存路径（用于前端日常显示）
+    pub cover: Option<String>,
+}
