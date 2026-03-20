@@ -3,6 +3,8 @@ import { defineConfig } from "electron-vite";
 import UnoCSS from "unocss/vite";
 import vue from "@vitejs/plugin-vue";
 import AutoImport from "unplugin-auto-import/vite";
+import Icons from "unplugin-icons/vite";
+import IconsResolver from "unplugin-icons/resolver";
 import RekaResolver from "reka-ui/resolver";
 import Components from "unplugin-vue-components/vite";
 
@@ -57,8 +59,9 @@ export default defineConfig({
           filepath: "./auto-eslint.mjs",
         },
       }),
+      Icons({ compiler: "vue3" }),
       Components({
-        resolvers: [RekaResolver()],
+        resolvers: [RekaResolver(), IconsResolver({ prefix: "icon" })],
       }),
     ],
   },

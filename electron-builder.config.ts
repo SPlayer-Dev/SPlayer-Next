@@ -2,7 +2,7 @@ import type { Configuration } from "electron-builder";
 
 const config: Configuration = {
   appId: "com.imsyy.splayer-next",
-  productName: "SPlayer",
+  productName: "SPlayer Next",
   copyright: "Copyright © imsyy 2025",
   directories: {
     buildResources: "build",
@@ -31,7 +31,7 @@ const config: Configuration = {
     },
   ],
   win: {
-    executableName: "SPlayer",
+    executableName: "SPlayer-Next",
     artifactName: "${productName}-${version}-${arch}.${ext}",
     // 未配置证书时跳过签名
     signAndEditExecutable: false,
@@ -45,6 +45,7 @@ const config: Configuration = {
   },
   nsis: {
     oneClick: false,
+    guid: "com.imsyy.splayer-next",
     artifactName: "${productName}-${version}-${arch}-setup.${ext}",
     shortcutName: "${productName}",
     uninstallDisplayName: "${productName}",
@@ -56,7 +57,7 @@ const config: Configuration = {
     artifactName: "${productName}-${version}-${arch}-portable.${ext}",
   },
   mac: {
-    executableName: "SPlayer",
+    executableName: "SPlayer-Next",
     artifactName: "${productName}-${version}-${arch}.${ext}",
     identity: null,
     hardenedRuntime: false,
@@ -87,7 +88,7 @@ const config: Configuration = {
     artifactName: "${productName}-${version}-${arch}.${ext}",
   },
   linux: {
-    executableName: "SPlayer",
+    executableName: "SPlayer-Next",
     artifactName: "${name}-${version}-${arch}.${ext}",
     maintainer: "imsyy.top",
     category: "Audio;Music;AudioVideo;",

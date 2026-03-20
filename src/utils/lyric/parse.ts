@@ -156,7 +156,11 @@ export const findLyricIndex = (lines: LyricLine[], time: number, prevIndex = -1)
     }
   }
 
-  // 验证 time 在该行的时间范围内
-  if (result >= 0 && time < lines[result].endTime) return result;
+  // 在该行时间范围内，或处于该行 endTime 与下一行 startTime 之间的间隙，都停留在该行
+  if (result >= 0) {
+    if (time < lines[result].endTime) return result;
+    const next = lines[result + 1];
+    if (!next || time < next.startTime) return result;
+  }
   return -1;
 };

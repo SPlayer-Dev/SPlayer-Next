@@ -20,6 +20,23 @@ let lastMediaState: string | null = null;
 /** 是否已注册原生事件回调 */
 let nativeEventRegistered = false;
 
+/**
+ * 检测错误是否为音频设备丢失
+ * 设备丢失后 Rust 实例已损坏，必须销毁重建
+ */
+const isDeviceError = (error: unknown): boolean => {
+  const msg = String(error);
+  return msg.includes("device") || msg.includes("output") || msg.includes("stream");
+};
+
+/** 销毁损坏的播放器实例，下次调用 player() 时自动重建 */
+const resetPlayer = (): void => {
+  console.warn("[Player] 销毁播放器实例，将在下次操作时重建");
+  playerInstance = null;
+  nativeEventRegistered = false;
+  lastMediaState = null;
+};
+
 /** 获取原生音频引擎模块 */
 const engine = (): AudioEngineModule => {
   if (!audioEngine) {
@@ -161,6 +178,7 @@ export const registerPlayerIpc = (): void => {
 
       return { success: true, data };
     } catch (error) {
+      if (isDeviceError(error)) resetPlayer();
       return { success: false, error: String(error) };
     }
   });
@@ -171,6 +189,7 @@ export const registerPlayerIpc = (): void => {
       player().play();
       return { success: true };
     } catch (error) {
+      if (isDeviceError(error)) resetPlayer();
       return { success: false, error: String(error) };
     }
   });
@@ -263,6 +282,7 @@ export const registerPlayerIpc = (): void => {
       player().reinitOutput();
       return { success: true };
     } catch (error) {
+      if (isDeviceError(error)) resetPlayer();
       return { success: false, error: String(error) };
     }
   });
@@ -348,18 +368,34 @@ export const registerPlayerIpc = (): void => {
 
   // 系统休眠唤醒后重建音频输出设备（OutputStream 句柄在休眠后会失效）
   // Rust 侧 reinitOutput 会自动保存并恢复播放状态（位置、暂停/播放），对用户无感
-  powerMonitor.on("resume", () => {
+  powerMonitor.on("resume", async () => {
     if (!playerInstance) return;
-    try {
-      playerInstance.reinitOutput();
-    } catch (error) {
-      console.error("[Player] 唤醒后重建音频输出失败:", error);
-      // 重建失败时通知前端回到停止状态
-      broadcast("player:event", {
-        type: "status",
-        data: { state: "stopped", position: 0, duration: 0, volume: 0, isFinished: false },
-      });
+
+    // 延迟重试：系统唤醒后音频子系统可能需要时间恢复
+    const MAX_RETRIES = 3;
+    const RETRY_DELAYS = [500, 1500, 3000];
+
+    for (let i = 0; i < MAX_RETRIES; i++) {
+      await new Promise((r) => setTimeout(r, RETRY_DELAYS[i]));
+      try {
+        playerInstance.reinitOutput();
+        console.log(`[Player] 唤醒后重建音频输出成功（第 ${i + 1} 次尝试）`);
+        return;
+      } catch (error) {
+        console.warn(`[Player] 重建音频输出第 ${i + 1} 次失败:`, error);
+      }
     }
+
+    // 全部重试失败：销毁损坏的实例，下次操作时会自动重建
+    console.error("[Player] 重建音频输出全部失败，销毁播放器实例");
+    playerInstance = null;
+    nativeEventRegistered = false;
+    lastMediaState = null;
+
+    broadcast("player:event", {
+      type: "status",
+      data: { state: "stopped", position: 0, duration: 0, volume: 0, isFinished: false },
+    });
   });
 
 };

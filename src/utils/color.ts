@@ -52,38 +52,38 @@ export const generatePalette = (hex: string, isDark: boolean): ThemePalette => {
   };
 };
 
-/** 纯色色板 — 浅色 */
+/** 纯色色板 — 浅色（基于 Zinc 色系，带微弱冷色调） */
 export const SOLID_PALETTE_LIGHT: ThemePalette = {
-  primary: "38 38 38",
-  primaryContainer: "230 230 230",
+  primary: "24 24 27",
+  primaryContainer: "228 228 231",
   onPrimary: "255 255 255",
-  onPrimaryContainer: "30 30 30",
-  secondary: "82 82 82",
-  secondaryContainer: "240 240 240",
+  onPrimaryContainer: "39 39 42",
+  secondary: "82 82 91",
+  secondaryContainer: "244 244 245",
   surface: "255 255 255",
-  surfaceAlt: "245 245 245",
-  onSurface: "23 23 23",
-  onSurfaceVariant: "100 100 100",
-  outline: "200 200 200",
-  outlineVariant: "230 230 230",
-  error: "200 50 50",
+  surfaceAlt: "244 244 245",
+  onSurface: "24 24 27",
+  onSurfaceVariant: "113 113 122",
+  outline: "212 212 216",
+  outlineVariant: "228 228 231",
+  error: "220 38 38",
 };
 
-/** 纯色色板 — 深色 */
+/** 纯色色板 — 深色（基于 Zinc 色系，注入微妙蓝灰色调避免纯灰的死板感） */
 export const SOLID_PALETTE_DARK: ThemePalette = {
-  primary: "230 230 230",
-  primaryContainer: "55 55 55",
-  onPrimary: "25 25 25",
-  onPrimaryContainer: "225 225 225",
-  secondary: "165 165 165",
-  secondaryContainer: "55 55 55",
-  surface: "30 30 30",
-  surfaceAlt: "40 40 40",
-  onSurface: "230 230 230",
-  onSurfaceVariant: "165 165 165",
-  outline: "75 75 75",
-  outlineVariant: "50 50 50",
-  error: "240 80 80",
+  primary: "244 244 245",
+  primaryContainer: "63 63 70",
+  onPrimary: "24 24 27",
+  onPrimaryContainer: "212 212 216",
+  secondary: "161 161 170",
+  secondaryContainer: "63 63 70",
+  surface: "24 24 27",
+  surfaceAlt: "39 39 42",
+  onSurface: "228 228 231",
+  onSurfaceVariant: "161 161 170",
+  outline: "82 82 91",
+  outlineVariant: "46 46 51",
+  error: "248 113 113",
 };
 
 /**
