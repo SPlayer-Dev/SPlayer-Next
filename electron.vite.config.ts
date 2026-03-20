@@ -61,6 +61,7 @@ export default defineConfig({
       }),
       Icons({ compiler: "vue3" }),
       Components({
+        dirs: ["src/components", "src/layouts/components"],
         resolvers: [RekaResolver(), IconsResolver({ prefix: "icon" })],
       }),
     ],
