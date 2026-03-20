@@ -53,8 +53,12 @@ const loadFromFile = async (): Promise<void> => {
   await status.load(result.data);
 };
 
+/** 是否有可播放的曲目 */
+const hasTrack = computed(() => !!media.track);
+
 /** 切换播放/暂停 */
 const togglePlay = (): void => {
+  if (!hasTrack.value) return;
   if (isPlaying.value) {
     status.pause();
   } else {
@@ -182,7 +186,7 @@ const onVolumeChange = (e: Event): void => {
 
     <!-- 播放控制 -->
     <div class="flex gap-3">
-      <SButton type="primary" size="large" @click="status.stop()"> Stop </SButton>
+      <SButton type="primary" size="large" :disabled="!hasTrack" @click="status.stop()"> Stop </SButton>
       <SButton
         type="primary"
         variant="secondary"
@@ -190,6 +194,7 @@ const onVolumeChange = (e: Event): void => {
         circle
         ripple
         :loading="isLoading"
+        :disabled="!hasTrack && !isLoading"
         @click="togglePlay"
       >
         <template #icon>

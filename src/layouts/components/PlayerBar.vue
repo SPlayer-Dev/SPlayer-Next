@@ -6,7 +6,11 @@ const status = useStatusStore();
 const media = useMediaStore();
 const { isPlaying, isLoading, position, duration } = storeToRefs(status);
 
+/** 是否有可播放的曲目 */
+const hasTrack = computed(() => !!media.track);
+
 const togglePlay = (): void => {
+  if (!hasTrack.value) return;
   if (isPlaying.value) {
     status.pause();
   } else {
@@ -47,10 +51,10 @@ const onSeek = (e: Event): void => {
     <!-- 播放控制 + 进度 -->
     <div class="flex-1 flex flex-col items-center gap-1">
       <div class="flex items-center gap-3">
-        <SButton variant="ghost" circle size="small" @click="status.stop()">
+        <SButton variant="ghost" circle size="small" :disabled="!hasTrack" @click="status.stop()">
           <template #icon><IconLucideSquare /></template>
         </SButton>
-        <SButton type="primary" circle :loading="isLoading" @click="togglePlay">
+        <SButton type="primary" variant="secondary" circle :loading="isLoading" :disabled="!hasTrack && !isLoading" @click="togglePlay">
           <template #icon>
             <IconLucidePause v-if="isPlaying" />
             <IconLucidePlay v-else />

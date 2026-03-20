@@ -9,3 +9,26 @@ body {
   background-color: rgb(var(--s-surface));
   color: rgb(var(--s-on-surface));
 }
+
+/* 滚动条基础样式 */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--s-on-surface) / 0.15);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--s-on-surface) / 0.3);
+}
+
+/* 播放栏显示时，滚动条滑轨底部留出空间，避免被遮挡 */
+.scroll-trim.pb-18::-webkit-scrollbar-track {
+  margin-bottom: 4.5rem; /* h-18 = 72px = 4.5rem */
+}
