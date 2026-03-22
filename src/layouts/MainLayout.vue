@@ -11,12 +11,12 @@ const { isExpanded } = storeToRefs(status);
 <template>
   <!-- 主界面：展开时缩小淡出 -->
   <div
-    class="h-screen flex bg-on-surface/4 text-on-surface transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] origin-center"
-    :class="isExpanded ? 'scale-90 opacity-0 pointer-events-none' : ''"
+    class="h-screen flex bg-surface text-on-surface transition-[transform,opacity] duration-500 ease-[cubic-bezier(0.7,0,0.3,1)] origin-center"
+    :class="isExpanded ? 'scale-95 opacity-0 pointer-events-none' : ''"
   >
     <!-- 侧边栏 -->
     <aside
-      class="w-60 shrink-0 border-r-1 border-r-solid border-r-primary/10 bg-surface/85 backdrop-blur-lg overflow-y-auto scroll-trim z-10 transition-[margin] duration-300"
+      class="w-60 shrink-0 border-r-1 border-r-solid border-r-primary/10 bg-surface-panel/90 backdrop-blur-lg overflow-y-auto scroll-trim z-10 transition-[margin] duration-300"
       :class="showPlayerBar ? 'mb-18' : ''"
     >
       <SideBar />
@@ -30,10 +30,7 @@ const { isExpanded } = storeToRefs(status);
       </header>
 
       <!-- 主内容区 -->
-      <main
-        class="flex-1 overflow-y-auto scroll-trim"
-        :class="showPlayerBar ? 'pb-18' : ''"
-      >
+      <main class="flex-1 overflow-y-auto scroll-trim" :class="showPlayerBar ? 'pb-18' : ''">
         <RouterView />
       </main>
     </div>
@@ -47,7 +44,7 @@ const { isExpanded } = storeToRefs(status);
     >
       <footer
         v-if="showPlayerBar"
-        class="fixed bottom-0 left-0 right-0 h-18 border-t-1 border-t-solid border-t-primary/10 bg-surface/85 backdrop-blur-lg z-50"
+        class="fixed bottom-0 left-0 right-0 h-18 border-t-1 border-t-solid border-t-primary/10 bg-surface-panel/90 backdrop-blur-lg z-50"
       >
         <PlayerBar />
       </footer>

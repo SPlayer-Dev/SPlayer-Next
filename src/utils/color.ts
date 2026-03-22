@@ -11,11 +11,6 @@ import type { ThemePalette } from "@/types/theme";
 /** 默认主色 */
 export const DEFAULT_PRIMARY = "#6750a4";
 
-/** 将 ARGB 整数转为 "R G B" 字符串，用于 CSS 变量 */
-const argbToRgb = (argb: number): string => {
-  return `${(argb >> 16) & 0xff} ${(argb >> 8) & 0xff} ${argb & 0xff}`;
-};
-
 /** 将 ARGB 整数转为 HEX 字符串 */
 const argbToHex = (argb: number): string => {
   const r = (argb >> 16) & 0xff;
@@ -29,28 +24,43 @@ export const hexToRgb = (hex: string): string => {
   return `${parseInt(hex.slice(1, 3), 16)} ${parseInt(hex.slice(3, 5), 16)} ${parseInt(hex.slice(5, 7), 16)}`;
 };
 
-/** 根据主色 HEX 和明暗模式生成 Material Design 3 色板 */
-export const generatePalette = (hex: string, isDark: boolean): ThemePalette => {
+/** 根据主色 HEX 和明暗模式生成色板 */
+export const generatePalette = (hex: string, isDark: boolean, globalTint = false): ThemePalette => {
   const safeHex = typeof hex === "string" && hex.startsWith("#") ? hex : DEFAULT_PRIMARY;
   const theme: Theme = themeFromSourceColor(argbFromHex(safeHex));
-  const scheme = isDark ? theme.schemes.dark : theme.schemes.light;
-
-  return {
-    primary: argbToRgb(scheme.primary),
-    primaryContainer: argbToRgb(scheme.primaryContainer),
-    onPrimary: argbToRgb(scheme.onPrimary),
-    onPrimaryContainer: argbToRgb(scheme.onPrimaryContainer),
-    secondary: argbToRgb(scheme.secondary),
-    secondaryContainer: argbToRgb(scheme.secondaryContainer),
-    surface: argbToRgb(scheme.surface),
-    surfaceAlt: argbToRgb(scheme.surfaceVariant),
-    onSurface: argbToRgb(scheme.onSurface),
-    onSurfaceVariant: argbToRgb(scheme.onSurfaceVariant),
-    outline: argbToRgb(scheme.outline),
-    outlineVariant: argbToRgb(scheme.outlineVariant),
-    error: argbToRgb(scheme.error),
+  // 用 secondary palette 生成主色
+  const { hue, chroma } = theme.palettes.secondary;
+  const toneColor = (tone: number) => {
+    const argb = Hct.from(hue, chroma, tone).toInt();
+    return `${(argb >> 16) & 0xff} ${(argb >> 8) & 0xff} ${argb & 0xff}`;
   };
-};
+  // 主色
+  const primary = isDark ? toneColor(90) : toneColor(10);
+  const primaryColors = {
+    primary,
+    primaryContainer: isDark ? toneColor(30) : toneColor(90),
+    onPrimary: isDark ? toneColor(10) : toneColor(100),
+    onPrimaryContainer: isDark ? toneColor(90) : toneColor(10),
+  };
+  // 全局着色
+  if (globalTint) {
+    return {
+      ...primaryColors,
+      secondary: isDark ? toneColor(80) : toneColor(40),
+      secondaryContainer: isDark ? toneColor(30) : toneColor(90),
+      surface: isDark ? toneColor(20) : toneColor(94),
+      surfaceAlt: isDark ? toneColor(25) : toneColor(86),
+      surfacePanel: isDark ? toneColor(16) : toneColor(90),
+      onSurface: primary,
+      onSurfaceVariant: isDark ? toneColor(70) : toneColor(30),
+      outline: isDark ? toneColor(40) : toneColor(60),
+      outlineVariant: isDark ? toneColor(25) : toneColor(80),
+    };
+  }
+  // 非全局着色
+  const base = isDark ? SOLID_PALETTE_DARK : SOLID_PALETTE_LIGHT;
+  return { ...base, ...primaryColors };
+};;
 
 /** 纯色色板 — 浅色（基于 Zinc 色系，带微弱冷色调） */
 export const SOLID_PALETTE_LIGHT: ThemePalette = {
@@ -60,13 +70,13 @@ export const SOLID_PALETTE_LIGHT: ThemePalette = {
   onPrimaryContainer: "39 39 42",
   secondary: "82 82 91",
   secondaryContainer: "244 244 245",
-  surface: "255 255 255",
+  surface: "246 246 246",
   surfaceAlt: "244 244 245",
+  surfacePanel: "255 255 255",
   onSurface: "24 24 27",
   onSurfaceVariant: "113 113 122",
   outline: "212 212 216",
   outlineVariant: "228 228 231",
-  error: "220 38 38",
 };
 
 /** 纯色色板 — 深色（基于 Zinc 色系，注入微妙蓝灰色调避免纯灰的死板感） */
@@ -77,13 +87,13 @@ export const SOLID_PALETTE_DARK: ThemePalette = {
   onPrimaryContainer: "212 212 216",
   secondary: "161 161 170",
   secondaryContainer: "63 63 70",
-  surface: "24 24 27",
+  surface: "16 16 20",
   surfaceAlt: "39 39 42",
+  surfacePanel: "24 24 28",
   onSurface: "228 228 231",
   onSurfaceVariant: "161 161 170",
   outline: "82 82 91",
   outlineVariant: "46 46 51",
-  error: "248 113 113",
 };
 
 /**

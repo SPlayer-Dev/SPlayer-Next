@@ -20,6 +20,8 @@ export const useThemeStore = defineStore(
     const source = ref<ThemeSource>("default");
     /** 自定义主色 HEX */
     const customColor = ref(DEFAULT_PRIMARY);
+    /** 全局着色 */
+    const globalTint = ref(false);
     /** 封面取色 HEX */
     const coverColor = ref<string | null>(null);
 
@@ -44,13 +46,12 @@ export const useThemeStore = defineStore(
     const apply = (withTransition = true): void => {
       const root = document.documentElement;
       if (withTransition) root.classList.add("theme-transition");
-      const useSolid =
-        source.value === "solid" || (source.value === "cover" && !coverColor.value);
+      const useSolid = source.value === "solid" || (source.value === "cover" && !coverColor.value);
       const palette = useSolid
         ? isDark.value
           ? SOLID_PALETTE_DARK
           : SOLID_PALETTE_LIGHT
-        : generatePalette(activeColor.value, isDark.value);
+        : generatePalette(activeColor.value, isDark.value, globalTint.value);
       applyThemeToDOM(palette, coverColor.value, isDark.value);
       if (withTransition) setTimeout(() => root.classList.remove("theme-transition"), 300);
     };
@@ -88,13 +89,14 @@ export const useThemeStore = defineStore(
         customColor.value = DEFAULT_PRIMARY;
       }
       apply(false);
-      watch([isDark, activeColor, source, coverColor], () => apply());
+      watch([isDark, activeColor, source, coverColor, globalTint], () => apply());
     };
 
     return {
       mode,
       source,
       customColor,
+      globalTint,
       coverColor,
       isDark,
       activeColor,
@@ -109,7 +111,7 @@ export const useThemeStore = defineStore(
   {
     persist: {
       storage: localStorage,
-      pick: ["mode", "source", "customColor"],
+      pick: ["mode", "source", "customColor", "globalTint"],
     },
   },
 );

@@ -22,6 +22,8 @@ export interface ThemePalette {
   surface: string;
   /** 次级背景（卡片、悬浮等） */
   surfaceAlt: string;
+  /** 面板背景（侧边栏、播放栏等） */
+  surfacePanel: string;
   /** 背景上的主文字 */
   onSurface: string;
   /** 背景上的次级文字 */
@@ -30,6 +32,4 @@ export interface ThemePalette {
   outline: string;
   /** 淡边框 */
   outlineVariant: string;
-  /** 错误色 */
-  error: string;
 }

@@ -135,6 +135,14 @@ const testLoadingToast = (): void => {
         class="block w-6 h-6 rounded-full border-2 border-outline-variant shrink-0"
         :style="{ backgroundColor: theme.activeColor }"
       />
+      <!-- 全局着色 -->
+      <button
+        class="px-3 py-1.5 rounded-lg text-sm border border-outline-variant"
+        :class="theme.globalTint ? 'bg-primary text-on-primary' : 'bg-surface-alt text-on-surface-variant'"
+        @click="theme.globalTint = !theme.globalTint"
+      >
+        着色
+      </button>
       <!-- 明暗切换 -->
       <button
         class="px-3 py-1.5 rounded-lg bg-surface-alt text-on-surface-variant text-sm border border-outline-variant"
@@ -172,7 +180,7 @@ const testLoadingToast = (): void => {
     </div>
 
     <!-- 错误信息 -->
-    <div v-if="error" class="text-error text-sm text-center">{{ error }}</div>
+    <div v-if="error" class="text-red-500 text-sm text-center">{{ error }}</div>
 
     <!-- 封面 + 元信息 -->
     <div v-if="media.track" class="flex items-center gap-4 w-full">

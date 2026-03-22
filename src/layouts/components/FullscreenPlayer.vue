@@ -53,8 +53,8 @@ const onSeek = (e: Event): void => {
 <template>
   <Teleport to="body">
     <Transition
-      enter-active-class="transition-transform duration-300 ease-[cubic-bezier(0.2,0.6,0.2,1)]"
-      leave-active-class="transition-transform duration-250 ease-[cubic-bezier(0.4,0,1,1)]"
+      enter-active-class="transition-transform duration-500 ease-[cubic-bezier(0.7,0,0.3,1)]"
+      leave-active-class="transition-transform duration-500 ease-[cubic-bezier(0.7,0,0.3,1)]"
       enter-from-class="translate-y-full"
       leave-to-class="translate-y-full"
     >

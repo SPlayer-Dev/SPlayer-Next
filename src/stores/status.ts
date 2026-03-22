@@ -1,5 +1,6 @@
 import type { PlayerState, PlayerEvent, IpcResponse, AudioDevice } from "@/types/player";
 import { useMediaStore } from "./media";
+import { useThemeStore } from "./theme";
 import * as playback from "@/services/playback";
 
 export const useStatusStore = defineStore("status", () => {
@@ -60,6 +61,11 @@ export const useStatusStore = defineStore("status", () => {
     if (result.success && result.data) {
       const media = useMediaStore();
       await media.setTrack(result.data.track, result.data.detail);
+
+      // 无封面时清空封面取色，避免残留上一首的主题色
+      if (!result.data.track.cover) {
+        useThemeStore().updateCoverColor(null);
+      }
 
       const dur = result.data.track.duration;
       duration.value = dur;
