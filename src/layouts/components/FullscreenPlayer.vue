@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
+import { usePlaybackTime } from "@/composables/usePlaybackTime";
 
 const status = useStatusStore();
 const media = useMediaStore();
@@ -11,6 +12,17 @@ const { isPlaying, isLoading, position, duration, isExpanded } = storeToRefs(sta
  * 重型子组件用 v-if="isActive" 控制，收起时冻结/卸载
  */
 const isActive = ref(false);
+
+/** 60fps 精确播放时间（毫秒） */
+const preciseTime = ref(0);
+const { start: startTick, stop: stopTick } = usePlaybackTime((currentMs) => {
+  preciseTime.value = currentMs;
+});
+
+watch(isActive, (val) => {
+  if (val) startTick();
+  else stopTick();
+});
 let deactivateTimer: ReturnType<typeof setTimeout> | null = null;
 
 watch(isExpanded, (val) => {
@@ -43,6 +55,7 @@ const formatTime = (ms: number): string => {
   const sec = totalSecs % 60;
   return `${min}:${sec.toString().padStart(2, "0")}`;
 };
+
 
 const onSeek = (e: Event): void => {
   const value = Number((e.target as HTMLInputElement).value);
@@ -86,6 +99,11 @@ const onSeek = (e: Event): void => {
           <div class="text-sm text-on-surface-variant mt-1">
             {{ media.track.artists.map((a) => a.name).join(" / ") }}
           </div>
+        </div>
+
+        <!-- 精确播放时间（测试用） -->
+        <div class="text-2xl font-mono text-primary tabular-nums">
+          {{ preciseTime }}ms
         </div>
 
         <!-- 进度条 -->

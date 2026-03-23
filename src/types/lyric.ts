@@ -1,13 +1,6 @@
-/** 歌词格式 */
-export type LyricFormat = "ttml" | "lys" | "yrc" | "qrc" | "lrc" | "srt" | "ass";
-
-/** 外部歌词文件（仅格式和路径，内容按需加载） */
-export interface ExternalLyric {
-  /** 歌词格式 */
-  format: LyricFormat;
-  /** 文件路径 */
-  path: string;
-}
+// 基础类型从 shared 重导出
+export type { LyricFormat, ExternalLyric } from "@shared/types/player";
+import type { LyricFormat } from "@shared/types/player";
 
 /** 歌词来源标识 */
 export type LyricSource =

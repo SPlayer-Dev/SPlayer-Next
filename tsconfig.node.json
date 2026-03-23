@@ -1,10 +1,12 @@
 {
   "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
-  "include": ["electron.vite.config.*", "electron/main/**/*", "electron/preload/**/*", "scripts/**/*"],
+  "include": ["electron.vite.config.*", "electron/main/**/*", "electron/preload/**/*", "scripts/**/*", "shared/**/*"],
   "compilerOptions": {
     "composite": true,
+    "tsBuildInfoFile": "node_modules/.cache/tsconfig.node.tsbuildinfo",
     "types": ["electron-vite/node"],
     "paths": {
+      "@shared/*": ["./shared/*"],
       "@splayer/audio-engine": ["./native/audio-engine"],
       "@splayer/media-ctrl": ["./native/media-ctrl"]
     }

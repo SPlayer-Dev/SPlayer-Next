@@ -1,4 +1,4 @@
-import type { Track, TrackDetail } from "@/types/song";
+import type { Track, TrackDetail } from "@shared/types/player";
 import type { LyricFormat, LyricLine, LyricSource } from "@/types/lyric";
 import { bestExternalIndex, detectFormat, parseLyric, findLyricIndex } from "@/utils/lyric/parse";
 
@@ -72,8 +72,9 @@ export const useMediaStore = defineStore("media", () => {
    * @param newTrack 歌曲轻量信息
    * @param newDetail 歌曲详细信息
    */
-  const setTrack = async (newTrack: Track, newDetail: TrackDetail): Promise<void> => {
+  const setTrack = async (newTrack: Track, newDetail?: TrackDetail): Promise<void> => {
     track.value = newTrack;
+    if (!newDetail) return;
     detail.value = newDetail;
 
     // 外置优先，按格式优先级选择

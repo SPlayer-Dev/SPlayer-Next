@@ -332,6 +332,31 @@ const testLoadingToast = (): void => {
       <SButton size="small" @click="toast.show('无图标', { icon: false })">无图标</SButton>
     </div>
 
+    <!-- click 触发（默认） -->
+  <SPopover>
+    <template #trigger>
+      <SButton>点我</SButton>
+    </template>
+    弹出内容
+  </SPopover>
+
+  <!-- hover 触发 -->
+  <SPopover trigger="hover" side="top" arrow>
+    <template #trigger>
+      <span>悬停查看</span>
+    </template>
+    提示信息
+  </SPopover>
+
+  <!-- focus 触发 -->
+  <SPopover trigger="focus" side="right">
+    <template #trigger>
+      <input placeholder="聚焦显示" />
+    </template>
+    输入帮助
+  </SPopover>
+
+
     <!-- 歌词区域 -->
     <div v-if="media.parsedLyric.length > 0" class="w-full mt-2">
       <div class="text-sm text-on-surface-variant mb-2">

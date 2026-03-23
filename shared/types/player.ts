@@ -1,35 +1,86 @@
-import type { Track, TrackDetail } from "./song";
-
-/** 播放器加载后返回的完整数据 */
-export interface LoadResult {
-  /** 歌曲轻量信息 */
-  track: Track;
-  /** 歌曲详细信息 */
-  detail: TrackDetail;
-}
-
 /** 播放器状态 */
 export type PlayerState = "idle" | "loading" | "playing" | "paused" | "stopped";
 
+/** 歌曲来源 */
+export type TrackSource = "local" | "online";
+
+/** 歌词格式 */
+export type LyricFormat = "ttml" | "lys" | "yrc" | "qrc" | "lrc" | "srt" | "ass";
+
+/** 外部歌词文件 */
+export interface ExternalLyric {
+  format: LyricFormat;
+  path: string;
+}
+
+/** 歌手 */
+export interface Artist {
+  id?: string;
+  name: string;
+}
+
+/** 专辑 */
+export interface Album {
+  id?: string;
+  name: string;
+}
+
+/** 音质信息 */
+export interface AudioQuality {
+  sampleRate: number;
+  channels: number;
+  bitRate: number;
+  codec: string;
+}
+
+/** 在线匹配信息 */
+export interface OnlineMatch {
+  id: string;
+  artists?: Artist[];
+  album?: Album;
+  cover?: string;
+  coverOriginal?: string;
+}
+
+/** 歌曲（轻量，用于播放列表） */
+export interface Track {
+  id: string;
+  source: TrackSource;
+  path?: string;
+  title: string;
+  artists: Artist[];
+  album?: Album;
+  duration: number;
+  cover?: string;
+  coverOriginal?: string;
+  matched?: OnlineMatch;
+}
+
+/** 歌曲详细信息（按需加载） */
+export interface TrackDetail {
+  quality: AudioQuality;
+  embeddedLyric?: string;
+  externalLyrics: ExternalLyric[];
+}
+
+/** 播放器加载后返回的完整数据 */
+export interface LoadResult {
+  track: Track;
+  detail: TrackDetail;
+}
+
 /** 播放器状态快照 */
 export interface PlayerStatus {
-  /** 播放状态 */
   state: PlayerState;
-  /** 当前播放位置（毫秒） */
   position: number;
-  /** 总时长（毫秒） */
   duration: number;
-  /** 音量（0.0 ~ 1.0） */
   volume: number;
-  /** 是否已播放完毕 */
   isFinished: boolean;
 }
 
 /** 音频输出设备 */
 export interface AudioDevice {
-  /** 设备名称 */
   name: string;
-  /** 是否为系统默认设备 */
   isDefault: boolean;
 }
 
@@ -43,54 +94,31 @@ export type PlayerEvent =
 
 /** IPC 响应包装 */
 export interface IpcResponse<T = void> {
-  /** 是否成功 */
   success: boolean;
-  /** 返回数据 */
   data?: T;
-  /** 错误信息 */
   error?: string;
 }
 
 /** 通过 preload 暴露的播放器 API */
 export interface PlayerApi {
-  /** 加载音频源（本地路径或网络地址），返回歌曲信息 + 详情 */
   load: (source: string) => Promise<IpcResponse<LoadResult>>;
-  /** 恢复播放 */
   play: () => Promise<IpcResponse>;
-  /** 暂停播放 */
   pause: () => Promise<IpcResponse>;
-  /** 停止播放 */
   stop: () => Promise<IpcResponse>;
-  /** 跳转到指定位置（毫秒） */
   seek: (positionMs: number) => Promise<IpcResponse>;
-  /** 设置音量（0.0 ~ 1.0） */
   setVolume: (volume: number) => Promise<IpcResponse>;
-  /** 获取当前音量 */
   getVolume: () => Promise<IpcResponse<number>>;
-  /** 获取播放状态快照 */
   getStatus: () => Promise<IpcResponse<PlayerStatus>>;
-  /** 获取 FFT 频谱数据（128 个频段，值域 0.0 ~ 1.0） */
   getFftData: () => Promise<IpcResponse<number[]>>;
-  /** 设置暂停/恢复时的渐变时长（毫秒），0 表示禁用 */
   setFadeDuration: (ms: number) => Promise<IpcResponse>;
-  /** 获取当前渐变时长（毫秒） */
   getFadeDuration: () => Promise<IpcResponse<number>>;
-  /** 按需读取外部歌词文件内容 */
   readLyricFile: (filePath: string) => Promise<IpcResponse<string>>;
-  /** 打开文件选择对话框，返回选中的音频文件路径 */
   openFile: () => Promise<IpcResponse<string>>;
-  /** 重建音频输出设备 */
   reinit: () => Promise<IpcResponse>;
-  /** 启用/禁用 FFT 频谱推送 */
   setFftEnabled: (enabled: boolean) => Promise<IpcResponse>;
-  /** 获取所有音频输出设备 */
   getOutputDevices: () => Promise<IpcResponse<AudioDevice[]>>;
-  /** 获取系统默认输出设备名称 */
   getDefaultDeviceName: () => Promise<IpcResponse<string | null>>;
-  /** 切换输出设备（传 null 使用系统默认） */
   setOutputDevice: (deviceName: string | null) => Promise<IpcResponse>;
-  /** 获取当前选择的输出设备名称 */
   getSelectedDeviceName: () => Promise<IpcResponse<string | null>>;
-  /** 订阅主进程推送的播放事件，返回取消订阅函数 */
   onEvent: (callback: (event: PlayerEvent) => void) => () => void;
 }

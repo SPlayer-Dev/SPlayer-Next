@@ -4,15 +4,16 @@
     "src/env.d.ts",
     "src/**/*",
     "src/**/*.vue",
-    "electron/preload/*.d.ts"
+    "electron/preload/*.d.ts",
+    "shared/**/*"
   ],
   "compilerOptions": {
     "composite": true,
+    "tsBuildInfoFile": "node_modules/.cache/tsconfig.web.tsbuildinfo",
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "src/*"
-      ]
+      "@/*": ["src/*"],
+      "@shared/*": ["shared/*"]
     },
     "types": ["./auto-imports.d.ts", "./components.d.ts"]
   }

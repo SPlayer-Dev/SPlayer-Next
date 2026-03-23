@@ -10,6 +10,7 @@ import Components from "unplugin-vue-components/vite";
 
 export default defineConfig({
   main: {
+    publicDir: resolve(__dirname, "public"),
     build: {
       rollupOptions: {
         input: {
@@ -19,6 +20,7 @@ export default defineConfig({
     },
     resolve: {
       alias: {
+        "@shared": resolve(__dirname, "shared"),
         "@splayer/audio-engine": resolve(__dirname, "native/audio-engine"),
       },
     },
@@ -37,6 +39,7 @@ export default defineConfig({
     server: {
       port: 14558,
     },
+    publicDir: resolve(__dirname, "public"),
     build: {
       rollupOptions: {
         input: {
@@ -47,6 +50,7 @@ export default defineConfig({
     resolve: {
       alias: {
         "@": resolve("src"),
+        "@shared": resolve(__dirname, "shared"),
       },
     },
     plugins: [

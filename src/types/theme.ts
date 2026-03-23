@@ -24,6 +24,8 @@ export interface ThemePalette {
   surfaceAlt: string;
   /** 面板背景（侧边栏、播放栏等） */
   surfacePanel: string;
+  /** 高亮浮层背景（弹出框、下拉菜单等） */
+  surfaceBright: string;
   /** 背景上的主文字 */
   onSurface: string;
   /** 背景上的次级文字 */

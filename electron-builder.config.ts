@@ -17,7 +17,8 @@ const config: Configuration = {
     "!{.env,.env.*,.npmrc,pnpm-lock.yaml}",
     "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}",
   ],
-  asarUnpack: ["resources/**"],
+  directories: { buildResources: "build" },
+  asarUnpack: ["public/**"],
   extraResources: [
     {
       from: "native/audio-engine",
