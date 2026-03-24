@@ -8,7 +8,9 @@ import { toCoverUrl } from "../utils/protocol";
 import { toMs } from "../utils/time";
 import { mediaService } from "../services/media";
 import { getThumbar } from "../services/thumbar";
-import { parseArtists, parseAlbum } from "../utils/metadata";
+import { getMainWindow } from "../window";
+import { appName } from "../utils/config";
+import { parseArtists, parseAlbum, formatArtists } from "../utils/metadata";
 import type { MediaEvent } from "../services/media";
 
 type AudioEngineModule = typeof import("@splayer/audio-engine");
@@ -79,59 +81,67 @@ const startDevicePolling = (): void => {
 
 /** 为播放器实例注册原生事件回调 */
 const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"]>): void => {
-  inst.onEvent((event: { type: string; state?: string; position?: number; duration?: number; fftData?: number[] }) => {
-    switch (event.type) {
-      case "stateChanged": {
-        const state = event.state ?? "idle";
-        // 更新缩略图工具栏按钮
-        getThumbar()?.updateThumbar(state === "playing");
-        if (state !== lastMediaState) {
-          lastMediaState = state;
-          if (state === "playing") {
-            mediaService.setPlayState({ status: "Playing" });
-          } else if (state === "paused") {
-            mediaService.setPlayState({ status: "Paused" });
-          } else if (state === "stopped") {
-            mediaService.setPlayState({ status: "Paused" });
+  inst.onEvent(
+    (event: {
+      type: string;
+      state?: string;
+      position?: number;
+      duration?: number;
+      fftData?: number[];
+    }) => {
+      switch (event.type) {
+        case "stateChanged": {
+          const state = event.state ?? "idle";
+          // 更新缩略图工具栏按钮
+          getThumbar()?.updateThumbar(state === "playing");
+          if (state !== lastMediaState) {
+            lastMediaState = state;
+            if (state === "playing") {
+              mediaService.setPlayState({ status: "Playing" });
+            } else if (state === "paused") {
+              mediaService.setPlayState({ status: "Paused" });
+            } else if (state === "stopped") {
+              mediaService.setPlayState({ status: "Paused" });
+            }
           }
+          broadcast("player:event", {
+            type: "status",
+            data: {
+              state,
+              position: toMs(inst.getPosition()),
+              duration: toMs(inst.getDuration()),
+              volume: inst.getVolume(),
+              isFinished: false,
+            },
+          });
+          break;
         }
-        broadcast("player:event", {
-          type: "status",
-          data: {
-            state,
-            position: toMs(inst.getPosition()),
-            duration: toMs(inst.getDuration()),
-            volume: inst.getVolume(),
-            isFinished: false,
-          },
-        });
-        break;
+        case "ended": {
+          lastMediaState = "stopped";
+          broadcast("player:event", { type: "ended" });
+          mediaService.setPlayState({ status: "Paused" });
+          break;
+        }
+        case "position": {
+          const posMs = toMs(event.position ?? 0);
+          const durMs = toMs(event.duration ?? 0);
+          broadcast("player:event", {
+            type: "position",
+            data: { position: posMs, duration: durMs },
+          });
+          mediaService.setTimeline({ currentMs: posMs, totalMs: durMs });
+          break;
+        }
+        case "fftData": {
+          broadcast("player:event", {
+            type: "fftData",
+            data: event.fftData ?? [],
+          });
+          break;
+        }
       }
-      case "ended": {
-        lastMediaState = "stopped";
-        broadcast("player:event", { type: "ended" });
-        mediaService.setPlayState({ status: "Paused" });
-        break;
-      }
-      case "position": {
-        const posMs = toMs(event.position ?? 0);
-        const durMs = toMs(event.duration ?? 0);
-        broadcast("player:event", {
-          type: "position",
-          data: { position: posMs, duration: durMs },
-        });
-        mediaService.setTimeline({ currentMs: posMs, totalMs: durMs });
-        break;
-      }
-      case "fftData": {
-        broadcast("player:event", {
-          type: "fftData",
-          data: event.fftData ?? [],
-        });
-        break;
-      }
-    }
-  });
+    },
+  );
 };
 
 /**
@@ -195,43 +205,44 @@ export const registerPlayerIpc = (): void => {
     }
   });
 
-  // 加载音频文件，autoPlay 为 false 时加载后立即暂停
+  // 加载音频文件
   ipcMain.handle("player:load", (_event, source: string, autoPlay = true) => {
     broadcast("player:event", {
       type: "status",
       data: { state: "loading", position: 0, duration: 0, volume: 0, isFinished: false },
     });
-
     try {
       const inst = player();
       const meta = inst.load(source, autoPlay);
-
-      const title = meta.title ?? "";
-      const artist = meta.artist ?? "";
-      const album = meta.album ?? "";
+      // 提前解析元数据
+      const artists = parseArtists(meta.artist ?? "");
+      const artistStr = formatArtists(artists);
+      const trackTitle = meta.title || source.split(/[/\\]/).pop() || source;
+      const trackAlbum = parseAlbum(meta.album ?? "");
       const durationMs = toMs(meta.duration);
-
+      const trackId = createHash("sha256").update(source).digest("hex").slice(0, 16);
+      // 更新系统媒体控件
       mediaService.setMetadata({
-        title,
-        artist,
-        album,
+        title: trackTitle,
+        artist: artistStr,
+        album: trackAlbum?.name ?? "",
         coverData: inst.getCoverRaw() ?? undefined,
         durationMs,
       });
       const playState = autoPlay ? "Playing" : "Paused";
       lastMediaState = autoPlay ? "playing" : "paused";
       mediaService.setPlayState({ status: playState });
-
-      const trackId = createHash("sha256").update(source).digest("hex").slice(0, 16);
-
+      // 更新窗口标题
+      const displayTitle = artistStr ? `${trackTitle} - ${artistStr}` : trackTitle || appName;
+      getMainWindow()?.setTitle(displayTitle);
       const data = {
         track: {
           id: trackId,
           source: "local",
           path: source,
-          title: title || source.split(/[/\\]/).pop() || source,
-          artists: parseArtists(artist),
-          album: parseAlbum(album),
+          title: trackTitle,
+          artists,
+          album: trackAlbum,
           duration: durationMs,
           cover: toCoverUrl(meta.cover),
         },
@@ -246,7 +257,6 @@ export const registerPlayerIpc = (): void => {
           externalLyrics: meta.externalLyrics,
         },
       };
-
       return { success: true, data };
     } catch (error) {
       if (isDeviceError(error)) resetPlayer();

@@ -1,7 +1,7 @@
 import type { Artist, Album } from "@shared/types/player";
 
-/** 常见的歌手分隔符 */
-const ARTIST_SEPARATOR = /[/&;、，]\s*/;
+/** 常见的歌手分隔符：/ & ; , × | 、 ， feat. ft. */
+const ARTIST_SEPARATOR = /\s*(?:feat\.?|ft\.?)\s+|[/&;,×|、，]\s*/i;
 
 /**
  * 将歌手字符串按常见分隔符拆分为 Artist 数组
@@ -15,6 +15,16 @@ export const parseArtists = (raw: string): Artist[] => {
     .map((name) => name.trim())
     .filter(Boolean)
     .map((name) => ({ name }));
+};
+
+/**
+ * 将 Artist 数组格式化为字符串
+ * @param artists - Artist 数组
+ * @param separator - 分隔符，默认 " / "
+ * @returns 拼接后的字符串，空数组返回空字符串
+ */
+export const formatArtists = (artists: Artist[], separator = " / "): string => {
+  return artists.map((artist) => artist.name).join(separator);
 };
 
 /**
