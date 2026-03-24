@@ -20,12 +20,6 @@ type AudioEngineModule = typeof import("@splayer/audio-engine");
 let audioEngine: AudioEngineModule | null = null;
 let playerInstance: InstanceType<AudioEngineModule["AudioPlayer"]> | null = null;
 
-/** 上一次推送给系统媒体控件的状态，用于避免重复发送 */
-let lastMediaState: string | null = null;
-
-/** 上次加载的源路径，用于 SMTC 封面缓存（同一首歌不重复提取封面） */
-let lastCoverSource: string | null = null;
-let lastCoverData: Buffer | null = null;
 
 /**
  * 检测错误是否为音频设备丢失
@@ -40,9 +34,6 @@ const isDeviceError = (error: unknown): boolean => {
 const resetPlayer = (): void => {
   console.warn("[Player] 销毁播放器实例，将在下次操作时重建");
   playerInstance = null;
-  lastMediaState = null;
-  lastCoverSource = null;
-  lastCoverData = null;
 };
 
 /** 获取原生音频引擎模块 */
@@ -103,15 +94,12 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
           // 更新缩略图工具栏和托盘菜单
           getThumbar()?.updateThumbar(state === "playing");
           setTrayPlayState(state === "playing" ? "playing" : "paused");
-          if (state !== lastMediaState) {
-            lastMediaState = state;
-            if (state === "playing") {
-              mediaService.setPlayState({ status: "Playing" });
-            } else if (state === "paused") {
-              mediaService.setPlayState({ status: "Paused" });
-            } else if (state === "stopped") {
-              mediaService.setPlayState({ status: "Paused" });
-            }
+          if (state === "playing") {
+            mediaService.setPlayState({ status: "Playing" });
+          } else if (state === "paused") {
+            mediaService.setPlayState({ status: "Paused" });
+          } else if (state === "stopped") {
+            mediaService.setPlayState({ status: "Paused" });
           }
           broadcast("player:event", {
             type: "status",
@@ -126,7 +114,6 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
           break;
         }
         case "ended": {
-          lastMediaState = "stopped";
           broadcast("player:event", { type: "ended" });
           mediaService.setPlayState({ status: "Paused" });
           break;
@@ -214,20 +201,19 @@ export const registerPlayerIpc = (): void => {
       const trackAlbum = parseAlbum(meta.album ?? "");
       const durationMs = toMs(meta.duration);
       const trackId = createHash("sha256").update(source).digest("hex").slice(0, 16);
-      // 更新系统媒体控件（同一首歌复用封面缓存，避免重复提取）
-      if (source !== lastCoverSource) {
-        lastCoverData = inst.getCoverRaw() ?? null;
-        lastCoverSource = source;
-      }
+
+      // 提取封面数据更新系统媒体控件
+      // 提取完毕后作为局部变量传递，随后即可被 V8 GC 回收，切忌全局缓存
+      const coverData = inst.getCoverRaw() ?? undefined;
+
       mediaService.setMetadata({
         title: trackTitle,
         artist: artistStr,
         album: trackAlbum?.name ?? "",
-        coverData: lastCoverData ?? undefined,
+        coverData,
         durationMs,
       });
       const playState = autoPlay ? "Playing" : "Paused";
-      lastMediaState = autoPlay ? "playing" : "paused";
       mediaService.setPlayState({ status: playState });
       // 更新窗口标题和托盘
       const displayTitle = artistStr ? `${trackTitle} - ${artistStr}` : trackTitle || appName;
@@ -518,7 +504,6 @@ export const registerPlayerIpc = (): void => {
     // 全部重试失败：销毁损坏的实例，下次操作时会自动重建
     console.error("[Player] 重建音频输出全部失败，销毁播放器实例");
     playerInstance = null;
-    lastMediaState = null;
 
     broadcast("player:event", {
       type: "status",

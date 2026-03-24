@@ -2,7 +2,7 @@ use std::sync::{Arc, LazyLock, Mutex};
 
 use anyhow::Result;
 use napi::threadsafe_function::ThreadsafeFunctionCallMode;
-use tokio::{runtime::Runtime, task::JoinHandle};
+use tokio::runtime::Runtime;
 use windows::{
     Foundation::{TimeSpan, TypedEventHandler},
     Media::{
@@ -39,7 +39,8 @@ struct SmtcContext {
     player: MediaPlayer,
     tokens: SmtcTokens,
     callback: Option<Arc<MediaThreadsafeFunction>>,
-    cover_task: Option<JoinHandle<()>>,
+    /// 封面更新代数，每次 update_metadata 递增，旧任务发现代数过期后自行放弃
+    cover_generation: u64,
     is_enabled: bool,
 }
 
@@ -61,9 +62,6 @@ impl SmtcContext {
 
 impl Drop for SmtcContext {
     fn drop(&mut self) {
-        if let Some(handle) = self.cover_task.take() {
-            handle.abort();
-        }
         let _ = self.remove_handlers();
         if let Ok(smtc) = self.smtc() {
             let _ = smtc.SetIsEnabled(false);
@@ -204,7 +202,7 @@ impl SystemMediaControls for WindowsImpl {
                 rate_changed,
             },
             callback: None,
-            cover_task: None,
+            cover_generation: 0,
             is_enabled: false,
         };
 
@@ -249,19 +247,22 @@ impl SystemMediaControls for WindowsImpl {
         let Some(ctx) = guard.as_mut() else { return };
         if !ctx.is_enabled { return; }
 
-        if let Some(old) = ctx.cover_task.take() {
-            old.abort();
-        }
+        // 递增代数，旧的异步任务发现代数过期后自行放弃，
+        // 不使用 abort() 以避免 WinRT InMemoryRandomAccessStream 得不到正确 Close
+        ctx.cover_generation += 1;
+        let generation = ctx.cover_generation;
 
         let title = payload.title.clone();
         let artist = payload.artist.clone();
         let album = payload.album.clone();
         let cover_data = payload.cover_data;
 
-        let handle = TOKIO_RT.spawn(async move {
+        TOKIO_RT.spawn(async move {
+            // 异步创建封面流（WinRT 资源在 await 完成后正常释放）
             let thumb = make_cover_stream(cover_data).await;
             let _ = with_ctx(|inner| {
-                if !inner.is_enabled { return Ok(()); }
+                // 代数过期说明有更新的 update_metadata 已发起，放弃本次更新
+                if inner.cover_generation != generation || !inner.is_enabled { return Ok(()); }
                 let smtc = inner.smtc()?;
                 let updater = smtc.DisplayUpdater()?;
                 updater.SetType(MediaPlaybackType::Music)?;
@@ -278,8 +279,6 @@ impl SystemMediaControls for WindowsImpl {
                 Ok(())
             });
         });
-
-        ctx.cover_task = Some(handle);
     }
 
     fn update_playback_status(&self, payload: PlayStateParam) {

@@ -365,9 +365,10 @@ const handleEvent = async (event: PlayerEvent): Promise<void> => {
       isTransitioning = true;
       playback.setPlaying(false);
       try {
-        // 单曲循环：重新加载当前歌；否则切下一首
+        // 单曲循环：seek 回开头继续播放（复用 FFmpeg 上下文，不重建）
         if (status.repeatMode === "one") {
-          await loadTrack(status.currentTrack);
+          await seek(0);
+          await play();
         } else {
           await nextTrack();
         }

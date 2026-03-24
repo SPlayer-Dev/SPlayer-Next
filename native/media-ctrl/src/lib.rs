@@ -63,7 +63,12 @@ pub fn on_event(callback: Function<Unknown<'static>, UnknownReturnValue>) -> Res
 #[napi]
 pub fn set_metadata(param: MetadataParam) {
     let payload = MetadataPayload::from(param);
-    discord::update_metadata(payload.clone());
+
+    // Discord RPC 只需要 cover_url，不需要占用大量内存的原图数据
+    let mut discord_payload = payload.clone();
+    discord_payload.cover_data = None;
+    discord::update_metadata(discord_payload);
+
     sys_media::get_platform_controls().update_metadata(payload);
 }
 

@@ -108,8 +108,7 @@ impl InnerPlayer {
                     .context("Failed to enumerate output devices")?
                     .find(|d| d.name().map(|n| n == *name).unwrap_or(false))
                     .with_context(|| format!("Output device '{}' not found", name))?;
-                OutputStream::try_from_device(&device)
-                    .context("Failed to open named output device")
+                OutputStream::try_from_device(&device).context("Failed to open named output device")
             }
             None => OutputStream::try_default().context("Failed to open default output device"),
         }
@@ -145,9 +144,7 @@ impl InnerPlayer {
     /// 获取所有输出设备列表
     pub fn get_output_devices() -> Vec<(String, bool)> {
         let host = cpal::default_host();
-        let default_name = host
-            .default_output_device()
-            .and_then(|d| d.name().ok());
+        let default_name = host.default_output_device().and_then(|d| d.name().ok());
 
         host.output_devices()
             .map(|devices| {
@@ -503,6 +500,7 @@ impl InnerPlayer {
         }
         self.shared = None;
         self.cover_raw = None;
+        self.metadata = None;
         self.seek_base = 0.0;
     }
 
@@ -523,10 +521,7 @@ impl InnerPlayer {
             sink.stop();
         }
 
-        let mut decoder_data = self
-            .decoder_thread
-            .take()
-            .and_then(|h| h.join().ok());
+        let mut decoder_data = self.decoder_thread.take().and_then(|h| h.join().ok());
 
         self.fft.reset();
 
