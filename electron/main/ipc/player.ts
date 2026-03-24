@@ -452,10 +452,12 @@ export const registerPlayerIpc = (): void => {
       const inst = player();
       switch (event.type) {
         case "Play":
-          broadcast("player:event", { type: "play" });
+          // SMTC 的 Play/Pause 直接操作引擎，不走渲染进程
+          // 避免与渲染进程的 nextTrack/onQueueEnded 状态冲突
+          inst.play();
           break;
         case "Pause":
-          broadcast("player:event", { type: "pause" });
+          inst.pause();
           break;
         case "Stop":
           inst.stop();
