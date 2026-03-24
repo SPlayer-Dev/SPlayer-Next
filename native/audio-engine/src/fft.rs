@@ -20,6 +20,14 @@ pub struct FftAnalyzer {
     sample_rate: u32,
     /// 缓存的 FFT 计划（避免每次分析时重建）
     fft_plan: Arc<dyn Fft<f32>>,
+    /// 预分配的 FFT 工作缓冲区（避免每次 analyze 分配）
+    work: Mutex<FftWorkBuffers>,
+}
+
+/// 预分配的 FFT 工作缓冲区
+struct FftWorkBuffers {
+    windowed: Vec<Complex<f32>>,
+    output: Vec<f32>,
 }
 
 // SAFETY: rustfft 的 Fft 实现是 Send+Sync 的
@@ -35,6 +43,10 @@ impl FftAnalyzer {
             sample_buffer: Mutex::new(Vec::with_capacity(MAX_BUFFER_SIZE)),
             sample_rate,
             fft_plan,
+            work: Mutex::new(FftWorkBuffers {
+                windowed: vec![Complex::new(0.0, 0.0); FFT_SIZE],
+                output: vec![0.0; OUTPUT_BINS],
+            }),
         }
     }
 
@@ -60,41 +72,34 @@ impl FftAnalyzer {
         let start = buf.len() - FFT_SIZE;
         let samples = &buf[start..];
 
-        // 应用 Hamming 窗
-        let mut windowed: Vec<Complex<f32>> = samples
-            .iter()
-            .enumerate()
-            .map(|(i, &s)| {
-                let w = 0.54
-                    - 0.46
-                        * (2.0 * std::f32::consts::PI * i as f32 / (FFT_SIZE as f32 - 1.0)).cos();
-                Complex::new(s * w, 0.0)
-            })
-            .collect();
+        let mut work = self.work.lock();
 
-        // 执行 FFT（使用缓存的计划）
-        self.fft_plan.process(&mut windowed);
+        // 应用 Hamming 窗（复用预分配的 windowed 缓冲区）
+        for (i, (&s, w)) in samples.iter().zip(work.windowed.iter_mut()).enumerate() {
+            let ham = 0.54
+                - 0.46 * (2.0 * std::f32::consts::PI * i as f32 / (FFT_SIZE as f32 - 1.0)).cos();
+            *w = Complex::new(s * ham, 0.0);
+        }
 
-        // 转换为幅度谱（仅取前半部分——正频率）
-        let magnitudes: Vec<f32> = windowed[..FFT_SIZE / 2]
-            .iter()
-            .map(|c| c.norm() / FFT_SIZE as f32)
-            .collect();
+        // 释放 sample_buffer 锁（后续计算不需要它）
+        drop(buf);
+
+        // 执行 FFT（使用缓存的计划，原地处理）
+        self.fft_plan.process(&mut work.windowed);
 
         // 将频率段映射到输出频段
         let freq_per_bin = self.sample_rate as f32 / FFT_SIZE as f32;
         let min_bin = (MIN_FREQ / freq_per_bin).floor() as usize;
-        let max_bin = (MAX_FREQ / freq_per_bin).ceil() as usize;
-        let max_bin = max_bin.min(magnitudes.len());
+        let max_bin = ((MAX_FREQ / freq_per_bin).ceil() as usize).min(FFT_SIZE / 2);
 
         if min_bin >= max_bin {
-            return vec![0.0; OUTPUT_BINS];
+            work.output.iter_mut().for_each(|v| *v = 0.0);
+            return work.output.clone();
         }
 
         // 使用对数间距分配输出频段
         let log_min = MIN_FREQ.ln();
         let log_max = MAX_FREQ.ln();
-        let mut output = Vec::with_capacity(OUTPUT_BINS);
 
         for i in 0..OUTPUT_BINS {
             let freq_lo = (log_min + (log_max - log_min) * i as f32 / OUTPUT_BINS as f32).exp();
@@ -105,21 +110,23 @@ impl FftAnalyzer {
             let bin_hi = ((freq_hi / freq_per_bin).ceil() as usize).min(max_bin);
 
             if bin_lo >= bin_hi {
-                output.push(0.0);
+                work.output[i] = 0.0;
                 continue;
             }
 
-            // 取该范围内的平均幅度
-            let sum: f32 = magnitudes[bin_lo..bin_hi].iter().sum();
+            // 取该范围内的平均幅度（直接从 windowed 的前半部分计算，跳过 magnitudes 中间 Vec）
+            let mut sum: f32 = 0.0;
+            for j in bin_lo..bin_hi {
+                sum += work.windowed[j].norm() / FFT_SIZE as f32;
+            }
             let avg = sum / (bin_hi - bin_lo) as f32;
 
             // 转为 dB 并归一化到 [0, 1]
             let db = 20.0 * (avg + 1e-10).log10();
-            let normalized = ((db + 60.0) / 60.0).clamp(0.0, 1.0);
-            output.push(normalized);
+            work.output[i] = ((db + 60.0) / 60.0).clamp(0.0, 1.0);
         }
 
-        output
+        work.output.clone()
     }
 
     /// 重置样本缓冲区（例如 seek 时）

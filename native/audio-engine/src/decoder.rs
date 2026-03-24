@@ -20,14 +20,34 @@ const NETWORK_READ_RETRIES: u32 = 3;
 /// 重试间隔（毫秒）
 const NETWORK_RETRY_DELAY_MS: u64 = 500;
 
-/// 解码会话所需的资源
-struct DecoderData {
+/// 解码会话所需的资源（跨 seek 复用，避免重建 FFmpeg 上下文）
+pub struct DecoderData {
     input_ctx: ffmpeg::format::context::Input,
     decoder: ffmpeg::decoder::Audio,
     audio_stream_index: usize,
     resampler: Option<ffmpeg::software::resampling::Context>,
     fft_resampler: Option<ffmpeg::software::resampling::Context>,
 }
+
+impl DecoderData {
+    /// 在已有上下文上 seek + flush，不重新打开文件
+    pub fn seek(&mut self, position_secs: f64) -> Result<()> {
+        let ts = (position_secs * ffmpeg::ffi::AV_TIME_BASE as f64) as i64;
+        if self.input_ctx.seek(ts, ..).is_err() {
+            let _ = self.input_ctx.seek(ts, ..ts);
+        }
+        // 清空解码器内部缓冲区
+        // SAFETY: decoder 内部持有有效的 AVCodecContext 指针
+        unsafe {
+            ffmpeg::ffi::avcodec_flush_buffers(self.decoder.as_mut_ptr());
+        }
+        Ok(())
+    }
+}
+
+// SAFETY: DecoderData 的所有字段（FFmpeg C 指针的 Rust wrapper）
+// 仅被单一线程独占使用，在 spawn 时 move 进线程，不存在并发访问。
+unsafe impl Send for DecoderData {}
 
 /// 只读取轻量元数据（tag、时长、封面），不含歌词，不启动解码线程
 ///
@@ -81,17 +101,21 @@ pub fn probe_metadata(
         embedded_lyric: None,
         external_lyrics: Vec::new(),
         cover,
+        cover_raw: None,
     })
 }
 
 /// 启动解码线程，返回音频元数据和线程句柄。
+///
+/// 线程结束时返回 `DecoderData`，调用方可通过 `handle.join()` 回收并复用于后续 seek，
+/// 避免重建 FFmpeg 上下文。
 ///
 /// - `cover_cache_dir`: 封面缓存目录，传 Some 时提取封面并写入缓存
 pub fn start_decode(
     source: &str,
     shared: Arc<Shared>,
     cover_cache_dir: Option<&str>,
-) -> Result<(AudioMetadata, JoinHandle<()>)> {
+) -> Result<(AudioMetadata, JoinHandle<DecoderData>)> {
     let input_ctx = open_input(source)?;
 
     let stream = input_ctx
@@ -119,6 +143,7 @@ pub fn start_decode(
     // 在同一个 input_ctx 上提取封面和内嵌歌词（不需要重新打开文件）
     let cover = cover_cache_dir
         .and_then(|dir| metadata::extract_cover_thumbnail(&input_ctx, source, dir));
+    let cover_raw = metadata::read_attached_pic(&input_ctx);
     let embedded_lyric = metadata::extract_embedded_lyric(&input_ctx);
     let external_lyrics = metadata::find_all_external_lyrics(source);
 
@@ -170,9 +195,10 @@ pub fn start_decode(
         embedded_lyric,
         external_lyrics,
         cover,
+        cover_raw,
     };
 
-    let mut data = DecoderData {
+    let data = DecoderData {
         input_ctx,
         decoder,
         audio_stream_index,
@@ -181,68 +207,26 @@ pub fn start_decode(
     };
 
     let handle = thread::spawn(move || {
+        let mut data = data;
         run_decoding_loop(&mut data, &shared);
         shared.mark_eof();
+        data
     });
 
     Ok((metadata, handle))
 }
 
-/// 从指定位置开始解码（seek 后重新解码）
-pub fn seek_decode(source: &str, position_secs: f64, shared: &Shared) -> Result<()> {
-    let mut input_ctx = open_input(source)?;
-
-    // 使用开放范围的 seek（与参考实现一致）
-    let ts = (position_secs * ffmpeg::ffi::AV_TIME_BASE as f64) as i64;
-    if input_ctx.seek(ts, ..).is_err() {
-        let _ = input_ctx.seek(ts, ..ts);
-    }
-
-    let stream = input_ctx
-        .streams()
-        .best(ffmpeg::media::Type::Audio)
-        .context("No audio stream found")?;
-    let audio_stream_index = stream.index();
-
-    let decoder_ctx = ffmpeg::codec::context::Context::from_parameters(stream.parameters())?;
-    let decoder = decoder_ctx.decoder().audio()?;
-
-    let src_format = decoder.format();
-    let src_layout = decoder.channel_layout();
-    let src_rate = decoder.rate();
-
-    let target_format = ffmpeg::format::Sample::F32(ffmpeg::format::sample::Type::Planar);
-    let target_layout = ChannelLayout::default(TARGET_CHANNELS as i32);
-
-    let resampler = create_resampler(
-        src_format,
-        src_layout,
-        src_rate,
-        target_format,
-        target_layout,
-        TARGET_SAMPLE_RATE,
-    )?;
-
-    let fft_resampler = create_resampler(
-        src_format,
-        src_layout,
-        src_rate,
-        ffmpeg::format::Sample::F32(ffmpeg::format::sample::Type::Planar),
-        ChannelLayout::MONO,
-        FFT_SAMPLE_RATE,
-    )?;
-
-    let mut data = DecoderData {
-        input_ctx,
-        decoder,
-        audio_stream_index,
-        resampler,
-        fft_resampler,
-    };
-
-    run_decoding_loop(&mut data, shared);
-    shared.mark_eof();
-    Ok(())
+/// 用已有的 DecoderData 继续解码（seek 后复用）
+pub fn resume_decode(
+    data: DecoderData,
+    shared: Arc<Shared>,
+) -> JoinHandle<DecoderData> {
+    thread::spawn(move || {
+        let mut data = data;
+        run_decoding_loop(&mut data, &shared);
+        shared.mark_eof();
+        data
+    })
 }
 
 /// 打开音频输入，网络地址自动启用 HTTP 重连

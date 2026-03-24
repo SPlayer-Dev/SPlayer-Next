@@ -64,10 +64,12 @@ pub struct InnerPlayer {
     /// 使用 Arc 包装，允许 fade 线程在 Mutex 外操作音量
     sink: Option<Arc<Sink>>,
     shared: Option<Arc<Shared>>,
-    /// 解码线程句柄，stop 时 join 确保线程清理
-    decoder_thread: Option<JoinHandle<()>>,
+    /// 解码线程句柄，join 后可回收 DecoderData 复用于 seek
+    decoder_thread: Option<JoinHandle<decoder::DecoderData>>,
     fft: Arc<FftAnalyzer>,
     metadata: Option<AudioMetadata>,
+    /// 原始封面数据缓存（load 时提取，getCoverRaw 时返回，避免重复打开文件）
+    cover_raw: Option<Vec<u8>>,
     state: PlayerState,
     /// seek 偏移基准（秒），采样计数在此基础上累加
     seek_base: f64,
@@ -124,6 +126,7 @@ impl InnerPlayer {
             decoder_thread: None,
             fft: Arc::new(FftAnalyzer::new(decoder::FFT_SAMPLE_RATE)),
             metadata: None,
+            cover_raw: None,
             state: PlayerState::Idle,
             seek_base: 0.0,
             current_source: None,
@@ -330,14 +333,16 @@ impl InnerPlayer {
         match prev_state {
             PlayerState::Playing | PlayerState::Paused => {
                 if let Some(source) = prev_source {
-                    self.load(&source, true)?;
+                    // 先以暂停模式加载，避免 seek 前播出开头片段
+                    self.load(&source, false)?;
                     if prev_position > 0.5 {
                         self.seek(prev_position)?;
                     }
-                    if prev_state == PlayerState::Paused {
-                        self.pause();
-                    }
                     self.set_volume(prev_volume);
+                    // 恢复到原来的播放/暂停状态
+                    if prev_state == PlayerState::Playing {
+                        self.play()?;
+                    }
                 } else {
                     self.state = PlayerState::Idle;
                 }
@@ -366,7 +371,7 @@ impl InnerPlayer {
         self.fft.reset();
 
         let shared = Shared::new(decoder::TARGET_SAMPLE_RATE, decoder::TARGET_CHANNELS);
-        let (metadata, handle) =
+        let (mut metadata, handle) =
             decoder::start_decode(source, Arc::clone(&shared), self.cover_cache_dir.as_deref())?;
 
         let sink =
@@ -392,6 +397,8 @@ impl InnerPlayer {
         self.seek_base = 0.0;
         self.current_source = Some(source.to_string());
 
+        // 将 cover_raw 从 metadata 中取出缓存，避免 clone 时复制大量封面数据
+        self.cover_raw = metadata.cover_raw.take();
         let result = metadata.clone();
         self.metadata = Some(metadata);
 
@@ -495,38 +502,54 @@ impl InnerPlayer {
             let _ = handle.join();
         }
         self.shared = None;
+        self.cover_raw = None;
         self.seek_base = 0.0;
     }
 
     /// 跳转到指定位置（秒）
+    ///
+    /// 回收解码线程中的 DecoderData 并复用（seek + flush），不重建 FFmpeg 上下文。
+    /// 仅在回收失败时回退到完整 load。
     pub fn seek(&mut self, position_secs: f64) -> Result<()> {
-        let source = self.current_source.clone().context("No source loaded")?;
-
         self.cancel_fade();
         self.stop_position_timer();
         self.stop_fft_timer();
 
-        // 停止当前播放和解码线程
+        // 停止当前解码线程并回收 DecoderData
         if let Some(ref shared) = self.shared {
             shared.stop();
         }
         if let Some(sink) = self.sink.take() {
             sink.stop();
         }
-        if let Some(handle) = self.decoder_thread.take() {
-            let _ = handle.join();
-        }
+
+        let mut decoder_data = self
+            .decoder_thread
+            .take()
+            .and_then(|h| h.join().ok());
 
         self.fft.reset();
 
-        // 创建新的共享状态用于 seek 后的解码
-        let shared = Shared::new(decoder::TARGET_SAMPLE_RATE, decoder::TARGET_CHANNELS);
-        let shared_for_thread = Arc::clone(&shared);
+        // 在已有上下文上 seek（不重新打开文件）
+        let seek_ok = decoder_data
+            .as_mut()
+            .map(|d| d.seek(position_secs).is_ok())
+            .unwrap_or(false);
 
-        let source_clone = source;
-        let handle = std::thread::spawn(move || {
-            let _ = decoder::seek_decode(&source_clone, position_secs, &shared_for_thread);
-        });
+        if !seek_ok {
+            // 回收失败（线程 panic 或 seek 出错），回退到从头 load，不再递归 seek
+            drop(decoder_data);
+            if let Some(source) = self.current_source.clone() {
+                self.load(&source, true)?;
+            }
+            return Ok(());
+        }
+
+        let decoder_data = decoder_data.unwrap();
+
+        // 创建新的共享状态（旧的 is_stopping=true 不可复用）
+        let shared = Shared::new(decoder::TARGET_SAMPLE_RATE, decoder::TARGET_CHANNELS);
+        let handle = decoder::resume_decode(decoder_data, Arc::clone(&shared));
 
         let sink =
             Arc::new(Sink::try_new(&self.stream_handle).context("Failed to create audio sink")?);
@@ -611,9 +634,9 @@ impl InnerPlayer {
         self.fft.analyze()
     }
 
-    /// 获取当前音频源路径
-    pub fn current_source(&self) -> Option<&str> {
-        self.current_source.as_deref()
+    /// 获取缓存的原始封面数据（load 时一次性提取）
+    pub fn cover_raw(&self) -> Option<&[u8]> {
+        self.cover_raw.as_deref()
     }
 
     /// 检查播放是否已结束

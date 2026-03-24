@@ -23,6 +23,10 @@ let playerInstance: InstanceType<AudioEngineModule["AudioPlayer"]> | null = null
 /** 上一次推送给系统媒体控件的状态，用于避免重复发送 */
 let lastMediaState: string | null = null;
 
+/** 上次加载的源路径，用于 SMTC 封面缓存（同一首歌不重复提取封面） */
+let lastCoverSource: string | null = null;
+let lastCoverData: Buffer | null = null;
+
 /**
  * 检测错误是否为音频设备丢失
  * 设备丢失后 Rust 实例已损坏，必须销毁重建
@@ -37,6 +41,8 @@ const resetPlayer = (): void => {
   console.warn("[Player] 销毁播放器实例，将在下次操作时重建");
   playerInstance = null;
   lastMediaState = null;
+  lastCoverSource = null;
+  lastCoverData = null;
 };
 
 /** 获取原生音频引擎模块 */
@@ -208,12 +214,16 @@ export const registerPlayerIpc = (): void => {
       const trackAlbum = parseAlbum(meta.album ?? "");
       const durationMs = toMs(meta.duration);
       const trackId = createHash("sha256").update(source).digest("hex").slice(0, 16);
-      // 更新系统媒体控件
+      // 更新系统媒体控件（同一首歌复用封面缓存，避免重复提取）
+      if (source !== lastCoverSource) {
+        lastCoverData = inst.getCoverRaw() ?? null;
+        lastCoverSource = source;
+      }
       mediaService.setMetadata({
         title: trackTitle,
         artist: artistStr,
         album: trackAlbum?.name ?? "",
-        coverData: inst.getCoverRaw() ?? undefined,
+        coverData: lastCoverData ?? undefined,
         durationMs,
       });
       const playState = autoPlay ? "Playing" : "Paused";
@@ -440,7 +450,6 @@ export const registerPlayerIpc = (): void => {
     }
   });
 
-  
   // 渲染进程同步播放模式到托盘
   ipcMain.on("player:syncPlayMode", (_event, repeat: RepeatMode, shuffle: ShuffleMode) => {
     setTrayPlayMode(repeat, shuffle);
@@ -517,5 +526,4 @@ export const registerPlayerIpc = (): void => {
     });
   };
   powerMonitor.on("resume", resumeHandler);
-
 };

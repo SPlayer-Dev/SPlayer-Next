@@ -22,10 +22,26 @@ class ThumbarImpl implements Thumbar {
 
   constructor(win: BrowserWindow) {
     this.win = win;
-    this.prev = { tooltip: "上一曲", icon: thumbarIcon("prev"), click: () => broadcast("player:event", { type: "prev" }) };
-    this.next = { tooltip: "下一曲", icon: thumbarIcon("next"), click: () => broadcast("player:event", { type: "next" }) };
-    this.play = { tooltip: "播放", icon: thumbarIcon("play"), click: () => broadcast("player:event", { type: "play" }) };
-    this.pause = { tooltip: "暂停", icon: thumbarIcon("pause"), click: () => broadcast("player:event", { type: "pause" }) };
+    this.prev = {
+      tooltip: "上一曲",
+      icon: thumbarIcon("prev"),
+      click: () => broadcast("player:event", { type: "prev" }),
+    };
+    this.next = {
+      tooltip: "下一曲",
+      icon: thumbarIcon("next"),
+      click: () => broadcast("player:event", { type: "next" }),
+    };
+    this.play = {
+      tooltip: "播放",
+      icon: thumbarIcon("play"),
+      click: () => broadcast("player:event", { type: "play" }),
+    };
+    this.pause = {
+      tooltip: "暂停",
+      icon: thumbarIcon("pause"),
+      click: () => broadcast("player:event", { type: "pause" }),
+    };
     // 初始化工具栏
     this.updateThumbar(false);
     // 监听主题变化，仅更新图标

@@ -22,7 +22,7 @@ const LYRIC_EXTENSIONS: &[&str] = &["ttml", "lys", "yrc", "qrc", "lrc", "ass", "
 /// 从已打开的 input_ctx 中提取封面缩略图，写入缓存目录，返回缩略图路径。
 ///
 /// 只缓存 300x300 JPEG 缩略图供前端日常显示，原图不落盘。
-/// 需要高清封面时（SMTC / 全屏），通过 `extract_cover_raw` 按需从源文件提取。
+/// 高清封面在 `start_decode` 中通过 `read_attached_pic` 一并提取并缓存于 InnerPlayer。
 pub fn extract_cover_thumbnail(
     input_ctx: &ffmpeg::format::context::Input,
     source: &str,
@@ -53,15 +53,8 @@ pub fn extract_cover_thumbnail(
     Some(thumb_file.to_string_lossy().into_owned())
 }
 
-/// 从音频文件按需提取原始封面数据（用于 SMTC / 全屏播放器）。
-/// 不缓存到磁盘，调用方自行决定如何使用。
-pub fn extract_cover_raw(source: &str) -> Option<Vec<u8>> {
-    let input_ctx = ffmpeg::format::input(source).ok()?;
-    read_attached_pic(&input_ctx)
-}
-
 /// 从 input_ctx 的 attached_pic 流读取原始封面字节
-fn read_attached_pic(input_ctx: &ffmpeg::format::context::Input) -> Option<Vec<u8>> {
+pub fn read_attached_pic(input_ctx: &ffmpeg::format::context::Input) -> Option<Vec<u8>> {
     for stream in input_ctx.streams() {
         if stream
             .disposition()

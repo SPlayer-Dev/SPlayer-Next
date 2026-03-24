@@ -145,4 +145,6 @@ pub struct AudioMetadata {
     pub external_lyrics: Vec<ExternalLyric>,
     /// 封面缩略图缓存路径（用于前端日常显示）
     pub cover: Option<String>,
+    /// 原始封面数据（load 时一次性提取，供 SMTC 等使用，避免重复打开文件）
+    pub cover_raw: Option<Vec<u8>>,
 }

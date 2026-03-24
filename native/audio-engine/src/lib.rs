@@ -309,13 +309,13 @@ impl AudioPlayer {
             .collect()
     }
 
-    /// 按需从音频文件提取原始高清封面（用于 SMTC / 全屏播放器）。
-    /// 不缓存到磁盘，返回原始图片字节。
+    /// 返回 load 时缓存的原始封面数据（用于 SMTC / 全屏播放器）。
+    /// 封面在 load 阶段从已打开的 FFmpeg 上下文一次性提取，不再重复打开文件。
     #[napi]
     pub fn get_cover_raw(&self) -> Option<napi::bindgen_prelude::Buffer> {
-        let source = self.inner.lock().current_source()?.to_string();
-        let data = metadata::extract_cover_raw(&source)?;
-        Some(data.into())
+        let player = self.inner.lock();
+        let data = player.cover_raw()?;
+        Some(data.to_vec().into())
     }
 
     /// 获取所有音频输出设备列表
