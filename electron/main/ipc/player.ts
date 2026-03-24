@@ -8,6 +8,7 @@ import { toCoverUrl } from "../utils/protocol";
 import { toMs } from "../utils/time";
 import { mediaService } from "../services/media";
 import { getThumbar } from "../services/thumbar";
+import { parseArtists, parseAlbum } from "../utils/metadata";
 import type { MediaEvent } from "../services/media";
 
 type AudioEngineModule = typeof import("@splayer/audio-engine");
@@ -167,8 +168,8 @@ export const playerPause = (): void => {
 
 /** 注册播放器相关的所有 IPC 事件 */
 export const registerPlayerIpc = (): void => {
-  // 加载音频文件
-  ipcMain.handle("player:load", (_event, source: string) => {
+  // 加载音频文件，autoPlay 为 false 时加载后立即暂停
+  ipcMain.handle("player:load", (_event, source: string, autoPlay = true) => {
     broadcast("player:event", {
       type: "status",
       data: { state: "loading", position: 0, duration: 0, volume: 0, isFinished: false },
@@ -176,9 +177,8 @@ export const registerPlayerIpc = (): void => {
 
     try {
       const inst = player();
-      const meta = inst.load(source);
+      const meta = inst.load(source, autoPlay);
 
-      // 向系统媒体控件发送元数据（getCoverRaw 返回的已是 Buffer，无需再复制）
       const title = meta.title ?? "";
       const artist = meta.artist ?? "";
       const album = meta.album ?? "";
@@ -191,10 +191,10 @@ export const registerPlayerIpc = (): void => {
         coverData: inst.getCoverRaw() ?? undefined,
         durationMs,
       });
-      lastMediaState = "playing";
-      mediaService.setPlayState({ status: "Playing" });
+      const playState = autoPlay ? "Playing" : "Paused";
+      lastMediaState = autoPlay ? "playing" : "paused";
+      mediaService.setPlayState({ status: playState });
 
-      // 本地文件 ID：路径的短 hash
       const trackId = createHash("sha256").update(source).digest("hex").slice(0, 16);
 
       const data = {
@@ -203,8 +203,8 @@ export const registerPlayerIpc = (): void => {
           source: "local",
           path: source,
           title: title || source.split(/[/\\]/).pop() || source,
-          artists: artist ? [{ name: artist }] : [],
-          album: album ? { name: album } : undefined,
+          artists: parseArtists(artist),
+          album: parseAlbum(album),
           duration: durationMs,
           cover: toCoverUrl(meta.cover),
         },

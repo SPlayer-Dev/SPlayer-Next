@@ -330,7 +330,7 @@ impl InnerPlayer {
         match prev_state {
             PlayerState::Playing | PlayerState::Paused => {
                 if let Some(source) = prev_source {
-                    self.load(&source)?;
+                    self.load(&source, true)?;
                     if prev_position > 0.5 {
                         self.seek(prev_position)?;
                     }
@@ -355,8 +355,8 @@ impl InnerPlayer {
         self.cover_cache_dir = Some(dir);
     }
 
-    /// 加载并播放音频源（本地路径或网络地址）
-    pub fn load(&mut self, source: &str) -> Result<AudioMetadata> {
+    /// 加载音频源，auto_play 控制是否自动播放
+    pub fn load(&mut self, source: &str, auto_play: bool) -> Result<AudioMetadata> {
         self.stop_internal();
         self.fft.reset();
 
@@ -375,22 +375,30 @@ impl InnerPlayer {
         );
 
         sink.set_volume(self.target_volume);
+        // 不自动播放时先暂停 sink，再 append，确保没有任何声音输出
+        if !auto_play {
+            sink.pause();
+        }
         sink.append(decoder_source);
 
         self.sink = Some(sink);
         self.shared = Some(shared);
         self.decoder_thread = Some(handle);
-        self.state = PlayerState::Playing;
         self.seek_base = 0.0;
         self.current_source = Some(source.to_string());
 
-        // 先用 metadata 的字段构建 DecoderSource 后再存储，避免多余 clone
         let result = metadata.clone();
         self.metadata = Some(metadata);
 
-        self.emit(PlayerEvent::StateChanged { state: "playing" });
-        self.start_position_timer();
-        self.start_fft_timer();
+        if auto_play {
+            self.state = PlayerState::Playing;
+            self.emit(PlayerEvent::StateChanged { state: "playing" });
+            self.start_position_timer();
+            self.start_fft_timer();
+        } else {
+            self.state = PlayerState::Paused;
+            self.emit(PlayerEvent::StateChanged { state: "paused" });
+        }
 
         Ok(result)
     }
@@ -424,7 +432,7 @@ impl InnerPlayer {
             // 停止/空闲/播放结束：从头重新加载
             PlayerState::Stopped | PlayerState::Idle => {
                 if let Some(source) = self.current_source.clone() {
-                    self.load(&source)?;
+                    self.load(&source, true)?;
                 }
             }
         }
@@ -526,18 +534,28 @@ impl InnerPlayer {
             metadata.channels,
         );
 
+        // 保持 seek 前的播放/暂停状态
+        let was_paused = self.state == PlayerState::Paused;
         sink.set_volume(self.target_volume);
+        if was_paused {
+            sink.pause();
+        }
         sink.append(decoder_source);
 
         self.sink = Some(sink);
         self.shared = Some(shared);
         self.decoder_thread = Some(handle);
         self.seek_base = position_secs;
-        self.state = PlayerState::Playing;
 
-        self.emit(PlayerEvent::StateChanged { state: "playing" });
-        self.start_position_timer();
-        self.start_fft_timer();
+        if was_paused {
+            self.state = PlayerState::Paused;
+            self.emit(PlayerEvent::StateChanged { state: "paused" });
+        } else {
+            self.state = PlayerState::Playing;
+            self.emit(PlayerEvent::StateChanged { state: "playing" });
+            self.start_position_timer();
+            self.start_fft_timer();
+        }
 
         Ok(())
     }

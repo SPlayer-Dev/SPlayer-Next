@@ -5,7 +5,7 @@ import { electronAPI } from "@electron-toolkit/preload";
 const api = {
   player: {
     // 加载音频（本地路径或网络地址）
-    load: (source: string) => ipcRenderer.invoke("player:load", source),
+    load: (source: string, autoPlay = true) => ipcRenderer.invoke("player:load", source, autoPlay),
     // 恢复播放
     play: () => ipcRenderer.invoke("player:play"),
     // 暂停播放

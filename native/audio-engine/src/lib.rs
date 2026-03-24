@@ -157,15 +157,20 @@ impl AudioPlayer {
         Ok(())
     }
 
-    /// 加载音频源并开始播放，返回完整元信息（含封面路径和歌词）
+    /// 加载音频源，返回完整元信息（含封面路径和歌词）
+    /// @param auto_play - 是否自动播放，false 时加载后立即暂停
     #[napi]
-    pub fn load(&self, source: String) -> Result<JsMusicMetadata> {
+    pub fn load(&self, source: String, #[napi(ts_arg_type = "boolean")] auto_play: Option<bool>) -> Result<JsMusicMetadata> {
         let mut player = self.inner.lock();
         let meta = player
-            .load(&source)
+            .load(&source, auto_play.unwrap_or(true))
             .map_err(|e| Error::from_reason(e.to_string()))?;
+        Ok(Self::meta_to_js(meta))
+    }
 
-        Ok(JsMusicMetadata {
+    /// 内部：将 AudioMetadata 转为 JS 结构
+    fn meta_to_js(meta: crate::shared::AudioMetadata) -> JsMusicMetadata {
+        JsMusicMetadata {
             title: meta.title,
             artist: meta.artist,
             album: meta.album,
@@ -184,7 +189,7 @@ impl AudioPlayer {
                 })
                 .collect(),
             cover: meta.cover,
-        })
+        }
     }
 
     /// 恢复播放。如果已停止或播放结束，自动从头重新加载。

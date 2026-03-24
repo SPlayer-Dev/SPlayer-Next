@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { useStatusStore } from "@/stores/status";
+import { useMediaStore } from "@/stores/media";
 
 const status = useStatusStore();
 
-/** 非 idle 状态时显示播放栏 */
-const showPlayerBar = computed(() => status.state !== "idle");
+/** 有歌曲信息时显示播放栏 */
+const showPlayerBar = computed(() => !!useMediaStore().track);
 const { isExpanded } = storeToRefs(status);
 </script>
 

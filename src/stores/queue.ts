@@ -47,7 +47,7 @@ export const restoreQueue = async (): Promise<void> => {
  * 替换整个队列，清除洗牌备份
  * @param items - 新的歌曲列表
  */
-export const setQueue = (items: Track[]): void => {
+export const setQueue = (items: readonly Track[]): void => {
   queue.value = markRaw([...items]);
   originalQueue.value = null;
   save();
@@ -59,7 +59,9 @@ export const setQueue = (items: Track[]): void => {
  * @param index - 插入位置（该位置原有元素后移）
  */
 export const insertToQueue = (item: Track, index: number): void => {
-  queue.value.splice(index, 0, item);
+  // 确保插入位置在合法范围内
+  const safeIndex = Math.max(0, Math.min(index, queue.value.length));
+  queue.value.splice(safeIndex, 0, item);
   triggerRef(queue);
   if (originalQueue.value) {
     originalQueue.value.push(item);
@@ -148,4 +150,13 @@ export const unshuffleQueue = (currentTrackId: string): number => {
  */
 export const getTrack = (index: number): Track | null => {
   return index >= 0 && index < queue.value.length ? queue.value[index] : null;
+};
+
+/**
+ * 根据 ID 查找 Track 在队列中的索引
+ * @param trackId - 歌曲 ID
+ * @returns 索引位置，未找到返回 -1
+ */
+export const findTrackIndex = (trackId: string): number => {
+  return queue.value.findIndex((track) => track.id === trackId);
 };

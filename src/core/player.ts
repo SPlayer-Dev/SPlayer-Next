@@ -1,4 +1,4 @@
-import type { PlayerEvent, IpcResponse, Track } from "@shared/types/player";
+import type { PlayerEvent, PlayerState, IpcResponse, Track } from "@shared/types/player";
 import type { RepeatMode, ShuffleMode } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import { useThemeStore } from "@/stores/theme";
@@ -21,9 +21,9 @@ const handleResult = (result: IpcResponse): boolean => {
 
 /**
  * 同步播放状态到非响应式时间源（供歌词等 60fps 动画使用）
- * @param state - 当前播放器状态字符串
+ * @param state - 当前播放器状态
  */
-const syncPlayback = (state: string): void => {
+const syncPlayback = (state: PlayerState): void => {
   playback.setPlaying(state === "playing");
   if (state === "stopped" || state === "idle") {
     playback.reset();
@@ -31,16 +31,17 @@ const syncPlayback = (state: string): void => {
 };
 
 /**
- * 加载音频源并开始播放
+ * 加载音频源
  * @param source - 音频文件路径或网络地址
+ * @param autoPlay - 是否自动播放，默认 true，false 时加载后暂停
  * @returns 加载成功返回 Track，失败返回 null
  */
-export const load = async (source: string): Promise<Track | null> => {
+export const load = async (source: string, autoPlay = true): Promise<Track | null> => {
   const status = useStatusStore();
   status.error = null;
   status.state = "loading";
   playback.reset();
-  const result = await window.api.player.load(source);
+  const result = await window.api.player.load(source, autoPlay);
   if (result.success && result.data) {
     // 更新歌曲元信息和歌词
     await useMediaStore().setTrack(result.data.track, result.data.detail);
@@ -50,12 +51,12 @@ export const load = async (source: string): Promise<Track | null> => {
     const dur = result.data.track.duration;
     status.duration = dur;
     status.position = 0;
-    status.state = "playing";
+    status.state = autoPlay ? "playing" : "paused";
     status.currentSource = source;
     // 同步到非响应式时间源
     playback.setDuration(dur);
     playback.setCurrentTime(0);
-    playback.setPlaying(true);
+    playback.setPlaying(autoPlay);
     return result.data.track;
   } else {
     status.state = "idle";
@@ -82,7 +83,7 @@ export const addAndPlay = async (source: string): Promise<void> => {
   if (!track) return;
   const status = useStatusStore();
   // 检查队列中是否已有同 ID 的歌，有则跳转到该位置
-  const existingIdx = queue.queue.value.findIndex((t) => t.id === track.id);
+  const existingIdx = queue.findTrackIndex(track.id);
   if (existingIdx !== -1) {
     status.playIndex = existingIdx;
     return;
@@ -165,7 +166,7 @@ export const switchDevice = async (deviceName: string | null): Promise<void> => 
  * @param items - 歌曲列表
  * @param startIndex - 起始播放位置，默认 0
  */
-export const playFrom = async (items: Track[], startIndex = 0): Promise<void> => {
+export const playFrom = async (items: readonly Track[], startIndex = 0): Promise<void> => {
   if (items.length === 0) return;
   const status = useStatusStore();
   queue.setQueue(items);
@@ -371,12 +372,28 @@ const handleEvent = async (event: PlayerEvent): Promise<void> => {
 let unsubscribe: (() => void) | null = null;
 let initialized = false;
 
-/** 初始化播放器 */
+/** 初始化播放器：恢复队列、加载上次歌曲（含歌词）、seek 到上次位置、暂停等待 */
 export const initPlayer = async (): Promise<void> => {
   if (initialized) return;
   initialized = true;
   console.log("[player] init");
   await queue.restoreQueue();
+  const status = useStatusStore();
+  // 恢复上次的音量到主进程
+  await window.api.player.setVolume(status.volume);
+  // 恢复上次的歌曲：load 获取元数据和歌词，不自动播放
+  const lastTrack = status.currentTrack;
+  if (lastTrack?.path) {
+    const lastPosition = status.position;
+    // autoPlay=false，主进程 load 后立即暂停，不会有声音
+    await load(lastTrack.path, false);
+    // seek 到上次位置
+    if (lastPosition > 0) {
+      await seek(lastPosition);
+    }
+  } else {
+    status.state = "idle";
+  }
   if (unsubscribe) unsubscribe();
   unsubscribe = window.api.player.onEvent(handleEvent);
 };
