@@ -157,6 +157,16 @@ impl AudioPlayer {
         Ok(())
     }
 
+    /// 只读取轻量元数据（tag、封面），不含歌词，不启动解码和播放
+    #[napi]
+    pub fn probe(&self, source: String) -> Result<JsMusicMetadata> {
+        let player = self.inner.lock();
+        let meta = player
+            .probe(&source)
+            .map_err(|e| Error::from_reason(e.to_string()))?;
+        Ok(Self::meta_to_js(meta))
+    }
+
     /// 加载音频源，返回完整元信息（含封面路径和歌词）
     /// @param auto_play - 是否自动播放，false 时加载后立即暂停
     #[napi]

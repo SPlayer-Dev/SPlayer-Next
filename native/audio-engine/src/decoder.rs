@@ -29,6 +29,61 @@ struct DecoderData {
     fft_resampler: Option<ffmpeg::software::resampling::Context>,
 }
 
+/// 只读取轻量元数据（tag、时长、封面），不含歌词，不启动解码线程
+///
+/// 仅打开文件头提取信息，不创建解码器和重采样器，内存开销极小。
+/// 歌词在 `start_decode` 中随完整加载一起提取。
+pub fn probe_metadata(
+    source: &str,
+    cover_cache_dir: Option<&str>,
+) -> Result<AudioMetadata> {
+    let input_ctx = open_input(source)?;
+
+    let stream = input_ctx
+        .streams()
+        .best(ffmpeg::media::Type::Audio)
+        .context("No audio stream found")?;
+
+    let time_base = stream.time_base();
+    let stream_duration = stream.duration();
+    let duration_secs = if stream_duration > 0 {
+        stream_duration as f64 * time_base.0 as f64 / time_base.1 as f64
+    } else if input_ctx.duration() > 0 {
+        input_ctx.duration() as f64 / f64::from(ffmpeg::ffi::AV_TIME_BASE)
+    } else {
+        0.0
+    };
+
+    let metadata_dict = input_ctx.metadata();
+    let title = metadata_dict.get("title").map(ToString::to_string);
+    let artist = metadata_dict.get("artist").map(ToString::to_string);
+    let album = metadata_dict.get("album").map(ToString::to_string);
+
+    // 只提取封面，跳过歌词（歌词在 load 播放时再读取）
+    let cover = cover_cache_dir
+        .and_then(|dir| metadata::extract_cover_thumbnail(&input_ctx, source, dir));
+
+    // SAFETY: stream.parameters().as_ptr() 返回有效的 AVCodecParameters 指针，
+    // 生命周期由 input_ctx 保证，在此作用域内有效
+    let bit_rate = unsafe { (*stream.parameters().as_ptr()).bit_rate };
+    let codec = ffmpeg::codec::decoder::find(stream.parameters().id())
+        .map(|c| c.name().to_string())
+        .unwrap_or_default();
+    Ok(AudioMetadata {
+        title,
+        artist,
+        album,
+        duration_secs,
+        sample_rate: TARGET_SAMPLE_RATE,
+        channels: TARGET_CHANNELS,
+        bit_rate,
+        codec,
+        embedded_lyric: None,
+        external_lyrics: Vec::new(),
+        cover,
+    })
+}
+
 /// 启动解码线程，返回音频元数据和线程句柄。
 ///
 /// - `cover_cache_dir`: 封面缓存目录，传 Some 时提取封面并写入缓存

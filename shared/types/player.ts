@@ -103,6 +103,7 @@ export interface IpcResponse<T = void> {
 
 /** 通过 preload 暴露的播放器 API */
 export interface PlayerApi {
+  probe: (source: string) => Promise<IpcResponse<Track>>;
   load: (source: string, autoPlay?: boolean) => Promise<IpcResponse<LoadResult>>;
   play: () => Promise<IpcResponse>;
   pause: () => Promise<IpcResponse>;
