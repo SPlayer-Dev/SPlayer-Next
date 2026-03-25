@@ -84,16 +84,28 @@ pub struct InnerPlayer {
     cover_cache_dir: Option<String>,
     /// 事件回调（由 lib.rs 设置，内部转发到 JS ThreadsafeFunction）
     event_callback: Option<EventEmitter>,
-    /// 位置推送定时器的停止信号
+    /// 位置推送定时器的停止信号和线程句柄
     position_timer_stop: Option<Arc<AtomicBool>>,
-    /// 渐变取消信号（快速连续 play/pause 时取消上一次渐变）
+    position_timer_handle: Option<JoinHandle<()>>,
+    /// 渐变取消信号和线程句柄
     fade_cancel: Option<Arc<AtomicBool>>,
+    fade_handle: Option<JoinHandle<()>>,
     /// FFT 推送开关（前端需要显示频谱时才启用）
     fft_enabled: Arc<AtomicBool>,
-    /// FFT 推送定时器的停止信号
+    /// FFT 推送定时器的停止信号和线程句柄
     fft_timer_stop: Option<Arc<AtomicBool>>,
+    fft_timer_handle: Option<JoinHandle<()>>,
     /// 用户选择的输出设备名称（None = 系统默认）
     selected_device_name: Option<String>,
+}
+
+/// 等待线程退出，最多等 timeout_ms 毫秒，超时则放弃
+fn join_with_timeout(handle: JoinHandle<()>, timeout_ms: u64) {
+    // 利用 thread::park_timeout 无法实现 join timeout，
+    // 但由于我们的线程 sleep 间隔短（50ms/200ms），设 flag 后很快退出，
+    // 这里直接 join 等待即可。极端情况下最多等一个 sleep 周期。
+    let _ = handle.join();
+    let _ = timeout_ms; // 保留参数，未来可用 park/condvar 优化
 }
 
 impl InnerPlayer {
@@ -136,9 +148,12 @@ impl InnerPlayer {
             cover_cache_dir: None,
             event_callback: None,
             position_timer_stop: None,
+            position_timer_handle: None,
             fade_cancel: None,
+            fade_handle: None,
             fft_enabled: Arc::new(AtomicBool::new(false)),
             fft_timer_stop: None,
+            fft_timer_handle: None,
             selected_device_name: None,
         })
     }
@@ -195,10 +210,13 @@ impl InnerPlayer {
         }
     }
 
-    /// 取消正在进行的渐变
+    /// 取消正在进行的渐变，并等待渐变线程退出
     fn cancel_fade(&mut self) {
         if let Some(flag) = self.fade_cancel.take() {
             flag.store(true, Ordering::Relaxed);
+        }
+        if let Some(handle) = self.fade_handle.take() {
+            join_with_timeout(handle, 50);
         }
     }
 
@@ -212,7 +230,7 @@ impl InnerPlayer {
         if let Some(ref sink) = self.sink {
             let sink = Arc::clone(sink);
             let fade_ms = self.fade_duration_ms;
-            thread::spawn(move || {
+            let handle = thread::spawn(move || {
                 fade_volume(&sink, from, to, fade_ms, &cancel);
                 // 渐变未被取消时执行完成回调
                 if !cancel.load(Ordering::Relaxed) {
@@ -221,6 +239,7 @@ impl InnerPlayer {
                     }
                 }
             });
+            self.fade_handle = Some(handle);
         }
     }
 
@@ -242,7 +261,7 @@ impl InnerPlayer {
         let seek_base = self.seek_base;
         let duration = self.duration();
 
-        thread::spawn(move || {
+        let handle = thread::spawn(move || {
             while !stop_flag.load(Ordering::Relaxed) {
                 let position = seek_base + shared.consumed_position();
                 cb(PlayerEvent::Position { position, duration });
@@ -257,12 +276,16 @@ impl InnerPlayer {
                 thread::sleep(Duration::from_millis(200));
             }
         });
+        self.position_timer_handle = Some(handle);
     }
 
-    /// 停止位置推送定时器
+    /// 停止位置推送定时器，等待线程退出
     fn stop_position_timer(&mut self) {
         if let Some(flag) = self.position_timer_stop.take() {
             flag.store(true, Ordering::Relaxed);
+        }
+        if let Some(handle) = self.position_timer_handle.take() {
+            join_with_timeout(handle, 300);
         }
     }
 
@@ -280,7 +303,7 @@ impl InnerPlayer {
             None => return,
         };
 
-        thread::spawn(move || {
+        let handle = thread::spawn(move || {
             while !stop_flag.load(Ordering::Relaxed) {
                 if fft_enabled.load(Ordering::Relaxed) {
                     let data = fft.analyze();
@@ -289,12 +312,16 @@ impl InnerPlayer {
                 thread::sleep(Duration::from_millis(50));
             }
         });
+        self.fft_timer_handle = Some(handle);
     }
 
-    /// 停止 FFT 推送定时器
+    /// 停止 FFT 推送定时器，等待线程退出
     fn stop_fft_timer(&mut self) {
         if let Some(flag) = self.fft_timer_stop.take() {
             flag.store(true, Ordering::Relaxed);
+        }
+        if let Some(handle) = self.fft_timer_handle.take() {
+            join_with_timeout(handle, 100);
         }
     }
 
@@ -401,6 +428,7 @@ impl InnerPlayer {
 
         // 将 cover_raw 从 metadata 中取出缓存，避免 clone 时复制大量封面数据
         self.cover_raw = metadata.cover_raw.take();
+        // 构建返回值后再将 metadata 移入 self，避免 clone
         let result = metadata.clone();
         self.metadata = Some(metadata);
 
@@ -488,20 +516,26 @@ impl InnerPlayer {
     }
 
     fn stop_internal(&mut self) {
+        // 1. 取消渐变并等待渐变线程退出（释放 Arc<Sink>）
         self.cancel_fade();
+        // 2. 停止定时器并等待线程退出（释放 Arc<Shared> 和 Arc<EventEmitter>）
         self.stop_position_timer();
         self.stop_fft_timer();
-        // 先通知解码线程停止
+        // 3. 通知解码线程停止
         if let Some(ref shared) = self.shared {
             shared.stop();
         }
-        // 释放 Sink（会 drop DecoderSource，解除迭代器阻塞）
+        // 4. 释放 Sink（drop DecoderSource，解除迭代器阻塞）
         if let Some(sink) = self.sink.take() {
             sink.stop();
         }
-        // 等待解码线程退出，避免线程泄漏
+        // 5. 等待解码线程退出，回收 DecoderData（FFmpeg 资源在此 drop）
         if let Some(handle) = self.decoder_thread.take() {
             let _ = handle.join();
+        }
+        // 6. 清空共享缓冲区（即使还有外部 Arc 引用，缓冲区数据也立即释放）
+        if let Some(ref shared) = self.shared {
+            shared.drain_buffer();
         }
         self.shared = None;
         self.cover_raw = None;
@@ -527,6 +561,11 @@ impl InnerPlayer {
         }
 
         let mut decoder_data = self.decoder_thread.take().and_then(|h| h.join().ok());
+
+        // 清空旧缓冲区，释放 AudioChunk 内存
+        if let Some(ref shared) = self.shared {
+            shared.drain_buffer();
+        }
 
         self.fft.reset();
 

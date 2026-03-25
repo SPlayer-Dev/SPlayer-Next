@@ -119,6 +119,13 @@ impl Shared {
         self.condvar.notify_all();
     }
 
+    /// 清空缓冲区并释放内存（stop 后调用，避免 AudioChunk 在 Arc 引用存活期间持续占用内存）
+    pub fn drain_buffer(&self) {
+        let mut buf = self.buffer.lock();
+        buf.clear();
+        buf.shrink_to_fit();
+    }
+
     /// 检查播放是否已结束（EOF 且缓冲区为空）
     pub fn is_done(&self) -> bool {
         let buf = self.buffer.lock();

@@ -131,6 +131,8 @@ impl FftAnalyzer {
 
     /// 重置样本缓冲区（例如 seek 时）
     pub fn reset(&self) {
-        self.sample_buffer.lock().clear();
+        let mut buf = self.sample_buffer.lock();
+        buf.clear();
+        buf.shrink_to(MAX_BUFFER_SIZE);
     }
 }
