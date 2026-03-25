@@ -1,5 +1,6 @@
 mod decoder;
 mod fft;
+mod logger;
 mod metadata;
 mod player;
 mod shared;
@@ -12,6 +13,25 @@ use napi::threadsafe_function::ThreadsafeFunctionCallMode;
 use napi_derive::napi;
 use parking_lot::Mutex;
 use player::{InnerPlayer, PlayerEvent, PlayerState};
+use tracing::info;
+
+/// anyhow::Error → napi::Error 统一转换
+trait IntoNapiResult<T> {
+    fn into_napi(self) -> napi::Result<T>;
+}
+
+impl<T> IntoNapiResult<T> for anyhow::Result<T> {
+    fn into_napi(self) -> napi::Result<T> {
+        self.map_err(|e| Error::from_reason(format!("{e:#}")))
+    }
+}
+
+/// 初始化原生日志系统（主进程启动时调用一次）
+#[napi]
+pub fn init_logger(log_dir: String, is_dev: bool) {
+    logger::init_logger(&log_dir, is_dev);
+    info!(log_dir, is_dev, "audio-engine 日志系统已初始化");
+}
 
 /// 一条外部歌词，返回给 JS 侧（仅格式和路径，内容按需加载）
 #[napi(object)]
@@ -87,6 +107,16 @@ pub struct JsPlayerStatus {
     pub is_finished: bool,
 }
 
+/// PlayerState → JS 字符串
+fn state_to_str(state: PlayerState) -> &'static str {
+    match state {
+        PlayerState::Idle => "idle",
+        PlayerState::Playing => "playing",
+        PlayerState::Paused => "paused",
+        PlayerState::Stopped => "stopped",
+    }
+}
+
 /// 音频播放器，通过 napi-rs 暴露给 Node.js
 #[napi]
 pub struct AudioPlayer {
@@ -98,7 +128,8 @@ impl AudioPlayer {
     /// 创建新的播放器实例
     #[napi(constructor)]
     pub fn new() -> Result<Self> {
-        let inner = InnerPlayer::new().map_err(|e| Error::from_reason(e.to_string()))?;
+        let inner = InnerPlayer::new().into_napi()?;
+        info!("AudioPlayer 实例已创建");
         Ok(Self {
             inner: Mutex::new(inner),
         })
@@ -107,10 +138,8 @@ impl AudioPlayer {
     /// 重新初始化音频输出设备（系统休眠唤醒后调用）
     #[napi]
     pub fn reinit_output(&self) -> Result<()> {
-        self.inner
-            .lock()
-            .reinit_output()
-            .map_err(|e| Error::from_reason(e.to_string()))
+        info!("重新初始化音频输出设备");
+        self.inner.lock().reinit_output().into_napi()
     }
 
     /// 设置封面缓存目录（在 load 前调用一次即可）
@@ -131,7 +160,7 @@ impl AudioPlayer {
             let js_event = match event {
                 PlayerEvent::StateChanged { state } => JsPlayerEvent {
                     event_type: "stateChanged".into(),
-                    state: Some(state.into()),
+                    state: Some(state_to_str(state).into()),
                     ..Default::default()
                 },
                 PlayerEvent::Ended => JsPlayerEvent {
@@ -161,9 +190,7 @@ impl AudioPlayer {
     #[napi]
     pub fn probe(&self, source: String) -> Result<JsMusicMetadata> {
         let player = self.inner.lock();
-        let meta = player
-            .probe(&source)
-            .map_err(|e| Error::from_reason(e.to_string()))?;
+        let meta = player.probe(&source).into_napi()?;
         Ok(Self::meta_to_js(meta))
     }
 
@@ -171,10 +198,10 @@ impl AudioPlayer {
     /// @param auto_play - 是否自动播放，false 时加载后立即暂停
     #[napi]
     pub fn load(&self, source: String, #[napi(ts_arg_type = "boolean")] auto_play: Option<bool>) -> Result<JsMusicMetadata> {
+        let auto_play = auto_play.unwrap_or(true);
+        info!(source = %source, auto_play, "加载音频源");
         let mut player = self.inner.lock();
-        let meta = player
-            .load(&source, auto_play.unwrap_or(true))
-            .map_err(|e| Error::from_reason(e.to_string()))?;
+        let meta = player.load(&source, auto_play).into_napi()?;
         Ok(Self::meta_to_js(meta))
     }
 
@@ -205,10 +232,7 @@ impl AudioPlayer {
     /// 恢复播放。如果已停止或播放结束，自动从头重新加载。
     #[napi]
     pub fn play(&self) -> Result<()> {
-        self.inner
-            .lock()
-            .play()
-            .map_err(|e| Error::from_reason(e.to_string()))
+        self.inner.lock().play().into_napi()
     }
 
     /// 暂停播放
@@ -226,10 +250,7 @@ impl AudioPlayer {
     /// 跳转到指定播放位置（秒）
     #[napi]
     pub fn seek(&self, position: f64) -> Result<()> {
-        self.inner
-            .lock()
-            .seek(position)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        self.inner.lock().seek(position).into_napi()
     }
 
     /// 设置音量（0.0 ~ 1.0）
@@ -273,12 +294,7 @@ impl AudioPlayer {
     pub fn get_status(&self) -> JsPlayerStatus {
         let player = self.inner.lock();
         JsPlayerStatus {
-            state: match player.state() {
-                PlayerState::Idle => "idle".to_string(),
-                PlayerState::Playing => "playing".to_string(),
-                PlayerState::Paused => "paused".to_string(),
-                PlayerState::Stopped => "stopped".to_string(),
-            },
+            state: state_to_str(player.state()).to_string(),
             position: player.position(),
             duration: player.duration(),
             volume: player.volume() as f64,
@@ -336,10 +352,8 @@ impl AudioPlayer {
     /// 切换输出设备（传 None/undefined 使用系统默认）
     #[napi]
     pub fn set_output_device(&self, device_name: Option<String>) -> Result<()> {
-        self.inner
-            .lock()
-            .set_output_device(device_name)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        info!(device = ?device_name, "切换输出设备");
+        self.inner.lock().set_output_device(device_name).into_napi()
     }
 
     /// 获取当前选择的输出设备名称（None = 系统默认）

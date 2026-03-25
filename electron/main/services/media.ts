@@ -1,5 +1,7 @@
 import { loadNativeModule } from "../utils/nativeLoader";
 import { broadcast } from "../utils/broadcast";
+import { mediaLog, nativeLogsDir } from "../utils/logger";
+import { isDev } from "../utils/config";
 import type { MediaEvent, MetadataParam, PlayStateParam, TimelineParam } from "@splayer/media-ctrl";
 
 export type { MediaEvent, MetadataParam, PlayStateParam, TimelineParam };
@@ -20,19 +22,22 @@ class MediaService {
   init(): void {
     this.mc = loadNativeModule<MediaCtrlModule>("media-ctrl.node", "media-ctrl");
     if (!this.mc) {
-      console.warn("[Media] media-ctrl 模块未找到，媒体集成不可用");
+      mediaLog.warn("media-ctrl 模块未找到，媒体集成不可用");
       return;
     }
 
     try {
+      // 初始化原生日志系统
+      this.mc.initLogger(nativeLogsDir, isDev);
       this.mc.initialize();
       this.mc.onEvent((event) => {
         this.eventHandler?.(event);
         broadcast("media:event", event);
       });
       this.mc.enable();
-    } catch (e) {
-      console.error("[Media] 初始化失败:", e);
+      mediaLog.info("系统媒体控件已初始化");
+    } catch (error) {
+      mediaLog.error("初始化失败:", error);
     }
   }
 

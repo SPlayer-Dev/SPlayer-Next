@@ -11,6 +11,7 @@ use discord_rich_presence::{
     DiscordIpc, DiscordIpcClient,
     activity::{Activity, ActivityType, Assets, Button, StatusDisplayType, Timestamps},
 };
+use tracing::{debug, info};
 
 use crate::model::{
     DiscordConfig, DiscordDisplayMode, MetadataPayload, PlayStateParam, PlaybackStatus,
@@ -119,7 +120,10 @@ impl Worker {
     }
 
     fn disconnect(&mut self) {
-        if let Some(mut c) = self.client.take() { let _ = c.close(); }
+        if let Some(mut c) = self.client.take() {
+            debug!("断开 Discord IPC 连接");
+            let _ = c.close();
+        }
         self.last_end_ts = None;
     }
 
@@ -127,8 +131,15 @@ impl Worker {
         if self.retry_cd > 0 { self.retry_cd -= 1; return; }
         let mut client = DiscordIpcClient::new(APP_ID);
         match client.connect() {
-            Ok(()) => { self.client = Some(client); self.last_end_ts = None; }
-            Err(_) => { self.retry_cd = RECONNECT_COOLDOWN; }
+            Ok(()) => {
+                info!("Discord IPC 已连接");
+                self.client = Some(client);
+                self.last_end_ts = None;
+            }
+            Err(_) => {
+                debug!(cooldown = RECONNECT_COOLDOWN, "Discord IPC 连接失败，进入冷却");
+                self.retry_cd = RECONNECT_COOLDOWN;
+            }
         }
     }
 
@@ -268,6 +279,7 @@ pub fn init() {
     let (tx, rx) = mpsc::channel();
     if let Ok(mut g) = SENDER.lock() { *g = Some(tx); }
     thread::spawn(move || background_loop(&rx));
+    info!("Discord RPC 后台线程已启动");
 }
 
 fn send(msg: Msg) {

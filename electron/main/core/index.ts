@@ -5,6 +5,7 @@ import { createMainWindow } from "../window";
 import { registerIpcHandlers } from "../ipc";
 import { mediaService } from "../services/media";
 import { coverCacheDir } from "../utils/config";
+import { coreLog, initLogger } from "../utils/logger";
 
 /**
  * 配置 Chromium 启动参数以优化内存占用
@@ -32,6 +33,10 @@ const configureMemoryOptimizations = (): void => {
  */
 export const initApp = (): void => {
   configureMemoryOptimizations();
+
+  // 初始化日志系统（尽早初始化，后续所有模块都可使用）
+  initLogger();
+
   // 注册自定义协议
   protocol.registerSchemesAsPrivileged([
     {
@@ -71,6 +76,8 @@ export const initApp = (): void => {
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
     });
+
+    coreLog.info("应用初始化完成");
   });
 
   app.on("window-all-closed", () => {
@@ -81,6 +88,7 @@ export const initApp = (): void => {
 
   // 退出前清理原生模块资源
   app.on("before-quit", () => {
+    coreLog.info("应用即将退出，清理资源");
     mediaService.shutdown();
   });
 };

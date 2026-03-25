@@ -1,7 +1,9 @@
 import { app } from "electron";
 import { createRequire } from "module";
 import path from "path";
+import log from "electron-log/main";
 
+const nativeLog = log.scope("native");
 const requireNative = createRequire(import.meta.url);
 
 /**
@@ -29,9 +31,11 @@ export function loadNativeModule<T = unknown>(
   }
 
   try {
-    return requireNative(nativeModulePath) as T;
+    const mod = requireNative(nativeModulePath) as T;
+    nativeLog.debug(`加载 ${fileName} 成功`);
+    return mod;
   } catch (error) {
-    console.error(`[NativeLoader] 加载 ${fileName} 失败:`, error);
+    nativeLog.error(`加载 ${fileName} 失败:`, error);
     return null;
   }
 }

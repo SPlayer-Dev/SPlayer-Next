@@ -1,6 +1,7 @@
 import { BrowserWindow, nativeTheme, ThumbarButton } from "electron";
 import { broadcast } from "../utils/broadcast";
 import { loadThemedIcon } from "../utils/icon";
+import { thumbarLog } from "../utils/logger";
 
 export interface Thumbar {
   clearThumbar(): void;
@@ -72,11 +73,11 @@ class ThumbarImpl implements Thumbar {
 export const initThumbar = (win: BrowserWindow): Thumbar | null => {
   if (process.platform !== "win32") return null;
   try {
-    console.log("[Thumbar] 初始化缩略图工具栏");
+    thumbarLog.info("初始化缩略图工具栏");
     thumbar = new ThumbarImpl(win);
     return thumbar;
   } catch (error) {
-    console.error("[Thumbar] 初始化失败:", error);
+    thumbarLog.error("初始化失败:", error);
     return null;
   }
 };

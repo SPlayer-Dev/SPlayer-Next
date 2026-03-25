@@ -12,6 +12,8 @@ import { setTraySongName, setTrayPlayState, setTrayPlayMode } from "../services/
 import { getMainWindow } from "../window";
 import { appName } from "../utils/config";
 import { parseArtists, parseAlbum, formatArtists } from "../utils/metadata";
+import { playerLog, nativeLogsDir } from "../utils/logger";
+import { isDev } from "../utils/config";
 import type { RepeatMode, ShuffleMode } from "@shared/types/player";
 import type { MediaEvent } from "../services/media";
 
@@ -32,7 +34,7 @@ const isDeviceError = (error: unknown): boolean => {
 
 /** 销毁损坏的播放器实例，下次调用 player() 时自动重建 */
 const resetPlayer = (): void => {
-  console.warn("[Player] 销毁播放器实例，将在下次操作时重建");
+  playerLog.warn("销毁播放器实例，将在下次操作时重建");
   playerInstance = null;
 };
 
@@ -41,8 +43,10 @@ const engine = (): AudioEngineModule => {
   if (!audioEngine) {
     audioEngine = loadNativeModule<AudioEngineModule>("audio-engine.node", "audio-engine");
     if (!audioEngine) {
-      throw new Error("[Player] Failed to load audio-engine.node");
+      throw new Error("Failed to load audio-engine.node");
     }
+    // 初始化原生日志系统
+    audioEngine.initLogger(nativeLogsDir, isDev);
   }
   return audioEngine;
 };
@@ -58,14 +62,14 @@ const startDevicePolling = (): void => {
     try {
       const current = playerInstance.getDefaultDeviceName() ?? null;
       if (lastDefaultDevice !== null && current !== lastDefaultDevice) {
-        console.log(`[Player] 检测到默认音频设备变化: ${lastDefaultDevice} → ${current}`);
+        playerLog.info(`检测到默认音频设备变化: ${lastDefaultDevice} → ${current}`);
         const selected = playerInstance.getSelectedDeviceName() ?? null;
         if (selected === null) {
           try {
             playerInstance.reinitOutput();
-            console.log("[Player] 已自动切换到新的默认设备");
+            playerLog.info("已自动切换到新的默认设备");
           } catch (error) {
-            console.warn("[Player] 自动切换设备失败:", error);
+            playerLog.warn("自动切换设备失败:", error);
           }
         }
         broadcast("player:event", {
@@ -152,6 +156,7 @@ const player = (): InstanceType<AudioEngineModule["AudioPlayer"]> => {
     playerInstance.setCoverCacheDir(coverCacheDir);
     registerNativeEvents(playerInstance);
     startDevicePolling();
+    playerLog.info("播放器实例已创建");
   }
   return playerInstance;
 };
@@ -242,8 +247,10 @@ export const registerPlayerIpc = (): void => {
           externalLyrics: meta.externalLyrics,
         },
       };
+      playerLog.debug(`加载成功: ${trackTitle}`);
       return { success: true, data };
     } catch (error) {
+      playerLog.error("加载失败:", error);
       if (isDeviceError(error)) resetPlayer();
       return { success: false, error: String(error) };
     }
@@ -255,6 +262,7 @@ export const registerPlayerIpc = (): void => {
       player().play();
       return { success: true };
     } catch (error) {
+      playerLog.error("播放失败:", error);
       if (isDeviceError(error)) resetPlayer();
       return { success: false, error: String(error) };
     }
@@ -494,15 +502,15 @@ export const registerPlayerIpc = (): void => {
       await new Promise((r) => setTimeout(r, RETRY_DELAYS[i]));
       try {
         playerInstance.reinitOutput();
-        console.log(`[Player] 唤醒后重建音频输出成功（第 ${i + 1} 次尝试）`);
+        playerLog.info(`唤醒后重建音频输出成功（第 ${i + 1} 次尝试）`);
         return;
       } catch (error) {
-        console.warn(`[Player] 重建音频输出第 ${i + 1} 次失败:`, error);
+        playerLog.warn(`重建音频输出第 ${i + 1} 次失败:`, error);
       }
     }
 
     // 全部重试失败：销毁损坏的实例，下次操作时会自动重建
-    console.error("[Player] 重建音频输出全部失败，销毁播放器实例");
+    playerLog.error("重建音频输出全部失败，销毁播放器实例");
     playerInstance = null;
 
     broadcast("player:event", {

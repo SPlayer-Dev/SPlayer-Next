@@ -3,6 +3,7 @@ import type { RepeatMode, ShuffleMode } from "@shared/types/player";
 import { broadcast } from "../utils/broadcast";
 import { appName } from "../utils/config";
 import { loadIcon, loadThemedIcon } from "../utils/icon";
+import { trayLog } from "../utils/logger";
 
 type PlayState = "playing" | "paused";
 
@@ -147,7 +148,7 @@ export const initTray = (win: BrowserWindow): void => {
   });
   // 系统主题变化时刷新菜单图标
   nativeTheme.on("updated", refresh);
-  console.log("[Tray] 初始化系统托盘");
+  trayLog.info("初始化系统托盘");
 };
 
 /**

@@ -1,4 +1,5 @@
 mod discord;
+mod logger;
 mod model;
 mod sys_media;
 
@@ -8,25 +9,38 @@ use napi::{
     threadsafe_function::UnknownReturnValue,
 };
 use napi_derive::napi;
+use tracing::{error, info};
 
 use model::{
     DiscordConfig, MediaEvent, MetadataParam, MetadataPayload, PlayModeParam, PlayStateParam,
     TimelineParam,
 };
 
+/// 初始化原生日志系统（主进程启动时调用一次）
+#[napi]
+pub fn init_logger(log_dir: String, is_dev: bool) {
+    logger::init_logger(&log_dir, is_dev);
+    info!(log_dir, is_dev, "media-ctrl 日志系统已初始化");
+}
+
 /// 初始化系统媒体控件和 Discord RPC 后台线程
 #[napi]
 pub fn initialize() -> Result<()> {
+    info!("初始化系统媒体控件");
     discord::init();
     sys_media::get_platform_controls()
         .initialize()
-        .map_err(|e| napi::Error::from_reason(e.to_string()))?;
+        .map_err(|e| {
+            error!(error = %e, "系统媒体控件初始化失败");
+            napi::Error::from_reason(e.to_string())
+        })?;
     Ok(())
 }
 
 /// 关闭并清理资源
 #[napi]
 pub fn shutdown() {
+    info!("关闭媒体控件和 Discord RPC");
     discord::disable();
     let _ = sys_media::get_platform_controls().shutdown();
 }
@@ -107,12 +121,14 @@ pub fn set_play_mode(param: PlayModeParam) {
 /// 启用 Discord RPC
 #[napi]
 pub fn enable_discord() {
+    info!("启用 Discord RPC");
     discord::enable();
 }
 
 /// 禁用 Discord RPC
 #[napi]
 pub fn disable_discord() {
+    info!("禁用 Discord RPC");
     discord::disable();
 }
 

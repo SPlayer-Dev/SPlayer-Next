@@ -6,6 +6,7 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use cpal::traits::{DeviceTrait, HostTrait};
 use rodio::{OutputStream, OutputStreamHandle, Sink};
+use tracing::{debug, info};
 
 use crate::decoder;
 use crate::fft::FftAnalyzer;
@@ -15,8 +16,8 @@ use crate::source::DecoderSource;
 /// 播放器推送给 JS 侧的事件类型
 #[derive(Clone, Debug)]
 pub enum PlayerEvent {
-    /// 状态变化（playing / paused / stopped / idle）
-    StateChanged { state: &'static str },
+    /// 状态变化
+    StateChanged { state: PlayerState },
     /// 播放结束
     Ended,
     /// 位置更新（秒）—— 由内部定时器推送
@@ -49,7 +50,7 @@ fn fade_volume(sink: &Sink, from: f32, to: f32, duration_ms: u64, cancel: &Atomi
 }
 
 /// 播放状态
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PlayerState {
     Idle,
     Playing,
@@ -116,6 +117,7 @@ impl InnerPlayer {
 
     pub fn new() -> Result<Self> {
         let (stream, stream_handle) = Self::build_output_stream(&None)?;
+        debug!("InnerPlayer 已创建，使用默认输出设备");
 
         Ok(Self {
             _stream: stream,
@@ -168,6 +170,7 @@ impl InnerPlayer {
 
     /// 切换输出设备（None = 系统默认）
     pub fn set_output_device(&mut self, device_name: Option<String>) -> Result<()> {
+        info!(device = ?device_name, "切换输出设备");
         self.selected_device_name = device_name;
         self.reinit_output()
     }
@@ -247,7 +250,7 @@ impl InnerPlayer {
                 // 检测播放结束：all_consumed 表示 rodio 侧已消费完所有数据
                 if shared.is_all_consumed() {
                     cb(PlayerEvent::Ended);
-                    cb(PlayerEvent::StateChanged { state: "stopped" });
+                    cb(PlayerEvent::StateChanged { state: PlayerState::Stopped });
                     break;
                 }
 
@@ -312,6 +315,7 @@ impl InnerPlayer {
     /// - Paused  → seek 到原位置并暂停
     /// - 其他状态 → 仅重建输出，不恢复播放
     pub fn reinit_output(&mut self) -> Result<()> {
+        info!(device = ?self.selected_device_name, "开始重建音频输出");
         // 保存当前状态
         let prev_state = self.state;
         let prev_source = self.current_source.clone();
@@ -364,6 +368,7 @@ impl InnerPlayer {
 
     /// 加载音频源，auto_play 控制是否自动播放
     pub fn load(&mut self, source: &str, auto_play: bool) -> Result<AudioMetadata> {
+        debug!(source, auto_play, "开始加载音频源");
         self.stop_internal();
         self.fft.reset();
 
@@ -401,12 +406,12 @@ impl InnerPlayer {
 
         if auto_play {
             self.state = PlayerState::Playing;
-            self.emit(PlayerEvent::StateChanged { state: "playing" });
+            self.emit(PlayerEvent::StateChanged { state: PlayerState::Playing });
             self.start_position_timer();
             self.start_fft_timer();
         } else {
             self.state = PlayerState::Paused;
-            self.emit(PlayerEvent::StateChanged { state: "paused" });
+            self.emit(PlayerEvent::StateChanged { state: PlayerState::Paused });
         }
 
         Ok(result)
@@ -431,7 +436,7 @@ impl InnerPlayer {
                 }
 
                 self.state = PlayerState::Playing;
-                self.emit(PlayerEvent::StateChanged { state: "playing" });
+                self.emit(PlayerEvent::StateChanged { state: PlayerState::Playing });
                 self.start_position_timer();
                 self.start_fft_timer();
 
@@ -458,7 +463,7 @@ impl InnerPlayer {
         self.stop_position_timer();
         self.stop_fft_timer();
         self.state = PlayerState::Paused;
-        self.emit(PlayerEvent::StateChanged { state: "paused" });
+        self.emit(PlayerEvent::StateChanged { state: PlayerState::Paused });
 
         // 非阻塞渐出：fade 完成后在回调中执行 sink.pause + 恢复音量
         let target_volume = self.target_volume;
@@ -479,7 +484,7 @@ impl InnerPlayer {
     pub fn stop(&mut self) {
         self.stop_internal();
         self.state = PlayerState::Stopped;
-        self.emit(PlayerEvent::StateChanged { state: "stopped" });
+        self.emit(PlayerEvent::StateChanged { state: PlayerState::Stopped });
     }
 
     fn stop_internal(&mut self) {
@@ -572,10 +577,10 @@ impl InnerPlayer {
 
         if was_paused {
             self.state = PlayerState::Paused;
-            self.emit(PlayerEvent::StateChanged { state: "paused" });
+            self.emit(PlayerEvent::StateChanged { state: PlayerState::Paused });
         } else {
             self.state = PlayerState::Playing;
-            self.emit(PlayerEvent::StateChanged { state: "playing" });
+            self.emit(PlayerEvent::StateChanged { state: PlayerState::Playing });
             self.start_position_timer();
             self.start_fft_timer();
         }

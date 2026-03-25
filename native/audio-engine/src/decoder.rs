@@ -5,6 +5,7 @@ use anyhow::{Context, Result};
 use ffmpeg_next as ffmpeg;
 use ffmpeg_next::ChannelLayout;
 use ffmpeg_next::Dictionary;
+use tracing::{debug, warn};
 
 use crate::metadata;
 use crate::shared::{AudioChunk, AudioMetadata, Shared};
@@ -231,6 +232,7 @@ pub fn resume_decode(
 
 /// 打开音频输入，网络地址自动启用 HTTP 重连
 fn open_input(source: &str) -> Result<ffmpeg::format::context::Input> {
+    debug!(source, "打开音频输入");
     let is_network = source.starts_with("http://") || source.starts_with("https://");
 
     if is_network {
@@ -343,9 +345,10 @@ fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
                     }
                 }
             }
-            Err(_) => {
+            Err(err) => {
                 // 其他解码错误，重试后放弃
                 consecutive_read_failures += 1;
+                warn!(error = %err, retries = consecutive_read_failures, "解码错误");
                 if consecutive_read_failures <= NETWORK_READ_RETRIES {
                     std::thread::sleep(std::time::Duration::from_millis(NETWORK_RETRY_DELAY_MS));
                     continue;
