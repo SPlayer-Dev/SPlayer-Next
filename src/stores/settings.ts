@@ -1,4 +1,4 @@
-import type { AppearanceSettings } from "@/types/settings";
+import type { AppearanceSettings, PlayerSettings } from "@/types/settings";
 import type { ThemeMode } from "@/types/theme";
 import type { SystemConfig } from "@shared/types/settings";
 import { defaultSystemConfig } from "@shared/defaults/settings";
@@ -25,6 +25,11 @@ export const useSettingsStore = defineStore(
       globalTint: false,
     });
 
+    /** 播放器设置（持久化） */
+    const player = reactive<PlayerSettings>({
+      playerBgType: "blur",
+    });
+
     /** 后端配置（不持久化，从主进程同步） */
     const system = reactive<SystemConfig>(structuredClone(defaultSystemConfig));
 
@@ -48,12 +53,8 @@ export const useSettingsStore = defineStore(
       return DEFAULT_PRIMARY;
     });
 
-    let transitionTimer: ReturnType<typeof setTimeout> | null = null;
-
     /** 应用主题到 DOM */
-    const applyTheme = (withTransition = true): void => {
-      const root = document.documentElement;
-      if (withTransition) root.classList.add("theme-transition");
+    const applyTheme = (): void => {
       const useSolid =
         appearance.themeSource === "solid" ||
         (appearance.themeSource === "cover" && !coverColor.value);
@@ -63,13 +64,6 @@ export const useSettingsStore = defineStore(
           : SOLID_PALETTE_LIGHT
         : generatePalette(activeColor.value, isDark.value, appearance.globalTint);
       applyThemeToDOM(palette, coverColor.value, isDark.value);
-      if (withTransition) {
-        if (transitionTimer) clearTimeout(transitionTimer);
-        transitionTimer = setTimeout(() => {
-          root.classList.remove("theme-transition");
-          transitionTimer = null;
-        }, 300);
-      }
     };
 
     /** 循环切换主题模式 */
@@ -97,7 +91,7 @@ export const useSettingsStore = defineStore(
       if (typeof appearance.customColor !== "string" || !appearance.customColor.startsWith("#")) {
         appearance.customColor = DEFAULT_PRIMARY;
       }
-      applyTheme(false);
+      applyTheme();
       watchThrottled(
         [isDark, activeColor, () => appearance.themeSource, coverColor, () => appearance.globalTint],
         () => applyTheme(),
@@ -120,6 +114,7 @@ export const useSettingsStore = defineStore(
 
     return {
       appearance,
+      player,
       system,
       coverColor,
       isDark,

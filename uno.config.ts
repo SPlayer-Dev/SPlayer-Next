@@ -37,17 +37,4 @@ export default defineConfig({
       cover: "rgb(var(--s-cover) / <alpha-value>)",
     },
   },
-  // 主题切换过渡动画
-  preflights: [
-    {
-      getCSS: () => `
-        .theme-transition,
-        .theme-transition *,
-        .theme-transition *::before,
-        .theme-transition *::after {
-          transition: background-color 0.3s, color 0.3s, border-color 0.3s !important;
-        }
-      `,
-    },
-  ],
 });

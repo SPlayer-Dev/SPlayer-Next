@@ -28,10 +28,15 @@ let deactivateTimer: ReturnType<typeof setTimeout> | null = null;
 
 watch(isExpanded, (val) => {
   if (val) {
-    if (deactivateTimer) { clearTimeout(deactivateTimer); deactivateTimer = null; }
+    if (deactivateTimer) {
+      clearTimeout(deactivateTimer);
+      deactivateTimer = null;
+    }
     isActive.value = true;
   } else {
-    deactivateTimer = setTimeout(() => { isActive.value = false; }, 350);
+    deactivateTimer = setTimeout(() => {
+      isActive.value = false;
+    }, 350);
   }
 });
 
@@ -56,7 +61,6 @@ const formatTime = (ms: number): string => {
   const sec = totalSecs % 60;
   return `${min}:${sec.toString().padStart(2, "0")}`;
 };
-
 
 const onSeek = (e: Event): void => {
   const value = Number((e.target as HTMLInputElement).value);
@@ -87,6 +91,9 @@ const onSeek = (e: Event): void => {
           <template #icon><IconLucideChevronDown /></template>
         </SButton>
 
+        <!-- 背景 -->
+        <PlayerBackground />
+
         <!-- 封面 -->
         <img
           v-if="media.track?.cover"
@@ -103,9 +110,7 @@ const onSeek = (e: Event): void => {
         </div>
 
         <!-- 精确播放时间（测试用） -->
-        <div class="text-2xl font-mono text-primary tabular-nums">
-          {{ preciseTime }}ms
-        </div>
+        <div class="text-2xl font-mono text-primary tabular-nums">{{ preciseTime }}ms</div>
 
         <!-- 进度条 -->
         <div class="flex items-center gap-3 w-full max-w-sm px-8">
@@ -128,13 +133,21 @@ const onSeek = (e: Event): void => {
 
         <!-- 播放控制 -->
         <div class="flex items-center gap-6">
-          <SButton variant="ghost" circle size="large" :disabled="!hasTrack" @click="player.stop()">
-            <template #icon><IconLucideSquare /></template>
-          </SButton>
+          <!-- 上一曲 -->
           <SButton
-            type="primary"
+            variant="ghost"
             circle
+            size="small"
+            @click="player.prevTrack()"
+          >
+            <template #icon><IconLucideSkipBack /></template>
+          </SButton>
+
+          <SButton
+            type="cover"
             size="large"
+            variant="secondary"
+            circle
             :loading="isLoading"
             :disabled="!hasTrack && !isLoading"
             @click="togglePlay"

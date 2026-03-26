@@ -3,7 +3,8 @@
     "allow": [
       "Bash(cd:*)",
       "Bash(grep:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(find /d/WorkSpace/dev/new-dev/SPlayer/src -type f \\\\\\(-name *.css -o -name *.scss -o -name *.less \\\\\\))"
     ]
   }
 }
