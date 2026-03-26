@@ -1,7 +1,7 @@
 import type { PlayerEvent, PlayerState, IpcResponse, Track } from "@shared/types/player";
 import type { RepeatMode, ShuffleMode } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
-import { useSettingsStore } from "@/stores/settings";
+import { useThemeStore } from "@/stores/theme";
 import { useStatusStore } from "@/stores/status";
 import * as queue from "@/stores/queue";
 import * as playback from "@/services/playback";
@@ -46,7 +46,7 @@ export const load = async (source: string, autoPlay = true): Promise<Track | nul
     // 更新歌曲元信息和歌词
     await useMediaStore().setTrack(result.data.track, result.data.detail);
     // 无封面时清空取色，避免残留上一首的主题色
-    if (!result.data.track.cover) useSettingsStore().updateCoverColor(null);
+    if (!result.data.track.cover) useThemeStore().updateCoverColor(null);
     // 更新播放状态和进度
     const dur = result.data.track.duration;
     status.duration = dur;

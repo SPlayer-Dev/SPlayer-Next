@@ -7,7 +7,7 @@ import piniaPersistedstate from "pinia-plugin-persistedstate";
 import App from "./App.vue";
 import router from "./router";
 
-import { useSettingsStore } from "./stores/settings";
+import { useThemeStore } from "./stores/theme";
 import { initPlayer } from "./core/player";
 import { vRipple } from "./directives/ripple";
 
@@ -20,7 +20,7 @@ app.use(pinia);
 app.use(router);
 
 // 初始化主题
-useSettingsStore().initTheme();
+useThemeStore().init();
 
 // 初始化程序
 Promise.all([initPlayer().catch(console.error), router.isReady()]).then(() => {

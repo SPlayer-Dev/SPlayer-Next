@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { useSettingsStore } from "@/stores/settings";
+import { useThemeStore } from "@/stores/theme";
 import { useMediaStore } from "@/stores/media";
 
 const media = useMediaStore();
 const settings = useSettingsStore();
+const theme = useThemeStore();
 
 const bgType = computed(() => settings.player.playerBgType);
 
 // 封面颜色（纯色模式）
 const coverColor = computed(() => {
-  const hex = settings.coverColor;
+  const hex = theme.coverColor;
   if (!hex) return "20, 20, 28";
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
