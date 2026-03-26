@@ -386,6 +386,21 @@ export const registerPlayerIpc = (): void => {
     }
   });
 
+  // 获取当前歌曲的原始高清封面（base64 data URL）
+  // 用于全屏播放器等需要高清封面的场景，按需调用，不缓存
+  ipcMain.handle("player:getCoverRaw", () => {
+    try {
+      const inst = player();
+      const raw = inst.getCoverRaw();
+      if (!raw) return { success: true, data: null };
+      // 转为 base64 data URL，用完即丢，不持有引用
+      const base64 = Buffer.from(raw).toString("base64");
+      return { success: true, data: `data:image/jpeg;base64,${base64}` };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
   // 打开文件选择对话框，返回用户选中的音频文件路径
   ipcMain.handle("player:openFile", async () => {
     const result = await dialog.showOpenDialog({

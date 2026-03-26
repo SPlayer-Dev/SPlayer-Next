@@ -91,9 +91,9 @@ const solveSpring = (
   params?: Partial<SpringParams>,
 ): ((t: Seconds) => number) => {
   const soft = params?.soft ?? false;
-  const stiffness = params?.stiffness ?? 100;
-  const damping = params?.damping ?? 10;
-  const mass = params?.mass ?? 1;
+  const stiffness = params?.stiffness ?? 90;
+  const damping = params?.damping ?? 15;
+  const mass = params?.mass ?? 0.9;
   const displacement = toPos - fromPos;
 
   // 过阻尼或强制 soft 模式

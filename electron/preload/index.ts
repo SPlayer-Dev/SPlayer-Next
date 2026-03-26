@@ -46,6 +46,8 @@ const api = {
     setOutputDevice: (deviceName: string | null) => ipcRenderer.invoke("player:setOutputDevice", deviceName),
     // 获取当前选择的输出设备名称
     getSelectedDeviceName: () => ipcRenderer.invoke("player:getSelectedDeviceName"),
+    // 获取当前歌曲的原始高清封面（base64 data URL）
+    getCoverRaw: () => ipcRenderer.invoke("player:getCoverRaw"),
     // 按需读取外部歌词文件内容
     readLyricFile: (filePath: string) => ipcRenderer.invoke("player:readLyricFile", filePath),
     // 打开文件选择对话框

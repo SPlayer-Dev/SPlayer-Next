@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
-import { useSettingsStore } from "@/stores/settings";
 import { useThemeStore } from "@/stores/theme";
 import * as player from "@/core/player";
 import { toast } from "@/composables/useToast";
@@ -9,7 +8,6 @@ import type { ThemeSource } from "@/types/theme";
 
 const status = useStatusStore();
 const media = useMediaStore();
-const settings = useSettingsStore();
 const theme = useThemeStore();
 
 const { state, position, duration, volume, error, isPlaying, isLoading, progress } =
@@ -18,30 +16,8 @@ const { state, position, duration, volume, error, isPlaying, isLoading, progress
 /** 网络地址输入 */
 const urlInput = ref("");
 
-/** 封面图片元素 */
-const coverImg = ref<HTMLImageElement>();
-
 /** 按钮加载状态演示 */
 const btnLoading = ref(false);
-
-/** 当前高亮歌词行元素 */
-const activeLyricLine = ref<HTMLElement>();
-
-/** 歌词行变化时自动滚动到可视区域 */
-watch(
-  () => media.lyricIndex,
-  () => {
-    nextTick(() => {
-      activeLyricLine.value?.scrollIntoView({ block: "center", behavior: "smooth" });
-    });
-  },
-);
-
-/** 封面缩略图 URL */
-const coverUrl = computed(() => media.track?.cover ?? null);
-
-/** 歌手名拼接 */
-const artistName = computed(() => media.track?.artists.map((a) => a.name).join(" / ") ?? "");
 
 /** 从网络地址加载并添加到队列 */
 const loadFromUrl = async (): Promise<void> => {
@@ -184,26 +160,6 @@ const testLoadingToast = (): void => {
 
     <!-- 错误信息 -->
     <div v-if="error" class="text-red-500 text-sm text-center">{{ error }}</div>
-
-    <!-- 封面 + 元信息 -->
-    <div v-if="media.track" class="flex items-center gap-4 w-full">
-      <div v-if="coverUrl" class="shrink-0">
-        <img
-          ref="coverImg"
-          :src="coverUrl"
-          alt="cover"
-          class="w-20 h-20 rounded-lg object-cover bg-surface-alt"
-          @load="theme.updateCoverColor(coverImg ?? null)"
-        />
-      </div>
-      <div class="flex-1 min-w-0 text-sm">
-        <div class="font-semibold text-on-surface truncate">{{ media.track.title }}</div>
-        <div v-if="artistName" class="text-on-surface-variant truncate">{{ artistName }}</div>
-        <div v-if="media.track.album" class="text-on-surface-variant truncate italic">
-          {{ media.track.album.name }}
-        </div>
-      </div>
-    </div>
 
     <!-- 播放控制 -->
     <div class="flex gap-3">
@@ -359,49 +315,6 @@ const testLoadingToast = (): void => {
     输入帮助
   </SPopover>
 
-
-    <!-- 歌词区域 -->
-    <div v-if="media.parsedLyric.length > 0" class="w-full mt-2">
-      <div class="text-sm text-on-surface-variant mb-2">
-        歌词
-        <span class="text-primary text-xs ml-1">[{{ media.lyricFormat }}]</span>
-        <span class="text-outline text-xs ml-1">{{ media.parsedLyric.length }} 行</span>
-
-        索引
-        {{ media.lyricIndex + 1 }}
-      </div>
-      <div
-        ref="lyricScroller"
-        class="max-h-60 overflow-y-auto p-3 bg-surface-alt rounded-lg space-y-1 scroll-smooth"
-      >
-        <div
-          v-for="(line, i) in media.parsedLyric"
-          :key="i"
-          :ref="
-            (el) => {
-              if (i === media.lyricIndex) activeLyricLine = el as HTMLElement;
-            }
-          "
-          class="text-sm leading-relaxed py-0.5 transition-colors duration-200"
-          :class="
-            i === media.lyricIndex
-              ? 'text-primary font-semibold'
-              : 'text-on-surface-variant opacity-60'
-          "
-        >
-          <span class="text-outline text-xs font-mono mr-2">{{ formatTime(line.startTime) }}</span>
-          <span>{{ line.words.map((w) => w.word).join("") }}</span>
-          <span v-if="line.translatedLyric" class="text-xs ml-2 opacity-80">{{
-            line.translatedLyric
-          }}</span>
-          <span v-if="line.romanLyric" class="text-xs ml-2 italic opacity-60">{{
-            line.romanLyric
-          }}</span>
-          <span v-if="line.isBG" class="text-xs ml-1">[BG]</span>
-          <span v-if="line.isDuet" class="text-secondary text-xs ml-1">[Duet]</span>
-        </div>
-      </div>
-    </div>
 
     <!-- 状态信息 -->
     <div class="text-xs text-outline">

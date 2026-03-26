@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
+import { useThemeStore } from "@/stores/theme";
 import * as player from "@/core/player";
 
 const status = useStatusStore();
 const media = useMediaStore();
-const { isPlaying, isLoading, position, duration, isExpanded, repeatMode, shuffleMode } = storeToRefs(status);
+const theme = useThemeStore();
+const { isPlaying, isLoading, position, duration, isExpanded, repeatMode, shuffleMode } =
+  storeToRefs(status);
 
 const hasTrack = computed(() => !!media.track);
 
@@ -17,7 +20,6 @@ const togglePlay = (): void => {
     player.play();
   }
 };
-
 
 const formatTime = (ms: number): string => {
   const totalSecs = Math.floor(ms / 1000);
@@ -36,10 +38,10 @@ const onSeek = (e: Event): void => {
   <div class="flex items-center gap-4 h-full px-4">
     <!-- 歌曲信息 -->
     <div class="flex items-center gap-3 w-50 shrink-0">
-      <img
-        v-if="media.track?.cover"
-        :src="media.track.cover"
-        class="size-12 rounded-lg object-cover bg-surface-alt cursor-pointer hover:opacity-80 transition-opacity"
+      <SImg
+        :src="media.track?.cover"
+        class="size-12 shrink-0 rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+        @load="theme.updateCoverColor($event)"
         @click="isExpanded = true"
       />
       <div v-if="media.track" class="min-w-0 text-sm">
@@ -64,18 +66,37 @@ const onSeek = (e: Event): void => {
           <template #icon><IconLucideShuffle /></template>
         </SButton>
         <!-- 上一曲 -->
-        <SButton variant="ghost" circle size="small" :disabled="!hasTrack" @click="player.prevTrack()">
+        <SButton
+          variant="ghost"
+          circle
+          size="small"
+          :disabled="!hasTrack"
+          @click="player.prevTrack()"
+        >
           <template #icon><IconLucideSkipBack /></template>
         </SButton>
         <!-- 播放/暂停 -->
-        <SButton type="primary" variant="secondary" circle :loading="isLoading" :disabled="!hasTrack && !isLoading" @click="togglePlay">
+        <SButton
+          type="primary"
+          variant="secondary"
+          circle
+          :loading="isLoading"
+          :disabled="!hasTrack && !isLoading"
+          @click="togglePlay"
+        >
           <template #icon>
             <IconLucidePause v-if="isPlaying" />
             <IconLucidePlay v-else />
           </template>
         </SButton>
         <!-- 下一曲 -->
-        <SButton variant="ghost" circle size="small" :disabled="!hasTrack" @click="player.nextTrack()">
+        <SButton
+          variant="ghost"
+          circle
+          size="small"
+          :disabled="!hasTrack"
+          @click="player.nextTrack()"
+        >
           <template #icon><IconLucideSkipForward /></template>
         </SButton>
         <!-- 循环模式 -->

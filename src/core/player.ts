@@ -39,8 +39,10 @@ const syncPlayback = (state: PlayerState): void => {
 export const load = async (source: string, autoPlay = true): Promise<Track | null> => {
   const status = useStatusStore();
   status.error = null;
-  status.state = "loading";
-  playback.reset();
+  // 不提前重置 state 和 playback，保持当前封面/进度/播放状态
+  // 等主进程返回后再更新，避免切歌时视觉跳变
+  const wasPlaying = status.isPlaying;
+  status.state = wasPlaying ? "playing" : "loading";
   const result = await window.api.player.load(source, autoPlay);
   if (result.success && result.data) {
     // 更新歌曲元信息和歌词
@@ -342,6 +344,8 @@ const handleEvent = async (event: PlayerEvent): Promise<void> => {
   const status = useStatusStore();
   switch (event.type) {
     case "status":
+      // loading 事件不重置进度和播放状态，保持当前封面/进度平滑过渡
+      if (event.data.state === "loading") break;
       status.state = event.data.state;
       status.position = event.data.position;
       status.duration = event.data.duration;

@@ -126,6 +126,7 @@ export interface PlayerApi {
   getFftData: () => Promise<IpcResponse<number[]>>;
   setFadeDuration: (ms: number) => Promise<IpcResponse>;
   getFadeDuration: () => Promise<IpcResponse<number>>;
+  getCoverRaw: () => Promise<IpcResponse<string | null>>;
   readLyricFile: (filePath: string) => Promise<IpcResponse<string>>;
   openFile: () => Promise<IpcResponse<string>>;
   reinit: () => Promise<IpcResponse>;
