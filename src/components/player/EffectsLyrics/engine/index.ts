@@ -322,9 +322,9 @@ export class LyricRenderer {
       this.isStaticLine[i] = isStatic;
 
       if (isStatic) {
-        const span = document.createElement("span");
-        span.textContent = line.words.map((w) => w.word).join("");
-        mainDiv.appendChild(span);
+        mainDiv.appendChild(
+          document.createTextNode(line.words.map((w) => w.word).join("")),
+        );
         this.wordMeasurements[i] = [];
         this.lineAnimTargets[i] = [];
       } else {

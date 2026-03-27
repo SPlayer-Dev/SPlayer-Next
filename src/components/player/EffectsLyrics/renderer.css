@@ -71,6 +71,7 @@
 .lp-content {
   position: relative;
   width: fit-content;
+  max-width: 100%;
 
   /* 悬停背景层 */
   &::before {
@@ -78,7 +79,7 @@
     position: absolute;
     inset: -0.15em -0.4em;
     border-radius: 8px;
-    background-color: var(--lp-hover-bg, rgba(255, 255, 255, 0.14));
+    background-color: var(--lp-hover-bg, color-mix(in srgb, var(--lp-color, #fff) 14%, transparent));
     opacity: 0;
     z-index: -1;
     transform: scale(1.05);
@@ -97,15 +98,15 @@
 
 .lp-main {
   position: relative;
-  width: fit-content;
-  word-break: keep-all;
+  max-width: 100%;
+  word-break: normal;
   overflow-wrap: break-word;
   pointer-events: auto;
   overflow: visible;
 
   & > span {
     display: inline-block;
-    white-space: pre;
+    white-space: pre-wrap;
     vertical-align: bottom;
     backface-visibility: hidden;
   }
