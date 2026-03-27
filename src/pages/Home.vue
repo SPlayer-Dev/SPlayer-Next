@@ -315,6 +315,28 @@ const testLoadingToast = (): void => {
     输入帮助
   </SPopover>
 
+  <!-- Dialog 测试 -->
+  <SDialog title="确认操作" description="此操作不可撤销，确定继续吗？">
+    <template #trigger>
+      <SButton type="primary">打开对话框</SButton>
+    </template>
+    <p class="text-sm">这是对话框的主体内容区域。</p>
+    <template #footer="{ close }">
+      <SButton variant="ghost" @click="close">取消</SButton>
+      <SButton type="primary" @click="close">确认</SButton>
+    </template>
+  </SDialog>
+
+  <!-- Dialog cover 模式 -->
+  <SDialog title="音质详情" cover>
+    <template #trigger>
+      <SButton type="cover" variant="secondary">Cover 对话框</SButton>
+    </template>
+    <p class="text-sm text-cover/70">这是 cover 主题模式的对话框，适合在播放器内使用。</p>
+    <template #footer="{ close }">
+      <SButton type="cover" variant="ghost" @click="close">关闭</SButton>
+    </template>
+  </SDialog>
 
     <!-- 状态信息 -->
     <div class="text-xs text-outline">

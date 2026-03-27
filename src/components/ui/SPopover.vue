@@ -16,6 +16,8 @@ export interface SPopoverProps {
   closeDelay?: number;
   /** 是否显示箭头 */
   arrow?: boolean;
+  /** 封面主题模式 */
+  cover?: boolean;
 }
 
 const props = withDefaults(defineProps<SPopoverProps>(), {
@@ -26,6 +28,7 @@ const props = withDefaults(defineProps<SPopoverProps>(), {
   openDelay: 200,
   closeDelay: 150,
   arrow: false,
+  cover: false,
 });
 
 const emit = defineEmits<{
@@ -52,8 +55,14 @@ let openTimer: ReturnType<typeof setTimeout> | null = null;
 let closeTimer: ReturnType<typeof setTimeout> | null = null;
 
 const clearTimers = (): void => {
-  if (openTimer) { clearTimeout(openTimer); openTimer = null; }
-  if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+  if (openTimer) {
+    clearTimeout(openTimer);
+    openTimer = null;
+  }
+  if (closeTimer) {
+    clearTimeout(closeTimer);
+    closeTimer = null;
+  }
 };
 
 const handlePointerEnter = (): void => {
@@ -82,10 +91,7 @@ onUnmounted(clearTimers);
 </script>
 
 <template>
-  <PopoverRoot
-    :open="isOpen"
-    @update:open="trigger === 'click' ? setOpen($event) : undefined"
-  >
+  <PopoverRoot :open="isOpen" @update:open="trigger === 'click' ? setOpen($event) : undefined">
     <PopoverTrigger as-child>
       <span
         class="inline-flex"
@@ -104,13 +110,18 @@ onUnmounted(clearTimers);
         :align="align"
         :side-offset="sideOffset"
         :avoid-collisions="true"
-        class="z-300 rounded-xl bg-surface-bright border border-outline-variant/30 shadow-lg p-3 text-sm text-on-surface data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out"
+        :class="[
+          'z-300 rounded-xl shadow-lg p-3 text-sm data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out',
+          cover
+            ? 'bg-black/55 backdrop-blur-xl backdrop-saturate-160 border-1 border-solid border-white/10 text-cover'
+            : 'bg-surface-bright border-1 border-solid border-outline-variant/30 text-on-surface',
+        ]"
         @pointerenter="handlePointerEnter"
         @pointerleave="handlePointerLeave"
         @escape-key-down="setOpen(false)"
       >
         <slot />
-        <PopoverArrow v-if="arrow" class="fill-surface-bright" />
+        <PopoverArrow v-if="arrow" :class="cover ? 'fill-black/60' : 'fill-surface-bright'" />
       </PopoverContent>
     </PopoverPortal>
   </PopoverRoot>

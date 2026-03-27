@@ -28,6 +28,14 @@ const onLoad = () => {
 const onError = () => {
   isLoaded.value = false;
 };
+
+watch(
+  () => props.src,
+  () => {
+    isLoaded.value = false;
+  },
+);
+
 </script>
 
 <template>

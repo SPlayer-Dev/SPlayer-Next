@@ -118,9 +118,9 @@ const onSeek = (e: Event): void => {
           <div class="relative w-[clamp(200px,85%,50vh)] -translate-y-[10vh]">
             <PlayerCover />
             <!-- 歌曲信息（绝对定位，不影响封面居中位置） -->
-            <div class="absolute top-full left-0 w-full pt-6">
+            <div class="absolute top-full left-0 w-full pt-6" style="--fade-duration: 0.15s">
               <Transition name="fade" mode="out-in">
-                <PlayerData :key="media.track?.id" />
+                <PlayerData :key="media.track?.id" align="left" />
               </Transition>
             </div>
           </div>

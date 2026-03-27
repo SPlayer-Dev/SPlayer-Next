@@ -9,6 +9,9 @@ const theme = useThemeStore();
 
 const bgType = computed(() => settings.player.playerBgType);
 
+/** 默认封面图 */
+const DEFAULT_COVER = "/images/song.jpg";
+
 // 封面颜色（纯色模式）
 const coverColor = computed(() => {
   const hex = theme.coverColor;
@@ -21,7 +24,7 @@ const coverColor = computed(() => {
 
 // 模糊模式：双缓冲层，切歌时交叉淡入淡出
 const blurLayers = reactive([
-  { src: media.track?.cover ?? "", active: true },
+  { src: media.track?.cover || DEFAULT_COVER, active: true },
   { src: "", active: false },
 ]);
 let currentLayerIndex = 0;
@@ -56,16 +59,13 @@ watch(
       });
     };
 
-    if (!newCover) {
-      switchLayer("");
-      return;
-    }
+    const targetCover = newCover || DEFAULT_COVER;
 
     const img = new Image();
     preloadImg = img;
-    img.onload = () => switchLayer(newCover);
-    img.onerror = () => switchLayer(newCover);
-    img.src = newCover;
+    img.onload = () => switchLayer(targetCover);
+    img.onerror = () => switchLayer(DEFAULT_COVER);
+    img.src = targetCover;
   },
 );
 
