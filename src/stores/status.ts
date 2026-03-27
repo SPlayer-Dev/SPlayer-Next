@@ -14,6 +14,8 @@ export const useStatusStore = defineStore(
     const currentSource = ref<string | null>(null);
     const outputDevices = ref<AudioDevice[]>([]);
     const selectedDeviceName = ref<string | null>(null);
+    /** 歌曲加载中（切歌期间屏蔽事件推送，避免 UI 跳变） */
+    const trackLoading = ref(false);
     const isExpanded = ref(false);
     const playIndex = ref(-1);
     const repeatMode = ref<RepeatMode>("list");
@@ -42,6 +44,7 @@ export const useStatusStore = defineStore(
       isPaused,
       isLoading,
       progress,
+      trackLoading,
       isExpanded,
       outputDevices,
       selectedDeviceName,

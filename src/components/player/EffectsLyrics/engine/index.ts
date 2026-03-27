@@ -385,8 +385,12 @@ export class LyricRenderer {
       this.lines,
     );
 
-    // 初始布局 + 入场动画
-    if (this.pendingPlayTime >= 0) this.handleSeek(this.pendingPlayTime);
+    // 重置时间状态，避免残留旧歌的播放时间影响新歌词定位
+    this.pendingPlayTime = -1;
+    this.lastProcessedTime = -1;
+
+    // 初始布局 + 入场动画（从 time=0 开始）
+    this.handleSeek(0);
     this.calculateLayout(true);
     this.playEntranceAnimation(this.containerHeight * 0.6);
     this.needsFullSync = true;

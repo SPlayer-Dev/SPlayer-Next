@@ -15,9 +15,11 @@ const { isPlaying, isLoading, position, duration, isExpanded, repeatMode, shuffl
 /** 歌词组件引用 */
 const lyricRef = ref<InstanceType<typeof EffectsLyrics>>();
 
-/** 60fps 精确播放时间（毫秒） */
+/** 60fps 精确播放时间（毫秒），歌曲或歌词加载中暂停推送避免旧歌词跳动 */
 const { start: startTick, stop: stopTick } = usePlaybackTime((currentMs) => {
-  lyricRef.value?.setCurrentTime(currentMs);
+  if (!status.trackLoading && !media.lyricLoading) {
+    lyricRef.value?.setCurrentTime(currentMs);
+  }
 });
 
 /** 歌词是否激活（展开后挂载，收起动画结束后卸载） */

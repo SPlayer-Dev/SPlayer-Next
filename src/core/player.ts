@@ -25,7 +25,7 @@ const handleResult = (result: IpcResponse): boolean => {
  */
 const syncPlayback = (state: PlayerState): void => {
   playback.setPlaying(state === "playing");
-  if (state === "stopped" || state === "idle") {
+  if (state === "idle") {
     playback.reset();
   }
 };
@@ -39,31 +39,36 @@ const syncPlayback = (state: PlayerState): void => {
 export const load = async (source: string, autoPlay = true): Promise<Track | null> => {
   const status = useStatusStore();
   status.error = null;
+  status.trackLoading = true;
   // 不提前重置 state 和 playback，保持当前封面/进度/播放状态
   // 等主进程返回后再更新，避免切歌时视觉跳变
   const wasPlaying = status.isPlaying;
   status.state = wasPlaying ? "playing" : "loading";
-  const result = await window.api.player.load(source, autoPlay);
-  if (result.success && result.data) {
-    // 更新歌曲元信息和歌词
-    await useMediaStore().setTrack(result.data.track, result.data.detail);
-    // 无封面时清空取色，避免残留上一首的主题色
-    if (!result.data.track.cover) useThemeStore().updateCoverColor(null);
-    // 更新播放状态和进度
-    const dur = result.data.track.duration;
-    status.duration = dur;
-    status.position = 0;
-    status.state = autoPlay ? "playing" : "paused";
-    status.currentSource = source;
-    // 同步到非响应式时间源
-    playback.setDuration(dur);
-    playback.setCurrentTime(0);
-    playback.setPlaying(autoPlay);
-    return result.data.track;
-  } else {
-    status.state = "idle";
-    status.error = result.error ?? "Failed to load";
-    return null;
+  try {
+    const result = await window.api.player.load(source, autoPlay);
+    if (result.success && result.data) {
+      // 更新歌曲元信息和歌词
+      await useMediaStore().setTrack(result.data.track, result.data.detail);
+      // 无封面时清空取色，避免残留上一首的主题色
+      if (!result.data.track.cover) useThemeStore().updateCoverColor(null);
+      // 更新播放状态和进度
+      const dur = result.data.track.duration;
+      status.duration = dur;
+      status.position = 0;
+      status.state = autoPlay ? "playing" : "paused";
+      status.currentSource = source;
+      // 同步到非响应式时间源
+      playback.setDuration(dur);
+      playback.setCurrentTime(0);
+      playback.setPlaying(autoPlay);
+      return result.data.track;
+    } else {
+      status.state = "idle";
+      status.error = result.error ?? "Failed to load";
+      return null;
+    }
+  } finally {
+    status.trackLoading = false;
   }
 };
 
@@ -216,6 +221,7 @@ export const prevTrack = async (): Promise<void> => {
 /** 队列播放结束，通知主进程停止并更新状态 */
 const onQueueEnded = async (): Promise<void> => {
   playback.setPlaying(false);
+  playback.reset();
   // 通知主进程停止音频引擎
   await window.api.player.stop();
   const status = useStatusStore();
@@ -334,7 +340,7 @@ export const moveInQueue = (fromIndex: number, toIndex: number): void => {
 };
 
 /** 防止 onTrackEnded 重入 */
-let isTransitioning = false;
+let endedGuard = false;
 
 /**
  * 处理主进程推送的播放事件
@@ -344,8 +350,8 @@ const handleEvent = async (event: PlayerEvent): Promise<void> => {
   const status = useStatusStore();
   switch (event.type) {
     case "status":
-      // loading 事件不重置进度和播放状态，保持当前封面/进度平滑过渡
-      if (event.data.state === "loading") break;
+      // 歌曲加载中或 loading 事件不更新 UI，保持当前封面/进度/播放状态平滑过渡
+      if (event.data.state === "loading" || status.trackLoading) break;
       status.state = event.data.state;
       status.position = event.data.position;
       status.duration = event.data.duration;
@@ -355,6 +361,8 @@ const handleEvent = async (event: PlayerEvent): Promise<void> => {
       syncPlayback(event.data.state);
       break;
     case "position":
+      // 歌曲加载中不更新进度，避免旧歌词跳动
+      if (status.trackLoading) break;
       status.position = event.data.position;
       playback.setCurrentTime(event.data.position);
       if (event.data.duration > 0) {
@@ -365,9 +373,8 @@ const handleEvent = async (event: PlayerEvent): Promise<void> => {
       useMediaStore().updateLyricIndex(event.data.position);
       break;
     case "ended": {
-      if (isTransitioning) return;
-      isTransitioning = true;
-      playback.setPlaying(false);
+      if (endedGuard) return;
+      endedGuard = true;
       try {
         // 单曲循环：seek 回开头继续播放（复用 FFmpeg 上下文，不重建）
         if (status.repeatMode === "one") {
@@ -377,7 +384,7 @@ const handleEvent = async (event: PlayerEvent): Promise<void> => {
           await nextTrack();
         }
       } finally {
-        isTransitioning = false;
+        endedGuard = false;
       }
       break;
     }
