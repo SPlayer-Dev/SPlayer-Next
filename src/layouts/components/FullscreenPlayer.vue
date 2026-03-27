@@ -97,8 +97,8 @@ const onSeek = (e: Event): void => {
         <SButton
           type="cover"
           variant="ghost"
-          circle
-          size="small"
+          round
+          size="large"
           class="absolute top-4 right-4 z-10"
           @click="collapse"
         >
@@ -107,14 +107,18 @@ const onSeek = (e: Event): void => {
 
         <!-- 左侧：封面 + 歌曲信息 -->
         <div
-          class="absolute top-14 left-0 bottom-18 w-[45%] flex flex-col items-center justify-center gap-6 px-12 transition-transform duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          class="absolute top-14 left-0 bottom-18 w-[45%] flex items-center justify-center px-12 transition-transform duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
           :style="coverCentered ? 'transform: translateX(calc(100% * 11 / 18))' : undefined"
         >
-          <div class="w-[clamp(200px,85%,50vh)] flex flex-col items-center gap-10">
-            <!-- 封面 -->
+          <!-- 封面（参与居中布局，向上偏移补偿下方信息的视觉重心） -->
+          <div class="relative w-[clamp(200px,85%,50vh)] -translate-y-[10vh]">
             <PlayerCover />
-            <!-- 歌曲信息 -->
-            <PlayerData />
+            <!-- 歌曲信息（绝对定位，不影响封面居中位置） -->
+            <div class="absolute top-full left-0 w-full pt-6">
+              <Transition name="fade" mode="out-in">
+                <PlayerData :key="media.track?.id" />
+              </Transition>
+            </div>
           </div>
         </div>
 
