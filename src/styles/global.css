@@ -40,6 +40,6 @@ body {
 }
 
 /* 播放栏显示时，滚动条滑轨底部留出空间，避免被遮挡 */
-.scroll-trim.pb-18::-webkit-scrollbar-track {
-  margin-bottom: 4.5rem; /* h-18 = 72px = 4.5rem */
+.scroll-trim.pb-20::-webkit-scrollbar-track {
+  margin-bottom: 5rem; /* h-20 = 80px = 5rem */
 }

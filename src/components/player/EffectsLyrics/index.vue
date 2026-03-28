@@ -114,6 +114,10 @@ const emit = defineEmits<Emits>();
 
 const containerRef = ref<HTMLElement>();
 let renderer: LyricRenderer | null = null;
+/** 冻结状态标志 */
+let isFrozen = false;
+/** 冻结期间收到的待应用歌词（父容器 display:none 时无法测量，需延迟） */
+let pendingLyrics: LyricLine[] | null = null;
 
 /**
  * 推送当前播放时间（毫秒）
@@ -126,8 +130,19 @@ const setCurrentTime = (time: number) => {
   renderer?.setCurrentTime(time);
 };
 
-const freeze = () => renderer?.freeze();
-const resume = () => renderer?.resume();
+const freeze = () => {
+  isFrozen = true;
+  renderer?.freeze();
+};
+const resume = () => {
+  isFrozen = false;
+  // 应用冻结期间缓冲的歌词变更
+  if (pendingLyrics) {
+    renderer?.setLyrics(pendingLyrics);
+    pendingLyrics = null;
+  }
+  renderer?.resume();
+};
 
 defineExpose({ setCurrentTime, freeze, resume });
 
@@ -157,7 +172,14 @@ onUnmounted(() => {
 
 watch(
   () => props.lyricLines,
-  (lines) => renderer?.setLyrics(lines),
+  (lines) => {
+    if (isFrozen) {
+      // 冻结时缓冲，避免在 display:none 下测量尺寸
+      pendingLyrics = lines;
+    } else {
+      renderer?.setLyrics(lines);
+    }
+  },
 );
 
 watch(

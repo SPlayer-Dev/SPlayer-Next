@@ -18,7 +18,7 @@ const { isExpanded } = storeToRefs(status);
     <!-- 侧边栏 -->
     <aside
       class="w-60 shrink-0 border-r-1 border-r-solid border-r-primary/10 bg-surface-panel/90 backdrop-blur-lg overflow-y-auto scroll-trim z-10 transition-[margin] duration-300"
-      :class="showPlayerBar ? 'mb-18' : ''"
+      :class="showPlayerBar ? 'mb-20' : ''"
     >
       <SideBar />
     </aside>
@@ -31,7 +31,7 @@ const { isExpanded } = storeToRefs(status);
       </header>
 
       <!-- 主内容区 -->
-      <main class="flex-1 overflow-y-auto scroll-trim" :class="showPlayerBar ? 'pb-18' : ''">
+      <main class="flex-1 overflow-y-auto scroll-trim" :class="showPlayerBar ? 'pb-20' : ''">
         <RouterView />
       </main>
     </div>
@@ -45,7 +45,7 @@ const { isExpanded } = storeToRefs(status);
     >
       <footer
         v-if="showPlayerBar"
-        class="fixed bottom-0 left-0 right-0 h-18 border-t-1 border-t-solid border-t-primary/10 bg-surface-panel/90 backdrop-blur-lg z-50"
+        class="fixed bottom-0 left-0 right-0 h-20 border-t-1 border-t-solid border-t-primary/10 bg-surface-panel/90 backdrop-blur-lg z-50"
       >
         <PlayerBar />
       </footer>

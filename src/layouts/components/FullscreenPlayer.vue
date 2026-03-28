@@ -26,27 +26,34 @@ const { start: startTick, stop: stopTick } = usePlaybackTime((currentMs) => {
   }
 });
 
-/** 歌词是否激活 */
-const lyricActive = ref(false);
+/** 歌词组件是否已挂载（首次展开后常驻，不再销毁） */
+const lyricMounted = ref(false);
 
-/** 展开前：挂载歌词 + 恢复渲染 + 启动时钟 */
+/** 展开前：非首次直接恢复渲染 */
 const onBeforeEnter = () => {
-  lyricActive.value = true;
-  nextTick(() => {
+  if (lyricMounted.value) {
+    // 非首次展开：组件已常驻，直接恢复
     lyricRef.value?.resume();
     startTick();
-  });
+  }
+};
+
+/** 展开动画结束后：首次挂载歌词组件 */
+const onAfterEnter = () => {
+  if (!lyricMounted.value) {
+    // 首次展开：动画结束后再挂载，避免阻塞展开动画
+    lyricMounted.value = true;
+    nextTick(() => {
+      lyricRef.value?.resume();
+      startTick();
+    });
+  }
 };
 
 /** 收起前：冻结歌词渲染 + 停止时钟 */
 const onBeforeLeave = () => {
   lyricRef.value?.freeze();
   stopTick();
-};
-
-/** 收起动画结束后：卸载歌词组件释放 DOM */
-const onAfterLeave = () => {
-  lyricActive.value = false;
 };
 
 const hasTrack = computed(() => !!media.track);
@@ -90,8 +97,8 @@ const onSeek = (e: Event): void => {
       enter-from-class="translate-y-full"
       leave-to-class="translate-y-full"
       @before-enter="onBeforeEnter"
+      @after-enter="onAfterEnter"
       @before-leave="onBeforeLeave"
-      @after-leave="onAfterLeave"
     >
       <div v-show="isExpanded" class="fixed inset-0 z-200 bg-surface overflow-hidden text-cover after:content-[''] after:absolute after:left-1/2 after:top-0 after:bottom-0 after:w-px after:bg-[rgba(255,0,0,0.5)] after:z-999 after:pointer-events-none" style="--lp-color: rgb(var(--s-cover))">
         <!-- 背景 -->
@@ -111,7 +118,7 @@ const onSeek = (e: Event): void => {
 
         <!-- 左侧：封面 + 歌曲信息 -->
         <div
-          class="absolute top-14 left-0 bottom-18 w-[45%] flex items-center justify-center px-12 transition-transform duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          class="absolute top-14 left-0 bottom-20 w-[45%] flex items-center justify-center px-12 transition-transform duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
           :style="coverCentered ? 'transform: translateX(calc(100% * 11 / 18))' : undefined"
         >
           <!-- 封面（参与居中布局，向上偏移补偿下方信息的视觉重心） -->
@@ -128,33 +135,33 @@ const onSeek = (e: Event): void => {
 
         <!-- 右侧：歌词区域 -->
         <div
-          class="lyric-area absolute top-14 right-0 bottom-18 pr-20 w-[55%] text-[clamp(1.5rem,3.5vw,3rem)] font-bold transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          class="lyric-area absolute top-14 right-0 bottom-20 pr-20 w-[55%] text-[clamp(1.5rem,3.5vw,3rem)] font-bold transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
           :class="coverCentered ? 'opacity-0 pointer-events-none' : 'opacity-100'"
         >
           <EffectsLyrics
-            v-if="lyricMode === 'effects' && lyricActive && (media.parsedLyric.length > 0 || media.lyricLoading)"
+            v-if="lyricMounted && lyricMode === 'effects' && (media.parsedLyric.length > 0 || media.lyricLoading)"
             ref="lyricRef"
             :lyric-lines="media.parsedLyric"
             :playing="isPlaying"
             @seek="player.seek($event)"
           />
           <SimpleLyrics
-            v-else-if="lyricMode === 'simple' && lyricActive && (media.parsedLyric.length > 0 || media.lyricLoading)"
+            v-else-if="lyricMounted && lyricMode === 'simple' && (media.parsedLyric.length > 0 || media.lyricLoading)"
             ref="lyricRef"
             :lyric-lines="media.parsedLyric"
             :playing="isPlaying"
             @seek="player.seek($event)"
           />
           <div
-            v-else-if="!media.lyricLoading"
+            v-else-if="lyricMounted && !media.lyricLoading"
             class="w-full h-full flex items-center justify-center text-cover/30"
           >
             暂无歌词
           </div>
         </div>
 
-        <!-- 底部控制栏：与外部 PlayerBar 同高 h-18 -->
-        <div class="absolute bottom-0 left-0 right-0 h-18 flex flex-col justify-center px-4">
+        <!-- 底部控制栏：与外部 PlayerBar 同高 h-20 -->
+        <div class="absolute bottom-0 left-0 right-0 h-20 flex flex-col justify-center px-4">
           <!-- 控制按钮行 -->
           <div class="flex items-center h-full">
             <!-- 左侧留空（对齐外部歌曲信息区） -->

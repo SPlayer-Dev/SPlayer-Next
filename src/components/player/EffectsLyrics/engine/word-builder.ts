@@ -198,25 +198,47 @@ function buildEmphasizedChunk(
 
 /**
  * 测量所有单词的宽度并设置 CSS 掩码
+ *
+ * 采用读写分离策略：第一遍批量读取所有 DOM 尺寸（触发一次回流），
+ * 第二遍批量写入所有 CSS mask 样式（零回流），避免逐词读写交替导致的 N 次强制回流。
  */
 export const measureAndApplyWordMasks = (
   wordMeasurements: WordMeasurement[][],
   fadeRatio: number,
   lines?: LyricLine[],
 ) => {
+  // 临时存储每个 measurement 的 padding，供第二遍使用
+  const paddings: number[][] = new Array(wordMeasurements.length);
+
+  // ===== 第一遍：批量读取 DOM 尺寸（一次回流） =====
+  for (let i = 0; i < wordMeasurements.length; i++) {
+    const lineMeasurements = wordMeasurements[i];
+    if (!lineMeasurements) {
+      paddings[i] = [];
+      continue;
+    }
+    paddings[i] = new Array(lineMeasurements.length);
+    for (let j = 0; j < lineMeasurements.length; j++) {
+      const m = lineMeasurements[j];
+      const el = m.element;
+      const padding = el.classList.contains("lp-emp-wrapper")
+        ? Number.parseFloat(getComputedStyle(el).paddingLeft) || 0
+        : 0;
+      paddings[i][j] = padding;
+      m.width = (el.clientWidth || 1) - padding * 2;
+      m.fadeWidth = ((el.clientHeight || 16) - padding * 2) * fadeRatio;
+    }
+  }
+
+  // ===== 第二遍：批量写入 CSS mask 样式（零回流） =====
   for (let i = 0; i < wordMeasurements.length; i++) {
     const lineMeasurements = wordMeasurements[i];
     const lineStart = lines?.[i]?.startTime ?? 0;
     if (!lineMeasurements) continue;
-    for (const measurement of lineMeasurements) {
-      const element = measurement.element;
-      const padding = element.classList.contains("lp-emp-wrapper")
-        ? Number.parseFloat(getComputedStyle(element).paddingLeft) || 0
-        : 0;
-      const elementHeight = (element.clientHeight || 16) - padding * 2;
-      const elementWidth = (element.clientWidth || 1) - padding * 2;
-      measurement.width = elementWidth;
-      measurement.fadeWidth = elementHeight * fadeRatio;
+    for (let j = 0; j < lineMeasurements.length; j++) {
+      const measurement = lineMeasurements[j];
+      const padding = paddings[i][j];
+      const elementWidth = measurement.width;
       const gradientWidth = measurement.fadeWidth;
       const totalAspect = 2 + gradientWidth / elementWidth;
       const gradientRatio = gradientWidth / elementWidth / totalAspect;
@@ -237,7 +259,7 @@ export const measureAndApplyWordMasks = (
       const maskPosition = Number.isFinite(speed)
         ? `clamp(${startPos}px,calc(${startPos}px + (var(--t,${lineStart}) - ${adjustedStart}) * ${speed}px),${endPos}px) 0px,left top`
         : `${startPos}px 0px,left top`;
-      const style = element.style;
+      const style = measurement.element.style;
       style.setProperty("-webkit-mask-image", maskImage);
       style.setProperty("mask-image", maskImage);
       style.setProperty("-webkit-mask-size", maskSize);
