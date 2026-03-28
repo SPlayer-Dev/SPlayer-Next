@@ -45,7 +45,7 @@ const { isExpanded } = storeToRefs(status);
     >
       <footer
         v-if="showPlayerBar"
-        class="fixed bottom-0 left-0 right-0 h-20 border-t-1 border-t-solid border-t-primary/10 bg-surface-panel/90 backdrop-blur-lg z-50"
+        class="fixed bottom-0 left-0 right-0 h-20 border-t-1 border-t-solid border-t-primary/10 bg-surface-panel/90 backdrop-blur-lg z-50 overflow-visible"
       >
         <PlayerBar />
       </footer>

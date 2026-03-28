@@ -5,6 +5,7 @@ import { useThemeStore } from "@/stores/theme";
 import { useStatusStore } from "@/stores/status";
 import * as queue from "@/stores/queue";
 import * as playback from "@/services/playback";
+import { loadAudio } from "@/services/audioLoader";
 
 /**
  * 处理 IPC 返回结果，失败时写入 error
@@ -30,6 +31,9 @@ const syncPlayback = (state: PlayerState): void => {
   }
 };
 
+/** 竞态 token：每次加载递增，异步返回后检查是否过期 */
+let loadToken = 0;
+
 /**
  * 加载音频源
  * @param source - 音频文件路径或网络地址
@@ -38,6 +42,7 @@ const syncPlayback = (state: PlayerState): void => {
  */
 export const load = async (source: string, autoPlay = true): Promise<Track | null> => {
   const status = useStatusStore();
+  const token = ++loadToken;
   status.error = null;
   status.trackLoading = true;
   // 不提前重置 state 和 playback，保持当前封面/进度/播放状态
@@ -45,14 +50,19 @@ export const load = async (source: string, autoPlay = true): Promise<Track | nul
   const wasPlaying = status.isPlaying;
   status.state = wasPlaying ? "playing" : "loading";
   try {
-    const result = await window.api.player.load(source, autoPlay);
-    if (result.success && result.data) {
-      // 更新歌曲元信息和歌词
-      await useMediaStore().setTrack(result.data.track, result.data.detail);
+    const data = await loadAudio(source, autoPlay);
+    // 竞态保护：如果已切歌，丢弃旧结果
+    if (token !== loadToken) return null;
+    if (data) {
+      const media = useMediaStore();
+      // 更新歌曲元信息 + 选择歌词源（同步）
+      media.setTrack(data.track, data.detail);
+      // 歌词后台加载，不阻塞播放
+      media.loadLyric();
       // 无封面时清空取色，避免残留上一首的主题色
-      if (!result.data.track.cover) useThemeStore().updateCoverColor(null);
+      if (!data.track.cover) useThemeStore().updateCoverColor(null);
       // 更新播放状态和进度
-      const dur = result.data.track.duration;
+      const dur = data.track.duration;
       status.duration = dur;
       status.position = 0;
       status.state = autoPlay ? "playing" : "paused";
@@ -61,23 +71,27 @@ export const load = async (source: string, autoPlay = true): Promise<Track | nul
       playback.setDuration(dur);
       playback.setCurrentTime(0);
       playback.setPlaying(autoPlay);
-      return result.data.track;
+      return data.track;
     } else {
       status.state = "idle";
-      status.error = result.error ?? "Failed to load";
+      status.error = "Failed to load";
       return null;
     }
   } finally {
-    status.trackLoading = false;
+    if (token === loadToken) status.trackLoading = false;
   }
 };
 
 /**
  * 加载指定 Track 到播放器
+ * 乐观更新：立即显示歌曲信息，快速切歌时只有最后一次 load 生效
  * @param track - 要播放的 Track，为 null 或无 path 时忽略
  */
 const loadTrack = async (track: Track | null): Promise<void> => {
-  if (track?.path) await load(track.path);
+  if (!track?.path) return;
+  // 乐观更新：同步写入 track，UI 立即响应
+  useMediaStore().setTrack(track);
+  await load(track.path);
 };
 
 /**
@@ -131,13 +145,38 @@ export const stop = async (): Promise<void> => {
 };
 
 /**
+ * seek 目标位置（毫秒），非 null 表示正在 seek，
+ * 后端推送的 position 必须接近此值才会被接受
+ */
+let seekTarget: number | null = null;
+
+/** 判断后端推送的 position 是否已到达 seek 目标附近 */
+const hasReachedSeekTarget = (position: number): boolean => {
+  if (seekTarget === null) return true;
+  // 容差：后端推送的位置在 seek 目标 ±1s 内视为已到达
+  if (Math.abs(position - seekTarget) < 1000) {
+    seekTarget = null;
+    return true;
+  }
+  return false;
+};
+
+/**
  * 跳转到指定播放位置
  * @param posMs - 目标位置（毫秒）
  */
 export const seek = async (posMs: number): Promise<void> => {
+  // 立即更新 UI，不等 IPC 返回
+  const status = useStatusStore();
+  status.position = posMs;
+  playback.setCurrentTime(posMs);
+
+  // 设置 seek 目标，屏蔽旧 position 推送
+  seekTarget = posMs;
+
   const result = await window.api.player.seek(posMs);
   if (handleResult(result)) {
-    useStatusStore().position = posMs;
+    status.position = posMs;
     playback.setCurrentTime(posMs);
   }
 };
@@ -353,16 +392,21 @@ const handleEvent = async (event: PlayerEvent): Promise<void> => {
       // 歌曲加载中或 loading 事件不更新 UI，保持当前封面/进度/播放状态平滑过渡
       if (event.data.state === "loading" || status.trackLoading) break;
       status.state = event.data.state;
-      status.position = event.data.position;
+      // seek 后只接受到达目标附近的 position，丢弃旧位置
+      if (hasReachedSeekTarget(event.data.position)) {
+        status.position = event.data.position;
+        playback.setCurrentTime(event.data.position);
+      }
       status.duration = event.data.duration;
       status.volume = event.data.volume;
-      playback.setCurrentTime(event.data.position);
       playback.setDuration(event.data.duration);
       syncPlayback(event.data.state);
       break;
     case "position":
-      // 歌曲加载中不更新进度，避免旧歌词跳动
+      // 歌曲加载中不更新进度
       if (status.trackLoading) break;
+      // seek 后丢弃旧位置，直到后端推送的位置到达 seek 目标附近
+      if (!hasReachedSeekTarget(event.data.position)) break;
       status.position = event.data.position;
       playback.setCurrentTime(event.data.position);
       if (event.data.duration > 0) {

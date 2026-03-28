@@ -83,8 +83,7 @@ const formatTime = (ms: number): string => {
   return `${min}:${sec.toString().padStart(2, "0")}`;
 };
 
-const onSeek = (e: Event): void => {
-  const value = Number((e.target as HTMLInputElement).value);
+const onSeekDragEnd = (value: number): void => {
   player.seek(value);
 };
 </script>
@@ -100,7 +99,7 @@ const onSeek = (e: Event): void => {
       @after-enter="onAfterEnter"
       @before-leave="onBeforeLeave"
     >
-      <div v-show="isExpanded" class="fixed inset-0 z-200 bg-surface overflow-hidden text-cover after:content-[''] after:absolute after:left-1/2 after:top-0 after:bottom-0 after:w-px after:bg-[rgba(255,0,0,0.5)] after:z-999 after:pointer-events-none" style="--lp-color: rgb(var(--s-cover))">
+      <div v-show="isExpanded" class="fixed inset-0 z-200 bg-surface overflow-hidden text-cover after:content-[''] after:absolute after:left-1/2 after:top-0 after:bottom-0 after:w-px after:bg-[rgba(255,0,0,0.5)] after:z-999 after:pointer-events-none" style="--lp-color: rgb(var(--s-cover)); --s-slider-track-bg: rgb(var(--s-cover) / 0.25); --s-slider-fill-bg: rgb(var(--s-cover)); --s-slider-thumb-bg: rgb(var(--s-cover))">
         <!-- 背景 -->
         <PlayerBackground />
 
@@ -234,14 +233,13 @@ const onSeek = (e: Event): void => {
                 <span class="text-xs text-cover/50 min-w-9 text-center">{{
                   formatTime(position)
                 }}</span>
-                <input
-                  type="range"
-                  min="0"
+                <SSlider
+                  :model-value="position"
+                  :min="0"
                   :max="duration"
-                  step="100"
-                  :value="position"
-                  class="flex-1 accent-primary"
-                  @input="onSeek"
+                  :step="100"
+                  class="flex-1"
+                  @drag-end="onSeekDragEnd"
                 />
                 <span class="text-xs text-cover/50 min-w-9 text-center">{{
                   formatTime(duration)
@@ -252,14 +250,16 @@ const onSeek = (e: Event): void => {
             <!-- 右侧：音量 -->
             <div class="flex items-center gap-2 w-36 shrink-0">
               <IconLucideVolume2 class="size-4 text-cover/50 shrink-0" />
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                :value="status.volume"
-                class="flex-1 accent-primary"
-                @input="player.setVolume(Number(($event.target as HTMLInputElement).value))"
+              <SSlider
+                :model-value="status.volume"
+                :min="0"
+                :max="1"
+                :step="0.01"
+                always-show-thumb
+                :thumb-size="12"
+                :track-height="3"
+                class="flex-1"
+                @change="player.setVolume($event)"
               />
             </div>
           </div>

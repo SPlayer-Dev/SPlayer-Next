@@ -28,58 +28,82 @@ const formatTime = (ms: number): string => {
   return `${min}:${sec.toString().padStart(2, "0")}`;
 };
 
-const onSeek = (e: Event): void => {
-  const value = Number((e.target as HTMLInputElement).value);
+const onSeekDragEnd = (value: number): void => {
   player.seek(value);
 };
 </script>
 
 <template>
-  <div class="flex items-center gap-4 h-full px-4">
-    <!-- 歌曲信息 -->
-    <div class="flex items-center gap-3 w-50 shrink-0">
-      <SImg
-        :src="media.track?.cover"
-        class="size-12 shrink-0 rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
-        @load="theme.updateCoverColor($event)"
-        @click="isExpanded = true"
-      />
-      <div v-if="media.track" class="min-w-0 text-sm">
-        <div class="truncate font-medium">{{ media.track.title }}</div>
-        <div class="truncate text-xs text-on-surface-variant">
-          {{ media.track.artists.map((a) => a.name).join(" / ") }}
-        </div>
-      </div>
+  <div class="relative h-full">
+    <!-- 进度条：绝对定位骑在播放栏上边缘 -->
+    <div class="absolute left-0 right-0 top-0 -translate-y-1/2 z-10">
+      <SSlider
+        :model-value="position"
+        :min="0"
+        :max="duration"
+        :step="100"
+        :track-height="3"
+        :thumb-size="12"
+        @drag-end="onSeekDragEnd"
+      >
+        <template #popover="{ value }">{{ formatTime(value) }}</template>
+      </SSlider>
     </div>
 
-    <!-- 播放控制 + 进度 -->
-    <div class="flex-1 flex flex-col items-center gap-1">
-      <div class="flex items-center gap-3">
-        <!-- 随机模式 -->
+    <!-- 三栏 grid 布局：左右等宽 1fr，中间 auto，保证控制按钮绝对居中 -->
+    <div class="grid grid-cols-[1fr_auto_1fr] items-center h-full px-3">
+      <!-- 左侧：封面 + 歌曲信息 -->
+      <div class="flex items-center gap-3 min-w-0">
+        <SImg
+          :src="media.track?.cover"
+          class="size-14 shrink-0 rounded-lg cursor-pointer"
+          @load="theme.updateCoverColor($event)"
+          @click="isExpanded = true"
+        />
+        <!-- 歌曲信息：切歌时从左侧滑入 -->
+        <Transition name="slide-left" mode="out-in">
+          <div v-if="media.track" :key="media.track.id" class="min-w-0">
+            <SMarquee class="font-bold text-base leading-snug">{{ media.track.title }}</SMarquee>
+            <div class="text-sm text-on-surface-variant mt-1 truncate">
+              <span
+                v-for="(artist, i) in media.track.artists"
+                :key="artist.id ?? i"
+                class="cursor-pointer transition-colors hover:text-primary"
+              >
+                {{ artist.name }}
+                <span v-if="i < media.track.artists.length - 1" class="mx-1 opacity-60">/</span>
+              </span>
+            </div>
+          </div>
+        </Transition>
+      </div>
+
+      <!-- 中间：播放控制 -->
+      <div class="flex items-center gap-2 mx-15">
         <SButton
           variant="ghost"
           circle
-          size="small"
+          :size="36"
           :class="shuffleMode === 'on' ? 'text-primary' : 'text-on-surface-variant'"
           @click="player.toggleShuffleMode()"
         >
           <template #icon><IconLucideShuffle /></template>
         </SButton>
-        <!-- 上一曲 -->
         <SButton
           variant="ghost"
           circle
-          size="small"
+          :size="38"
           :disabled="!hasTrack"
           @click="player.prevTrack()"
         >
           <template #icon><IconLucideSkipBack /></template>
         </SButton>
-        <!-- 播放/暂停 -->
         <SButton
           type="primary"
           variant="secondary"
+          class="mx-1"
           circle
+          :size="44"
           :loading="isLoading"
           :disabled="!hasTrack && !isLoading"
           @click="togglePlay"
@@ -89,21 +113,19 @@ const onSeek = (e: Event): void => {
             <IconLucidePlay v-else />
           </template>
         </SButton>
-        <!-- 下一曲 -->
         <SButton
           variant="ghost"
           circle
-          size="small"
+          :size="38"
           :disabled="!hasTrack"
           @click="player.nextTrack()"
         >
           <template #icon><IconLucideSkipForward /></template>
         </SButton>
-        <!-- 循环模式 -->
         <SButton
           variant="ghost"
           circle
-          size="small"
+          :size="36"
           :class="repeatMode === 'off' ? 'text-on-surface-variant' : 'text-primary'"
           @click="player.cycleRepeatMode()"
         >
@@ -113,37 +135,27 @@ const onSeek = (e: Event): void => {
           </template>
         </SButton>
       </div>
-      <div class="flex items-center gap-2 w-full max-w-lg">
-        <span class="text-xs text-on-surface-variant min-w-9 text-center">{{
-          formatTime(position)
-        }}</span>
-        <input
-          type="range"
-          min="0"
-          :max="duration"
-          step="100"
-          :value="position"
-          class="flex-1 accent-primary"
-          @input="onSeek"
-        />
-        <span class="text-xs text-on-surface-variant min-w-9 text-center">{{
-          formatTime(duration)
-        }}</span>
-      </div>
-    </div>
 
-    <!-- 音量 -->
-    <div class="flex items-center gap-2 w-36 shrink-0">
-      <IconLucideVolume2 class="size-4 text-on-surface-variant shrink-0" />
-      <input
-        type="range"
-        min="0"
-        max="1"
-        step="0.01"
-        :value="status.volume"
-        class="flex-1 accent-primary"
-        @input="player.setVolume(Number(($event.target as HTMLInputElement).value))"
-      />
+      <!-- 右侧：时间 + 音量 -->
+      <div class="flex items-center justify-end gap-3 min-w-0">
+        <span class="text-xs text-on-surface-variant tabular-nums shrink-0">
+          {{ formatTime(position) }} / {{ formatTime(duration) }}
+        </span>
+        <div class="flex items-center gap-2 w-28 shrink-0">
+          <IconLucideVolume2 class="size-4 text-on-surface-variant shrink-0" />
+          <SSlider
+            :model-value="status.volume"
+            :min="0"
+            :max="1"
+            :step="0.01"
+            always-show-thumb
+            :thumb-size="12"
+            :track-height="3"
+            class="flex-1"
+            @change="player.setVolume($event)"
+          />
+        </div>
+      </div>
     </div>
   </div>
 </template>

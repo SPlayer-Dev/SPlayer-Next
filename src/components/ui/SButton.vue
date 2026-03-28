@@ -12,8 +12,8 @@ export interface SButtonProps {
   round?: boolean;
   /** 纯圆形（等宽高） */
   circle?: boolean;
-  /** 尺寸 */
-  size?: "tiny" | "small" | "medium" | "large";
+  /** 尺寸：预设名称或自定义数值（px） */
+  size?: "tiny" | "small" | "medium" | "large" | number;
   /** 禁用 */
   disabled?: boolean;
   /** 加载中（禁止点击，显示 spinner） */
@@ -38,25 +38,56 @@ const enableRipple = computed(
   () => (props.ripple && !props.disabled && !props.loading) || undefined,
 );
 
-const sizeClass = computed(() =>
-  props.circle
-    ? {
-        tiny: "w-6 h-6 text-xs",
-        small: "w-8 h-8 text-sm",
-        medium: "w-9 h-9 text-sm",
-        large: "w-10 h-10 text-base",
-      }[props.size]
-    : {
-        tiny: "px-1.5 h-6 text-xs",
-        small: "px-2.5 h-8 text-sm",
-        medium: "px-3.5 h-9 text-sm",
-        large: "px-4.5 h-10 text-base",
-      }[props.size],
-);
+/** 预设尺寸名称 */
+type SizePreset = "tiny" | "small" | "medium" | "large";
 
-const iconSizeClass = computed(
-  () => ({ tiny: "size-3.5", small: "size-4", medium: "size-4.5", large: "size-5" })[props.size],
-);
+const circleSizePresets: Record<SizePreset, string> = {
+  tiny: "w-6 h-6 text-xs",
+  small: "w-8 h-8 text-sm",
+  medium: "w-9 h-9 text-sm",
+  large: "w-10 h-10 text-base",
+};
+const normalSizePresets: Record<SizePreset, string> = {
+  tiny: "px-1.5 h-6 text-xs",
+  small: "px-2.5 h-8 text-sm",
+  medium: "px-3.5 h-9 text-sm",
+  large: "px-4.5 h-10 text-base",
+};
+const iconSizePresets: Record<SizePreset, string> = {
+  tiny: "size-3.5",
+  small: "size-4",
+  medium: "size-4.5",
+  large: "size-5",
+};
+
+const isNumericSize = computed(() => typeof props.size === "number");
+
+const sizeClass = computed(() => {
+  if (isNumericSize.value) return undefined;
+  const preset = props.size as SizePreset;
+  return props.circle ? circleSizePresets[preset] : normalSizePresets[preset];
+});
+
+/** 数值 size 时的内联样式 */
+const numericSizeStyle = computed(() => {
+  if (!isNumericSize.value) return undefined;
+  const px = `${props.size}px`;
+  return props.circle
+    ? { width: px, height: px }
+    : { height: px, paddingLeft: `${(props.size as number) * 0.35}px`, paddingRight: `${(props.size as number) * 0.35}px` };
+});
+
+const iconSizeClass = computed(() => {
+  if (isNumericSize.value) return undefined;
+  return iconSizePresets[props.size as SizePreset];
+});
+
+/** 数值 size 时图标大小：按钮尺寸的 50% */
+const numericIconStyle = computed(() => {
+  if (!isNumericSize.value) return undefined;
+  const iconPx = `${Math.round((props.size as number) * 0.5)}px`;
+  return { width: iconPx, height: iconPx };
+});
 
 const variantStyles = {
   filled: {
@@ -176,8 +207,9 @@ const variantClass = computed(() => {
       sizeClass,
       variantClass,
     ]"
+    :style="numericSizeStyle"
   >
-    <span v-if="$slots.icon || loading" class="shrink-0 flex items-center justify-center overflow-hidden *:size-full" :class="iconSizeClass">
+    <span v-if="$slots.icon || loading" class="shrink-0 flex items-center justify-center overflow-hidden *:size-full" :class="iconSizeClass" :style="numericIconStyle">
       <SLoading v-if="loading" />
       <slot v-else name="icon" />
     </span>

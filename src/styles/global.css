@@ -39,6 +39,19 @@ body {
   opacity: 0;
 }
 
+/* 通用 Transition: slide-left（左侧滑入/滑出，用于切歌信息切换） */
+.slide-left-enter-active {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.slide-left-leave-active {
+  transition: transform 0.1s ease, opacity 0.1s ease;
+}
+.slide-left-enter-from,
+.slide-left-leave-to {
+  opacity: 0;
+  transform: translateX(-5px);
+}
+
 /* 播放栏显示时，滚动条滑轨底部留出空间，避免被遮挡 */
 .scroll-trim.pb-20::-webkit-scrollbar-track {
   margin-bottom: 5rem; /* h-20 = 80px = 5rem */

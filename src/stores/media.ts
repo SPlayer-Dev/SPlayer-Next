@@ -1,6 +1,7 @@
 import type { Track, TrackDetail } from "@shared/types/player";
 import type { LyricFormat, LyricLine, LyricSource } from "@/types/lyric";
 import { bestExternalIndex, detectFormat, parseLyric, findLyricIndex } from "@/utils/lyric/parse";
+import { loadLyricContent } from "@/services/lyricLoader";
 
 export const useMediaStore = defineStore("media", () => {
   /** 当前歌曲轻量信息 */
@@ -36,6 +37,9 @@ export const useMediaStore = defineStore("media", () => {
   /** 当前歌词行索引，-1 表示无匹配 */
   const lyricIndex = ref(-1);
 
+  /** 歌词加载竞态 token */
+  let lyricToken = 0;
+
   /**
    * 根据播放时间更新歌词行索引
    * 由 status store 在收到 position 推送时调用
@@ -46,48 +50,15 @@ export const useMediaStore = defineStore("media", () => {
   };
 
   /**
-   * 加载当前选中歌词的内容
+   * 设置当前歌曲信息（同步，立即更新 UI）
+   * 传 detail 时同步选择歌词源，但不加载歌词内容
    */
-  const loadLyricContent = async (): Promise<void> => {
-    const det = detail.value;
-    const active = activeLyric.value;
-    if (!det || !active) {
-      lyricContent.value = null;
-      lyricLoading.value = false;
-      return;
-    }
-    lyricLoading.value = true;
-    try {
-      if (active.type === "embedded") {
-        lyricContent.value = det.embeddedLyric ?? null;
-      } else {
-        const lyric = det.externalLyrics.find((l) => l.format === active.format);
-        if (!lyric) {
-          lyricContent.value = null;
-          return;
-        }
-        const result = await window.api.player.readLyricFile(lyric.path);
-        lyricContent.value = result.success ? (result.data ?? null) : null;
-      }
-      // 重置索引
-      lyricIndex.value = -1;
-    } finally {
-      lyricLoading.value = false;
-    }
-  };
-
-  /**
-   * 设置当前歌曲，自动按优先级选择歌词并加载内容
-   * @param newTrack 歌曲轻量信息
-   * @param newDetail 歌曲详细信息
-   */
-  const setTrack = async (newTrack: Track, newDetail?: TrackDetail): Promise<void> => {
+  const setTrack = (newTrack: Track, newDetail?: TrackDetail): void => {
     track.value = newTrack;
     if (!newDetail) return;
     detail.value = newDetail;
-    lyricLoading.value = true;
 
-    // 外置优先，按格式优先级选择
+    // 同步选择歌词源：外置优先
     const idx = bestExternalIndex(newDetail.externalLyrics);
     if (idx !== -1) {
       activeLyric.value = {
@@ -99,8 +70,30 @@ export const useMediaStore = defineStore("media", () => {
     } else {
       activeLyric.value = null;
     }
+  };
 
-    await loadLyricContent();
+  /**
+   * 加载歌词内容（调用 lyricLoader 服务获取数据，自己管状态）
+   */
+  const loadLyric = async (): Promise<void> => {
+    const token = ++lyricToken;
+    const det = detail.value;
+    const active = activeLyric.value;
+    if (!det || !active) {
+      lyricContent.value = null;
+      lyricLoading.value = false;
+      return;
+    }
+    lyricLoading.value = true;
+    try {
+      const content = await loadLyricContent(det, active);
+      // 竞态保护：加载期间如果已切歌，丢弃结果
+      if (token !== lyricToken) return;
+      lyricContent.value = content;
+      lyricIndex.value = -1;
+    } finally {
+      if (token === lyricToken) lyricLoading.value = false;
+    }
   };
 
   /**
@@ -109,7 +102,7 @@ export const useMediaStore = defineStore("media", () => {
    */
   const switchLyric = async (source: LyricSource): Promise<void> => {
     activeLyric.value = source;
-    await loadLyricContent();
+    await loadLyric();
   };
 
   /** 清空所有状态 */
@@ -132,6 +125,7 @@ export const useMediaStore = defineStore("media", () => {
     lyricIndex,
     updateLyricIndex,
     setTrack,
+    loadLyric,
     switchLyric,
     clear,
   };

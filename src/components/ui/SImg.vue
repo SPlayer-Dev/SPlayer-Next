@@ -17,16 +17,13 @@ const emit = defineEmits<{
   load: [el: HTMLImageElement];
 }>();
 
-const coverRef = ref<HTMLImageElement>();
 const isLoaded = ref(false);
 
-const onLoad = () => {
+const onLoad = (e: Event) => {
+  const target = e.target as HTMLImageElement;
+  target.style.opacity = "1";
   isLoaded.value = true;
-  if (coverRef.value) emit("load", coverRef.value);
-};
-
-const onError = () => {
-  isLoaded.value = false;
+  emit("load", target);
 };
 
 watch(
@@ -35,29 +32,33 @@ watch(
     isLoaded.value = false;
   },
 );
-
 </script>
 
 <template>
   <div class="s-img">
-    <!-- 占位图：文档流撑高度 -->
-    <img
-      :src="fallback"
-      :alt="alt"
-      class="s-img-fallback"
-      :class="{ hidden: isLoaded }"
-    />
-    <!-- 真实图：绝对定位叠上去 -->
-    <img
-      v-if="src"
-      ref="coverRef"
-      :src="src"
-      :alt="alt"
-      :class="['s-img-cover', { loaded: isLoaded }]"
-      decoding="async"
-      @load="onLoad"
-      @error="onError"
-    />
+    <!-- 占位图：封面加载完后淡出移除 -->
+    <Transition name="fade">
+      <img v-if="!isLoaded" :src="fallback" :alt="alt" class="s-img-loading" />
+    </Transition>
+    <!-- 封面：Transition 控制外层 div 的交叉淡入淡出，img 的 opacity 由 @load 单独控制 -->
+    <Transition
+      enter-active-class="s-img-transition"
+      leave-active-class="s-img-transition"
+      enter-from-class="s-img-hidden"
+      leave-to-class="s-img-hidden"
+    >
+      <div v-if="src" :key="src" class="s-img-wrapper">
+        <img
+          :src="src"
+          :alt="alt"
+          class="s-img-cover"
+          decoding="async"
+          loading="lazy"
+          @load="onLoad"
+          @error="isLoaded = false"
+        />
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -67,29 +68,33 @@ watch(
   overflow: hidden;
 }
 
-.s-img-fallback {
-  display: block;
+.s-img-loading {
+  position: absolute;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: opacity 0.3s ease;
+  z-index: 0;
 }
 
-.s-img-fallback.hidden {
-  opacity: 0;
+.s-img-wrapper {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
 }
 
 .s-img-cover {
-  position: absolute;
-  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.2s;
 }
 
-.s-img-cover.loaded {
-  opacity: 1;
+.s-img-transition {
+  transition: opacity 0.2s;
+}
+
+.s-img-hidden {
+  opacity: 0;
 }
 </style>
