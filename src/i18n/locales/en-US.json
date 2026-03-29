@@ -1,0 +1,102 @@
+{
+  "common": {
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "save": "Save",
+    "reset": "Reset",
+    "search": "Search",
+    "loading": "Loading",
+    "noData": "No data",
+    "success": "Success",
+    "error": "Error"
+  },
+  "nav": {
+    "home": "Home",
+    "settings": "Settings"
+  },
+  "player": {
+    "play": "Play",
+    "pause": "Pause",
+    "prev": "Previous",
+    "next": "Next",
+    "shuffle": "Shuffle",
+    "repeat": "Repeat",
+    "repeatOne": "Repeat One",
+    "volume": "Volume"
+  },
+  "settings": {
+    "title": "Settings",
+    "search": "Search settings...",
+    "group": {
+      "player": "Player",
+      "appearance": "Appearance",
+      "system": "System"
+    },
+    "section": {
+      "playback": "Playback",
+      "lyrics": "Lyrics",
+      "theme": "Theme",
+      "layout": "Layout",
+      "media": "Media Controls",
+      "discord": "Discord"
+    },
+    "fadeDuration": {
+      "label": "Fade Duration",
+      "description": "Audio fade duration when switching tracks"
+    },
+    "lyricMode": {
+      "label": "Lyric Mode",
+      "description": "Lyric rendering style in full-screen player",
+      "effects": "Effects",
+      "simple": "Simple"
+    },
+    "autoCenterCover": {
+      "label": "Auto Center Cover",
+      "description": "Center cover and hide lyric area when no lyrics available"
+    },
+    "playerBgType": {
+      "label": "Player Background",
+      "description": "Background type of the full-screen player",
+      "blur": "Blur",
+      "solid": "Solid"
+    },
+    "themeMode": {
+      "label": "Theme Mode",
+      "description": "Application color theme",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    },
+    "themeSource": {
+      "label": "Theme Color Source",
+      "description": "How the theme color is determined",
+      "default": "Default",
+      "custom": "Custom",
+      "cover": "From Cover",
+      "solid": "Solid"
+    },
+    "globalTint": {
+      "label": "Global Tint",
+      "description": "Apply theme color tint to the entire interface"
+    },
+    "layoutMode": {
+      "label": "Layout Mode",
+      "description": "Application layout style",
+      "default": "Default",
+      "sidebarFull": "Full Sidebar",
+      "floating": "Floating Player Bar"
+    },
+    "systemMediaControls": {
+      "label": "System Media Controls",
+      "description": "Show playback info in system media controls"
+    },
+    "discordEnabled": {
+      "label": "Discord Status",
+      "description": "Show playback status on Discord"
+    },
+    "discordShowWhenPaused": {
+      "label": "Show When Paused",
+      "description": "Keep Discord status visible when paused"
+    }
+  }
+}

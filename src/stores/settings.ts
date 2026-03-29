@@ -1,10 +1,14 @@
 import type { PlayerSettings } from "@/types/settings";
+import type { LocaleCode } from "@/i18n";
 import type { SystemConfig } from "@shared/types/settings";
 import { defaultSystemConfig } from "@shared/defaults/settings";
 
 export const useSettingsStore = defineStore(
   "settings",
   () => {
+    /** 界面语言（持久化，由 main.ts 同步到 vue-i18n） */
+    const locale = ref<LocaleCode>("zh-CN");
+
     /** 播放器设置（持久化） */
     const player = reactive<PlayerSettings>({
       playerBgType: "blur",
@@ -30,6 +34,7 @@ export const useSettingsStore = defineStore(
     };
 
     return {
+      locale,
       player,
       system,
       syncSystem,

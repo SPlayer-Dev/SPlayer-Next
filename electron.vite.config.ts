@@ -61,7 +61,7 @@ export default defineConfig({
       vue(),
       UnoCSS(),
       AutoImport({
-        imports: ["vue", "pinia", "vue-router", "@vueuse/core"],
+        imports: ["vue", "pinia", "vue-router", "@vueuse/core", "vue-i18n"],
         eslintrc: {
           enabled: true,
           filepath: "./auto-eslint.mjs",

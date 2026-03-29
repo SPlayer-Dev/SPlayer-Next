@@ -34,6 +34,7 @@
     "pinia": "^3.0.2",
     "pinia-plugin-persistedstate": "^4.7.1",
     "reka-ui": "^2.9.2",
+    "vue-i18n": "^11.3.0",
     "vue-router": "^5.0.3"
   },
   "devDependencies": {
