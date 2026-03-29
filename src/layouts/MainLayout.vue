@@ -50,11 +50,9 @@ const { isExpanded } = storeToRefs(status);
         <PlayerBar />
       </footer>
     </Transition>
-
-    <!-- 全局 Toast -->
+    <!-- Toast -->
     <SToast :max="5" />
   </div>
-
-  <!-- 全屏播放器：Teleport 到 body，独立层级 -->
-  <FullscreenPlayer />
+  <!-- 全屏播放器 -->
+  <FullPlayer />
 </template>

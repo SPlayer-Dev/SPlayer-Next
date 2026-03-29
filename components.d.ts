@@ -47,7 +47,7 @@ declare module 'vue' {
     IconSpLossless: typeof import('~icons/sp/lossless')['default']
     NavHeader: typeof import('./src/layouts/components/NavHeader.vue')['default']
     PlayerBackground: typeof import('./src/components/player/FullPlayer/PlayerBackground.vue')['default']
-    PlayerBar: typeof import('./src/layouts/components/PlayerBar.vue')['default']
+    PlayerBar: typeof import('./src/components/player/FullPlayer/PlayerBar.vue')['default']
     PlayerCover: typeof import('./src/components/player/FullPlayer/PlayerCover.vue')['default']
     PlayerData: typeof import('./src/components/player/FullPlayer/PlayerData.vue')['default']
     PopoverArrow: typeof import('reka-ui')['PopoverArrow']

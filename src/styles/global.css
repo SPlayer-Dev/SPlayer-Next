@@ -41,15 +41,59 @@ body {
 
 /* 通用 Transition: slide-left（左侧滑入/滑出，用于切歌信息切换） */
 .slide-left-enter-active {
-  transition: transform 0.2s ease, opacity 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease;
 }
 .slide-left-leave-active {
-  transition: transform 0.1s ease, opacity 0.1s ease;
+  transition:
+    transform 0.1s ease,
+    opacity 0.1s ease;
 }
 .slide-left-enter-from,
 .slide-left-leave-to {
   opacity: 0;
   transform: translateX(-5px);
+}
+
+/* 通用 Transition: slide-up（上下翻动，用于歌词行切换） */
+.slide-up-enter-active {
+  transition:
+    transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.25s ease;
+}
+.slide-up-leave-active {
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
+}
+.slide-up-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
+}
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+/* 通用 Transition: scale-switch（旧元素向左淡出，新元素从右淡入） */
+.scale-switch-enter-active {
+  transition:
+    transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.35s ease;
+}
+.scale-switch-leave-active {
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease;
+}
+.scale-switch-enter-from {
+  opacity: 0;
+  transform: translateX(10px);
+}
+.scale-switch-leave-to {
+  opacity: 0;
+  transform: translateX(-10px);
 }
 
 /* 播放栏显示时，滚动条滑轨底部留出空间，避免被遮挡 */

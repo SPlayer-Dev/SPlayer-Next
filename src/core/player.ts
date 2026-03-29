@@ -117,19 +117,27 @@ export const addAndPlay = async (source: string): Promise<void> => {
 
 /** 恢复播放 */
 export const play = async (): Promise<void> => {
+  const status = useStatusStore();
+  const prev = status.state;
+  status.state = "playing";
+  playback.setPlaying(true);
   const result = await window.api.player.play();
-  if (handleResult(result)) {
-    useStatusStore().state = "playing";
-    playback.setPlaying(true);
+  if (!handleResult(result)) {
+    status.state = prev;
+    playback.setPlaying(false);
   }
 };
 
 /** 暂停播放 */
 export const pause = async (): Promise<void> => {
+  const status = useStatusStore();
+  const prev = status.state;
+  status.state = "paused";
+  playback.setPlaying(false);
   const result = await window.api.player.pause();
-  if (handleResult(result)) {
-    useStatusStore().state = "paused";
-    playback.setPlaying(false);
+  if (!handleResult(result)) {
+    status.state = prev;
+    playback.setPlaying(true);
   }
 };
 

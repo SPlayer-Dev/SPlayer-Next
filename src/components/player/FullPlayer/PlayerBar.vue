@@ -12,6 +12,15 @@ const { isPlaying, isLoading, position, duration, isExpanded, repeatMode, shuffl
 
 const hasTrack = computed(() => !!media.track);
 
+/** 当前歌词文本，播放中且有匹配歌词时显示 */
+const currentLyricText = computed(() => {
+  if (!isPlaying.value || media.lyricIndex < 0) return null;
+  const line = media.parsedLyric[media.lyricIndex];
+  if (!line) return null;
+  const text = line.words.map((w) => w.word).join("");
+  return line.translatedLyric ? `${text}（${line.translatedLyric}）` : text;
+});
+
 const togglePlay = (): void => {
   if (!hasTrack.value) return;
   if (isPlaying.value) {
@@ -64,16 +73,25 @@ const onSeekDragEnd = (value: number): void => {
         <Transition name="slide-left" mode="out-in">
           <div v-if="media.track" :key="media.track.id" class="min-w-0">
             <SMarquee class="font-bold text-base leading-snug">{{ media.track.title }}</SMarquee>
-            <div class="text-sm text-on-surface-variant mt-1 truncate">
-              <span
-                v-for="(artist, i) in media.track.artists"
-                :key="artist.id ?? i"
-                class="cursor-pointer transition-colors hover:text-primary"
+            <Transition name="slide-up" mode="out-in">
+              <SMarquee
+                v-if="currentLyricText"
+                :key="`lyric-${media.lyricIndex}`"
+                class="text-sm text-on-surface-variant mt-1"
               >
-                {{ artist.name }}
-                <span v-if="i < media.track.artists.length - 1" class="mx-1 opacity-60">/</span>
-              </span>
-            </div>
+                {{ currentLyricText }}
+              </SMarquee>
+              <div v-else key="artist" class="text-sm text-on-surface-variant mt-1 truncate">
+                <span
+                  v-for="(artist, i) in media.track.artists"
+                  :key="artist.id ?? i"
+                  class="cursor-pointer transition-colors hover:text-primary"
+                >
+                  {{ artist.name }}
+                  <span v-if="i < media.track.artists.length - 1" class="mx-1 opacity-60">/</span>
+                </span>
+              </div>
+            </Transition>
           </div>
         </Transition>
       </div>

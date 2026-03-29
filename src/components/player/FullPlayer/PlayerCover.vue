@@ -7,20 +7,14 @@ const { isPlaying } = storeToRefs(useStatusStore());
 
 // 高清封面 data URL（从主进程按需获取）
 const hdCover = ref<string | null>(null);
-const coverSrc = computed(() => hdCover.value || media.track?.cover || "/images/song.jpg");
-
-const coverStyle = computed(() => ({
-  backgroundImage: `url(${coverSrc.value})`,
-}));
+const coverSrc = computed(() => hdCover.value || media.track?.cover);
 
 // 歌曲切换时获取高清封面，拿到前保持旧封面
 watch(
   () => media.track?.id,
   async (newId) => {
-    if (!newId) {
-      hdCover.value = null;
-      return;
-    }
+    hdCover.value = null;
+    if (!newId) return;
 
     try {
       const result = await window.api.player.getCoverRaw();
@@ -35,7 +29,9 @@ watch(
 </script>
 
 <template>
-  <div :class="['player-cover', { playing: isPlaying }]" :style="coverStyle" />
+  <div :class="['player-cover', { playing: isPlaying }]">
+    <SImg :src="coverSrc" class="size-full" />
+  </div>
 </template>
 
 <style scoped>
@@ -46,13 +42,8 @@ watch(
   overflow: hidden;
   flex-shrink: 0;
   background-color: black;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
   transform: scale(0.9);
-  transition:
-    background-image 0.5s linear,
-    transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
   box-shadow: 0 0 20px 10px rgba(0, 0, 0, 0.1);
 }
 

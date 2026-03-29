@@ -162,5 +162,9 @@ export const findLyricIndex = (lines: LyricLine[], time: number, prevIndex = -1)
     const next = lines[result + 1];
     if (!next || time < next.startTime) return result;
   }
-  return -1;
+
+  // 跳过背景歌词行，往前找最近的主歌词行
+  while (result >= 0 && lines[result].isBG) result--;
+
+  return result;
 };
