@@ -24,9 +24,11 @@ export interface SettingItem {
   min?: number;
   max?: number;
   step?: number;
-  /** 默认值（显示恢复默认按钮） */
+  /** slider 刻度标记 */
+  marks?: Record<number, string>;
+  /** 默认值 */
   defaultValue?: unknown;
-  /** 覆盖描述的 i18n key（不传则使用 settings.{key}.description） */
+  /** 覆盖描述的 i18n key */
   descriptionKey?: string;
   /** 条件禁用 */
   disabled?: () => boolean;

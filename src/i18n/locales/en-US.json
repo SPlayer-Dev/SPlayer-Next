@@ -30,13 +30,17 @@
     "group": {
       "general": "General",
       "player": "Player",
+      "lyric": "Lyrics",
       "appearance": "Appearance",
       "system": "System"
     },
     "section": {
       "language": "Language",
-      "playback": "Playback",
-      "lyrics": "Lyrics",
+      "playback": "Player",
+      "lyricGeneral": "Content & Style",
+      "effectsDisplay": "Display Effects",
+      "effectsSpring": "Spring Animation",
+      "effectsLayout": "Layout & Opacity",
       "theme": "Theme",
       "layout": "Layout",
       "media": "Media Controls",
@@ -61,6 +65,85 @@
     "autoCenterCover": {
       "label": "Auto Center Cover",
       "description": "Center cover and hide lyric area when no lyrics available"
+    },
+    "adaptiveFontSize": {
+      "label": "Adaptive Font Size",
+      "description": "Auto-adjust lyric font size based on window size"
+    },
+    "fontSize": {
+      "label": "Font Size",
+      "description": "Effective when adaptive is off"
+    },
+    "fontWeight": {
+      "label": "Font Weight",
+      "description": "Lyric text weight"
+    },
+    "followCoverColor": {
+      "label": "Follow Cover Color",
+      "description": "Lyric color follows the current cover art"
+    },
+    "showTranslation": {
+      "label": "Show Translation",
+      "description": "Display translated lyrics"
+    },
+    "showRomanization": {
+      "label": "Show Romanization",
+      "description": "Display romanized lyrics"
+    },
+    "enableWordHighlight": {
+      "label": "Word Highlight",
+      "description": "Show word-by-word lyric highlight progress"
+    },
+    "enableFloatAnimation": {
+      "label": "Word Float",
+      "description": "Active words float up slightly"
+    },
+    "enableEmphasizeEffect": {
+      "label": "Emphasize Effect",
+      "description": "Scale and glow animation for long syllables"
+    },
+    "enableBlur": {
+      "label": "Line Blur",
+      "description": "Gradually blur lines further from the active line"
+    },
+    "hidePassedLines": {
+      "label": "Hide Passed Lines",
+      "description": "Auto-hide lyrics lines that have been played"
+    },
+    "springPreset": {
+      "label": "Spring Preset",
+      "description": "Physics preset for lyric scroll spring animation",
+      "default": "Default",
+      "smooth": "Smoother",
+      "responsive": "Fast Responsive",
+      "jello": "Jello",
+      "heavy": "Heavy & Slow",
+      "noBounce": "No Bounce",
+      "custom": "Custom"
+    },
+    "springMass": {
+      "label": "Mass",
+      "description": "Higher values make motion sluggish with more inertia"
+    },
+    "springDamping": {
+      "label": "Damping",
+      "description": "Higher values decay oscillation faster, smoother motion"
+    },
+    "springStiffness": {
+      "label": "Stiffness",
+      "description": "Higher values make spring snap back faster"
+    },
+    "alignPosition": {
+      "label": "Align Position",
+      "description": "Vertical position of active line (0 = top, 1 = bottom)"
+    },
+    "wordFadeWidth": {
+      "label": "Fade Width",
+      "description": "Gradient width ratio for word highlight mask"
+    },
+    "inactiveAlpha": {
+      "label": "Inactive Opacity",
+      "description": "Base opacity for non-active lines"
     },
     "playerBgType": {
       "label": "Player Background",

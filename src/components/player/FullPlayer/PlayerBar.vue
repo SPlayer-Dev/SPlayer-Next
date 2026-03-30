@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
-import { useThemeStore } from "@/stores/theme";
+import { extractColorFromImage } from "@/utils/color";
 import * as player from "@/core/player";
 
 const status = useStatusStore();
 const media = useMediaStore();
-const theme = useThemeStore();
 const { isPlaying, isLoading, position, duration, isExpanded, repeatMode, shuffleMode } =
   storeToRefs(status);
 
@@ -66,7 +65,7 @@ const onSeekDragEnd = (value: number): void => {
         <SImg
           :src="media.track?.cover"
           class="size-14 shrink-0 rounded-lg cursor-pointer"
-          @load="theme.updateCoverColor($event)"
+          @load="extractColorFromImage($event)"
           @click="isExpanded = true"
         />
         <!-- 歌曲信息：切歌时从左侧滑入 -->

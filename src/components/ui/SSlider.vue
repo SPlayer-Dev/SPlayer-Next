@@ -22,6 +22,8 @@ export interface SSliderProps {
   trackHeight?: number;
   /** 拖拽点大小（px） */
   thumbSize?: number;
+  /** 刻度标记：{ 值: 标签 }，在滑块下方显示 */
+  marks?: Record<number, string>;
 }
 
 const props = withDefaults(defineProps<SSliderProps>(), {
@@ -36,6 +38,7 @@ const props = withDefaults(defineProps<SSliderProps>(), {
   popoverOffset: 8,
   trackHeight: 4,
   thumbSize: 14,
+  marks: undefined,
 });
 
 const emit = defineEmits<{
@@ -53,12 +56,18 @@ const slots = defineSlots<{
   popover?(props: { value: number }): unknown;
 }>();
 
+/** 轨道 DOM 引用 */
 const trackRef = ref<HTMLElement>();
+/** 是否正在拖拽 */
 const isDragging = ref(false);
+/** 鼠标是否悬停在整个滑块上 */
 const isHovering = ref(false);
+/** 鼠标是否悬停在拖拽点上 */
 const isThumbHovering = ref(false);
+/** 拖拽过程中的临时值（松手前不同步给父组件） */
 const dragValue = ref(props.modelValue);
 
+/** 外部 modelValue 变化时同步到内部（拖拽中忽略，避免冲突） */
 watch(
   () => props.modelValue,
   (val) => {
@@ -66,8 +75,10 @@ watch(
   },
 );
 
+/** 当前显示值 */
 const displayValue = computed(() => (isDragging.value ? dragValue.value : props.modelValue));
 
+/** 进度百分比字符串 */
 const progressPercent = computed(() => {
   const range = props.max - props.min;
   if (range <= 0) return "0%";
@@ -75,13 +86,33 @@ const progressPercent = computed(() => {
   return `${Math.round(ratio * 10000) / 100}%`;
 });
 
+/** 拖拽点是否可见（始终显示 / hover / 拖拽中） */
 const thumbVisible = computed(() => props.alwaysShowThumb || isHovering.value || isDragging.value);
 
-/** popover 是否可见（只控制 opacity class，DOM 常驻不移除，CSS transition 自然过渡） */
+/** 将值转换为轨道上的百分比位置 */
+const toPercent = (value: number): number => ((value - props.min) / (props.max - props.min)) * 100;
+
+/** 点击刻度标记，将值设置到对应位置 */
+const onMarkClick = (value: number): void => {
+  if (props.disabled) return;
+  dragValue.value = value;
+  emit("change", value);
+  emit("update:modelValue", value);
+};
+
+/** popover 是否可见（拖拽点 hover 或拖拽中） */
 const popoverVisible = computed(
   () => props.showPopover && (isThumbHovering.value || isDragging.value),
 );
 
+/** step 的小数位数 */
+const stepDecimals = computed(() => {
+  const str = String(props.step);
+  const dot = str.indexOf(".");
+  return dot < 0 ? 0 : str.length - dot - 1;
+});
+
+/** 根据鼠标/触摸位置计算对应的 step 对齐值 */
 const calcValueFromEvent = (e: MouseEvent | TouchEvent): number => {
   const rect = trackRef.value?.getBoundingClientRect();
   if (!rect) return props.min;
@@ -89,14 +120,14 @@ const calcValueFromEvent = (e: MouseEvent | TouchEvent): number => {
   const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
   const rawValue = props.min + ratio * (props.max - props.min);
   const stepped = Math.round((rawValue - props.min) / props.step) * props.step + props.min;
-  return Math.max(props.min, Math.min(props.max, stepped));
+  return Math.max(props.min, Math.min(props.max, parseFloat(stepped.toFixed(stepDecimals.value))));
 };
 
+/** 按下：开始拖拽，捕获指针 */
 const onPointerDown = (e: PointerEvent): void => {
   if (props.disabled) return;
   e.preventDefault();
   (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-
   isDragging.value = true;
   const value = calcValueFromEvent(e);
   dragValue.value = value;
@@ -104,6 +135,7 @@ const onPointerDown = (e: PointerEvent): void => {
   emit("dragStart", value);
 };
 
+/** 移动：更新拖拽值 */
 const onPointerMove = (e: PointerEvent): void => {
   if (!isDragging.value) return;
   const value = calcValueFromEvent(e);
@@ -111,10 +143,10 @@ const onPointerMove = (e: PointerEvent): void => {
   emit("change", value);
 };
 
+/** 松手：结束拖拽，同步最终值给父组件 */
 const onPointerUp = (): void => {
   if (!isDragging.value) return;
   isDragging.value = false;
-  // 松手时才同步最终值给父组件
   emit("update:modelValue", dragValue.value);
   emit("dragEnd", dragValue.value);
 };
@@ -165,13 +197,29 @@ const onPointerUp = (): void => {
         :style="{
           width: `${thumbSize}px`,
           height: `${thumbSize}px`,
-          left: 'clamp(var(--s-slider-thumb-half), var(--s-slider-progress), calc(100% - var(--s-slider-thumb-half)))',
+          left: 'clamp(calc(var(--s-slider-thumb-half) - 2px), var(--s-slider-progress), calc(100% - var(--s-slider-thumb-half) + 2px))',
           translate: '-50% 0',
           background: 'var(--s-slider-thumb-bg, rgb(var(--s-primary)))',
         }"
         @mouseenter="isThumbHovering = true"
         @mouseleave="isThumbHovering = false"
       />
+    </div>
+
+    <!-- 刻度标记 -->
+    <div v-if="marks" class="relative w-full mt-1.5" :style="{ height: '18px' }">
+      <span
+        v-for="(label, key) in marks"
+        :key="key"
+        class="absolute text-xs text-on-surface-variant/50 leading-none select-none whitespace-nowrap cursor-pointer hover:text-on-surface-variant/80 transition-colors"
+        :style="{
+          left: `${toPercent(Number(key))}%`,
+          translate: toPercent(Number(key)) <= 0 ? '0 0' : toPercent(Number(key)) >= 100 ? '-100% 0' : '-50% 0',
+        }"
+        @click="onMarkClick(Number(key))"
+      >
+        {{ label }}
+      </span>
     </div>
 
     <!-- Popover -->

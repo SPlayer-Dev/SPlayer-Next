@@ -32,6 +32,10 @@ export const DEFAULTS = {
   enableFloatAnimation: false,
   /** 是否启用强调效果：缩放 + 辉光 + 正弦浮动 */
   enableEmphasizeEffect: false,
+  /** 是否显示翻译歌词 */
+  showTranslation: true,
+  /** 是否显示音译歌词 */
+  showRomanization: true,
 };
 
 /** 渲染器配置 */
@@ -66,6 +70,10 @@ export interface RendererConfig {
   enableFloatAnimation: boolean;
   /** 是否启用强调效果：缩放 + 辉光 + 正弦浮动（默认 true） */
   enableEmphasizeEffect: boolean;
+  /** 是否显示翻译歌词（默认 true） */
+  showTranslation: boolean;
+  /** 是否显示音译歌词（默认 true） */
+  showRomanization: boolean;
   /** 歌词行点击回调（传入该行起始时间，用于跳转播放进度） */
   onLineClick?: (timeMs: number) => void;
 }

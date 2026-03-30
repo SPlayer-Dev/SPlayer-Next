@@ -24,7 +24,6 @@ declare module 'vue' {
     DialogTrigger: typeof import('reka-ui')['DialogTrigger']
     EffectsLyrics: typeof import('./src/components/player/EffectsLyrics/index.vue')['default']
     FullPlayer: typeof import('./src/components/player/FullPlayer/index.vue')['default']
-    FullscreenPlayer: typeof import('./src/layouts/components/FullscreenPlayer.vue')['default']
     IconLucideCheck: typeof import('~icons/lucide/check')['default']
     IconLucideChevronDown: typeof import('~icons/lucide/chevron-down')['default']
     IconLucideCircleCheck: typeof import('~icons/lucide/circle-check')['default']

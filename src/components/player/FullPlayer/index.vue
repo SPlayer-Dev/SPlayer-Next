@@ -14,7 +14,7 @@ const { isPlaying, isLoading, position, duration, isExpanded, repeatMode, shuffl
   storeToRefs(status);
 
 /** 歌词渲染模式 */
-const lyricMode = computed(() => settings.player.lyricMode);
+const lyricMode = computed(() => settings.lyric.lyricMode);
 
 /** 歌词组件引用（两种模式共享同一接口） */
 const lyricRef = ref<InstanceType<typeof EffectsLyrics> | InstanceType<typeof SimpleLyrics>>();
@@ -62,6 +62,14 @@ const hasTrack = computed(() => !!media.track);
 const coverCentered = computed(
   () => settings.player.autoCenterCover && !media.lyricLoading && media.parsedLyric.length === 0,
 );
+
+/** 弹簧配置（从 store 三个独立值合成） */
+const springConfig = computed(() => ({
+  mass: settings.lyric.springMass,
+  damping: settings.lyric.springDamping,
+  stiffness: settings.lyric.springStiffness,
+}));
+
 
 const togglePlay = (): void => {
   if (!hasTrack.value) return;
@@ -145,8 +153,14 @@ const onSeekDragEnd = (value: number): void => {
 
         <!-- 右侧：歌词区域 -->
         <div
-          class="lyric-area absolute top-14 right-0 bottom-20 pr-20 w-[55%] text-[clamp(1.5rem,3.5vw,3rem)] font-bold transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          class="lyric-area absolute top-14 right-0 bottom-20 pr-20 w-[55%] transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
           :class="coverCentered ? 'opacity-0 pointer-events-none' : 'opacity-100'"
+          :style="{
+            fontSize: settings.lyric.adaptiveFontSize
+              ? `calc(${settings.lyric.fontSize} / 1080 * 100vh)`
+              : `${settings.lyric.fontSize}px`,
+            fontWeight: String(settings.lyric.fontWeight),
+          }"
         >
           <EffectsLyrics
             v-if="
@@ -157,6 +171,17 @@ const onSeekDragEnd = (value: number): void => {
             ref="lyricRef"
             :lyric-lines="media.parsedLyric"
             :playing="isPlaying"
+            :align-position="settings.lyric.alignPosition"
+            :word-fade-width="settings.lyric.wordFadeWidth"
+            :spring-config="springConfig"
+            :inactive-alpha="settings.lyric.inactiveAlpha"
+            :hide-passed-lines="settings.lyric.hidePassedLines"
+            :enable-blur="settings.lyric.enableBlur"
+            :enable-word-highlight="settings.lyric.enableWordHighlight"
+            :enable-float-animation="settings.lyric.enableFloatAnimation"
+            :enable-emphasize-effect="settings.lyric.enableEmphasizeEffect"
+            :show-translation="settings.lyric.showTranslation"
+            :show-romanization="settings.lyric.showRomanization"
             @seek="player.seek($event)"
           />
           <SimpleLyrics

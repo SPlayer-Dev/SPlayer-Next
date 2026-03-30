@@ -29,14 +29,18 @@
     "search": "搜索设置项...",
     "group": {
       "general": "常规设置",
-      "player": "播放器",
+      "player": "播放设置",
+      "lyric": "歌词设置",
       "appearance": "外观设置",
-      "system": "系统"
+      "system": "系统设置"
     },
     "section": {
       "language": "语言",
-      "playback": "播放",
-      "lyrics": "歌词",
+      "playback": "播放器",
+      "lyricGeneral": "内容样式",
+      "effectsDisplay": "显示效果",
+      "effectsSpring": "弹簧动画",
+      "effectsLayout": "布局与透明度",
       "theme": "主题与风格",
       "layout": "布局",
       "media": "媒体控制",
@@ -61,6 +65,85 @@
     "autoCenterCover": {
       "label": "自动居中封面",
       "description": "无歌词时自动居中封面并隐藏歌词区域"
+    },
+    "adaptiveFontSize": {
+      "label": "自适应字号",
+      "description": "歌词字号根据窗口大小自动调整"
+    },
+    "fontSize": {
+      "label": "歌词字号",
+      "description": "关闭自适应后生效"
+    },
+    "fontWeight": {
+      "label": "歌词字重",
+      "description": "歌词文字粗细"
+    },
+    "followCoverColor": {
+      "label": "跟随封面颜色",
+      "description": "歌词颜色跟随当前封面主色调"
+    },
+    "showTranslation": {
+      "label": "显示翻译",
+      "description": "显示歌词的翻译文本"
+    },
+    "showRomanization": {
+      "label": "显示音译",
+      "description": "显示歌词的音译文本"
+    },
+    "enableWordHighlight": {
+      "label": "逐字高亮",
+      "description": "逐字显示歌词高亮进度"
+    },
+    "enableFloatAnimation": {
+      "label": "逐字上浮",
+      "description": "播放到的文字向上微浮"
+    },
+    "enableEmphasizeEffect": {
+      "label": "强调效果",
+      "description": "长音节文字显示缩放和辉光动画"
+    },
+    "enableBlur": {
+      "label": "逐行模糊",
+      "description": "远离当前行的歌词逐渐模糊"
+    },
+    "hidePassedLines": {
+      "label": "隐藏已播放行",
+      "description": "播放过的歌词行自动隐藏"
+    },
+    "springPreset": {
+      "label": "弹簧预设",
+      "description": "歌词滚动动画的弹簧物理参数预设",
+      "default": "默认",
+      "smooth": "更平滑",
+      "responsive": "快速跟手",
+      "jello": "果冻感",
+      "heavy": "厚重缓慢",
+      "noBounce": "无弹跳",
+      "custom": "自定义"
+    },
+    "springMass": {
+      "label": "质量",
+      "description": "值越大运动越迟钝，惯性越大"
+    },
+    "springDamping": {
+      "label": "阻尼",
+      "description": "值越大振荡衰减越快，运动越平滑"
+    },
+    "springStiffness": {
+      "label": "刚度",
+      "description": "值越大弹簧回弹越快，频率越高"
+    },
+    "alignPosition": {
+      "label": "对齐位置",
+      "description": "当前行在歌词区域中的垂直位置（0 = 顶部，1 = 底部）"
+    },
+    "wordFadeWidth": {
+      "label": "渐变宽度",
+      "description": "逐字高亮掩码的渐变宽度比例"
+    },
+    "inactiveAlpha": {
+      "label": "非激活行透明度",
+      "description": "非当前行的基础透明度"
     },
     "playerBgType": {
       "label": "播放器背景",

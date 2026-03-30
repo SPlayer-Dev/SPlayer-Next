@@ -166,6 +166,10 @@ export class LyricRenderer {
   private enableFloatAnimation = DEFAULTS.enableFloatAnimation;
   /** 是否启用强调效果（缩放 + 辉光） */
   private enableEmphasizeEffect = DEFAULTS.enableEmphasizeEffect;
+  /** 是否显示翻译歌词 */
+  private showTranslation = DEFAULTS.showTranslation;
+  /** 是否显示音译歌词 */
+  private showRomanization = DEFAULTS.showRomanization;
 
   /** 容器尺寸变化观察器 */
   private containerResizeObserver: ResizeObserver;
@@ -329,6 +333,9 @@ export class LyricRenderer {
         mainDiv.appendChild(
           document.createTextNode(line.words.map((w) => w.word).join("")),
         );
+        // 给静态行也加统一 mask，让 --ba 对其生效，与逐字行透明度一致
+        mainDiv.style.setProperty("-webkit-mask-image", "linear-gradient(rgba(0,0,0,var(--ba)),rgba(0,0,0,var(--ba)))");
+        mainDiv.style.setProperty("mask-image", "linear-gradient(rgba(0,0,0,var(--ba)),rgba(0,0,0,var(--ba)))");
         this.wordMeasurements[i] = [];
         this.lineAnimTargets[i] = [];
       } else {
@@ -347,13 +354,13 @@ export class LyricRenderer {
       contentDiv.className = "lp-content";
       contentDiv.appendChild(mainDiv);
 
-      if (line.translatedLyric) {
+      if (this.showTranslation && line.translatedLyric) {
         const subDiv = document.createElement("div");
         subDiv.className = "lp-sub";
         subDiv.textContent = line.translatedLyric;
         contentDiv.appendChild(subDiv);
       }
-      if (line.romanLyric) {
+      if (this.showRomanization && line.romanLyric) {
         const subDiv = document.createElement("div");
         subDiv.className = "lp-sub";
         subDiv.textContent = line.romanLyric;
@@ -503,6 +510,10 @@ export class LyricRenderer {
       this.enableFloatAnimation = config.enableFloatAnimation;
     if (config.enableEmphasizeEffect != null)
       this.enableEmphasizeEffect = config.enableEmphasizeEffect;
+    if (config.showTranslation != null)
+      this.showTranslation = config.showTranslation;
+    if (config.showRomanization != null)
+      this.showRomanization = config.showRomanization;
 
     if (layoutDirty && this.lineElements.length > 0) {
       this.measureLineHeights();

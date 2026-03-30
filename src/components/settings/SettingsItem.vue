@@ -63,12 +63,17 @@ const descriptionText = computed(() =>
           :min="item.min ?? 0"
           :max="item.max ?? 100"
           :step="item.step ?? 1"
-          class="w-36"
+          :marks="item.marks"
+          :disabled="isDisabled"
+          class="w-full"
           :thumb-size="14"
           :track-height="4"
           always-show-thumb
+          show-popover
           @change="model = $event"
-        />
+        >
+          <template #popover="{ value }">{{ value }}</template>
+        </SSlider>
         <SButton
           v-else-if="item.type === 'button'"
           type="primary"

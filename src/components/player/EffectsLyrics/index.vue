@@ -86,6 +86,10 @@ const props = withDefaults(
      * @default false
      */
     enableEmphasizeEffect?: boolean;
+    /** 是否显示翻译歌词 @default true */
+    showTranslation?: boolean;
+    /** 是否显示音译歌词 @default true */
+    showRomanization?: boolean;
   }>(),
   {
     playing: false,
@@ -102,6 +106,8 @@ const props = withDefaults(
     enableWordHighlight: DEFAULTS.enableWordHighlight,
     enableFloatAnimation: DEFAULTS.enableFloatAnimation,
     enableEmphasizeEffect: DEFAULTS.enableEmphasizeEffect,
+    showTranslation: true,
+    showRomanization: true,
   },
 );
 
@@ -263,6 +269,23 @@ watch(
   () => props.enableEmphasizeEffect,
   (v) => {
     renderer?.setConfig({ enableEmphasizeEffect: v });
+    renderer?.setLyrics(props.lyricLines);
+  },
+);
+
+// 翻译/音译开关变化需要重建 DOM（影响 sub 行的创建）
+watch(
+  () => props.showTranslation,
+  (v) => {
+    renderer?.setConfig({ showTranslation: v });
+    renderer?.setLyrics(props.lyricLines);
+  },
+);
+
+watch(
+  () => props.showRomanization,
+  (v) => {
+    renderer?.setConfig({ showRomanization: v });
     renderer?.setLyrics(props.lyricLines);
   },
 );

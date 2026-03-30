@@ -228,8 +228,8 @@ onUnmounted(() => {
 .simple-lyrics-line {
   padding: 0.4em 1em;
   color: var(--lp-color, #fff);
-  font-size: var(--lp-font-size, inherit);
-  font-weight: var(--lp-font-weight, inherit);
+  font-size: inherit;
+  font-weight: inherit;
   opacity: 0.3;
   transition:
     opacity 0.35s ease,

@@ -2,7 +2,6 @@ import type { ThemeMode, ThemeSource } from "@/types/theme";
 import {
   generatePalette,
   applyThemeToDOM,
-  extractColorFromImage,
   DEFAULT_PRIMARY,
   SOLID_PALETTE_LIGHT,
   SOLID_PALETTE_DARK,
@@ -65,11 +64,6 @@ export const useThemeStore = defineStore(
       source.value = "custom";
     };
 
-    /** 从封面图片元素提取主色，更新 --s-cover 供播放器使用 */
-    const updateCoverColor = (img: HTMLImageElement | null): void => {
-      coverColor.value = img ? extractColorFromImage(img) : null;
-    };
-
     /** 设置颜色来源 */
     const setSource = (newSource: ThemeSource): void => {
       source.value = newSource;
@@ -94,7 +88,6 @@ export const useThemeStore = defineStore(
       activeColor,
       cycleMode,
       setCustomColor,
-      updateCoverColor,
       setSource,
       init,
     };

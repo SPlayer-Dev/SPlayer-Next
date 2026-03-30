@@ -28,8 +28,8 @@
   box-sizing: border-box;
   padding: var(--lp-line-padding, 0.4em 1em);
   color: var(--lp-color, #fff);
-  font-size: var(--lp-font-size, inherit);
-  font-weight: var(--lp-font-weight, inherit);
+  font-size: inherit;
+  font-weight: inherit;
   transform-origin: left;
   opacity: var(--lp-inactive-opacity, 0.3);
   contain: content;

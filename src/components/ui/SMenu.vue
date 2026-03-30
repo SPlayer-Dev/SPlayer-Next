@@ -50,7 +50,7 @@ const handleSelect = (item: SMenuItem) => {
       :class="[
         sizeClass.item,
         modelValue === item.key
-          ? 'bg-primary/10 text-primary font-medium'
+          ? 'bg-primary/10 text-primary'
           : 'text-on-surface-variant hover:bg-on-surface/5',
         item.disabled ? 'opacity-40 pointer-events-none' : '',
       ]"

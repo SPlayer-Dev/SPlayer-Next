@@ -7,6 +7,8 @@ import {
   type Theme,
 } from "@material/material-color-utilities";
 import type { ThemePalette } from "@/types/theme";
+import { useSettingsStore } from "@/stores/settings";
+import { useThemeStore } from "@/stores/theme";
 
 /** 默认主色 */
 export const DEFAULT_PRIMARY = "#6750a4";
@@ -102,14 +104,22 @@ export const SOLID_PALETTE_DARK: ThemePalette = {
 /**
  * 从图片元素提取主色 HEX
  * 缩放到 50×50 降低计算量，经 QuantizerCelebi 量化 + Score 评分
- * @returns 主色 HEX，单调图片返回 null
+ * @param img 封面图片元素，无封面传 null
  */
-export const extractColorFromImage = (img: HTMLImageElement): string | null => {
+export const extractColorFromImage = (img: HTMLImageElement | null): void => {
+  const themeStore = useThemeStore();
+  if (!img || !useSettingsStore().player.followCoverColor) {
+    themeStore.coverColor = null;
+    return;
+  }
   const canvas = document.createElement("canvas");
   canvas.width = 50;
   canvas.height = 50;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  if (!ctx) return null;
+  if (!ctx) {
+    themeStore.coverColor = null;
+    return;
+  }
   ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, 50, 50);
   const { data } = ctx.getImageData(0, 0, 50, 50);
   // RGBA → ARGB int
@@ -123,19 +133,25 @@ export const extractColorFromImage = (img: HTMLImageElement): string | null => {
   const top5 = sorted
     .slice(0, 5)
     .map(([argb]) => [(argb >> 16) & 0xff, (argb >> 8) & 0xff, argb & 0xff]);
-  if (top5.every((c) => Math.max(...c) - Math.min(...c) < 5)) return null;
+  if (top5.every((c) => Math.max(...c) - Math.min(...c) < 5)) {
+    themeStore.coverColor = null;
+    return;
+  }
   // Score 评分取最佳色
   const ranked = Score.score(new Map(sorted.slice(0, 50)));
   // 彩度检测：scored 色的 chroma 过低说明实际无有效彩色
   const scoredHct = Hct.fromInt(ranked[0]);
-  if (scoredHct.chroma < 10) return null;
+  if (scoredHct.chroma < 10) {
+    themeStore.coverColor = null;
+    return;
+  }
   // 经 Material 主题提取 secondary 色相后提亮至 tone 90
-  const theme: Theme = themeFromSourceColor(ranked[0]);
-  const { hue, chroma } = theme.palettes.secondary;
+  const materialTheme: Theme = themeFromSourceColor(ranked[0]);
+  const { hue, chroma } = materialTheme.palettes.secondary;
   // 释放 canvas GPU 资源
   canvas.width = 0;
   canvas.height = 0;
-  return argbToHex(Hct.from(hue, chroma, 90).toInt());
+  themeStore.coverColor = argbToHex(Hct.from(hue, chroma, 90).toInt());
 };
 
 /**
