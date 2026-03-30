@@ -40,7 +40,8 @@ pub fn init_logger(log_dir: &str, is_dev: bool) {
         return;
     }
 
-    let time_format = time::macros::format_description!("[hour]:[minute]:[second].[subsecond digits:3]");
+    let time_format =
+        time::macros::format_description!("[hour]:[minute]:[second].[subsecond digits:3]");
     let local_timer = LocalTime::new(time_format);
 
     let crate_name = env!("CARGO_PKG_NAME").replace('-', "_");
@@ -53,7 +54,11 @@ pub fn init_logger(log_dir: &str, is_dev: bool) {
         .with_timer(local_timer.clone())
         .with_filter(file_filter);
 
-    let stdout_level = if is_dev { LevelFilter::DEBUG } else { LevelFilter::WARN };
+    let stdout_level = if is_dev {
+        LevelFilter::DEBUG
+    } else {
+        LevelFilter::WARN
+    };
     let stdout_filter = Targets::new().with_target(&crate_name, stdout_level);
     let stdout_layer = fmt::layer()
         .with_writer(std::io::stdout)

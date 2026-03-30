@@ -18,11 +18,11 @@ use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
 };
 
+use super::{MediaThreadsafeFunction, SystemMediaControls};
 use crate::model::{
-    MediaEvent, MediaEventType, MetadataPayload, PlayModeParam, PlayStateParam,
-    PlaybackStatus, RepeatMode, TimelineParam,
+    MediaEvent, MediaEventType, MetadataPayload, PlayModeParam, PlayStateParam, PlaybackStatus,
+    RepeatMode, TimelineParam,
 };
-use super::{SystemMediaControls, MediaThreadsafeFunction};
 
 enum MprisCommand {
     UpdateMetadata(MetadataPayload),
@@ -68,10 +68,7 @@ impl LinuxImpl {
     }
 }
 
-fn setup_signals(
-    player: &Player,
-    handler: Arc<RwLock<Option<MediaThreadsafeFunction>>>,
-) {
+fn setup_signals(player: &Player, handler: Arc<RwLock<Option<MediaThreadsafeFunction>>>) {
     let dispatch = move |evt: MediaEvent| {
         if let Ok(guard) = handler.read()
             && let Some(tsfn) = guard.as_ref()
@@ -206,8 +203,12 @@ async fn handle_cmd(
             };
             player.set_playback_status(status).await.ok();
         }
-        MprisCommand::UpdatePlaybackRate(rate) => { player.set_rate(rate).await.ok(); }
-        MprisCommand::UpdateVolume(vol) => { player.set_volume(vol).await.ok(); }
+        MprisCommand::UpdatePlaybackRate(rate) => {
+            player.set_rate(rate).await.ok();
+        }
+        MprisCommand::UpdateVolume(vol) => {
+            player.set_volume(vol).await.ok();
+        }
         MprisCommand::UpdateTimeline(p) => {
             let pos = Time::from_millis(p.current_ms as i64);
             player.set_position(pos);
@@ -226,7 +227,10 @@ async fn handle_cmd(
         }
         MprisCommand::Enable => {}
         MprisCommand::Disable => {
-            player.set_playback_status(MprisPlaybackStatus::Stopped).await.ok();
+            player
+                .set_playback_status(MprisPlaybackStatus::Stopped)
+                .await
+                .ok();
             player.set_metadata(Metadata::new()).await.ok();
         }
     }
@@ -278,18 +282,41 @@ async fn run_mpris_loop(mut rx: UnboundedReceiver<MprisCommand>) -> Result<()> {
 }
 
 impl SystemMediaControls for LinuxImpl {
-    fn initialize(&self) -> Result<()> { Ok(()) }
-    fn enable(&self) -> Result<()> { self.send_cmd(MprisCommand::Enable); Ok(()) }
-    fn disable(&self) -> Result<()> { self.send_cmd(MprisCommand::Disable); Ok(()) }
-    fn shutdown(&self) -> Result<()> { self.send_cmd(MprisCommand::Shutdown); Ok(()) }
+    fn initialize(&self) -> Result<()> {
+        Ok(())
+    }
+    fn enable(&self) -> Result<()> {
+        self.send_cmd(MprisCommand::Enable);
+        Ok(())
+    }
+    fn disable(&self) -> Result<()> {
+        self.send_cmd(MprisCommand::Disable);
+        Ok(())
+    }
+    fn shutdown(&self) -> Result<()> {
+        self.send_cmd(MprisCommand::Shutdown);
+        Ok(())
+    }
     fn register_event_handler(&self, cb: MediaThreadsafeFunction) -> Result<()> {
         self.send_cmd(MprisCommand::RegisterCallback(cb));
         Ok(())
     }
-    fn update_metadata(&self, p: MetadataPayload) { self.send_cmd(MprisCommand::UpdateMetadata(p)); }
-    fn update_playback_status(&self, p: PlayStateParam) { self.send_cmd(MprisCommand::UpdatePlaybackStatus(p)); }
-    fn update_playback_rate(&self, r: f64) { self.send_cmd(MprisCommand::UpdatePlaybackRate(r)); }
-    fn update_volume(&self, v: f64) { self.send_cmd(MprisCommand::UpdateVolume(v)); }
-    fn update_timeline(&self, p: TimelineParam) { self.send_cmd(MprisCommand::UpdateTimeline(p)); }
-    fn update_play_mode(&self, p: PlayModeParam) { self.send_cmd(MprisCommand::UpdatePlayMode(p)); }
+    fn update_metadata(&self, p: MetadataPayload) {
+        self.send_cmd(MprisCommand::UpdateMetadata(p));
+    }
+    fn update_playback_status(&self, p: PlayStateParam) {
+        self.send_cmd(MprisCommand::UpdatePlaybackStatus(p));
+    }
+    fn update_playback_rate(&self, r: f64) {
+        self.send_cmd(MprisCommand::UpdatePlaybackRate(r));
+    }
+    fn update_volume(&self, v: f64) {
+        self.send_cmd(MprisCommand::UpdateVolume(v));
+    }
+    fn update_timeline(&self, p: TimelineParam) {
+        self.send_cmd(MprisCommand::UpdateTimeline(p));
+    }
+    fn update_play_mode(&self, p: PlayModeParam) {
+        self.send_cmd(MprisCommand::UpdatePlayMode(p));
+    }
 }

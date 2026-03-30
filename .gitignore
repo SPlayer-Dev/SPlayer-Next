@@ -6,6 +6,6 @@ out
 *.log*
 
 # Rust build artifacts
-native/*/target/
+**/target
 native/*/*.node
 native/*/index.d.ts

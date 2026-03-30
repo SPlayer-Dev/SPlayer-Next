@@ -16,11 +16,11 @@ use windows::{
     core::{HSTRING, Ref},
 };
 
+use super::{MediaThreadsafeFunction, SystemMediaControls};
 use crate::model::{
     MediaEvent, MediaEventType, MetadataPayload, PlayModeParam, PlayStateParam,
     PlaybackStatus as AppPlaybackStatus, RepeatMode, TimelineParam,
 };
-use super::{SystemMediaControls, MediaThreadsafeFunction};
 
 const HNS_PER_MS: f64 = 10_000.0;
 
@@ -86,7 +86,9 @@ fn with_ctx<F>(f: F) -> Result<()>
 where
     F: FnOnce(&mut SmtcContext) -> Result<()>,
 {
-    let mut guard = CTX.lock().map_err(|e| anyhow::anyhow!("SMTC 锁失败: {e}"))?;
+    let mut guard = CTX
+        .lock()
+        .map_err(|e| anyhow::anyhow!("SMTC 锁失败: {e}"))?;
     if let Some(ctx) = guard.as_mut() {
         f(ctx)
     } else {
@@ -134,16 +136,21 @@ impl SystemMediaControls for WindowsImpl {
                   args: Ref<SystemMediaTransportControlsButtonPressedEventArgs>| {
                 if let Some(args) = args.as_ref() {
                     let evt = match args.Button()? {
-                        SystemMediaTransportControlsButton::Play =>
-                            Some(MediaEvent::new(MediaEventType::Play)),
-                        SystemMediaTransportControlsButton::Pause =>
-                            Some(MediaEvent::new(MediaEventType::Pause)),
-                        SystemMediaTransportControlsButton::Stop =>
-                            Some(MediaEvent::new(MediaEventType::Stop)),
-                        SystemMediaTransportControlsButton::Next =>
-                            Some(MediaEvent::new(MediaEventType::NextTrack)),
-                        SystemMediaTransportControlsButton::Previous =>
-                            Some(MediaEvent::new(MediaEventType::PrevTrack)),
+                        SystemMediaTransportControlsButton::Play => {
+                            Some(MediaEvent::new(MediaEventType::Play))
+                        }
+                        SystemMediaTransportControlsButton::Pause => {
+                            Some(MediaEvent::new(MediaEventType::Pause))
+                        }
+                        SystemMediaTransportControlsButton::Stop => {
+                            Some(MediaEvent::new(MediaEventType::Stop))
+                        }
+                        SystemMediaTransportControlsButton::Next => {
+                            Some(MediaEvent::new(MediaEventType::NextTrack))
+                        }
+                        SystemMediaTransportControlsButton::Previous => {
+                            Some(MediaEvent::new(MediaEventType::PrevTrack))
+                        }
                         _ => None,
                     };
                     if let Some(e) = evt {
@@ -155,42 +162,36 @@ impl SystemMediaControls for WindowsImpl {
         );
         let button_pressed = smtc.ButtonPressed(&btn_handler)?;
 
-        let shuffle_changed = smtc.ShuffleEnabledChangeRequested(
-            &TypedEventHandler::new(move |_, _| {
+        let shuffle_changed =
+            smtc.ShuffleEnabledChangeRequested(&TypedEventHandler::new(move |_, _| {
                 dispatch(MediaEvent::new(MediaEventType::ToggleShuffle));
                 Ok(())
-            }),
-        )?;
+            }))?;
 
-        let repeat_changed = smtc.AutoRepeatModeChangeRequested(
-            &TypedEventHandler::new(move |_, _| {
+        let repeat_changed =
+            smtc.AutoRepeatModeChangeRequested(&TypedEventHandler::new(move |_, _| {
                 dispatch(MediaEvent::new(MediaEventType::ToggleRepeat));
                 Ok(())
-            }),
-        )?;
+            }))?;
 
-        let seek_requested = smtc.PlaybackPositionChangeRequested(
-            &TypedEventHandler::new(
-                move |_, args: Ref<PlaybackPositionChangeRequestedEventArgs>| {
-                    if let Some(args) = args.as_ref() {
-                        let pos_ms = (args.RequestedPlaybackPosition()?.Duration as f64) / HNS_PER_MS;
-                        dispatch(MediaEvent::seek(pos_ms));
-                    }
-                    Ok(())
-                },
-            ),
-        )?;
+        let seek_requested = smtc.PlaybackPositionChangeRequested(&TypedEventHandler::new(
+            move |_, args: Ref<PlaybackPositionChangeRequestedEventArgs>| {
+                if let Some(args) = args.as_ref() {
+                    let pos_ms = (args.RequestedPlaybackPosition()?.Duration as f64) / HNS_PER_MS;
+                    dispatch(MediaEvent::seek(pos_ms));
+                }
+                Ok(())
+            },
+        ))?;
 
-        let rate_changed = smtc.PlaybackRateChangeRequested(
-            &TypedEventHandler::new(
-                move |_, args: Ref<PlaybackRateChangeRequestedEventArgs>| {
-                    if let Some(args) = args.as_ref() {
-                        dispatch(MediaEvent::set_rate(args.RequestedPlaybackRate()?));
-                    }
-                    Ok(())
-                },
-            ),
-        )?;
+        let rate_changed = smtc.PlaybackRateChangeRequested(&TypedEventHandler::new(
+            move |_, args: Ref<PlaybackRateChangeRequestedEventArgs>| {
+                if let Some(args) = args.as_ref() {
+                    dispatch(MediaEvent::set_rate(args.RequestedPlaybackRate()?));
+                }
+                Ok(())
+            },
+        ))?;
 
         let context = SmtcContext {
             player,
@@ -245,7 +246,9 @@ impl SystemMediaControls for WindowsImpl {
     fn update_metadata(&self, payload: MetadataPayload) {
         let Ok(mut guard) = CTX.lock() else { return };
         let Some(ctx) = guard.as_mut() else { return };
-        if !ctx.is_enabled { return; }
+        if !ctx.is_enabled {
+            return;
+        }
 
         // 递增代数，旧的异步任务发现代数过期后自行放弃，
         // 不使用 abort() 以避免 WinRT InMemoryRandomAccessStream 得不到正确 Close
@@ -262,7 +265,9 @@ impl SystemMediaControls for WindowsImpl {
             let thumb = make_cover_stream(cover_data).await;
             let _ = with_ctx(|inner| {
                 // 代数过期说明有更新的 update_metadata 已发起，放弃本次更新
-                if inner.cover_generation != generation || !inner.is_enabled { return Ok(()); }
+                if inner.cover_generation != generation || !inner.is_enabled {
+                    return Ok(());
+                }
                 let smtc = inner.smtc()?;
                 let updater = smtc.DisplayUpdater()?;
                 updater.SetType(MediaPlaybackType::Music)?;
@@ -333,7 +338,9 @@ impl SystemMediaControls for WindowsImpl {
     fn update_play_mode(&self, payload: PlayModeParam) {
         TOKIO_RT.spawn(async move {
             let _ = with_ctx(|ctx| {
-                if !ctx.is_enabled { return Ok(()); }
+                if !ctx.is_enabled {
+                    return Ok(());
+                }
                 let smtc = ctx.smtc()?;
                 smtc.SetShuffleEnabled(payload.shuffle)?;
                 let mode = match payload.repeat {

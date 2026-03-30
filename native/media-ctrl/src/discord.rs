@@ -45,7 +45,12 @@ struct ActivityData {
 impl ActivityData {
     fn from_meta(meta: MetadataPayload) -> Self {
         let cover_url = Self::process_cover(meta.cover_url.as_deref());
-        Self { meta, status: PlaybackStatus::Paused, current_ms: 0.0, cover_url }
+        Self {
+            meta,
+            status: PlaybackStatus::Paused,
+            current_ms: 0.0,
+            cover_url,
+        }
     }
 
     fn set_meta(&mut self, meta: MetadataPayload) {
@@ -81,9 +86,13 @@ struct Worker {
 impl Default for Worker {
     fn default() -> Self {
         Self {
-            client: None, data: None, enabled: false,
-            retry_cd: 0, last_end_ts: None,
-            show_paused: false, display_mode: DiscordDisplayMode::Name,
+            client: None,
+            data: None,
+            enabled: false,
+            retry_cd: 0,
+            last_end_ts: None,
+            show_paused: false,
+            display_mode: DiscordDisplayMode::Name,
         }
     }
 }
@@ -91,11 +100,19 @@ impl Default for Worker {
 impl Worker {
     fn handle(&mut self, msg: Msg) {
         match msg {
-            Msg::Enable => { self.enabled = true; self.retry_cd = 0; }
-            Msg::Disable => { self.enabled = false; self.disconnect(); }
+            Msg::Enable => {
+                self.enabled = true;
+                self.retry_cd = 0;
+            }
+            Msg::Disable => {
+                self.enabled = false;
+                self.disconnect();
+            }
             Msg::Config(c) => {
                 self.show_paused = c.show_when_paused;
-                if let Some(m) = c.display_mode { self.display_mode = m; }
+                if let Some(m) = c.display_mode {
+                    self.display_mode = m;
+                }
                 self.last_end_ts = None;
             }
             Msg::Metadata(m) => {
@@ -114,7 +131,9 @@ impl Worker {
                 }
             }
             Msg::Timeline(t) => {
-                if let Some(d) = &mut self.data { d.current_ms = t.current_ms; }
+                if let Some(d) = &mut self.data {
+                    d.current_ms = t.current_ms;
+                }
             }
         }
     }
@@ -128,7 +147,10 @@ impl Worker {
     }
 
     fn connect(&mut self) {
-        if self.retry_cd > 0 { self.retry_cd -= 1; return; }
+        if self.retry_cd > 0 {
+            self.retry_cd -= 1;
+            return;
+        }
         let mut client = DiscordIpcClient::new(APP_ID);
         match client.connect() {
             Ok(()) => {
@@ -137,7 +159,10 @@ impl Worker {
                 self.last_end_ts = None;
             }
             Err(_) => {
-                debug!(cooldown = RECONNECT_COOLDOWN, "Discord IPC 连接失败，进入冷却");
+                debug!(
+                    cooldown = RECONNECT_COOLDOWN,
+                    "Discord IPC 连接失败，进入冷却"
+                );
                 self.retry_cd = RECONNECT_COOLDOWN;
             }
         }
@@ -145,17 +170,30 @@ impl Worker {
 
     fn sync(&mut self) {
         if !self.enabled {
-            if self.client.is_some() { self.disconnect(); }
+            if self.client.is_some() {
+                self.disconnect();
+            }
             return;
         }
         if self.data.is_none() {
-            if let Some(c) = &mut self.client { let _ = c.clear_activity(); self.last_end_ts = None; }
+            if let Some(c) = &mut self.client {
+                let _ = c.clear_activity();
+                self.last_end_ts = None;
+            }
             return;
         }
-        if self.client.is_none() { self.connect(); }
+        if self.client.is_none() {
+            self.connect();
+        }
 
         if let (Some(client), Some(data)) = (&mut self.client, &self.data) {
-            if !Self::do_update(client, data, &mut self.last_end_ts, self.show_paused, self.display_mode) {
+            if !Self::do_update(
+                client,
+                data,
+                &mut self.last_end_ts,
+                self.show_paused,
+                self.display_mode,
+            ) {
                 self.disconnect();
             }
         }
@@ -195,7 +233,9 @@ impl Worker {
         match data.status {
             PlaybackStatus::Paused => {
                 if !show_paused {
-                    if let Err(_) = client.clear_activity() { return false; }
+                    if let Err(_) = client.clear_activity() {
+                        return false;
+                    }
                     *last_end = None;
                     return true;
                 }
@@ -222,7 +262,9 @@ impl Worker {
                 {
                     let (s, e) = playing_timestamps(data.current_ms, dur);
                     if let Some(prev) = last_end {
-                        if (*prev - e).abs() < TIMESTAMP_THRESHOLD_MS { return true; }
+                        if (*prev - e).abs() < TIMESTAMP_THRESHOLD_MS {
+                            return true;
+                        }
                     }
                     activity = activity.timestamps(Timestamps::new().start(s).end(e));
                     *last_end = Some(e);
@@ -234,7 +276,9 @@ impl Worker {
         }
 
         if should_send {
-            if let Err(_) = client.set_activity(activity) { return false; }
+            if let Err(_) = client.set_activity(activity) {
+                return false;
+            }
         }
         true
     }
@@ -248,7 +292,9 @@ fn now_ms() -> i64 {
 }
 
 fn playing_timestamps(current: f64, duration: f64) -> (i64, i64) {
-    if current >= duration { return (0, 0); }
+    if current >= duration {
+        return (0, 0);
+    }
     let now = now_ms();
     let remaining = (duration as i64 - current as i64).max(0);
     let end = now + remaining;
@@ -266,9 +312,14 @@ fn background_loop(rx: &Receiver<Msg>) {
     let mut worker = Worker::default();
     loop {
         match rx.recv_timeout(Duration::from_secs(1)) {
-            Ok(msg) => { worker.handle(msg); worker.sync(); }
+            Ok(msg) => {
+                worker.handle(msg);
+                worker.sync();
+            }
             Err(mpsc::RecvTimeoutError::Timeout) => {
-                if worker.client.is_none() { worker.sync(); }
+                if worker.client.is_none() {
+                    worker.sync();
+                }
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
         }
@@ -277,7 +328,9 @@ fn background_loop(rx: &Receiver<Msg>) {
 
 pub fn init() {
     let (tx, rx) = mpsc::channel();
-    if let Ok(mut g) = SENDER.lock() { *g = Some(tx); }
+    if let Ok(mut g) = SENDER.lock() {
+        *g = Some(tx);
+    }
     thread::spawn(move || background_loop(&rx));
     info!("Discord RPC 后台线程已启动");
 }
@@ -285,12 +338,26 @@ pub fn init() {
 fn send(msg: Msg) {
     if let Ok(g) = SENDER.lock()
         && let Some(tx) = g.as_ref()
-    { let _ = tx.send(msg); }
+    {
+        let _ = tx.send(msg);
+    }
 }
 
-pub fn enable() { send(Msg::Enable); }
-pub fn disable() { send(Msg::Disable); }
-pub fn update_config(c: DiscordConfig) { send(Msg::Config(c)); }
-pub fn update_metadata(p: MetadataPayload) { send(Msg::Metadata(p)); }
-pub fn update_play_state(p: PlayStateParam) { send(Msg::PlayState(p)); }
-pub fn update_timeline(p: TimelineParam) { send(Msg::Timeline(p)); }
+pub fn enable() {
+    send(Msg::Enable);
+}
+pub fn disable() {
+    send(Msg::Disable);
+}
+pub fn update_config(c: DiscordConfig) {
+    send(Msg::Config(c));
+}
+pub fn update_metadata(p: MetadataPayload) {
+    send(Msg::Metadata(p));
+}
+pub fn update_play_state(p: PlayStateParam) {
+    send(Msg::PlayState(p));
+}
+pub fn update_timeline(p: TimelineParam) {
+    send(Msg::Timeline(p));
+}

@@ -9,23 +9,33 @@ crate-type = ["cdylib"]
 [dependencies]
 napi = { version = "3.8", features = ["napi9", "serde-json"] }
 napi-derive = "3.5"
-ffmpeg-next = { version = "8", default-features = false, features = ["codec", "format", "software-resampling", "static"] }
+ffmpeg-next = { version = "8", default-features = false, features = [
+  "codec",
+  "format",
+  "software-resampling",
+  "static",
+] }
 rodio = { version = "0.20", default-features = false }
 cpal = "0.15"
 parking_lot = "0.12"
 anyhow = "1"
-image = { version = "0.25", default-features = false, features = ["jpeg", "png", "bmp", "webp"] }
+image = { version = "0.25", default-features = false, features = [
+  "jpeg",
+  "png",
+  "bmp",
+  "webp",
+] }
 rustfft = "6"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "local-time"] }
+tracing-subscriber = { version = "0.3", features = [
+  "env-filter",
+  "local-time",
+] }
 tracing-appender = "0.2"
 time = { version = "0.3", features = ["macros", "formatting"] }
 
 [build-dependencies]
 napi-build = "2.3"
-
-[patch.crates-io]
-ffmpeg-sys-next = { git = "https://github.com/apoint123/rust-ffmpeg-sys" }
 
 [lints.clippy]
 all = { level = "deny", priority = -1 }

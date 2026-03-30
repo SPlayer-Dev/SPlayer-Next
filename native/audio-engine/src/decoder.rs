@@ -38,7 +38,11 @@ unsafe fn extract_stream_info(
     let original_sample_rate = (*p).sample_rate as u32;
     let bits_per_raw = (*p).bits_per_raw_sample as u32;
     let bits_per_coded = (*p).bits_per_coded_sample as u32;
-    let bits_per_sample = if bits_per_raw > 0 { bits_per_raw } else { bits_per_coded };
+    let bits_per_sample = if bits_per_raw > 0 {
+        bits_per_raw
+    } else {
+        bits_per_coded
+    };
     (bit_rate, original_sample_rate, bits_per_sample)
 }
 /// 重试间隔（毫秒）
@@ -77,10 +81,7 @@ unsafe impl Send for DecoderData {}
 ///
 /// 仅打开文件头提取信息，不创建解码器和重采样器，内存开销极小。
 /// 歌词在 `start_decode` 中随完整加载一起提取。
-pub fn probe_metadata(
-    source: &str,
-    cover_cache_dir: Option<&str>,
-) -> Result<AudioMetadata> {
+pub fn probe_metadata(source: &str, cover_cache_dir: Option<&str>) -> Result<AudioMetadata> {
     let input_ctx = open_input(source)?;
 
     let stream = input_ctx
@@ -104,8 +105,8 @@ pub fn probe_metadata(
     let album = metadata_dict.get("album").map(ToString::to_string);
 
     // 只提取封面，跳过歌词（歌词在 load 播放时再读取）
-    let cover = cover_cache_dir
-        .and_then(|dir| metadata::extract_cover_thumbnail(&input_ctx, source, dir));
+    let cover =
+        cover_cache_dir.and_then(|dir| metadata::extract_cover_thumbnail(&input_ctx, source, dir));
 
     // SAFETY: input_ctx 在此作用域内有效，stream 引用自 input_ctx
     let (bit_rate, original_sample_rate, bits_per_sample) =
@@ -169,8 +170,8 @@ pub fn start_decode(
     let album = metadata_dict.get("album").map(ToString::to_string);
 
     // 在同一个 input_ctx 上提取封面和内嵌歌词（不需要重新打开文件）
-    let cover = cover_cache_dir
-        .and_then(|dir| metadata::extract_cover_thumbnail(&input_ctx, source, dir));
+    let cover =
+        cover_cache_dir.and_then(|dir| metadata::extract_cover_thumbnail(&input_ctx, source, dir));
     let cover_raw = metadata::read_attached_pic(&input_ctx);
     let embedded_lyric = metadata::extract_embedded_lyric(&input_ctx);
     let external_lyrics = metadata::find_all_external_lyrics(source);
@@ -249,10 +250,7 @@ pub fn start_decode(
 }
 
 /// 用已有的 DecoderData 继续解码（seek 后复用）
-pub fn resume_decode(
-    data: DecoderData,
-    shared: Arc<Shared>,
-) -> JoinHandle<DecoderData> {
+pub fn resume_decode(data: DecoderData, shared: Arc<Shared>) -> JoinHandle<DecoderData> {
     thread::spawn(move || {
         let mut data = data;
         run_decoding_loop(&mut data, &shared);
