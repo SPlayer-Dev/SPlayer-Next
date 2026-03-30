@@ -44,6 +44,9 @@ export const useSettingModel = (binding: {
 
   return computed({
     get: () => getByPath(store, binding.path),
-    set: (v) => setByPath(store as Record<string, any>, binding.path, v),
+    set: (v) => {
+      setByPath(store as Record<string, any>, binding.path, v);
+      store.afterLocalChange(binding.path, v);
+    },
   });
 };

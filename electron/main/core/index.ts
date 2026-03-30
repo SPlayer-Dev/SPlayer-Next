@@ -3,7 +3,7 @@ import path from "node:path";
 import { electronApp, optimizer } from "@electron-toolkit/utils";
 import { createMainWindow } from "../window";
 import { registerIpcHandlers } from "../ipc";
-import { mediaService } from "../services/media";
+import { init as initMedia, shutdown as shutdownMedia } from "../services/media";
 import { coverCacheDir } from "../utils/config";
 import { coreLog, initLogger } from "../utils/logger";
 
@@ -68,7 +68,7 @@ export const initApp = (): void => {
     registerIpcHandlers();
 
     // 初始化系统媒体控件
-    mediaService.init();
+    initMedia();
 
     // 创建主窗口
     createMainWindow();
@@ -89,6 +89,6 @@ export const initApp = (): void => {
   // 退出前清理原生模块资源
   app.on("before-quit", () => {
     coreLog.info("应用即将退出，清理资源");
-    mediaService.shutdown();
+    shutdownMedia();
   });
 };

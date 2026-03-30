@@ -3,6 +3,9 @@ import type { SystemConfig } from "../types/settings";
 /** 默认配置 */
 export const defaultSystemConfig: SystemConfig = {
   player: {
+    autoPlay: false,
+    rememberLastTrack: true,
+    fadeEnabled: true,
     fadeDuration: 200,
     outputDevice: null,
     volume: 1,

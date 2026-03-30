@@ -6,7 +6,7 @@ import { coverCacheDir } from "../utils/config";
 import { broadcast } from "../utils/broadcast";
 import { toCoverUrl } from "../utils/protocol";
 import { toMs } from "../utils/time";
-import { mediaService } from "../services/media";
+import * as mediaService from "../services/media";
 import { getThumbar } from "../services/thumbar";
 import { setTraySongName, setTrayPlayState, setTrayPlayMode } from "../services/tray";
 import { getMainWindow } from "../window";
@@ -537,3 +537,4 @@ export const registerPlayerIpc = (): void => {
   };
   powerMonitor.on("resume", resumeHandler);
 };
+

@@ -28,6 +28,7 @@ const isDisabled = computed(() => props.item.disabled?.() ?? false);
 const descriptionText = computed(() =>
   t(props.item.descriptionKey ?? `settings.${props.item.key}.description`),
 );
+
 </script>
 
 <template>

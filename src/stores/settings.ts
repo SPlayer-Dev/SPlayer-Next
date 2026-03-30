@@ -40,31 +40,7 @@ export const useSettingsStore = defineStore(
       inactiveAlpha: 0.2,
     });
 
-    /** 选择弹簧预设时自动填充参数 */
-    watch(
-      () => lyric.springPreset,
-      (preset: SpringPreset) => {
-        if (preset === "custom") return;
-        const params = SPRING_PRESETS[preset];
-        lyric.springMass = params.mass;
-        lyric.springDamping = params.damping;
-        lyric.springStiffness = params.stiffness;
-      },
-    );
-
-    /** 手动修改弹簧参数时自动切换为自定义预设 */
-    watch(
-      () => [lyric.springMass, lyric.springDamping, lyric.springStiffness],
-      ([mass, damping, stiffness]) => {
-        if (lyric.springPreset === "custom") return;
-        const params = SPRING_PRESETS[lyric.springPreset];
-        if (mass !== params.mass || damping !== params.damping || stiffness !== params.stiffness) {
-          lyric.springPreset = "custom";
-        }
-      },
-    );
-
-    /** 后端配置（不持久化，从主进程同步） */
+    /** 系统配置 - 传递主进程 */
     const system = reactive<SystemConfig>(structuredClone(defaultSystemConfig));
 
     /** 从主进程拉取后端配置 */
@@ -78,6 +54,20 @@ export const useSettingsStore = defineStore(
     const setSystem = async (keyPath: string, value: unknown): Promise<void> => {
       await window.api.config.set(keyPath, value);
       await syncSystem();
+      // 后处理
+      if (keyPath === "player.fadeEnabled" || keyPath === "player.fadeDuration") {
+        await window.api.player.setFadeDuration(system.player.fadeEnabled ? system.player.fadeDuration : 0);
+      }
+    };
+
+    /** 本地配置写入后处理 */
+    const afterLocalChange = (path: string, value: unknown): void => {
+      if (path === "lyric.springPreset" && value !== "custom") {
+        const params = SPRING_PRESETS[value as Exclude<SpringPreset, "custom">];
+        lyric.springMass = params.mass;
+        lyric.springDamping = params.damping;
+        lyric.springStiffness = params.stiffness;
+      }
     };
 
     return {
@@ -87,6 +77,7 @@ export const useSettingsStore = defineStore(
       system,
       syncSystem,
       setSystem,
+      afterLocalChange,
     };
   },
   {

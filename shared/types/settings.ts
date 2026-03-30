@@ -1,6 +1,12 @@
 /** 播放器配置 */
 export interface PlayerSettings {
-  /** 暂停/恢复渐变时长（毫秒），0 禁用 */
+  /** 加载后自动播放 */
+  autoPlay: boolean;
+  /** 记忆上次播放的歌曲 */
+  rememberLastTrack: boolean;
+  /** 是否启用渐入渐出 */
+  fadeEnabled: boolean;
+  /** 渐入渐出时长（毫秒） */
   fadeDuration: number;
   /** 输出设备名称，null 为系统默认 */
   outputDevice: string | null;

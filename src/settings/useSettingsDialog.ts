@@ -1,7 +1,7 @@
-import { ref } from "vue";
+import { settingsSchema } from "@/settings/schema";
 
 const open = ref(false);
-const initialCategory = ref("player");
+const initialCategory = ref(settingsSchema[0].id);
 const initialHighlight = ref<string>();
 
 /**

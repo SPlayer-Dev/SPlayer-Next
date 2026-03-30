@@ -1,10 +1,12 @@
 import type { PlayerEvent, PlayerState, IpcResponse, Track } from "@shared/types/player";
 import type { RepeatMode, ShuffleMode } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
+import { useSettingsStore } from "@/stores/settings";
 import { useStatusStore } from "@/stores/status";
 import * as queue from "@/stores/queue";
 import * as playback from "@/services/playback";
 import { loadAudio } from "@/services/audioLoader";
+import { extractColorFromImage } from "@/utils/color";
 
 /**
  * 处理 IPC 返回结果，失败时写入 error
@@ -58,6 +60,8 @@ export const load = async (source: string, autoPlay = true): Promise<Track | nul
       media.setTrack(data.track, data.detail);
       // 歌词后台加载，不阻塞播放
       media.loadLyric();
+      // 无封面时清空封面主色，避免残留上一首的颜色
+      if (!data.track.cover) extractColorFromImage(null);
       // 更新播放状态和进度
       const dur = data.track.duration;
       status.duration = dur;
@@ -472,19 +476,24 @@ export const initPlayer = async (): Promise<void> => {
   if (initialized) return;
   initialized = true;
   console.log("[player] init");
+  // 先从主进程同步后端配置，确保 system 设置可用
+  const settings = useSettingsStore();
+  await settings.syncSystem();
   await queue.restoreQueue();
   const status = useStatusStore();
   // 恢复上次的音量和播放模式到主进程
   await window.api.player.setVolume(status.volume);
   syncPlayMode();
-  // 恢复上次的歌曲：load 获取元数据和歌词，不自动播放
+  // 应用渐入渐出配置
+  const { fadeEnabled, fadeDuration } = settings.system.player;
+  await window.api.player.setFadeDuration(fadeEnabled ? fadeDuration : 0);
   const lastTrack = status.currentTrack;
   if (lastTrack?.path) {
     const lastPosition = status.position;
-    // autoPlay=false，主进程 load 后立即暂停，不会有声音
-    await load(lastTrack.path, false);
-    // seek 到上次位置
-    if (lastPosition > 0) {
+    // 根据设置决定启动时是否自动播放
+    await load(lastTrack.path, settings.system.player.autoPlay);
+    // 记忆上次进度时 seek 到上次位置
+    if (settings.system.player.rememberLastTrack && lastPosition > 0) {
       await seek(lastPosition);
     }
   } else {
