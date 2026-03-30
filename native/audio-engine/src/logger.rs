@@ -3,11 +3,11 @@ use std::{fs, path::PathBuf, sync::OnceLock};
 use tracing::trace;
 use tracing_appender::{non_blocking::WorkerGuard, rolling::RollingFileAppender};
 use tracing_subscriber::{
-    Layer,
     filter::{LevelFilter, Targets},
     fmt::{self, time::LocalTime},
     layer::SubscriberExt,
     util::SubscriberInitExt,
+    Layer,
 };
 
 static LOG_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
@@ -40,7 +40,8 @@ pub fn init_logger(log_dir: &str, is_dev: bool) {
         return;
     }
 
-    let time_format = time::macros::format_description!("[hour]:[minute]:[second].[subsecond digits:3]");
+    let time_format =
+        time::macros::format_description!("[hour]:[minute]:[second].[subsecond digits:3]");
     let local_timer = LocalTime::new(time_format);
 
     let crate_name = env!("CARGO_PKG_NAME").replace('-', "_");
@@ -55,7 +56,11 @@ pub fn init_logger(log_dir: &str, is_dev: bool) {
         .with_filter(file_filter);
 
     // 控制台层：紧凑单行，不带文件路径，贴近 electron-log 风格
-    let stdout_level = if is_dev { LevelFilter::DEBUG } else { LevelFilter::WARN };
+    let stdout_level = if is_dev {
+        LevelFilter::DEBUG
+    } else {
+        LevelFilter::WARN
+    };
     let stdout_filter = Targets::new().with_target(&crate_name, stdout_level);
     let stdout_layer = fmt::layer()
         .with_writer(std::io::stdout)

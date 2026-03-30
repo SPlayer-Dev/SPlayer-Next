@@ -7,3 +7,8 @@ indent_size = 2
 end_of_line = lf
 insert_final_newline = true
 trim_trailing_whitespace = true
+
+# 针对 Rust 文件的特定设置
+[*.rs]
+# Rust 代码惯例使用 4 个空格缩进
+indent_size = 4

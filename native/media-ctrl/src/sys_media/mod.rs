@@ -6,9 +6,7 @@ use napi::{
     threadsafe_function::{ThreadsafeFunction, UnknownReturnValue},
 };
 
-use crate::model::{
-    MediaEvent, MetadataPayload, PlayModeParam, PlayStateParam, TimelineParam,
-};
+use crate::model::{MediaEvent, MetadataPayload, PlayModeParam, PlayStateParam, TimelineParam};
 
 pub type MediaThreadsafeFunction =
     ThreadsafeFunction<MediaEvent, UnknownReturnValue, MediaEvent, Status, false>;
@@ -70,11 +68,21 @@ struct NoOpControls;
 
 #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
 impl SystemMediaControls for NoOpControls {
-    fn initialize(&self) -> Result<()> { Ok(()) }
-    fn enable(&self) -> Result<()> { Ok(()) }
-    fn disable(&self) -> Result<()> { Ok(()) }
-    fn shutdown(&self) -> Result<()> { Ok(()) }
-    fn register_event_handler(&self, _: MediaThreadsafeFunction) -> Result<()> { Ok(()) }
+    fn initialize(&self) -> Result<()> {
+        Ok(())
+    }
+    fn enable(&self) -> Result<()> {
+        Ok(())
+    }
+    fn disable(&self) -> Result<()> {
+        Ok(())
+    }
+    fn shutdown(&self) -> Result<()> {
+        Ok(())
+    }
+    fn register_event_handler(&self, _: MediaThreadsafeFunction) -> Result<()> {
+        Ok(())
+    }
     fn update_metadata(&self, _: MetadataPayload) {}
     fn update_playback_status(&self, _: PlayStateParam) {}
     fn update_playback_rate(&self, _: f64) {}

@@ -160,9 +160,7 @@ impl AudioPlayer {
     /// 注册事件回调，Rust 侧会在状态变化、位置更新、播放结束时主动调用
     #[napi(ts_args_type = "callback: (event: JsPlayerEvent) => void")]
     pub fn on_event(&self, callback: Function<JsPlayerEvent, ()>) -> Result<()> {
-        let tsfn = callback
-            .build_threadsafe_function()
-            .build()?;
+        let tsfn = callback.build_threadsafe_function().build()?;
 
         // 用闭包包裹 tsfn，在内部做 PlayerEvent → JsPlayerEvent 转换
         let emitter: player::EventEmitter = Arc::new(move |event: PlayerEvent| {
@@ -206,7 +204,11 @@ impl AudioPlayer {
     /// 加载音频源，返回完整元信息（含封面路径和歌词）
     /// @param auto_play - 是否自动播放，false 时加载后立即暂停
     #[napi]
-    pub fn load(&self, source: String, #[napi(ts_arg_type = "boolean")] auto_play: Option<bool>) -> Result<JsMusicMetadata> {
+    pub fn load(
+        &self,
+        source: String,
+        #[napi(ts_arg_type = "boolean")] auto_play: Option<bool>,
+    ) -> Result<JsMusicMetadata> {
         let auto_play = auto_play.unwrap_or(true);
         info!(source = %source, auto_play, "加载音频源");
         let mut player = self.inner.lock();

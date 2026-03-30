@@ -1,0 +1,7 @@
+[workspace]
+members = ["./native/audio-engine", "./native/media-ctrl"]
+
+resolver = "3"
+
+[patch.crates-io]
+ffmpeg-sys-next = { git = "https://github.com/apoint123/rust-ffmpeg-sys" }

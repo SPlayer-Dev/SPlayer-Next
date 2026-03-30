@@ -276,7 +276,9 @@ impl InnerPlayer {
                 // 检测播放结束：all_consumed 表示 rodio 侧已消费完所有数据
                 if shared.is_all_consumed() {
                     cb(PlayerEvent::Ended);
-                    cb(PlayerEvent::StateChanged { state: PlayerState::Stopped });
+                    cb(PlayerEvent::StateChanged {
+                        state: PlayerState::Stopped,
+                    });
                     break;
                 }
 
@@ -441,12 +443,16 @@ impl InnerPlayer {
 
         if auto_play {
             self.state = PlayerState::Playing;
-            self.emit(PlayerEvent::StateChanged { state: PlayerState::Playing });
+            self.emit(PlayerEvent::StateChanged {
+                state: PlayerState::Playing,
+            });
             self.start_position_timer();
             self.start_fft_timer();
         } else {
             self.state = PlayerState::Paused;
-            self.emit(PlayerEvent::StateChanged { state: PlayerState::Paused });
+            self.emit(PlayerEvent::StateChanged {
+                state: PlayerState::Paused,
+            });
         }
 
         Ok(metadata)
@@ -471,7 +477,9 @@ impl InnerPlayer {
                 }
 
                 self.state = PlayerState::Playing;
-                self.emit(PlayerEvent::StateChanged { state: PlayerState::Playing });
+                self.emit(PlayerEvent::StateChanged {
+                    state: PlayerState::Playing,
+                });
                 self.start_position_timer();
                 self.start_fft_timer();
 
@@ -498,7 +506,9 @@ impl InnerPlayer {
         self.stop_position_timer();
         self.stop_fft_timer();
         self.state = PlayerState::Paused;
-        self.emit(PlayerEvent::StateChanged { state: PlayerState::Paused });
+        self.emit(PlayerEvent::StateChanged {
+            state: PlayerState::Paused,
+        });
 
         // 非阻塞渐出：fade 完成后在回调中执行 sink.pause + 恢复音量
         let target_volume = self.target_volume;
@@ -519,7 +529,9 @@ impl InnerPlayer {
     pub fn stop(&mut self) {
         self.stop_internal();
         self.state = PlayerState::Stopped;
-        self.emit(PlayerEvent::StateChanged { state: PlayerState::Stopped });
+        self.emit(PlayerEvent::StateChanged {
+            state: PlayerState::Stopped,
+        });
     }
 
     fn stop_internal(&mut self) {
@@ -623,10 +635,14 @@ impl InnerPlayer {
 
         if was_paused {
             self.state = PlayerState::Paused;
-            self.emit(PlayerEvent::StateChanged { state: PlayerState::Paused });
+            self.emit(PlayerEvent::StateChanged {
+                state: PlayerState::Paused,
+            });
         } else {
             self.state = PlayerState::Playing;
-            self.emit(PlayerEvent::StateChanged { state: PlayerState::Playing });
+            self.emit(PlayerEvent::StateChanged {
+                state: PlayerState::Playing,
+            });
             self.start_position_timer();
             self.start_fft_timer();
         }

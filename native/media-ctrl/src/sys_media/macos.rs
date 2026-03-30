@@ -23,11 +23,11 @@ use objc2_media_player::{
     MPShuffleType,
 };
 
+use super::{MediaThreadsafeFunction, SystemMediaControls};
 use crate::model::{
-    MediaEvent, MediaEventType, MetadataPayload, PlayModeParam, PlayStateParam,
-    PlaybackStatus, TimelineParam,
+    MediaEvent, MediaEventType, MetadataPayload, PlayModeParam, PlayStateParam, PlaybackStatus,
+    TimelineParam,
 };
-use super::{SystemMediaControls, MediaThreadsafeFunction};
 
 pub struct MacosImpl {
     np_info_ctr: Retained<MPNowPlayingInfoCenter>,
@@ -164,10 +164,14 @@ impl MacosImpl {
         unsafe {
             command.setEnabled(true);
             let rates = NSArray::from_retained_slice(&[
-                NSNumber::new_f64(0.25), NSNumber::new_f64(0.5),
-                NSNumber::new_f64(0.75), NSNumber::new_f64(1.0),
-                NSNumber::new_f64(1.25), NSNumber::new_f64(1.5),
-                NSNumber::new_f64(1.75), NSNumber::new_f64(2.0),
+                NSNumber::new_f64(0.25),
+                NSNumber::new_f64(0.5),
+                NSNumber::new_f64(0.75),
+                NSNumber::new_f64(1.0),
+                NSNumber::new_f64(1.25),
+                NSNumber::new_f64(1.5),
+                NSNumber::new_f64(1.75),
+                NSNumber::new_f64(2.0),
             ]);
             command.setSupportedPlaybackRates(&rates);
             let token = command.addTargetWithHandler(&block);
@@ -235,7 +239,9 @@ impl MacosImpl {
             self.cmd_ctr.nextTrackCommand().setEnabled(enabled);
             self.cmd_ctr.previousTrackCommand().setEnabled(enabled);
             self.cmd_ctr.stopCommand().setEnabled(enabled);
-            self.cmd_ctr.changePlaybackPositionCommand().setEnabled(enabled);
+            self.cmd_ctr
+                .changePlaybackPositionCommand()
+                .setEnabled(enabled);
             self.cmd_ctr.changePlaybackRateCommand().setEnabled(enabled);
             self.cmd_ctr.changeShuffleModeCommand().setEnabled(enabled);
             self.cmd_ctr.changeRepeatModeCommand().setEnabled(enabled);
@@ -247,7 +253,10 @@ impl MacosImpl {
             self.add_handler(&self.cmd_ctr.playCommand(), MediaEventType::Play);
             self.add_handler(&self.cmd_ctr.pauseCommand(), MediaEventType::Pause);
             self.add_toggle_handler();
-            self.add_handler(&self.cmd_ctr.previousTrackCommand(), MediaEventType::PrevTrack);
+            self.add_handler(
+                &self.cmd_ctr.previousTrackCommand(),
+                MediaEventType::PrevTrack,
+            );
             self.add_handler(&self.cmd_ctr.nextTrackCommand(), MediaEventType::NextTrack);
             self.add_handler(&self.cmd_ctr.stopCommand(), MediaEventType::Stop);
         }
@@ -265,7 +274,9 @@ impl Drop for MacosImpl {
 }
 
 impl SystemMediaControls for MacosImpl {
-    fn initialize(&self) -> Result<()> { Ok(()) }
+    fn initialize(&self) -> Result<()> {
+        Ok(())
+    }
 
     fn enable(&self) -> Result<()> {
         self.set_commands_enabled(true);
@@ -281,16 +292,22 @@ impl SystemMediaControls for MacosImpl {
         self.set_commands_enabled(false);
         if let Ok(mut tokens) = self.target_tokens.lock() {
             for (cmd, token) in tokens.drain(..) {
-                unsafe { cmd.removeTarget(Some(&token)); }
+                unsafe {
+                    cmd.removeTarget(Some(&token));
+                }
             }
         }
-        unsafe { self.np_info_ctr.setNowPlayingInfo(None); }
+        unsafe {
+            self.np_info_ctr.setNowPlayingInfo(None);
+        }
         Ok(())
     }
 
     fn register_event_handler(&self, callback: MediaThreadsafeFunction) -> Result<()> {
         {
-            let mut guard = self.event_handler.lock()
+            let mut guard = self
+                .event_handler
+                .lock()
                 .map_err(|e| anyhow::anyhow!("锁中毒: {e:?}"))?;
             *guard = Some(callback);
         }
@@ -366,7 +383,9 @@ impl SystemMediaControls for MacosImpl {
             PlaybackStatus::Playing => MPNowPlayingPlaybackState::Playing,
             PlaybackStatus::Paused => MPNowPlayingPlaybackState::Paused,
         };
-        unsafe { self.np_info_ctr.setPlaybackState(state); }
+        unsafe {
+            self.np_info_ctr.setPlaybackState(state);
+        }
     }
 
     fn update_playback_rate(&self, rate: f64) {

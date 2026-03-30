@@ -19,7 +19,12 @@ pub struct DecoderSource {
 }
 
 impl DecoderSource {
-    pub fn new(shared: Arc<Shared>, fft: Arc<FftAnalyzer>, sample_rate: u32, channels: u16) -> Self {
+    pub fn new(
+        shared: Arc<Shared>,
+        fft: Arc<FftAnalyzer>,
+        sample_rate: u32,
+        channels: u16,
+    ) -> Self {
         Self {
             shared,
             fft,
