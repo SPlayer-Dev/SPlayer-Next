@@ -397,11 +397,6 @@ impl InnerPlayer {
         self.cover_cache_dir = Some(dir);
     }
 
-    /// 只读取元数据，不启动解码和播放
-    pub fn probe(&self, source: &str) -> Result<AudioMetadata> {
-        decoder::probe_metadata(source, self.cover_cache_dir.as_deref())
-    }
-
     /// 加载音频源，auto_play 控制是否自动播放
     pub fn load(&mut self, source: &str, auto_play: bool) -> Result<AudioMetadata> {
         debug!(source, auto_play, "开始加载音频源");

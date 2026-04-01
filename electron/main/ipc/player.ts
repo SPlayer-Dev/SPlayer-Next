@@ -132,33 +132,6 @@ const player = (): InstanceType<AudioEngineModule["AudioPlayer"]> => {
 
 /** 注册播放器相关的所有 IPC 事件 */
 export const registerPlayerIpc = (): void => {
-  // 只读取轻量元数据
-  ipcMain.handle("player:probe", (_event, source: string) => {
-    try {
-      const meta = player().probe(source);
-      const title = meta.title ?? "";
-      const artist = meta.artist ?? "";
-      const album = meta.album ?? "";
-      const durationMs = toMs(meta.duration);
-      const trackId = createHash("sha256").update(source).digest("hex").slice(0, 16);
-      return {
-        success: true,
-        data: {
-          id: trackId,
-          source: "local",
-          path: source,
-          title: title || source.split(/[/\\]/).pop() || source,
-          artists: parseArtists(artist),
-          album: parseAlbum(album),
-          duration: durationMs,
-          cover: toCoverUrl(meta.cover),
-        },
-      };
-    } catch (error) {
-      return { success: false, error: String(error) };
-    }
-  });
-
   // 加载音频文件
   ipcMain.handle("player:load", (_event, source: string, autoPlay = true) => {
     broadcast("player:event", {

@@ -10,8 +10,6 @@ const api = {
     reset: () => ipcRenderer.invoke("config:reset"),
   },
   player: {
-    // 只读取元数据（不播放），用于批量扫描和启动恢复
-    probe: (source: string) => ipcRenderer.invoke("player:probe", source),
     // 加载音频（本地路径或网络地址）
     load: (source: string, autoPlay = true) => ipcRenderer.invoke("player:load", source, autoPlay),
     // 恢复播放

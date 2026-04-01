@@ -51,7 +51,7 @@ pub struct ScannedTrack {
 }
 
 /// 扫描事件
-#[allow(dead_code)]
+#[expect(dead_code, reason = "Error variant 预留给未来扫描错误处理")]
 pub enum ScanEvent {
     /// 进度：已处理一批文件
     Progress {
@@ -81,11 +81,7 @@ fn is_audio_file(path: &Path) -> bool {
         .is_some_and(|ext| AUDIO_EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()))
 }
 
-/// 使用 lofty 快速读取音频文件元数据（纯 tag 解析，不解码音频数据）
-///
-/// 对比 FFmpeg probe_metadata：
-/// - lofty: ~5-20ms/文件（直接解析 ID3/Vorbis/FLAC tag）
-/// - FFmpeg: ~500-2000ms/文件（avformat_find_stream_info 会解码数据来探测参数）
+/// 使用 lofty 快速读取音频文件元数据（纯 tag 解析，不解码音频数据，~5-20ms/文件）
 fn probe_fast(path: &str, cover_cache_dir: Option<&str>) -> Option<ScannedTrack> {
     let tagged_file = lofty::read_from_path(path).ok()?;
     let properties = tagged_file.properties();
@@ -180,7 +176,7 @@ fn file_stat(path: &Path) -> Option<(u64, u64)> {
 /// 批量扫描目录
 ///
 /// - `dirs`: 待扫描目录列表
-/// - `cover_cache_dir`: 封面缓存目录（供 probe_metadata 使用）
+/// - `cover_cache_dir`: 封面缓存目录
 /// - `incremental_data`: 可选的已有文件记录，用于增量跳过
 /// - `cancel`: 取消标志，外部设置为 true 后扫描会尽快停止
 /// - `callback`: 回调函数，接收 ScanEvent

@@ -89,7 +89,7 @@ export const startScan = (dirs: string[], incremental = true): void => {
             });
             upsertTracks(upserts);
           }
-          // 广播进度
+          // 广播进度（只发进度信息，完成后前端全量拉取）
           broadcast("library:scanProgress", {
             phase: "scanning",
             total: event.total,

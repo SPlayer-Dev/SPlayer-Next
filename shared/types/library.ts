@@ -1,4 +1,4 @@
-import type { Track, IpcResponse } from "./player";
+import type { IpcResponse, Track } from "./player";
 
 /** 扫描进度事件 */
 export interface ScanProgress {

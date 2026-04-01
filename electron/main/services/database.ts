@@ -92,6 +92,7 @@ export const getAllTracks = (): Track[] => {
   return rows.map(rowToTrack);
 };
 
+
 /** 获取曲目总数 */
 export const getTrackCount = (): number => {
   const row = getDb().prepare("SELECT COUNT(*) as count FROM tracks").get() as { count: number };

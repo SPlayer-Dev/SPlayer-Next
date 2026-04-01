@@ -18,6 +18,8 @@ pub const FFT_SAMPLE_RATE: u32 = 44100;
 
 /// 网络流读取失败最大重试次数
 const NETWORK_READ_RETRIES: u32 = 3;
+/// 重试间隔（毫秒）
+const NETWORK_RETRY_DELAY_MS: u64 = 500;
 
 /// 从音频流参数中提取比特率、原始采样率和位深
 ///
@@ -45,8 +47,6 @@ unsafe fn extract_stream_info(
     };
     (bit_rate, original_sample_rate, bits_per_sample)
 }
-/// 重试间隔（毫秒）
-const NETWORK_RETRY_DELAY_MS: u64 = 500;
 
 /// 解码会话所需的资源（跨 seek 复用，避免重建 FFmpeg 上下文）
 pub struct DecoderData {
@@ -76,63 +76,6 @@ impl DecoderData {
 // 仅被单一线程独占使用，在 spawn 时 move 进线程，不存在并发访问。
 unsafe impl Send for DecoderData {}
 
-/// 只读取轻量元数据（tag、时长、封面），不含歌词，不启动解码线程
-///
-/// 仅打开文件头提取信息，不创建解码器和重采样器，内存开销极小。
-/// 歌词在 `start_decode` 中随完整加载一起提取。
-pub fn probe_metadata(source: &str, cover_cache_dir: Option<&str>) -> Result<AudioMetadata> {
-    let input_ctx = open_input(source)?;
-
-    let stream = input_ctx
-        .streams()
-        .best(ffmpeg::media::Type::Audio)
-        .context("No audio stream found")?;
-
-    let time_base = stream.time_base();
-    let stream_duration = stream.duration();
-    let duration_secs = if stream_duration > 0 {
-        stream_duration as f64 * time_base.0 as f64 / time_base.1 as f64
-    } else if input_ctx.duration() > 0 {
-        input_ctx.duration() as f64 / f64::from(ffmpeg::ffi::AV_TIME_BASE)
-    } else {
-        0.0
-    };
-
-    let metadata_dict = input_ctx.metadata();
-    let title = metadata_dict.get("title").map(ToString::to_string);
-    let artist = metadata_dict.get("artist").map(ToString::to_string);
-    let album = metadata_dict.get("album").map(ToString::to_string);
-
-    // 只提取封面，跳过歌词（歌词在 load 播放时再读取）
-    let cover =
-        cover_cache_dir.and_then(|dir| metadata::extract_cover_thumbnail(&input_ctx, source, dir));
-
-    // SAFETY: input_ctx 在此作用域内有效，stream 引用自 input_ctx
-    let (bit_rate, original_sample_rate, bits_per_sample) =
-        unsafe { extract_stream_info(&stream, &input_ctx) };
-    let codec = ffmpeg::codec::decoder::find(stream.parameters().id())
-        .map(|c| c.name().to_string())
-        .unwrap_or_default();
-    let comment = metadata_dict.get("comment").map(ToString::to_string);
-    Ok(AudioMetadata {
-        title,
-        artist,
-        album,
-        comment,
-        duration_secs,
-        sample_rate: TARGET_SAMPLE_RATE,
-        channels: TARGET_CHANNELS,
-        original_sample_rate,
-        bits_per_sample,
-        bit_rate,
-        codec,
-        embedded_lyric: None,
-        external_lyrics: Vec::new(),
-        cover,
-        cover_raw: None,
-    })
-}
-
 /// 启动解码线程，返回音频元数据和线程句柄。
 ///
 /// 线程结束时返回 `DecoderData`，调用方可通过 `handle.join()` 回收并复用于后续 seek，
@@ -152,7 +95,7 @@ pub fn start_decode(
         .context("No audio stream found")?;
     let audio_stream_index = stream.index();
 
-    // 优先从流的 time_base 获取时长（更准确）
+    // 时长：优先从流的 time_base 获取
     let time_base = stream.time_base();
     let stream_duration = stream.duration();
     let duration_secs = if stream_duration > 0 {
@@ -167,13 +110,7 @@ pub fn start_decode(
     let title = metadata_dict.get("title").map(ToString::to_string);
     let artist = metadata_dict.get("artist").map(ToString::to_string);
     let album = metadata_dict.get("album").map(ToString::to_string);
-
-    // 在同一个 input_ctx 上提取封面和内嵌歌词（不需要重新打开文件）
-    let cover =
-        cover_cache_dir.and_then(|dir| metadata::extract_cover_thumbnail(&input_ctx, source, dir));
-    let cover_raw = metadata::read_attached_pic(&input_ctx);
-    let embedded_lyric = metadata::extract_embedded_lyric(&input_ctx);
-    let external_lyrics = metadata::find_all_external_lyrics(source);
+    let comment = metadata_dict.get("comment").map(ToString::to_string);
 
     // SAFETY: input_ctx 在此作用域内有效，stream 引用自 input_ctx
     let (bit_rate, original_sample_rate, bits_per_sample) =
@@ -181,7 +118,12 @@ pub fn start_decode(
     let codec = ffmpeg::codec::decoder::find(stream.parameters().id())
         .map(|c| c.name().to_string())
         .unwrap_or_default();
-    let comment = metadata_dict.get("comment").map(ToString::to_string);
+
+    let cover =
+        cover_cache_dir.and_then(|dir| metadata::extract_cover_thumbnail(&input_ctx, source, dir));
+    let cover_raw = metadata::read_attached_pic(&input_ctx);
+    let embedded_lyric = metadata::extract_embedded_lyric(&input_ctx);
+    let external_lyrics = metadata::find_all_external_lyrics(source);
 
     let decoder_ctx = ffmpeg::codec::context::Context::from_parameters(stream.parameters())?;
     let decoder = decoder_ctx.decoder().audio()?;
