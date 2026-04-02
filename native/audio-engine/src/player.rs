@@ -588,12 +588,9 @@ impl InnerPlayer {
         self.fft.reset();
 
         // 在已有上下文上 seek（不重新打开文件）
-        let seek_ok = if let Some(d) = decoder_data.as_mut() {
-            d.seek(position_secs);
-            true
-        } else {
-            false
-        };
+        let seek_ok = decoder_data
+            .as_mut()
+            .is_some_and(|d| d.seek(position_secs));
 
         if !seek_ok {
             // 回收失败（线程 panic 或 seek 出错），回退到从头 load，不再递归 seek

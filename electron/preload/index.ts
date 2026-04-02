@@ -35,7 +35,8 @@ const api = {
     // 启用/禁用 FFT 频谱推送
     setFftEnabled: (enabled: boolean) => ipcRenderer.invoke("player:setFftEnabled", enabled),
     // 启用/禁用音量均衡
-    setNormalizationEnabled: (enabled: boolean) => ipcRenderer.invoke("player:setNormalizationEnabled", enabled),
+    setNormalizationEnabled: (enabled: boolean) =>
+      ipcRenderer.invoke("player:setNormalizationEnabled", enabled),
     // 重建音频输出设备
     reinit: () => ipcRenderer.invoke("player:reinit"),
     // 获取所有音频输出设备
@@ -43,7 +44,8 @@ const api = {
     // 获取系统默认输出设备名称
     getDefaultDeviceName: () => ipcRenderer.invoke("player:getDefaultDeviceName"),
     // 切换输出设备（传 null 使用系统默认）
-    setOutputDevice: (deviceName: string | null) => ipcRenderer.invoke("player:setOutputDevice", deviceName),
+    setOutputDevice: (deviceName: string | null) =>
+      ipcRenderer.invoke("player:setOutputDevice", deviceName),
     // 获取当前选择的输出设备名称
     getSelectedDeviceName: () => ipcRenderer.invoke("player:getSelectedDeviceName"),
     // 获取当前歌曲的原始高清封面（base64 data URL）
@@ -55,16 +57,12 @@ const api = {
     // 同步播放模式到主进程（供托盘菜单显示）
     syncPlayMode: (repeatMode: string, shuffleMode: string) =>
       ipcRenderer.send("player:syncPlayMode", repeatMode, shuffleMode),
-    // 订阅主进程推送的播放事件（状态、进度、ended、next/prev 等），返回取消订阅函数
+    // 订阅主进程推送的播放事件，返回取消订阅函数
     onEvent: (callback: (event: unknown) => void) => {
       ipcRenderer.removeAllListeners("player:event");
-      const handler = (_event: Electron.IpcRendererEvent, data: unknown): void => {
-        callback(data);
-      };
+      const handler = (_event: Electron.IpcRendererEvent, data: unknown): void => callback(data);
       ipcRenderer.on("player:event", handler);
-      return () => {
-        ipcRenderer.removeListener("player:event", handler);
-      };
+      return () => ipcRenderer.removeListener("player:event", handler);
     },
   },
   system: {
@@ -95,13 +93,9 @@ const api = {
     // 订阅扫描进度事件
     onScanProgress: (callback: (progress: unknown) => void) => {
       ipcRenderer.removeAllListeners("library:scanProgress");
-      const handler = (_event: Electron.IpcRendererEvent, data: unknown): void => {
-        callback(data);
-      };
+      const handler = (_event: Electron.IpcRendererEvent, data: unknown): void => callback(data);
       ipcRenderer.on("library:scanProgress", handler);
-      return () => {
-        ipcRenderer.removeListener("library:scanProgress", handler);
-      };
+      return () => ipcRenderer.removeListener("library:scanProgress", handler);
     },
   },
 };

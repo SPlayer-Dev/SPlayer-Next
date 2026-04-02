@@ -82,30 +82,30 @@ const setOpen = (val: boolean): void => {
         ]"
       >
         <!-- 标题 + 描述 -->
-        <div class="mb-3 pr-6">
-          <DialogTitle v-if="title" class="text-lg font-semibold">
+        <div v-if="title" class="mb-3 pr-6">
+          <DialogTitle class="text-lg font-semibold">
             {{ title }}
           </DialogTitle>
-          <DialogTitle v-else class="sr-only">对话框</DialogTitle>
           <DialogDescription
             v-if="description"
             :class="['text-xs mt-1', cover ? 'text-cover/50' : 'text-on-surface/50']"
           >
             {{ description }}
           </DialogDescription>
-          <DialogDescription v-else class="sr-only" />
         </div>
-
+        <!-- 无障碍 -->
+        <template v-else>
+          <DialogTitle class="sr-only">Dialog</DialogTitle>
+          <DialogDescription class="sr-only" />
+        </template>
         <!-- 内容 -->
         <div :class="[height === 'auto' ? 'text-sm' : 'flex-1 min-h-0 text-sm']">
           <slot />
         </div>
-
         <!-- 底部操作 -->
         <div v-if="$slots.footer" class="mt-3 flex items-center justify-end gap-2">
           <slot name="footer" :close="() => setOpen(false)" />
         </div>
-
         <!-- 关闭按钮 -->
         <DialogClose v-if="closable" as-child>
           <SButton

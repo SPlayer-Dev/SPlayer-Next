@@ -24,7 +24,16 @@ export const useLibraryStore = defineStore("library", () => {
     if (scanning.value) return;
     scanning.value = true;
     scanProgress.value = { phase: "scanning", total: 0, scanned: 0 };
-    await window.api.library.scan(incremental);
+    try {
+      const res = await window.api.library.scan(incremental);
+      if (!res.success) {
+        scanning.value = false;
+        scanProgress.value = null;
+      }
+    } catch {
+      scanning.value = false;
+      scanProgress.value = null;
+    }
   };
 
   /** 取消扫描 */

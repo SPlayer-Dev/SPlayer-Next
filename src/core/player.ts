@@ -364,16 +364,21 @@ export const removeFromQueue = async (index: number): Promise<void> => {
  */
 export const insertToQueue = (item: Track, afterIndex?: number): number => {
   const status = useStatusStore();
-  const targetAt = Math.max(0, afterIndex ?? status.playIndex + 1);
+  const len = queue.getQueue().length;
+  const raw = afterIndex ?? status.playIndex + 1;
   const existingIdx = queue.findTrackIndex(item.id);
   if (existingIdx !== -1) {
-    if (existingIdx === targetAt) return existingIdx;
-    moveInQueue(existingIdx, targetAt);
-    return targetAt;
+    // 移动：目标需 clamp 到 length-1
+    const safeAt = Math.max(0, Math.min(raw, len - 1));
+    if (existingIdx === safeAt) return existingIdx;
+    moveInQueue(existingIdx, safeAt);
+    return safeAt;
   }
-  queue.insertToQueue(item, targetAt);
-  if (targetAt <= status.playIndex) status.playIndex++;
-  return targetAt;
+  // 插入：可以追加到末尾，clamp 到 length
+  const safeAt = Math.max(0, Math.min(raw, len));
+  queue.insertToQueue(item, safeAt);
+  if (safeAt <= status.playIndex) status.playIndex++;
+  return safeAt;
 };
 
 /**

@@ -52,8 +52,7 @@ const filteredItems = computed(() => {
 });
 
 /** 右键菜单 */
-const contextIndex = ref(-1);
-const contextTrack = computed(() => props.items[contextIndex.value]);
+const contextTrack = shallowRef<Track | undefined>();
 const { items: contextMenuItems, handleSelect: onContextMenu } = useTrackMenu(contextTrack);
 </script>
 
@@ -114,7 +113,7 @@ const { items: contextMenuItems, handleSelect: onContextMenu } = useTrackMenu(co
                 : 'bg-surface-panel border-primary/12 hover:border-primary/30 hover:bg-on-surface/8 active:bg-on-surface/12'
             "
             @dblclick="player.playFrom(filteredItems, index)"
-            @contextmenu="contextIndex = index"
+            @contextmenu="contextTrack = item"
           >
             <!-- 序号 -->
             <div
