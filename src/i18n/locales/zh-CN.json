@@ -81,7 +81,7 @@
       "player": "播放设置",
       "lyric": "歌词设置",
       "appearance": "外观设置",
-      "system": "系统设置"
+      "services": "网络与服务"
     },
     "section": {
       "language": "语言",
@@ -94,7 +94,8 @@
       "theme": "主题与风格",
       "layout": "布局",
       "media": "媒体控制",
-      "discord": "Discord RPC"
+      "discord": "Discord RPC",
+      "systemConfig": "系统配置"
     },
     "language": {
       "label": "界面语言",
@@ -261,6 +262,10 @@
       "name": "应用名",
       "details": "歌曲名",
       "state": "歌手名"
+    },
+    "rememberWindowState": {
+      "label": "记忆窗口状态",
+      "description": "下次启动时恢复窗口的大小、位置和最大化状态"
     }
   },
   "errors": {

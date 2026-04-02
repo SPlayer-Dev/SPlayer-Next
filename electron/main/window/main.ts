@@ -4,6 +4,7 @@ import { is } from "@electron-toolkit/utils";
 import { createWindow } from "./create";
 import { initThumbar } from "../services/thumbar";
 import { initTray } from "../services/tray";
+import { store } from "../store";
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -11,15 +12,40 @@ let mainWindow: BrowserWindow | null = null;
  * 创建主窗口
  */
 export const createMainWindow = (): BrowserWindow => {
+  const remember = store.get("system.rememberWindowState") ?? true;
+  const saved = remember ? store.get("system.window") : undefined;
+
   mainWindow = createWindow({
-    width: 900,
-    height: 670,
+    width: saved?.width ?? 1280,
+    height: saved?.height ?? 800,
   });
+
+  // 恢复最大化状态
+  if (remember && saved?.maximized) {
+    mainWindow.maximize();
+  }
 
   mainWindow.once("ready-to-show", () => {
     initThumbar(mainWindow!);
     initTray(mainWindow!);
   });
+
+  // 保存窗口状态
+  const saveWindowState = (): void => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (!(store.get("system.rememberWindowState") ?? true)) return;
+    const maximized = mainWindow.isMaximized();
+    const bounds = maximized ? (mainWindow.getNormalBounds?.() ?? mainWindow.getBounds()) : mainWindow.getBounds();
+    store.set("system.window", {
+      width: bounds.width,
+      height: bounds.height,
+      maximized,
+    });
+  };
+
+  mainWindow.on("close", saveWindowState);
+  mainWindow.on("maximize", saveWindowState);
+  mainWindow.on("unmaximize", saveWindowState);
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url);

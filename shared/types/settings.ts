@@ -43,10 +43,6 @@ export interface WindowState {
   width: number;
   /** 窗口高度 */
   height: number;
-  /** 窗口 X 坐标，null 为居中 */
-  x: number | null;
-  /** 窗口 Y 坐标，null 为居中 */
-  y: number | null;
   /** 是否最大化 */
   maximized: boolean;
 }
@@ -67,12 +63,14 @@ export interface SystemConfig {
   library: LibrarySettings;
   /** 系统配置 */
   system: {
+    /** 记忆窗口状态（大小、位置、是否最大化） */
+    rememberWindowState: boolean;
     /** 窗口状态（主进程自动保存） */
     window: WindowState;
   };
 }
 
-/** 后端配置 API（preload 暴露给渲染进程） */
+/** 配置 API */
 export interface ConfigApi {
   /** 获取单个配置项（点号路径，如 "player.fadeDuration"） */
   get: (keyPath: string) => Promise<unknown>;

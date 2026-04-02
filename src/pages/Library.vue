@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import { useLibraryStore } from "@/stores/library";
 import { formatFileSize } from "@/utils/format";
+import IconFolderOpen from "~icons/lucide/folder-open";
+import IconRefreshCw from "~icons/lucide/refresh-cw";
 import * as player from "@/core/player";
 
 const { t } = useI18n();
@@ -21,22 +24,6 @@ const folderName = (dir: string): string => {
   const parts = dir.replace(/\\/g, "/").split("/").filter(Boolean);
   return parts[parts.length - 1] || dir;
 };
-
-// 进入页面时初始化
-onMounted(async () => {
-  libraryStore.subscribeScanProgress();
-  if (!initialized.value) {
-    await libraryStore.load();
-  }
-  // 有目录且有曲目时自动增量扫描
-  if (scanDirs.value.length > 0 && tracks.value.length > 0) {
-    libraryStore.startScan(true);
-  }
-});
-
-onUnmounted(() => {
-  libraryStore.unsubscribeScanProgress();
-});
 
 // 添加文件夹
 const handleAddFolder = async (): Promise<void> => {
@@ -60,11 +47,6 @@ const handleRemoveFolder = async (): Promise<void> => {
   removeConfirmOpen.value = false;
 };
 
-// 全量扫描
-const handleFullScan = (): void => {
-  libraryStore.startScan(false);
-};
-
 // 播放全部
 const handlePlayAll = (): void => {
   if (tracks.value.length === 0) return;
@@ -80,11 +62,6 @@ const scanPercent = computed(() => {
 // 目录管理弹窗
 const folderDialogOpen = ref(false);
 
-// 更多菜单
-import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
-import IconFolderOpen from "~icons/lucide/folder-open";
-import IconRefreshCw from "~icons/lucide/refresh-cw";
-
 const moreMenuItems = computed<DropdownMenuItem[]>(() => [
   { key: "folders", label: t("library.folders"), icon: IconFolderOpen },
   {
@@ -95,16 +72,35 @@ const moreMenuItems = computed<DropdownMenuItem[]>(() => [
   },
 ]);
 
+// 更多菜单
 const handleMoreMenu = (key: string): void => {
   switch (key) {
+    // 目录管理
     case "folders":
       folderDialogOpen.value = true;
       break;
+    // 全量扫描
     case "scan":
-      handleFullScan();
+      libraryStore.startScan(false);
       break;
   }
 };
+
+// 进入页面时初始化
+onMounted(async () => {
+  libraryStore.subscribeScanProgress();
+  if (!initialized.value) {
+    await libraryStore.load();
+  }
+  // 有目录且有曲目时自动增量扫描
+  if (scanDirs.value.length > 0 && tracks.value.length > 0) {
+    libraryStore.startScan(true);
+  }
+});
+
+onUnmounted(() => {
+  libraryStore.unsubscribeScanProgress();
+});
 </script>
 
 <template>

@@ -81,7 +81,7 @@
       "player": "Player",
       "lyric": "Lyrics",
       "appearance": "Appearance",
-      "system": "System"
+      "services": "Services"
     },
     "section": {
       "language": "Language",
@@ -94,7 +94,8 @@
       "theme": "Theme",
       "layout": "Layout",
       "media": "Media Controls",
-      "discord": "Discord RPC"
+      "discord": "Discord RPC",
+      "systemConfig": "System"
     },
     "language": {
       "label": "Language",
@@ -261,6 +262,10 @@
       "name": "App Name",
       "details": "Song Name",
       "state": "Artist Name"
+    },
+    "rememberWindowState": {
+      "label": "Remember Window State",
+      "description": "Restore window size, position and maximized state on next launch"
     }
   },
   "errors": {

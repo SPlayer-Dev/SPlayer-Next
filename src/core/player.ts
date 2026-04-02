@@ -508,7 +508,7 @@ export const initPlayer = async (): Promise<void> => {
   const { fadeEnabled, fadeDuration, loudnessNormalization } = settings.system.player;
   await window.api.player.setFadeDuration(fadeEnabled ? fadeDuration : 0);
   // 应用音量均衡配置
-  await window.api.player.setNormalizationEnabled(loudnessNormalization);
+  await window.api.player.setNormalizationEnabled(loudnessNormalization ?? false);
   const lastTrack = status.currentTrack;
   if (lastTrack?.path) {
     const lastPosition = status.position;

@@ -36,12 +36,12 @@ watch(
 );
 
 // 初始化程序
-Promise.all([initPlayer().catch(console.error), router.isReady()]).then(() => {
+router.isReady().then(() => {
   app.mount("#app");
-  // 淡出加载动画
   const loading = document.getElementById("app-loading");
   if (loading) {
     loading.classList.add("hidden");
-    loading.addEventListener("transitionend", () => loading.remove());
+    loading.addEventListener("transitionend", () => loading.remove(), { once: true });
   }
+  initPlayer().catch(console.error);
 });

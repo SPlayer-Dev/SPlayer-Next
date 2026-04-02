@@ -23,11 +23,10 @@ export const defaultSystemConfig: SystemConfig = {
     scanDirs: [],
   },
   system: {
+    rememberWindowState: true,
     window: {
       width: 1280,
       height: 800,
-      x: null,
-      y: null,
       maximized: false,
     },
   },

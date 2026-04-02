@@ -196,10 +196,11 @@ export const deleteTracksByPaths = (paths: string[]): void => {
 
 /** 模糊搜索曲目（title / artists / album） */
 export const searchTracks = (query: string): Track[] => {
-  const pattern = `%${query}%`;
+  const escaped = query.replace(/[%_\\]/g, "\\$&");
+  const pattern = `%${escaped}%`;
   const rows = getDb()
     .prepare(
-      "SELECT * FROM tracks WHERE title LIKE ? OR artists LIKE ? OR album LIKE ? ORDER BY title",
+      "SELECT * FROM tracks WHERE title LIKE ? ESCAPE '\\' OR artists LIKE ? ESCAPE '\\' OR album LIKE ? ESCAPE '\\' ORDER BY title",
     )
     .all(pattern, pattern, pattern) as TrackRow[];
   return rows.map(rowToTrack);

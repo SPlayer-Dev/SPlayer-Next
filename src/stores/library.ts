@@ -1,5 +1,8 @@
+import localforage from "localforage";
 import type { Track } from "@shared/types/player";
 import type { ScanProgress } from "@shared/types/library";
+
+const trackDb = localforage.createInstance({ name: "splayer", storeName: "library" });
 
 export const useLibraryStore = defineStore("library", () => {
   const tracks = shallowRef<Track[]>([]);
@@ -8,13 +11,26 @@ export const useLibraryStore = defineStore("library", () => {
   const scanProgress = ref<ScanProgress | null>(null);
   const initialized = ref(false);
 
-  /** 从主进程加载曲目和目录列表 */
+  /** 将曲目写入 IndexedDB 缓存 */
+  const cacheTracks = (items: Track[]): void => {
+    trackDb.setItem("tracks", toRaw(items)).catch(() => {});
+  };
+
+  /** 从主进程加载曲目和目录列表，优先从 IndexedDB 缓存恢复 */
   const load = async (): Promise<void> => {
+    // 先从 IndexedDB 读缓存，立即渲染
+    const cached = await trackDb.getItem<Track[]>("tracks").catch(() => null);
+    if (cached?.length) tracks.value = markRaw(cached);
+
+    // 再从主进程拿最新数据并回写缓存
     const [tracksRes, dirsRes] = await Promise.all([
       window.api.library.getTracks(),
       window.api.library.getScanDirs(),
     ]);
-    if (tracksRes.success && tracksRes.data) tracks.value = tracksRes.data;
+    if (tracksRes.success && tracksRes.data) {
+      tracks.value = tracksRes.data;
+      cacheTracks(tracksRes.data);
+    }
     if (dirsRes.success && dirsRes.data) scanDirs.value = dirsRes.data;
     initialized.value = true;
   };
@@ -69,7 +85,10 @@ export const useLibraryStore = defineStore("library", () => {
     await window.api.library.removeScanDir(dir);
     scanDirs.value = scanDirs.value.filter((d) => d !== dir);
     const res = await window.api.library.getTracks();
-    if (res.success && res.data) tracks.value = res.data;
+    if (res.success && res.data) {
+      tracks.value = res.data;
+      cacheTracks(res.data);
+    }
   };
 
   let unsubscribe: (() => void) | null = null;
@@ -82,7 +101,10 @@ export const useLibraryStore = defineStore("library", () => {
       if (data.phase === "done") {
         scanning.value = false;
         window.api.library.getTracks().then((res) => {
-          if (res.success && res.data) tracks.value = res.data;
+          if (res.success && res.data) {
+            tracks.value = res.data;
+            cacheTracks(res.data);
+          }
         });
       } else if (data.phase === "error") {
         scanning.value = false;

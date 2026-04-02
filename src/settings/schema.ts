@@ -4,7 +4,7 @@ import IconLucideCog from "~icons/lucide/cog";
 import IconLucidePlay from "~icons/lucide/play";
 import IconLucideMic2 from "~icons/lucide/mic-2";
 import IconLucidePalette from "~icons/lucide/palette";
-import IconLucideSettings from "~icons/lucide/settings";
+import IconLucideGlobe from "~icons/lucide/globe";
 
 export const settingsSchema: SettingCategory[] = [
   {
@@ -23,6 +23,17 @@ export const settingsSchema: SettingCategory[] = [
               { value: "en-US", labelKey: "settings.language.enUS" },
             ],
             defaultValue: "zh-CN",
+          },
+        ],
+      },
+      {
+        id: "systemConfig",
+        items: [
+          {
+            key: "rememberWindowState",
+            type: "switch",
+            binding: { store: "settings", path: "system.system.rememberWindowState" },
+            defaultValue: true,
           },
         ],
       },
@@ -338,8 +349,8 @@ export const settingsSchema: SettingCategory[] = [
     ],
   },
   {
-    id: "system",
-    icon: IconLucideSettings,
+    id: "services",
+    icon: IconLucideGlobe,
     sections: [
       {
         id: "media",
