@@ -3,6 +3,7 @@ dist
 out
 .DS_Store
 .eslintcache
+.claude
 *.log*
 
 # Rust build artifacts

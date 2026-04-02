@@ -49,6 +49,11 @@ jobs:
         with:
           workspaces: "native/audio-engine -> target\nnative/media-ctrl -> target"
 
+      # FFmpeg 静态编译需要 NASM（Windows runner 未预装）
+      - name: Install NASM
+        if: runner.os == 'Windows'
+        run: choco install nasm -y
+
       # 清理旧构建产物
       - name: Clean workspace on Windows
         if: runner.os == 'Windows'
@@ -60,12 +65,12 @@ jobs:
         if: runner.os != 'Windows'
         run: rm -rf dist out
 
-      # 安装 Linux 打包依赖
+      # 安装 Linux 构建和打包依赖
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y rpm libarchive-tools
+          sudo apt-get install --no-install-recommends -y rpm libarchive-tools libasound2-dev libdbus-1-dev pkg-config clang nasm
 
       # 安装项目依赖
       - name: Install dependencies
