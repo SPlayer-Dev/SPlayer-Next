@@ -1,6 +1,6 @@
 import { BrowserWindow, BrowserWindowConstructorOptions, nativeTheme } from "electron";
 import { join } from "path";
-import icon from "../../../resources/icon.png?asset";
+import icon from "../../../public/icons/favicon.png?asset";
 
 /**
  * 获取默认窗口配置

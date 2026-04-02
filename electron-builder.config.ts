@@ -4,9 +4,9 @@ const config: Configuration = {
   appId: "com.imsyy.splayer-next",
   productName: "SPlayer Next",
   copyright: "Copyright © imsyy 2025",
-  directories: {
-    buildResources: "build",
-  },
+  directories: { buildResources: "public" },
+  afterPack: "./scripts/after-pack.ts",
+  compression: "maximum",
   files: [
     "public/**",
     "out/**",
@@ -23,8 +23,9 @@ const config: Configuration = {
     "!{components.d.ts,auto-imports.d.ts}",
     "!{.env,.env.*,.npmrc,pnpm-lock.yaml}",
     "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}",
+    "!**/*.{d.ts,map,md}",
+    "!**/{CHANGELOG,LICENSE,license,README,readme}*",
   ],
-  directories: { buildResources: "build" },
   asarUnpack: ["public/**"],
   extraResources: [
     {
@@ -40,9 +41,8 @@ const config: Configuration = {
   ],
   win: {
     executableName: "SPlayer-Next",
+    icon: "public/icons/logo.ico",
     artifactName: "${productName}-${version}-${arch}.${ext}",
-    // 未配置证书时跳过签名
-    signAndEditExecutable: false,
     forceCodeSigning: false,
     target: [
       {
@@ -54,6 +54,8 @@ const config: Configuration = {
   nsis: {
     oneClick: false,
     guid: "com.imsyy.splayer-next",
+    installerIcon: "public/icons/favicon.ico",
+    uninstallerIcon: "public/icons/favicon.ico",
     artifactName: "${productName}-${version}-${arch}-setup.${ext}",
     shortcutName: "${productName}",
     uninstallDisplayName: "${productName}",
@@ -66,13 +68,14 @@ const config: Configuration = {
   },
   mac: {
     executableName: "SPlayer-Next",
+    icon: "public/icons/icon.icns",
     artifactName: "${productName}-${version}-${arch}.${ext}",
     identity: null,
     hardenedRuntime: false,
     notarize: false,
     darkModeSupport: true,
     category: "public.app-category.music",
-    entitlementsInherit: "build/entitlements.mac.plist",
+    entitlementsInherit: "public/entitlements.mac.plist",
     extendInfo: {
       NSCameraUsageDescription: "Application requests access to the device's camera.",
       NSMicrophoneUsageDescription: "Application requests access to the device's microphone.",
@@ -97,6 +100,7 @@ const config: Configuration = {
   },
   linux: {
     executableName: "SPlayer-Next",
+    icon: "public/icons/favicon-512x512.png",
     artifactName: "${name}-${version}-${arch}.${ext}",
     maintainer: "imsyy.top",
     category: "Audio;Music;AudioVideo;",

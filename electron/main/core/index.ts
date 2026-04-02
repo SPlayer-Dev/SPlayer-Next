@@ -49,7 +49,7 @@ export const initApp = (): void => {
     },
   ]);
   app.whenReady().then(() => {
-    electronApp.setAppUserModelId("com.electron");
+    electronApp.setAppUserModelId("com.imsyy.splayer-next");
     // 注册 cover:// 协议
     protocol.handle("cover", (request) => {
       const filename = decodeURIComponent(request.url.slice("cover://".length));
