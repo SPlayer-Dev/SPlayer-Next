@@ -448,11 +448,12 @@ pub struct JsScanEvent {
 /// 在后台线程中执行，不阻塞 Node.js 事件循环。
 /// 每处理约 20 个文件回调一次 progress 事件，完成后回调 done 事件。
 #[napi(
-    ts_args_type = "dirs: Array<string>, callback: (event: JsScanEvent) => void, incrementalData?: Array<FileRecord> | undefined | null"
+    ts_args_type = "dirs: Array<string>, callback: (event: JsScanEvent) => void, coverCacheDir?: string | undefined | null, incrementalData?: Array<FileRecord> | undefined | null"
 )]
 pub fn scan_dirs(
     dirs: Vec<String>,
     callback: Function<JsScanEvent, ()>,
+    cover_cache_dir: Option<String>,
     incremental_data: Option<Vec<FileRecord>>,
 ) -> Result<()> {
     let tsfn = callback.build_threadsafe_function().build()?;
@@ -467,10 +468,6 @@ pub fn scan_dirs(
             })
             .collect()
     });
-
-    // 获取封面缓存目录（复用播放器的配置路径）
-    // 扫描不依赖 AudioPlayer 实例，直接从环境获取
-    let cover_cache_dir = std::env::var("SPLAYER_COVER_CACHE_DIR").ok();
 
     // 创建取消标志并保存到全局，供 cancel_scan 使用
     let cancel = Arc::new(AtomicBool::new(false));

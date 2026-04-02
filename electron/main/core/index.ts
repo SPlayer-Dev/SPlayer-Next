@@ -34,10 +34,8 @@ const configureMemoryOptimizations = (): void => {
  */
 export const initApp = (): void => {
   configureMemoryOptimizations();
-
-  // 初始化日志系统（尽早初始化，后续所有模块都可使用）
+  // 初始化日志
   initLogger();
-
   // 注册自定义协议
   protocol.registerSchemesAsPrivileged([
     {
@@ -50,40 +48,28 @@ export const initApp = (): void => {
       },
     },
   ]);
-
   app.whenReady().then(() => {
     electronApp.setAppUserModelId("com.electron");
-
-    // 注册 cover:// 协议，前端通过 cover://{filename} 访问封面缩略图
+    // 注册 cover:// 协议
     protocol.handle("cover", (request) => {
       const filename = decodeURIComponent(request.url.slice("cover://".length));
       const filePath = path.join(coverCacheDir, filename);
       return net.fetch(`file://${filePath.replace(/\\/g, "/")}`);
     });
-
     app.on("browser-window-created", (_, window) => {
       optimizer.watchWindowShortcuts(window);
     });
-
-    // 设置封面缓存目录环境变量（供 Rust 扫描器使用）
-    process.env.SPLAYER_COVER_CACHE_DIR = coverCacheDir;
-
     // 初始化数据库
     initDatabase();
-
     // 注册 IPC
     registerIpcHandlers();
-
     // 初始化系统媒体控件
     initMedia();
-
     // 创建主窗口
     createMainWindow();
-
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
     });
-
     coreLog.info("应用初始化完成");
   });
 
@@ -99,4 +85,4 @@ export const initApp = (): void => {
     shutdownMedia();
     closeDatabase();
   });
-};
+};;

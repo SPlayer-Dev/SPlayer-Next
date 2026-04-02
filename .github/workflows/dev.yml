@@ -1,0 +1,142 @@
+# Dev 分支推送构建
+name: Build Dev
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - "src/**"
+      - "electron/**"
+      - "native/**"
+      - "shared/**"
+      - "public/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "electron-builder.config.ts"
+      - "electron.vite.config.ts"
+      - "tsconfig*.json"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: 22.x
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    steps:
+      - name: Check out git repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "native/audio-engine -> target\nnative/media-ctrl -> target"
+
+      # 清理旧构建产物
+      - name: Clean workspace on Windows
+        if: runner.os == 'Windows'
+        run: |
+          if (Test-Path dist) { Remove-Item -Recurse -Force dist }
+          if (Test-Path out) { Remove-Item -Recurse -Force out }
+
+      - name: Clean workspace on macOS & Linux
+        if: runner.os != 'Windows'
+        run: rm -rf dist out
+
+      # 安装 Linux 打包依赖
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y rpm libarchive-tools
+
+      # 安装项目依赖
+      - name: Install dependencies
+        run: pnpm install
+
+      # 构建
+      - name: Build Windows App
+        if: runner.os == 'Windows'
+        run: pnpm build:win -- --x64
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build macOS App
+        if: runner.os == 'macOS'
+        run: pnpm build:mac -- --x64
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Linux App
+        if: runner.os == 'Linux'
+        run: pnpm build:linux -- --x64
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 上传构建产物
+      - name: Upload Windows Setup
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SPlayer-Next-Windows-setup-x64
+          path: dist/*-x64-setup.exe
+
+      - name: Upload macOS DMG
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SPlayer-Next-macOS-dmg-x64
+          path: dist/*-x64.dmg
+
+      - name: Upload macOS Zip
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SPlayer-Next-macOS-zip-x64
+          path: dist/*-x64.zip
+
+      - name: Upload Linux AppImage
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SPlayer-Next-Linux-appimage-x64
+          path: dist/*-x86_64.AppImage
+
+      - name: Upload Linux DEB
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SPlayer-Next-Linux-deb-x64
+          path: dist/*-amd64.deb
+
+      - name: Upload Linux RPM
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SPlayer-Next-Linux-rpm-x64
+          path: dist/*-x86_64.rpm
+
+      - name: Upload Linux Tar
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SPlayer-Next-Linux-tar-x64
+          path: dist/*-x64.tar.gz

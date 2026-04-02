@@ -1,6 +1,11 @@
 import { ipcMain } from "electron";
 import { store } from "../store";
-import { enable as enableMedia, disable as disableMedia, reloadDiscordConfig } from "../services/media";
+import type { ConfigPath } from "../store/types";
+import {
+  enable as enableMedia,
+  disable as disableMedia,
+  reloadDiscordConfig,
+} from "../services/media";
 import { setNormalizationEnabled } from "../services/engine";
 
 /** 配置写入后的副作用：根据 key 触发主进程对应操作 */
@@ -22,7 +27,7 @@ const applyConfigChange = (keyPath: string, value: unknown): void => {
 
 /** 注册配置相关 IPC */
 export const registerConfigIpc = (): void => {
-  ipcMain.handle("config:get", (_event, keyPath: string) => store.get(keyPath));
+  ipcMain.handle("config:get", (_event, keyPath: string) => store.get(keyPath as ConfigPath));
   ipcMain.handle("config:set", (_event, keyPath: string, value: unknown) => {
     store.set(keyPath, value);
     applyConfigChange(keyPath, value);

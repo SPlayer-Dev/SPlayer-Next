@@ -4,7 +4,10 @@
       "Bash(cd:*)",
       "Bash(grep:*)",
       "Bash(find:*)",
-      "Bash(find /d/WorkSpace/dev/new-dev/SPlayer/src -type f \\\\\\(-name *.css -o -name *.scss -o -name *.less \\\\\\))"
+      "Bash(find /d/WorkSpace/dev/new-dev/SPlayer/src -type f \\\\\\(-name *.css -o -name *.scss -o -name *.less \\\\\\))",
+      "WebFetch(domain:bundlephobia.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   }
 }
