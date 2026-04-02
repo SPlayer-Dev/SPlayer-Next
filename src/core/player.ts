@@ -7,14 +7,14 @@ import * as queue from "@/stores/queue";
 import * as playback from "@/services/playback";
 import { loadAudio } from "@/services/audioLoader";
 import { extractColorFromUrl } from "@/utils/color";
-import { handleError } from "@/utils/errors";
+import { handleError, isSkippableError } from "@/utils/errors";
 /**
  * 同步播放状态到非响应式时间源（供歌词等 60fps 动画使用）
  * @param state - 当前播放器状态
  */
 const syncPlayback = (state: PlayerState): void => {
   playback.setPlaying(state === "playing");
-  if (state === "idle") {
+  if (state === "idle" || state === "stopped") {
     playback.reset();
   }
 };
@@ -59,23 +59,16 @@ export const load = async (source: string, autoPlay = true): Promise<Track | nul
       playback.setPlaying(autoPlay);
       return data.track;
     } else {
-      consecutiveFailures++;
       status.state = "idle";
       if (error) {
-        const maxSkips = queue.queueLength.value;
-        await handleError(error, {
-          retryKey: `load:${source}`,
-          retryFn: async () => {
-            const retry = await loadAudio(source, autoPlay);
-            return !!retry.data;
-          },
-          onRetryFailed: () => {
-            // 连续失败数超过队列长度，说明全部歌曲都播不了，停止跳曲
-            if (consecutiveFailures < maxSkips) {
-              nextTrack();
-            }
-          },
-        });
+        handleError(error);
+        // 仅单曲级错误才跳下一首（设备等全局错误跳了也没用）
+        if (isSkippableError(error)) {
+          consecutiveFailures++;
+          if (consecutiveFailures < queue.queueLength.value) {
+            nextTrack();
+          }
+        }
       }
       return null;
     }
@@ -106,6 +99,7 @@ export const play = async (): Promise<void> => {
   if (!result.success) {
     status.state = prev;
     playback.setPlaying(false);
+    handleError(result.error ?? "UNKNOWN");
   }
 };
 
@@ -518,10 +512,11 @@ export const initPlayer = async (): Promise<void> => {
   const lastTrack = status.currentTrack;
   if (lastTrack?.path) {
     const lastPosition = status.position;
-    // 根据设置决定启动时是否自动播放
-    await load(lastTrack.path, settings.system.player.autoPlay);
-    // 记忆上次进度时 seek 到上次位置
-    if (settings.system.player.rememberLastTrack && lastPosition > 0) {
+    // 先设置 track 信息（确保播放条显示），再尝试 load
+    useMediaStore().setTrack(lastTrack);
+    const result = await load(lastTrack.path, settings.system.player.autoPlay);
+    // load 成功且需要恢复进度时 seek
+    if (result && settings.system.player.rememberLastTrack && lastPosition > 0) {
       await seek(lastPosition);
     }
   } else {

@@ -13,19 +13,17 @@ import { getMainWindow } from "../window";
 import { appName } from "../utils/config";
 import { parseArtists, parseAlbum, formatArtists } from "../utils/metadata";
 import { playerLog } from "../utils/logger";
-import { classifyError, isDeviceError } from "../utils/errors";
+import { ErrorCode } from "@shared/types/errors";
 import type { RepeatMode, ShuffleMode } from "@shared/types/player";
 import type { MediaEvent } from "../services/media";
 import { JsPlayerEvent } from "@splayer/audio-engine";
 
 type AudioEngineModule = typeof import("@splayer/audio-engine");
 
-/** 捕获错误并返回标准化响应 */
-const catchError = (error: unknown, log?: string) => {
-  const code = classifyError(error);
-  if (log) playerLog.error(`${log}:`, error);
-  if (isDeviceError(code)) resetPlayer();
-  return { success: false, error: code };
+/** 返回失败响应，附带日志 */
+const fail = (code: ErrorCode, error?: unknown) => {
+  if (error) playerLog.error(`${code}:`, error);
+  return { success: false as const, error: code };
 };
 
 
@@ -156,7 +154,9 @@ export const registerPlayerIpc = (): void => {
       playerLog.debug(`加载成功: ${trackTitle}`);
       return { success: true, data };
     } catch (error) {
-      return catchError(error, "加载失败");
+      const isNetwork = source.startsWith("http://") || source.startsWith("https://");
+      const code = isNetwork ? ErrorCode.NETWORK_ERROR : ErrorCode.FILE_DECODE_ERROR;
+      return fail(code, error);
     }
   });
 
@@ -166,7 +166,7 @@ export const registerPlayerIpc = (): void => {
       getPlayer().play();
       return { success: true };
     } catch (error) {
-      return catchError(error, "播放失败");
+      return fail(ErrorCode.DEVICE_NOT_FOUND, error);
     }
   });
 
@@ -176,7 +176,7 @@ export const registerPlayerIpc = (): void => {
       getPlayer().pause();
       return { success: true };
     } catch (error) {
-      return catchError(error);
+      return fail(ErrorCode.UNKNOWN, error);
     }
   });
 
@@ -186,7 +186,7 @@ export const registerPlayerIpc = (): void => {
       getPlayer().stop();
       return { success: true };
     } catch (error) {
-      return catchError(error);
+      return fail(ErrorCode.UNKNOWN, error);
     }
   });
 
@@ -202,7 +202,7 @@ export const registerPlayerIpc = (): void => {
       });
       return { success: true };
     } catch (error) {
-      return catchError(error);
+      return fail(ErrorCode.UNKNOWN, error);
     }
   });
 
@@ -213,7 +213,7 @@ export const registerPlayerIpc = (): void => {
       mediaService.setVolume(volume);
       return { success: true };
     } catch (error) {
-      return catchError(error);
+      return fail(ErrorCode.UNKNOWN, error);
     }
   });
 
@@ -228,7 +228,7 @@ export const registerPlayerIpc = (): void => {
       getPlayer().setFadeDuration(durationMs);
       return { success: true };
     } catch (error) {
-      return catchError(error);
+      return fail(ErrorCode.UNKNOWN, error);
     }
   });
 
@@ -258,7 +258,7 @@ export const registerPlayerIpc = (): void => {
       getPlayer().reinitOutput();
       return { success: true };
     } catch (error) {
-      return catchError(error);
+      return fail(ErrorCode.UNKNOWN, error);
     }
   });
 
@@ -268,7 +268,7 @@ export const registerPlayerIpc = (): void => {
       getPlayer().setNormalizationEnabled(enabled);
       return { success: true };
     } catch (error) {
-      return catchError(error);
+      return fail(ErrorCode.UNKNOWN, error);
     }
   });
 
@@ -278,7 +278,7 @@ export const registerPlayerIpc = (): void => {
       getPlayer().setFftEnabled(enabled);
       return { success: true };
     } catch (error) {
-      return catchError(error);
+      return fail(ErrorCode.UNKNOWN, error);
     }
   });
 
@@ -293,7 +293,7 @@ export const registerPlayerIpc = (): void => {
       const content = await readFile(filePath, "utf-8");
       return { success: true, data: content };
     } catch (error) {
-      return catchError(error);
+      return fail(ErrorCode.UNKNOWN, error);
     }
   });
 
@@ -308,7 +308,7 @@ export const registerPlayerIpc = (): void => {
       const base64 = Buffer.from(raw).toString("base64");
       return { success: true, data: `data:image/jpeg;base64,${base64}` };
     } catch (error) {
-      return catchError(error);
+      return fail(ErrorCode.UNKNOWN, error);
     }
   });
 
@@ -318,7 +318,7 @@ export const registerPlayerIpc = (): void => {
     try {
       return { success: true, data: getPlayer().getOutputDevices() };
     } catch (error) {
-      return catchError(error);
+      return fail(ErrorCode.UNKNOWN, error);
     }
   });
 
@@ -327,7 +327,7 @@ export const registerPlayerIpc = (): void => {
     try {
       return { success: true, data: getPlayer().getDefaultDeviceName() ?? null };
     } catch (error) {
-      return catchError(error);
+      return fail(ErrorCode.UNKNOWN, error);
     }
   });
 
@@ -337,7 +337,7 @@ export const registerPlayerIpc = (): void => {
       getPlayer().setOutputDevice(deviceName ?? undefined);
       return { success: true };
     } catch (error) {
-      return catchError(error);
+      return fail(ErrorCode.UNKNOWN, error);
     }
   });
 
@@ -346,7 +346,7 @@ export const registerPlayerIpc = (): void => {
     try {
       return { success: true, data: getPlayer().getSelectedDeviceName() ?? null };
     } catch (error) {
-      return catchError(error);
+      return fail(ErrorCode.UNKNOWN, error);
     }
   });
 

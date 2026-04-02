@@ -47,6 +47,13 @@ export const getPlayer = (): PlayerInstance => {
 
 /** 销毁播放器实例，下次 getPlayer 时自动重建 */
 export const resetPlayer = (): void => {
+  if (playerInstance) {
+    try {
+      playerInstance.stop();
+    } catch {
+      // 设备已丢失时 stop 可能失败，忽略
+    }
+  }
   playerLog.warn("销毁播放器实例，将在下次操作时重建");
   playerInstance = null;
 };
