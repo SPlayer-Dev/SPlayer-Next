@@ -10,7 +10,6 @@ export const useStatusStore = defineStore(
     const duration = ref(0);
     const volume = ref(1);
     const fftData = shallowRef<number[]>([]);
-    const error = ref<string | null>(null);
     const currentSource = ref<string | null>(null);
     const outputDevices = ref<AudioDevice[]>([]);
     const selectedDeviceName = ref<string | null>(null);
@@ -39,7 +38,6 @@ export const useStatusStore = defineStore(
       duration,
       volume,
       fftData,
-      error,
       currentSource,
       isPlaying,
       isPaused,

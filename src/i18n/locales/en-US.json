@@ -262,5 +262,20 @@
       "details": "Song Name",
       "state": "Artist Name"
     }
+  },
+  "errors": {
+    "DEVICE_NOT_FOUND": "No audio output device found",
+    "DEVICE_INIT_FAILED": "Failed to initialize audio device",
+    "FILE_NOT_FOUND": "File not found or inaccessible",
+    "FILE_NO_AUDIO_STREAM": "No audio stream found in file",
+    "FILE_DECODE_ERROR": "Audio decode failed",
+    "FILE_NOT_SELECTED": "No file selected",
+    "NETWORK_ERROR": "Network connection failed",
+    "NETWORK_TIMEOUT": "Network request timed out",
+    "SCAN_NO_DIRS": "No scan directories configured",
+    "SCAN_DIR_EXISTS": "Directory already exists",
+    "SCAN_DIR_NOT_FOUND": "Directory not found",
+    "SCAN_DIR_NOT_SELECTED": "No directory selected",
+    "UNKNOWN": "Operation failed"
   }
 }

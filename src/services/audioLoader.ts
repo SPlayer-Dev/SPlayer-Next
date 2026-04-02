@@ -22,10 +22,10 @@ export interface AudioLoadResult {
 export const loadAudio = async (
   source: string,
   autoPlay = true,
-): Promise<AudioLoadResult | null> => {
+): Promise<{ data: AudioLoadResult | null; error?: string }> => {
   const result = await window.api.player.load(source, autoPlay);
   if (result.success && result.data) {
-    return { track: result.data.track, detail: result.data.detail };
+    return { data: { track: result.data.track, detail: result.data.detail } };
   }
-  return null;
+  return { data: null, error: result.error };
 };

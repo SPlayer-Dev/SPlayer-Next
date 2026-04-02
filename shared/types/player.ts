@@ -116,6 +116,7 @@ export type PlayerEvent =
 export interface IpcResponse<T = void> {
   success: boolean;
   data?: T;
+  /** 错误码（对应 ErrorCode 枚举） */
   error?: string;
 }
 
@@ -134,7 +135,6 @@ export interface PlayerApi {
   getFadeDuration: () => Promise<IpcResponse<number>>;
   getCoverRaw: () => Promise<IpcResponse<string | null>>;
   readLyricFile: (filePath: string) => Promise<IpcResponse<string>>;
-  openFile: () => Promise<IpcResponse<string>>;
   reinit: () => Promise<IpcResponse>;
   setFftEnabled: (enabled: boolean) => Promise<IpcResponse>;
   setNormalizationEnabled: (enabled: boolean) => Promise<IpcResponse>;

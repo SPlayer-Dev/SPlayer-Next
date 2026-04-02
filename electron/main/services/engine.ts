@@ -3,9 +3,13 @@ import { coverCacheDir, isDev } from "../utils/config";
 import { playerLog, nativeLogsDir } from "../utils/logger";
 
 type AudioEngineModule = typeof import("@splayer/audio-engine");
+type PlayerInstance = InstanceType<AudioEngineModule["AudioPlayer"]>;
 
 let audioEngine: AudioEngineModule | null = null;
-let playerInstance: InstanceType<AudioEngineModule["AudioPlayer"]> | null = null;
+let playerInstance: PlayerInstance | null = null;
+
+/** 实例创建后的回调列表（注册事件、启动轮询等） */
+const onCreatedCallbacks: Array<(inst: PlayerInstance) => void> = [];
 
 /** 获取原生音频引擎模块 */
 export const getEngine = (): AudioEngineModule => {
@@ -14,27 +18,34 @@ export const getEngine = (): AudioEngineModule => {
     if (!audioEngine) {
       throw new Error("Failed to load audio-engine.node");
     }
-    // 初始化原生日志系统
     audioEngine.initLogger(nativeLogsDir, isDev);
   }
   return audioEngine;
 };
 
-/** 获取播放器实例 */
-export const getPlayer = (
-  onCreated?: (inst: InstanceType<AudioEngineModule["AudioPlayer"]>) => void,
-): InstanceType<AudioEngineModule["AudioPlayer"]> => {
+/**
+ * 注册播放器实例创建后的回调（在创建/重建时都会触发）
+ * 在 getPlayer 首次调用前注册
+ */
+export const onPlayerCreated = (callback: (inst: PlayerInstance) => void): void => {
+  onCreatedCallbacks.push(callback);
+};
+
+/** 获取播放器实例（首次调用时创建并触发所有 onCreated 回调） */
+export const getPlayer = (): PlayerInstance => {
   if (!playerInstance) {
     const mod = getEngine();
     playerInstance = new mod.AudioPlayer();
     playerInstance.setCoverCacheDir(coverCacheDir);
-    onCreated?.(playerInstance);
+    for (const cb of onCreatedCallbacks) {
+      cb(playerInstance);
+    }
     playerLog.info("播放器实例已创建");
   }
   return playerInstance;
 };
 
-/** 销毁播放器实例 */
+/** 销毁播放器实例，下次 getPlayer 时自动重建 */
 export const resetPlayer = (): void => {
   playerLog.warn("销毁播放器实例，将在下次操作时重建");
   playerInstance = null;

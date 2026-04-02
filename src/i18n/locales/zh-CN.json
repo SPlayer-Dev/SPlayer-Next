@@ -262,5 +262,20 @@
       "details": "歌曲名",
       "state": "歌手名"
     }
+  },
+  "errors": {
+    "DEVICE_NOT_FOUND": "未找到音频输出设备",
+    "DEVICE_INIT_FAILED": "音频设备初始化失败",
+    "FILE_NOT_FOUND": "文件不存在或无法访问",
+    "FILE_NO_AUDIO_STREAM": "文件中未找到音频流",
+    "FILE_DECODE_ERROR": "音频解码失败",
+    "FILE_NOT_SELECTED": "未选择文件",
+    "NETWORK_ERROR": "网络连接失败，请检查网络",
+    "NETWORK_TIMEOUT": "网络请求超时",
+    "SCAN_NO_DIRS": "未配置扫描目录",
+    "SCAN_DIR_EXISTS": "该目录已存在",
+    "SCAN_DIR_NOT_FOUND": "目录不存在",
+    "SCAN_DIR_NOT_SELECTED": "未选择目录",
+    "UNKNOWN": "操作失败"
   }
 }

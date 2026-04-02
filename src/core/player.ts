@@ -1,4 +1,4 @@
-import type { PlayerEvent, PlayerState, IpcResponse, Track } from "@shared/types/player";
+import type { PlayerEvent, PlayerState, Track } from "@shared/types/player";
 import type { RepeatMode, ShuffleMode } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
@@ -7,20 +7,7 @@ import * as queue from "@/stores/queue";
 import * as playback from "@/services/playback";
 import { loadAudio } from "@/services/audioLoader";
 import { extractColorFromUrl } from "@/utils/color";
-
-/**
- * 处理 IPC 返回结果，失败时写入 error
- * @param result - IPC 响应
- * @returns 是否成功
- */
-const handleResult = (result: IpcResponse): boolean => {
-  if (!result.success) {
-    useStatusStore().error = result.error ?? "Unknown error";
-    return false;
-  }
-  return true;
-};
-
+import { handleError } from "@/utils/errors";
 /**
  * 同步播放状态到非响应式时间源（供歌词等 60fps 动画使用）
  * @param state - 当前播放器状态
@@ -35,6 +22,9 @@ const syncPlayback = (state: PlayerState): void => {
 /** 竞态 token：每次加载递增，异步返回后检查是否过期 */
 let loadToken = 0;
 
+/** 连续加载失败计数，成功时重置，超过队列长度则停止跳曲 */
+let consecutiveFailures = 0;
+
 /**
  * 加载音频源
  * @param source - 音频文件路径或网络地址
@@ -44,38 +34,49 @@ let loadToken = 0;
 export const load = async (source: string, autoPlay = true): Promise<Track | null> => {
   const status = useStatusStore();
   const token = ++loadToken;
-  status.error = null;
   status.trackLoading = true;
   // 不提前重置 state 和 playback，保持当前封面/进度/播放状态
   // 等主进程返回后再更新，避免切歌时视觉跳变
   const wasPlaying = status.isPlaying;
   status.state = wasPlaying ? "playing" : "loading";
   try {
-    const data = await loadAudio(source, autoPlay);
+    const { data, error } = await loadAudio(source, autoPlay);
     // 竞态保护：如果已切歌，丢弃旧结果
     if (token !== loadToken) return null;
     if (data) {
+      consecutiveFailures = 0;
       const media = useMediaStore();
-      // 更新歌曲元信息 + 选择歌词源（同步）
       media.setTrack(data.track, data.detail);
-      // 歌词后台加载，不阻塞播放
       media.loadLyric();
-      // 提取封面主色（无封面时清空，避免残留上一首的颜色）
       extractColorFromUrl(data.track.cover ?? null);
-      // 更新播放状态和进度
       const dur = data.track.duration;
       status.duration = dur;
       status.position = 0;
       status.state = autoPlay ? "playing" : "paused";
       status.currentSource = source;
-      // 同步到非响应式时间源
       playback.setDuration(dur);
       playback.setCurrentTime(0);
       playback.setPlaying(autoPlay);
       return data.track;
     } else {
+      consecutiveFailures++;
       status.state = "idle";
-      status.error = "Failed to load";
+      if (error) {
+        const maxSkips = queue.queueLength.value;
+        await handleError(error, {
+          retryKey: `load:${source}`,
+          retryFn: async () => {
+            const retry = await loadAudio(source, autoPlay);
+            return !!retry.data;
+          },
+          onRetryFailed: () => {
+            // 连续失败数超过队列长度，说明全部歌曲都播不了，停止跳曲
+            if (consecutiveFailures < maxSkips) {
+              nextTrack();
+            }
+          },
+        });
+      }
       return null;
     }
   } finally {
@@ -102,7 +103,7 @@ export const play = async (): Promise<void> => {
   status.state = "playing";
   playback.setPlaying(true);
   const result = await window.api.player.play();
-  if (!handleResult(result)) {
+  if (!result.success) {
     status.state = prev;
     playback.setPlaying(false);
   }
@@ -125,7 +126,7 @@ export const pause = async (): Promise<void> => {
   status.state = "paused";
   playback.setPlaying(false);
   const result = await window.api.player.pause();
-  if (!handleResult(result)) {
+  if (!result.success) {
     status.state = prev;
     playback.setPlaying(true);
   }
@@ -134,7 +135,7 @@ export const pause = async (): Promise<void> => {
 /** 停止播放并重置进度 */
 export const stop = async (): Promise<void> => {
   const result = await window.api.player.stop();
-  if (handleResult(result)) {
+  if (result.success) {
     const status = useStatusStore();
     status.state = "stopped";
     status.position = 0;
@@ -175,7 +176,7 @@ export const seek = async (posMs: number): Promise<void> => {
   seekTarget = posMs;
 
   const result = await window.api.player.seek(posMs);
-  if (handleResult(result)) {
+  if (result.success) {
     status.position = posMs;
     playback.setCurrentTime(posMs);
   }
@@ -187,7 +188,7 @@ export const seek = async (posMs: number): Promise<void> => {
  */
 export const setVolume = async (vol: number): Promise<void> => {
   const result = await window.api.player.setVolume(vol);
-  if (handleResult(result)) {
+  if (result.success) {
     useStatusStore().volume = vol;
   }
 };
@@ -204,7 +205,7 @@ export const refreshDevices = async (): Promise<void> => {
  */
 export const switchDevice = async (deviceName: string | null): Promise<void> => {
   const result = await window.api.player.setOutputDevice(deviceName);
-  if (handleResult(result)) useStatusStore().selectedDeviceName = deviceName;
+  if (result.success) useStatusStore().selectedDeviceName = deviceName;
 };
 
 /**
@@ -486,9 +487,6 @@ const handleEvent = async (event: PlayerEvent): Promise<void> => {
       break;
     case "setRepeat":
       setRepeatMode(event.data.mode);
-      break;
-    case "error":
-      status.error = event.error;
       break;
     case "deviceChanged":
       refreshDevices();

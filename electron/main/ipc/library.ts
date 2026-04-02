@@ -3,6 +3,7 @@ import { store } from "../store";
 import { getAllTracks, searchTracks, getTrackCount, deleteTracksByDir } from "../services/database";
 import { startScan, cancelScan, isScanning } from "../services/scanner";
 import { libraryLog } from "../utils/logger";
+import { ErrorCode } from "@shared/types/errors";
 
 /** 注册音乐库相关 IPC */
 export const registerLibraryIpc = (): void => {
@@ -11,13 +12,13 @@ export const registerLibraryIpc = (): void => {
     try {
       const dirs = store.get("library.scanDirs") as string[];
       if (dirs.length === 0) {
-        return { success: false, error: "未配置扫描目录" };
+        return { success: false, error: ErrorCode.SCAN_NO_DIRS };
       }
       startScan(dirs, incremental ?? true);
       return { success: true };
     } catch (error) {
       libraryLog.error("启动扫描失败:", error);
-      return { success: false, error: String(error) };
+      return { success: false, error: ErrorCode.UNKNOWN };
     }
   });
 
@@ -32,7 +33,7 @@ export const registerLibraryIpc = (): void => {
     try {
       return { success: true, data: getAllTracks() };
     } catch (error) {
-      return { success: false, error: String(error) };
+      return { success: false, error: ErrorCode.UNKNOWN };
     }
   });
 
@@ -41,7 +42,7 @@ export const registerLibraryIpc = (): void => {
     try {
       return { success: true, data: searchTracks(query) };
     } catch (error) {
-      return { success: false, error: String(error) };
+      return { success: false, error: ErrorCode.UNKNOWN };
     }
   });
 
@@ -50,7 +51,7 @@ export const registerLibraryIpc = (): void => {
     try {
       return { success: true, data: getTrackCount() };
     } catch (error) {
-      return { success: false, error: String(error) };
+      return { success: false, error: ErrorCode.UNKNOWN };
     }
   });
 
@@ -66,12 +67,12 @@ export const registerLibraryIpc = (): void => {
       properties: ["openDirectory"],
     });
     if (result.canceled || result.filePaths.length === 0) {
-      return { success: false, error: "未选择目录" };
+      return { success: false, error: ErrorCode.SCAN_DIR_NOT_SELECTED };
     }
     const dir = result.filePaths[0];
     const dirs = store.get("library.scanDirs") as string[];
     if (dirs.includes(dir)) {
-      return { success: false, error: "目录已存在" };
+      return { success: false, error: ErrorCode.SCAN_DIR_EXISTS };
     }
     dirs.push(dir);
     store.set("library.scanDirs", dirs);
@@ -85,16 +86,15 @@ export const registerLibraryIpc = (): void => {
       const dirs = store.get("library.scanDirs") as string[];
       const idx = dirs.indexOf(dir);
       if (idx === -1) {
-        return { success: false, error: "目录不存在" };
+        return { success: false, error: ErrorCode.SCAN_DIR_NOT_FOUND };
       }
       dirs.splice(idx, 1);
       store.set("library.scanDirs", dirs);
-      // 同时删除该目录下的所有曲目
       deleteTracksByDir(dir);
       libraryLog.info(`移除扫描目录: ${dir}`);
       return { success: true };
     } catch (error) {
-      return { success: false, error: String(error) };
+      return { success: false, error: ErrorCode.UNKNOWN };
     }
   });
 
