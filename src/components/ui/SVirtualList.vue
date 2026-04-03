@@ -1,4 +1,15 @@
 <script setup lang="ts" generic="T">
+export interface SVirtualListExposed {
+  wrapperRef: HTMLElement | null;
+  contentRef: HTMLElement | null;
+  actualStartIndex: number;
+  scrollTo: (top: number, behavior?: ScrollBehavior) => void;
+  scrollToIndex: (index: number, behavior?: ScrollBehavior) => void;
+  getScrollTop: () => number;
+  getItemTop: (index: number) => number;
+  getDropInfoByOffset: (offsetY: number) => { index: number; position: "top" | "bottom" };
+}
+
 export interface SVirtualListProps<T> {
   /** 列表数据 */
   items: T[];

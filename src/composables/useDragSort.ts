@@ -1,20 +1,9 @@
 import type { ComputedRef, Ref } from "vue";
-
-/** SVirtualList 通过 defineExpose 暴露的实例类型 */
-export interface VirtualListExposed {
-  wrapperRef: HTMLElement | null;
-  contentRef: HTMLElement | null;
-  actualStartIndex: number;
-  scrollTo: (top: number, behavior?: ScrollBehavior) => void;
-  scrollToIndex: (index: number, behavior?: ScrollBehavior) => void;
-  getScrollTop: () => number;
-  getItemTop: (index: number) => number;
-  getDropInfoByOffset: (offsetY: number) => { index: number; position: "top" | "bottom" };
-}
+import type { SVirtualListExposed } from "@/components/ui/SVirtualList.vue";
 
 export interface DragSortOptions {
   /** SVirtualList 组件实例引用 */
-  virtualListRef: Ref<VirtualListExposed | null>;
+  virtualListRef: Ref<SVirtualListExposed | null>;
   /** 列表项总数 */
   itemCount: ComputedRef<number>;
   /** 排序完成回调 */

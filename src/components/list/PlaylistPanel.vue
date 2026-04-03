@@ -3,7 +3,8 @@ import type { Track } from "@shared/types/player";
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import { queue, queueLength } from "@/stores/queue";
-import { useDragSort, type VirtualListExposed } from "@/composables/useDragSort";
+import type { SVirtualListExposed } from "@/components/ui/SVirtualList.vue";
+import { useDragSort } from "@/composables/useDragSort";
 import * as player from "@/core/player";
 
 const props = defineProps<{
@@ -43,12 +44,12 @@ const handleClear = (): void => {
   clearConfirmOpen.value = false;
 };
 
-const listRef = ref<VirtualListExposed | null>(null);
+const listRef = shallowRef<SVirtualListExposed | null>(null);
 
 /** 定位到当前播放歌曲 */
 const scrollToCurrent = (): void => {
   if (statusStore.playIndex >= 0) {
-    listRef.value?.scrollToIndex(statusStore.playIndex, "smooth");
+    listRef.value?.scrollToIndex(statusStore.playIndex);
   }
 };
 
@@ -123,8 +124,12 @@ const btnType = computed(() => (props.cover ? "cover" : "default"));
                   class="text-xs truncate"
                   :class="
                     index === statusStore.playIndex
-                      ? cover ? 'text-cover/70' : 'text-primary/70'
-                      : cover ? 'text-cover/50' : 'text-on-surface-variant'
+                      ? cover
+                        ? 'text-cover/70'
+                        : 'text-primary/70'
+                      : cover
+                        ? 'text-cover/50'
+                        : 'text-on-surface-variant'
                   "
                 >
                   {{ formatArtists(item.artists) }}
