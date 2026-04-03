@@ -140,6 +140,10 @@ jobs:
         if: runner.os != 'Windows'
         run: rm -rf dist out
 
+      # CI 不需要国内镜像
+      - name: 移除 .npmrc
+        run: rm -f .npmrc
+
       # 安装项目依赖
       - name: Install dependencies
         run: pnpm install
@@ -150,8 +154,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
-          ELECTRON_MIRROR: ""
-          ELECTRON_BUILDER_BINARIES_MIRROR: ""
 
       # 上传构建产物 (Windows)
       - name: Upload Windows Setup
