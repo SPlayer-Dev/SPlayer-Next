@@ -99,6 +99,58 @@ body {
   transform: translateX(-10px);
 }
 
+/* 路由切换动效: route-fade */
+.route-fade-enter-active {
+  transition: opacity 0.15s ease;
+}
+.route-fade-leave-active {
+  transition: opacity 0.1s ease;
+}
+.route-fade-enter-from,
+.route-fade-leave-to {
+  opacity: 0;
+}
+
+/* 路由切换动效: route-slide */
+.route-slide-enter-active {
+  transition:
+    transform 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.15s ease;
+}
+.route-slide-leave-active {
+  transition:
+    transform 0.1s ease,
+    opacity 0.1s ease;
+}
+.route-slide-enter-from {
+  opacity: 0;
+  transform: translateX(6px);
+}
+.route-slide-leave-to {
+  opacity: 0;
+  transform: translateX(-6px);
+}
+
+/* 路由切换动效: route-zoom */
+.route-zoom-enter-active {
+  transition:
+    transform 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.15s ease;
+}
+.route-zoom-leave-active {
+  transition:
+    transform 0.1s ease,
+    opacity 0.1s ease;
+}
+.route-zoom-enter-from {
+  opacity: 0;
+  transform: scale(0.97);
+}
+.route-zoom-leave-to {
+  opacity: 0;
+  transform: scale(1.02);
+}
+
 /* 播放栏显示时，滚动条滑轨底部留出空间，避免被遮挡 */
 .scroll-trim.pb-20::-webkit-scrollbar-track {
   margin-bottom: 5rem; /* h-20 = 80px = 5rem */

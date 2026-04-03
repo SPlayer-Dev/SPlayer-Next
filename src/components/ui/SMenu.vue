@@ -14,8 +14,10 @@ const props = withDefaults(
     modelValue?: string;
     /** 尺寸：small（紧凑）| medium（默认）| large（宽松） */
     size?: "small" | "medium" | "large";
+    /** 折叠模式 */
+    collapsed?: boolean;
   }>(),
-  { size: "medium" },
+  { size: "medium", collapsed: false },
 );
 
 const emit = defineEmits<{
@@ -24,13 +26,14 @@ const emit = defineEmits<{
 }>();
 
 const sizeClass = computed(() => {
+  const collapsed = props.collapsed;
   switch (props.size) {
     case "small":
-      return { item: "h-9 px-2.5 text-sm gap-2.5", icon: "size-[18px]" };
+      return { item: "h-9 px-2.5 text-sm gap-2.5", icon: collapsed ? "size-5" : "size-[18px]" };
     case "large":
-      return { item: "h-11 px-3.5 text-[15px] gap-3.5", icon: "size-[22px]" };
+      return { item: "h-11 px-3.5 text-[15px] gap-3.5", icon: collapsed ? "size-6" : "size-[22px]" };
     default:
-      return { item: "h-10.5 px-3 text-sm gap-3", icon: "size-5" };
+      return { item: "h-10.5 px-3 text-sm gap-3", icon: collapsed ? "size-5.5" : "size-5" };
   }
 });
 
@@ -43,27 +46,39 @@ const handleSelect = (item: SMenuItem) => {
 
 <template>
   <nav class="flex flex-col gap-1">
-    <div
+    <STooltip
       v-for="item in items"
       :key="item.key"
-      class="relative flex items-center rounded-lg cursor-pointer select-none transition-[background-color,color] duration-200"
-      :class="[
-        sizeClass.item,
-        modelValue === item.key
-          ? 'bg-primary/10 text-primary'
-          : 'text-on-surface-variant hover:bg-on-surface/5',
-        item.disabled ? 'opacity-40 pointer-events-none' : '',
-      ]"
-      @click="handleSelect(item)"
+      :content="item.label"
+      :disabled="!collapsed"
+      :side-offset="12"
+      side="right"
     >
-      <component v-if="item.icon" :is="item.icon" :class="[sizeClass.icon, 'shrink-0']" />
-      <span class="truncate">{{ item.label }}</span>
-      <Transition name="fade">
+      <div
+        class="relative flex items-center rounded-lg cursor-pointer select-none overflow-hidden whitespace-nowrap"
+        :class="[
+          sizeClass.item,
+          modelValue === item.key
+            ? 'bg-primary/10 text-primary'
+            : 'text-on-surface-variant hover:bg-on-surface/5',
+          item.disabled ? 'opacity-40 pointer-events-none' : '',
+        ]"
+        @click="handleSelect(item)"
+      >
+        <component v-if="item.icon" :is="item.icon" :class="[sizeClass.icon, 'shrink-0 transition-[width,height] duration-300']" />
         <span
-          v-if="modelValue === item.key"
-          class="absolute left-0 top-2 bottom-2 w-0.75 rounded-full bg-primary"
-        />
-      </Transition>
-    </div>
+          class="truncate transition-opacity duration-300"
+          :class="collapsed ? 'opacity-0' : 'opacity-100'"
+        >
+          {{ item.label }}
+        </span>
+        <Transition name="fade">
+          <span
+            v-if="modelValue === item.key"
+            class="absolute left-0 top-2 bottom-2 w-0.75 rounded-full bg-primary"
+          />
+        </Transition>
+      </div>
+    </STooltip>
   </nav>
 </template>

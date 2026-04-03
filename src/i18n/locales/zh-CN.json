@@ -244,6 +244,14 @@
       "sidebarFull": "侧边栏全高",
       "floating": "悬浮播放栏"
     },
+    "routeTransition": {
+      "label": "页面切换动效",
+      "description": "切换页面时的过渡动画效果",
+      "none": "无",
+      "fade": "淡入淡出",
+      "slide": "滑动",
+      "zoom": "缩放"
+    },
     "systemMediaControls": {
       "label": "系统媒体控制",
       "description": "在系统媒体控制中显示当前播放信息"

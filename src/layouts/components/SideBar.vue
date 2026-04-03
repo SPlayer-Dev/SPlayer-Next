@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import type { SMenuItem } from "@/components/ui/SMenu.vue";
+import { useStatusStore } from "@/stores/status";
 import IconLucideHome from "~icons/lucide/home";
 import IconLucideMusic from "~icons/lucide/music";
 
 const { t } = useI18n();
 const router = useRouter();
 const route = useRoute();
+const status = useStatusStore();
+
+const { sidebarCollapsed } = storeToRefs(status);
 
 const menuItems = computed<SMenuItem[]>(() => [
   { key: "/", label: t("nav.home"), icon: markRaw(IconLucideHome) },
@@ -23,16 +27,21 @@ const onSelect = (key: string) => {
 
 <template>
   <div class="flex flex-col h-full">
-    <!-- Logo：高度与导航栏 h-14 对齐 -->
-    <RouterLink
-      to="/"
-      class="flex items-center justify-center gap-2 h-16 shrink-0 no-underline cursor-pointer transition-transform hover:scale-105 active:scale-100"
+    <SideBarLogo :collapsed="sidebarCollapsed" />
+    <div class="pb-3 transition-[padding] duration-300" :class="sidebarCollapsed ? 'px-2' : 'px-3'">
+      <SMenu :items="menuItems" :model-value="activeKey" :collapsed="sidebarCollapsed" @select="onSelect" />
+    </div>
+    <!-- 底部折叠按钮 -->
+    <div
+      class="mt-auto px-3 pb-3 flex"
+      :class="sidebarCollapsed ? 'justify-center' : 'justify-end'"
     >
-      <SLogo :size="30" />
-      <span class="text-[22px] text-primary mt-0.5" style="font-family: 'logo'">SPlayer</span>
-    </RouterLink>
-    <div class="px-3 pb-3">
-      <SMenu :items="menuItems" :model-value="activeKey" @select="onSelect" />
+      <SButton variant="tertiary" circle :size="32" @click="sidebarCollapsed = !sidebarCollapsed">
+        <template #icon>
+          <IconLucidePanelLeftClose v-if="!sidebarCollapsed" class="size-4" />
+          <IconLucidePanelLeftOpen v-else class="size-4" />
+        </template>
+      </SButton>
     </div>
   </div>
 </template>

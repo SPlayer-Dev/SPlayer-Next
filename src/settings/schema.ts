@@ -344,6 +344,18 @@ export const settingsSchema: SettingCategory[] = [
             ],
             defaultValue: "default",
           },
+          {
+            key: "routeTransition",
+            type: "select",
+            binding: { store: "settings", path: "player.routeTransition" },
+            options: [
+              { value: "none", labelKey: "settings.routeTransition.none" },
+              { value: "fade", labelKey: "settings.routeTransition.fade" },
+              { value: "slide", labelKey: "settings.routeTransition.slide" },
+              { value: "zoom", labelKey: "settings.routeTransition.zoom" },
+            ],
+            defaultValue: "fade",
+          },
         ],
       },
     ],

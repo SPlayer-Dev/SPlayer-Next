@@ -16,6 +16,7 @@ export const useSettingsStore = defineStore(
       autoCenterCover: true,
       followCoverColor: true,
       layoutMode: "default",
+      routeTransition: "fade",
     });
 
     /** 歌词设置（持久化） */

@@ -244,6 +244,14 @@
       "sidebarFull": "Full Sidebar",
       "floating": "Floating Player Bar"
     },
+    "routeTransition": {
+      "label": "Page Transition",
+      "description": "Animation effect when switching pages",
+      "none": "None",
+      "fade": "Fade",
+      "slide": "Slide",
+      "zoom": "Zoom"
+    },
     "systemMediaControls": {
       "label": "System Media Controls",
       "description": "Show playback info in system media controls"

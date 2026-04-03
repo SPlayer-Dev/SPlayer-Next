@@ -16,6 +16,7 @@ export const useStatusStore = defineStore(
     /** 歌曲加载中（切歌期间屏蔽事件推送，避免 UI 跳变） */
     const trackLoading = ref(false);
     const isExpanded = ref(false);
+    const sidebarCollapsed = ref(false);
     const playlistOpen = ref(false);
     const playIndex = ref(-1);
     const repeatMode = ref<RepeatMode>("list");
@@ -45,6 +46,7 @@ export const useStatusStore = defineStore(
       progress,
       trackLoading,
       isExpanded,
+      sidebarCollapsed,
       playlistOpen,
       outputDevices,
       selectedDeviceName,
@@ -57,7 +59,7 @@ export const useStatusStore = defineStore(
   {
     persist: {
       storage: localStorage,
-      pick: ["playIndex", "repeatMode", "shuffleMode", "volume", "position", "duration"],
+      pick: ["playIndex", "repeatMode", "shuffleMode", "volume", "position", "duration", "sidebarCollapsed"],
     },
   },
 );

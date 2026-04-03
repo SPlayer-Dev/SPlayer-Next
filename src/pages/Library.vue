@@ -110,36 +110,35 @@ onUnmounted(() => {
       <div class="flex items-center justify-between mt-2 mb-4">
         <div class="flex items-baseline gap-4">
           <h1 class="text-3xl font-bold text-on-surface">{{ t("library.title") }}</h1>
-          <div
-            v-if="tracks.length > 0"
-            class="flex items-center gap-3 text-sm text-on-surface-variant/50"
-          >
-            <span class="flex items-center gap-1">
-              <IconLucideMusic class="size-3.5" />
-              {{ t("library.totalSongs", { count: tracks.length }) }}
-            </span>
-            <span v-if="totalSize" class="flex items-center gap-1">
-              <IconLucideHardDrive class="size-3.5" />
-              {{ totalSize }}
-            </span>
-          </div>
+          <!-- 统计或进度 -->
+          <Transition name="fade" mode="out-in">
+            <div
+              v-if="scanning && scanProgress"
+              key="progress"
+              class="flex items-center gap-2 text-sm text-on-surface-variant/50"
+            >
+              <SLoading class="size-3.5 text-primary shrink-0" />
+              <span class="tabular-nums">
+                {{ t("library.scanProgress", { scanned: scanProgress.scanned, total: scanProgress.total }) }}
+              </span>
+              <span class="text-on-surface-variant/40">{{ scanPercent }}%</span>
+            </div>
+            <div
+              v-else-if="tracks.length > 0"
+              key="stats"
+              class="flex items-center gap-3 text-sm text-on-surface-variant/50"
+            >
+              <span class="flex items-center gap-1">
+                <IconLucideMusic class="size-3.5" />
+                {{ t("library.totalSongs", { count: tracks.length }) }}
+              </span>
+              <span v-if="totalSize" class="flex items-center gap-1">
+                <IconLucideHardDrive class="size-3.5" />
+                {{ totalSize }}
+              </span>
+            </div>
+          </Transition>
         </div>
-        <!-- 扫描进度（轻量，不占高度） -->
-        <Transition
-          enter-active-class="transition-opacity duration-300"
-          enter-from-class="opacity-0"
-          leave-active-class="transition-opacity duration-200"
-          leave-to-class="opacity-0"
-        >
-          <div
-            v-if="scanning && scanProgress"
-            class="flex items-center gap-2 text-xs text-on-surface-variant/60"
-          >
-            <SLoading class="size-3.5 text-primary shrink-0" />
-            <span class="tabular-nums">{{ scanProgress.scanned }}/{{ scanProgress.total }}</span>
-            <span class="text-on-surface-variant/40">{{ scanPercent }}%</span>
-          </div>
-        </Transition>
       </div>
       <div class="flex items-center justify-between gap-4">
         <div class="flex items-center gap-3">

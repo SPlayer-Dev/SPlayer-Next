@@ -7,6 +7,9 @@ export type LyricMode = "effects" | "simple";
 /** 布局模式 */
 export type LayoutMode = "default" | "sidebar-full" | "floating";
 
+/** 路由切换动效 */
+export type RouteTransition = "none" | "fade" | "slide" | "zoom";
+
 /** 弹簧动画预设 */
 export type SpringPreset =
   | "default"
@@ -80,4 +83,6 @@ export interface PlayerSettings {
   followCoverColor: boolean;
   /** 布局模式：default（默认）| sidebar-full（侧边栏全高）| floating（悬浮播放栏） */
   layoutMode: LayoutMode;
+  /** 路由切换动效 */
+  routeTransition: RouteTransition;
 }
