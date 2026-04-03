@@ -34,22 +34,34 @@ jobs:
         include:
           - os: windows-latest
             name: windows
+            arch: x64
             artifact_name_suffix: windows-x64
             package_extension: zip
+            build_cmd: pnpm build:win -- --x64
           - os: macos-latest
             name: macOS
+            arch: arm64
             artifact_name_suffix: macos-arm64
             package_extension: tar.gz
+            build_cmd: pnpm build:mac -- --arm64
+          - os: macos-latest
+            name: macOS
+            arch: x64
+            artifact_name_suffix: macos-x64
+            package_extension: tar.gz
+            build_cmd: pnpm build:mac -- --x64
           - os: ubuntu-latest
             name: linux
+            arch: x64
             artifact_name_suffix: linux-x64
             package_extension: tar.gz
+            build_cmd: pnpm build:linux -- --x64
     steps:
       - name: Check out git repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -133,71 +145,62 @@ jobs:
         run: pnpm install
 
       # 构建
-      - name: Build Windows App
-        if: runner.os == 'Windows'
-        run: pnpm build:win -- --x64
+      - name: Build ${{ matrix.name }} ${{ matrix.arch }}
+        run: ${{ matrix.build_cmd }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build macOS App
-        if: runner.os == 'macOS'
-        run: pnpm build:mac -- --arm64
-        env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ELECTRON_MIRROR: ""
+          ELECTRON_BUILDER_BINARIES_MIRROR: ""
 
-      - name: Build Linux App
-        if: runner.os == 'Linux'
-        run: pnpm build:linux -- --x64
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # 上传构建产物
+      # 上传构建产物 (Windows)
       - name: Upload Windows Setup
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
-          name: SPlayer-Next-Windows-setup-x64
-          path: dist/*-x64-setup.exe
+          name: SPlayer-Next-Windows-setup-${{ matrix.arch }}
+          path: dist/*-setup.exe
 
+      # 上传构建产物 (macOS)
       - name: Upload macOS DMG
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
-          name: SPlayer-Next-macOS-dmg-arm64
-          path: dist/*-arm64.dmg
+          name: SPlayer-Next-macOS-dmg-${{ matrix.arch }}
+          path: dist/*.dmg
 
       - name: Upload macOS Zip
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
-          name: SPlayer-Next-macOS-zip-arm64
-          path: dist/*-arm64.zip
+          name: SPlayer-Next-macOS-zip-${{ matrix.arch }}
+          path: dist/*.zip
 
+      # 上传构建产物 (Linux)
       - name: Upload Linux AppImage
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
-          name: SPlayer-Next-Linux-appimage-x64
-          path: dist/*-x86_64.AppImage
+          name: SPlayer-Next-Linux-appimage-${{ matrix.arch }}
+          path: dist/*.AppImage
 
       - name: Upload Linux DEB
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
-          name: SPlayer-Next-Linux-deb-x64
-          path: dist/*-amd64.deb
+          name: SPlayer-Next-Linux-deb-${{ matrix.arch }}
+          path: dist/*.deb
 
       - name: Upload Linux RPM
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
-          name: SPlayer-Next-Linux-rpm-x64
-          path: dist/*-x86_64.rpm
+          name: SPlayer-Next-Linux-rpm-${{ matrix.arch }}
+          path: dist/*.rpm
 
       - name: Upload Linux Tar
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
-          name: SPlayer-Next-Linux-tar-x64
-          path: dist/*-x64.tar.gz
+          name: SPlayer-Next-Linux-tar-${{ matrix.arch }}
+          path: dist/*.tar.gz
