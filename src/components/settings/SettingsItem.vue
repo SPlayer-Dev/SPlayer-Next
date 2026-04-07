@@ -87,7 +87,6 @@ const descriptionText = computed(() =>
         <component
           v-else-if="item.type === 'custom' && item.component"
           :is="item.component"
-          v-bind="item.componentProps"
           :model-value="model"
           @update:model-value="model = $event"
         />

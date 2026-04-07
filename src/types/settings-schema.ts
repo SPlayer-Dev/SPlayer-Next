@@ -36,8 +36,6 @@ export interface SettingItem {
   action?: () => void;
   /** custom 类型的组件 */
   component?: Component;
-  /** 传给 custom 组件的 props */
-  componentProps?: Record<string, unknown>;
   /** 搜索用额外关键词（i18n keys） */
   keywords?: string[];
   /** 子项（折叠展开） */

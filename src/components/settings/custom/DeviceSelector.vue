@@ -3,6 +3,8 @@ import { useStatusStore } from "@/stores/status";
 import { useSettingsStore } from "@/stores/settings";
 import { refreshDevices, switchDevice } from "@/core/player";
 
+defineOptions({ inheritAttrs: false });
+
 const { t } = useI18n();
 const status = useStatusStore();
 const settings = useSettingsStore();
