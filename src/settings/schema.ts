@@ -1,5 +1,6 @@
 import type { SettingCategory } from "@/types/settings-schema";
 import { useSettingsStore } from "@/stores/settings";
+import DeviceSelector from "@/components/settings/custom/DeviceSelector.vue";
 import IconLucideCog from "~icons/lucide/cog";
 import IconLucidePlay from "~icons/lucide/play";
 import IconLucideMic2 from "~icons/lucide/mic-2";
@@ -108,6 +109,16 @@ export const settingsSchema: SettingCategory[] = [
             type: "switch",
             binding: { store: "settings", path: "system.player.loudnessNormalization" },
             defaultValue: false,
+          },
+        ],
+      },
+      {
+        id: "device",
+        items: [
+          {
+            key: "outputDevice",
+            type: "custom",
+            component: DeviceSelector,
           },
         ],
       },

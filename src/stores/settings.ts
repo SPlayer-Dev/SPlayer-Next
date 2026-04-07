@@ -27,6 +27,7 @@ export const useSettingsStore = defineStore(
       playerBgType: "blur",
       autoCenterCover: true,
       followCoverColor: true,
+      outputDevice: null,
     });
 
     /** 歌词 */

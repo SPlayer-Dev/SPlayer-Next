@@ -109,6 +109,7 @@
       "theme": "Theme",
       "layout": "Layout",
       "media": "Media Controls",
+      "device": "Output Device",
       "discord": "Discord RPC",
       "systemConfig": "System"
     },
@@ -137,6 +138,11 @@
     "loudnessNormalization": {
       "label": "Loudness Normalization",
       "description": "Automatically balance volume levels between tracks"
+    },
+    "outputDevice": {
+      "label": "Output Device",
+      "description": "Select audio output device",
+      "default": "System Default"
     },
     "lyricMode": {
       "label": "Lyric Mode",

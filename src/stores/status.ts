@@ -12,8 +12,7 @@ export const useStatusStore = defineStore(
     const fftData = shallowRef<number[]>([]);
     const currentSource = ref<string | null>(null);
     const outputDevices = ref<AudioDevice[]>([]);
-    const selectedDeviceName = ref<string | null>(null);
-    /** 歌曲加载中（切歌期间屏蔽事件推送，避免 UI 跳变） */
+    /** 歌曲加载 */
     const trackLoading = ref(false);
     const isExpanded = ref(false);
     const playlistOpen = ref(false);
@@ -47,7 +46,6 @@ export const useStatusStore = defineStore(
       isExpanded,
       playlistOpen,
       outputDevices,
-      selectedDeviceName,
       playIndex,
       repeatMode,
       shuffleMode,

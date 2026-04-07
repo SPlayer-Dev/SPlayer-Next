@@ -109,6 +109,7 @@
       "theme": "主题与风格",
       "layout": "布局",
       "media": "媒体控制",
+      "device": "输出设备",
       "discord": "Discord RPC",
       "systemConfig": "系统配置"
     },
@@ -137,6 +138,11 @@
     "loudnessNormalization": {
       "label": "音量均衡",
       "description": "自动调节不同歌曲之间的音量差异"
+    },
+    "outputDevice": {
+      "label": "输出设备",
+      "description": "选择音频输出设备",
+      "default": "系统默认"
     },
     "lyricMode": {
       "label": "歌词模式",

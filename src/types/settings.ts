@@ -81,6 +81,8 @@ export interface PlayerSettings {
   autoCenterCover: boolean;
   /** 颜色是否跟随封面 */
   followCoverColor: boolean;
+  /** 输出设备名称，null 表示跟随系统默认 */
+  outputDevice: string | null;
 }
 
 /** 外观设置 */
