@@ -243,7 +243,7 @@ async fn run_mpris_loop(mut rx: UnboundedReceiver<MprisCommand>) -> Result<()> {
     let mut cover_guard: Option<NamedTempFile> = None;
 
     let pid = process::id();
-    let identity = format!("splayer.instance{pid}");
+    let identity = format!("splayer-next.instance{pid}");
 
     let player = Player::builder(&identity)
         .can_play(true)
@@ -255,8 +255,8 @@ async fn run_mpris_loop(mut rx: UnboundedReceiver<MprisCommand>) -> Result<()> {
         .minimum_rate(0.2)
         .maximum_rate(2.0)
         .playback_status(MprisPlaybackStatus::Stopped)
-        .identity("SPlayer")
-        .desktop_entry("SPlayer")
+        .identity("SPlayer-Next")
+        .desktop_entry("SPlayer-Next")
         .build()
         .await
         .map_err(|e| anyhow::anyhow!("MPRIS 初始化失败: {e}"))?;
