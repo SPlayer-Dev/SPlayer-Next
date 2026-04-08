@@ -10,7 +10,6 @@
 
 img {
   -webkit-user-drag: none;
-  user-drag: none;
 }
 
 body {
@@ -18,9 +17,14 @@ body {
   color: rgb(var(--s-on-surface));
 }
 
-/* 滚动条基础样式 */
+::selection {
+  background: rgb(var(--s-primary) / 0.3);
+  color: rgb(var(--s-on-surface));
+}
+
+/* 滚动条 */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -33,10 +37,14 @@ body {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--s-on-surface) / 0.3);
+  background: rgb(var(--s-on-surface) / 0.5);
 }
 
-/* 通用 Transition: fade（可通过 --fade-duration 覆盖时长） */
+/* 播放栏显示时，滚动条滑轨底部留出空间，避免被遮挡 */
+.scroll-trim.pb-20::-webkit-scrollbar-track {
+  margin-bottom: 5rem;
+}
+
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity var(--fade-duration, 0.3s) ease;
@@ -47,7 +55,6 @@ body {
   opacity: 0;
 }
 
-/* 通用 Transition: slide-left（左侧滑入/滑出，用于切歌信息切换） */
 .slide-left-enter-active {
   transition:
     transform 0.2s ease,
@@ -64,7 +71,6 @@ body {
   transform: translateX(-5px);
 }
 
-/* 通用 Transition: slide-up（上下翻动，用于歌词行切换） */
 .slide-up-enter-active {
   transition:
     transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
@@ -84,7 +90,6 @@ body {
   transform: translateY(-4px);
 }
 
-/* 通用 Transition: scale-switch（旧元素向左淡出，新元素从右淡入） */
 .scale-switch-enter-active {
   transition:
     transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
@@ -104,7 +109,6 @@ body {
   transform: translateX(-10px);
 }
 
-/* 路由切换动效: route-fade */
 .route-fade-enter-active {
   transition: opacity 0.15s ease;
 }
@@ -116,7 +120,6 @@ body {
   opacity: 0;
 }
 
-/* 路由切换动效: route-slide */
 .route-slide-enter-active {
   transition:
     transform 0.15s cubic-bezier(0.16, 1, 0.3, 1),
@@ -136,7 +139,6 @@ body {
   transform: translateX(-6px);
 }
 
-/* 路由切换动效: route-zoom */
 .route-zoom-enter-active {
   transition:
     transform 0.15s cubic-bezier(0.16, 1, 0.3, 1),
@@ -154,9 +156,4 @@ body {
 .route-zoom-leave-to {
   opacity: 0;
   transform: scale(1.02);
-}
-
-/* 播放栏显示时，滚动条滑轨底部留出空间，避免被遮挡 */
-.scroll-trim.pb-20::-webkit-scrollbar-track {
-  margin-bottom: 5rem; /* h-20 = 80px = 5rem */
 }

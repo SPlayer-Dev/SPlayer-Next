@@ -184,7 +184,6 @@ const { items: contextMenuItems, handleSelect: onContextMenu } = useTrackMenu(co
         :item-height="88"
         :padding-bottom="80"
         :get-item-key="(item: Track) => item.id"
-        :no-transition="!!searchQuery"
         item-fixed
         height="100%"
       >

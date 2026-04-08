@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import type { Collection, CollectionType } from "@/types/collection";
+import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import type { TrackSource } from "@shared/types/player";
 import { usePlaylistStore } from "@/stores/playlist";
 import { formatTime } from "@/utils/time";
 import * as player from "@/core/player";
+import IconLucidePencil from "~icons/lucide/pencil";
+import IconLucideTrash2 from "~icons/lucide/trash-2";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -53,6 +56,63 @@ const handlePlayAll = () => {
 };
 
 const searchQuery = ref("");
+
+/** 更多菜单 */
+const editLabel = computed(() => t("collection.edit", { type: typeLabel.value }));
+
+const moreMenuItems = computed<DropdownMenuItem[]>(() => [
+  { key: "edit", label: editLabel.value, icon: IconLucidePencil },
+  {
+    key: "delete",
+    label: t("collection.delete", { type: typeLabel.value }),
+    icon: IconLucideTrash2,
+    separator: true,
+  },
+]);
+
+/** 编辑弹窗 */
+const editDialogOpen = ref(false);
+const editTitle = ref("");
+const editDescription = ref("");
+
+const openEditDialog = () => {
+  if (!collection.value) return;
+  editTitle.value = collection.value.title;
+  editDescription.value = collection.value.description ?? "";
+  editDialogOpen.value = true;
+};
+
+const handleSaveEdit = async () => {
+  if (!collection.value || !editTitle.value.trim()) return;
+  await playlistStore.update(collection.value.id, {
+    title: editTitle.value.trim(),
+    description: editDescription.value.trim() || undefined,
+  });
+  await loadCollection();
+  editDialogOpen.value = false;
+};
+
+/** 删除确认 */
+const deleteConfirmOpen = ref(false);
+const router = useRouter();
+
+const handleDelete = async () => {
+  if (!collection.value) return;
+  await playlistStore.remove(collection.value.id);
+  deleteConfirmOpen.value = false;
+  router.back();
+};
+
+const handleMoreMenu = (key: string) => {
+  switch (key) {
+    case "edit":
+      openEditDialog();
+      break;
+    case "delete":
+      deleteConfirmOpen.value = true;
+      break;
+  }
+};
 </script>
 
 <template>
@@ -102,6 +162,15 @@ const searchQuery = ref("");
             </template>
             {{ t("collection.playAll") }}
           </SButton>
+          <SDropdownMenu :items="moreMenuItems" align="start" @select="handleMoreMenu">
+            <template #trigger>
+              <SButton variant="secondary" circle>
+                <template #icon>
+                  <IconLucideEllipsis />
+                </template>
+              </SButton>
+            </template>
+          </SDropdownMenu>
         </div>
         <SInput
           v-model="searchQuery"
@@ -116,20 +185,49 @@ const searchQuery = ref("");
         </SInput>
       </div>
     </div>
-    <!-- 歌曲列表 -->
-    <div v-if="collection && collection.tracks.length > 0" class="flex-1 min-h-0">
-      <SongList
-        :items="collection.tracks"
-        :search-query="searchQuery"
-        :show-album="type !== 'album'"
-      />
-    </div>
-    <!-- 空状态 -->
-    <div v-else-if="collection" class="flex-1 flex items-center justify-center">
-      <div class="text-center text-on-surface-variant/50">
-        <IconLucideMusic class="size-12 mx-auto mb-3 opacity-30" />
-        <div class="text-sm">{{ t("collection.empty") }}</div>
+    <Transition name="fade" mode="out-in" :duration="150">
+      <!-- 歌曲列表 -->
+      <div v-if="collection && collection.tracks.length > 0" :key="collection.id" class="flex-1 min-h-0">
+        <SongList
+          :items="collection.tracks"
+          :search-query="searchQuery"
+          :show-album="type !== 'album'"
+        />
       </div>
-    </div>
+      <!-- 空状态 -->
+      <div v-else-if="collection" key="empty" class="flex-1 flex items-center justify-center">
+        <div class="text-center text-on-surface-variant/50">
+          <IconLucideMusic class="size-12 mx-auto mb-3 opacity-30" />
+          <div class="text-sm">{{ t("collection.empty") }}</div>
+        </div>
+      </div>
+    </Transition>
+    <!-- 编辑弹窗 -->
+    <SDialog v-model:open="editDialogOpen" :title="editLabel" width="400px">
+      <div class="flex flex-col gap-4">
+        <SFormItem :label="t('collection.name', { type: typeLabel })">
+          <SInput v-model="editTitle" />
+        </SFormItem>
+        <SFormItem :label="t('collection.description', { type: typeLabel })">
+          <SInput v-model="editDescription" />
+        </SFormItem>
+      </div>
+      <template #footer="{ close }">
+        <SButton variant="secondary" @click="close">{{ t("common.cancel") }}</SButton>
+        <SButton type="primary" :disabled="!editTitle.trim()" @click="handleSaveEdit">
+          {{ t("common.confirm") }}
+        </SButton>
+      </template>
+    </SDialog>
+    <!-- 删除确认 -->
+    <SDialog v-model:open="deleteConfirmOpen" :title="t('collection.delete', { type: typeLabel })">
+      <p class="text-sm text-on-surface-variant">
+        {{ t("collection.deleteConfirm", { type: typeLabel, title: collection?.title }) }}
+      </p>
+      <template #footer="{ close }">
+        <SButton variant="secondary" @click="close">{{ t("common.cancel") }}</SButton>
+        <SButton type="error" @click="handleDelete">{{ t("common.confirm") }}</SButton>
+      </template>
+    </SDialog>
   </div>
 </template>

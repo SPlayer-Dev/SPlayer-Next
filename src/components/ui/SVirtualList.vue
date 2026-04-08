@@ -27,8 +27,6 @@ export interface SVirtualListProps<T> {
   defaultScrollIndex?: number;
   /** 获取唯一键 */
   getItemKey?: (item: T, index: number) => string | number;
-  /** 禁用列表项位移动画 */
-  noTransition?: boolean;
 }
 
 const props = withDefaults(defineProps<SVirtualListProps<T>>(), {
@@ -305,9 +303,9 @@ watch(
 
 onMounted(() => {
   initializeHeights();
+  calculateVisibleRange(0);
+  if (props.defaultScrollIndex) scrollToIndex(props.defaultScrollIndex);
   nextTick(() => {
-    calculateVisibleRange(0);
-    if (props.defaultScrollIndex) scrollToIndex(props.defaultScrollIndex);
     if (!props.itemFixed) measureItemHeights();
   });
 });
@@ -359,11 +357,6 @@ defineExpose({
               ref="itemRefs"
               :data-index="actualStartIndex + visibleIdx"
               class="absolute inset-x-0 top-0 contain-[layout_paint]"
-              :class="
-                noTransition
-                  ? ''
-                  : 'transition-transform duration-300 ease-[cubic-bezier(0.25,0.8,0.25,1)]'
-              "
               :style="{ transform: `translateY(${getItemTop(actualStartIndex + visibleIdx)}px)` }"
             >
               <slot :item="item" :index="actualStartIndex + visibleIdx" />

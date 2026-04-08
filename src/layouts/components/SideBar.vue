@@ -15,7 +15,7 @@ const { appearance } = useSettingsStore();
 const playlistStore = usePlaylistStore();
 
 const handleCreate = async () => {
-  const playlist = await playlistStore.create(t("collection.createPlaylist"));
+  const playlist = await playlistStore.create(t("collection.create", { type: t("collection.playlist") }));
   router.push(`/collection/local/playlist/${playlist.id}`);
 };
 
@@ -31,7 +31,7 @@ const menuItems = computed<SMenuItem[]>(() => [
         h(
           "span",
           { class: "text-sm text-on-surface-variant/70" },
-          t("collection.myPlaylist"),
+          t("collection.my", { type: t("collection.playlist") }),
         ),
         h(
           SButton,
@@ -68,7 +68,7 @@ onMounted(() => {
   <div class="flex flex-col h-full">
     <SideBarLogo :collapsed="appearance.sidebarCollapsed" />
     <div
-      class="flex-1 min-h-0 overflow-y-auto transition-[padding] duration-300"
+      class="flex-1 min-h-0 pb-3 overflow-y-auto transition-[padding] duration-300"
       :class="appearance.sidebarCollapsed ? 'px-2' : 'px-3'"
     >
       <SMenu

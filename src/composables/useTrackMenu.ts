@@ -24,11 +24,11 @@ export const useTrackMenu = (track: Ref<Track | undefined>) => {
     { key: "playNext", label: t("songList.context.playNext"), icon: markRaw(IconListEnd) },
     {
       key: "addToPlaylist",
-      label: t("collection.addToPlaylist"),
+      label: t("collection.addTo", { type: t("collection.playlist") }),
       icon: markRaw(IconListPlus),
       separator: true,
       children: [
-        { key: "playlist:new", label: t("collection.createPlaylist"), icon: markRaw(IconPlus) },
+        { key: "playlist:new", label: t("collection.create", { type: t("collection.playlist") }), icon: markRaw(IconPlus) },
         ...(playlistStore.playlists.length > 0
           ? [
               { key: "playlist:divider", label: "", separator: true },
@@ -55,7 +55,7 @@ export const useTrackMenu = (track: Ref<Track | undefined>) => {
     if (!current) return;
     // 歌单相关
     if (key === "playlist:new") {
-      const playlist = await playlistStore.create(t("collection.createPlaylist"));
+      const playlist = await playlistStore.create(t("collection.create", { type: t("collection.playlist") }));
       await playlistStore.addTracks(playlist.id, [current]);
       return;
     }

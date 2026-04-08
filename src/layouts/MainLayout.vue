@@ -72,7 +72,7 @@ const playerBarClass = computed(() => {
         <RouterView v-slot="{ Component }">
           <Transition :name="routeTransitionName" mode="out-in">
             <KeepAlive :max="5">
-              <component :is="Component" :key="$route.path" />
+              <component :is="Component" :key="$route.name" />
             </KeepAlive>
           </Transition>
         </RouterView>

@@ -33,12 +33,12 @@ const handleClear = () => {
 
 <template>
   <div
-    class="flex items-center gap-2 h-8.5 px-3 text-sm text-on-surface bg-surface-panel border border-solid border-primary/12 transition-[border-color,box-shadow,width] duration-250"
+    class="flex items-center gap-2 h-8.5 px-3 text-sm text-on-surface border border-solid transition-[border-color,box-shadow,background-color,width] duration-250"
     :class="[
       round ? 'rounded-full' : 'rounded-lg',
       isFocused
-        ? 'border-primary shadow-[0_0_0_2px_rgb(var(--s-primary)/0.25)]'
-        : 'border-outline-variant/50 hover:border-on-surface/30',
+        ? 'bg-on-surface/12 border-primary ring-2 ring-primary/25'
+        : 'bg-on-surface/5 border-primary/15 hover:bg-on-surface/8',
       disabled ? 'opacity-50 cursor-not-allowed' : '',
     ]"
   >

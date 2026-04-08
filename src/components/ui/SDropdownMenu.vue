@@ -42,6 +42,14 @@ const handleSelect = (item: DropdownMenuItem): void => {
   if (item.disabled) return;
   emit("select", item.key);
 };
+
+/** 内容区域样式 */
+const contentClass =
+  "z-300 min-w-32 rounded-lg bg-surface-bright border border-solid border-outline-variant/30 shadow-lg p-1 text-sm data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out";
+
+/** 菜单项样式 */
+const menuItemClass =
+  "flex items-center gap-2 px-2 py-1.5 rounded-md text-on-surface outline-none select-none cursor-pointer transition-colors data-[highlighted]:bg-on-surface/5 data-[disabled]:opacity-40 data-[disabled]:pointer-events-none";
 </script>
 
 <template>
@@ -56,13 +64,39 @@ const handleSelect = (item: DropdownMenuItem): void => {
         :align="align"
         :side-offset="sideOffset"
         :avoid-collisions="true"
-        class="z-300 min-w-32 rounded-lg bg-surface-bright border border-solid border-outline-variant/30 shadow-lg p-1 text-sm data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out"
+        :class="contentClass"
       >
         <template v-for="item in items" :key="item.key">
           <SDivider v-if="item.separator" class="mx-1.5 my-0.5" />
+          <!-- 子菜单 -->
+          <DropdownMenuSub v-if="item.children">
+            <DropdownMenuSubTrigger :disabled="item.disabled" :class="menuItemClass">
+              <component v-if="item.icon" :is="item.icon" class="size-3.5 opacity-60 shrink-0" />
+              <span class="flex-1">{{ item.label }}</span>
+              <IconLucideChevronRight class="size-3 opacity-40 shrink-0" />
+            </DropdownMenuSubTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent :side-offset="4" :avoid-collisions="true" :class="[contentClass, 'max-h-60 overflow-y-auto']">
+                <template v-for="child in item.children" :key="child.key">
+                  <SDivider v-if="child.separator" class="mx-1.5 my-0.5" />
+                  <DropdownMenuItem
+                    v-else
+                    :disabled="child.disabled"
+                    :class="menuItemClass"
+                    @select="handleSelect(child)"
+                  >
+                    <component v-if="child.icon" :is="child.icon" class="size-3.5 opacity-60 shrink-0" />
+                    <span>{{ child.label }}</span>
+                  </DropdownMenuItem>
+                </template>
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
+          <!-- 普通菜单项 -->
           <DropdownMenuItem
+            v-else
             :disabled="item.disabled"
-            class="flex items-center gap-2 px-2 py-1.5 rounded-md text-on-surface outline-none select-none cursor-pointer transition-colors data-[highlighted]:bg-on-surface/5 data-[disabled]:opacity-40 data-[disabled]:pointer-events-none"
+            :class="menuItemClass"
             @select="handleSelect(item)"
           >
             <component v-if="item.icon" :is="item.icon" class="size-3.5 opacity-60 shrink-0" />

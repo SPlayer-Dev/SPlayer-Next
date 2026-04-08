@@ -77,7 +77,7 @@ export const usePlaylistStore = defineStore("playlist", () => {
     const existIds = new Set(record.tracks.map((t) => t.id));
     const newTracks = tracks.filter((t) => !existIds.has(t.id));
     if (newTracks.length === 0) return 0;
-    record.tracks.push(...newTracks);
+    record.tracks.unshift(...newTracks);
     record.trackCount = record.tracks.length;
     record.updateTime = Date.now();
     // 用最后一首有封面的新歌作为歌单封面
