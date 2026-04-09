@@ -319,7 +319,7 @@
   "collection": {
     "playAll": "Play All",
     "totalSongs": "{count} songs",
-    "totalDuration": "Total {time}",
+    "totalDuration": "About {time}",
     "unknownAlbum": "Unknown Album",
     "unknownCreator": "Unknown Creator",
     "empty": "No songs",

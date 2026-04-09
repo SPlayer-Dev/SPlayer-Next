@@ -10,6 +10,8 @@ import * as player from "@/core/player";
 import IconLucidePencil from "~icons/lucide/pencil";
 import IconLucideTrash2 from "~icons/lucide/trash-2";
 import IconLucideListChecks from "~icons/lucide/list-checks";
+import IconLucideListMusic from "~icons/lucide/list-music";
+import IconLucideHourglass from "~icons/lucide/hourglass";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -20,16 +22,32 @@ const source = computed(() => route.params.source as TrackSource);
 const type = computed(() => route.params.type as CollectionType);
 const id = computed(() => route.params.id as string);
 
-const collection = ref<Collection | null>(null);
+const collection = shallowRef<Collection | null>(null);
 
 /** 是否可编辑 */
 const editable = computed(() => source.value === "local" && type.value === "playlist");
 
+/** 折叠状态 */
+const collapsed = ref(false);
+
+/** 滚动超过阈值折叠 */
+const handleListScroll = (event: Event) => {
+  const scrollTop = (event.target as HTMLElement).scrollTop;
+  if (!collapsed.value && scrollTop > 10) {
+    collapsed.value = true;
+  } else if (collapsed.value && scrollTop === 0) {
+    collapsed.value = false;
+  }
+};
+
 /** 加载数据 */
 const loadCollection = async () => {
+  // 重置折叠状态
+  collapsed.value = false;
   if (source.value === "local" && type.value === "playlist") {
     collection.value = await playlistStore.get(id.value);
   } else if (source.value === "local" && type.value === "album") {
+    if (!libraryStore.initialized) await libraryStore.load();
     const albumName = decodeURIComponent(id.value);
     collection.value = libraryStore.getAlbumCollection(albumName);
   }
@@ -138,30 +156,61 @@ const handleMoreMenu = (key: string) => {
   <div class="flex flex-col h-full">
     <!-- 头部信息 -->
     <div v-if="collection" class="shrink-0 px-5 pb-2">
-      <div class="flex gap-5 mt-2 mb-4">
+      <div
+        class="flex mt-2 transition-[gap,margin] duration-300"
+        :class="collapsed ? 'gap-3 mb-3' : 'gap-5 mb-4'"
+      >
         <!-- 封面 -->
-        <SImg :src="collection.cover" :alt="collection.title" class="size-40 rounded-xl shrink-0" />
+        <SImg
+          :src="collection.cover"
+          :alt="collection.title"
+          class="rounded-xl shrink-0 transition-[width,height] duration-300"
+          :class="collapsed ? 'size-16' : 'size-40'"
+        />
         <!-- 信息 -->
-        <div class="flex flex-col justify-end min-w-0 gap-1">
-          <span class="text-xs text-on-surface-variant/50 uppercase tracking-wider">
-            {{ typeLabel }}
-          </span>
-          <h1 class="text-3xl font-bold text-on-surface truncate">{{ collection.title }}</h1>
+        <div
+          class="flex flex-col justify-end pb-2 min-w-0 transition-[gap] duration-300"
+          :class="collapsed ? 'gap-0.5' : 'gap-1'"
+        >
+          <div
+            class="grid transition-[grid-template-rows] duration-300"
+            :class="collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'"
+          >
+            <span
+              class="overflow-hidden text-xs text-on-surface-variant/50 uppercase tracking-wider"
+            >
+              {{ typeLabel }}
+            </span>
+          </div>
+          <h1
+            class="font-bold text-on-surface truncate transition-[font-size,line-height] duration-300"
+            :class="collapsed ? 'text-lg' : 'text-3xl'"
+          >
+            {{ collection.title }}
+          </h1>
+          <!-- 歌手 -->
           <div v-if="artistText" class="text-sm text-on-surface-variant/70 truncate">
             {{ artistText }}
           </div>
-          <div class="flex items-center gap-3 text-sm text-on-surface-variant/50 mt-1">
-            <span>{{ t("collection.totalSongs", { count: collection.tracks.length }) }}</span>
-            <span v-if="totalDuration">
-              {{ t("collection.totalDuration", { time: totalDuration }) }}
-            </span>
-          </div>
-          <p
-            v-if="collection.description"
-            class="text-xs text-on-surface-variant/50 mt-1 line-clamp-2"
-          >
+          <!-- 描述 -->
+          <p v-if="collection.description" class="text-sm text-on-surface-variant/70 truncate">
             {{ collection.description }}
           </p>
+          <div
+            class="grid transition-[grid-template-rows] duration-300"
+            :class="collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'"
+          >
+            <div class="overflow-hidden flex items-center gap-3 text-sm leading-none text-on-surface-variant/50">
+              <span class="flex items-center gap-1">
+                <IconLucideListMusic class="shrink-0" />
+                {{ t("collection.totalSongs", { count: collection.tracks.length }) }}
+              </span>
+              <span v-if="totalDuration" class="flex items-center gap-1">
+                <IconLucideHourglass class="shrink-0" />
+                {{ t("collection.totalDuration", { time: totalDuration }) }}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
       <!-- 操作栏 -->
@@ -224,6 +273,7 @@ const handleMoreMenu = (key: string) => {
           :collection-type="type"
           :collection-id="id"
           enable-sort
+          @scroll="handleListScroll"
         />
       </div>
       <!-- 空状态 -->

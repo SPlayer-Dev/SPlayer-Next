@@ -169,6 +169,10 @@ const { items: contextMenuItems, handleSelect: onContextMenu } = useTrackMenu(co
   onDeleteFile: (track) => batch.requestDelete([track], "file"),
 });
 
+const emit = defineEmits<{
+  scroll: [event: Event];
+}>();
+
 onActivated(batch.exit);
 
 defineExpose({
@@ -203,6 +207,7 @@ defineExpose({
         :get-item-key="(item: Track) => item.id"
         item-fixed
         height="100%"
+        @scroll="(event: Event) => emit('scroll', event)"
       >
         <!-- 搜索无结果 -->
         <template v-if="searchQuery && sortedItems.length === 0" #empty>

@@ -50,6 +50,7 @@ declare module 'vue' {
     IconLucideChevronUp: typeof import('~icons/lucide/chevron-up')['default']
     IconLucideCircleCheck: typeof import('~icons/lucide/circle-check')['default']
     IconLucideCircleX: typeof import('~icons/lucide/circle-x')['default']
+    IconLucideClock: typeof import('~icons/lucide/clock')['default']
     IconLucideDisc3: typeof import('~icons/lucide/disc3')['default']
     IconLucideEllipsis: typeof import('~icons/lucide/ellipsis')['default']
     IconLucideFolder: typeof import('~icons/lucide/folder')['default']

@@ -319,7 +319,7 @@
   "collection": {
     "playAll": "播放全部",
     "totalSongs": "共 {count} 首",
-    "totalDuration": "共 {time}",
+    "totalDuration": "约 {time}",
     "unknownAlbum": "未知专辑",
     "unknownCreator": "未知创建者",
     "empty": "暂无歌曲",
