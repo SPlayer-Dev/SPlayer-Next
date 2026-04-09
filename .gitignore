@@ -5,6 +5,7 @@ out
 .eslintcache
 .claude
 *.log*
+.vscode/settings.json
 
 # Rust build artifacts
 **/target
