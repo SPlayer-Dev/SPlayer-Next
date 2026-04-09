@@ -33,7 +33,7 @@ const handleClear = () => {
 
 <template>
   <div
-    class="flex items-center gap-2 h-8.5 px-3 text-sm text-on-surface border border-solid transition-[border-color,box-shadow,background-color,width] duration-250"
+    class="flex items-center gap-2 h-8.5 px-3 text-sm text-on-surface border border-solid transition-[border-color,box-shadow,background-color,width,opacity] duration-250"
     :class="[
       round ? 'rounded-full' : 'rounded-lg',
       isFocused

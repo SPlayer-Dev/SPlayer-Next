@@ -165,106 +165,102 @@ const handleMoreMenu = (key: string) => {
     <div v-if="collection" class="shrink-0 px-5 pb-2">
       <div
         class="flex mt-2 transition-[gap,margin] duration-300"
-        :class="collapsed ? 'gap-3 mb-3' : 'gap-5 mb-4'"
+        :class="collapsed ? 'gap-3' : 'gap-5'"
       >
         <!-- 封面 -->
         <SImg
           :src="collection.cover"
           :alt="collection.title"
           class="rounded-xl shrink-0 transition-[width,height] duration-300"
-          :class="collapsed ? 'size-16' : 'size-40'"
+          :class="collapsed ? 'size-20' : 'size-40'"
         />
         <!-- 信息 -->
-        <div
-          class="flex flex-col justify-end pb-2 min-w-0 transition-[gap] duration-300"
-          :class="collapsed ? 'gap-0.5' : 'gap-2'"
-        >
+        <div class="flex-1 flex flex-col min-w-0">
           <div
-            class="grid transition-[grid-template-rows] duration-300"
-            :class="collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'"
+            class="flex flex-col transition-[gap] duration-300"
+            :class="collapsed ? 'gap-0.5' : 'gap-2'"
           >
-            <span
-              class="overflow-hidden text-xs text-on-surface-variant/50 uppercase tracking-wider"
+            <h1
+              class="font-bold text-on-surface truncate transition-[font-size,line-height] duration-300"
+              :class="collapsed ? 'text-xl' : 'text-3xl'"
             >
-              {{ typeLabel }}
-            </span>
-          </div>
-          <h1
-            class="font-bold text-on-surface truncate transition-[font-size,line-height] duration-300"
-            :class="collapsed ? 'text-lg' : 'text-3xl'"
-          >
-            {{ collection.title }}
-          </h1>
-          <!-- 歌手 -->
-          <div v-if="artistText" class="text-sm text-on-surface-variant/70 truncate">
-            {{ artistText }}
-          </div>
-          <!-- 描述 -->
-          <p v-if="type !== 'album'" class="text-sm text-on-surface-variant/70 truncate">
-            {{ collection.description || t("collection.noDescription") }}
-          </p>
-          <div
-            class="grid transition-[grid-template-rows] duration-300"
-            :class="collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'"
-          >
-            <div class="overflow-hidden flex items-center gap-3 text-sm leading-none text-on-surface-variant/50">
-              <span class="flex items-center gap-1">
-                <IconLucideListMusic class="shrink-0" />
-                {{ t("collection.totalSongs", { count: collection.tracks.length }) }}
-              </span>
-              <span v-if="totalDuration" class="flex items-center gap-1">
-                <IconLucideHourglass class="shrink-0" />
-                {{ t("collection.totalDuration", { time: totalDuration }) }}
-              </span>
-              <span v-if="updateTimeText" class="flex items-center gap-1">
-                <IconLucideCalendar class="shrink-0" />
-                {{ updateTimeText }}
-              </span>
+              {{ collection.title }}
+            </h1>
+            <div
+              class="grid transition-[grid-template-rows,opacity] duration-300"
+              :class="collapsed ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'"
+            >
+              <div class="overflow-hidden flex flex-col gap-2">
+                <!-- 歌手 -->
+                <div v-if="artistText" class="text-sm text-on-surface-variant/70 truncate">
+                  {{ artistText }}
+                </div>
+                <!-- 描述 -->
+                <p v-if="type !== 'album'" class="text-sm text-on-surface-variant/70 truncate">
+                  {{ collection.description || t("collection.noDescription") }}
+                </p>
+                <div
+                  class="flex items-center gap-3 text-sm leading-none text-on-surface-variant/50"
+                >
+                  <span class="flex items-center gap-1">
+                    <IconLucideListMusic class="shrink-0" />
+                    {{ t("collection.totalSongs", { count: collection.tracks.length }) }}
+                  </span>
+                  <span v-if="totalDuration" class="flex items-center gap-1">
+                    <IconLucideHourglass class="shrink-0" />
+                    {{ t("collection.totalDuration", { time: totalDuration }) }}
+                  </span>
+                  <span v-if="updateTimeText" class="flex items-center gap-1">
+                    <IconLucideCalendar class="shrink-0" />
+                    {{ updateTimeText }}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-      <!-- 操作栏 -->
-      <div class="flex items-center justify-between gap-4">
-        <div class="flex items-center gap-3">
-          <SButton
-            type="primary"
-            variant="secondary"
-            round
-            :disabled="collection.tracks.length === 0"
-            @click="handlePlayAll"
-          >
-            <template #icon>
-              <IconLucidePlay />
-            </template>
-            {{ t("collection.playAll") }}
-          </SButton>
-          <SDropdownMenu
-            v-if="editable"
-            :items="moreMenuItems"
-            align="start"
-            @select="handleMoreMenu"
-          >
-            <template #trigger>
-              <SButton variant="secondary" circle>
+          <!-- 操作栏 -->
+          <div class="mt-auto flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <SButton
+                type="primary"
+                variant="secondary"
+                round
+                :disabled="collection.tracks.length === 0"
+                @click="handlePlayAll"
+              >
                 <template #icon>
-                  <IconLucideEllipsis />
+                  <IconLucidePlay />
                 </template>
+                {{ t("collection.playAll") }}
               </SButton>
-            </template>
-          </SDropdownMenu>
+              <SDropdownMenu
+                v-if="editable"
+                :items="moreMenuItems"
+                align="start"
+                @select="handleMoreMenu"
+              >
+                <template #trigger>
+                  <SButton variant="secondary" circle>
+                    <template #icon>
+                      <IconLucideEllipsis />
+                    </template>
+                  </SButton>
+                </template>
+              </SDropdownMenu>
+            </div>
+            <SInput
+              v-model="searchQuery"
+              :placeholder="t('common.search')"
+              clearable
+              round
+              class="w-40 focus-within:w-56"
+            >
+              <template #prefix>
+                <IconLucideSearch class="size-4 text-on-surface-variant/40 shrink-0" />
+              </template>
+            </SInput>
+          </div>
         </div>
-        <SInput
-          v-model="searchQuery"
-          :placeholder="t('common.search')"
-          clearable
-          round
-          class="w-40 focus-within:w-56"
-        >
-          <template #prefix>
-            <IconLucideSearch class="size-4 text-on-surface-variant/40 shrink-0" />
-          </template>
-        </SInput>
       </div>
     </div>
     <Transition name="fade" mode="out-in" :duration="150">

@@ -80,6 +80,7 @@ declare module 'vue' {
     IconLucideTrash: typeof import('~icons/lucide/trash')['default']
     IconLucideTrash2: typeof import('~icons/lucide/trash2')['default']
     IconLucideTriangleAlert: typeof import('~icons/lucide/triangle-alert')['default']
+    IconLucideUser: typeof import('~icons/lucide/user')['default']
     IconLucideVolume2: typeof import('~icons/lucide/volume2')['default']
     IconLucideX: typeof import('~icons/lucide/x')['default']
     IconSpLossless: typeof import('~icons/sp/lossless')['default']

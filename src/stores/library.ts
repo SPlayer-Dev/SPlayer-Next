@@ -2,6 +2,7 @@ import localforage from "localforage";
 import type { Track } from "@shared/types/player";
 import type { ScanProgress } from "@shared/types/library";
 import type { Collection } from "@/types/collection";
+import type { ArtistProfile } from "@/types/artist";
 
 const trackDb = localforage.createInstance({ name: "splayer", storeName: "library" });
 
@@ -156,6 +157,45 @@ export const useLibraryStore = defineStore("library", () => {
     };
   };
 
+  /** 根据歌手名从曲库聚合出 ArtistProfile */
+  const getArtistProfile = (artistName: string): ArtistProfile | null => {
+    const name = artistName.trim();
+    if (!name) return null;
+    const nameLower = name.toLowerCase();
+    const artistTracks = tracks.value.filter((t) =>
+      t.artists.some((a) => a.name.toLowerCase() === nameLower),
+    );
+    if (!artistTracks.length) return null;
+    // 聚合专辑
+    const albumMap = new Map<string, { cover?: string; count: number }>();
+    for (const t of artistTracks) {
+      if (!t.album?.name) continue;
+      const key = t.album.name;
+      const existing = albumMap.get(key);
+      if (existing) {
+        existing.count++;
+        if (!existing.cover && t.cover) existing.cover = t.cover;
+      } else {
+        albumMap.set(key, { cover: t.cover, count: 1 });
+      }
+    }
+    const albums = [...albumMap.entries()].map(([albumName, info]) => ({
+      id: encodeURIComponent(albumName),
+      title: albumName,
+      cover: info.cover,
+      trackCount: info.count,
+    }));
+    return {
+      id: encodeURIComponent(name),
+      name,
+      source: "local",
+      tracks: artistTracks,
+      albums,
+      trackCount: artistTracks.length,
+      albumCount: albums.length,
+    };
+  };
+
   return {
     tracks,
     scanDirs,
@@ -171,5 +211,6 @@ export const useLibraryStore = defineStore("library", () => {
     unsubscribeScanProgress,
     deleteTracks,
     getAlbumCollection,
+    getArtistProfile,
   };
 });

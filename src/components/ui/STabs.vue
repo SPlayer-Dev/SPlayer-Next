@@ -74,10 +74,19 @@ const updateIndicator = (): void => {
   }
   const containerRect = containerRef.value.getBoundingClientRect();
   const activeRect = active.getBoundingClientRect();
-  indicatorStyle.value = {
-    left: `${activeRect.left - containerRect.left}px`,
-    width: `${activeRect.width}px`,
-  };
+  if (props.type === "bar") {
+    const barWidth = 24;
+    const center = activeRect.left - containerRect.left + activeRect.width / 2;
+    indicatorStyle.value = {
+      left: `${center - barWidth / 2}px`,
+      width: `${barWidth}px`,
+    };
+  } else {
+    indicatorStyle.value = {
+      left: `${activeRect.left - containerRect.left}px`,
+      width: `${activeRect.width}px`,
+    };
+  }
 };
 
 /** 面板离场前：锁定当前高度，作为过渡起点 */
@@ -149,7 +158,7 @@ onMounted(() => {
 const sizeClasses: Record<string, string> = {
   small: "text-xs h-7 px-2.5",
   medium: "text-sm h-8 px-3",
-  large: "text-sm h-9 px-3.5",
+  large: "text-base h-10 px-3.5",
 };
 
 /** 根据切换方向生成过渡 class */
@@ -193,7 +202,7 @@ const panelTransitionClasses = computed(() => {
         'absolute pointer-events-none transition-[left,width] duration-320 ease-[cubic-bezier(0.4,0,0.2,1)]',
         type === 'segment'
           ? 'inset-y-1 bg-surface-bright rounded-md border border-solid border-outline-variant/35 shadow-sm'
-          : 'bottom-0 h-0.5 bg-primary rounded-full',
+          : 'bottom-0.5 h-[3px] bg-primary rounded-full',
       ]"
       :style="indicatorStyle"
     />

@@ -22,6 +22,11 @@ const router = createRouter({
           name: "collection",
           component: () => import("@/pages/Collection.vue"),
         },
+        {
+          path: "artist/:source/:id",
+          name: "artist",
+          component: () => import("@/pages/Artist.vue"),
+        },
       ],
     },
     {

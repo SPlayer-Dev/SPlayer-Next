@@ -343,6 +343,13 @@
     "tracksRemoved": "{count} songs removed",
     "edit": "Edit {type}"
   },
+  "artist": {
+    "label": "Artist",
+    "songs": "Songs",
+    "totalSongs": "{count} songs",
+    "totalAlbums": "{count} albums",
+    "albums": "Albums"
+  },
   "errors": {
     "DEVICE_NOT_FOUND": "No audio output device found",
     "DEVICE_INIT_FAILED": "Failed to initialize audio device",

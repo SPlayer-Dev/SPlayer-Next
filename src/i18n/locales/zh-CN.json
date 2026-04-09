@@ -343,6 +343,13 @@
     "tracksRemoved": "已移除 {count} 首歌曲",
     "edit": "编辑{type}"
   },
+  "artist": {
+    "label": "歌手",
+    "songs": "歌曲",
+    "totalSongs": "共 {count} 首",
+    "totalAlbums": "共 {count} 张专辑",
+    "albums": "专辑"
+  },
   "errors": {
     "DEVICE_NOT_FOUND": "未找到音频输出设备",
     "DEVICE_INIT_FAILED": "音频设备初始化失败",

@@ -8,3 +8,12 @@ export const navigateToAlbum = (albumName?: string) => {
     params: { source: "local", type: "album", id: encodeURIComponent(albumName) },
   });
 };
+
+/** 跳转到歌手页 */
+export const navigateToArtist = (artistName?: string, source: "local" | "online" = "local") => {
+  if (!artistName?.trim()) return;
+  router.push({
+    name: "artist",
+    params: { source, id: encodeURIComponent(artistName) },
+  });
+};
