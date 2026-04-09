@@ -7,8 +7,9 @@ import {
   reloadDiscordConfig,
 } from "../services/media";
 import { setNormalizationEnabled } from "../services/engine";
+import { setTaskbarProgress } from "../window";
 
-/** 配置写入后的副作用：根据 key 触发主进程对应操作 */
+/** 配置写入后的副作用 */
 const applyConfigChange = (keyPath: string, value: unknown): void => {
   switch (keyPath) {
     case "media.systemMediaControls":
@@ -21,6 +22,9 @@ const applyConfigChange = (keyPath: string, value: unknown): void => {
       break;
     case "player.loudnessNormalization":
       setNormalizationEnabled(value as boolean);
+      break;
+    case "system.taskbarProgress":
+      if (!value) setTaskbarProgress(-1);
       break;
   }
 };

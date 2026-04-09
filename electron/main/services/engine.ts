@@ -31,7 +31,7 @@ export const onPlayerCreated = (callback: (inst: PlayerInstance) => void): void 
   onCreatedCallbacks.push(callback);
 };
 
-/** 获取播放器实例（首次调用时创建并触发所有 onCreated 回调） */
+/** 获取播放器实例 */
 export const getPlayer = (): PlayerInstance => {
   if (!playerInstance) {
     const mod = getEngine();

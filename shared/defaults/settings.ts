@@ -24,6 +24,7 @@ export const defaultSystemConfig: SystemConfig = {
   },
   system: {
     rememberWindowState: true,
+    taskbarProgress: true,
     window: {
       width: 1280,
       height: 800,

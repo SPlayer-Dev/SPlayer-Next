@@ -68,6 +68,8 @@ export interface SystemConfig {
   system: {
     /** 记忆窗口状态（大小、位置、是否最大化） */
     rememberWindowState: boolean;
+    /** 在任务栏显示播放进度 */
+    taskbarProgress: boolean;
     /** 窗口状态（主进程自动保存） */
     window: WindowState;
   };

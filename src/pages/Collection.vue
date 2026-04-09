@@ -12,6 +12,7 @@ import IconLucideTrash2 from "~icons/lucide/trash-2";
 import IconLucideListChecks from "~icons/lucide/list-checks";
 import IconLucideListMusic from "~icons/lucide/list-music";
 import IconLucideHourglass from "~icons/lucide/hourglass";
+import IconLucideCalendar from "~icons/lucide/calendar";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -76,6 +77,12 @@ const totalDuration = computed(() => {
 const artistText = computed(() => {
   if (!collection.value?.artists?.length) return collection.value?.creator ?? "";
   return collection.value.artists.map((a) => a.name).join(" / ");
+});
+
+/** 更新时间文本 */
+const updateTimeText = computed(() => {
+  if (!collection.value?.updateTime) return "";
+  return new Date(collection.value.updateTime).toLocaleDateString();
 });
 
 const handlePlayAll = () => {
@@ -170,7 +177,7 @@ const handleMoreMenu = (key: string) => {
         <!-- 信息 -->
         <div
           class="flex flex-col justify-end pb-2 min-w-0 transition-[gap] duration-300"
-          :class="collapsed ? 'gap-0.5' : 'gap-1'"
+          :class="collapsed ? 'gap-0.5' : 'gap-2'"
         >
           <div
             class="grid transition-[grid-template-rows] duration-300"
@@ -193,8 +200,8 @@ const handleMoreMenu = (key: string) => {
             {{ artistText }}
           </div>
           <!-- 描述 -->
-          <p v-if="collection.description" class="text-sm text-on-surface-variant/70 truncate">
-            {{ collection.description }}
+          <p v-if="type !== 'album'" class="text-sm text-on-surface-variant/70 truncate">
+            {{ collection.description || t("collection.noDescription") }}
           </p>
           <div
             class="grid transition-[grid-template-rows] duration-300"
@@ -208,6 +215,10 @@ const handleMoreMenu = (key: string) => {
               <span v-if="totalDuration" class="flex items-center gap-1">
                 <IconLucideHourglass class="shrink-0" />
                 {{ t("collection.totalDuration", { time: totalDuration }) }}
+              </span>
+              <span v-if="updateTimeText" class="flex items-center gap-1">
+                <IconLucideCalendar class="shrink-0" />
+                {{ updateTimeText }}
               </span>
             </div>
           </div>

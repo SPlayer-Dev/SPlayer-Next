@@ -36,6 +36,12 @@ export const settingsSchema: SettingCategory[] = [
             binding: { store: "settings", path: "system.system.rememberWindowState" },
             defaultValue: true,
           },
+          {
+            key: "taskbarProgress",
+            type: "switch",
+            binding: { store: "settings", path: "system.system.taskbarProgress" },
+            defaultValue: true,
+          },
         ],
       },
     ],

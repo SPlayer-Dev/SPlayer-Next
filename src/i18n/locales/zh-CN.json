@@ -314,6 +314,10 @@
     "rememberWindowState": {
       "label": "记忆窗口状态",
       "description": "下次启动时恢复窗口的大小、位置和最大化状态"
+    },
+    "taskbarProgress": {
+      "label": "任务栏播放进度",
+      "description": "在任务栏图标上显示当前播放进度"
     }
   },
   "collection": {
@@ -323,6 +327,7 @@
     "unknownAlbum": "未知专辑",
     "unknownCreator": "未知创建者",
     "empty": "暂无歌曲",
+    "noDescription": "还没有描述哦~",
     "album": "专辑",
     "playlist": "歌单",
     "radio": "电台",

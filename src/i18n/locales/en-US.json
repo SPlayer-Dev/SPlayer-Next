@@ -314,6 +314,10 @@
     "rememberWindowState": {
       "label": "Remember Window State",
       "description": "Restore window size, position and maximized state on next launch"
+    },
+    "taskbarProgress": {
+      "label": "Taskbar Progress",
+      "description": "Show playback progress on the taskbar icon"
     }
   },
   "collection": {
@@ -323,6 +327,7 @@
     "unknownAlbum": "Unknown Album",
     "unknownCreator": "Unknown Creator",
     "empty": "No songs",
+    "noDescription": "No description yet~",
     "album": "Album",
     "playlist": "Playlist",
     "radio": "Radio",

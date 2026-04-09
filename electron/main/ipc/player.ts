@@ -9,7 +9,8 @@ import { getPlayer, resetPlayer, onPlayerCreated } from "../services/engine";
 import { startDevicePolling } from "../services/device";
 import { getThumbar } from "../services/thumbar";
 import { setTraySongName, setTrayPlayState, setTrayPlayMode } from "../services/tray";
-import { getMainWindow } from "../window";
+import { getMainWindow, setTaskbarProgress } from "../window";
+import { store } from "../store";
 import { appName } from "../utils/config";
 import { parseArtists, parseAlbum, formatArtists } from "../utils/metadata";
 import { playerLog } from "../utils/logger";
@@ -42,8 +43,13 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
           mediaService.setPlayState({ status: "Playing" });
         } else if (state === "paused") {
           mediaService.setPlayState({ status: "Paused" });
+          if (store.get("system.taskbarProgress")) {
+            const dur = inst.getDuration();
+            if (dur > 0) setTaskbarProgress(inst.getPosition() / dur, true);
+          }
         } else if (state === "stopped") {
           mediaService.setPlayState({ status: "Paused" });
+          setTaskbarProgress(-1);
         }
         broadcast("player:event", {
           type: "status",
@@ -60,6 +66,7 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
       case "ended": {
         broadcast("player:event", { type: "ended" });
         mediaService.setPlayState({ status: "Paused" });
+        setTaskbarProgress(-1);
         break;
       }
       case "position": {
@@ -70,6 +77,7 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
           data: { position: posMs, duration: durMs },
         });
         mediaService.setTimeline({ currentMs: posMs, totalMs: durMs });
+        if (store.get("system.taskbarProgress") && durMs > 0) setTaskbarProgress(posMs / durMs);
         break;
       }
       case "fftData": {
@@ -353,14 +361,12 @@ export const registerPlayerIpc = (): void => {
     setTrayPlayMode(repeat, shuffle);
   });
 
-  // 注册系统媒体事件处理（系统按键 → 控制播放器）
+  // 系统媒体事件处理
   mediaService.onEvent((event: MediaEvent) => {
     try {
       const inst = getPlayer();
       switch (event.type) {
         case "Play":
-          // SMTC 的 Play/Pause 直接操作引擎，不走渲染进程
-          // 避免与渲染进程的 nextTrack/onQueueEnded 状态冲突
           inst.play();
           break;
         case "Pause":

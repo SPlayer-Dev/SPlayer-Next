@@ -1,2 +1,2 @@
 export { createWindow } from "./create";
-export { createMainWindow, getMainWindow } from "./main";
+export { createMainWindow, getMainWindow, setTaskbarProgress } from "./main";
