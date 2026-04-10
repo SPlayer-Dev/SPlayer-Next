@@ -1,8 +1,8 @@
-import { loadNativeModule } from "../utils/nativeLoader";
-import { broadcast } from "../utils/broadcast";
-import { mediaLog, nativeLogsDir } from "../utils/logger";
-import { isDev } from "../utils/config";
-import { store } from "../store";
+import { loadNativeModule } from "@main/utils/nativeLoader";
+import { broadcast } from "@main/utils/broadcast";
+import { mediaLog, nativeLogsDir } from "@main/utils/logger";
+import { isDev } from "@main/utils/config";
+import { store } from "@main/store";
 import type { MediaEvent, MetadataParam, PlayStateParam, TimelineParam } from "@splayer/media-ctrl";
 import type { DiscordDisplayMode, DiscordSettings } from "@shared/types/settings";
 

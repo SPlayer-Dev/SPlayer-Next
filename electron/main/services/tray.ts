@@ -1,10 +1,10 @@
 import { app, BrowserWindow, Menu, MenuItemConstructorOptions, nativeTheme, Tray } from "electron";
 import type { RepeatMode, ShuffleMode } from "@shared/types/player";
-import { broadcast } from "../utils/broadcast";
-import { appName } from "../utils/config";
-import { loadIcon, loadThemedIcon } from "../utils/icon";
-import { t } from "../utils/i18n";
-import { trayLog } from "../utils/logger";
+import { broadcast } from "@main/utils/broadcast";
+import { appName } from "@main/utils/config";
+import { loadIcon, loadThemedIcon } from "@main/utils/icon";
+import { t } from "@main/utils/i18n";
+import { trayLog } from "@main/utils/logger";
 
 type PlayState = "playing" | "paused";
 

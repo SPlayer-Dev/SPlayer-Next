@@ -3,6 +3,7 @@
   "include": [
     "electron.vite.config.*",
     "electron/main/**/*",
+    "electron/server/**/*",
     "electron/preload/**/*",
     "scripts/**/*",
     "shared/**/*"
@@ -11,6 +12,8 @@
     "tsBuildInfoFile": "node_modules/.cache/tsconfig.node.tsbuildinfo",
     "types": ["electron-vite/node"],
     "paths": {
+      "@main/*": ["./electron/main/*"],
+      "@server/*": ["./electron/server/*"],
       "@shared/*": ["./shared/*"],
       "@splayer/audio-engine": ["./native/audio-engine"],
       "@splayer/media-ctrl": ["./native/media-ctrl"]

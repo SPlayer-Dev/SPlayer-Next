@@ -1,13 +1,13 @@
 import { ipcMain } from "electron";
-import { store } from "../store";
-import type { ConfigPath } from "../store/types";
+import { store } from "@main/store";
+import type { ConfigPath } from "@main/store/types";
 import {
   enable as enableMedia,
   disable as disableMedia,
   reloadDiscordConfig,
-} from "../services/media";
-import { setNormalizationEnabled } from "../services/engine";
-import { setTaskbarProgress } from "../window";
+} from "@main/services/media";
+import { setNormalizationEnabled } from "@main/services/engine";
+import { setTaskbarProgress } from "@main/window";
 
 /** 配置写入后的副作用 */
 const applyConfigChange = (keyPath: string, value: unknown): void => {

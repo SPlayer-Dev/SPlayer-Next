@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
 import type { JsScanEvent } from "@splayer/audio-engine";
 import { getEngine } from "./engine";
-import { upsertTracks, deleteTracksByPaths, getFileRecords, type UpsertTrack } from "../database";
-import { broadcast } from "../utils/broadcast";
-import { toCoverUrl } from "../utils/protocol";
-import { toMs } from "../utils/time";
-import { parseArtists, parseAlbum } from "../utils/metadata";
-import { coverCacheDir } from "../utils/config";
-import { libraryLog } from "../utils/logger";
+import { upsertTracks, deleteTracksByPaths, getFileRecords, type UpsertTrack } from "@main/database";
+import { broadcast } from "@main/utils/broadcast";
+import { toCacheUrl } from "@main/utils/protocol";
+import { toMs } from "@main/utils/time";
+import { parseArtists, parseAlbum } from "@main/utils/metadata";
+import { coverCacheDir } from "@main/utils/config";
+import { libraryLog } from "@main/utils/logger";
 
 let scanning = false;
 
@@ -52,7 +52,7 @@ export const startScan = (dirs: string[], incremental = true): void => {
                 artists: parseArtists(t.artist ?? ""),
                 album: parseAlbum(t.album ?? ""),
                 duration: toMs(t.duration),
-                cover: toCoverUrl(t.cover),
+                cover: toCacheUrl(t.cover),
                 codec: t.codec,
                 sampleRate: t.sampleRate,
                 bitRate: t.bitRate,

@@ -27,5 +27,8 @@ export const appName = app.getName();
 /** 应用自有缓存根目录（区别于 Electron 内置的 Cache/Code Cache） */
 export const appCacheDir = path.join(app.getPath("userData"), "app-cache");
 
-/** 封面缩略图缓存目录（供 cover:// 协议解析使用） */
+/** 封面缩略图缓存目录 */
 export const coverCacheDir = path.join(appCacheDir, "covers");
+
+/** 歌手头像缓存目录 */
+export const artistCacheDir = path.join(appCacheDir, "artists");

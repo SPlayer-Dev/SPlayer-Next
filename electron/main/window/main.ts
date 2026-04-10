@@ -2,9 +2,9 @@ import { BrowserWindow, shell } from "electron";
 import { join } from "path";
 import { is } from "@electron-toolkit/utils";
 import { createWindow } from "./create";
-import { initThumbar } from "../services/thumbar";
-import { initTray } from "../services/tray";
-import { store } from "../store";
+import { initThumbar } from "@main/services/thumbar";
+import { initTray } from "@main/services/tray";
+import { store } from "@main/store";
 
 let mainWindow: BrowserWindow | null = null;
 

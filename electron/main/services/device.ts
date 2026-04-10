@@ -1,6 +1,6 @@
 import { getPlayer } from "./engine";
-import { broadcast } from "../utils/broadcast";
-import { playerLog } from "../utils/logger";
+import { broadcast } from "@main/utils/broadcast";
+import { playerLog } from "@main/utils/logger";
 
 let pollingStarted = false;
 /** undefined = 尚未初始化，null = 无设备，string = 设备名 */

@@ -51,6 +51,13 @@ const loadArtist = async () => {
     if (!libraryStore.initialized) await libraryStore.load();
     const artistName = decodeURIComponent(id.value);
     artist.value = libraryStore.getArtistProfile(artistName);
+    // 获取歌手头像
+    if (artist.value && !artist.value.avatar) {
+      const res = await window.api.library.fetchArtistAvatar(artistName);
+      if (res.success && res.data && artist.value?.name === artistName) {
+        artist.value = { ...artist.value, avatar: res.data };
+      }
+    }
   }
   // TODO: online
 };

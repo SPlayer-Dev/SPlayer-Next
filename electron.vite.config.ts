@@ -21,6 +21,8 @@ export default defineConfig({
     },
     resolve: {
       alias: {
+        "@main": resolve(__dirname, "electron/main"),
+        "@server": resolve(__dirname, "electron/server"),
         "@shared": resolve(__dirname, "shared"),
         "@splayer/audio-engine": resolve(__dirname, "native/audio-engine"),
       },

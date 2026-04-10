@@ -1,8 +1,8 @@
 import { BrowserWindow, nativeTheme, ThumbarButton } from "electron";
-import { broadcast } from "../utils/broadcast";
-import { loadThemedIcon } from "../utils/icon";
-import { t } from "../utils/i18n";
-import { thumbarLog } from "../utils/logger";
+import { broadcast } from "@main/utils/broadcast";
+import { loadThemedIcon } from "@main/utils/icon";
+import { t } from "@main/utils/i18n";
+import { thumbarLog } from "@main/utils/logger";
 
 export interface Thumbar {
   clearThumbar(): void;

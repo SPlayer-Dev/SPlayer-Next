@@ -92,6 +92,9 @@ const api = {
     getScanDirs: () => ipcRenderer.invoke("library:getScanDirs"),
     // 删除曲目文件并从数据库移除
     deleteTracks: (paths: string[]) => ipcRenderer.invoke("library:deleteTracks", paths),
+    // 获取歌手头像
+    fetchArtistAvatar: (artistName: string) =>
+      ipcRenderer.invoke("library:fetchArtistAvatar", artistName),
     // 订阅扫描进度事件
     onScanProgress: (callback: (progress: unknown) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: unknown): void => callback(data);

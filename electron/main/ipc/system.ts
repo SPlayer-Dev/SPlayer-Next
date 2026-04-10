@@ -1,10 +1,10 @@
 import { ipcMain, shell } from "electron";
 import type { LocaleCode } from "@shared/types/settings";
-import { setLocale } from "../utils/i18n";
-import { systemLog } from "../utils/logger";
-import { refreshTray } from "../services/tray";
-import { getThumbar } from "../services/thumbar";
-import { getMainWindow } from "../window";
+import { setLocale } from "@main/utils/i18n";
+import { systemLog } from "@main/utils/logger";
+import { refreshTray } from "@main/services/tray";
+import { getThumbar } from "@main/services/thumbar";
+import { getMainWindow } from "@main/window";
 
 /**
  * 注册系统相关的 IPC 事件

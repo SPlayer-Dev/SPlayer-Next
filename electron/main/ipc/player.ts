@@ -1,22 +1,22 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { ipcMain, powerMonitor } from "electron";
-import { broadcast } from "../utils/broadcast";
-import { toCoverUrl } from "../utils/protocol";
-import { toMs } from "../utils/time";
-import * as mediaService from "../services/media";
-import { getPlayer, resetPlayer, onPlayerCreated } from "../services/engine";
-import { startDevicePolling } from "../services/device";
-import { getThumbar } from "../services/thumbar";
-import { setTraySongName, setTrayPlayState, setTrayPlayMode } from "../services/tray";
-import { getMainWindow, setTaskbarProgress } from "../window";
-import { store } from "../store";
-import { appName } from "../utils/config";
-import { parseArtists, parseAlbum, formatArtists } from "../utils/metadata";
-import { playerLog } from "../utils/logger";
+import { broadcast } from "@main/utils/broadcast";
+import { toCacheUrl } from "@main/utils/protocol";
+import { toMs } from "@main/utils/time";
+import * as mediaService from "@main/services/media";
+import { getPlayer, resetPlayer, onPlayerCreated } from "@main/services/engine";
+import { startDevicePolling } from "@main/services/device";
+import { getThumbar } from "@main/services/thumbar";
+import { setTraySongName, setTrayPlayState, setTrayPlayMode } from "@main/services/tray";
+import { getMainWindow, setTaskbarProgress } from "@main/window";
+import { store } from "@main/store";
+import { appName } from "@main/utils/config";
+import { parseArtists, parseAlbum, formatArtists } from "@main/utils/metadata";
+import { playerLog } from "@main/utils/logger";
 import { ErrorCode } from "@shared/types/errors";
 import type { RepeatMode, ShuffleMode } from "@shared/types/player";
-import type { MediaEvent } from "../services/media";
+import type { MediaEvent } from "@main/services/media";
 import { JsPlayerEvent } from "@splayer/audio-engine";
 
 type AudioEngineModule = typeof import("@splayer/audio-engine");
@@ -144,7 +144,7 @@ export const registerPlayerIpc = (): void => {
           artists,
           album: trackAlbum,
           duration: durationMs,
-          cover: toCoverUrl(meta.cover),
+          cover: toCacheUrl(meta.cover),
         },
         detail: {
           quality: {

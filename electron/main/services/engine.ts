@@ -1,6 +1,6 @@
-import { loadNativeModule } from "../utils/nativeLoader";
-import { coverCacheDir, isDev } from "../utils/config";
-import { playerLog, nativeLogsDir } from "../utils/logger";
+import { loadNativeModule } from "@main/utils/nativeLoader";
+import { coverCacheDir, isDev } from "@main/utils/config";
+import { playerLog, nativeLogsDir } from "@main/utils/logger";
 
 type AudioEngineModule = typeof import("@splayer/audio-engine");
 type PlayerInstance = InstanceType<AudioEngineModule["AudioPlayer"]>;

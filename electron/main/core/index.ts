@@ -1,12 +1,11 @@
-import { app, BrowserWindow, net, protocol } from "electron";
-import path from "node:path";
+import { app, BrowserWindow } from "electron";
 import { electronApp, optimizer } from "@electron-toolkit/utils";
-import { createMainWindow } from "../window";
-import { registerIpcHandlers } from "../ipc";
-import { init as initMedia, shutdown as shutdownMedia } from "../services/media";
-import { initDatabase, closeDatabase } from "../database";
-import { coverCacheDir } from "../utils/config";
-import { coreLog, initLogger } from "../utils/logger";
+import { createMainWindow } from "@main/window";
+import { registerIpcHandlers } from "@main/ipc";
+import { init as initMedia, shutdown as shutdownMedia } from "@main/services/media";
+import { initDatabase, closeDatabase } from "@main/database";
+import { registerCacheScheme, handleCacheProtocol } from "@main/utils/protocol";
+import { coreLog, initLogger } from "@main/utils/logger";
 
 /**
  * 配置 Chromium 启动参数以优化内存占用
@@ -49,26 +48,13 @@ export const initApp = (): void => {
       win.focus();
     }
   });
-  // 注册自定义协议
-  protocol.registerSchemesAsPrivileged([
-    {
-      scheme: "cover",
-      privileges: {
-        secure: true,
-        supportFetchAPI: true,
-        bypassCSP: true,
-        stream: true,
-      },
-    },
-  ]);
+  // 注册缓存协议方案
+  registerCacheScheme();
+
   app.whenReady().then(() => {
     electronApp.setAppUserModelId("com.imsyy.splayer-next");
-    // 注册 cover:// 协议
-    protocol.handle("cover", (request) => {
-      const filename = decodeURIComponent(request.url.slice("cover://".length));
-      const filePath = path.join(coverCacheDir, filename);
-      return net.fetch(`file://${filePath.replace(/\\/g, "/")}`);
-    });
+    // 注册 cache:// 协议处理
+    handleCacheProtocol();
     app.on("browser-window-created", (_, window) => {
       optimizer.watchWindowShortcuts(window);
     });

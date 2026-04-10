@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { app } from "electron";
 import Database from "better-sqlite3";
-import { libraryLog } from "../utils/logger";
+import { libraryLog } from "@main/utils/logger";
 import { migrate } from "./migration";
 
 /** 数据库文件路径 */

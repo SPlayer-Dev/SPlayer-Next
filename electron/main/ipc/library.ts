@@ -1,15 +1,16 @@
 import { ipcMain, dialog } from "electron";
 import fs from "node:fs/promises";
-import { store } from "../store";
+import { store } from "@main/store";
 import {
   getAllTracks,
   searchTracks,
   getTrackCount,
   deleteTracksByDir,
   deleteTracksByPaths,
-} from "../database";
-import { startScan, cancelScan, isScanning } from "../services/scanner";
-import { libraryLog } from "../utils/logger";
+} from "@main/database";
+import { startScan, cancelScan, isScanning } from "@main/services/scanner";
+import { fetchArtistAvatar } from "@server/artistAvatar";
+import { libraryLog } from "@main/utils/logger";
 import { ErrorCode } from "@shared/types/errors";
 
 /** 注册音乐库相关 IPC */
@@ -108,6 +109,17 @@ export const registerLibraryIpc = (): void => {
   // 获取已配置的扫描目录列表
   ipcMain.handle("library:getScanDirs", () => {
     return { success: true, data: store.get("library.scanDirs") };
+  });
+
+  // 获取歌手头像（MusicBrainz + TheAudioDB）
+  ipcMain.handle("library:fetchArtistAvatar", async (_event, artistName: string) => {
+    try {
+      const url = await fetchArtistAvatar(artistName);
+      return { success: true, data: url };
+    } catch (error) {
+      libraryLog.error(`获取歌手头像失败 [${artistName}]:`, error);
+      return { success: false, error: ErrorCode.UNKNOWN };
+    }
   });
 
   // 删除曲目文件并从数据库移除
