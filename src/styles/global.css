@@ -12,6 +12,7 @@ img {
   -webkit-user-drag: none;
 }
 
+html,
 body {
   background-color: rgb(var(--s-surface));
   color: rgb(var(--s-on-surface));

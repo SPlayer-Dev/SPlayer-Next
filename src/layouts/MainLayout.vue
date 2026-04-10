@@ -19,17 +19,17 @@ const routeTransitionName = computed(() => {
   return transition === "none" ? "" : `route-${transition}`;
 });
 
-/** 侧边栏：仅 default 模式在有播放栏时加底部间距 */
+/** 侧边栏底部间距 */
 const sidebarClass = computed(() => {
   if (showPlayerBar.value && appearance.layoutMode === "default") return "mb-20";
   return "";
 });
 
-/** 主内容区底部间距 */
-const mainPaddingClass = computed(() => {
+/** 右侧区域底部间距 */
+const mainMarginClass = computed(() => {
   if (!showPlayerBar.value) return "";
-  if (appearance.layoutMode === "floating") return "pb-24";
-  return "pb-20";
+  if (appearance.layoutMode === "floating") return "mb-24";
+  return "mb-20";
 });
 
 /** 播放栏样式 */
@@ -55,21 +55,21 @@ const playerBarClass = computed(() => {
   >
     <!-- 侧边栏 -->
     <aside
-      class="shrink-0 border-r border-r-solid border-r-primary/10 bg-surface-panel overflow-y-auto scroll-trim z-10 transition-[width,margin] duration-300"
+      class="shrink-0 border-r border-r-solid border-r-primary/10 bg-surface-panel overflow-y-auto z-10 transition-[width,margin] duration-300"
       :class="[appearance.sidebarCollapsed ? 'w-16' : 'w-60', sidebarClass]"
     >
       <SideBar />
     </aside>
 
     <!-- 右侧主区域 -->
-    <div class="flex-1 flex flex-col min-w-0">
+    <div class="flex-1 flex flex-col min-w-0" :class="mainMarginClass">
       <!-- 顶部导航 -->
       <header class="h-16 shrink-0 flex items-center px-3">
         <NavHeader />
       </header>
 
       <!-- 主内容区 -->
-      <main class="flex-1 overflow-y-auto scroll-trim" :class="mainPaddingClass">
+      <main class="flex-1 overflow-y-auto overflow-x-hidden">
         <RouterView v-slot="{ Component }">
           <Transition :name="routeTransitionName" mode="out-in">
             <KeepAlive :max="5">

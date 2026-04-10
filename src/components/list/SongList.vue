@@ -157,6 +157,7 @@ const batch = useMultiSelect(sortedItems, {
   source: computed(() => props.source),
   collectionType: computed(() => props.collectionType),
   collectionId: computed(() => props.collectionId),
+  onChanged: () => emit("change"),
 });
 const { deleteConfirmOpen, deleteDialogTitle, deleteDialogContent } = batch;
 
@@ -171,6 +172,7 @@ const { items: contextMenuItems, handleSelect: onContextMenu } = useTrackMenu(co
 
 const emit = defineEmits<{
   scroll: [event: Event];
+  change: [];
 }>();
 
 onActivated(batch.exit);

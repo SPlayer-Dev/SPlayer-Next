@@ -2,6 +2,7 @@
 import type { TrackSource } from "@shared/types/player";
 import type { ArtistProfile } from "@/types/artist";
 import { useLibraryStore } from "@/stores/library";
+import { useSettingsStore } from "@/stores/settings";
 import { navigateToAlbum } from "@/utils/navigate";
 import SongList from "@/components/list/SongList.vue";
 import { formatTime } from "@/utils/time";
@@ -17,9 +18,16 @@ import IconLucideListChecks from "~icons/lucide/list-checks";
 const { t } = useI18n();
 const route = useRoute();
 const libraryStore = useLibraryStore();
+const { appearance } = useSettingsStore();
+
+const tabTransitionName = computed(() => {
+  const transition = appearance.routeTransition;
+  return transition === "none" ? "" : `route-${transition}`;
+});
 
 const source = computed(() => route.params.source as TrackSource);
 const id = computed(() => route.params.id as string);
+const isCurrentRoute = computed(() => route.name === "artist");
 
 const artist = shallowRef<ArtistProfile | null>(null);
 
@@ -37,6 +45,7 @@ const handleListScroll = (event: Event) => {
 
 /** 加载数据 */
 const loadArtist = async () => {
+  if (!isCurrentRoute.value) return;
   collapsed.value = false;
   if (source.value === "local") {
     if (!libraryStore.initialized) await libraryStore.load();
@@ -46,7 +55,10 @@ const loadArtist = async () => {
   // TODO: online
 };
 
-watch(() => route.params, loadArtist, { immediate: true });
+watch([isCurrentRoute, source, id], () => {
+  if (!isCurrentRoute.value) return;
+  loadArtist();
+}, { immediate: true });
 
 /** 总时长 */
 const totalDuration = computed(() => {
@@ -76,6 +88,10 @@ const handleMoreMenu = (key: string) => {
 
 /** 当前 tab */
 const activeTab = ref("songs");
+
+watch(activeTab, (tab) => {
+  if (tab === "albums") collapsed.value = true;
+});
 
 const tabs = computed(() => {
   const items = [{ key: "songs", label: t("artist.songs") }];
@@ -109,7 +125,7 @@ const tabs = computed(() => {
             :class="collapsed ? 'gap-0.5' : 'gap-2'"
           >
             <h1
-              class="font-bold text-on-surface truncate transition-[font-size,line-height] duration-300"
+              class="font-bold text-on-surface truncate lh-normal transition-[font-size,line-height] duration-300"
               :class="collapsed ? 'text-xl' : 'text-3xl'"
             >
               {{ artist.name }}
@@ -190,39 +206,25 @@ const tabs = computed(() => {
         :key="artist.id"
         class="flex-1 min-h-0 flex flex-col"
       >
-        <!-- 歌曲列表 -->
-        <div v-show="activeTab === 'songs'" class="flex-1 min-h-0">
-          <SongList
-            ref="songListRef"
-            :items="artist.tracks"
-            :search-query="searchQuery"
-            :source="source"
-            :show-size="source === 'local'"
-            enable-sort
-            @scroll="handleListScroll"
-          />
-        </div>
-        <!-- 专辑网格 -->
-        <div v-show="activeTab === 'albums'" class="flex-1 min-h-0 overflow-y-auto px-5 pt-3 pb-6">
-          <div class="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
-            <div
-              v-for="album in artist.albums"
-              :key="album.id"
-              class="cursor-pointer group"
-              @click="navigateToAlbum(album.title)"
-            >
-              <SImg
-                :src="album.cover"
-                :alt="album.title"
-                class="w-full aspect-square rounded-lg mb-2 transition-opacity group-hover:opacity-80"
-              />
-              <div class="text-sm text-on-surface truncate">{{ album.title }}</div>
-              <div class="text-xs text-on-surface-variant/50">
-                {{ t("artist.totalSongs", { count: album.trackCount }) }}
-              </div>
-            </div>
+        <Transition :name="tabTransitionName" mode="out-in">
+          <!-- 歌曲列表 -->
+          <div v-if="activeTab === 'songs'" key="songs" class="flex-1 min-h-0">
+            <SongList
+              ref="songListRef"
+              :items="artist.tracks"
+              :search-query="searchQuery"
+              :source="source"
+              :show-size="source === 'local'"
+              enable-sort
+              @scroll="handleListScroll"
+              @change="loadArtist"
+            />
           </div>
-        </div>
+          <!-- 专辑网格 -->
+          <div v-else-if="activeTab === 'albums'" key="albums" class="flex-1 min-h-0 overflow-y-auto px-5 pt-3 pb-6">
+            <CoverList :items="artist.albums" @click="(item) => navigateToAlbum(item.title)" />
+          </div>
+        </Transition>
       </div>
       <!-- 空状态 -->
       <div v-else-if="artist" key="empty" class="flex-1 flex items-center justify-center">

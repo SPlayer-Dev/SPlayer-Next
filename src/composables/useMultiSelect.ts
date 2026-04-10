@@ -12,6 +12,8 @@ export interface MultiSelectOptions {
   collectionType: Ref<CollectionType | undefined>;
   /** 集合 ID */
   collectionId: Ref<string | undefined>;
+  /** 删除/移除完成后的回调 */
+  onChanged?: () => void;
 }
 
 /**
@@ -113,6 +115,7 @@ export const useMultiSelect = (items: Ref<Track[]>, options: MultiSelectOptions)
     }
     deleteConfirmOpen.value = false;
     exit();
+    options.onChanged?.();
   };
 
   const cancelDelete = (): void => {

@@ -22,6 +22,7 @@ const libraryStore = useLibraryStore();
 const source = computed(() => route.params.source as TrackSource);
 const type = computed(() => route.params.type as CollectionType);
 const id = computed(() => route.params.id as string);
+const isCurrentRoute = computed(() => route.name === "collection");
 
 const collection = shallowRef<Collection | null>(null);
 
@@ -43,6 +44,7 @@ const handleListScroll = (event: Event) => {
 
 /** 加载数据 */
 const loadCollection = async () => {
+  if (!isCurrentRoute.value) return;
   // 重置折叠状态
   collapsed.value = false;
   if (source.value === "local" && type.value === "playlist") {
@@ -55,7 +57,10 @@ const loadCollection = async () => {
   // TODO: online / radio
 };
 
-watch(() => route.params, loadCollection, { immediate: true });
+watch([isCurrentRoute, source, type, id], () => {
+  if (!isCurrentRoute.value) return;
+  loadCollection();
+}, { immediate: true });
 
 const typeLabel = computed(() => {
   const map: Record<CollectionType, string> = {
@@ -181,7 +186,7 @@ const handleMoreMenu = (key: string) => {
             :class="collapsed ? 'gap-0.5' : 'gap-2'"
           >
             <h1
-              class="font-bold text-on-surface truncate transition-[font-size,line-height] duration-300"
+              class="font-bold text-on-surface truncate lh-normal transition-[font-size,line-height] duration-300"
               :class="collapsed ? 'text-xl' : 'text-3xl'"
             >
               {{ collection.title }}
@@ -281,6 +286,7 @@ const handleMoreMenu = (key: string) => {
           :collection-id="id"
           enable-sort
           @scroll="handleListScroll"
+          @change="loadCollection"
         />
       </div>
       <!-- 空状态 -->

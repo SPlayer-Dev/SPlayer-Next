@@ -23,6 +23,7 @@ declare module 'vue' {
     ContextMenuSubContent: typeof import('reka-ui')['ContextMenuSubContent']
     ContextMenuSubTrigger: typeof import('reka-ui')['ContextMenuSubTrigger']
     ContextMenuTrigger: typeof import('reka-ui')['ContextMenuTrigger']
+    CoverList: typeof import('./src/components/list/CoverList.vue')['default']
     DeviceSelector: typeof import('./src/components/settings/custom/DeviceSelector.vue')['default']
     DialogClose: typeof import('reka-ui')['DialogClose']
     DialogContent: typeof import('reka-ui')['DialogContent']
