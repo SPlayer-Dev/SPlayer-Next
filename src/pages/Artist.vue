@@ -25,9 +25,8 @@ const tabTransitionName = computed(() => {
   return transition === "none" ? "" : `route-${transition}`;
 });
 
-const source = computed(() => route.params.source as TrackSource);
-const id = computed(() => route.params.id as string);
-const isCurrentRoute = computed(() => route.name === "artist");
+const source = route.params.source as TrackSource;
+const id = route.params.id as string;
 
 const artist = shallowRef<ArtistProfile | null>(null);
 
@@ -45,11 +44,10 @@ const handleListScroll = (event: Event) => {
 
 /** 加载数据 */
 const loadArtist = async () => {
-  if (!isCurrentRoute.value) return;
   collapsed.value = false;
-  if (source.value === "local") {
+  if (source === "local") {
     if (!libraryStore.initialized) await libraryStore.load();
-    const artistName = decodeURIComponent(id.value);
+    const artistName = decodeURIComponent(id);
     artist.value = libraryStore.getArtistProfile(artistName);
     // 获取歌手头像
     if (artist.value && !artist.value.avatar) {
@@ -63,10 +61,7 @@ const loadArtist = async () => {
   // TODO: online
 };
 
-watch([isCurrentRoute, source, id], () => {
-  if (!isCurrentRoute.value) return;
-  loadArtist();
-}, { immediate: true });
+loadArtist();
 
 /** 总时长 */
 const totalDuration = computed(() => {

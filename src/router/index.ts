@@ -30,12 +30,12 @@ const router = createRouter({
         {
           path: "artists/local",
           name: "artist-list",
-          component: () => import("@/pages/ArtistList.vue"),
+          component: () => import("@/pages/LocalList.vue"),
         },
         {
           path: "albums/local",
           name: "album-list",
-          component: () => import("@/pages/AlbumList.vue"),
+          component: () => import("@/pages/LocalList.vue"),
         },
       ],
     },

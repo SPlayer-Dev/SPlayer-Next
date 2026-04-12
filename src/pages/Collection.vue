@@ -19,15 +19,14 @@ const route = useRoute();
 const playlistStore = usePlaylistStore();
 const libraryStore = useLibraryStore();
 
-const source = computed(() => route.params.source as TrackSource);
-const type = computed(() => route.params.type as CollectionType);
-const id = computed(() => route.params.id as string);
-const isCurrentRoute = computed(() => route.name === "collection");
+const source = route.params.source as TrackSource;
+const type = route.params.type as CollectionType;
+const id = route.params.id as string;
 
 const collection = shallowRef<Collection | null>(null);
 
 /** 是否可编辑 */
-const editable = computed(() => source.value === "local" && type.value === "playlist");
+const editable = source === "local" && type === "playlist";
 
 /** 折叠状态 */
 const collapsed = ref(false);
@@ -44,24 +43,18 @@ const handleListScroll = (event: Event) => {
 
 /** 加载数据 */
 const loadCollection = async () => {
-  if (!isCurrentRoute.value) return;
-  // 重置折叠状态
   collapsed.value = false;
-  // 确保音乐库已加载
-  if (source.value === "local" && !libraryStore.initialized) await libraryStore.load();
-  if (source.value === "local" && type.value === "playlist") {
-    collection.value = await playlistStore.get(id.value);
-  } else if (source.value === "local" && type.value === "album") {
-    const albumName = decodeURIComponent(id.value);
+  if (source === "local" && !libraryStore.initialized) await libraryStore.load();
+  if (source === "local" && type === "playlist") {
+    collection.value = await playlistStore.get(id);
+  } else if (source === "local" && type === "album") {
+    const albumName = decodeURIComponent(id);
     collection.value = libraryStore.getAlbumCollection(albumName);
   }
   // TODO: online / radio
 };
 
-watch([isCurrentRoute, source, type, id], () => {
-  if (!isCurrentRoute.value) return;
-  loadCollection();
-}, { immediate: true });
+loadCollection();
 
 const typeLabel = computed(() => {
   const map: Record<CollectionType, string> = {
@@ -69,7 +62,7 @@ const typeLabel = computed(() => {
     playlist: t("collection.playlist"),
     radio: t("collection.radio"),
   };
-  return map[type.value] ?? "";
+  return map[type] ?? "";
 });
 
 /** 总时长 */

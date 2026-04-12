@@ -5,6 +5,10 @@ import { createWindow } from "./create";
 import { initThumbar } from "@main/services/thumbar";
 import { initTray } from "@main/services/tray";
 import { store } from "@main/store";
+import { handleCacheProtocolOnPartition } from "@main/utils/protocol";
+
+/** 主窗口 session */
+const MAIN_PARTITION = "persist:main";
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -15,9 +19,15 @@ export const createMainWindow = (): BrowserWindow => {
   const remember = store.get("system.rememberWindowState") ?? true;
   const saved = remember ? store.get("system.window") : undefined;
 
+  // 注册 cache:// 协议
+  handleCacheProtocolOnPartition(MAIN_PARTITION);
+
   mainWindow = createWindow({
     width: saved?.width ?? 1280,
     height: saved?.height ?? 800,
+    webPreferences: {
+      partition: MAIN_PARTITION,
+    },
   });
 
   // 恢复最大化状态
@@ -66,7 +76,7 @@ export const createMainWindow = (): BrowserWindow => {
   });
 
   return mainWindow;
-};
+};;
 
 /**
  * 获取主窗口实例，窗口不存在时返回 null

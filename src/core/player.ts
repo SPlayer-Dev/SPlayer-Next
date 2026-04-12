@@ -35,13 +35,15 @@ export const load = async (source: string, autoPlay = true): Promise<Track | nul
   const status = useStatusStore();
   const token = ++loadToken;
   status.trackLoading = true;
-  // 不提前重置 state 和 playback，保持当前封面/进度/播放状态
-  // 等主进程返回后再更新，避免切歌时视觉跳变
+  // 清除上一次 seek 残留
+  seekTarget = null;
+  playback.setSeeking(false);
+  // 不提前重置，保持播放状态
   const wasPlaying = status.isPlaying;
   status.state = wasPlaying ? "playing" : "loading";
   try {
     const { data, error } = await loadAudio(source, autoPlay);
-    // 竞态保护：如果已切歌，丢弃旧结果
+    // 竞态保护
     if (token !== loadToken) return null;
     if (data) {
       consecutiveFailures = 0;

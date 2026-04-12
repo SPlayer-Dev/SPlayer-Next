@@ -519,15 +519,14 @@ impl InnerPlayer {
             return;
         }
 
-        // 立即切换状态、停止定时器、发射事件
-        self.stop_position_timer();
-        self.stop_fft_timer();
+        // 先切换状态并发射事件，让前端立即响应
         self.state = PlayerState::Paused;
         self.emit(PlayerEvent::StateChanged {
             state: PlayerState::Paused,
         });
 
-        // 非阻塞渐出：fade 完成后在回调中执行 sink.pause + 恢复音量
+        // 立即启动非阻塞渐出，避免被后续 stop_*_timer 的 join 阻塞
+        // fade 完成后在回调中执行 sink.pause + 恢复音量
         let target_volume = self.target_volume;
         let sink_for_callback = self.sink.as_ref().map(Arc::clone);
         self.start_fade(
@@ -540,6 +539,10 @@ impl InnerPlayer {
                 }
             })),
         );
+
+        // 渐出已在后台运行，再同步停止定时器（join 开销不会影响音频淡出时序）
+        self.stop_position_timer();
+        self.stop_fft_timer();
     }
 
     /// 停止播放并释放资源

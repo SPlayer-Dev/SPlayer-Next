@@ -16,14 +16,16 @@ const getDefaultOptions = (): BrowserWindowConstructorOptions => ({
   webPreferences: {
     preload: join(__dirname, "../preload/index.mjs"),
     sandbox: false,
+    // 关闭 WebGL
+    webgl: false,
     // 关闭拼写检查
     spellcheck: false,
     // 禁用 Web SQL
     enableWebSQL: false,
     // 开启后台节流
     backgroundThrottling: true,
-    // 跳过“热度检查”
-    v8CacheOptions: "bypassHeatCheck",
+    // code cache
+    v8CacheOptions: "code",
   },
 });
 

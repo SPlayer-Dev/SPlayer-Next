@@ -20,7 +20,7 @@ export interface CoverListProps {
 const props = withDefaults(defineProps<CoverListProps>(), {
   type: "default",
   minSize: 140,
-  gap: 16,
+  gap: 20,
   rounded: "rounded-xl",
 });
 
@@ -28,8 +28,6 @@ const coverRounded = computed(() => {
   if (props.type === "artist") return "rounded-full";
   return props.rounded;
 });
-
-const actualGap = computed(() => (props.type === "artist" ? props.gap + 6 : props.gap));
 
 const actualFallback = computed(() => {
   if (props.type === "artist") return artistFallback;
@@ -46,7 +44,7 @@ const emit = defineEmits<{
     class="grid"
     :style="{
       gridTemplateColumns: `repeat(auto-fill, minmax(${minSize}px, 1fr))`,
-      gap: `${actualGap}px`,
+      gap: `${gap}px`,
     }"
   >
     <div
@@ -87,8 +85,8 @@ const emit = defineEmits<{
         </div>
         <div
           v-if="item.subtitle"
-          class="text-xs text-on-surface-variant/50"
-          :class="type === 'artist' ? 'text-center' : ''"
+          class="text-xs text-on-surface-variant/50 truncate"
+          :class="type === 'artist' ? 'text-center w-full' : ''"
         >
           {{ item.subtitle }}
         </div>
