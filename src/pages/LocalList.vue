@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { CoverItem } from "@/types/artist";
 import type { SSelectOption } from "@/components/ui/SSelect.vue";
+import type { AlbumSummary, ArtistSummary } from "@shared/types/library";
 import { useLibraryStore } from "@/stores/library";
 import CoverList from "@/components/list/CoverList.vue";
 import { navigateToAlbum, navigateToArtist } from "@/utils/navigate";
@@ -17,7 +18,7 @@ const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const libraryStore = useLibraryStore();
-const { initialized } = storeToRefs(libraryStore);
+const { artistAvatars } = storeToRefs(libraryStore);
 
 const mode: Mode = route.name === "album-list" ? "album" : "artist";
 
@@ -29,17 +30,20 @@ const sortOptions = computed<SSelectOption[]>(() => [
   { value: "trackCount", label: t("songList.sort.byTrackCount") },
 ]);
 
+const source = shallowRef<ArtistSummary[] | AlbumSummary[]>([]);
+
+/** 组装最终列表 */
 const items = computed<CoverItem[]>(() => {
   const list: CoverItem[] =
     mode === "artist"
-      ? libraryStore.getArtistList().map((item) => ({
+      ? source.value.map((item: ArtistSummary) => ({
           id: encodeURIComponent(item.name),
           title: item.name,
-          cover: libraryStore.getArtistAvatar(item.name),
+          cover: artistAvatars.value[item.name.trim().toLowerCase()],
           subtitle: t("artist.totalSongs", { count: item.trackCount }),
           trackCount: item.trackCount,
         }))
-      : libraryStore.getAlbumList().map((item) => ({
+      : (source.value as AlbumSummary[]).map((item) => ({
           id: encodeURIComponent(item.name),
           title: item.name,
           cover: item.cover,
@@ -82,7 +86,8 @@ const handleClick = (item: CoverItem): void => {
 };
 
 onMounted(async () => {
-  if (!initialized.value) await libraryStore.load();
+  source.value =
+    mode === "artist" ? await libraryStore.getArtistList() : await libraryStore.getAlbumList();
 });
 </script>
 

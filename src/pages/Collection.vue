@@ -44,12 +44,11 @@ const handleListScroll = (event: Event) => {
 /** 加载数据 */
 const loadCollection = async () => {
   collapsed.value = false;
-  if (source === "local" && !libraryStore.initialized) await libraryStore.load();
   if (source === "local" && type === "playlist") {
     collection.value = await playlistStore.get(id);
   } else if (source === "local" && type === "album") {
     const albumName = decodeURIComponent(id);
-    collection.value = libraryStore.getAlbumCollection(albumName);
+    collection.value = await libraryStore.getAlbumCollection(albumName);
   }
   // TODO: online / radio
 };

@@ -1,5 +1,6 @@
 import path from "node:path";
 import type { Track, Artist, Album, AudioQuality } from "@shared/types/player";
+import type { AlbumSummary, ArtistSummary } from "@shared/types/library";
 import { getDb } from "./index";
 
 /** 数据库行类型 */
@@ -163,4 +164,70 @@ export const deleteTracksByDir = (dir: string): void => {
   getDb()
     .prepare("DELETE FROM tracks WHERE path LIKE ?")
     .run(prefix + "%");
+};
+
+/** 专辑列表 */
+export const getAlbumList = (): AlbumSummary[] => {
+  const rows = getDb()
+    .prepare(
+      `SELECT
+         json_extract(album, '$.name') AS name,
+         MAX(CASE WHEN cover IS NOT NULL THEN cover END) AS cover,
+         MAX(artists) AS artists,
+         COUNT(*) AS trackCount
+       FROM tracks
+       WHERE album IS NOT NULL AND json_extract(album, '$.name') IS NOT NULL
+       GROUP BY name`,
+    )
+    .all() as { name: string; cover: string | null; artists: string; trackCount: number }[];
+  return rows.map((row) => ({
+    name: row.name,
+    cover: row.cover ?? undefined,
+    artist: (JSON.parse(row.artists) as Artist[]).map((a) => a.name).join(" / "),
+    trackCount: row.trackCount,
+  }));
+};
+
+/** 歌手列表 */
+export const getArtistList = (): ArtistSummary[] => {
+  return getDb()
+    .prepare(
+      `SELECT
+         json_extract(a.value, '$.name') AS name,
+         COUNT(DISTINCT t.id) AS trackCount
+       FROM tracks t, json_each(t.artists) a
+       WHERE json_extract(a.value, '$.name') IS NOT NULL
+         AND TRIM(json_extract(a.value, '$.name')) != ''
+       GROUP BY name`,
+    )
+    .all() as ArtistSummary[];
+};
+
+/** 按专辑名获取全部曲目 */
+export const getAlbumTracks = (albumName: string): Track[] => {
+  const rows = getDb()
+    .prepare("SELECT * FROM tracks WHERE json_extract(album, '$.name') = ?")
+    .all(albumName) as TrackRow[];
+  return rows.map(rowToTrack);
+};
+
+/** 按歌手名获取全部曲目 */
+export const getArtistTracks = (artistName: string): Track[] => {
+  const rows = getDb()
+    .prepare(
+      `SELECT DISTINCT t.* FROM tracks t, json_each(t.artists) a
+       WHERE LOWER(json_extract(a.value, '$.name')) = LOWER(?)`,
+    )
+    .all(artistName) as TrackRow[];
+  return rows.map(rowToTrack);
+};
+
+/** 按 ID 批量获取曲目 */
+export const getTracksByIds = (ids: string[]): Track[] => {
+  if (ids.length === 0) return [];
+  const placeholders = ids.map(() => "?").join(",");
+  const rows = getDb()
+    .prepare(`SELECT * FROM tracks WHERE id IN (${placeholders})`)
+    .all(...ids) as TrackRow[];
+  return rows.map(rowToTrack);
 };

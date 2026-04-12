@@ -36,8 +36,8 @@ export const restoreQueue = async (): Promise<void> => {
       db.getItem<Track[] | null>("originalPlayList"),
     ]);
     if (!list?.length) return;
-    queue.value = markRaw(list);
-    originalQueue.value = original ? markRaw(original) : null;
+    queue.value = list;
+    originalQueue.value = original ?? null;
   } catch (e) {
     console.error("[queue] 恢复持久化数据失败:", e);
   }
@@ -48,7 +48,7 @@ export const restoreQueue = async (): Promise<void> => {
  * @param items - 新的歌曲列表
  */
 export const setQueue = (items: readonly Track[]): void => {
-  queue.value = markRaw([...items]);
+  queue.value = [...items];
   originalQueue.value = null;
   save();
 };
@@ -62,9 +62,9 @@ export const insertToQueue = (item: Track, index: number): void => {
   const safeIndex = Math.max(0, Math.min(index, queue.value.length));
   const next = [...queue.value];
   next.splice(safeIndex, 0, item);
-  queue.value = markRaw(next);
+  queue.value = next;
   if (originalQueue.value) {
-    originalQueue.value = markRaw([...originalQueue.value, item]);
+    originalQueue.value = [...originalQueue.value, item];
   }
   save();
 };
@@ -78,13 +78,13 @@ export const removeFromQueue = (index: number): void => {
   const removed = queue.value[index];
   const next = [...queue.value];
   next.splice(index, 1);
-  queue.value = markRaw(next);
+  queue.value = next;
   if (originalQueue.value) {
     const origIdx = originalQueue.value.findIndex((t) => t.id === removed.id);
     if (origIdx !== -1) {
       const nextOrig = [...originalQueue.value];
       nextOrig.splice(origIdx, 1);
-      originalQueue.value = markRaw(nextOrig);
+      originalQueue.value = nextOrig;
     }
   }
   save();
@@ -102,7 +102,7 @@ export const moveInQueue = (fromIndex: number, toIndex: number): void => {
   const next = [...queue.value];
   const [item] = next.splice(fromIndex, 1);
   next.splice(toIndex, 0, item);
-  queue.value = markRaw(next);
+  queue.value = next;
   save();
 };
 
@@ -125,12 +125,12 @@ export const shuffleQueue = (keepIndex: number): void => {
   const safeIndex = keepIndex >= 0 && keepIndex < currentQueue.length ? keepIndex : 0;
   // 仅首次洗牌时备份，避免重新洗牌时覆盖原始顺序
   if (!originalQueue.value) {
-    originalQueue.value = markRaw([...currentQueue]);
+    originalQueue.value = [...currentQueue];
   }
   const keepTrack = currentQueue[safeIndex];
   const rest = currentQueue.filter((_, index) => index !== safeIndex);
   shuffleArray(rest);
-  queue.value = markRaw([keepTrack, ...rest]);
+  queue.value = [keepTrack, ...rest];
   save();
 };
 
@@ -141,7 +141,7 @@ export const shuffleQueue = (keepIndex: number): void => {
  */
 export const unshuffleQueue = (currentTrackId: string): number => {
   if (!originalQueue.value) return 0;
-  queue.value = markRaw([...originalQueue.value]);
+  queue.value = [...originalQueue.value];
   originalQueue.value = null;
   save();
   const idx = queue.value.findIndex((t) => t.id === currentTrackId);

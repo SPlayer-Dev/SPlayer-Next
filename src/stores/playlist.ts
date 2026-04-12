@@ -1,7 +1,6 @@
 import localforage from "localforage";
 import type { Track } from "@shared/types/player";
 import type { Collection, PlaylistRecord } from "@/types/collection";
-import { useLibraryStore } from "@/stores/library";
 
 const db = localforage.createInstance({ name: "splayer", storeName: "playlists" });
 
@@ -23,26 +22,26 @@ export const usePlaylistStore = defineStore("playlist", () => {
     initialized.value = true;
   };
 
-  /** 构建 ID → Track 查找表 */
-  const buildTrackMap = (): Map<string, Track> => {
-    const libraryStore = useLibraryStore();
-    const map = new Map<string, Track>();
-    for (const t of libraryStore.tracks) map.set(t.id, t);
-    return map;
-  };
-
-  /** 解析完整歌单数据 */
-  const resolveCollection = (record: PlaylistRecord): Collection => {
-    const trackMap = buildTrackMap();
+  /**
+   * 解析歌单完整数据
+   * @param record 歌单记录
+   * @returns 歌单完整数据
+   */
+  const resolveCollection = async (record: PlaylistRecord): Promise<Collection> => {
+    const { trackIds: _, ...meta } = record;
+    if (record.trackIds.length === 0) {
+      return { ...meta, tracks: [], trackCount: 0 };
+    }
+    const res = await window.api.library.getTracksByIds(record.trackIds);
+    const fetched = res.success && res.data ? res.data : [];
+    const byId = new Map<string, Track>(fetched.map((t) => [t.id, t]));
     const tracks: Track[] = [];
-    for (const id of record.trackIds) {
-      const track = trackMap.get(id);
+    for (const trackId of record.trackIds) {
+      const track = byId.get(trackId);
       if (track) tracks.push(track);
     }
-    const { trackIds: _, ...meta } = record;
     return {
       ...meta,
-      // 最新添加的有封面的歌曲
       cover: tracks.find((t) => t.cover)?.cover,
       tracks,
       trackCount: tracks.length,
@@ -53,7 +52,7 @@ export const usePlaylistStore = defineStore("playlist", () => {
   const get = async (id: string): Promise<Collection | null> => {
     const record = await db.getItem<PlaylistRecord>(id);
     if (!record) return null;
-    return resolveCollection(record);
+    return await resolveCollection(record);
   };
 
   /** 创建歌单 */

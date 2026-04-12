@@ -57,7 +57,6 @@ export const closeDatabase = (): void => {
   }
 };
 
-// 导出查询方法，保持外部导入路径不变
 export {
   getAllTracks,
   getTrackCount,
@@ -66,6 +65,11 @@ export {
   deleteTracksByPaths,
   searchTracks,
   deleteTracksByDir,
+  getAlbumList,
+  getArtistList,
+  getAlbumTracks,
+  getArtistTracks,
+  getTracksByIds,
 } from "./queries";
 
 export type { FileRecord, UpsertTrack } from "./queries";

@@ -1,8 +1,8 @@
 import localforage from "localforage";
-import type { Track } from "@shared/types/player";
-import type { ScanProgress } from "@shared/types/library";
+import type { Track, Artist } from "@shared/types/player";
+import type { AlbumSummary, ArtistSummary, ScanProgress } from "@shared/types/library";
 import type { Collection } from "@/types/collection";
-import type { ArtistProfile } from "@/types/artist";
+import type { ArtistProfile, CoverItem } from "@/types/artist";
 
 const trackDb = localforage.createInstance({ name: "splayer", storeName: "library" });
 
@@ -46,21 +46,21 @@ export const useLibraryStore = defineStore("library", () => {
   };
 
   /** 批量预取头像 */
-  const loadArtistAvatars = (): void => {
-    const names = getArtistList()
+  const loadArtistAvatars = async (): Promise<void> => {
+    const list = await getArtistList();
+    const names = list
       .filter((item) => !artistAvatars.value[normalizeArtistName(item.name)])
       .map((item) => item.name);
     if (!names.length) return;
-    window.api.library.prefetchArtistAvatars(names).then((res) => {
-      if (!res.success || !res.data) return;
-      const patch: Record<string, string> = {};
-      for (const [key, avatar] of Object.entries(res.data)) {
-        if (avatar) patch[key] = avatar;
-      }
-      if (Object.keys(patch).length > 0) {
-        artistAvatars.value = { ...artistAvatars.value, ...patch };
-      }
-    });
+    const res = await window.api.library.prefetchArtistAvatars(names);
+    if (!res.success || !res.data) return;
+    const patch: Record<string, string> = {};
+    for (const [key, avatar] of Object.entries(res.data)) {
+      if (avatar) patch[key] = avatar;
+    }
+    if (Object.keys(patch).length > 0) {
+      artistAvatars.value = { ...artistAvatars.value, ...patch };
+    }
   };
 
   /** 将曲目写入 IndexedDB 缓存 */
@@ -68,13 +68,12 @@ export const useLibraryStore = defineStore("library", () => {
     trackDb.setItem("tracks", toRaw(items)).catch(() => {});
   };
 
-  /** 从主进程加载曲目和目录列表，优先从 IndexedDB 缓存恢复 */
+  /** 加载曲目和目录列表 */
   const load = async (): Promise<void> => {
     // 先从 IndexedDB 读缓存，立即渲染
     const cached = await trackDb.getItem<Track[]>("tracks").catch(() => null);
-    if (cached?.length) tracks.value = markRaw(cached);
-
-    // 再从主进程拿最新数据并回写缓存
+    if (cached?.length) tracks.value = cached;
+    // 拿最新数据并回写缓存
     const [tracksRes, dirsRes] = await Promise.all([
       window.api.library.getTracks(),
       window.api.library.getScanDirs(),
@@ -187,54 +186,24 @@ export const useLibraryStore = defineStore("library", () => {
     return { deleted: 0, failed: paths.length };
   };
 
-  /** 获取所有专辑的聚合列表 */
-  const getAlbumList = (): { name: string; cover?: string; artist: string; trackCount: number }[] => {
-    const map = new Map<
-      string,
-      { name: string; cover?: string; artist: string; trackCount: number }
-    >();
-    for (const track of tracks.value) {
-      const name = track.album?.name?.trim();
-      if (!name) continue;
-      const key = name.toLowerCase();
-      const existing = map.get(key);
-      if (existing) {
-        existing.trackCount++;
-        if (!existing.cover && track.cover) existing.cover = track.cover;
-      } else {
-        map.set(key, {
-          name,
-          cover: track.cover,
-          artist: track.artists.map((item) => item.name).join(" / "),
-          trackCount: 1,
-        });
-      }
-    }
-    return [...map.values()];
+  /** 专辑聚合列表 */
+  const getAlbumList = async (): Promise<AlbumSummary[]> => {
+    const res = await window.api.library.getAlbums();
+    return res.success && res.data ? res.data : [];
   };
 
-  /** 获取所有歌手的聚合列表 */
-  const getArtistList = (): { name: string; trackCount: number }[] => {
-    const map = new Map<string, { name: string; trackCount: number }>();
-    for (const track of tracks.value) {
-      for (const artist of track.artists) {
-        const name = artist.name.trim();
-        if (!name) continue;
-        const key = name.toLowerCase();
-        const existing = map.get(key);
-        if (existing) existing.trackCount++;
-        else map.set(key, { name, trackCount: 1 });
-      }
-    }
-    return [...map.values()];
+  /** 歌手聚合列表 */
+  const getArtistList = async (): Promise<ArtistSummary[]> => {
+    const res = await window.api.library.getArtists();
+    return res.success && res.data ? res.data : [];
   };
 
-  /** 根据专辑名从曲库聚合出 Collection */
-  const getAlbumCollection = (albumName: string): Collection | null => {
-    const albumTracks = tracks.value.filter((t) => t.album?.name === albumName);
-    if (!albumTracks.length) return null;
-    // 收集所有不重复的艺术家
-    const artistMap = new Map<string, { id?: string; name: string }>();
+  /** 专辑详情 */
+  const getAlbumCollection = async (albumName: string): Promise<Collection | null> => {
+    const res = await window.api.library.getAlbumTracks(albumName);
+    if (!res.success || !res.data?.length) return null;
+    const albumTracks = res.data;
+    const artistMap = new Map<string, Artist>();
     for (const t of albumTracks) {
       for (const a of t.artists) {
         const key = a.name.toLowerCase();
@@ -253,16 +222,13 @@ export const useLibraryStore = defineStore("library", () => {
     };
   };
 
-  /** 从曲库聚合歌手信息 */
-  const getArtistProfile = (artistName: string): ArtistProfile | null => {
+  /** 歌手详情 */
+  const getArtistProfile = async (artistName: string): Promise<ArtistProfile | null> => {
     const name = artistName.trim();
     if (!name) return null;
-    const nameLower = name.toLowerCase();
-    const artistTracks = tracks.value.filter((t) =>
-      t.artists.some((a) => a.name.toLowerCase() === nameLower),
-    );
-    if (!artistTracks.length) return null;
-    // 聚合专辑
+    const res = await window.api.library.getArtistTracks(name);
+    if (!res.success || !res.data?.length) return null;
+    const artistTracks = res.data;
     const albumMap = new Map<string, { cover?: string; count: number }>();
     for (const t of artistTracks) {
       if (!t.album?.name) continue;
@@ -275,7 +241,7 @@ export const useLibraryStore = defineStore("library", () => {
         albumMap.set(key, { cover: t.cover, count: 1 });
       }
     }
-    const albums = [...albumMap.entries()].map(([albumName, info]) => ({
+    const albums: CoverItem[] = [...albumMap.entries()].map(([albumName, info]) => ({
       id: encodeURIComponent(albumName),
       title: albumName,
       cover: info.cover,

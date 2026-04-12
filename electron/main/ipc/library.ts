@@ -7,6 +7,11 @@ import {
   getTrackCount,
   deleteTracksByDir,
   deleteTracksByPaths,
+  getAlbumList,
+  getArtistList,
+  getAlbumTracks,
+  getArtistTracks,
+  getTracksByIds,
 } from "@main/database";
 import { startScan, cancelScan, isScanning } from "@main/services/scanner";
 import { fetchArtistAvatar, prefetchArtistAvatars } from "@server/artistAvatar";
@@ -40,6 +45,51 @@ export const registerLibraryIpc = (): void => {
   ipcMain.handle("library:getTracks", () => {
     try {
       return { success: true, data: getAllTracks() };
+    } catch (_error) {
+      return { success: false, error: ErrorCode.UNKNOWN };
+    }
+  });
+
+  // 获取专辑聚合列表
+  ipcMain.handle("library:getAlbums", () => {
+    try {
+      return { success: true, data: getAlbumList() };
+    } catch (_error) {
+      return { success: false, error: ErrorCode.UNKNOWN };
+    }
+  });
+
+  // 获取歌手聚合列表
+  ipcMain.handle("library:getArtists", () => {
+    try {
+      return { success: true, data: getArtistList() };
+    } catch (_error) {
+      return { success: false, error: ErrorCode.UNKNOWN };
+    }
+  });
+
+  // 获取某专辑下的全部曲目
+  ipcMain.handle("library:getAlbumTracks", (_event, albumName: string) => {
+    try {
+      return { success: true, data: getAlbumTracks(albumName) };
+    } catch (_error) {
+      return { success: false, error: ErrorCode.UNKNOWN };
+    }
+  });
+
+  // 获取某歌手的全部曲目
+  ipcMain.handle("library:getArtistTracks", (_event, artistName: string) => {
+    try {
+      return { success: true, data: getArtistTracks(artistName) };
+    } catch (_error) {
+      return { success: false, error: ErrorCode.UNKNOWN };
+    }
+  });
+
+  // 按 ID 批量获取曲目
+  ipcMain.handle("library:getTracksByIds", (_event, ids: string[]) => {
+    try {
+      return { success: true, data: getTracksByIds(ids) };
     } catch (_error) {
       return { success: false, error: ErrorCode.UNKNOWN };
     }

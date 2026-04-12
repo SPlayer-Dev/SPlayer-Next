@@ -1,5 +1,19 @@
 import type { IpcResponse, Track } from "./player";
 
+/** 专辑聚合项 */
+export interface AlbumSummary {
+  name: string;
+  cover?: string;
+  artist: string;
+  trackCount: number;
+}
+
+/** 歌手聚合项 */
+export interface ArtistSummary {
+  name: string;
+  trackCount: number;
+}
+
 /** 扫描进度事件 */
 export interface ScanProgress {
   phase: "scanning" | "done" | "error";
@@ -24,6 +38,16 @@ export interface LibraryApi {
   cancelScan: () => Promise<IpcResponse>;
   /** 获取全部曲目 */
   getTracks: () => Promise<IpcResponse<Track[]>>;
+  /** 获取专辑聚合列表 */
+  getAlbums: () => Promise<IpcResponse<AlbumSummary[]>>;
+  /** 获取歌手聚合列表 */
+  getArtists: () => Promise<IpcResponse<ArtistSummary[]>>;
+  /** 获取某专辑下的全部曲目 */
+  getAlbumTracks: (albumName: string) => Promise<IpcResponse<Track[]>>;
+  /** 获取某歌手的全部曲目 */
+  getArtistTracks: (artistName: string) => Promise<IpcResponse<Track[]>>;
+  /** 按 ID 批量获取曲目 */
+  getTracksByIds: (ids: string[]) => Promise<IpcResponse<Track[]>>;
   /** 搜索曲目 */
   searchTracks: (query: string) => Promise<IpcResponse<Track[]>>;
   /** 获取曲目总数 */

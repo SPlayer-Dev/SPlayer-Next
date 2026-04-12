@@ -46,9 +46,8 @@ const handleListScroll = (event: Event) => {
 const loadArtist = async () => {
   collapsed.value = false;
   if (source === "local") {
-    if (!libraryStore.initialized) await libraryStore.load();
     const artistName = decodeURIComponent(id);
-    artist.value = libraryStore.getArtistProfile(artistName);
+    artist.value = await libraryStore.getArtistProfile(artistName);
     // 获取歌手头像
     if (artist.value && !artist.value.avatar) {
       const res = await window.api.library.fetchArtistAvatar(artistName);

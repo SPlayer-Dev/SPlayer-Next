@@ -78,6 +78,18 @@ const api = {
     cancelScan: () => ipcRenderer.invoke("library:cancelScan"),
     // 获取全部曲目
     getTracks: () => ipcRenderer.invoke("library:getTracks"),
+    // 获取专辑聚合列表
+    getAlbums: () => ipcRenderer.invoke("library:getAlbums"),
+    // 获取歌手聚合列表
+    getArtists: () => ipcRenderer.invoke("library:getArtists"),
+    // 获取某专辑下的全部曲目
+    getAlbumTracks: (albumName: string) =>
+      ipcRenderer.invoke("library:getAlbumTracks", albumName),
+    // 获取某歌手的全部曲目
+    getArtistTracks: (artistName: string) =>
+      ipcRenderer.invoke("library:getArtistTracks", artistName),
+    // 按 ID 批量获取曲目
+    getTracksByIds: (ids: string[]) => ipcRenderer.invoke("library:getTracksByIds", ids),
     // 搜索曲目
     searchTracks: (query: string) => ipcRenderer.invoke("library:searchTracks", query),
     // 获取曲目总数
