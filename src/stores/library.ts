@@ -187,6 +187,32 @@ export const useLibraryStore = defineStore("library", () => {
     return { deleted: 0, failed: paths.length };
   };
 
+  /** 获取所有专辑的聚合列表 */
+  const getAlbumList = (): { name: string; cover?: string; artist: string; trackCount: number }[] => {
+    const map = new Map<
+      string,
+      { name: string; cover?: string; artist: string; trackCount: number }
+    >();
+    for (const track of tracks.value) {
+      const name = track.album?.name?.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      const existing = map.get(key);
+      if (existing) {
+        existing.trackCount++;
+        if (!existing.cover && track.cover) existing.cover = track.cover;
+      } else {
+        map.set(key, {
+          name,
+          cover: track.cover,
+          artist: track.artists.map((item) => item.name).join(" / "),
+          trackCount: 1,
+        });
+      }
+    }
+    return [...map.values()];
+  };
+
   /** 获取所有歌手的聚合列表 */
   const getArtistList = (): { name: string; trackCount: number }[] => {
     const map = new Map<string, { name: string; trackCount: number }>();
@@ -285,6 +311,7 @@ export const useLibraryStore = defineStore("library", () => {
     getArtistAvatar,
     setArtistAvatar,
     getArtistList,
+    getAlbumList,
     getAlbumCollection,
     getArtistProfile,
   };

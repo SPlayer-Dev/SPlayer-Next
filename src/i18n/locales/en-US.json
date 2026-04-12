@@ -47,7 +47,9 @@
       "byDuration": "Sort by Duration",
       "bySize": "Sort by Size",
       "byMtime": "Sort by Modified Time",
-      "byCtime": "Sort by Created Time"
+      "byCtime": "Sort by Created Time",
+      "byName": "Sort by Name",
+      "byTrackCount": "Sort by Song Count"
     },
     "context": {
       "play": "Play",
@@ -86,6 +88,9 @@
     "totalSongs": "{count} songs",
     "empty": "Library is empty",
     "emptyHint": "Add a music folder to get started",
+    "noLocalData": "No local content",
+    "noLocalDataHint": "Add songs to your library to see them aggregated here",
+    "goLibrary": "Go to Library",
     "addFolder": "Add Folder",
     "scanAll": "Full Scan",
     "scanning": "Scanning...",
@@ -363,6 +368,10 @@
     "totalSongs": "{count} songs",
     "totalAlbums": "{count} albums",
     "albums": "Albums"
+  },
+  "album": {
+    "label": "Albums",
+    "totalAlbums": "{count} albums"
   },
   "errors": {
     "DEVICE_NOT_FOUND": "No audio output device found",

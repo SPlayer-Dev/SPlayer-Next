@@ -47,7 +47,9 @@
       "byDuration": "按时长",
       "bySize": "按大小",
       "byMtime": "按修改时间",
-      "byCtime": "按创建时间"
+      "byCtime": "按创建时间",
+      "byName": "按名称",
+      "byTrackCount": "按歌曲数量"
     },
     "context": {
       "play": "播放",
@@ -86,6 +88,9 @@
     "totalSongs": "共 {count} 首",
     "empty": "音乐库为空",
     "emptyHint": "添加音乐文件夹开始使用",
+    "noLocalData": "暂无本地内容",
+    "noLocalDataHint": "前往音乐库添加歌曲后将自动聚合",
+    "goLibrary": "前往音乐库",
     "addFolder": "添加文件夹",
     "scanAll": "全量扫描",
     "scanning": "正在扫描...",
@@ -363,6 +368,10 @@
     "totalSongs": "共 {count} 首",
     "totalAlbums": "共 {count} 张专辑",
     "albums": "专辑"
+  },
+  "album": {
+    "label": "专辑",
+    "totalAlbums": "共 {count} 张"
   },
   "errors": {
     "DEVICE_NOT_FOUND": "未找到音频输出设备",
