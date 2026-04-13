@@ -7,7 +7,12 @@ import {
   reloadDiscordConfig,
 } from "@main/services/media";
 import { setNormalizationEnabled } from "@main/services/engine";
-import { setTaskbarProgress } from "@main/window";
+import {
+  setTaskbarProgress,
+  applyDesktopLyricLock,
+  applyDesktopLyricAlwaysOnTop,
+  getDesktopLyricWindow,
+} from "@main/window";
 
 /** 配置写入后的副作用 */
 const applyConfigChange = (keyPath: string, value: unknown): void => {
@@ -26,6 +31,17 @@ const applyConfigChange = (keyPath: string, value: unknown): void => {
     case "system.taskbarProgress":
       if (!value) setTaskbarProgress(-1);
       break;
+    case "desktopLyric.locked":
+      applyDesktopLyricLock(value as boolean);
+      break;
+    case "desktopLyric.alwaysOnTop":
+      applyDesktopLyricAlwaysOnTop(value as boolean);
+      break;
+  }
+  // 桌面歌词配置变更广播到歌词窗口
+  if (keyPath.startsWith("desktopLyric.")) {
+    const win = getDesktopLyricWindow();
+    if (win) win.webContents.send("desktopLyric:configChange", store.get("desktopLyric"));
   }
 };
 

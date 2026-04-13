@@ -126,6 +126,7 @@
       "effectsDisplay": "显示效果",
       "effectsSpring": "弹簧动画",
       "effectsLayout": "布局与透明度",
+      "desktopLyric": "桌面歌词",
       "theme": "主题与风格",
       "layout": "布局",
       "media": "媒体控制",
@@ -253,6 +254,54 @@
     "inactiveAlpha": {
       "label": "非激活行透明度",
       "description": "非当前行的基础透明度"
+    },
+    "desktopLyricFontSize": {
+      "label": "字号",
+      "description": "桌面歌词的文字大小（像素）"
+    },
+    "desktopLyricFontWeight": {
+      "label": "字重",
+      "description": "桌面歌词的文字粗细"
+    },
+    "desktopLyricShowTranslation": {
+      "label": "显示翻译",
+      "description": "在桌面歌词中显示翻译文本"
+    },
+    "desktopLyricDoubleLine": {
+      "label": "双行显示",
+      "description": "同时显示当前行与下一行"
+    },
+    "desktopLyricAlign": {
+      "label": "对齐方式",
+      "description": "歌词文本的水平对齐",
+      "left": "居左",
+      "center": "居中",
+      "right": "居右",
+      "justify": "两端对齐"
+    },
+    "desktopLyricWordByWord": {
+      "label": "逐字高亮",
+      "description": "按单词进度逐字渲染高亮"
+    },
+    "desktopLyricPlayedColor": {
+      "label": "已播放颜色",
+      "description": "已播放的歌词文字颜色"
+    },
+    "desktopLyricUnplayedColor": {
+      "label": "未播放颜色",
+      "description": "未播放的歌词文字颜色"
+    },
+    "desktopLyricTranslationColor": {
+      "label": "翻译颜色",
+      "description": "翻译文本的颜色"
+    },
+    "desktopLyricAlwaysOnTop": {
+      "label": "窗口置顶",
+      "description": "桌面歌词窗口始终保持在最前"
+    },
+    "desktopLyricLocked": {
+      "label": "锁定窗口",
+      "description": "锁定后鼠标点击将穿透到下层窗口，无法拖动"
     },
     "playerBgType": {
       "label": "播放器背景",

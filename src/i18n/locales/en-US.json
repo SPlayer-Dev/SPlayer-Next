@@ -126,6 +126,7 @@
       "effectsDisplay": "Display Effects",
       "effectsSpring": "Spring Animation",
       "effectsLayout": "Layout & Opacity",
+      "desktopLyric": "Desktop Lyric",
       "theme": "Theme",
       "layout": "Layout",
       "media": "Media Controls",
@@ -253,6 +254,54 @@
     "inactiveAlpha": {
       "label": "Inactive Opacity",
       "description": "Base opacity for non-active lines"
+    },
+    "desktopLyricFontSize": {
+      "label": "Font Size",
+      "description": "Desktop lyric text size (px)"
+    },
+    "desktopLyricFontWeight": {
+      "label": "Font Weight",
+      "description": "Desktop lyric text weight"
+    },
+    "desktopLyricShowTranslation": {
+      "label": "Show Translation",
+      "description": "Display translated lyrics on desktop lyric"
+    },
+    "desktopLyricDoubleLine": {
+      "label": "Double Line",
+      "description": "Show current and next line together"
+    },
+    "desktopLyricAlign": {
+      "label": "Alignment",
+      "description": "Horizontal alignment of lyric text",
+      "left": "Left",
+      "center": "Center",
+      "right": "Right",
+      "justify": "Justify"
+    },
+    "desktopLyricWordByWord": {
+      "label": "Word by Word",
+      "description": "Render highlight progress per word"
+    },
+    "desktopLyricPlayedColor": {
+      "label": "Played Color",
+      "description": "Color of played lyric text"
+    },
+    "desktopLyricUnplayedColor": {
+      "label": "Unplayed Color",
+      "description": "Color of unplayed lyric text"
+    },
+    "desktopLyricTranslationColor": {
+      "label": "Translation Color",
+      "description": "Color of translation text"
+    },
+    "desktopLyricAlwaysOnTop": {
+      "label": "Always On Top",
+      "description": "Keep desktop lyric window above others"
+    },
+    "desktopLyricLocked": {
+      "label": "Lock Window",
+      "description": "Make window click-through and non-draggable"
     },
     "playerBgType": {
       "label": "Player Background",

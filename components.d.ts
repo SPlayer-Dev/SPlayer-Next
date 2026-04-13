@@ -96,6 +96,7 @@ declare module 'vue' {
     SButton: typeof import('./src/components/ui/SButton.vue')['default']
     SCheckbox: typeof import('./src/components/ui/SCheckbox.vue')['default']
     SCheckboxGroup: typeof import('./src/components/ui/SCheckboxGroup.vue')['default']
+    SColor: typeof import('./src/components/ui/SColor.vue')['default']
     SContextMenu: typeof import('./src/components/ui/SContextMenu.vue')['default']
     SDialog: typeof import('./src/components/ui/SDialog.vue')['default']
     SDivider: typeof import('./src/components/ui/SDivider.vue')['default']

@@ -22,13 +22,21 @@ export const defaultSystemConfig: SystemConfig = {
   library: {
     scanDirs: [],
   },
+  desktopLyric: {
+    fontSize: 24,
+    fontWeight: 600,
+    showTranslation: true,
+    doubleLine: true,
+    align: "center",
+    wordByWord: true,
+    playedColor: "#ffffff",
+    unplayedColor: "#7d7d7d",
+    translationColor: "#b3b3b3",
+    alwaysOnTop: true,
+    locked: false,
+  },
   system: {
     rememberWindowState: true,
     taskbarProgress: true,
-    window: {
-      width: 1280,
-      height: 800,
-      maximized: false,
-    },
   },
 };

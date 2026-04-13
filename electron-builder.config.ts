@@ -5,7 +5,7 @@ const config: Configuration = {
   productName: "SPlayer Next",
   copyright: "Copyright © imsyy 2025",
   directories: { buildResources: "public" },
-  afterPack: "./scripts/after-pack.ts",
+  // afterPack: "./scripts/after-pack.ts",
   compression: "maximum",
   files: [
     "public/**",
@@ -26,6 +26,8 @@ const config: Configuration = {
     "!**/*.{d.ts,map,md}",
     "!**/{CHANGELOG,LICENSE,license,README,readme}*",
   ],
+  // 保留的语言
+  electronLanguages: ["zh-CN", "en-US"],
   asarUnpack: ["public/**"],
   extraResources: [
     {

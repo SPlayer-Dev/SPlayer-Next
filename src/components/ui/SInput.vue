@@ -6,6 +6,8 @@ export interface SInputProps {
   clearable?: boolean;
   round?: boolean;
   type?: string;
+  /** 尺寸 */
+  size?: "small" | "medium" | "large";
 }
 
 const props = withDefaults(defineProps<SInputProps>(), {
@@ -15,6 +17,13 @@ const props = withDefaults(defineProps<SInputProps>(), {
   clearable: false,
   round: false,
   type: "text",
+  size: "medium",
+});
+
+const sizeClasses = computed(() => {
+  if (props.size === "small") return "h-7 px-2 text-xs";
+  if (props.size === "large") return "h-10 px-4 text-base";
+  return "h-8.5 px-3 text-sm";
 });
 
 const emit = defineEmits<{
@@ -33,8 +42,9 @@ const handleClear = () => {
 
 <template>
   <div
-    class="flex items-center gap-2 h-8.5 px-3 text-sm text-on-surface border border-solid transition-[border-color,box-shadow,background-color,width,opacity] duration-250"
+    class="flex items-center gap-2 text-on-surface border border-solid transition-[border-color,box-shadow,background-color,width,opacity] duration-250"
     :class="[
+      sizeClasses,
       round ? 'rounded-full' : 'rounded-lg',
       isFocused
         ? 'bg-on-surface/12 border-primary ring-2 ring-primary/25'

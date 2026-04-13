@@ -74,6 +74,12 @@ const descriptionText = computed(() =>
         >
           <template #popover="{ value }">{{ value }}</template>
         </SSlider>
+        <SColor
+          v-else-if="item.type === 'color'"
+          :model-value="model"
+          :disabled="isDisabled"
+          @update:model-value="model = $event"
+        />
         <SButton
           v-else-if="item.type === 'button'"
           type="primary"

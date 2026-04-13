@@ -40,14 +40,33 @@ export interface MediaSettings {
   discord: DiscordSettings;
 }
 
-/** 窗口状态 */
-export interface WindowState {
-  /** 窗口宽度 */
-  width: number;
-  /** 窗口高度 */
-  height: number;
-  /** 是否最大化 */
-  maximized: boolean;
+/** 桌面歌词对齐方式 */
+export type DesktopLyricAlign = "left" | "center" | "right" | "justify";
+
+/** 桌面歌词配置 */
+export interface DesktopLyricSettings {
+  /** 字号 */
+  fontSize: number;
+  /** 字重 */
+  fontWeight: number;
+  /** 显示翻译 */
+  showTranslation: boolean;
+  /** 双行显示 */
+  doubleLine: boolean;
+  /** 对齐方式 */
+  align: DesktopLyricAlign;
+  /** 逐字高亮 */
+  wordByWord: boolean;
+  /** 已播放颜色 */
+  playedColor: string;
+  /** 未播放颜色 */
+  unplayedColor: string;
+  /** 翻译文本颜色 */
+  translationColor: string;
+  /** 窗口置顶 */
+  alwaysOnTop: boolean;
+  /** 锁定：鼠标穿透、禁止拖动 */
+  locked: boolean;
 }
 
 /** 音乐库配置 */
@@ -64,14 +83,14 @@ export interface SystemConfig {
   media: MediaSettings;
   /** 音乐库配置 */
   library: LibrarySettings;
+  /** 桌面歌词配置 */
+  desktopLyric: DesktopLyricSettings;
   /** 系统配置 */
   system: {
-    /** 记忆窗口状态（大小、位置、是否最大化） */
+    /** 记忆窗口状态 */
     rememberWindowState: boolean;
     /** 在任务栏显示播放进度 */
     taskbarProgress: boolean;
-    /** 窗口状态（主进程自动保存） */
-    window: WindowState;
   };
 }
 

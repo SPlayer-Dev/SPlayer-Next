@@ -1,0 +1,49 @@
+.root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 24px;
+  color: var(--dl-played);
+}
+
+.title {
+  font-size: 12px;
+  color: var(--dl-unplayed);
+  margin-bottom: 6px;
+  width: 100%;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stage {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+}
+
+.dl-line-move,
+.dl-line-enter-active,
+.dl-line-leave-active {
+  transition:
+    opacity 0.32s ease,
+    transform 0.32s ease;
+}
+.dl-line-enter-from {
+  opacity: 0;
+  transform: translateY(18%);
+}
+.dl-line-leave-to {
+  opacity: 0;
+  transform: translateY(-18%);
+}
+.dl-line-leave-active {
+  position: absolute;
+  left: 0;
+  right: 0;
+}

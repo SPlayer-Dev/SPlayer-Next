@@ -5,6 +5,7 @@ import { createWindow } from "./create";
 import { initThumbar } from "@main/services/thumbar";
 import { initTray } from "@main/services/tray";
 import { store } from "@main/store";
+import { windowStateStore } from "@main/store/windowStates";
 import { handleCacheProtocolOnPartition } from "@main/utils/protocol";
 
 /** 主窗口 session */
@@ -17,7 +18,7 @@ let mainWindow: BrowserWindow | null = null;
  */
 export const createMainWindow = (): BrowserWindow => {
   const remember = store.get("system.rememberWindowState") ?? true;
-  const saved = remember ? store.get("system.window") : undefined;
+  const saved = remember ? windowStateStore.get("main") : undefined;
 
   // 注册 cache:// 协议
   handleCacheProtocolOnPartition(MAIN_PARTITION);
@@ -25,6 +26,7 @@ export const createMainWindow = (): BrowserWindow => {
   mainWindow = createWindow({
     width: saved?.width ?? 1280,
     height: saved?.height ?? 800,
+    ...(saved?.x != null && saved?.y != null ? { x: saved.x, y: saved.y } : {}),
     webPreferences: {
       partition: MAIN_PARTITION,
     },
@@ -48,9 +50,11 @@ export const createMainWindow = (): BrowserWindow => {
     const bounds = maximized
       ? (mainWindow.getNormalBounds?.() ?? mainWindow.getBounds())
       : mainWindow.getBounds();
-    store.set("system.window", {
+    windowStateStore.set("main", {
       width: bounds.width,
       height: bounds.height,
+      x: bounds.x,
+      y: bounds.y,
       maximized,
     });
   };

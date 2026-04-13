@@ -293,6 +293,91 @@ export const settingsSchema: SettingCategory[] = [
         ],
       },
       {
+        id: "desktopLyric",
+        items: [
+          {
+            key: "desktopLyricFontSize",
+            type: "slider",
+            binding: { store: "settings", path: "system.desktopLyric.fontSize" },
+            min: 14,
+            max: 48,
+            step: 1,
+            defaultValue: 24,
+            marks: { 14: "14", 24: "24", 48: "48" },
+          },
+          {
+            key: "desktopLyricFontWeight",
+            type: "slider",
+            binding: { store: "settings", path: "system.desktopLyric.fontWeight" },
+            min: 100,
+            max: 900,
+            step: 100,
+            defaultValue: 600,
+            marks: { 100: "100", 400: "400", 700: "700", 900: "900" },
+          },
+          {
+            key: "desktopLyricDoubleLine",
+            type: "switch",
+            binding: { store: "settings", path: "system.desktopLyric.doubleLine" },
+            defaultValue: true,
+          },
+          {
+            key: "desktopLyricAlign",
+            type: "select",
+            binding: { store: "settings", path: "system.desktopLyric.align" },
+            options: [
+              { value: "left", labelKey: "settings.desktopLyricAlign.left" },
+              { value: "center", labelKey: "settings.desktopLyricAlign.center" },
+              { value: "right", labelKey: "settings.desktopLyricAlign.right" },
+              { value: "justify", labelKey: "settings.desktopLyricAlign.justify" },
+            ],
+            defaultValue: "center",
+          },
+          {
+            key: "desktopLyricWordByWord",
+            type: "switch",
+            binding: { store: "settings", path: "system.desktopLyric.wordByWord" },
+            defaultValue: true,
+          },
+          {
+            key: "desktopLyricShowTranslation",
+            type: "switch",
+            binding: { store: "settings", path: "system.desktopLyric.showTranslation" },
+            defaultValue: true,
+          },
+          {
+            key: "desktopLyricPlayedColor",
+            type: "color",
+            binding: { store: "settings", path: "system.desktopLyric.playedColor" },
+            defaultValue: "#ffffff",
+          },
+          {
+            key: "desktopLyricUnplayedColor",
+            type: "color",
+            binding: { store: "settings", path: "system.desktopLyric.unplayedColor" },
+            defaultValue: "#7d7d7d",
+          },
+          {
+            key: "desktopLyricTranslationColor",
+            type: "color",
+            binding: { store: "settings", path: "system.desktopLyric.translationColor" },
+            defaultValue: "#b3b3b3",
+          },
+          {
+            key: "desktopLyricAlwaysOnTop",
+            type: "switch",
+            binding: { store: "settings", path: "system.desktopLyric.alwaysOnTop" },
+            defaultValue: true,
+          },
+          {
+            key: "desktopLyricLocked",
+            type: "switch",
+            binding: { store: "settings", path: "system.desktopLyric.locked" },
+            defaultValue: false,
+          },
+        ],
+      },
+      {
         id: "effectsLayout",
         items: [
           {

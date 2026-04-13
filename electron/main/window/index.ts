@@ -5,4 +5,6 @@ export {
   closeDesktopLyricWindow,
   toggleDesktopLyricWindow,
   getDesktopLyricWindow,
+  applyDesktopLyricLock,
+  applyDesktopLyricAlwaysOnTop,
 } from "./desktopLyric";

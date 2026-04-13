@@ -45,3 +45,19 @@ export const findLyricIndex = (lines: LyricLine[], time: number, prevIndex = -1)
 
   return result;
 };
+
+/**
+ * 查找当前时间下所有激活的歌词行索引（支持对唱、背景行等时间重叠场景）
+ * @param lines 已按 startTime 排序的歌词行数组
+ * @param time 当前播放时间（毫秒）
+ * @returns 所有 startTime <= time < endTime 的行索引
+ */
+export const findActiveLyricIndices = (lines: LyricLine[], time: number): number[] => {
+  const result: number[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (time >= line.startTime && time < line.endTime) result.push(i);
+    else if (line.startTime > time) break;
+  }
+  return result;
+};

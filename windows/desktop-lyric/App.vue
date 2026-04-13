@@ -1,36 +1,94 @@
 <script setup lang="ts">
-import { ref, shallowRef, computed, onMounted, onBeforeUnmount } from "vue";
-import { findLyricIndex } from "@shared/utils/lyric";
+import { findLyricIndex, findActiveLyricIndices } from "@shared/utils/lyric";
 import type { NowPlayingSnapshot, NowPlayingPositionSync } from "@shared/types/nowPlaying";
 import type { LyricLine } from "@shared/types/lyrics";
 import type { Track } from "@shared/types/player";
+import type { DesktopLyricAlign, DesktopLyricSettings } from "@shared/types/settings";
+import LyricLineView from "./components/LyricLine.vue";
 
-/** 当前 track */
-const track = shallowRef<Track | null>(null);
-/** 完整歌词 */
-const lyric = shallowRef<LyricLine[]>([]);
-/** 当前是否播放中 */
-const playing = ref(false);
-/** 当前插值出的播放位置（毫秒，仅作显示） */
-const currentMs = ref(0);
-/** 当前歌词行索引 */
-const lineIndex = ref(-1);
-
-/** 锚点：主进程发送时的播放位置 */
-let anchorPos = 0;
-/** 锚点：本地 performance.now() */
-let anchorPerf = 0;
-
-const currentLine = computed<LyricLine | null>(() => {
-  const idx = lineIndex.value;
-  if (idx < 0 || idx >= lyric.value.length) return null;
-  return lyric.value[idx];
+const config = reactive<DesktopLyricSettings>({
+  fontSize: 24,
+  fontWeight: 600,
+  showTranslation: true,
+  doubleLine: true,
+  align: "center",
+  wordByWord: true,
+  playedColor: "#ffffff",
+  unplayedColor: "#7d7d7d",
+  translationColor: "#b3b3b3",
+  alwaysOnTop: true,
+  locked: false,
 });
 
-const currentText = computed<string>(() => {
-  const line = currentLine.value;
-  if (!line) return "";
-  return line.words.map((word) => word.word).join("");
+const track = shallowRef<Track | null>(null);
+const lyric = shallowRef<LyricLine[]>([]);
+const playing = ref(false);
+const currentMs = ref(0);
+const primaryIndex = ref(-1);
+const activeIndices = shallowRef<number[]>([]);
+
+let anchorPos = 0;
+let anchorPerf = 0;
+
+interface DisplayItem {
+  key: string;
+  index: number;
+  line: LyricLine;
+  align: DesktopLyricAlign;
+}
+
+/** 两端对齐：按行 index 奇偶切左右，其他对齐沿用 config.align */
+const resolveAlign = (index: number): DesktopLyricAlign => {
+  if (config.align !== "justify") return config.align;
+  return index % 2 === 0 ? "left" : "right";
+};
+
+const displayItems = computed<DisplayItem[]>(() => {
+  const lines = lyric.value;
+  if (lines.length === 0) return [];
+
+  const items: DisplayItem[] = [];
+  const active = activeIndices.value;
+
+  if (active.length > 0) {
+    for (const idx of active) {
+      items.push({ key: `a-${idx}`, index: idx, line: lines[idx], align: resolveAlign(idx) });
+    }
+    if (config.doubleLine) {
+      const nextIdx = active[active.length - 1] + 1;
+      if (nextIdx < lines.length) {
+        items.push({
+          key: `n-${nextIdx}`,
+          index: nextIdx,
+          line: lines[nextIdx],
+          align: resolveAlign(nextIdx),
+        });
+      }
+    }
+    return items;
+  }
+
+  const primary = primaryIndex.value;
+  if (primary >= 0) {
+    items.push({
+      key: `g-${primary}`,
+      index: primary,
+      line: lines[primary],
+      align: resolveAlign(primary),
+    });
+  }
+  if (config.doubleLine) {
+    const nextIdx = primary + 1;
+    if (nextIdx > 0 && nextIdx < lines.length) {
+      items.push({
+        key: `gn-${nextIdx}`,
+        index: nextIdx,
+        line: lines[nextIdx],
+        align: resolveAlign(nextIdx),
+      });
+    }
+  }
+  return items;
 });
 
 const displayTitle = computed<string>(() => {
@@ -40,7 +98,12 @@ const displayTitle = computed<string>(() => {
   return artist ? `${cur.title} - ${artist}` : cur.title;
 });
 
-/** 应用主进程推送的位置锚点（带 IPC 延迟补偿） */
+const rootStyle = computed(() => ({
+  "--dl-played": config.playedColor,
+  "--dl-unplayed": config.unplayedColor,
+  "--dl-trans": config.translationColor,
+}));
+
 const applyAnchor = (positionMs: number, sendTimestamp: number): void => {
   const ipcDelay = Math.max(0, Date.now() - sendTimestamp);
   anchorPos = positionMs + ipcDelay;
@@ -51,7 +114,8 @@ const applySnapshot = (snap: NowPlayingSnapshot): void => {
   track.value = snap.track;
   lyric.value = snap.lyric;
   playing.value = snap.playing;
-  lineIndex.value = -1;
+  primaryIndex.value = -1;
+  activeIndices.value = [];
   applyAnchor(snap.position, snap.sendTimestamp);
 };
 
@@ -62,13 +126,21 @@ const tick = (): void => {
   } else {
     currentMs.value = anchorPos;
   }
-  lineIndex.value = findLyricIndex(lyric.value, currentMs.value, lineIndex.value);
+  primaryIndex.value = findLyricIndex(lyric.value, currentMs.value, primaryIndex.value);
+  activeIndices.value = findActiveLyricIndices(lyric.value, currentMs.value);
   rafId = requestAnimationFrame(tick);
 };
 
 const unsubscribers: Array<() => void> = [];
 
 onMounted(async () => {
+  try {
+    const saved = await window.api.config.get("desktopLyric");
+    Object.assign(config, saved as DesktopLyricSettings);
+  } catch (error) {
+    console.error("[desktop-lyric] load config failed", error);
+  }
+
   try {
     const snap = await window.api.nowPlaying.requestSnapshot();
     applySnapshot(snap);
@@ -77,6 +149,7 @@ onMounted(async () => {
   }
 
   unsubscribers.push(
+    window.api.desktopLyric.onConfigChange((next) => Object.assign(config, next)),
     window.api.nowPlaying.onLyricChange((snap) => applySnapshot(snap)),
     window.api.nowPlaying.onPositionSync((data: NowPlayingPositionSync) => {
       playing.value = data.playing;
@@ -94,57 +167,22 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="root">
+  <div class="root" :style="rootStyle">
     <div class="title">{{ displayTitle }}</div>
-    <div class="line">{{ currentText || "—" }}</div>
-    <div v-if="currentLine?.translatedLyric" class="trans">{{ currentLine.translatedLyric }}</div>
-    <div class="debug">{{ Math.round(currentMs) }}ms · line {{ lineIndex }} / {{ lyric.length }}</div>
+    <TransitionGroup tag="div" name="dl-line" class="stage">
+      <LyricLineView
+        v-for="item in displayItems"
+        :key="item.key"
+        :line="item.line"
+        :current-ms="currentMs"
+        :font-size="config.fontSize"
+        :font-weight="config.fontWeight"
+        :align="item.align"
+        :word-by-word="config.wordByWord"
+        :show-translation="config.showTranslation"
+      />
+    </TransitionGroup>
   </div>
 </template>
 
-<style scoped>
-.root {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 0 24px;
-}
-.title {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
-  margin-bottom: 8px;
-  width: 100%;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.line {
-  font-size: 24px;
-  font-weight: 600;
-  line-height: 1.3;
-  width: 100%;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.trans {
-  font-size: 16px;
-  color: rgba(255, 255, 255, 0.7);
-  margin-top: 4px;
-  width: 100%;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.debug {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
-  margin-top: 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-</style>
+<style scoped src="./App.css" />

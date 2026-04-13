@@ -123,6 +123,15 @@ const api = {
     // 查询桌面歌词窗口是否打开
     isDesktopLyricOpen: () => ipcRenderer.invoke("window:isDesktopLyricOpen"),
   },
+  desktopLyric: {
+    // 订阅桌面歌词配置变化
+    onConfigChange: (callback: (config: unknown) => void) => {
+      ipcRenderer.removeAllListeners("desktopLyric:configChange");
+      const handler = (_event: Electron.IpcRendererEvent, data: unknown): void => callback(data);
+      ipcRenderer.on("desktopLyric:configChange", handler);
+      return () => ipcRenderer.removeListener("desktopLyric:configChange", handler);
+    },
+  },
   nowPlaying: {
     // 渲染进程同步当前播放状态到主进程
     update: (payload: unknown) => ipcRenderer.send("nowPlaying:update", payload),
