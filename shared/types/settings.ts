@@ -57,6 +57,8 @@ export interface DesktopLyricSettings {
   align: DesktopLyricAlign;
   /** 逐字高亮 */
   wordByWord: boolean;
+  /** 自动生成逐字效果 */
+  autoGenerateWordByWord: boolean;
   /** 已播放颜色 */
   playedColor: string;
   /** 未播放颜色 */

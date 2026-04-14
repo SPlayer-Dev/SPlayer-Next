@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import type { LyricLine } from "@shared/types/lyrics";
 import type { DesktopLyricAlign } from "@shared/types/settings";
 
@@ -10,29 +9,31 @@ const props = defineProps<{
   fontWeight: number;
   align: DesktopLyricAlign;
   wordByWord: boolean;
-  showTranslation: boolean;
+  /** 静态模式下作为「下一行」渲染 */
+  isNext: boolean;
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
 const inlineRef = ref<HTMLElement | null>(null);
 const overflowPx = ref(0);
 
-const lineProgress = computed(() => {
-  const line = props.line;
-  const span = line.endTime - line.startTime;
-  if (span <= 0) return props.currentMs >= line.startTime ? 1 : 0;
-  return Math.max(0, Math.min(1, (props.currentMs - line.startTime) / span));
-});
-
-const wordProgress = (word: { startTime: number; endTime: number }): number => {
+/**
+ * 单词过渡效果
+ * @param word 单词时间段
+ */
+const wordP = (word: { startTime: number; endTime: number }): string => {
   const span = word.endTime - word.startTime;
-  if (span <= 0) return props.currentMs >= word.startTime ? 1 : 0;
-  return Math.max(0, Math.min(1, (props.currentMs - word.startTime) / span));
-};
-
-const gradient = (progress: number): string => {
-  const stop = (progress * 100).toFixed(3);
-  return `linear-gradient(90deg, var(--dl-played) 0%, var(--dl-played) ${stop}%, var(--dl-unplayed) ${stop}%, var(--dl-unplayed) 100%)`;
+  const progress =
+    span <= 0
+      ? props.currentMs >= word.startTime
+        ? 1
+        : 0
+      : Math.max(0, Math.min(1, (props.currentMs - word.startTime) / span));
+  const pct = (progress * 100).toFixed(1);
+  // 确保未播放单词不展示过渡
+  const px = progress * 6 - 3;
+  const signed = px >= 0 ? `+ ${px.toFixed(2)}px` : `- ${(-px).toFixed(2)}px`;
+  return `calc(${pct}% ${signed})`;
 };
 
 const lineStyle = computed(() => ({
@@ -40,13 +41,6 @@ const lineStyle = computed(() => ({
   fontWeight: props.fontWeight,
   textAlign: props.align,
 }));
-
-const transStyle = computed(() => ({
-  fontSize: `${Math.round(props.fontSize * 0.67)}px`,
-  textAlign: props.align,
-}));
-
-const wholeBackground = computed(() => gradient(lineProgress.value));
 
 const measure = (): void => {
   const outer = containerRef.value;
@@ -59,18 +53,6 @@ const measure = (): void => {
   overflowPx.value = diff > 2 ? diff : 0;
 };
 
-let resizeObs: ResizeObserver | null = null;
-onMounted(() => {
-  measure();
-  if (typeof ResizeObserver !== "undefined" && containerRef.value) {
-    resizeObs = new ResizeObserver(measure);
-    resizeObs.observe(containerRef.value);
-  }
-});
-onBeforeUnmount(() => {
-  resizeObs?.disconnect();
-  resizeObs = null;
-});
 watch(
   () => props.line,
   () => requestAnimationFrame(measure),
@@ -80,6 +62,21 @@ const marquee = computed(() => overflowPx.value > 0);
 const marqueeStyle = computed(() =>
   marquee.value ? { "--dl-overflow": `${overflowPx.value}px` } : {},
 );
+
+let resizeObs: ResizeObserver | null = null;
+
+onMounted(() => {
+  measure();
+  if (typeof ResizeObserver !== "undefined" && containerRef.value) {
+    resizeObs = new ResizeObserver(measure);
+    resizeObs.observe(containerRef.value);
+  }
+});
+
+onBeforeUnmount(() => {
+  resizeObs?.disconnect();
+  resizeObs = null;
+});
 </script>
 
 <template>
@@ -91,24 +88,30 @@ const marqueeStyle = computed(() =>
             v-for="(word, i) in line.words"
             :key="i"
             class="dl-word"
-            :style="{ backgroundImage: gradient(wordProgress(word)) }"
+            :style="{ '--p': wordP(word) }"
             >{{ word.word }}</span
           >
         </template>
-        <span v-else class="dl-word" :style="{ backgroundImage: wholeBackground }">
+        <span v-else class="dl-static" :class="{ 'is-unplayed': isNext }">
           {{ line.words.map((w) => w.word).join("") }}
         </span>
       </span>
-    </div>
-    <div v-if="showTranslation && line.translatedLyric" class="dl-trans" :style="transStyle">
-      {{ line.translatedLyric }}
     </div>
   </div>
 </template>
 
 <style scoped>
 .dl-line-block {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
   width: 100%;
+  transform: translate3d(0, var(--dl-y, 0px), 0) translateY(0);
+  transition:
+    transform 0.6s cubic-bezier(0.55, 0, 0.1, 1),
+    opacity 0.6s cubic-bezier(0.55, 0, 0.1, 1);
+  will-change: transform, opacity;
 }
 .dl-line {
   position: relative;
@@ -116,26 +119,36 @@ const marqueeStyle = computed(() =>
   line-height: 1.25;
   overflow: hidden;
   white-space: nowrap;
+  transition: font-size 0.6s cubic-bezier(0.55, 0, 0.1, 1);
 }
 .dl-line-inner {
   display: inline-block;
   will-change: transform;
 }
 .dl-word {
-  background-clip: text;
-  -webkit-background-clip: text;
+  --p: 0%;
+  display: inline;
   color: transparent;
   -webkit-text-fill-color: transparent;
-  background-size: 100% 100%;
+  background: linear-gradient(
+    90deg,
+    var(--dl-line-color, var(--dl-played)) 0%,
+    var(--dl-line-color, var(--dl-played)) calc(var(--p) - 3px),
+    var(--dl-unplayed) calc(var(--p) + 3px),
+    var(--dl-unplayed) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 2px rgba(0, 0, 0, 0.6));
 }
-.dl-trans {
-  line-height: 1.3;
-  color: var(--dl-trans);
-  margin-top: 2px;
-  width: 100%;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+.dl-static {
+  display: inline-block;
+  color: var(--dl-line-color, var(--dl-played));
+  transition: color 0.6s cubic-bezier(0.55, 0, 0.1, 1);
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 2px rgba(0, 0, 0, 0.6));
+}
+.dl-static.is-unplayed {
+  color: var(--dl-unplayed);
 }
 .dl-line.is-marquee .dl-line-inner {
   animation: dl-marquee 8s ease-in-out infinite;

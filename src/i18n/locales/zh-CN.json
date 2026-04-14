@@ -283,6 +283,10 @@
       "label": "逐字高亮",
       "description": "按单词进度逐字渲染高亮"
     },
+    "desktopLyricAutoGenerateWordByWord": {
+      "label": "自动生成逐字效果",
+      "description": "关闭后仅真正的逐字歌词生效"
+    },
     "desktopLyricPlayedColor": {
       "label": "已播放颜色",
       "description": "已播放的歌词文字颜色"

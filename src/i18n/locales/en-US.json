@@ -283,6 +283,10 @@
       "label": "Word by Word",
       "description": "Render highlight progress per word"
     },
+    "desktopLyricAutoGenerateWordByWord": {
+      "label": "Auto-generate Word Effect",
+      "description": "When off, only real per-word lyrics apply"
+    },
     "desktopLyricPlayedColor": {
       "label": "Played Color",
       "description": "Color of played lyric text"

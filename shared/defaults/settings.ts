@@ -29,6 +29,7 @@ export const defaultSystemConfig: SystemConfig = {
     doubleLine: true,
     align: "center",
     wordByWord: true,
+    autoGenerateWordByWord: true,
     playedColor: "#ffffff",
     unplayedColor: "#7d7d7d",
     translationColor: "#b3b3b3",
