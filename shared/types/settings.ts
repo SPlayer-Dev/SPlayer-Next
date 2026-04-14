@@ -63,8 +63,6 @@ export interface DesktopLyricSettings {
   playedColor: string;
   /** 未播放颜色 */
   unplayedColor: string;
-  /** 翻译文本颜色 */
-  translationColor: string;
   /** 窗口置顶 */
   alwaysOnTop: boolean;
   /** 锁定：鼠标穿透、禁止拖动 */

@@ -119,6 +119,8 @@ onBeforeUnmount(() => {
   left: 0;
   right: 0;
   width: 100%;
+  padding: 0 24px;
+  box-sizing: border-box;
   transform: translate3d(0, var(--dl-y, 0px), 0) translateY(0);
   transition:
     transform 0.6s cubic-bezier(0.55, 0, 0.1, 1),
@@ -128,7 +130,8 @@ onBeforeUnmount(() => {
 .dl-line {
   position: relative;
   width: 100%;
-  line-height: 1.25;
+  line-height: normal;
+  padding: 4px 0;
   overflow: hidden;
   white-space: nowrap;
   transition: font-size 0.6s cubic-bezier(0.55, 0, 0.1, 1);
@@ -148,20 +151,18 @@ onBeforeUnmount(() => {
   -webkit-text-fill-color: transparent;
   background: linear-gradient(
     90deg,
-    var(--dl-line-color, var(--dl-played)) 0%,
-    var(--dl-line-color, var(--dl-played)) calc(var(--p) - 3px),
+    var(--dl-played) 0%,
+    var(--dl-played) calc(var(--p) - 3px),
     var(--dl-unplayed) calc(var(--p) + 3px),
     var(--dl-unplayed) 100%
   );
   -webkit-background-clip: text;
   background-clip: text;
-  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 2px rgba(0, 0, 0, 0.6));
 }
 .dl-static {
   display: inline-block;
-  color: var(--dl-line-color, var(--dl-played));
+  color: var(--dl-played);
   transition: color 0.6s cubic-bezier(0.55, 0, 0.1, 1);
-  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 2px rgba(0, 0, 0, 0.6));
 }
 .dl-static.is-unplayed {
   color: var(--dl-unplayed);

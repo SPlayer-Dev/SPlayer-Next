@@ -4,7 +4,7 @@ import { setLocale } from "@main/utils/i18n";
 import { systemLog } from "@main/utils/logger";
 import { refreshTray } from "@main/services/tray";
 import { getThumbar } from "@main/services/thumbar";
-import { getMainWindow } from "@main/window";
+import { getMainWindow, focusMainWindow } from "@main/window";
 
 /**
  * 注册系统相关的 IPC 事件
@@ -32,5 +32,14 @@ export const registerSystemIpc = (): void => {
       refreshTray();
       getThumbar()?.refreshLocale();
     }
+  });
+
+  // 显示并聚焦主窗口
+  ipcMain.handle("system:focusMainWindow", () => focusMainWindow());
+
+  // 在主窗口打开设置弹窗
+  ipcMain.handle("system:openSettings", (_event, category?: string) => {
+    focusMainWindow();
+    getMainWindow()?.webContents.send("system:openSettings", category);
   });
 };

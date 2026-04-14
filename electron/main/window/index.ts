@@ -1,5 +1,5 @@
 export { createWindow } from "./create";
-export { createMainWindow, getMainWindow, setTaskbarProgress } from "./main";
+export { createMainWindow, getMainWindow, focusMainWindow, setTaskbarProgress } from "./main";
 export {
   createDesktopLyricWindow,
   closeDesktopLyricWindow,
@@ -7,4 +7,9 @@ export {
   getDesktopLyricWindow,
   applyDesktopLyricLock,
   applyDesktopLyricAlwaysOnTop,
+  applyDesktopLyricMouseIgnore,
+  applyDesktopLyricHeight,
+  moveDesktopLyricWindow,
+  freezeDesktopLyricSize,
+  getDesktopLyricBounds,
 } from "./desktopLyric";

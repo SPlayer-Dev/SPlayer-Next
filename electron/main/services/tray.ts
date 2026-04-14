@@ -1,16 +1,15 @@
-import { app, BrowserWindow, Menu, MenuItemConstructorOptions, nativeTheme, Tray } from "electron";
+import { app, Menu, MenuItemConstructorOptions, nativeTheme, Tray } from "electron";
 import type { RepeatMode, ShuffleMode } from "@shared/types/player";
 import { broadcast } from "@main/utils/broadcast";
 import { appName } from "@main/utils/config";
 import { loadIcon, loadThemedIcon } from "@main/utils/icon";
 import { t } from "@main/utils/i18n";
 import { trayLog } from "@main/utils/logger";
-import { toggleDesktopLyricWindow } from "@main/window";
+import { toggleDesktopLyricWindow, focusMainWindow } from "@main/window";
 
 type PlayState = "playing" | "paused";
 
 let tray: Tray | null = null;
-let mainWin: BrowserWindow | null = null;
 let playState: PlayState = "paused";
 let songName = "";
 let repeatMode: RepeatMode = "list";
@@ -19,6 +18,7 @@ let desktopLyricOpen = false;
 
 const repeatLabel = (mode: RepeatMode): string =>
   ({ list: t("repeatList"), one: t("repeatOne"), off: t("repeatOff") })[mode];
+
 /** 获取菜单图标 */
 const menuIcon = (name: string) => {
   try {
@@ -35,12 +35,7 @@ const buildMenu = (): Menu => {
       label: songName || appName,
       icon: menuIcon("music"),
       enabled: !!songName,
-      click: () => {
-        if (mainWin && !mainWin.isDestroyed()) {
-          mainWin.show();
-          mainWin.focus();
-        }
-      },
+      click: () => focusMainWindow(),
     },
     { type: "separator" },
     {
@@ -129,12 +124,8 @@ export const refreshTray = (): void => {
   tray.setToolTip(songName || appName);
 };
 
-/**
- * 初始化系统托盘
- * @param win - 主窗口实例
- */
-export const initTray = (win: BrowserWindow): void => {
-  mainWin = win;
+/** 初始化系统托盘 */
+export const initTray = (): void => {
   const isWin = process.platform === "win32";
   const isMac = process.platform === "darwin";
   let icon: string | Electron.NativeImage;
@@ -150,12 +141,7 @@ export const initTray = (win: BrowserWindow): void => {
   tray.setToolTip(appName);
   tray.setContextMenu(buildMenu());
   // 单击托盘图标显示窗口
-  tray.on("click", () => {
-    if (mainWin && !mainWin.isDestroyed()) {
-      mainWin.show();
-      mainWin.focus();
-    }
-  });
+  tray.on("click", () => focusMainWindow());
   // 系统主题变化时刷新菜单图标
   nativeTheme.on("updated", refreshTray);
   trayLog.info("初始化系统托盘");

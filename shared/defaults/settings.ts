@@ -32,7 +32,6 @@ export const defaultSystemConfig: SystemConfig = {
     autoGenerateWordByWord: true,
     playedColor: "#ffffff",
     unplayedColor: "#7d7d7d",
-    translationColor: "#b3b3b3",
     alwaysOnTop: true,
     locked: false,
   },

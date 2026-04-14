@@ -299,11 +299,11 @@ export const settingsSchema: SettingCategory[] = [
             key: "desktopLyricFontSize",
             type: "slider",
             binding: { store: "settings", path: "system.desktopLyric.fontSize" },
-            min: 14,
-            max: 48,
+            min: 20,
+            max: 96,
             step: 1,
             defaultValue: 24,
-            marks: { 14: "14", 24: "24", 48: "48" },
+            marks: { 20: "20", 24: "24", 96: "96" },
           },
           {
             key: "desktopLyricFontWeight",
@@ -362,12 +362,6 @@ export const settingsSchema: SettingCategory[] = [
             type: "color",
             binding: { store: "settings", path: "system.desktopLyric.unplayedColor" },
             defaultValue: "#7d7d7d",
-          },
-          {
-            key: "desktopLyricTranslationColor",
-            type: "color",
-            binding: { store: "settings", path: "system.desktopLyric.translationColor" },
-            defaultValue: "#b3b3b3",
           },
           {
             key: "desktopLyricAlwaysOnTop",

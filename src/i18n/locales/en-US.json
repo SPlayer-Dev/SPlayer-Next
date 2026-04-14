@@ -295,10 +295,6 @@
       "label": "Unplayed Color",
       "description": "Color of unplayed lyric text"
     },
-    "desktopLyricTranslationColor": {
-      "label": "Translation Color",
-      "description": "Color of translation text"
-    },
     "desktopLyricAlwaysOnTop": {
       "label": "Always On Top",
       "description": "Keep desktop lyric window above others"

@@ -38,8 +38,8 @@ export const createMainWindow = (): BrowserWindow => {
   }
 
   mainWindow.once("ready-to-show", () => {
-    initThumbar(mainWindow!);
-    initTray(mainWindow!);
+    initThumbar();
+    initTray();
   });
 
   // 保存窗口状态
@@ -90,6 +90,15 @@ export const getMainWindow = (): BrowserWindow | null => {
     return mainWindow;
   }
   return null;
+};
+
+/** 显示并聚焦主窗口（最小化时自动恢复） */
+export const focusMainWindow = (): void => {
+  const win = getMainWindow();
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
 };
 
 /**

@@ -1,6 +1,14 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
 
+/** 订阅主进程推送的事件 */
+const subscribe = <T>(channel: string, callback: (data: T) => void): (() => void) => {
+  ipcRenderer.removeAllListeners(channel);
+  const handler = (_event: Electron.IpcRendererEvent, data: T): void => callback(data);
+  ipcRenderer.on(channel, handler);
+  return () => ipcRenderer.removeListener(channel, handler);
+};
+
 // 暴露给渲染进程的自定义 API
 const api = {
   config: {
@@ -55,13 +63,10 @@ const api = {
     // 同步播放模式到主进程（供托盘菜单显示）
     syncPlayMode: (repeatMode: string, shuffleMode: string) =>
       ipcRenderer.send("player:syncPlayMode", repeatMode, shuffleMode),
-    // 订阅主进程推送的播放事件，返回取消订阅函数
-    onEvent: (callback: (event: unknown) => void) => {
-      ipcRenderer.removeAllListeners("player:event");
-      const handler = (_event: Electron.IpcRendererEvent, data: unknown): void => callback(data);
-      ipcRenderer.on("player:event", handler);
-      return () => ipcRenderer.removeListener("player:event", handler);
-    },
+    // 广播播放控制事件到所有渲染进程
+    dispatch: (type: string) => ipcRenderer.send("player:dispatch", type),
+    // 订阅主进程推送的播放事件
+    onEvent: (callback: (event: unknown) => void) => subscribe("player:event", callback),
   },
   system: {
     // 打开开发者工具
@@ -70,6 +75,13 @@ const api = {
     showInExplorer: (filePath: string) => ipcRenderer.invoke("system:showInExplorer", filePath),
     // 同步语言到主进程
     setLocale: (locale: string) => ipcRenderer.send("system:setLocale", locale),
+    // 显示并聚焦主窗口
+    focusMainWindow: () => ipcRenderer.invoke("system:focusMainWindow"),
+    // 在主窗口打开设置弹窗（可指定初始分类）
+    openSettings: (category?: string) => ipcRenderer.invoke("system:openSettings", category),
+    // 主窗口监听"打开设置"事件
+    onOpenSettings: (callback: (category?: string) => void) =>
+      subscribe<string | undefined>("system:openSettings", callback),
   },
   library: {
     // 开始扫描（默认增量）
@@ -83,8 +95,7 @@ const api = {
     // 获取歌手聚合列表
     getArtists: () => ipcRenderer.invoke("library:getArtists"),
     // 获取某专辑下的全部曲目
-    getAlbumTracks: (albumName: string) =>
-      ipcRenderer.invoke("library:getAlbumTracks", albumName),
+    getAlbumTracks: (albumName: string) => ipcRenderer.invoke("library:getAlbumTracks", albumName),
     // 获取某歌手的全部曲目
     getArtistTracks: (artistName: string) =>
       ipcRenderer.invoke("library:getArtistTracks", artistName),
@@ -111,26 +122,32 @@ const api = {
     prefetchArtistAvatars: (artistNames: string[]) =>
       ipcRenderer.invoke("library:prefetchArtistAvatars", artistNames),
     // 订阅扫描进度事件
-    onScanProgress: (callback: (progress: unknown) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: unknown): void => callback(data);
-      ipcRenderer.on("library:scanProgress", handler);
-      return () => ipcRenderer.removeListener("library:scanProgress", handler);
-    },
+    onScanProgress: (callback: (progress: unknown) => void) =>
+      subscribe("library:scanProgress", callback),
   },
   window: {
     // 切换桌面歌词窗口
     toggleDesktopLyric: () => ipcRenderer.invoke("window:toggleDesktopLyric"),
+    // 关闭桌面歌词窗口
+    closeDesktopLyric: () => ipcRenderer.invoke("window:closeDesktopLyric"),
     // 查询桌面歌词窗口是否打开
     isDesktopLyricOpen: () => ipcRenderer.invoke("window:isDesktopLyricOpen"),
   },
   desktopLyric: {
     // 订阅桌面歌词配置变化
-    onConfigChange: (callback: (config: unknown) => void) => {
-      ipcRenderer.removeAllListeners("desktopLyric:configChange");
-      const handler = (_event: Electron.IpcRendererEvent, data: unknown): void => callback(data);
-      ipcRenderer.on("desktopLyric:configChange", handler);
-      return () => ipcRenderer.removeListener("desktopLyric:configChange", handler);
-    },
+    onConfigChange: (callback: (config: unknown) => void) =>
+      subscribe("desktopLyric:configChange", callback),
+    // 将窗口高度锁定到指定像素
+    setHeight: (height: number) => ipcRenderer.invoke("desktopLyric:setHeight", height),
+    // 锁定态下切换鼠标穿透（悬停解锁按钮时临时放开）
+    setMouseIgnore: (ignore: boolean) => ipcRenderer.send("desktopLyric:setMouseIgnore", ignore),
+    // 自定义拖拽移动窗口（传完整 bounds）
+    move: (x: number, y: number, width: number, height: number) =>
+      ipcRenderer.send("desktopLyric:move", x, y, width, height),
+    // 拖拽开始 / 结束时钉住 / 释放最大尺寸
+    freezeSize: (freeze: boolean) => ipcRenderer.send("desktopLyric:freezeSize", freeze),
+    // 查询窗口真实 bounds
+    getBounds: () => ipcRenderer.invoke("desktopLyric:getBounds"),
   },
   nowPlaying: {
     // 渲染进程同步当前播放状态到主进程
@@ -138,23 +155,14 @@ const api = {
     // 拉取当前完整快照
     requestSnapshot: () => ipcRenderer.invoke("nowPlaying:requestSnapshot"),
     // 订阅歌曲切换事件
-    onTrackChange: (callback: (data: unknown) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: unknown): void => callback(data);
-      ipcRenderer.on("nowPlaying:track-change", handler);
-      return () => ipcRenderer.removeListener("nowPlaying:track-change", handler);
-    },
+    onTrackChange: (callback: (data: unknown) => void) =>
+      subscribe("nowPlaying:track-change", callback),
     // 订阅歌词内容变化事件
-    onLyricChange: (callback: (snapshot: unknown) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: unknown): void => callback(data);
-      ipcRenderer.on("nowPlaying:lyric-change", handler);
-      return () => ipcRenderer.removeListener("nowPlaying:lyric-change", handler);
-    },
+    onLyricChange: (callback: (snapshot: unknown) => void) =>
+      subscribe("nowPlaying:lyric-change", callback),
     // 订阅播放位置锚点（跟随 position 事件 5Hz）
-    onPositionSync: (callback: (data: unknown) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: unknown): void => callback(data);
-      ipcRenderer.on("nowPlaying:position-sync", handler);
-      return () => ipcRenderer.removeListener("nowPlaying:position-sync", handler);
-    },
+    onPositionSync: (callback: (data: unknown) => void) =>
+      subscribe("nowPlaying:position-sync", callback),
   },
 };
 

@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { useSettingsDialog } from "@/settings/useSettingsDialog";
 
-const { open } = useSettingsDialog();
+const dialog = useSettingsDialog();
+const { open } = dialog;
+
+const unsubscribe = window.api.system.onOpenSettings((category) => {
+  dialog.show(category);
+});
+
+onBeforeUnmount(() => unsubscribe());
 </script>
 
 <template>

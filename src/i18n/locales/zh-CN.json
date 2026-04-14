@@ -295,10 +295,6 @@
       "label": "未播放颜色",
       "description": "未播放的歌词文字颜色"
     },
-    "desktopLyricTranslationColor": {
-      "label": "翻译颜色",
-      "description": "翻译文本的颜色"
-    },
     "desktopLyricAlwaysOnTop": {
       "label": "窗口置顶",
       "description": "桌面歌词窗口始终保持在最前"

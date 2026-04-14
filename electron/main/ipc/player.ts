@@ -370,6 +370,11 @@ export const registerPlayerIpc = (): void => {
     setTrayPlayMode(repeat, shuffle);
   });
 
+  // 转发渲染端发起的播放控制
+  ipcMain.on("player:dispatch", (_event, type: string) => {
+    broadcast("player:event", { type });
+  });
+
   // 系统媒体事件处理
   mediaService.onEvent((event: MediaEvent) => {
     try {
