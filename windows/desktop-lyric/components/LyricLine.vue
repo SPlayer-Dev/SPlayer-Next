@@ -14,11 +14,17 @@ const props = defineProps<{
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
-const inlineRef = ref<HTMLElement | null>(null);
+const contentRef = ref<HTMLElement | null>(null);
+/** 内容超出容器的像素量 */
 const overflowPx = ref(0);
 
+/** 开始滚动的进度点：前 30% 停在开头 */
+const SCROLL_START_AT = 0.3;
+/** 结束提前量：比 endTime 早 2s 滚到底 */
+const END_MARGIN_MS = 2000;
+
 /**
- * 单词过渡效果
+ * 单词进度对应的 gradient --p 位置
  * @param word 单词时间段
  */
 const wordP = (word: { startTime: number; endTime: number }): string => {
@@ -30,7 +36,6 @@ const wordP = (word: { startTime: number; endTime: number }): string => {
         : 0
       : Math.max(0, Math.min(1, (props.currentMs - word.startTime) / span));
   const pct = (progress * 100).toFixed(1);
-  // 确保未播放单词不展示过渡
   const px = progress * 6 - 3;
   const signed = px >= 0 ? `+ ${px.toFixed(2)}px` : `- ${(-px).toFixed(2)}px`;
   return `calc(${pct}% ${signed})`;
@@ -42,26 +47,33 @@ const lineStyle = computed(() => ({
   textAlign: props.align,
 }));
 
+/** 内容横向平移量：溢出才滚，0~30% 不动，30% 后线性滚到终点（endTime-2s） */
+const scrollTransform = computed<string>(() => {
+  const overflow = overflowPx.value;
+  if (overflow <= 0) return "translateX(0)";
+  const { startTime, endTime } = props.line;
+  if (endTime <= startTime) return "translateX(0)";
+  const end = Math.max(startTime + 1, endTime - END_MARGIN_MS);
+  const duration = end - startTime;
+  if (duration <= 0) return "translateX(0)";
+  const progress = Math.max(0, Math.min(1, (props.currentMs - startTime) / duration));
+  if (progress <= SCROLL_START_AT) return "translateX(0)";
+  const ratio = (progress - SCROLL_START_AT) / (1 - SCROLL_START_AT);
+  const offset = Math.round(overflow * ratio);
+  return `translateX(-${offset}px)`;
+});
+
 const measure = (): void => {
   const outer = containerRef.value;
-  const inner = inlineRef.value;
+  const inner = contentRef.value;
   if (!outer || !inner) {
     overflowPx.value = 0;
     return;
   }
-  const diff = inner.scrollWidth - outer.clientWidth;
-  overflowPx.value = diff > 2 ? diff : 0;
+  overflowPx.value = Math.max(0, inner.scrollWidth - outer.clientWidth);
 };
 
-watch(
-  () => props.line,
-  () => requestAnimationFrame(measure),
-);
-
-const marquee = computed(() => overflowPx.value > 0);
-const marqueeStyle = computed(() =>
-  marquee.value ? { "--dl-overflow": `${overflowPx.value}px` } : {},
-);
+watch(() => props.line, () => nextTick(measure));
 
 let resizeObs: ResizeObserver | null = null;
 
@@ -81,8 +93,8 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="dl-line-block">
-    <div ref="containerRef" class="dl-line" :style="lineStyle" :class="{ 'is-marquee': marquee }">
-      <span ref="inlineRef" class="dl-line-inner" :style="marqueeStyle">
+    <div ref="containerRef" class="dl-line" :style="lineStyle">
+      <span ref="contentRef" class="dl-line-inner" :style="{ transform: scrollTransform }">
         <template v-if="wordByWord">
           <span
             v-for="(word, i) in line.words"
@@ -125,6 +137,10 @@ onBeforeUnmount(() => {
   display: inline-block;
   will-change: transform;
 }
+/*
+ * 逐字：gradient 围绕 var(--p) 展开 6px 软边。
+ * --p 范围被 JS 扩到 calc(-3px .. 100%+3px)：极值位过渡带被挤出可视区 → 纯色无残留。
+ */
 .dl-word {
   --p: 0%;
   display: inline;
@@ -149,21 +165,5 @@ onBeforeUnmount(() => {
 }
 .dl-static.is-unplayed {
   color: var(--dl-unplayed);
-}
-.dl-line.is-marquee .dl-line-inner {
-  animation: dl-marquee 8s ease-in-out infinite;
-}
-@keyframes dl-marquee {
-  0%,
-  15% {
-    transform: translateX(0);
-  }
-  50%,
-  65% {
-    transform: translateX(calc(-1 * var(--dl-overflow)));
-  }
-  100% {
-    transform: translateX(0);
-  }
 }
 </style>
