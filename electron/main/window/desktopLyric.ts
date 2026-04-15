@@ -5,6 +5,7 @@ import { createWindow } from "./create";
 import { setTrayDesktopLyric } from "@main/services/tray";
 import { store } from "@main/store";
 import { windowStateStore } from "@main/store/windowStates";
+import { broadcast } from "@main/utils/broadcast";
 
 let desktopLyricWindow: BrowserWindow | null = null;
 
@@ -218,12 +219,14 @@ export const createDesktopLyricWindow = (): BrowserWindow => {
 
   /** 设置托盘图标 */
   setTrayDesktopLyric(true);
+  broadcast("desktopLyric:visibilityChange", true);
 
   /** 窗口关闭事件 */
   desktopLyricWindow.on("closed", () => {
     stopCursorPolling();
     desktopLyricWindow = null;
     setTrayDesktopLyric(false);
+    broadcast("desktopLyric:visibilityChange", false);
   });
   return desktopLyricWindow;
 };

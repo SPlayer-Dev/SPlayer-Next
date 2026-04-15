@@ -255,6 +255,10 @@
       "label": "Inactive Opacity",
       "description": "Base opacity for non-active lines"
     },
+    "desktopLyricEnabled": {
+      "label": "Enable Desktop Lyric",
+      "description": "Show a floating lyric window on desktop"
+    },
     "desktopLyricFontSize": {
       "label": "Font Size",
       "description": "Desktop lyric text size (px)"

@@ -11,8 +11,8 @@ import {
   setTaskbarProgress,
   applyDesktopLyricLock,
   applyDesktopLyricAlwaysOnTop,
-  getDesktopLyricWindow,
 } from "@main/window";
+import { broadcast } from "@main/utils/broadcast";
 
 /** 配置写入后的副作用 */
 const applyConfigChange = (keyPath: string, value: unknown): void => {
@@ -38,10 +38,9 @@ const applyConfigChange = (keyPath: string, value: unknown): void => {
       applyDesktopLyricAlwaysOnTop(value as boolean);
       break;
   }
-  // 桌面歌词配置变更广播到歌词窗口
+  // 桌面歌词配置变更广播到所有窗口
   if (keyPath.startsWith("desktopLyric.")) {
-    const win = getDesktopLyricWindow();
-    if (win) win.webContents.send("desktopLyric:configChange", store.get("desktopLyric"));
+    broadcast("desktopLyric:configChange", store.get("desktopLyric"));
   }
 };
 

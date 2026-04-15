@@ -296,6 +296,12 @@ export const settingsSchema: SettingCategory[] = [
         id: "desktopLyric",
         items: [
           {
+            key: "desktopLyricEnabled",
+            type: "switch",
+            binding: { store: "settings", path: "isDesktopLyricOpen" },
+            defaultValue: false,
+          },
+          {
             key: "desktopLyricFontSize",
             type: "select",
             binding: { store: "settings", path: "system.desktopLyric.fontSize" },

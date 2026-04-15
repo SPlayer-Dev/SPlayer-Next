@@ -255,6 +255,10 @@
       "label": "非激活行透明度",
       "description": "非当前行的基础透明度"
     },
+    "desktopLyricEnabled": {
+      "label": "开启桌面歌词",
+      "description": "在桌面显示一个独立的歌词悬浮窗口"
+    },
     "desktopLyricFontSize": {
       "label": "字号",
       "description": "桌面歌词的文字大小（像素）"

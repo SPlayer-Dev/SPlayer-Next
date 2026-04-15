@@ -152,7 +152,7 @@ const onHeaderAction = (
       window.api.player.dispatch(playing.value ? "pause" : "play");
       break;
     case "open-settings":
-      window.api.system.openSettings("desktopLyric").catch(() => {});
+      window.api.system.openSettings("lyric", "desktopLyricEnabled").catch(() => {});
       break;
     case "toggle-locked":
       window.api.config.set("desktopLyric.locked", !config.locked).catch(() => {});
@@ -214,11 +214,24 @@ onBeforeUnmount(() => {
     <div class="header">
       <div class="header-section header-left">
         <button
-          class="header-btn"
+          class="header-btn logo-btn"
           :title="track?.title ?? '回到主窗口'"
           @click="onHeaderAction('focus-main')"
         >
-          <IconLucideMusic />
+          <svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+            <path
+              class="logo-primary"
+              d="M511.764091 131.708086a446.145957 446.145957 0 1 0 446.145957 446.145957 446.145957 446.145957 0 0 0-446.145957-446.145957z m0 519.76004A71.829499 71.829499 0 1 1 583.59359 580.530919 72.275645 72.275645 0 0 1 511.764091 651.468126z"
+            />
+            <path
+              class="logo-secondary"
+              d="M802.205109 0.541175l-168.197026 37.030114a67.814185 67.814185 0 0 0-53.091369 66.029602V223.614153l3.569168 349.778431h114.213365V223.614153h108.859613a26.322611 26.322611 0 0 0 26.768758-26.322611V26.863786a26.768757 26.768757 0 0 0-32.122509-26.322611z"
+            />
+            <path
+              class="logo-secondary"
+              d="M511.764091 386.457428a186.935156 186.935156 0 1 0 186.935156 186.48901A186.935156 186.935156 0 0 0 511.764091 386.457428z m0 264.564552a71.383353 71.383353 0 1 1 71.383353-71.383353 71.383353 71.383353 0 0 1-71.383353 71.383353z"
+            />
+          </svg>
         </button>
         <div class="song-info">
           <div class="song-title">{{ track?.title ?? "SPlayer Desktop Lyric" }}</div>
@@ -326,6 +339,9 @@ onBeforeUnmount(() => {
 .root.locked.hovered .lock-btn {
   opacity: 1;
 }
+.root.locked.hovered .lock-btn :deep(svg) {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
 .persistent-info {
   position: absolute;
   top: 0;
@@ -410,6 +426,27 @@ onBeforeUnmount(() => {
 }
 .header-btn:hover {
   background-color: rgba(255, 255, 255, 0.2);
+}
+.logo-btn :deep(svg) {
+  width: 24px;
+  height: 24px;
+}
+.logo-btn :deep(.logo-primary),
+.logo-btn :deep(.logo-secondary) {
+  fill: currentColor;
+  transition:
+    fill 0.25s ease,
+    fill-opacity 0.25s ease;
+}
+.logo-btn :deep(.logo-primary) {
+  fill-opacity: 0.3;
+}
+.logo-btn:hover :deep(.logo-primary) {
+  fill: #f55e55;
+  fill-opacity: 1;
+}
+.logo-btn:hover :deep(.logo-secondary) {
+  fill: #f9bbb8;
 }
 .header-btn:active {
   background-color: rgba(255, 255, 255, 0.3);

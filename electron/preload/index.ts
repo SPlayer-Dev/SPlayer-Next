@@ -77,11 +77,12 @@ const api = {
     setLocale: (locale: string) => ipcRenderer.send("system:setLocale", locale),
     // 显示并聚焦主窗口
     focusMainWindow: () => ipcRenderer.invoke("system:focusMainWindow"),
-    // 在主窗口打开设置弹窗（可指定初始分类）
-    openSettings: (category?: string) => ipcRenderer.invoke("system:openSettings", category),
+    // 在主窗口打开设置弹窗
+    openSettings: (category?: string, highlight?: string) =>
+      ipcRenderer.invoke("system:openSettings", category, highlight),
     // 主窗口监听"打开设置"事件
-    onOpenSettings: (callback: (category?: string) => void) =>
-      subscribe<string | undefined>("system:openSettings", callback),
+    onOpenSettings: (callback: (payload: { category?: string; highlight?: string }) => void) =>
+      subscribe<{ category?: string; highlight?: string }>("system:openSettings", callback),
   },
   library: {
     // 开始扫描（默认增量）
@@ -132,6 +133,9 @@ const api = {
     closeDesktopLyric: () => ipcRenderer.invoke("window:closeDesktopLyric"),
     // 查询桌面歌词窗口是否打开
     isDesktopLyricOpen: () => ipcRenderer.invoke("window:isDesktopLyricOpen"),
+    // 订阅桌面歌词窗口开关状态
+    onDesktopLyricVisibilityChange: (callback: (open: boolean) => void) =>
+      subscribe<boolean>("desktopLyric:visibilityChange", callback),
   },
   desktopLyric: {
     // 订阅桌面歌词配置变化

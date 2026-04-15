@@ -54,12 +54,31 @@ export const useSettingsStore = defineStore(
     /** 系统配置 - 传递主进程 */
     const system = reactive<SystemConfig>(structuredClone(defaultSystemConfig));
 
+    /** 桌面歌词窗口是否打开；由主进程广播 */
+    const isDesktopLyricOpen = ref(false);
+
     /** 从主进程拉取后端配置 */
     const syncSystem = async (): Promise<void> => {
       try {
         Object.assign(system, await window.api.config.getAll());
       } catch {}
     };
+
+    // 订阅桌面歌词配置变化：歌词窗口点锁定按钮等场景需要回流到主窗口设置页
+    window.api.desktopLyric.onConfigChange((next) => {
+      Object.assign(system.desktopLyric, next);
+    });
+
+    // 订阅桌面歌词窗口开关状态：主窗口播放栏按钮需要显示当前状态
+    window.api.window
+      .isDesktopLyricOpen()
+      .then((open) => {
+        isDesktopLyricOpen.value = open;
+      })
+      .catch(() => {});
+    window.api.window.onDesktopLyricVisibilityChange((open) => {
+      isDesktopLyricOpen.value = open;
+    });
 
     /** 写入后端配置并更新本地 */
     const setSystem = async (keyPath: string, value: unknown): Promise<void> => {
@@ -89,6 +108,7 @@ export const useSettingsStore = defineStore(
       player,
       lyric,
       system,
+      isDesktopLyricOpen,
       syncSystem,
       setSystem,
       afterLocalChange,

@@ -8,6 +8,8 @@ export interface WindowApi {
   closeDesktopLyric: () => Promise<void>;
   /** 查询桌面歌词窗口是否处于打开状态 */
   isDesktopLyricOpen: () => Promise<boolean>;
+  /** 订阅桌面歌词窗口开关状态变化 */
+  onDesktopLyricVisibilityChange: (callback: (open: boolean) => void) => () => void;
 }
 
 /** 桌面歌词 API */

@@ -1,5 +1,6 @@
 import { useSettingsStore } from "@/stores/settings";
 import { useThemeStore } from "@/stores/theme";
+import { virtualBindings } from "./virtualBindings";
 import { computed, type WritableComputedRef } from "vue";
 
 /** 按路径读取嵌套属性 */
@@ -29,6 +30,11 @@ export const useSettingModel = (binding: {
       get: () => getByPath(store, binding.path),
       set: (v) => setByPath(store as Record<string, any>, binding.path, v),
     });
+  }
+  // 虚拟 binding
+  const virtual = virtualBindings[binding.path];
+  if (virtual) {
+    return computed({ get: virtual.get, set: virtual.set });
   }
 
   const store = useSettingsStore();

@@ -38,8 +38,8 @@ export const registerSystemIpc = (): void => {
   ipcMain.handle("system:focusMainWindow", () => focusMainWindow());
 
   // 在主窗口打开设置弹窗
-  ipcMain.handle("system:openSettings", (_event, category?: string) => {
+  ipcMain.handle("system:openSettings", (_event, category?: string, highlight?: string) => {
     focusMainWindow();
-    getMainWindow()?.webContents.send("system:openSettings", category);
+    getMainWindow()?.webContents.send("system:openSettings", { category, highlight });
   });
 };

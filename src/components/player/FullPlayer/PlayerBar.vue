@@ -1,15 +1,22 @@
 <script setup lang="ts">
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
+import { useSettingsStore } from "@/stores/settings";
 import * as player from "@/core/player";
 import { formatTime } from "@/utils/time";
 
 const status = useStatusStore();
 const media = useMediaStore();
+const settings = useSettingsStore();
 const { isPlaying, isLoading, position, duration, isExpanded, repeatMode, shuffleMode } =
   storeToRefs(status);
+const { isDesktopLyricOpen } = storeToRefs(settings);
 
 const hasTrack = computed(() => !!media.track);
+
+const toggleDesktopLyric = (): void => {
+  window.api.window.toggleDesktopLyric().catch(() => {});
+};
 
 /** 当前歌词文本，播放中且有匹配歌词时显示 */
 const currentLyricText = computed(() => {
@@ -170,6 +177,16 @@ const onSeekDragEnd = (value: number): void => {
             @change="player.setVolume($event)"
           />
         </div>
+        <!-- 桌面歌词按钮 -->
+        <SButton
+          variant="ghost"
+          circle
+          :size="36"
+          :class="isDesktopLyricOpen ? 'text-primary' : 'text-on-surface-variant'"
+          @click="toggleDesktopLyric"
+        >
+          <template #icon><IconLucideSubtitles /></template>
+        </SButton>
         <!-- 播放列表按钮 -->
         <SButton
           variant="ghost"
