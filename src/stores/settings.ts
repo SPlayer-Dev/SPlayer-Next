@@ -57,6 +57,9 @@ export const useSettingsStore = defineStore(
     /** 桌面歌词窗口是否打开；由主进程广播 */
     const isDesktopLyricOpen = ref(false);
 
+    /** 灵动岛窗口是否打开；由主进程广播 */
+    const isDynamicIslandOpen = ref(false);
+
     /** 从主进程拉取后端配置 */
     const syncSystem = async (): Promise<void> => {
       try {
@@ -78,6 +81,22 @@ export const useSettingsStore = defineStore(
       .catch(() => {});
     window.api.window.onDesktopLyricVisibilityChange((open) => {
       isDesktopLyricOpen.value = open;
+    });
+
+    // 订阅灵动岛配置变化
+    window.api.dynamicIsland.onConfigChange((next) => {
+      Object.assign(system.dynamicIsland, next);
+    });
+
+    // 订阅灵动岛窗口开关状态
+    window.api.window
+      .isDynamicIslandOpen()
+      .then((open) => {
+        isDynamicIslandOpen.value = open;
+      })
+      .catch(() => {});
+    window.api.window.onDynamicIslandVisibilityChange((open) => {
+      isDynamicIslandOpen.value = open;
     });
 
     /** 写入后端配置并更新本地 */
@@ -109,6 +128,7 @@ export const useSettingsStore = defineStore(
       lyric,
       system,
       isDesktopLyricOpen,
+      isDynamicIslandOpen,
       syncSystem,
       setSystem,
       afterLocalChange,

@@ -127,6 +127,7 @@
       "effectsSpring": "弹簧动画",
       "effectsLayout": "布局与透明度",
       "desktopLyric": "桌面歌词",
+      "dynamicIsland": "灵动岛歌词",
       "theme": "主题与风格",
       "layout": "布局",
       "media": "媒体控制",
@@ -330,6 +331,38 @@
     "desktopLyricLocked": {
       "label": "锁定窗口",
       "description": "锁定后鼠标点击将穿透到下层窗口，无法拖动"
+    },
+    "dynamicIslandEnabled": {
+      "label": "开启灵动岛",
+      "description": "在屏幕顶部显示一个简洁的悬浮歌词窗口，可拖离至任意位置"
+    },
+    "dynamicIslandHeight": {
+      "label": "窗口高度",
+      "description": "灵动岛窗口高度（像素），封面与字号跟随自适应"
+    },
+    "dynamicIslandFontWeight": {
+      "label": "字重",
+      "description": "灵动岛歌词的文字粗细"
+    },
+    "dynamicIslandWordByWord": {
+      "label": "逐字高亮",
+      "description": "按单词进度逐字渲染高亮"
+    },
+    "dynamicIslandPlayedColor": {
+      "label": "已播放颜色",
+      "description": "当前已唱到部分的文字颜色"
+    },
+    "dynamicIslandUnplayedColor": {
+      "label": "未播放颜色",
+      "description": "尚未唱到部分及艺术家名的文字颜色"
+    },
+    "dynamicIslandBackgroundColor": {
+      "label": "背景颜色",
+      "description": "窗口背板的颜色与透明度"
+    },
+    "dynamicIslandAlwaysOnTop": {
+      "label": "窗口置顶",
+      "description": "灵动岛窗口始终保持在最前"
     },
     "playerBgType": {
       "label": "播放器背景",

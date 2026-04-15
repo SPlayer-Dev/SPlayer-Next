@@ -5,7 +5,7 @@ import { appName } from "@main/utils/config";
 import { loadIcon, loadThemedIcon } from "@main/utils/icon";
 import { t } from "@main/utils/i18n";
 import { trayLog } from "@main/utils/logger";
-import { toggleDesktopLyricWindow, focusMainWindow } from "@main/window";
+import { toggleDesktopLyricWindow, toggleDynamicIslandWindow, focusMainWindow } from "@main/window";
 
 type PlayState = "playing" | "paused";
 
@@ -15,6 +15,7 @@ let songName = "";
 let repeatMode: RepeatMode = "list";
 let shuffleMode: ShuffleMode = "off";
 let desktopLyricOpen = false;
+let dynamicIslandOpen = false;
 
 const repeatLabel = (mode: RepeatMode): string =>
   ({ list: t("repeatList"), one: t("repeatOne"), off: t("repeatOff") })[mode];
@@ -107,6 +108,11 @@ const buildMenu = (): Menu => {
       icon: menuIcon("lyric"),
       click: () => toggleDesktopLyricWindow(),
     },
+    {
+      label: dynamicIslandOpen ? t("closeDynamicIsland") : t("openDynamicIsland"),
+      icon: menuIcon("lyric"),
+      click: () => toggleDynamicIslandWindow(),
+    },
     { type: "separator" },
     {
       label: t("quit"),
@@ -181,6 +187,13 @@ export const setTrayPlayMode = (repeat: RepeatMode, shuffle: ShuffleMode): void 
 export const setTrayDesktopLyric = (open: boolean): void => {
   if (desktopLyricOpen === open) return;
   desktopLyricOpen = open;
+  refreshTray();
+};
+
+/** 同步灵动岛窗口开关状态到托盘 */
+export const setTrayDynamicIsland = (open: boolean): void => {
+  if (dynamicIslandOpen === open) return;
+  dynamicIslandOpen = open;
   refreshTray();
 };
 

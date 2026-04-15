@@ -17,7 +17,7 @@ const { isPlaying, isLoading, position, duration, isExpanded, repeatMode, shuffl
 /** 歌词渲染模式 */
 const lyricMode = computed(() => settings.lyric.lyricMode);
 
-/** 歌词组件引用（两种模式共享同一接口） */
+/** 歌词组件引用 */
 const lyricRef = ref<InstanceType<typeof EffectsLyrics> | InstanceType<typeof SimpleLyrics>>();
 
 /** 精确播放时间（毫秒） */
@@ -27,7 +27,7 @@ const { start: startTick, stop: stopTick } = usePlaybackTime((currentMs) => {
   }
 });
 
-/** 歌词组件是否已挂载（首次展开后常驻，不再销毁） */
+/** 歌词组件是否已挂载 */
 const lyricMounted = ref(false);
 
 /** 展开前：非首次直接恢复渲染 */
@@ -93,7 +93,7 @@ const onSeekDragEnd = (value: number): void => {
     >
       <div
         v-show="isExpanded"
-        class="fixed inset-0 z-200 bg-surface overflow-hidden text-cover after:content-[''] after:absolute after:left-1/2 after:top-0 after:bottom-0 after:w-px after:bg-[rgba(255,0,0,0.5)] after:z-999 after:pointer-events-none"
+        class="fixed inset-0 z-200 bg-surface overflow-hidden text-cover"
         style="
           --lp-color: rgb(var(--s-cover));
           --s-slider-track-bg: rgb(var(--s-cover) / 0.25);

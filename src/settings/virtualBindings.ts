@@ -21,4 +21,13 @@ export const virtualBindings: Record<string, VirtualBinding> = {
       window.api.window.toggleDesktopLyric().catch(() => {});
     },
   },
+  /** 灵动岛窗口 */
+  isDynamicIslandOpen: {
+    get: () => useSettingsStore().isDynamicIslandOpen,
+    set: (v) => {
+      const store = useSettingsStore();
+      if (v === store.isDynamicIslandOpen) return;
+      window.api.window.toggleDynamicIsland().catch(() => {});
+    },
+  },
 };

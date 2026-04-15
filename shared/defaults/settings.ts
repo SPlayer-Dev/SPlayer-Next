@@ -41,6 +41,15 @@ export const defaultSystemConfig: SystemConfig = {
     alwaysOnTop: true,
     locked: false,
   },
+  dynamicIsland: {
+    height: 40,
+    fontWeight: 500,
+    wordByWord: true,
+    playedColor: "#ffffff",
+    unplayedColor: "rgba(255, 255, 255, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    alwaysOnTop: true,
+  },
   system: {
     rememberWindowState: true,
     taskbarProgress: true,
@@ -56,6 +65,11 @@ export const defaultSystemConfig: SystemConfig = {
     desktopLyric: {
       width: 800,
       height: 200,
+      x: null,
+      y: null,
+    },
+    dynamicIsland: {
+      mode: "snapped",
       x: null,
       y: null,
     },

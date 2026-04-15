@@ -135,6 +135,15 @@ const api = {
     // 订阅桌面歌词窗口开关状态
     onDesktopLyricVisibilityChange: (callback: (open: boolean) => void) =>
       subscribe<boolean>("desktopLyric:visibilityChange", callback),
+    // 切换灵动岛窗口
+    toggleDynamicIsland: () => ipcRenderer.invoke("window:toggleDynamicIsland"),
+    // 关闭灵动岛窗口
+    closeDynamicIsland: () => ipcRenderer.invoke("window:closeDynamicIsland"),
+    // 查询灵动岛窗口是否打开
+    isDynamicIslandOpen: () => ipcRenderer.invoke("window:isDynamicIslandOpen"),
+    // 订阅灵动岛窗口开关状态
+    onDynamicIslandVisibilityChange: (callback: (open: boolean) => void) =>
+      subscribe<boolean>("dynamicIsland:visibilityChange", callback),
   },
   desktopLyric: {
     // 订阅桌面歌词配置变化
@@ -151,6 +160,18 @@ const api = {
     // 订阅主进程 screen 光标位置轮询
     onCursorInside: (callback: (inside: boolean) => void) =>
       subscribe<boolean>("desktopLyric:cursorInside", callback),
+  },
+  dynamicIsland: {
+    // 订阅灵动岛配置变化
+    onConfigChange: (callback: (config: unknown) => void) =>
+      subscribe("dynamicIsland:configChange", callback),
+    // 拖拽移动；只传位置，尺寸由主进程权威写回
+    move: (x: number, y: number) => ipcRenderer.send("dynamicIsland:move", x, y),
+    // 拖拽结束后保存最终位置；主进程会在落点近顶部时自动吸附回居中
+    saveState: () => ipcRenderer.send("dynamicIsland:saveState"),
+    // 订阅吸附模式变化：snapped（顶部居中）/ floating（自由位置）
+    onModeChange: (callback: (mode: "snapped" | "floating") => void) =>
+      subscribe<"snapped" | "floating">("dynamicIsland:modeChange", callback),
   },
   nowPlaying: {
     // 渲染进程同步当前播放状态到主进程

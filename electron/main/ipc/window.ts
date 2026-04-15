@@ -7,6 +7,11 @@ import {
   applyDesktopLyricMouseIgnore,
   moveDesktopLyricWindow,
   saveDesktopLyricState,
+  toggleDynamicIslandWindow,
+  closeDynamicIslandWindow,
+  getDynamicIslandWindow,
+  moveDynamicIslandWindow,
+  saveDynamicIslandState,
 } from "@main/window";
 
 /** 窗口管理 IPC */
@@ -38,5 +43,24 @@ export const registerWindowIpc = (): void => {
   // 拖拽结束后保存最终位置
   ipcMain.on("desktopLyric:saveState", () => {
     saveDesktopLyricState();
+  });
+
+  // 切换灵动岛窗口
+  ipcMain.handle("window:toggleDynamicIsland", () => toggleDynamicIslandWindow());
+
+  // 关闭灵动岛窗口
+  ipcMain.handle("window:closeDynamicIsland", () => closeDynamicIslandWindow());
+
+  // 查询灵动岛窗口是否打开
+  ipcMain.handle("window:isDynamicIslandOpen", () => !!getDynamicIslandWindow());
+
+  // 灵动岛拖拽移动
+  ipcMain.on("dynamicIsland:move", (_event, x: number, y: number) => {
+    moveDynamicIslandWindow(x, y);
+  });
+
+  // 灵动岛拖拽结束：主进程判定吸附并持久化
+  ipcMain.on("dynamicIsland:saveState", () => {
+    saveDynamicIslandState();
   });
 };

@@ -11,6 +11,8 @@ import {
   setTaskbarProgress,
   applyDesktopLyricLock,
   applyDesktopLyricAlwaysOnTop,
+  applyDynamicIslandAlwaysOnTop,
+  applyDynamicIslandHeight,
 } from "@main/window";
 import { broadcast } from "@main/utils/broadcast";
 
@@ -37,10 +39,20 @@ const applyConfigChange = (keyPath: string, value: unknown): void => {
     case "desktopLyric.alwaysOnTop":
       applyDesktopLyricAlwaysOnTop(value as boolean);
       break;
+    case "dynamicIsland.alwaysOnTop":
+      applyDynamicIslandAlwaysOnTop(value as boolean);
+      break;
+    case "dynamicIsland.height":
+      applyDynamicIslandHeight(value as number);
+      break;
   }
   // 桌面歌词配置变更广播到所有窗口
   if (keyPath.startsWith("desktopLyric.")) {
     broadcast("desktopLyric:configChange", store.get("desktopLyric"));
+  }
+  // 灵动岛配置变更广播到所有窗口
+  if (keyPath.startsWith("dynamicIsland.")) {
+    broadcast("dynamicIsland:configChange", store.get("dynamicIsland"));
   }
 };
 

@@ -424,6 +424,68 @@ export const settingsSchema: SettingCategory[] = [
         ],
       },
       {
+        id: "dynamicIsland",
+        items: [
+          {
+            key: "dynamicIslandEnabled",
+            type: "switch",
+            binding: { store: "settings", path: "isDynamicIslandOpen" },
+            defaultValue: false,
+          },
+          {
+            key: "dynamicIslandHeight",
+            type: "slider",
+            binding: { store: "settings", path: "system.dynamicIsland.height" },
+            min: 28,
+            max: 64,
+            step: 2,
+            defaultValue: 40,
+            marks: { 28: "28", 40: "40", 64: "64" },
+          },
+          {
+            key: "dynamicIslandFontWeight",
+            type: "slider",
+            binding: { store: "settings", path: "system.dynamicIsland.fontWeight" },
+            min: 100,
+            max: 900,
+            step: 100,
+            defaultValue: 500,
+            marks: { 100: "100", 500: "500", 900: "900" },
+          },
+          {
+            key: "dynamicIslandWordByWord",
+            type: "switch",
+            binding: { store: "settings", path: "system.dynamicIsland.wordByWord" },
+            defaultValue: true,
+          },
+          {
+            key: "dynamicIslandPlayedColor",
+            type: "color",
+            binding: { store: "settings", path: "system.dynamicIsland.playedColor" },
+            defaultValue: "#ffffff",
+            showAlpha: false,
+          },
+          {
+            key: "dynamicIslandUnplayedColor",
+            type: "color",
+            binding: { store: "settings", path: "system.dynamicIsland.unplayedColor" },
+            defaultValue: "rgba(255, 255, 255, 0.45)",
+          },
+          {
+            key: "dynamicIslandBackgroundColor",
+            type: "color",
+            binding: { store: "settings", path: "system.dynamicIsland.backgroundColor" },
+            defaultValue: "rgba(0, 0, 0, 0.75)",
+          },
+          {
+            key: "dynamicIslandAlwaysOnTop",
+            type: "switch",
+            binding: { store: "settings", path: "system.dynamicIsland.alwaysOnTop" },
+            defaultValue: true,
+          },
+        ],
+      },
+      {
         id: "effectsLayout",
         items: [
           {

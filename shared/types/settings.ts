@@ -81,6 +81,24 @@ export interface DesktopLyricSettings {
   locked: boolean;
 }
 
+/** 灵动岛歌词配置 */
+export interface DynamicIslandSettings {
+  /** 窗口高度（像素），封面与字号跟随该高度自适应 */
+  height: number;
+  /** 字重 */
+  fontWeight: number;
+  /** 逐字高亮 */
+  wordByWord: boolean;
+  /** 已播放颜色 */
+  playedColor: string;
+  /** 未播放颜色 */
+  unplayedColor: string;
+  /** 背景颜色（含透明度） */
+  backgroundColor: string;
+  /** 窗口置顶 */
+  alwaysOnTop: boolean;
+}
+
 /** 音乐库配置 */
 export interface LibrarySettings {
   /** 扫描目录列表 */
@@ -104,10 +122,20 @@ export interface DesktopLyricWindowState {
   y: number | null;
 }
 
+/** 灵动岛窗口几何 */
+export interface DynamicIslandWindowState {
+  /** snapped: 吸附到屏幕顶部居中；floating: 自由位置 */
+  mode: "snapped" | "floating";
+  /** 仅 floating 模式下有效 */
+  x: number | null;
+  y: number | null;
+}
+
 /** 窗口几何状态 */
 export interface WindowStates {
   main: MainWindowState;
   desktopLyric: DesktopLyricWindowState;
+  dynamicIsland: DynamicIslandWindowState;
 }
 
 /** 后端配置汇总 */
@@ -120,6 +148,8 @@ export interface SystemConfig {
   library: LibrarySettings;
   /** 桌面歌词配置 */
   desktopLyric: DesktopLyricSettings;
+  /** 灵动岛歌词配置 */
+  dynamicIsland: DynamicIslandSettings;
   /** 系统配置 */
   system: {
     /** 记忆窗口状态 */

@@ -51,6 +51,7 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, "index.html"),
           "desktop-lyric": resolve(__dirname, "windows/desktop-lyric/index.html"),
+          "dynamic-island": resolve(__dirname, "windows/dynamic-island/index.html"),
         },
       },
     },

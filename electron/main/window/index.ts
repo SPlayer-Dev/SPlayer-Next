@@ -12,3 +12,13 @@ export {
   moveDesktopLyricWindow,
   saveDesktopLyricState,
 } from "./desktopLyric";
+export {
+  createDynamicIslandWindow,
+  closeDynamicIslandWindow,
+  toggleDynamicIslandWindow,
+  getDynamicIslandWindow,
+  applyDynamicIslandAlwaysOnTop,
+  applyDynamicIslandHeight,
+  moveDynamicIslandWindow,
+  saveDynamicIslandState,
+} from "./dynamicIsland";
