@@ -66,7 +66,6 @@ export const useNowPlayingSync = (): {
   /** 应用快照 */
   const applySnapshot = (snap: NowPlayingSnapshot): void => {
     track.value = snap.track;
-    // 桌面歌词只展示主行
     const mainLines = snap.lyric.filter((line) => !line.isBG);
     lyric.value = clampLastLineEnd(mainLines, snap.track?.duration);
     playing.value = snap.playing;
@@ -101,7 +100,7 @@ export const useNowPlayingSync = (): {
       const snap = await window.api.nowPlaying.requestSnapshot();
       applySnapshot(snap);
     } catch (error) {
-      console.error("[desktop-lyric] requestSnapshot failed", error);
+      console.error("[dynamic-island] requestSnapshot failed", error);
     }
 
     unsubscribers.push(

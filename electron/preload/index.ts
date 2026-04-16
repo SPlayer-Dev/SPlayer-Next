@@ -169,6 +169,8 @@ const api = {
     move: (x: number, y: number) => ipcRenderer.send("dynamicIsland:move", x, y),
     // 拖拽结束后保存最终位置；主进程会在落点近顶部时自动吸附回居中
     saveState: () => ipcRenderer.send("dynamicIsland:saveState"),
+    // 渲染端上报目标宽度，主进程立即 resize
+    resize: (width: number) => ipcRenderer.send("dynamicIsland:resize", width),
     // 订阅吸附模式变化：snapped（顶部居中）/ floating（自由位置）
     onModeChange: (callback: (mode: "snapped" | "floating") => void) =>
       subscribe<"snapped" | "floating">("dynamicIsland:modeChange", callback),

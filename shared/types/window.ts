@@ -44,6 +44,8 @@ export interface DynamicIslandApi {
   move: (x: number, y: number) => void;
   /** 拖拽结束后存最终位置；主进程在落点近顶部时会自动吸附回居中 */
   saveState: () => void;
+  /** 渲染端上报目标宽度，主进程立即 resize */
+  resize: (width: number) => void;
   /** 订阅吸附模式变化 */
   onModeChange: (callback: (mode: "snapped" | "floating") => void) => () => void;
 }

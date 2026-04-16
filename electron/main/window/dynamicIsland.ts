@@ -8,21 +8,21 @@ import { setTrayDynamicIsland } from "@main/services/tray";
 
 let dynamicIslandWindow: BrowserWindow | null = null;
 
-/** 固定宽度 */
-const ISLAND_WIDTH = 400;
 /** 高度下限 */
 const MIN_HEIGHT = 28;
 /** 高度上限 */
 const MAX_HEIGHT = 64;
 /** 吸附判定阈值：拖拽释放时距顶部小于此值则重新吸附 */
-const SNAP_THRESHOLD = 24;
+const SNAP_THRESHOLD = 8;
+/** 初始宽度（渲染端上报实际宽度前的占位） */
+const INITIAL_WIDTH = 200;
 
 /**
  * 权威尺寸缓存
  * 所有 setBounds 写宽高都用它，绝不从 getBounds 读尺寸回写
  * 避免 Windows 高 DPI 下 DIP↔物理像素有损回环造成尺寸漂移
  */
-const cachedSize = { width: ISLAND_WIDTH, height: 40 };
+const cachedSize = { width: INITIAL_WIDTH, height: 40 };
 
 /** 将任意数字 clamp 到合法高度区间 */
 const clampHeight = (h: number): number =>
@@ -49,7 +49,7 @@ export const applyDynamicIslandAlwaysOnTop = (alwaysOnTop: boolean): void => {
 };
 
 /**
- * 应用窗口高度：更新权威缓存 + min/max 约束 + 立即 setBounds
+ * 应用窗口高度：更新权威缓存 + 立即 setBounds
  * 吸附态下保持贴屏幕顶部；浮动态保持当前 x/y
  */
 export const applyDynamicIslandHeight = (height: number): void => {
@@ -57,8 +57,6 @@ export const applyDynamicIslandHeight = (height: number): void => {
   if (!win) return;
   const h = clampHeight(height);
   cachedSize.height = h;
-  win.setMinimumSize(cachedSize.width, h);
-  win.setMaximumSize(cachedSize.width, h);
   const saved = store.get("windowStates.dynamicIsland");
   const b = win.getBounds();
   const y = saved.mode === "snapped" ? screen.getDisplayMatching(b).workArea.y : b.y;
@@ -66,8 +64,31 @@ export const applyDynamicIslandHeight = (height: number): void => {
 };
 
 /**
+ * 应用窗口宽度：渲染端上报目标宽度后立即 resize
+ * snapped 模式重算 x 居中；floating 模式保持中心点不变
+ */
+export const applyDynamicIslandWidth = (width: number): void => {
+  const win = getDynamicIslandWindow();
+  if (!win) return;
+  const newWidth = Math.max(1, Math.round(width));
+  const oldWidth = cachedSize.width;
+  cachedSize.width = newWidth;
+  const saved = store.get("windowStates.dynamicIsland");
+  if (saved.mode === "snapped") {
+    const pos = computeSnappedPos();
+    win.setBounds({ x: pos.x, y: pos.y, width: newWidth, height: cachedSize.height });
+  } else {
+    const b = win.getBounds();
+    // 保持中心点不变
+    const centerX = b.x + Math.round(oldWidth / 2);
+    const newX = centerX - Math.round(newWidth / 2);
+    win.setBounds({ x: newX, y: b.y, width: newWidth, height: cachedSize.height });
+  }
+};
+
+/**
  * 移动窗口到指定位置
- * 尺寸始终用权威 cachedSize 写回；拖拽过程保持自由移动（真正吸附在释放时由 saveDynamicIslandState 完成）
+ * 尺寸始终用权威 cachedSize 写回；拖拽过程保持自由移动
  * 过程中根据距顶部距离实时广播视觉 mode，让圆角随拖拽平滑切换
  */
 export const moveDynamicIslandWindow = (x: number, y: number): void => {
@@ -82,7 +103,7 @@ export const moveDynamicIslandWindow = (x: number, y: number): void => {
     width: cachedSize.width,
     height: cachedSize.height,
   });
-  broadcastMode(ty - display.workArea.y <= SNAP_THRESHOLD ? "snapped" : "floating");
+  broadcastMode(ty <= display.workArea.y ? "snapped" : "floating");
 };
 
 /** 当前广播过的吸附模式，用于跨阈值时去抖 */
@@ -128,7 +149,7 @@ export const createDynamicIslandWindow = (): BrowserWindow => {
   const config = store.get("dynamicIsland");
   const saved = store.get("windowStates.dynamicIsland");
 
-  cachedSize.width = ISLAND_WIDTH;
+  cachedSize.width = INITIAL_WIDTH;
   cachedSize.height = clampHeight(config.height);
 
   const initialPos =
@@ -141,10 +162,6 @@ export const createDynamicIslandWindow = (): BrowserWindow => {
     height: cachedSize.height,
     x: initialPos.x,
     y: initialPos.y,
-    minWidth: cachedSize.width,
-    maxWidth: cachedSize.width,
-    minHeight: cachedSize.height,
-    maxHeight: cachedSize.height,
     title: "Dynamic Island",
     frame: false,
     transparent: true,
@@ -169,15 +186,17 @@ export const createDynamicIslandWindow = (): BrowserWindow => {
   }
 
   dynamicIslandWindow.webContents.on("did-finish-load", () => {
-    dynamicIslandWindow?.webContents.setZoomFactor(1.0);
+    if (!dynamicIslandWindow) return;
+    dynamicIslandWindow.webContents.setZoomFactor(1.0);
+    // 重播 mode，修复 HMR 刷新后 mode 丢失
+    const currentSaved = store.get("windowStates.dynamicIsland");
+    lastBroadcastMode = null;
+    broadcastMode(currentSaved.mode === "floating" ? "floating" : "snapped");
   });
-
-  const initialMode: "snapped" | "floating" = saved.mode === "floating" ? "floating" : "snapped";
 
   dynamicIslandWindow.once("ready-to-show", () => {
     if (!dynamicIslandWindow) return;
     dynamicIslandWindow.setAlwaysOnTop(config.alwaysOnTop, "screen-saver");
-    broadcastMode(initialMode);
   });
 
   setTrayDynamicIsland(true);

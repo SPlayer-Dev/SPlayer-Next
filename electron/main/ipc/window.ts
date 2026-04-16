@@ -12,6 +12,7 @@ import {
   getDynamicIslandWindow,
   moveDynamicIslandWindow,
   saveDynamicIslandState,
+  applyDynamicIslandWidth,
 } from "@main/window";
 
 /** 窗口管理 IPC */
@@ -62,5 +63,10 @@ export const registerWindowIpc = (): void => {
   // 灵动岛拖拽结束：主进程判定吸附并持久化
   ipcMain.on("dynamicIsland:saveState", () => {
     saveDynamicIslandState();
+  });
+
+  // 灵动岛宽度变化：渲染端上报目标宽度
+  ipcMain.on("dynamicIsland:resize", (_event, width: number) => {
+    applyDynamicIslandWidth(width);
   });
 };
