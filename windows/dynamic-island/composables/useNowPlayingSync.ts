@@ -2,7 +2,7 @@ import type { Ref, ShallowRef } from "vue";
 import type { LyricLine } from "@shared/types/lyrics";
 import type { NowPlayingSnapshot } from "@shared/types/nowPlaying";
 import type { Track } from "@shared/types/player";
-import { clampLastLineEnd, pickPrimaryIndex } from "@shared/utils/lyricSync";
+import { clampLastLineEnd, pickLatestStartedIndex } from "@shared/utils/lyricSync";
 
 /** 同步偏差阈值 */
 const SYNC_DRIFT_THRESHOLD = 300;
@@ -66,7 +66,6 @@ export const useNowPlayingSync = (): {
   /** 应用快照 */
   const applySnapshot = (snap: NowPlayingSnapshot): void => {
     track.value = snap.track;
-    // 桌面歌词只展示主行
     const mainLines = snap.lyric.filter((line) => !line.isBG);
     lyric.value = clampLastLineEnd(mainLines, snap.track?.duration);
     playing.value = snap.playing;
@@ -78,7 +77,7 @@ export const useNowPlayingSync = (): {
   const syncOnce = (): void => {
     const next = playing.value ? anchorPos + (performance.now() - anchorPerf) : anchorPos;
     currentNowPlayingMs = next;
-    const idx = pickPrimaryIndex(lyric.value, next);
+    const idx = pickLatestStartedIndex(lyric.value, next);
     if (idx !== primaryIndex.value) primaryIndex.value = idx;
   };
 
@@ -101,7 +100,7 @@ export const useNowPlayingSync = (): {
       const snap = await window.api.nowPlaying.requestSnapshot();
       applySnapshot(snap);
     } catch (error) {
-      console.error("[desktop-lyric] requestSnapshot failed", error);
+      console.error("[dynamic-island] requestSnapshot failed", error);
     }
 
     unsubscribers.push(

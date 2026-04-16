@@ -3,7 +3,6 @@ import { broadcast } from "@main/utils/broadcast";
 import { loadThemedIcon } from "@main/utils/icon";
 import { t } from "@main/utils/i18n";
 import { thumbarLog } from "@main/utils/logger";
-import { getMainWindow } from "@main/window/main";
 
 export interface Thumbar {
   clearThumbar(): void;
@@ -88,10 +87,8 @@ class ThumbarImpl implements Thumbar {
 }
 
 /** 初始化缩略图工具栏 */
-export const initThumbar = (): Thumbar | null => {
+export const initThumbar = (win: BrowserWindow): Thumbar | null => {
   if (process.platform !== "win32") return null;
-  const win = getMainWindow();
-  if (!win) return null;
   try {
     thumbarLog.info("初始化缩略图工具栏");
     thumbar = new ThumbarImpl(win);

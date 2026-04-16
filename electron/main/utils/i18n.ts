@@ -12,6 +12,8 @@ interface MainMessages {
   repeatOff: string;
   openDesktopLyric: string;
   closeDesktopLyric: string;
+  openDynamicIsland: string;
+  closeDynamicIsland: string;
   quit: string;
 }
 
@@ -28,6 +30,8 @@ const messages: Record<LocaleCode, MainMessages> = {
     repeatOff: "不循环",
     openDesktopLyric: "开启桌面歌词",
     closeDesktopLyric: "关闭桌面歌词",
+    openDynamicIsland: "开启灵动岛",
+    closeDynamicIsland: "关闭灵动岛",
     quit: "退出",
   },
   "en-US": {
@@ -42,6 +46,8 @@ const messages: Record<LocaleCode, MainMessages> = {
     repeatOff: "No Repeat",
     openDesktopLyric: "Open Desktop Lyric",
     closeDesktopLyric: "Close Desktop Lyric",
+    openDynamicIsland: "Open Dynamic Island",
+    closeDynamicIsland: "Close Dynamic Island",
     quit: "Quit",
   },
 };

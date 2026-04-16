@@ -5,6 +5,7 @@ import StorageManager from "@/components/settings/custom/StorageManager.vue";
 import IconLucideCog from "~icons/lucide/cog";
 import IconLucidePlay from "~icons/lucide/play";
 import IconLucideMic2 from "~icons/lucide/mic-2";
+import IconLucideMonitor from "~icons/lucide/monitor";
 import IconLucidePalette from "~icons/lucide/palette";
 import IconLucideGlobe from "~icons/lucide/globe";
 
@@ -293,6 +294,50 @@ export const settingsSchema: SettingCategory[] = [
         ],
       },
       {
+        id: "effectsLayout",
+        items: [
+          {
+            key: "alignPosition",
+            type: "slider",
+            binding: { store: "settings", path: "lyric.alignPosition" },
+            min: 0.1,
+            max: 0.9,
+            step: 0.05,
+            defaultValue: 0.35,
+            disabled: () => useSettingsStore().lyric.lyricMode !== "effects",
+            marks: { 0.1: "0.1", 0.35: "0.35", 0.9: "0.9" },
+          },
+          {
+            key: "wordFadeWidth",
+            type: "slider",
+            binding: { store: "settings", path: "lyric.wordFadeWidth" },
+            min: 0.1,
+            max: 1,
+            step: 0.1,
+            defaultValue: 0.5,
+            disabled: () => useSettingsStore().lyric.lyricMode !== "effects",
+            marks: { 0.1: "0.1", 0.5: "0.5", 1: "1" },
+          },
+          {
+            key: "inactiveAlpha",
+            type: "slider",
+            binding: { store: "settings", path: "lyric.inactiveAlpha" },
+            min: 0,
+            max: 1,
+            step: 0.05,
+            defaultValue: 0.2,
+            disabled: () => useSettingsStore().lyric.lyricMode !== "effects",
+            marks: { 0: "0", 0.2: "0.2", 1: "1" },
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "externalLyric",
+    icon: IconLucideMonitor,
+    sections: [
+      {
         id: "desktopLyric",
         items: [
           {
@@ -424,40 +469,88 @@ export const settingsSchema: SettingCategory[] = [
         ],
       },
       {
-        id: "effectsLayout",
+        id: "dynamicIsland",
         items: [
           {
-            key: "alignPosition",
-            type: "slider",
-            binding: { store: "settings", path: "lyric.alignPosition" },
-            min: 0.1,
-            max: 0.9,
-            step: 0.05,
-            defaultValue: 0.35,
-            disabled: () => useSettingsStore().lyric.lyricMode !== "effects",
-            marks: { 0.1: "0.1", 0.35: "0.35", 0.9: "0.9" },
+            key: "dynamicIslandEnabled",
+            type: "switch",
+            binding: { store: "settings", path: "isDynamicIslandOpen" },
+            defaultValue: false,
           },
           {
-            key: "wordFadeWidth",
+            key: "dynamicIslandScale",
             type: "slider",
-            binding: { store: "settings", path: "lyric.wordFadeWidth" },
-            min: 0.1,
-            max: 1,
-            step: 0.1,
-            defaultValue: 0.5,
-            disabled: () => useSettingsStore().lyric.lyricMode !== "effects",
-            marks: { 0.1: "0.1", 0.5: "0.5", 1: "1" },
+            binding: { store: "settings", path: "system.dynamicIsland.scale" },
+            min: 0.5,
+            max: 2,
+            step: 0.05,
+            defaultValue: 1,
+            marks: { 0.5: "50%", 1: "100%", 2: "200%" },
           },
           {
-            key: "inactiveAlpha",
+            key: "dynamicIslandFontWeight",
             type: "slider",
-            binding: { store: "settings", path: "lyric.inactiveAlpha" },
-            min: 0,
-            max: 1,
-            step: 0.05,
-            defaultValue: 0.2,
-            disabled: () => useSettingsStore().lyric.lyricMode !== "effects",
-            marks: { 0: "0", 0.2: "0.2", 1: "1" },
+            binding: { store: "settings", path: "system.dynamicIsland.fontWeight" },
+            min: 100,
+            max: 900,
+            step: 100,
+            defaultValue: 500,
+            marks: { 100: "100", 500: "500", 900: "900" },
+          },
+          {
+            key: "dynamicIslandWordByWord",
+            type: "switch",
+            binding: { store: "settings", path: "system.dynamicIsland.wordByWord" },
+            defaultValue: true,
+          },
+          {
+            key: "dynamicIslandDoubleLine",
+            type: "switch",
+            binding: { store: "settings", path: "system.dynamicIsland.doubleLine" },
+            defaultValue: false,
+          },
+          {
+            key: "dynamicIslandShowTranslation",
+            type: "switch",
+            binding: { store: "settings", path: "system.dynamicIsland.showTranslation" },
+            defaultValue: false,
+          },
+          {
+            key: "dynamicIslandPlayedColor",
+            type: "color",
+            binding: { store: "settings", path: "system.dynamicIsland.playedColor" },
+            defaultValue: "rgba(255, 255, 255, 1)",
+            showAlpha: false,
+          },
+          {
+            key: "dynamicIslandUnplayedColor",
+            type: "color",
+            binding: { store: "settings", path: "system.dynamicIsland.unplayedColor" },
+            defaultValue: "rgba(255, 255, 255, 0.5)",
+          },
+          {
+            key: "dynamicIslandBackgroundColor",
+            type: "color",
+            binding: { store: "settings", path: "system.dynamicIsland.backgroundColor" },
+            defaultValue: "rgba(0, 0, 0, 1)",
+          },
+          {
+            key: "dynamicIslandAlwaysOnTop",
+            type: "switch",
+            binding: { store: "settings", path: "system.dynamicIsland.alwaysOnTop" },
+            defaultValue: true,
+          },
+          {
+            key: "dynamicIslandSnapCentered",
+            type: "switch",
+            binding: { store: "settings", path: "system.dynamicIsland.snapCentered" },
+            defaultValue: true,
+          },
+          {
+            key: "dynamicIslandNonOcclusive",
+            type: "switch",
+            binding: { store: "settings", path: "system.dynamicIsland.nonOcclusive" },
+            defaultValue: false,
           },
         ],
       },

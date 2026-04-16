@@ -115,6 +115,7 @@
       "general": "General",
       "player": "Player",
       "lyric": "Lyrics",
+      "externalLyric": "External Lyrics",
       "appearance": "Appearance",
       "services": "Services"
     },
@@ -127,6 +128,7 @@
       "effectsSpring": "Spring Animation",
       "effectsLayout": "Layout & Opacity",
       "desktopLyric": "Desktop Lyric",
+      "dynamicIsland": "Dynamic Island Lyric",
       "theme": "Theme",
       "layout": "Layout",
       "media": "Media Controls",
@@ -330,6 +332,54 @@
     "desktopLyricLocked": {
       "label": "Lock Window",
       "description": "Make window click-through and non-draggable"
+    },
+    "dynamicIslandEnabled": {
+      "label": "Enable Dynamic Island",
+      "description": "Show a compact floating lyric window at the top of the screen; drag it anywhere"
+    },
+    "dynamicIslandScale": {
+      "label": "Scale",
+      "description": "Scale window height and font size together; 100% is the default size"
+    },
+    "dynamicIslandFontWeight": {
+      "label": "Font Weight",
+      "description": "Lyric text weight in the Dynamic Island"
+    },
+    "dynamicIslandWordByWord": {
+      "label": "Word Highlight",
+      "description": "Render progressive word-by-word highlight"
+    },
+    "dynamicIslandDoubleLine": {
+      "label": "Always Two Lines",
+      "description": "Keep two-line layout even when no translation is available"
+    },
+    "dynamicIslandShowTranslation": {
+      "label": "Show Translation",
+      "description": "Show translation as the secondary line when available"
+    },
+    "dynamicIslandPlayedColor": {
+      "label": "Played Color",
+      "description": "Color of already-sung lyric text"
+    },
+    "dynamicIslandUnplayedColor": {
+      "label": "Unplayed Color",
+      "description": "Color of upcoming lyric text and artist name"
+    },
+    "dynamicIslandBackgroundColor": {
+      "label": "Background Color",
+      "description": "Background color and opacity of the island"
+    },
+    "dynamicIslandAlwaysOnTop": {
+      "label": "Always On Top",
+      "description": "Keep the Dynamic Island window above others"
+    },
+    "dynamicIslandSnapCentered": {
+      "label": "Center When Snapped",
+      "description": "When off, snapping to the top keeps the dragged horizontal position"
+    },
+    "dynamicIslandNonOcclusive": {
+      "label": "Non-Occlusive Mode",
+      "description": "Click-through window; hide on hover"
     },
     "playerBgType": {
       "label": "Player Background",

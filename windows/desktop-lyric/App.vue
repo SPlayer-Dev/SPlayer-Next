@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { TransitionGroup } from "vue";
 import type { DesktopLyricSettings } from "@shared/types/settings";
-import LyricLineView from "./components/LyricLine.vue";
+import LyricLine from "./components/LyricLine.vue";
 import {
   makePlaceholderLine,
   getLineTop,
@@ -34,7 +34,7 @@ const config = reactive<DesktopLyricSettings>({
   locked: false,
 });
 
-const { track, lyric, playing, currentMs, primaryIndex } = useNowPlayingSync();
+const { track, lyric, playing, primaryIndex } = useNowPlayingSync();
 const { onRootPointerDown } = useDragWindow(() => config.locked);
 const { isHovered } = useHoverState();
 
@@ -153,7 +153,7 @@ const onHeaderAction = (
       window.api.player.dispatch(playing.value ? "pause" : "play");
       break;
     case "open-settings":
-      window.api.system.openSettings("lyric", "desktopLyricEnabled").catch(() => {});
+      window.api.system.openSettings("externalLyric", "desktopLyricEnabled").catch(() => {});
       break;
     case "toggle-locked":
       window.api.config.set("desktopLyric.locked", !config.locked).catch(() => {});
@@ -280,11 +280,10 @@ onBeforeUnmount(() => {
       name="dl-line"
       class="stage"
     >
-      <LyricLineView
+      <LyricLine
         v-for="(item, index) in displayItems"
         :key="item.key"
         :line="item.line"
-        :current-ms="currentMs"
         :font-size="item.isNext ? Math.round(config.fontSize * 0.8) : config.fontSize"
         :font-weight="config.fontWeight"
         :align="item.align"

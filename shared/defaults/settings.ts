@@ -1,5 +1,13 @@
 import type { SystemConfig } from "../types/settings";
 
+/**
+ * 灵动岛基准高度（缩放比例 = 1 时的物理像素，等于"主行高度")
+ * 主行高度 = DYNAMIC_ISLAND_BASE_HEIGHT * scale
+ * 双行模式下窗口最终高度 = 主行高度 + 副行高度
+ * 主进程按渲染端上报的最终高度 setBounds
+ */
+export const DYNAMIC_ISLAND_BASE_HEIGHT = 40;
+
 /** 默认配置 */
 export const defaultSystemConfig: SystemConfig = {
   player: {
@@ -30,8 +38,8 @@ export const defaultSystemConfig: SystemConfig = {
     align: "center",
     wordByWord: true,
     autoGenerateWordByWord: true,
-    playedColor: "#ffffff",
-    unplayedColor: "#7d7d7d",
+    playedColor: "rgb(254, 121, 113)",
+    unplayedColor: "rgb(255, 255, 255)",
     strokeColor: "rgba(0, 0, 0, 0.5)",
     backgroundMask: false,
     backgroundMaskColor: "rgba(0, 0, 0, 0.3)",
@@ -40,6 +48,19 @@ export const defaultSystemConfig: SystemConfig = {
     animation: true,
     alwaysOnTop: true,
     locked: false,
+  },
+  dynamicIsland: {
+    scale: 1,
+    fontWeight: 500,
+    wordByWord: true,
+    playedColor: "rgba(255, 255, 255, 1)",
+    unplayedColor: "rgba(255, 255, 255, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 1)",
+    alwaysOnTop: true,
+    snapCentered: true,
+    nonOcclusive: false,
+    doubleLine: false,
+    showTranslation: false,
   },
   system: {
     rememberWindowState: true,
@@ -56,6 +77,11 @@ export const defaultSystemConfig: SystemConfig = {
     desktopLyric: {
       width: 800,
       height: 200,
+      x: null,
+      y: null,
+    },
+    dynamicIsland: {
+      mode: "snapped",
       x: null,
       y: null,
     },

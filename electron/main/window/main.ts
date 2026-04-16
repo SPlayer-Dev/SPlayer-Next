@@ -36,9 +36,12 @@ export const createMainWindow = (): BrowserWindow => {
     mainWindow.maximize();
   }
 
+  // 初始化托盘
+  initTray();
+
+  // 缩略图工具栏
   mainWindow.once("ready-to-show", () => {
-    initThumbar();
-    initTray();
+    initThumbar(mainWindow!);
   });
 
   // 保存窗口状态
