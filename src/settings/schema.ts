@@ -519,20 +519,20 @@ export const settingsSchema: SettingCategory[] = [
             key: "dynamicIslandPlayedColor",
             type: "color",
             binding: { store: "settings", path: "system.dynamicIsland.playedColor" },
-            defaultValue: "#ffffff",
+            defaultValue: "rgba(255, 255, 255, 1)",
             showAlpha: false,
           },
           {
             key: "dynamicIslandUnplayedColor",
             type: "color",
             binding: { store: "settings", path: "system.dynamicIsland.unplayedColor" },
-            defaultValue: "rgba(255, 255, 255, 0.45)",
+            defaultValue: "rgba(255, 255, 255, 0.5)",
           },
           {
             key: "dynamicIslandBackgroundColor",
             type: "color",
             binding: { store: "settings", path: "system.dynamicIsland.backgroundColor" },
-            defaultValue: "rgba(0, 0, 0, 0.75)",
+            defaultValue: "rgba(0, 0, 0, 1)",
           },
           {
             key: "dynamicIslandAlwaysOnTop",
