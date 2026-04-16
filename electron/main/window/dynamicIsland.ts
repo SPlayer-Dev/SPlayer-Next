@@ -274,7 +274,12 @@ export const saveDynamicIslandState = (): void => {
       // 保留拖到的水平位置；存中心点而非左上角，让后续宽度变化围绕中心点对称伸缩
       const clampedLeftX = Math.max(wa.x, Math.min(wa.x + wa.width - cachedSize.width, b.x));
       const centerX = clampedLeftX + Math.round(cachedSize.width / 2);
-      win.setBounds({ x: clampedLeftX, y: wa.y, width: cachedSize.width, height: cachedSize.height });
+      win.setBounds({
+        x: clampedLeftX,
+        y: wa.y,
+        width: cachedSize.width,
+        height: cachedSize.height,
+      });
       store.set("windowStates.dynamicIsland", { mode: "snapped", x: centerX, y: wa.y });
     }
     broadcastMode("snapped");

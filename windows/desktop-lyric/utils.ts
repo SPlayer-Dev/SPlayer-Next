@@ -89,4 +89,3 @@ export const resolveWordByWord = (
   if (config.autoGenerateWordByWord) return true;
   return hasRealWordTiming(item.line);
 };
-
