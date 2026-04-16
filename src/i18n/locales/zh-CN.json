@@ -337,9 +337,9 @@
       "label": "开启灵动岛",
       "description": "在屏幕顶部显示一个简洁的悬浮歌词窗口，可拖离至任意位置"
     },
-    "dynamicIslandHeight": {
-      "label": "窗口高度",
-      "description": "灵动岛窗口高度（像素），封面与字号跟随自适应"
+    "dynamicIslandScale": {
+      "label": "缩放比例",
+      "description": "窗口高度与字号同步缩放，100% 为默认大小"
     },
     "dynamicIslandFontWeight": {
       "label": "字重",
@@ -348,6 +348,14 @@
     "dynamicIslandWordByWord": {
       "label": "逐字高亮",
       "description": "按单词进度逐字渲染高亮"
+    },
+    "dynamicIslandDoubleLine": {
+      "label": "总是显示双行",
+      "description": "即使没有翻译可用也保持双行布局"
+    },
+    "dynamicIslandShowTranslation": {
+      "label": "显示翻译",
+      "description": "有翻译的句子在副行显示翻译"
     },
     "dynamicIslandPlayedColor": {
       "label": "已播放颜色",

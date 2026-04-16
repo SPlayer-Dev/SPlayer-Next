@@ -1,5 +1,13 @@
 import type { SystemConfig } from "../types/settings";
 
+/**
+ * 灵动岛基准高度（缩放比例 = 1 时的物理像素，等于"主行高度")
+ * 主行高度 = DYNAMIC_ISLAND_BASE_HEIGHT * scale
+ * 双行模式下窗口最终高度 = 主行高度 + 副行高度
+ * 主进程按渲染端上报的最终高度 setBounds
+ */
+export const DYNAMIC_ISLAND_BASE_HEIGHT = 40;
+
 /** 默认配置 */
 export const defaultSystemConfig: SystemConfig = {
   player: {
@@ -42,7 +50,7 @@ export const defaultSystemConfig: SystemConfig = {
     locked: false,
   },
   dynamicIsland: {
-    height: 40,
+    scale: 1,
     fontWeight: 500,
     wordByWord: true,
     playedColor: "#rgba(255, 255, 255, 1)",
@@ -51,6 +59,8 @@ export const defaultSystemConfig: SystemConfig = {
     alwaysOnTop: true,
     snapCentered: true,
     nonOcclusive: false,
+    doubleLine: false,
+    showTranslation: false,
   },
   system: {
     rememberWindowState: true,

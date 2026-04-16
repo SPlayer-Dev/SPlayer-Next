@@ -5,13 +5,14 @@ import { createWindow } from "./create";
 import { store } from "@main/store";
 import { broadcast } from "@main/utils/broadcast";
 import { setTrayDynamicIsland } from "@main/services/tray";
+import { DYNAMIC_ISLAND_BASE_HEIGHT } from "@shared/defaults/settings";
 
 let dynamicIslandWindow: BrowserWindow | null = null;
 
-/** 高度下限 */
-const MIN_HEIGHT = 28;
-/** 高度上限 */
-const MAX_HEIGHT = 64;
+/** 高度安全边界：渲染端上报值受这里 clamp，避免极端值导致窗口异常 */
+const MIN_HEIGHT = 14;
+/** 高度上限：覆盖 200% 缩放主行（80px）+ 后续双行副行余量，留足安全空间 */
+const MAX_HEIGHT = 200;
 /** 吸附判定阈值：拖拽释放时距顶部小于此值则重新吸附 */
 const SNAP_THRESHOLD = 8;
 /** 初始宽度（渲染端上报实际宽度前的占位） */
@@ -167,7 +168,8 @@ export const applyDynamicIslandSnapCentered = (snapCentered: boolean): void => {
 };
 
 /**
- * 应用窗口高度：更新权威缓存 + 立即 setBounds
+ * 应用窗口高度：渲染端上报"基准高度 × 缩放（× 行数）"算出的最终高度
+ * 主进程仅做安全 clamp，不再硬编码具体值
  * 吸附态走 computeSnappedPos 复用居中/保留水平位置策略；浮动态保持当前 x/y
  */
 export const applyDynamicIslandHeight = (height: number): void => {
@@ -293,7 +295,8 @@ export const createDynamicIslandWindow = (): BrowserWindow => {
   const saved = store.get("windowStates.dynamicIsland");
 
   cachedSize.width = INITIAL_WIDTH;
-  cachedSize.height = clampHeight(config.height);
+  // 初始高度按基准 × 缩放估算；渲染端起来后会通过 setHeight 上报实际值（含双行等）
+  cachedSize.height = clampHeight(DYNAMIC_ISLAND_BASE_HEIGHT * config.scale);
 
   let initialPos: { x: number; y: number };
   if (saved.mode === "floating" && saved.x !== null && saved.y !== null) {

@@ -12,7 +12,6 @@ import {
   applyDesktopLyricLock,
   applyDesktopLyricAlwaysOnTop,
   applyDynamicIslandAlwaysOnTop,
-  applyDynamicIslandHeight,
   applyDynamicIslandSnapCentered,
   applyDynamicIslandNonOcclusive,
 } from "@main/window";
@@ -43,9 +42,6 @@ const applyConfigChange = (keyPath: string, value: unknown): void => {
       break;
     case "dynamicIsland.alwaysOnTop":
       applyDynamicIslandAlwaysOnTop(value as boolean);
-      break;
-    case "dynamicIsland.height":
-      applyDynamicIslandHeight(value as number);
       break;
     case "dynamicIsland.snapCentered":
       applyDynamicIslandSnapCentered(value as boolean);

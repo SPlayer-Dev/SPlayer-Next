@@ -171,6 +171,8 @@ const api = {
     saveState: () => ipcRenderer.send("dynamicIsland:saveState"),
     // 渲染端上报目标宽度，主进程立即 resize
     resize: (width: number) => ipcRenderer.send("dynamicIsland:resize", width),
+    // 渲染端上报目标高度
+    setHeight: (height: number) => ipcRenderer.send("dynamicIsland:setHeight", height),
     // 查询当前吸附模式
     getMode: () => ipcRenderer.invoke("dynamicIsland:getMode"),
     // 订阅吸附模式变化：snapped（顶部居中）/ floating（自由位置）

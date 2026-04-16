@@ -99,7 +99,6 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .dl-line {
-  height: 100%;
   display: flex;
   align-items: center;
   white-space: nowrap;
@@ -125,6 +124,6 @@ onBeforeUnmount(() => {
 }
 .dl-static {
   display: inline-block;
-  color: var(--di-unplayed);
+  color: var(--di-played);
 }
 </style>

@@ -83,8 +83,8 @@ export interface DesktopLyricSettings {
 
 /** 灵动岛歌词配置 */
 export interface DynamicIslandSettings {
-  /** 窗口高度（像素），封面与字号跟随该高度自适应 */
-  height: number;
+  /** 缩放比例（0.5 ~ 2.0），1 = 100%；实际窗口高度由渲染端按基准高度 × 缩放算出 */
+  scale: number;
   /** 字重 */
   fontWeight: number;
   /** 逐字高亮 */
@@ -101,6 +101,10 @@ export interface DynamicIslandSettings {
   snapCentered: boolean;
   /** 非遮挡模式 */
   nonOcclusive: boolean;
+  /** 总是双行 */
+  doubleLine: boolean;
+  /** 显示翻译 */
+  showTranslation: boolean;
 }
 
 /** 音乐库配置 */

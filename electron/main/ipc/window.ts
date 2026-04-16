@@ -14,6 +14,7 @@ import {
   moveDynamicIslandWindow,
   saveDynamicIslandState,
   applyDynamicIslandWidth,
+  applyDynamicIslandHeight,
 } from "@main/window";
 
 /** 窗口管理 IPC */
@@ -69,6 +70,11 @@ export const registerWindowIpc = (): void => {
   // 灵动岛宽度变化：渲染端上报目标宽度
   ipcMain.on("dynamicIsland:resize", (_event, width: number) => {
     applyDynamicIslandWidth(width);
+  });
+
+  // 灵动岛高度变化
+  ipcMain.on("dynamicIsland:setHeight", (_event, height: number) => {
+    applyDynamicIslandHeight(height);
   });
 
   // 灵动岛查询当前吸附模式（HMR 后渲染端主动拉取）

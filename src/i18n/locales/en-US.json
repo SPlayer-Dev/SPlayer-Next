@@ -337,9 +337,9 @@
       "label": "Enable Dynamic Island",
       "description": "Show a compact floating lyric window at the top of the screen; drag it anywhere"
     },
-    "dynamicIslandHeight": {
-      "label": "Window Height",
-      "description": "Dynamic Island window height in pixels; cover and font size scale with it"
+    "dynamicIslandScale": {
+      "label": "Scale",
+      "description": "Scale window height and font size together; 100% is the default size"
     },
     "dynamicIslandFontWeight": {
       "label": "Font Weight",
@@ -348,6 +348,14 @@
     "dynamicIslandWordByWord": {
       "label": "Word Highlight",
       "description": "Render progressive word-by-word highlight"
+    },
+    "dynamicIslandDoubleLine": {
+      "label": "Always Two Lines",
+      "description": "Keep two-line layout even when no translation is available"
+    },
+    "dynamicIslandShowTranslation": {
+      "label": "Show Translation",
+      "description": "Show translation as the secondary line when available"
     },
     "dynamicIslandPlayedColor": {
       "label": "Played Color",

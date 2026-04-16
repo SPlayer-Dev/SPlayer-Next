@@ -46,6 +46,8 @@ export interface DynamicIslandApi {
   saveState: () => void;
   /** 渲染端上报目标宽度，主进程立即 resize */
   resize: (width: number) => void;
+  /** 渲染端上报目标高度 */
+  setHeight: (height: number) => void;
   /** 查询当前吸附模式（HMR 后主进程不会主动重发，需主动拉取） */
   getMode: () => Promise<"snapped" | "floating">;
   /** 订阅吸附模式变化 */
