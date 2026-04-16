@@ -194,6 +194,14 @@ watch([() => config.doubleLine, () => config.showTranslation], () => {
   resizeWindow(targetPx);
 });
 
+/* 尺寸/字重变化：重测宽度，不走 swap 动画 */
+watch([() => config.scale, () => config.fontWeight], () => {
+  if (phase !== "idle") return;
+  const targetPx = measureTarget();
+  lyricWidth.value = targetPx;
+  resizeWindow(targetPx);
+});
+
 /* 歌词变化 */
 watch([currentLine, fallbackText], () => {
   const newLine = currentLine.value;

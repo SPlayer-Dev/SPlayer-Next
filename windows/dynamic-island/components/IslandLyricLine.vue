@@ -51,33 +51,48 @@ const resetRenderCache = (): void => {
 };
 
 const renderFrame = (): void => {
-  if (props.wordByWord) {
-    const currentMs = getNowPlayingCurrentMs();
-    for (let i = 0; i < props.line.words.length; i++) {
-      const el = wordRefs[i];
-      if (!el) continue;
-      const progress = getWordProgress(props.line.words[i], currentMs);
-      if (lastWordProgress[i] !== progress) {
-        lastWordProgress[i] = progress;
-        el.style.setProperty("--p", progress);
-      }
+  if (!props.wordByWord) {
+    rafId = 0;
+    return;
+  }
+  const currentMs = getNowPlayingCurrentMs();
+  for (let i = 0; i < props.line.words.length; i++) {
+    const el = wordRefs[i];
+    if (!el) continue;
+    const progress = getWordProgress(props.line.words[i], currentMs);
+    if (lastWordProgress[i] !== progress) {
+      lastWordProgress[i] = progress;
+      el.style.setProperty("--p", progress);
     }
   }
   rafId = requestAnimationFrame(renderFrame);
 };
 
-watch(() => [props.wordByWord, props.line], resetRenderCache);
+const startRenderLoop = (): void => {
+  if (rafId === 0 && props.wordByWord) {
+    rafId = requestAnimationFrame(renderFrame);
+  }
+};
 
-onMounted(() => {
-  renderFrame();
-});
-
-onBeforeUnmount(() => {
+const stopRenderLoop = (): void => {
   if (rafId !== 0) {
     cancelAnimationFrame(rafId);
     rafId = 0;
   }
-});
+};
+
+watch(
+  () => props.wordByWord,
+  (enabled) => {
+    resetRenderCache();
+    if (enabled) startRenderLoop();
+    else stopRenderLoop();
+  },
+);
+watch(() => props.line, resetRenderCache);
+
+onMounted(startRenderLoop);
+onBeforeUnmount(stopRenderLoop);
 </script>
 
 <template>
