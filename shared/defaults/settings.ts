@@ -39,7 +39,7 @@ export const defaultSystemConfig: SystemConfig = {
     wordByWord: true,
     autoGenerateWordByWord: true,
     playedColor: "rgb(254, 121, 113)",
-    unplayedColor: "#rgb(255, 255, 255)",
+    unplayedColor: "rgb(255, 255, 255)",
     strokeColor: "rgba(0, 0, 0, 0.5)",
     backgroundMask: false,
     backgroundMaskColor: "rgba(0, 0, 0, 0.3)",
