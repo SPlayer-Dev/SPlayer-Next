@@ -30,4 +30,5 @@ export {
   closeTaskbarLyricWindow,
   toggleTaskbarLyricWindow,
   getTaskbarLyricWindow,
+  applyTaskbarLyricLayout,
 } from "./taskbarLyric";

@@ -393,6 +393,14 @@
       "left": "Left",
       "right": "Right"
     },
+    "taskbarLyricAutoMaxWidth": {
+      "label": "Auto Width",
+      "description": "When enabled, fill the available taskbar space; otherwise limit to Max Width below"
+    },
+    "taskbarLyricMaxWidth": {
+      "label": "Max Width",
+      "description": "Capped by available space to avoid squeezing"
+    },
     "playerBgType": {
       "label": "Player Background",
       "description": "Background type of the full-screen player",

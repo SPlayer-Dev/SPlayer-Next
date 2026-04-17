@@ -4,6 +4,7 @@ import { is } from "@electron-toolkit/utils";
 import { createWindow } from "./create";
 import { loadNativeModule } from "@main/utils/nativeLoader";
 import { broadcast } from "@main/utils/broadcast";
+import { setTrayTaskbarLyric } from "@main/services/tray";
 import { store } from "@main/store";
 import type { TaskbarLyricPosition } from "@shared/types/settings";
 import log from "electron-log";
@@ -48,33 +49,46 @@ let registryWatcher: WatcherInstance | null = null;
 let uiaWatcher: WatcherInstance | null = null;
 let trayWatcher: WatcherInstance | null = null;
 
-/** 当前歌词显示的期望宽度（像素） */
-let currentWidth = 300;
+/** 当前歌词显示的期望宽度（像素），用于触发 Rust 侧布局计算 */
+const currentWidth = 300;
 
 /** 获取窗口实例 */
 export const getTaskbarLyricWindow = (): BrowserWindow | null =>
   taskbarLyricWindow && !taskbarLyricWindow.isDestroyed() ? taskbarLyricWindow : null;
 
-/** 根据位置设置和任务栏对齐方式选择使用哪侧空间 */
-const pickSpace = (layout: JsTaskbarLayout): JsRect | null => {
+/** 选择锚定模式：left = 空间左边缘，right = 空间右边缘 */
+type AnchorSide = "left" | "right";
+
+interface PickedSpace {
+  rect: JsRect;
+  anchor: AnchorSide;
+}
+
+/** 根据设置和任务栏对齐方式选择使用哪侧空间以及锚定方向 */
+const pickSpace = (layout: JsTaskbarLayout): PickedSpace | null => {
   const position: TaskbarLyricPosition = store.get("taskbarLyric.position") ?? "auto";
   const { left, right } = layout.space;
   const isCentered = layout.extra.isCentered;
 
-  if (position === "left" && left.width > 0) return left;
-  if (position === "right" && right.width > 0) return right;
+  // left 模式：歌词紧贴内容（widgets/开始按钮）右侧 = 空间左锚定
+  if (position === "left" && left.width > 0) return { rect: left, anchor: "left" };
+  // right 模式：歌词紧贴托盘左侧 = 空间右锚定
+  if (position === "right" && right.width > 0) return { rect: right, anchor: "right" };
 
   if (position === "auto") {
     if (isCentered) {
-      // 居中任务栏：选空间大的一侧
-      return left.width >= right.width ? left : right;
+      // 居中任务栏：选空间大的一侧，并锚定到靠近边缘的一侧
+      if (left.width >= right.width) return { rect: left, anchor: "left" };
+      return { rect: right, anchor: "right" };
     }
-    // 左对齐任务栏：歌词放右侧
-    return right.width > 0 ? right : left;
+    // 左对齐任务栏：歌词放右侧空间，锚定右边缘
+    return right.width > 0 ? { rect: right, anchor: "right" } : { rect: left, anchor: "left" };
   }
 
-  // 指定侧没空间，回退到有空间的一侧
-  return right.width > 0 ? right : left.width > 0 ? left : null;
+  // 指定侧没空间，按另一侧回退
+  if (right.width > 0) return { rect: right, anchor: "right" };
+  if (left.width > 0) return { rect: left, anchor: "left" };
+  return null;
 };
 
 /** 应用布局——将 Rust 返回的坐标设置到窗口 */
@@ -82,24 +96,44 @@ const applyLayout = (layout: JsTaskbarLayout): void => {
   const win = getTaskbarLyricWindow();
   if (!win) return;
 
-  const space = pickSpace(layout);
-  if (!space || space.width <= 0 || space.height <= 0) return;
+  const picked = pickSpace(layout);
+  if (!picked) return;
+  const { rect, anchor } = picked;
+  if (rect.width <= 0 || rect.height <= 0) return;
 
-  // Rust 返回的是物理像素坐标（相对于任务栏父窗口）
-  // setBounds 使用逻辑像素（DIP），需要用屏幕 scaleFactor 转换
+  // Rust 返回物理像素，setBounds 用逻辑像素（DIP），需按屏幕 scaleFactor 转换
   const display = screen.getPrimaryDisplay();
   const dpi = display.scaleFactor;
+
+  // 将可用区域从物理像素转为逻辑像素
+  const availWidthLogical = Math.round(rect.width / dpi);
+  const availXLogical = Math.round(rect.x / dpi);
+  const availYLogical = Math.round(rect.y / dpi);
+  const availHeightLogical = Math.round(rect.height / dpi);
+
+  // autoMaxWidth 开启时占满可用空间，关闭时按 maxWidth 限制（永不超出可用空间）
+  const autoMaxWidth = store.get("taskbarLyric.autoMaxWidth") ?? true;
+  const maxWidth = store.get("taskbarLyric.maxWidth") ?? 400;
+  const windowWidth = autoMaxWidth
+    ? availWidthLogical
+    : Math.min(maxWidth, availWidthLogical);
+
+  // 按 anchor 决定窗口 x：左锚 = 空间左边缘，右锚 = 空间右边缘对齐
+  const windowX =
+    anchor === "right" ? availXLogical + availWidthLogical - windowWidth : availXLogical;
+
   win.setBounds({
-    x: Math.round(space.x / dpi),
-    y: Math.round(space.y / dpi),
-    width: Math.round(space.width / dpi),
-    height: Math.round(space.height / dpi),
+    x: windowX,
+    y: availYLogical,
+    width: windowWidth,
+    height: availHeightLogical,
   });
 
   // 通知渲染端布局信息
   win.webContents.send("taskbarLyric:layout", {
     isCentered: layout.extra.isCentered,
     systemType: layout.extra.systemType,
+    anchor,
   });
 };
 
@@ -139,6 +173,9 @@ export const createTaskbarLyricWindow = (): BrowserWindow | null => {
   taskbarLyricWindow = createWindow({
     width: currentWidth,
     height: 40,
+    // 覆盖默认窗口 minWidth/minHeight（800/600），否则 setBounds 会被撑成大窗口
+    minWidth: 0,
+    minHeight: 0,
     type: "toolbar",
     title: "Taskbar Lyric",
     frame: false,
@@ -204,9 +241,11 @@ export const createTaskbarLyricWindow = (): BrowserWindow | null => {
   taskbarLyricWindow.on("closed", () => {
     taskbarLyricWindow = null;
     cleanupWatchers();
+    setTrayTaskbarLyric(false);
     broadcast("taskbarLyric:visibilityChange", false);
   });
 
+  setTrayTaskbarLyric(true);
   broadcast("taskbarLyric:visibilityChange", true);
   return taskbarLyricWindow;
 };
@@ -230,6 +269,7 @@ export const closeTaskbarLyricWindow = (): void => {
   }
   taskbarLyricWindow = null;
   cleanupWatchers();
+  setTrayTaskbarLyric(false);
   broadcast("taskbarLyric:visibilityChange", false);
 };
 
@@ -240,4 +280,9 @@ export const toggleTaskbarLyricWindow = (): void => {
   } else {
     createTaskbarLyricWindow();
   }
+};
+
+/** 触发一次布局重算——配置变更后调用 */
+export const applyTaskbarLyricLayout = (): void => {
+  service?.update(currentWidth);
 };

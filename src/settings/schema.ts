@@ -576,6 +576,32 @@ export const settingsSchema: SettingCategory[] = [
                   ],
                   defaultValue: "auto",
                 },
+                {
+                  key: "taskbarLyricAutoMaxWidth",
+                  type: "switch" as const,
+                  binding: {
+                    store: "settings" as const,
+                    path: "system.taskbarLyric.autoMaxWidth",
+                  },
+                  defaultValue: true,
+                  childrenCondition: () =>
+                    useSettingsStore().system.taskbarLyric.autoMaxWidth === false,
+                  children: [
+                    {
+                      key: "taskbarLyricMaxWidth",
+                      type: "slider" as const,
+                      binding: {
+                        store: "settings" as const,
+                        path: "system.taskbarLyric.maxWidth",
+                      },
+                      min: 200,
+                      max: 800,
+                      step: 20,
+                      defaultValue: 400,
+                      marks: { 200: "200", 400: "400", 800: "800" },
+                    },
+                  ],
+                },
               ],
             },
           ]

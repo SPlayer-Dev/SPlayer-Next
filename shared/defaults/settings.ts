@@ -64,6 +64,8 @@ export const defaultSystemConfig: SystemConfig = {
   },
   taskbarLyric: {
     position: "auto",
+    autoMaxWidth: true,
+    maxWidth: 400,
   },
   system: {
     rememberWindowState: true,

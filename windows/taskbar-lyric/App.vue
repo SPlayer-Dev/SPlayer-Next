@@ -14,6 +14,8 @@ const track = shallowRef<Track | null>(null);
 const lyric = shallowRef<LyricLine[]>([]);
 const playing = ref(false);
 const primaryIndex = ref(-1);
+/** 锚定方向：内容对齐依据 */
+const anchor = ref<"left" | "right">("left");
 
 let anchorPos = 0;
 let anchorPerf = 0;
@@ -98,6 +100,9 @@ onMounted(async () => {
       applyAnchor(data.position, data.sendTimestamp);
       kickTick();
     }),
+    window.api.taskbarLyric.onLayout((data) => {
+      anchor.value = data.anchor;
+    }),
   );
 
   kickTick();
@@ -113,7 +118,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="taskbar-lyric">
+  <div class="taskbar-lyric" :class="anchor === 'right' ? 'align-right' : 'align-left'">
     <span class="lyric-text">{{ displayText }}</span>
   </div>
 </template>
@@ -122,6 +127,7 @@ onBeforeUnmount(() => {
 .taskbar-lyric {
   display: flex;
   align-items: center;
+  width: 100%;
   height: 100%;
   padding: 0 8px;
   overflow: hidden;
@@ -129,6 +135,20 @@ onBeforeUnmount(() => {
   background: rgba(255, 0, 0, 0.3);
   border: 1px solid rgba(255, 0, 0, 0.6);
   box-sizing: border-box;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.taskbar-lyric:hover {
+  background: rgba(0, 120, 255, 0.35);
+  border-color: rgba(0, 120, 255, 0.7);
+}
+
+.taskbar-lyric.align-left {
+  justify-content: flex-start;
+}
+
+.taskbar-lyric.align-right {
+  justify-content: flex-end;
 }
 
 .lyric-text {

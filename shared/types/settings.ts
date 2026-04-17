@@ -114,6 +114,10 @@ export type TaskbarLyricPosition = "auto" | "left" | "right";
 export interface TaskbarLyricSettings {
   /** 位置：auto 根据任务栏对齐方式自动选择，left 固定左侧，right 固定右侧 */
   position: TaskbarLyricPosition;
+  /** 宽度自动：开启时占满可用空间，关闭时按 maxWidth 限制 */
+  autoMaxWidth: boolean;
+  /** 最大宽度（逻辑像素）；仅在 autoMaxWidth 关闭时生效；超出可用空间时仍以可用空间为准 */
+  maxWidth: number;
 }
 
 /** 音乐库配置 */

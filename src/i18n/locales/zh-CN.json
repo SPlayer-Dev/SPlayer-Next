@@ -393,6 +393,14 @@
       "left": "左侧",
       "right": "右侧"
     },
+    "taskbarLyricAutoMaxWidth": {
+      "label": "宽度自动",
+      "description": "开启后占满任务栏的可用空间；关闭后按下方最大宽度限制"
+    },
+    "taskbarLyricMaxWidth": {
+      "label": "最大宽度",
+      "description": "超出可用空间时仍以可用空间为准，避免挤占"
+    },
     "playerBgType": {
       "label": "播放器背景",
       "description": "全屏播放器的背景类型",

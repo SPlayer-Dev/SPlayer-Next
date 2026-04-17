@@ -191,6 +191,20 @@ const api = {
     onCursorInside: (callback: (inside: boolean) => void) =>
       subscribe<boolean>("dynamicIsland:cursorInside", callback),
   },
+  taskbarLyric: {
+    // 订阅布局变化（锚定方向、是否居中、系统类型）
+    onLayout: (
+      callback: (data: {
+        isCentered: boolean;
+        systemType: string;
+        anchor: "left" | "right";
+      }) => void,
+    ) =>
+      subscribe<{ isCentered: boolean; systemType: string; anchor: "left" | "right" }>(
+        "taskbarLyric:layout",
+        callback,
+      ),
+  },
   nowPlaying: {
     // 渲染进程同步当前播放状态到主进程
     update: (payload: unknown) => ipcRenderer.send("nowPlaying:update", payload),
