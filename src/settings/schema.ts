@@ -554,6 +554,32 @@ export const settingsSchema: SettingCategory[] = [
           },
         ],
       },
+      ...(navigator.platform.startsWith("Win")
+        ? [
+            {
+              id: "taskbarLyric",
+              items: [
+                {
+                  key: "taskbarLyricEnabled",
+                  type: "switch" as const,
+                  binding: { store: "settings" as const, path: "isTaskbarLyricOpen" },
+                  defaultValue: false,
+                },
+                {
+                  key: "taskbarLyricPosition",
+                  type: "select" as const,
+                  binding: { store: "settings" as const, path: "system.taskbarLyric.position" },
+                  options: [
+                    { value: "auto", labelKey: "settings.taskbarLyricPosition.auto" },
+                    { value: "left", labelKey: "settings.taskbarLyricPosition.left" },
+                    { value: "right", labelKey: "settings.taskbarLyricPosition.right" },
+                  ],
+                  defaultValue: "auto",
+                },
+              ],
+            },
+          ]
+        : []),
     ],
   },
   {

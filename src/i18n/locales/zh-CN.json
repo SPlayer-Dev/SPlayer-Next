@@ -129,6 +129,7 @@
       "effectsLayout": "布局与透明度",
       "desktopLyric": "桌面歌词",
       "dynamicIsland": "灵动岛歌词",
+      "taskbarLyric": "任务栏歌词",
       "theme": "主题与风格",
       "layout": "布局",
       "media": "媒体控制",
@@ -380,6 +381,17 @@
     "dynamicIslandNonOcclusive": {
       "label": "非遮挡模式",
       "description": "鼠标穿透窗口，悬停时隐藏内容"
+    },
+    "taskbarLyricEnabled": {
+      "label": "开启任务栏歌词",
+      "description": "将歌词嵌入 Windows 任务栏中显示（仅 Windows）"
+    },
+    "taskbarLyricPosition": {
+      "label": "显示位置",
+      "description": "歌词在任务栏中的位置，自动模式下根据任务栏对齐方式选择",
+      "auto": "自动",
+      "left": "左侧",
+      "right": "右侧"
     },
     "playerBgType": {
       "label": "播放器背景",

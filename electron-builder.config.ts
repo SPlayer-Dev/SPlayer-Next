@@ -40,6 +40,11 @@ const config: Configuration = {
       to: "native",
       filter: ["*.node"],
     },
+    {
+      from: "native/taskbar-lyric",
+      to: "native",
+      filter: ["*.node"],
+    },
   ],
   win: {
     executableName: "SPlayer-Next",

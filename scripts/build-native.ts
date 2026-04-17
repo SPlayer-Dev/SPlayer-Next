@@ -36,6 +36,10 @@ const modules: NativeModule[] = [
   {
     name: "media-ctrl",
   },
+  {
+    name: "taskbar-lyric",
+    enabled: process.platform === "win32",
+  },
 ];
 
 try {

@@ -107,6 +107,15 @@ export interface DynamicIslandSettings {
   showTranslation: boolean;
 }
 
+/** 任务栏歌词位置模式 */
+export type TaskbarLyricPosition = "auto" | "left" | "right";
+
+/** 任务栏歌词配置（仅 Windows） */
+export interface TaskbarLyricSettings {
+  /** 位置：auto 根据任务栏对齐方式自动选择，left 固定左侧，right 固定右侧 */
+  position: TaskbarLyricPosition;
+}
+
 /** 音乐库配置 */
 export interface LibrarySettings {
   /** 扫描目录列表 */
@@ -159,6 +168,8 @@ export interface SystemConfig {
   desktopLyric: DesktopLyricSettings;
   /** 灵动岛歌词配置 */
   dynamicIsland: DynamicIslandSettings;
+  /** 任务栏歌词配置（仅 Windows） */
+  taskbarLyric: TaskbarLyricSettings;
   /** 系统配置 */
   system: {
     /** 记忆窗口状态 */

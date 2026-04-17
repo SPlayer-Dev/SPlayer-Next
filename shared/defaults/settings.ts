@@ -62,6 +62,9 @@ export const defaultSystemConfig: SystemConfig = {
     doubleLine: false,
     showTranslation: false,
   },
+  taskbarLyric: {
+    position: "auto",
+  },
   system: {
     rememberWindowState: true,
     taskbarProgress: true,

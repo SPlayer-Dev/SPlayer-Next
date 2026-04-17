@@ -16,7 +16,8 @@
       "@server/*": ["./electron/server/*"],
       "@shared/*": ["./shared/*"],
       "@splayer/audio-engine": ["./native/audio-engine"],
-      "@splayer/media-ctrl": ["./native/media-ctrl"]
+      "@splayer/media-ctrl": ["./native/media-ctrl"],
+      "@splayer/taskbar-lyric": ["./native/taskbar-lyric"]
     }
   }
 }

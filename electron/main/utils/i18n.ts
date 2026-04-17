@@ -14,6 +14,8 @@ interface MainMessages {
   closeDesktopLyric: string;
   openDynamicIsland: string;
   closeDynamicIsland: string;
+  openTaskbarLyric: string;
+  closeTaskbarLyric: string;
   quit: string;
 }
 
@@ -32,6 +34,8 @@ const messages: Record<LocaleCode, MainMessages> = {
     closeDesktopLyric: "关闭桌面歌词",
     openDynamicIsland: "开启灵动岛",
     closeDynamicIsland: "关闭灵动岛",
+    openTaskbarLyric: "开启任务栏歌词",
+    closeTaskbarLyric: "关闭任务栏歌词",
     quit: "退出",
   },
   "en-US": {
@@ -48,6 +52,8 @@ const messages: Record<LocaleCode, MainMessages> = {
     closeDesktopLyric: "Close Desktop Lyric",
     openDynamicIsland: "Open Dynamic Island",
     closeDynamicIsland: "Close Dynamic Island",
+    openTaskbarLyric: "Open Taskbar Lyric",
+    closeTaskbarLyric: "Close Taskbar Lyric",
     quit: "Quit",
   },
 };

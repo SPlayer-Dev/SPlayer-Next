@@ -144,6 +144,15 @@ const api = {
     // 订阅灵动岛窗口开关状态
     onDynamicIslandVisibilityChange: (callback: (open: boolean) => void) =>
       subscribe<boolean>("dynamicIsland:visibilityChange", callback),
+    // 切换任务栏歌词窗口
+    toggleTaskbarLyric: () => ipcRenderer.invoke("window:toggleTaskbarLyric"),
+    // 关闭任务栏歌词窗口
+    closeTaskbarLyric: () => ipcRenderer.invoke("window:closeTaskbarLyric"),
+    // 查询任务栏歌词窗口是否打开
+    isTaskbarLyricOpen: () => ipcRenderer.invoke("window:isTaskbarLyricOpen"),
+    // 订阅任务栏歌词窗口开关状态
+    onTaskbarLyricVisibilityChange: (callback: (open: boolean) => void) =>
+      subscribe<boolean>("taskbarLyric:visibilityChange", callback),
   },
   desktopLyric: {
     // 订阅桌面歌词配置变化

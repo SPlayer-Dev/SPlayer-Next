@@ -129,6 +129,7 @@
       "effectsLayout": "Layout & Opacity",
       "desktopLyric": "Desktop Lyric",
       "dynamicIsland": "Dynamic Island Lyric",
+      "taskbarLyric": "Taskbar Lyric",
       "theme": "Theme",
       "layout": "Layout",
       "media": "Media Controls",
@@ -380,6 +381,17 @@
     "dynamicIslandNonOcclusive": {
       "label": "Non-Occlusive Mode",
       "description": "Click-through window; hide on hover"
+    },
+    "taskbarLyricEnabled": {
+      "label": "Enable Taskbar Lyric",
+      "description": "Embed lyrics into the Windows taskbar (Windows only)"
+    },
+    "taskbarLyricPosition": {
+      "label": "Position",
+      "description": "Lyric position in the taskbar. Auto mode picks based on taskbar alignment",
+      "auto": "Auto",
+      "left": "Left",
+      "right": "Right"
     },
     "playerBgType": {
       "label": "Player Background",
