@@ -2,7 +2,7 @@ import type { Ref, ShallowRef } from "vue";
 import type { LyricLine } from "@shared/types/lyrics";
 import type { NowPlayingSnapshot } from "@shared/types/nowPlaying";
 import type { Track } from "@shared/types/player";
-import { clampLastLineEnd, pickPrimaryIndex } from "@shared/utils/lyricSync";
+import { clampLastLineEnd } from "@shared/utils/lyricSync";
 
 /** 同步偏差阈值 */
 const SYNC_DRIFT_THRESHOLD = 300;
@@ -10,18 +10,29 @@ const SYNC_DRIFT_THRESHOLD = 300;
 /** 提供给逐字高亮的非响应式当前播放时间 */
 let currentNowPlayingMs = 0;
 
-export const getTaskbarLyricCurrentMs = (): number => currentNowPlayingMs;
+export const getNowPlayingCurrentMs = (): number => currentNowPlayingMs;
+
+export interface NowPlayingSyncOptions {
+  /** 选择当前主行索引的算法 */
+  pickIndex: (lyric: LyricLine[], time: number) => number;
+  /** 日志 / 错误前缀 */
+  logTag: string;
+}
+
+export interface NowPlayingSync {
+  track: ShallowRef<Track | null>;
+  lyric: ShallowRef<LyricLine[]>;
+  playing: Ref<boolean>;
+  primaryIndex: Ref<number>;
+}
 
 /**
  * 播放状态同步
  * 拉取 / 订阅快照、维护播放锚点、RAF 高频更新 currentMs 与 primaryIndex
  */
-export const useNowPlayingSync = (): {
-  track: ShallowRef<Track | null>;
-  lyric: ShallowRef<LyricLine[]>;
-  playing: Ref<boolean>;
-  primaryIndex: Ref<number>;
-} => {
+export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSync => {
+  const { pickIndex, logTag } = options;
+
   const track = shallowRef<Track | null>(null);
   const lyric = shallowRef<LyricLine[]>([]);
   const playing = ref(false);
@@ -40,6 +51,7 @@ export const useNowPlayingSync = (): {
     anchorInitialized = true;
   };
 
+  // 仅当与 RAF 插值的偏差超过阈值时才重置锚点，避免每次 5Hz 同步都打断动画
   const applyAnchor = (positionMs: number, sendTimestamp: number): void => {
     if (!anchorInitialized || !playing.value) {
       resetAnchor(positionMs, sendTimestamp);
@@ -65,7 +77,7 @@ export const useNowPlayingSync = (): {
   const syncOnce = (): void => {
     const next = playing.value ? anchorPos + (performance.now() - anchorPerf) : anchorPos;
     currentNowPlayingMs = next;
-    const idx = pickPrimaryIndex(lyric.value, next);
+    const idx = pickIndex(lyric.value, next);
     if (idx !== primaryIndex.value) primaryIndex.value = idx;
   };
 
@@ -86,7 +98,7 @@ export const useNowPlayingSync = (): {
       const snap = await window.api.nowPlaying.requestSnapshot();
       applySnapshot(snap);
     } catch (error) {
-      console.error("[taskbar-lyric] requestSnapshot failed", error);
+      console.error(`[${logTag}] requestSnapshot failed`, error);
     }
 
     unsubscribers.push(

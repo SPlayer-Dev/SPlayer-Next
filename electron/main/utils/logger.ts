@@ -81,3 +81,5 @@ export const thumbarLog = log.scope("thumbar");
 export const systemLog = log.scope("system");
 export const ipcLog = log.scope("ipc");
 export const libraryLog = log.scope("library");
+export const taskbarLog = log.scope("taskbar-lyric");
+export const nativeLog = log.scope("native");

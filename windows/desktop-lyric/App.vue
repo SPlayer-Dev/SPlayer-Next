@@ -10,7 +10,8 @@ import {
   resolveWordByWord,
   type DisplayItem,
 } from "./utils";
-import { useNowPlayingSync } from "./composables/useNowPlayingSync";
+import { pickPrimaryIndex } from "@shared/utils/lyricSync";
+import { useNowPlayingSync } from "@windows/shared/composables/useNowPlayingSync";
 import { useDragWindow } from "./composables/useDragWindow";
 import { useHoverState } from "./composables/useHoverState";
 
@@ -34,7 +35,10 @@ const config = reactive<DesktopLyricSettings>({
   locked: false,
 });
 
-const { track, lyric, playing, primaryIndex } = useNowPlayingSync();
+const { track, lyric, playing, primaryIndex } = useNowPlayingSync({
+  pickIndex: pickPrimaryIndex,
+  logTag: "desktop-lyric",
+});
 const { onRootPointerDown } = useDragWindow(() => config.locked);
 const { isHovered } = useHoverState();
 

@@ -80,7 +80,7 @@ export const registerWindowIpc = (): void => {
     applyDynamicIslandHeight(height);
   });
 
-  // 灵动岛查询当前吸附模式（HMR 后渲染端主动拉取）
+  // 灵动岛查询当前吸附模式
   ipcMain.handle("dynamicIsland:getMode", () => {
     const saved = store.get("windowStates.dynamicIsland");
     return saved.mode === "floating" ? "floating" : "snapped";

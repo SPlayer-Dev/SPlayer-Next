@@ -25,6 +25,7 @@ export default defineConfig({
         "@server": resolve(__dirname, "electron/server"),
         "@shared": resolve(__dirname, "shared"),
         "@splayer/audio-engine": resolve(__dirname, "native/audio-engine"),
+        "@splayer/media-ctrl": resolve(__dirname, "native/media-ctrl"),
         "@splayer/taskbar-lyric": resolve(__dirname, "native/taskbar-lyric"),
       },
     },
@@ -61,6 +62,7 @@ export default defineConfig({
       alias: {
         "@": resolve("src"),
         "@shared": resolve(__dirname, "shared"),
+        "@windows": resolve(__dirname, "windows"),
       },
     },
     plugins: [

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { LyricLine } from "@shared/types/lyrics";
 import type { DesktopLyricAlign } from "@shared/types/settings";
-import { getNowPlayingCurrentMs } from "../composables/useNowPlayingSync";
+import { getNowPlayingCurrentMs } from "@windows/shared/composables/useNowPlayingSync";
 
 const props = defineProps<{
   line: LyricLine;

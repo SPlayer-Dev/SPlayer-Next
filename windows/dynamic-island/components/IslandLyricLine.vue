@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { LyricLine } from "@shared/types/lyrics";
-import { getNowPlayingCurrentMs } from "../composables/useNowPlayingSync";
+import { getNowPlayingCurrentMs } from "@windows/shared/composables/useNowPlayingSync";
 
 const props = defineProps<{
   line: LyricLine;

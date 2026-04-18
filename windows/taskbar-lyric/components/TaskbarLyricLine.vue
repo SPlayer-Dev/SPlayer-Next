@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { LyricLine } from "@shared/types/lyrics";
-import { getTaskbarLyricCurrentMs } from "../composables/useNowPlayingSync";
+import { getNowPlayingCurrentMs } from "@windows/shared/composables/useNowPlayingSync";
 
 const props = withDefaults(
   defineProps<{
@@ -85,7 +85,7 @@ const renderFrame = (): void => {
     rafId = 0;
     return;
   }
-  const currentMs = getTaskbarLyricCurrentMs();
+  const currentMs = getNowPlayingCurrentMs();
   for (let i = 0; i < props.line.words.length; i++) {
     const el = wordRefs[i];
     if (!el) continue;

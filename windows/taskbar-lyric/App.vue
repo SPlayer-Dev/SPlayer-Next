@@ -7,7 +7,8 @@ import IconSkipForward from "~icons/lucide/skip-forward";
 import IconPlay from "~icons/lucide/play";
 import IconPause from "~icons/lucide/pause";
 import TaskbarLyricLine from "./components/TaskbarLyricLine.vue";
-import { useNowPlayingSync } from "./composables/useNowPlayingSync";
+import { pickPrimaryIndex } from "@shared/utils/lyricSync";
+import { useNowPlayingSync } from "@windows/shared/composables/useNowPlayingSync";
 
 const config = reactive<TaskbarLyricSettings>({
   position: "auto",
@@ -25,7 +26,10 @@ const anchor = ref<"left" | "right">("left");
 const taskbarIsLight = ref(false);
 const isHovered = ref(false);
 
-const { track, lyric, primaryIndex, playing } = useNowPlayingSync();
+const { track, lyric, primaryIndex, playing } = useNowPlayingSync({
+  pickIndex: pickPrimaryIndex,
+  logTag: "taskbar-lyric",
+});
 
 const currentLine = computed<LyricLine | null>(() => {
   const idx = primaryIndex.value;
@@ -93,17 +97,12 @@ const items = computed<RenderItem[]>(() => {
 
 const rootStyle = computed(() => ({ "--tbl-font-size": `${config.fontSize}px` }));
 
-const handlePrev = (e: MouseEvent): void => {
-  e.stopPropagation();
-  window.api.player.dispatch("prev");
-};
-const handleNext = (e: MouseEvent): void => {
-  e.stopPropagation();
-  window.api.player.dispatch("next");
-};
-const handleTogglePlay = (e: MouseEvent): void => {
-  e.stopPropagation();
+const handlePrev = (): void => window.api.player.dispatch("prev");
+const handleNext = (): void => window.api.player.dispatch("next");
+const handleTogglePlay = (): void =>
   window.api.player.dispatch(playing.value ? "pause" : "play");
+const handleFocusMain = (): void => {
+  window.api.system.focusMainWindow().catch(() => {});
 };
 
 const unsubscribers: Array<() => void> = [];
@@ -142,6 +141,7 @@ onBeforeUnmount(() => {
       :style="rootStyle"
       @mouseenter="isHovered = true"
       @mouseleave="isHovered = false"
+      @dblclick="handleFocusMain"
     >
       <div v-if="config.showCover" class="cover-wrapper">
         <img
@@ -156,13 +156,28 @@ onBeforeUnmount(() => {
       <!-- 控件：hover 时从 0fr 展开到内容宽度 -->
       <div class="controls-wrapper">
         <div class="controls-inner">
-          <button class="control-btn" type="button" @click="handlePrev">
+          <button
+            class="control-btn"
+            type="button"
+            @click.stop="handlePrev"
+            @dblclick.stop
+          >
             <IconSkipBack class="control-icon" />
           </button>
-          <button class="control-btn" type="button" @click="handleTogglePlay">
+          <button
+            class="control-btn"
+            type="button"
+            @click.stop="handleTogglePlay"
+            @dblclick.stop
+          >
             <component :is="playing ? IconPause : IconPlay" class="control-icon-play" />
           </button>
-          <button class="control-btn" type="button" @click="handleNext">
+          <button
+            class="control-btn"
+            type="button"
+            @click.stop="handleNext"
+            @dblclick.stop
+          >
             <IconSkipForward class="control-icon" />
           </button>
         </div>
@@ -207,7 +222,7 @@ onBeforeUnmount(() => {
   /* 深色主题 */
   --tbl-text-primary: #ffffff;
   --tbl-text-secondary: rgba(255, 255, 255, 0.5);
-  --tbl-hover-bg: rgba(78, 78, 78, 0.4);
+  --tbl-hover-bg: rgba(255, 255, 255, 0.12);
   --tbl-played: var(--tbl-text-primary);
   --tbl-unplayed: var(--tbl-text-secondary);
   position: relative;
@@ -228,7 +243,7 @@ onBeforeUnmount(() => {
 .container[data-theme="light"] {
   --tbl-text-primary: #1a1a1a;
   --tbl-text-secondary: rgba(0, 0, 0, 0.62);
-  --tbl-hover-bg: rgba(255, 255, 255, 0.45);
+  --tbl-hover-bg: rgba(0, 0, 0, 0.08);
 }
 .container:hover {
   background: var(--tbl-hover-bg);
