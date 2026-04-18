@@ -37,11 +37,15 @@ unsafe extern "system" fn win_event_proc(
         let len = unsafe { GetClassNameW(hwnd, &mut buffer) };
         if len > 0 {
             let name = String::from_utf16_lossy(&buffer[..len as usize]);
-            if name == "TrayNotifyWnd"
-                && let Ok(guard) = GLOBAL_CALLBACK.lock()
-                && let Some(cb) = guard.as_ref()
-            {
-                cb();
+            if name == "TrayNotifyWnd" {
+                // 先 clone Arc 再释放锁，避免回调执行期间阻塞其它 GLOBAL_CALLBACK 访问
+                let callback = GLOBAL_CALLBACK
+                    .lock()
+                    .ok()
+                    .and_then(|guard| guard.as_ref().cloned());
+                if let Some(cb) = callback {
+                    cb();
+                }
             }
         }
     }

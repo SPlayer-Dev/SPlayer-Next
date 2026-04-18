@@ -38,8 +38,11 @@ let themeRegWatcher: RegistryWatcher | null = null;
 let uiaWatcher: UiaWatcher | null = null;
 let trayWatcher: TrayWatcher | null = null;
 
-/** 传给 Rust 的 lyric_width：Win10 据此从 tasklist 划空间，Win11 忽略 */
-const currentWidth = 300;
+/** 从设置读取当前歌词宽度（Win10 据此从 tasklist 划空间，Win11 忽略） */
+const resolveLyricWidth = (): number => {
+  const width = store.get("taskbarLyric.maxWidth");
+  return typeof width === "number" && width > 0 ? width : 400;
+};
 
 /**
  * 初始窗口尺寸——故意设大，覆盖任何可能的任务栏宽度/高度。
@@ -120,7 +123,7 @@ const applyLayout = (layout: JsTaskbarLayout): void => {
 
 /** Watcher 回调——任何任务栏相关变化都回到这里重算布局 */
 const onLayoutChange = (): void => {
-  service?.update(currentWidth);
+  service?.update(resolveLyricWidth());
 };
 
 /** 安全创建原生 watcher，失败只 warn 不中断启动 */
@@ -198,7 +201,7 @@ export const createTaskbarLyricWindow = (): BrowserWindow | null => {
     const hwndPtr = Number(win.getNativeWindowHandle().readBigUInt64LE(0));
     taskbarLog.info(`嵌入窗口 hwnd=${hwndPtr}`);
     svc.embedWindowByPtr(hwndPtr);
-    svc.update(currentWidth);
+    svc.update(resolveLyricWidth());
 
     advancedRegWatcher = tryStart(
       "RegistryWatcher(Advanced)",
@@ -239,27 +242,24 @@ const cleanupWatchers = (): void => {
   service = null;
 };
 
-/** 关闭任务栏歌词窗口并清理所有资源 */
+/** 请求关闭任务栏歌词窗口，实际清理由 "closed" 事件统一处理 */
 export const closeTaskbarLyricWindow = (): void => {
   if (taskbarLyricWindow && !taskbarLyricWindow.isDestroyed()) {
     taskbarLyricWindow.close();
   }
-  taskbarLyricWindow = null;
-  cleanupWatchers();
-  setTrayTaskbarLyric(false);
-  broadcast("taskbarLyric:visibilityChange", false);
 };
 
-/** 切换任务栏歌词窗口显隐 */
-export const toggleTaskbarLyricWindow = (): void => {
+/** 切换任务栏歌词窗口显隐，返回切换后是否打开 */
+export const toggleTaskbarLyricWindow = (): boolean => {
   if (taskbarLyricWindow && !taskbarLyricWindow.isDestroyed()) {
     closeTaskbarLyricWindow();
-  } else {
-    createTaskbarLyricWindow();
+    return false;
   }
+  createTaskbarLyricWindow();
+  return true;
 };
 
-/** 触发一次布局重算 */
+/** 触发一次布局重算（配置变更后调用） */
 export const applyTaskbarLyricLayout = (): void => {
-  service?.update(currentWidth);
+  service?.update(resolveLyricWidth());
 };

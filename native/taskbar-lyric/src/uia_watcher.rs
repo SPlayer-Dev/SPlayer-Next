@@ -96,7 +96,9 @@ impl UiaWatcher {
         let callback_arc = Arc::new(callback);
 
         thread::spawn(move || unsafe {
-            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+            let hr = CoInitializeEx(None, COINIT_MULTITHREADED);
+            // S_OK / S_FALSE 需要配对 CoUninitialize；RPC_E_CHANGED_MODE 或其它错误则不应调用
+            let should_uninitialize = hr.is_ok();
 
             let thread_id = GetCurrentThreadId();
             let _ = tx.send(thread_id);
@@ -145,7 +147,9 @@ impl UiaWatcher {
             }
 
             drop(_handlers_guard);
-            CoUninitialize();
+            if should_uninitialize {
+                CoUninitialize();
+            }
         });
 
         let thread_id = rx.recv().map_err(|e| anyhow!("获取线程 ID 失败: {e}"))?;
