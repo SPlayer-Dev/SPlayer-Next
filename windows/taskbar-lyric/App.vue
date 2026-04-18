@@ -173,11 +173,11 @@ onBeforeUnmount(() => {
         <TransitionGroup tag="div" name="line" class="lyric-column">
           <div v-for="item in items" :key="item.key" class="lyric-line" :data-role="item.role">
             <TaskbarLyricLine
-              v-if="item.line && item.role === 'primary'"
               :line="item.line"
-              :word-by-word="config.wordByWord"
+              :text="item.text"
+              :word-by-word="config.wordByWord && !!item.line"
+              :anchor="anchor"
             />
-            <span v-else class="line-text">{{ item.text }}</span>
           </div>
         </TransitionGroup>
 
@@ -339,17 +339,13 @@ onBeforeUnmount(() => {
 
 .lyric-line {
   width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   transform-origin: left center;
   transition:
-    font-size 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    font-size 0.4s cubic-bezier(0.4, 0, 0.2, 1),
     color 0.3s ease;
   will-change: transform, opacity;
 }
 .container[data-align="right"] .lyric-line {
-  text-align: right;
   transform-origin: right center;
 }
 .lyric-line[data-role="primary"] {
@@ -360,33 +356,28 @@ onBeforeUnmount(() => {
   font-size: calc(var(--tbl-font-size) * 0.82);
   color: var(--tbl-text-secondary);
 }
-.line-text {
-  display: inline;
-}
 
-.line-move {
-  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.line-enter-active {
+.line-move,
+.line-enter-active,
+.line-leave-active {
   transition:
-    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.35s ease;
+    transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    font-size 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.3s ease;
 }
 .line-leave-active {
   position: absolute;
   left: 0;
   right: 0;
-  transition:
-    transform 0.4s cubic-bezier(0.4, 0, 0.6, 1),
-    opacity 0.3s ease;
 }
 .line-enter-from {
   opacity: 0;
-  transform: translateY(100%);
+  transform: translateY(12px);
 }
 .line-leave-to {
   opacity: 0;
-  transform: translateY(-100%);
+  transform: translateY(-12px);
 }
 
 .song-info {

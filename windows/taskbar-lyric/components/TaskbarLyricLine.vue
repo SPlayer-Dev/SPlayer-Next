@@ -2,10 +2,47 @@
 import type { LyricLine } from "@shared/types/lyrics";
 import { getTaskbarLyricCurrentMs } from "../composables/useNowPlayingSync";
 
-const props = defineProps<{
-  line: LyricLine;
-  wordByWord: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    line?: LyricLine;
+    text?: string;
+    wordByWord?: boolean;
+    anchor?: "left" | "right";
+  }>(),
+  { wordByWord: false, anchor: "left" },
+);
+
+const useKaraoke = computed(() => props.wordByWord && !!props.line);
+const plainText = computed(
+  () => props.text ?? props.line?.words.map((w) => w.word).join("") ?? "",
+);
+
+const wrapperRef = ref<HTMLElement | null>(null);
+const contentRef = ref<HTMLElement | null>(null);
+const wrapperWidth = ref(0);
+const contentWidth = ref(0);
+
+const maxOffset = computed(() => {
+  const diff = contentWidth.value - wrapperWidth.value;
+  return diff > 0 ? diff + 10 : 0;
+});
+const isOverflow = computed(() => maxOffset.value > 0);
+const scrollStyle = computed(() => {
+  if (!isOverflow.value) return {};
+  const duration = 2 + maxOffset.value / 30;
+  const sign = props.anchor === "right" ? "" : "-";
+  return {
+    "--scroll-offset": `${sign}${maxOffset.value}px`,
+    "--scroll-duration": `${duration.toFixed(2)}s`,
+  };
+});
+
+let resizeObserver: ResizeObserver | null = null;
+
+const updateMetrics = (): void => {
+  if (wrapperRef.value) wrapperWidth.value = wrapperRef.value.clientWidth;
+  if (contentRef.value) contentWidth.value = contentRef.value.scrollWidth;
+};
 
 const wordRefs: HTMLSpanElement[] = [];
 
@@ -44,7 +81,7 @@ const resetRenderCache = (): void => {
 };
 
 const renderFrame = (): void => {
-  if (!props.wordByWord) {
+  if (!useKaraoke.value || !props.line) {
     rafId = 0;
     return;
   }
@@ -62,7 +99,7 @@ const renderFrame = (): void => {
 };
 
 const startRenderLoop = (): void => {
-  if (rafId === 0 && props.wordByWord) {
+  if (rafId === 0 && useKaraoke.value) {
     rafId = requestAnimationFrame(renderFrame);
   }
 };
@@ -74,34 +111,84 @@ const stopRenderLoop = (): void => {
   }
 };
 
+watch(useKaraoke, (enabled) => {
+  resetRenderCache();
+  if (enabled) startRenderLoop();
+  else stopRenderLoop();
+});
 watch(
-  () => props.wordByWord,
-  (enabled) => {
+  () => props.line,
+  () => {
     resetRenderCache();
-    if (enabled) startRenderLoop();
-    else stopRenderLoop();
+    nextTick(updateMetrics);
   },
 );
-watch(() => props.line, resetRenderCache);
+watch(() => props.text, () => nextTick(updateMetrics));
 
-onMounted(startRenderLoop);
-onBeforeUnmount(stopRenderLoop);
+onMounted(() => {
+  resizeObserver = new ResizeObserver(updateMetrics);
+  if (wrapperRef.value) resizeObserver.observe(wrapperRef.value);
+  if (contentRef.value) resizeObserver.observe(contentRef.value);
+  updateMetrics();
+  startRenderLoop();
+});
+
+onBeforeUnmount(() => {
+  stopRenderLoop();
+  resizeObserver?.disconnect();
+});
 </script>
 
 <template>
-  <template v-if="wordByWord">
-    <span
-      v-for="(word, i) in line.words"
-      :key="i"
-      :ref="(el) => setWordRef(el, i)"
-      class="tb-word"
-      >{{ word.word }}</span
+  <div ref="wrapperRef" class="scroll-wrapper" :data-anchor="anchor">
+    <div
+      ref="contentRef"
+      class="scroll-content"
+      :class="{ 'is-scrolling': isOverflow }"
+      :style="scrollStyle"
     >
-  </template>
-  <span v-else>{{ line.words.map((w) => w.word).join("") }}</span>
+      <template v-if="useKaraoke">
+        <span
+          v-for="(word, i) in line!.words"
+          :key="i"
+          :ref="(el) => setWordRef(el, i)"
+          class="tb-word"
+          >{{ word.word }}</span
+        >
+      </template>
+      <span v-else>{{ plainText }}</span>
+    </div>
+  </div>
 </template>
 
 <style scoped>
+.scroll-wrapper {
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: left;
+}
+.scroll-wrapper[data-anchor="right"] {
+  text-align: right;
+}
+.scroll-content {
+  display: inline-block;
+  will-change: transform;
+}
+.is-scrolling {
+  animation: scroll-pingpong var(--scroll-duration) linear infinite alternate;
+  animation-delay: 1.2s;
+}
+@keyframes scroll-pingpong {
+  0%,
+  15% {
+    transform: translateX(0);
+  }
+  85%,
+  100% {
+    transform: translateX(var(--scroll-offset));
+  }
+}
 .tb-word {
   --p: 0%;
   display: inline;
