@@ -14,6 +14,7 @@ import {
   applyDynamicIslandAlwaysOnTop,
   applyDynamicIslandSnapCentered,
   applyDynamicIslandNonOcclusive,
+  applyTaskbarLyricLayout,
 } from "@main/window";
 import { broadcast } from "@main/utils/broadcast";
 
@@ -49,6 +50,11 @@ const applyConfigChange = (keyPath: string, value: unknown): void => {
     case "dynamicIsland.nonOcclusive":
       applyDynamicIslandNonOcclusive(value as boolean);
       break;
+    case "taskbarLyric.position":
+    case "taskbarLyric.autoMaxWidth":
+    case "taskbarLyric.maxWidth":
+      applyTaskbarLyricLayout();
+      break;
   }
   // 桌面歌词配置变更广播到所有窗口
   if (keyPath.startsWith("desktopLyric.")) {
@@ -57,6 +63,10 @@ const applyConfigChange = (keyPath: string, value: unknown): void => {
   // 灵动岛配置变更广播到所有窗口
   if (keyPath.startsWith("dynamicIsland.")) {
     broadcast("dynamicIsland:configChange", store.get("dynamicIsland"));
+  }
+  // 任务栏歌词配置变更广播到所有窗口
+  if (keyPath.startsWith("taskbarLyric.")) {
+    broadcast("taskbarLyric:configChange", store.get("taskbarLyric"));
   }
 };
 

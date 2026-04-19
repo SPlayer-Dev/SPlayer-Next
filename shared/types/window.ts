@@ -1,4 +1,4 @@
-import type { DesktopLyricSettings, DynamicIslandSettings } from "./settings";
+import type { DesktopLyricSettings, DynamicIslandSettings, TaskbarLyricSettings } from "./settings";
 
 /** 窗口管理 API */
 export interface WindowApi {
@@ -18,6 +18,14 @@ export interface WindowApi {
   isDynamicIslandOpen: () => Promise<boolean>;
   /** 订阅灵动岛窗口开关状态变化 */
   onDynamicIslandVisibilityChange: (callback: (open: boolean) => void) => () => void;
+  /** 切换任务栏歌词窗口（仅 Windows） */
+  toggleTaskbarLyric: () => Promise<boolean>;
+  /** 关闭任务栏歌词窗口 */
+  closeTaskbarLyric: () => Promise<void>;
+  /** 查询任务栏歌词窗口是否处于打开状态 */
+  isTaskbarLyricOpen: () => Promise<boolean>;
+  /** 订阅任务栏歌词窗口开关状态变化 */
+  onTaskbarLyricVisibilityChange: (callback: (open: boolean) => void) => () => void;
 }
 
 /** 桌面歌词 API */
@@ -34,6 +42,23 @@ export interface DesktopLyricApi {
   saveState: () => void;
   /** 订阅主进程 screen 光标位置判定 */
   onCursorInside: (callback: (inside: boolean) => void) => () => void;
+}
+
+/** 任务栏歌词布局事件 */
+export interface TaskbarLyricLayoutEvent {
+  isCentered: boolean;
+  systemType: string;
+  /** 任务栏是否浅色主题 */
+  isLight: boolean;
+  anchor: "left" | "right";
+}
+
+/** 任务栏歌词 API */
+export interface TaskbarLyricApi {
+  /** 订阅布局变化（锚定方向、居中与否、系统类型、任务栏主题） */
+  onLayout: (callback: (data: TaskbarLyricLayoutEvent) => void) => () => void;
+  /** 订阅配置变化 */
+  onConfigChange: (callback: (config: TaskbarLyricSettings) => void) => () => void;
 }
 
 /** 灵动岛 API */

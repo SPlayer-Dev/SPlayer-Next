@@ -129,6 +129,7 @@
       "effectsLayout": "Layout & Opacity",
       "desktopLyric": "Desktop Lyric",
       "dynamicIsland": "Dynamic Island Lyric",
+      "taskbarLyric": "Taskbar Lyric",
       "theme": "Theme",
       "layout": "Layout",
       "media": "Media Controls",
@@ -380,6 +381,52 @@
     "dynamicIslandNonOcclusive": {
       "label": "Non-Occlusive Mode",
       "description": "Click-through window; hide on hover"
+    },
+    "taskbarLyricEnabled": {
+      "label": "Enable Taskbar Lyric",
+      "description": "Embed lyrics into the Windows taskbar"
+    },
+    "taskbarLyricPosition": {
+      "label": "Position",
+      "description": "Lyric position in the taskbar. Auto mode picks based on taskbar alignment",
+      "auto": "Auto",
+      "left": "Left",
+      "right": "Right"
+    },
+    "taskbarLyricAutoMaxWidth": {
+      "label": "Auto Width",
+      "description": "When enabled, fill the available taskbar space; otherwise limit to Max Width below"
+    },
+    "taskbarLyricMaxWidth": {
+      "label": "Max Width",
+      "description": "Capped by available space to avoid squeezing"
+    },
+    "taskbarLyricColorMode": {
+      "label": "Color Mode",
+      "description": "Text and background color scheme of the taskbar lyric",
+      "taskbar": "Follow Taskbar",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "taskbarLyricFontSize": {
+      "label": "Font Size",
+      "description": "Taskbar lyric text size (px)"
+    },
+    "taskbarLyricShowCover": {
+      "label": "Show Cover",
+      "description": "Show the current track's cover thumbnail beside the lyric"
+    },
+    "taskbarLyricDoubleLine": {
+      "label": "Double Line",
+      "description": "Show current lyric together with translation or next line"
+    },
+    "taskbarLyricShowTranslation": {
+      "label": "Show Translation",
+      "description": "In double-line mode, prefer translation; fall back to the next line when unavailable"
+    },
+    "taskbarLyricWordByWord": {
+      "label": "Word by Word",
+      "description": "Render highlight progress per word"
     },
     "playerBgType": {
       "label": "Player Background",

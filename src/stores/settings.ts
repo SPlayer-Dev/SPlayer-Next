@@ -60,6 +60,9 @@ export const useSettingsStore = defineStore(
     /** 灵动岛窗口是否打开；由主进程广播 */
     const isDynamicIslandOpen = ref(false);
 
+    /** 任务栏歌词窗口是否打开；由主进程广播 */
+    const isTaskbarLyricOpen = ref(false);
+
     /** 从主进程拉取后端配置 */
     const syncSystem = async (): Promise<void> => {
       try {
@@ -99,6 +102,17 @@ export const useSettingsStore = defineStore(
       isDynamicIslandOpen.value = open;
     });
 
+    // 订阅任务栏歌词窗口开关状态
+    window.api.window
+      .isTaskbarLyricOpen()
+      .then((open) => {
+        isTaskbarLyricOpen.value = open;
+      })
+      .catch(() => {});
+    window.api.window.onTaskbarLyricVisibilityChange((open) => {
+      isTaskbarLyricOpen.value = open;
+    });
+
     /** 写入后端配置并更新本地 */
     const setSystem = async (keyPath: string, value: unknown): Promise<void> => {
       await window.api.config.set(keyPath, value);
@@ -129,6 +143,7 @@ export const useSettingsStore = defineStore(
       system,
       isDesktopLyricOpen,
       isDynamicIslandOpen,
+      isTaskbarLyricOpen,
       syncSystem,
       setSystem,
       afterLocalChange,

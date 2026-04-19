@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
+import type { TaskbarLyricSettings } from "@shared/types/settings";
 
 /** 订阅主进程推送的事件 */
 const subscribe = <T>(channel: string, callback: (data: T) => void): (() => void) => {
@@ -144,6 +145,15 @@ const api = {
     // 订阅灵动岛窗口开关状态
     onDynamicIslandVisibilityChange: (callback: (open: boolean) => void) =>
       subscribe<boolean>("dynamicIsland:visibilityChange", callback),
+    // 切换任务栏歌词窗口
+    toggleTaskbarLyric: () => ipcRenderer.invoke("window:toggleTaskbarLyric"),
+    // 关闭任务栏歌词窗口
+    closeTaskbarLyric: () => ipcRenderer.invoke("window:closeTaskbarLyric"),
+    // 查询任务栏歌词窗口是否打开
+    isTaskbarLyricOpen: () => ipcRenderer.invoke("window:isTaskbarLyricOpen"),
+    // 订阅任务栏歌词窗口开关状态
+    onTaskbarLyricVisibilityChange: (callback: (open: boolean) => void) =>
+      subscribe<boolean>("taskbarLyric:visibilityChange", callback),
   },
   desktopLyric: {
     // 订阅桌面歌词配置变化
@@ -181,6 +191,26 @@ const api = {
     // 订阅主进程 screen 光标位置判定（非遮挡模式下用于悬停隐藏）
     onCursorInside: (callback: (inside: boolean) => void) =>
       subscribe<boolean>("dynamicIsland:cursorInside", callback),
+  },
+  taskbarLyric: {
+    // 订阅布局变化（锚定方向、是否居中、系统类型、任务栏主题）
+    onLayout: (
+      callback: (data: {
+        isCentered: boolean;
+        systemType: string;
+        isLight: boolean;
+        anchor: "left" | "right";
+      }) => void,
+    ) =>
+      subscribe<{
+        isCentered: boolean;
+        systemType: string;
+        isLight: boolean;
+        anchor: "left" | "right";
+      }>("taskbarLyric:layout", callback),
+    // 订阅任务栏歌词配置变化
+    onConfigChange: (callback: (config: TaskbarLyricSettings) => void) =>
+      subscribe<TaskbarLyricSettings>("taskbarLyric:configChange", callback),
   },
   nowPlaying: {
     // 渲染进程同步当前播放状态到主进程

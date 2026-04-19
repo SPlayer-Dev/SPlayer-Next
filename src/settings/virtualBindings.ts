@@ -30,4 +30,13 @@ export const virtualBindings: Record<string, VirtualBinding> = {
       window.api.window.toggleDynamicIsland().catch(() => {});
     },
   },
+  /** 任务栏歌词窗口 */
+  isTaskbarLyricOpen: {
+    get: () => useSettingsStore().isTaskbarLyricOpen,
+    set: (v) => {
+      const store = useSettingsStore();
+      if (v === store.isTaskbarLyricOpen) return;
+      window.api.window.toggleTaskbarLyric().catch(() => {});
+    },
+  },
 };

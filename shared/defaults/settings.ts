@@ -62,6 +62,17 @@ export const defaultSystemConfig: SystemConfig = {
     doubleLine: false,
     showTranslation: false,
   },
+  taskbarLyric: {
+    position: "auto",
+    autoMaxWidth: true,
+    maxWidth: 400,
+    colorMode: "taskbar",
+    doubleLine: true,
+    showTranslation: true,
+    showCover: true,
+    wordByWord: true,
+    fontSize: 14,
+  },
   system: {
     rememberWindowState: true,
     taskbarProgress: true,

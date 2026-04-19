@@ -48,6 +48,14 @@ export interface SettingItem {
   children?: SettingItem[];
   /** 子项展开条件（默认：父级值为 true 时展开） */
   childrenCondition?: () => boolean;
+  /** 标题旁的徽标 */
+  tag?: SettingTag;
+}
+
+/** 标题旁徽标配置 */
+export interface SettingTag {
+  text: string;
+  type?: "default" | "primary" | "cover" | "info" | "success" | "warning" | "error";
 }
 
 /** 设置分区（卡片区块） */
@@ -55,6 +63,8 @@ export interface SettingSection {
   /** i18n key: settings.section.{id} */
   id: string;
   items: SettingItem[];
+  /** 标题旁的徽标 */
+  tag?: SettingTag;
 }
 
 /** 设置分类（左侧菜单项） */

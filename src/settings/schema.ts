@@ -339,6 +339,7 @@ export const settingsSchema: SettingCategory[] = [
     sections: [
       {
         id: "desktopLyric",
+        tag: { text: "Beta" },
         items: [
           {
             key: "desktopLyricEnabled",
@@ -470,6 +471,7 @@ export const settingsSchema: SettingCategory[] = [
       },
       {
         id: "dynamicIsland",
+        tag: { text: "Beta" },
         items: [
           {
             key: "dynamicIslandEnabled",
@@ -554,6 +556,107 @@ export const settingsSchema: SettingCategory[] = [
           },
         ],
       },
+      ...(navigator.platform.startsWith("Win")
+        ? [
+            {
+              id: "taskbarLyric",
+              tag: { text: "Beta" },
+              items: [
+                {
+                  key: "taskbarLyricEnabled",
+                  type: "switch" as const,
+                  binding: { store: "settings" as const, path: "isTaskbarLyricOpen" },
+                  defaultValue: false,
+                },
+                {
+                  key: "taskbarLyricPosition",
+                  type: "select" as const,
+                  binding: { store: "settings" as const, path: "system.taskbarLyric.position" },
+                  options: [
+                    { value: "auto", labelKey: "settings.taskbarLyricPosition.auto" },
+                    { value: "left", labelKey: "settings.taskbarLyricPosition.left" },
+                    { value: "right", labelKey: "settings.taskbarLyricPosition.right" },
+                  ],
+                  defaultValue: "auto",
+                },
+                {
+                  key: "taskbarLyricAutoMaxWidth",
+                  type: "switch" as const,
+                  binding: {
+                    store: "settings" as const,
+                    path: "system.taskbarLyric.autoMaxWidth",
+                  },
+                  defaultValue: true,
+                  childrenCondition: () =>
+                    useSettingsStore().system.taskbarLyric.autoMaxWidth === false,
+                  children: [
+                    {
+                      key: "taskbarLyricMaxWidth",
+                      type: "slider" as const,
+                      binding: {
+                        store: "settings" as const,
+                        path: "system.taskbarLyric.maxWidth",
+                      },
+                      min: 200,
+                      max: 800,
+                      step: 20,
+                      defaultValue: 400,
+                      marks: { 200: "200", 400: "400", 800: "800" },
+                    },
+                  ],
+                },
+                {
+                  key: "taskbarLyricColorMode",
+                  type: "select" as const,
+                  binding: { store: "settings" as const, path: "system.taskbarLyric.colorMode" },
+                  options: [
+                    { value: "taskbar", labelKey: "settings.taskbarLyricColorMode.taskbar" },
+                    { value: "light", labelKey: "settings.taskbarLyricColorMode.light" },
+                    { value: "dark", labelKey: "settings.taskbarLyricColorMode.dark" },
+                  ],
+                  defaultValue: "taskbar",
+                },
+                {
+                  key: "taskbarLyricFontSize",
+                  type: "slider" as const,
+                  binding: { store: "settings" as const, path: "system.taskbarLyric.fontSize" },
+                  min: 12,
+                  max: 20,
+                  step: 1,
+                  defaultValue: 14,
+                  marks: { 12: "12", 14: "14", 17: "17", 20: "20" },
+                },
+                {
+                  key: "taskbarLyricShowCover",
+                  type: "switch" as const,
+                  binding: { store: "settings" as const, path: "system.taskbarLyric.showCover" },
+                  defaultValue: true,
+                },
+                {
+                  key: "taskbarLyricWordByWord",
+                  type: "switch" as const,
+                  binding: { store: "settings" as const, path: "system.taskbarLyric.wordByWord" },
+                  defaultValue: true,
+                },
+                {
+                  key: "taskbarLyricDoubleLine",
+                  type: "switch" as const,
+                  binding: { store: "settings" as const, path: "system.taskbarLyric.doubleLine" },
+                  defaultValue: true,
+                },
+                {
+                  key: "taskbarLyricShowTranslation",
+                  type: "switch" as const,
+                  binding: {
+                    store: "settings" as const,
+                    path: "system.taskbarLyric.showTranslation",
+                  },
+                  defaultValue: true,
+                },
+              ],
+            },
+          ]
+        : []),
     ],
   },
   {

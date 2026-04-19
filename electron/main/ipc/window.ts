@@ -15,6 +15,9 @@ import {
   saveDynamicIslandState,
   applyDynamicIslandWidth,
   applyDynamicIslandHeight,
+  toggleTaskbarLyricWindow,
+  closeTaskbarLyricWindow,
+  getTaskbarLyricWindow,
 } from "@main/window";
 
 /** 窗口管理 IPC */
@@ -77,9 +80,18 @@ export const registerWindowIpc = (): void => {
     applyDynamicIslandHeight(height);
   });
 
-  // 灵动岛查询当前吸附模式（HMR 后渲染端主动拉取）
+  // 灵动岛查询当前吸附模式
   ipcMain.handle("dynamicIsland:getMode", () => {
     const saved = store.get("windowStates.dynamicIsland");
     return saved.mode === "floating" ? "floating" : "snapped";
   });
+
+  // 切换任务栏歌词窗口
+  ipcMain.handle("window:toggleTaskbarLyric", () => toggleTaskbarLyricWindow());
+
+  // 关闭任务栏歌词窗口
+  ipcMain.handle("window:closeTaskbarLyric", () => closeTaskbarLyricWindow());
+
+  // 查询任务栏歌词窗口是否打开
+  ipcMain.handle("window:isTaskbarLyricOpen", () => !!getTaskbarLyricWindow());
 };

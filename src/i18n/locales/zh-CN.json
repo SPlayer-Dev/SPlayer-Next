@@ -129,6 +129,7 @@
       "effectsLayout": "布局与透明度",
       "desktopLyric": "桌面歌词",
       "dynamicIsland": "灵动岛歌词",
+      "taskbarLyric": "任务栏歌词",
       "theme": "主题与风格",
       "layout": "布局",
       "media": "媒体控制",
@@ -380,6 +381,52 @@
     "dynamicIslandNonOcclusive": {
       "label": "非遮挡模式",
       "description": "鼠标穿透窗口，悬停时隐藏内容"
+    },
+    "taskbarLyricEnabled": {
+      "label": "开启任务栏歌词",
+      "description": "将歌词嵌入 Windows 任务栏中显示"
+    },
+    "taskbarLyricPosition": {
+      "label": "显示位置",
+      "description": "歌词在任务栏中的位置，自动模式下根据任务栏对齐方式选择",
+      "auto": "自动",
+      "left": "左侧",
+      "right": "右侧"
+    },
+    "taskbarLyricAutoMaxWidth": {
+      "label": "宽度自动",
+      "description": "开启后占满任务栏的可用空间；关闭后按下方最大宽度限制"
+    },
+    "taskbarLyricMaxWidth": {
+      "label": "最大宽度",
+      "description": "超出可用空间时仍以可用空间为准，避免挤占"
+    },
+    "taskbarLyricColorMode": {
+      "label": "配色模式",
+      "description": "任务栏歌词的文字与背景配色",
+      "taskbar": "跟随任务栏",
+      "light": "浅色",
+      "dark": "深色"
+    },
+    "taskbarLyricFontSize": {
+      "label": "字号",
+      "description": "任务栏歌词的文字大小（像素）"
+    },
+    "taskbarLyricShowCover": {
+      "label": "显示封面",
+      "description": "在歌词旁显示当前曲目的封面缩略图"
+    },
+    "taskbarLyricDoubleLine": {
+      "label": "双行显示",
+      "description": "同时显示当前歌词与翻译或下一行"
+    },
+    "taskbarLyricShowTranslation": {
+      "label": "显示翻译",
+      "description": "双行模式下优先显示翻译，无翻译时回退到下一行"
+    },
+    "taskbarLyricWordByWord": {
+      "label": "逐字高亮",
+      "description": "按单词进度逐字渲染高亮"
     },
     "playerBgType": {
       "label": "播放器背景",

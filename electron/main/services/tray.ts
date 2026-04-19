@@ -5,7 +5,12 @@ import { appName } from "@main/utils/config";
 import { loadIcon, loadThemedIcon } from "@main/utils/icon";
 import { t } from "@main/utils/i18n";
 import { trayLog } from "@main/utils/logger";
-import { toggleDesktopLyricWindow, toggleDynamicIslandWindow, focusMainWindow } from "@main/window";
+import {
+  toggleDesktopLyricWindow,
+  toggleDynamicIslandWindow,
+  toggleTaskbarLyricWindow,
+  focusMainWindow,
+} from "@main/window";
 
 type PlayState = "playing" | "paused";
 
@@ -16,6 +21,7 @@ let repeatMode: RepeatMode = "list";
 let shuffleMode: ShuffleMode = "off";
 let desktopLyricOpen = false;
 let dynamicIslandOpen = false;
+let taskbarLyricOpen = false;
 
 const repeatLabel = (mode: RepeatMode): string =>
   ({ list: t("repeatList"), one: t("repeatOne"), off: t("repeatOff") })[mode];
@@ -113,6 +119,15 @@ const buildMenu = (): Menu => {
       icon: menuIcon("lyric"),
       click: () => toggleDynamicIslandWindow(),
     },
+    ...(process.platform === "win32"
+      ? [
+          {
+            label: taskbarLyricOpen ? t("closeTaskbarLyric") : t("openTaskbarLyric"),
+            icon: menuIcon("lyric"),
+            click: () => toggleTaskbarLyricWindow(),
+          } as MenuItemConstructorOptions,
+        ]
+      : []),
     { type: "separator" },
     {
       label: t("quit"),
@@ -194,6 +209,13 @@ export const setTrayDesktopLyric = (open: boolean): void => {
 export const setTrayDynamicIsland = (open: boolean): void => {
   if (dynamicIslandOpen === open) return;
   dynamicIslandOpen = open;
+  refreshTray();
+};
+
+/** 同步任务栏歌词窗口开关状态到托盘 */
+export const setTrayTaskbarLyric = (open: boolean): void => {
+  if (taskbarLyricOpen === open) return;
+  taskbarLyricOpen = open;
   refreshTray();
 };
 

@@ -37,7 +37,12 @@ const descriptionText = computed(() =>
       :class="highlighted ? 'animate-highlight-pulse' : ''"
     >
       <div class="min-w-0 flex-1">
-        <div class="text-base">{{ t(`settings.${item.key}.label`) }}</div>
+        <div class="flex items-center gap-2 text-base">
+          <span>{{ t(`settings.${item.key}.label`) }}</span>
+          <STag v-if="item.tag" :type="item.tag.type ?? 'primary'">
+            {{ item.tag.text }}
+          </STag>
+        </div>
         <div class="text-sm text-on-surface-variant/70 mt-0.5">
           {{ descriptionText }}
         </div>

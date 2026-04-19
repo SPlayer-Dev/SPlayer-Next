@@ -3,7 +3,12 @@ import { PlayerApi } from "@shared/types/player";
 import { ConfigApi, LocaleCode } from "@shared/types/settings";
 import { LibraryApi } from "@shared/types/library";
 import { NowPlayingApi } from "@shared/types/nowPlaying";
-import { WindowApi, DesktopLyricApi, DynamicIslandApi } from "@shared/types/window";
+import {
+  WindowApi,
+  DesktopLyricApi,
+  DynamicIslandApi,
+  TaskbarLyricApi,
+} from "@shared/types/window";
 
 declare global {
   interface Window {
@@ -25,6 +30,7 @@ declare global {
       window: WindowApi;
       desktopLyric: DesktopLyricApi;
       dynamicIsland: DynamicIslandApi;
+      taskbarLyric: TaskbarLyricApi;
       nowPlaying: NowPlayingApi;
     };
   }

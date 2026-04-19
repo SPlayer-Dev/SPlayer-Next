@@ -140,6 +140,7 @@ declare module 'vue' {
     SSlider: typeof import('./src/components/ui/SSlider.vue')['default']
     SSwitch: typeof import('./src/components/ui/SSwitch.vue')['default']
     STabs: typeof import('./src/components/ui/STabs.vue')['default']
+    STag: typeof import('./src/components/ui/STag.vue')['default']
     SToast: typeof import('./src/components/ui/SToast.vue')['default']
     STooltip: typeof import('./src/components/ui/STooltip.vue')['default']
     StorageManager: typeof import('./src/components/settings/custom/StorageManager.vue')['default']

@@ -11,3 +11,4 @@ out
 **/target
 native/*/*.node
 # native/*/index.d.ts
+package-lock.json

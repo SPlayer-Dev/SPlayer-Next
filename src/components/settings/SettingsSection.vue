@@ -32,6 +32,9 @@ const itemStyle = (i: number) => {
     >
       <span class="w-0.75 h-4 rounded-full bg-primary" />
       {{ t(`settings.section.${section.id}`) }}
+      <STag v-if="section.tag" :type="section.tag.type ?? 'primary'" class="ml-1">
+        {{ section.tag.text }}
+      </STag>
     </h3>
     <div class="flex flex-col gap-2.5">
       <SettingsItem

@@ -25,3 +25,10 @@ export {
   moveDynamicIslandWindow,
   saveDynamicIslandState,
 } from "./dynamicIsland";
+export {
+  createTaskbarLyricWindow,
+  closeTaskbarLyricWindow,
+  toggleTaskbarLyricWindow,
+  getTaskbarLyricWindow,
+  applyTaskbarLyricLayout,
+} from "./taskbarLyric";

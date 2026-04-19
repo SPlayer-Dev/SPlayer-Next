@@ -13,7 +13,8 @@
     "tsBuildInfoFile": "node_modules/.cache/tsconfig.web.tsbuildinfo",
     "paths": {
       "@/*": ["./src/*"],
-      "@shared/*": ["./shared/*"]
+      "@shared/*": ["./shared/*"],
+      "@windows/*": ["./windows/*"]
     },
     "types": ["./auto-imports.d.ts", "./components.d.ts"]
   }

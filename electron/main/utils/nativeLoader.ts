@@ -1,9 +1,8 @@
 import { app } from "electron";
 import { createRequire } from "module";
 import path from "path";
-import log from "electron-log";
+import { nativeLog } from "./logger";
 
-const nativeLog = log.scope("native");
 const requireNative = createRequire(import.meta.url);
 
 /**
