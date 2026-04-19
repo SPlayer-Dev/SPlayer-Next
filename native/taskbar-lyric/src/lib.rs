@@ -44,6 +44,7 @@ pub const GAP: i32 = 10;
 #[macro_use]
 mod logger;
 mod strategy;
+mod taskbar_created_watcher;
 mod tray_watcher;
 mod uia;
 mod uia_watcher;
@@ -118,6 +119,8 @@ impl From<strategy::TaskbarLayout> for JsTaskbarLayout {
 enum TaskbarCommand {
     Embed { hwnd_ptr: usize },
     Update { width: i32 },
+    /// explorer 重启后重新初始化策略并用最近的 hwnd/width 恢复
+    Reinit,
     Stop,
 }
 
@@ -165,6 +168,12 @@ impl TaskbarService {
         });
     }
 
+    /// 通知服务重建策略（explorer.exe 重启时由 JS 层调用）
+    #[napi]
+    pub fn reinit(&self) {
+        let _ = self.sender.send(TaskbarCommand::Reinit);
+    }
+
     /// 停止服务并恢复任务栏原始状态
     #[napi]
     pub fn stop(&self) {
@@ -184,10 +193,14 @@ fn worker_loop(
     }
 
     let mut strategy = create_strategy();
+    // 记忆最近的 hwnd/width，explorer 重启后 Reinit 据此恢复
+    let mut last_hwnd: Option<usize> = None;
+    let mut last_width: i32 = 0;
 
     while let Ok(msg) = rx.recv() {
         match msg {
             TaskbarCommand::Embed { hwnd_ptr } => {
+                last_hwnd = Some(hwnd_ptr);
                 let hwnd = HWND(hwnd_ptr as *mut c_void);
                 if let Some(s) = strategy.as_ref() {
                     s.embed_window(hwnd);
@@ -197,15 +210,20 @@ fn worker_loop(
             TaskbarCommand::Update { width } => {
                 let mut final_width = width;
                 let mut stop_signal = false;
+                let mut reinit_requested = false;
 
                 while let Ok(next_msg) = rx.try_recv() {
                     match next_msg {
                         TaskbarCommand::Update { width: w } => final_width = w,
                         TaskbarCommand::Embed { hwnd_ptr } => {
+                            last_hwnd = Some(hwnd_ptr);
                             let hwnd = HWND(hwnd_ptr as *mut c_void);
                             if let Some(s) = strategy.as_ref() {
                                 s.embed_window(hwnd);
                             }
+                        }
+                        TaskbarCommand::Reinit => {
+                            reinit_requested = true;
                         }
                         TaskbarCommand::Stop => {
                             stop_signal = true;
@@ -218,7 +236,20 @@ fn worker_loop(
                     break;
                 }
 
+                last_width = final_width;
+
+                if reinit_requested {
+                    do_reinit(&mut strategy, last_hwnd);
+                }
+
                 if !run_update_with_retry(&mut strategy, final_width, tsfn, rx) {
+                    break;
+                }
+            }
+
+            TaskbarCommand::Reinit => {
+                do_reinit(&mut strategy, last_hwnd);
+                if last_width > 0 && !run_update_with_retry(&mut strategy, last_width, tsfn, rx) {
                     break;
                 }
             }
@@ -234,6 +265,17 @@ fn worker_loop(
     }
     unsafe {
         CoUninitialize();
+    }
+}
+
+/// Drop 旧策略（自动 restore），新建策略并用最近的 hwnd 重新嵌入。
+fn do_reinit(strategy: &mut Option<Box<dyn TaskbarStrategy>>, last_hwnd: Option<usize>) {
+    debug!("TaskbarCreated → 重建策略");
+    *strategy = None;
+    *strategy = create_strategy();
+    if let (Some(s), Some(hwnd_ptr)) = (strategy.as_ref(), last_hwnd) {
+        let hwnd = HWND(hwnd_ptr as *mut c_void);
+        s.embed_window(hwnd);
     }
 }
 
@@ -264,6 +306,10 @@ fn run_update_with_retry(
                     if let Some(s) = strategy.as_ref() {
                         s.embed_window(hwnd);
                     }
+                }
+                Ok(TaskbarCommand::Reinit) => {
+                    // 重试期间 explorer 重启，策略彻底重建，退出本轮重试由外层走新一轮
+                    return true;
                 }
                 Ok(TaskbarCommand::Stop) => return false,
                 Err(RecvTimeoutError::Timeout) => {}
@@ -493,6 +539,38 @@ impl NapiTrayWatcher {
             .build_callback(|_ctx| Ok(()))?;
 
         let inner = tray_watcher::TrayWatcher::new(Box::new(move || {
+            tsfn.call((), ThreadsafeFunctionCallMode::NonBlocking);
+        }))
+        .map_err(|e| napi::Error::from_reason(e.to_string()))?;
+
+        Ok(Self { inner })
+    }
+
+    #[napi]
+    pub fn stop(&mut self) {
+        self.inner.stop();
+    }
+}
+
+// --- NapiTaskbarCreatedWatcher ---
+
+#[napi(js_name = "TaskbarCreatedWatcher")]
+pub struct NapiTaskbarCreatedWatcher {
+    inner: taskbar_created_watcher::TaskbarCreatedWatcher,
+}
+
+#[napi]
+impl NapiTaskbarCreatedWatcher {
+    #[napi(constructor, ts_args_type = "callback: () => void")]
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn new(
+        callback: Function<(), UnknownReturnValue>,
+    ) -> napi::Result<Self> {
+        let tsfn = callback
+            .build_threadsafe_function::<()>()
+            .build_callback(|_ctx| Ok(()))?;
+
+        let inner = taskbar_created_watcher::TaskbarCreatedWatcher::new(Box::new(move || {
             tsfn.call((), ThreadsafeFunctionCallMode::NonBlocking);
         }))
         .map_err(|e| napi::Error::from_reason(e.to_string()))?;

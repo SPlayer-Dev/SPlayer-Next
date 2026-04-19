@@ -15,7 +15,14 @@ export declare class TaskbarService {
   embedWindowByPtr(hwndPtr: number): void
   /** 更新歌词显示宽度，触发重新计算布局 */
   update(lyricWidth: number): void
+  /** 通知服务重建策略（explorer.exe 重启时由 JS 层调用） */
+  reinit(): void
   /** 停止服务并恢复任务栏原始状态 */
+  stop(): void
+}
+
+export declare class TaskbarCreatedWatcher {
+  constructor(callback: () => void)
   stop(): void
 }
 

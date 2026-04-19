@@ -11,6 +11,7 @@ import type {
   JsRect,
   JsTaskbarLayout,
   RegistryWatcher,
+  TaskbarCreatedWatcher,
   TaskbarService,
   TrayWatcher,
   UiaWatcher,
@@ -37,6 +38,7 @@ let advancedRegWatcher: RegistryWatcher | null = null;
 let themeRegWatcher: RegistryWatcher | null = null;
 let uiaWatcher: UiaWatcher | null = null;
 let trayWatcher: TrayWatcher | null = null;
+let taskbarCreatedWatcher: TaskbarCreatedWatcher | null = null;
 
 /** 从设置读取当前歌词宽度（Win10 据此从 tasklist 划空间，Win11 忽略） */
 const resolveLyricWidth = (): number => {
@@ -136,6 +138,45 @@ const tryStart = <T>(name: string, factory: () => T): T | null => {
   }
 };
 
+/** 启动布局相关的四个 watcher（UIA / Tray / 两个注册表） */
+const startWatchers = (mod: TaskbarLyricNative): void => {
+  advancedRegWatcher = tryStart(
+    "RegistryWatcher(Advanced)",
+    () => new mod.RegistryWatcher(REG_SUBKEY_EXPLORER_ADVANCED, onLayoutChange),
+  );
+  themeRegWatcher = tryStart(
+    "RegistryWatcher(Personalize)",
+    () => new mod.RegistryWatcher(REG_SUBKEY_PERSONALIZE, onLayoutChange),
+  );
+  uiaWatcher = tryStart("UiaWatcher", () => new mod.UiaWatcher(onLayoutChange));
+  trayWatcher = tryStart("TrayWatcher", () => new mod.TrayWatcher(onLayoutChange));
+};
+
+/** 停止布局相关的四个 watcher（不包含 TaskbarCreatedWatcher） */
+const stopLayoutWatchers = (): void => {
+  advancedRegWatcher?.stop();
+  advancedRegWatcher = null;
+  themeRegWatcher?.stop();
+  themeRegWatcher = null;
+  uiaWatcher?.stop();
+  uiaWatcher = null;
+  trayWatcher?.stop();
+  trayWatcher = null;
+};
+
+/**
+ * explorer.exe 重启后调用：
+ * 1. UIA / Tray watcher 绑定在旧 explorer 进程，必须整体重建
+ * 2. 注册表 watcher 不绑定进程，但一并重建以简化状态
+ * 3. service.reinit() 让 Rust 端重建策略并用记忆的 hwnd/width 恢复嵌入
+ */
+const onExplorerRestart = (): void => {
+  taskbarLog.info("探测到 explorer 重启，重建 watcher 与嵌入");
+  stopLayoutWatchers();
+  service?.reinit();
+  if (nativeModule) startWatchers(nativeModule);
+};
+
 /** 创建任务栏歌词窗口：加载原生模块、嵌入任务栏 HWND 并启动 watcher */
 export const createTaskbarLyricWindow = (): BrowserWindow | null => {
   if (process.platform !== "win32") {
@@ -203,16 +244,11 @@ export const createTaskbarLyricWindow = (): BrowserWindow | null => {
     svc.embedWindowByPtr(hwndPtr);
     svc.update(resolveLyricWidth());
 
-    advancedRegWatcher = tryStart(
-      "RegistryWatcher(Advanced)",
-      () => new mod.RegistryWatcher(REG_SUBKEY_EXPLORER_ADVANCED, onLayoutChange),
+    startWatchers(mod);
+    taskbarCreatedWatcher = tryStart(
+      "TaskbarCreatedWatcher",
+      () => new mod.TaskbarCreatedWatcher(onExplorerRestart),
     );
-    themeRegWatcher = tryStart(
-      "RegistryWatcher(Personalize)",
-      () => new mod.RegistryWatcher(REG_SUBKEY_PERSONALIZE, onLayoutChange),
-    );
-    uiaWatcher = tryStart("UiaWatcher", () => new mod.UiaWatcher(onLayoutChange));
-    trayWatcher = tryStart("TrayWatcher", () => new mod.TrayWatcher(onLayoutChange));
   });
 
   taskbarLyricWindow.on("closed", () => {
@@ -230,14 +266,9 @@ export const createTaskbarLyricWindow = (): BrowserWindow | null => {
 
 /** 停止并清空所有 watcher 与 service */
 const cleanupWatchers = (): void => {
-  advancedRegWatcher?.stop();
-  advancedRegWatcher = null;
-  themeRegWatcher?.stop();
-  themeRegWatcher = null;
-  uiaWatcher?.stop();
-  uiaWatcher = null;
-  trayWatcher?.stop();
-  trayWatcher = null;
+  stopLayoutWatchers();
+  taskbarCreatedWatcher?.stop();
+  taskbarCreatedWatcher = null;
   service?.stop();
   service = null;
 };

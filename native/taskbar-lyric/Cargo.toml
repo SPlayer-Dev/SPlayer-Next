@@ -25,6 +25,8 @@ features = [
   "Win32_UI_Accessibility",
   "Win32_System_Variant",
   "Win32_System_Ole",
+  "Win32_System_LibraryLoader",
+  "Win32_Graphics_Gdi",
 ]
 
 [build-dependencies]
