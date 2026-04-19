@@ -12,7 +12,7 @@ use std::{
 use anyhow::{Result, anyhow};
 use windows::{
     Win32::{
-        Foundation::{LPARAM, WPARAM},
+        Foundation::{LPARAM, RPC_E_CHANGED_MODE, WPARAM},
         System::{
             Com::{
                 CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx,
@@ -96,9 +96,19 @@ impl UiaWatcher {
         let callback_arc = Arc::new(callback);
 
         thread::spawn(move || unsafe {
-            let hr = CoInitializeEx(None, COINIT_MULTITHREADED);
-            // S_OK / S_FALSE 需要配对 CoUninitialize；RPC_E_CHANGED_MODE 或其它错误则不应调用
-            let should_uninitialize = hr.is_ok();
+            // RPC_E_CHANGED_MODE：调用线程已被其它代码路径初始化为另一种 apartment 模式，
+            // 允许继续但末尾不能 CoUninitialize（成对关系由最初的 init 持有）
+            let should_uninitialize = {
+                let hr = CoInitializeEx(None, COINIT_MULTITHREADED);
+                if hr.is_ok() {
+                    true
+                } else if hr == RPC_E_CHANGED_MODE {
+                    false
+                } else {
+                    let _ = tx.send(GetCurrentThreadId());
+                    return;
+                }
+            };
 
             let thread_id = GetCurrentThreadId();
             let _ = tx.send(thread_id);

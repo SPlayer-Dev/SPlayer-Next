@@ -58,8 +58,9 @@ pub struct TaskbarCreatedWatcher {
 
 impl TaskbarCreatedWatcher {
     pub fn new(callback: TaskbarCreatedCallback) -> Result<Self> {
+        let callback_arc = Arc::new(callback);
         if let Ok(mut guard) = GLOBAL_CALLBACK.lock() {
-            *guard = Some(Arc::new(callback));
+            *guard = Some(callback_arc);
         }
 
         let (tx, rx) = std::sync::mpsc::channel::<u32>();
