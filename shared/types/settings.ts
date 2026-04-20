@@ -1,3 +1,5 @@
+import type { PluginsConfig } from "./plugin";
+
 /** 支持的语言代码 */
 export type LocaleCode = "zh-CN" | "en-US";
 
@@ -206,6 +208,8 @@ export interface SystemConfig {
   };
   /** 窗口几何状态（运行时自动记录，非用户主动配置） */
   windowStates: WindowStates;
+  /** 插件系统配置 */
+  plugins: PluginsConfig;
 }
 
 /** 配置 API */

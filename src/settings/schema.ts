@@ -2,12 +2,14 @@ import type { SettingCategory } from "@/types/settings-schema";
 import { useSettingsStore } from "@/stores/settings";
 import DeviceSelector from "@/components/settings/custom/DeviceSelector.vue";
 import StorageManager from "@/components/settings/custom/StorageManager.vue";
+import PluginManager from "@/components/settings/custom/PluginManager.vue";
 import IconLucideCog from "~icons/lucide/cog";
 import IconLucidePlay from "~icons/lucide/play";
 import IconLucideMic2 from "~icons/lucide/mic-2";
 import IconLucideMonitor from "~icons/lucide/monitor";
 import IconLucidePalette from "~icons/lucide/palette";
 import IconLucideGlobe from "~icons/lucide/globe";
+import IconLucidePuzzle from "~icons/lucide/puzzle";
 
 export const settingsSchema: SettingCategory[] = [
   {
@@ -778,6 +780,29 @@ export const settingsSchema: SettingCategory[] = [
                 ],
                 defaultValue: "name",
               },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "plugins",
+    icon: IconLucidePuzzle,
+    sections: [
+      {
+        id: "pluginsList",
+        tag: { text: "Beta" },
+        items: [
+          {
+            key: "pluginManager",
+            type: "custom",
+            component: PluginManager,
+            fullWidth: true,
+            keywords: [
+              "settings.plugins.import",
+              "settings.plugins.hint",
+              "settings.plugins.uninstall",
             ],
           },
         ],

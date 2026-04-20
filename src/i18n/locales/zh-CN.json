@@ -117,7 +117,8 @@
       "lyric": "歌词设置",
       "externalLyric": "外部歌词",
       "appearance": "外观设置",
-      "services": "网络与服务"
+      "services": "网络与服务",
+      "plugins": "插件管理"
     },
     "section": {
       "language": "语言",
@@ -136,7 +137,8 @@
       "device": "输出设备",
       "discord": "Discord RPC",
       "systemConfig": "系统配置",
-      "reset": "重置"
+      "reset": "重置",
+      "pluginsList": "已安装插件"
     },
     "language": {
       "label": "界面语言",
@@ -527,6 +529,33 @@
     "resetAll": {
       "label": "重置全部数据",
       "confirm": "将会清空全部歌单、退出登录状态以及重置全部设置，此操作不可撤销！"
+    },
+    "plugins": {
+      "hint": "通过插件扩展在线音源、歌词与封面来源",
+      "hintDetail": "支持 SPlayer 原生脚本，同时兼容 lx-music-desktop 的 user_api 脚本",
+      "import": "导入插件",
+      "importSuccess": "插件导入成功",
+      "importFailed": "插件导入失败",
+      "empty": "暂无已安装的插件",
+      "emptyHint": "点击右上角「导入插件」选择 .js 脚本文件",
+      "uninstall": "卸载",
+      "uninstallConfirmTitle": "卸载插件",
+      "uninstallConfirm": "确定要卸载插件「{name}」吗？此操作不可撤销。",
+      "uninstallSuccess": "插件已卸载",
+      "uninstallFailed": "卸载失败",
+      "by": "作者",
+      "sources": "支持源",
+      "status": {
+        "ready": "已就绪",
+        "loading": "加载中",
+        "error": "错误",
+        "disabled": "已禁用",
+        "unloaded": "未加载"
+      }
+    },
+    "pluginManager": {
+      "label": "插件管理",
+      "description": "导入、启用或卸载扩展脚本"
     }
   },
   "collection": {

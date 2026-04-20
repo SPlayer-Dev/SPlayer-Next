@@ -10,6 +10,7 @@ import {
 import { registerIpcHandlers } from "@main/ipc";
 import { init as initMedia, shutdown as shutdownMedia } from "@main/services/media";
 import { initDatabase, closeDatabase } from "@main/database";
+import { pluginRegistry } from "@main/plugins/registry";
 import { registerCacheScheme, handleCacheProtocol } from "@main/utils/protocol";
 import { coreLog, initLogger } from "@main/utils/logger";
 import { store } from "@main/store";
@@ -68,6 +69,8 @@ export const initApp = (): void => {
     registerIpcHandlers();
     // 初始化系统媒体控件
     initMedia();
+    // 初始化插件系统（扫描并启动已启用的插件）
+    pluginRegistry.init();
     // 创建主窗口
     createMainWindow();
     // 恢复歌词相关窗口
@@ -95,5 +98,6 @@ export const initApp = (): void => {
     }
     shutdownMedia();
     closeDatabase();
+    void pluginRegistry.shutdown();
   });
 };

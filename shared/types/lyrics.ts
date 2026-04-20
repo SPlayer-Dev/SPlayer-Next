@@ -11,6 +11,7 @@ export interface ExternalLyric {
 export type LyricSource =
   | { type: "external"; format: LyricFormat }
   | { type: "embedded"; format: LyricFormat }
+  | { type: "plugin"; pluginId: string; format: LyricFormat }
   | null;
 
 /** 歌词时间片段 */

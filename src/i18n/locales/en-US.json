@@ -117,7 +117,8 @@
       "lyric": "Lyrics",
       "externalLyric": "External Lyrics",
       "appearance": "Appearance",
-      "services": "Services"
+      "services": "Services",
+      "plugins": "Plugin Manager"
     },
     "section": {
       "language": "Language",
@@ -136,7 +137,8 @@
       "device": "Output Device",
       "discord": "Discord RPC",
       "systemConfig": "System",
-      "reset": "Reset"
+      "reset": "Reset",
+      "pluginsList": "Installed Plugins"
     },
     "language": {
       "label": "Language",
@@ -527,6 +529,33 @@
     "resetAll": {
       "label": "Reset All Data",
       "confirm": "This will clear all playlists, sign out, and reset all settings. This action cannot be undone!"
+    },
+    "plugins": {
+      "hint": "Extend online sources, lyrics and metadata via plugins",
+      "hintDetail": "Supports native SPlayer scripts and lx-music-desktop user_api scripts",
+      "import": "Import Plugin",
+      "importSuccess": "Plugin imported",
+      "importFailed": "Failed to import plugin",
+      "empty": "No plugins installed",
+      "emptyHint": "Click \"Import Plugin\" to pick a .js script file",
+      "uninstall": "Uninstall",
+      "uninstallConfirmTitle": "Uninstall Plugin",
+      "uninstallConfirm": "Are you sure you want to uninstall \"{name}\"? This action cannot be undone.",
+      "uninstallSuccess": "Plugin uninstalled",
+      "uninstallFailed": "Uninstall failed",
+      "by": "By",
+      "sources": "Sources",
+      "status": {
+        "ready": "Ready",
+        "loading": "Loading",
+        "error": "Error",
+        "disabled": "Disabled",
+        "unloaded": "Unloaded"
+      }
+    },
+    "pluginManager": {
+      "label": "Plugin Manager",
+      "description": "Import, enable, or uninstall extension scripts"
     }
   },
   "collection": {

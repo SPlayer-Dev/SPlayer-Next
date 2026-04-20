@@ -42,6 +42,8 @@ export interface SettingItem {
   action?: () => void;
   /** custom 类型的组件 */
   component?: Component;
+  /** custom：独占整行（隐藏 label/description 与卡片包裹，组件自渲染） */
+  fullWidth?: boolean;
   /** 搜索用额外关键词（i18n keys） */
   keywords?: string[];
   /** 子项（折叠展开） */

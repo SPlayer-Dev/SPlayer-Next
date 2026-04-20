@@ -10,7 +10,7 @@ export type RepeatMode = "off" | "list" | "one";
 export type ShuffleMode = "off" | "on";
 
 /** 歌曲来源 */
-export type TrackSource = "local" | "online";
+export type TrackSource = "local" | "online" | "plugin";
 
 /** 歌手 */
 export interface Artist {
@@ -41,6 +41,10 @@ export interface OnlineMatch {
   album?: Album;
   cover?: string;
   coverOriginal?: string;
+  /** 来源插件 ID（source=plugin 时填） */
+  pluginId?: string;
+  /** 插件内部的源名（如 kw/kg/tx） */
+  pluginSource?: string;
 }
 
 /** 歌曲信息 */
@@ -65,6 +69,10 @@ export interface Track {
   /** 音质信息 */
   quality?: AudioQuality;
   matched?: OnlineMatch;
+  /** 来源插件 ID（source=plugin 时填） */
+  pluginId?: string;
+  /** 插件内部的源名 */
+  pluginSource?: string;
 }
 
 /** 歌曲详细信息 */

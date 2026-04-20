@@ -32,7 +32,15 @@ const descriptionText = computed(() =>
 
 <template>
   <div :id="`setting-${item.key}`">
+    <!-- fullWidth custom：只渲染组件，不套标签与卡片 -->
+    <component
+      :is="item.component"
+      v-if="item.type === 'custom' && item.fullWidth && item.component"
+      class="transition-all duration-300"
+      :class="highlighted ? 'animate-highlight-pulse' : ''"
+    />
     <div
+      v-else
       class="flex items-center justify-between gap-4 rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3.5 transition-all duration-300"
       :class="highlighted ? 'animate-highlight-pulse' : ''"
     >
