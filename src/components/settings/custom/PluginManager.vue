@@ -12,6 +12,9 @@ const { list, loaded } = storeToRefs(pluginsStore);
 const confirmOpen = ref(false);
 const pendingUninstallId = ref<string | null>(null);
 const importing = ref(false);
+const urlDialogOpen = ref(false);
+const urlInput = ref("");
+const urlSubmitting = ref(false);
 
 onMounted(() => {
   if (!loaded.value) void pluginsStore.load();
@@ -42,10 +45,13 @@ const sourceNames = (info: PluginInfo): string[] => {
   return Object.keys(info.status.sources);
 };
 
-/** name 首字母作为 avatar */
-const initial = (name: string): string => (name.trim()[0] ?? "?").toUpperCase();
+/** 打开外链（主进程 windowOpenHandler 已统一拦截为 shell.openExternal） */
+const openExternal = (url?: string): void => {
+  if (!url) return;
+  window.open(url, "_blank", "noopener,noreferrer");
+};
 
-const handleImport = async (): Promise<void> => {
+const handleImportLocal = async (): Promise<void> => {
   importing.value = true;
   try {
     const res = await pluginsStore.pickAndInstall();
@@ -57,8 +63,37 @@ const handleImport = async (): Promise<void> => {
   }
 };
 
-const handleToggleEnabled = async (id: string, enabled: boolean): Promise<void> => {
-  await pluginsStore.setEnabled(id, enabled);
+const openUrlDialog = (): void => {
+  urlInput.value = "";
+  urlDialogOpen.value = true;
+};
+
+const handleImportFromUrl = async (): Promise<void> => {
+  const url = urlInput.value.trim();
+  if (!/^https?:\/\//i.test(url)) {
+    toast.error(t("settings.plugins.importUrlInvalid"));
+    return;
+  }
+  urlSubmitting.value = true;
+  try {
+    const res = await pluginsStore.installFromUrl(url);
+    if (res.ok) {
+      toast.success(t("settings.plugins.importSuccess"));
+      urlDialogOpen.value = false;
+    } else {
+      toast.error(res.error ?? t("settings.plugins.importFailed"));
+    }
+  } finally {
+    urlSubmitting.value = false;
+  }
+};
+
+const handleToggleEnabled = async (id: string, currentlyEnabled: boolean): Promise<void> => {
+  if (currentlyEnabled) {
+    await pluginsStore.setEnabled(id, false);
+  } else {
+    await pluginsStore.enableExclusive(id);
+  }
 };
 
 const openUninstallConfirm = (id: string): void => {
@@ -79,9 +114,7 @@ const handleConfirmUninstall = async (): Promise<void> => {
 /** 当前待卸载的插件名（对话框提示） */
 const pendingName = computed(() => {
   if (!pendingUninstallId.value) return "";
-  return (
-    list.value.find((i) => i.manifest.id === pendingUninstallId.value)?.manifest.name ?? ""
-  );
+  return list.value.find((i) => i.manifest.id === pendingUninstallId.value)?.manifest.name ?? "";
 });
 </script>
 
@@ -97,12 +130,20 @@ const pendingName = computed(() => {
           {{ t("settings.plugins.hintDetail") }}
         </div>
       </div>
-      <SButton type="primary" size="small" :loading="importing" @click="handleImport">
-        <template #icon>
-          <IconLucidePlus class="size-4" />
-        </template>
-        {{ t("settings.plugins.import") }}
-      </SButton>
+      <div class="flex items-center gap-2 shrink-0">
+        <SButton variant="secondary" size="small" :loading="importing" @click="handleImportLocal">
+          <template #icon>
+            <IconLucideFolderOpen class="size-4" />
+          </template>
+          {{ t("settings.plugins.importLocal") }}
+        </SButton>
+        <SButton variant="secondary" size="small" @click="openUrlDialog">
+          <template #icon>
+            <IconLucideLink class="size-4" />
+          </template>
+          {{ t("settings.plugins.importFromUrl") }}
+        </SButton>
+      </div>
     </div>
 
     <!-- 空态 -->
@@ -124,73 +165,69 @@ const pendingName = computed(() => {
     </div>
 
     <!-- 插件列表 -->
-    <ul v-else class="flex flex-col gap-2.5">
+    <ul v-else class="flex flex-col gap-2.5 list-none p-0 m-0">
       <li
         v-for="info in list"
         :key="info.manifest.id"
         class="rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3.5"
       >
         <div class="flex items-start gap-3">
-          <!-- 首字母头像 -->
-          <div
-            class="shrink-0 size-10 rounded-xl bg-primary/12 text-primary flex items-center justify-center text-base font-semibold"
-          >
-            {{ initial(info.manifest.name) }}
-          </div>
-
           <!-- 主体信息 -->
           <div class="flex-1 min-w-0">
+            <!-- 标题行：名字 + 版本 + 状态 + 外链 -->
             <div class="flex items-center gap-2 flex-wrap">
               <span class="text-sm font-medium text-on-surface truncate">
                 {{ info.manifest.name }}
               </span>
-              <STag size="tiny" type="default">v{{ info.manifest.version }}</STag>
-              <STag size="tiny" :type="statusTag(info).type">
+              <button
+                v-if="info.manifest.homepage"
+                type="button"
+                class="p-0 border-none bg-transparent text-on-surface-variant/50 hover:text-primary cursor-pointer transition-colors leading-0"
+                :title="info.manifest.homepage"
+                @click="openExternal(info.manifest.homepage)"
+              >
+                <IconLucideExternalLink class="size-3.5" />
+              </button>
+              <STag size="tiny" type="default" variant="soft">v{{ info.manifest.version }}</STag>
+              <STag size="tiny" :type="statusTag(info).type" variant="soft">
                 {{ t(`settings.plugins.status.${statusTag(info).key}`) }}
               </STag>
-              <STag
-                v-if="info.manifest.platform === 'lx'"
-                size="tiny"
-                type="info"
-                variant="outline"
-              >
-                lx
-              </STag>
             </div>
 
+            <!-- 简介 -->
             <div
               v-if="info.manifest.description"
-              class="mt-1 text-xs text-on-surface-variant/70 line-clamp-2"
+              class="mt-1.5 flex items-start gap-1.5 text-xs text-on-surface-variant/70"
             >
-              {{ info.manifest.description }}
+              <IconLucideInfo class="size-3.5 shrink-0 mt-0.5 opacity-60" />
+              <span class="line-clamp-2">{{ info.manifest.description }}</span>
             </div>
 
+            <!-- 作者 + 支持源 -->
             <div
               v-if="info.manifest.author || sourceNames(info).length"
-              class="mt-1.5 flex items-center gap-2 flex-wrap text-xs text-on-surface-variant/60"
+              class="mt-1.5 flex items-center gap-3 flex-wrap text-xs text-on-surface-variant/60"
             >
-              <span v-if="info.manifest.author">
-                {{ t("settings.plugins.by") }} {{ info.manifest.author }}
+              <span v-if="info.manifest.author" class="flex items-center gap-1">
+                <IconLucideUser class="size-3.5 opacity-60" />
+                {{ info.manifest.author }}
               </span>
-              <span
-                v-if="info.manifest.author && sourceNames(info).length"
-                class="text-on-surface-variant/30"
-                >·</span
-              >
               <span v-if="sourceNames(info).length" class="flex items-center gap-1 flex-wrap">
-                <span>{{ t("settings.plugins.sources") }}:</span>
                 <STag
                   v-for="src in sourceNames(info)"
                   :key="src"
                   size="tiny"
-                  variant="outline"
+                  variant="soft"
                   type="primary"
+                  class="gap-1"
                 >
+                  <IconLucideDatabase class="size-3" />
                   {{ src }}
                 </STag>
               </span>
             </div>
 
+            <!-- 错误信息 -->
             <div
               v-if="info.status.state === 'error'"
               class="mt-2 rounded-md bg-red-500/10 px-2 py-1 text-xs text-red-500 break-all"
@@ -200,13 +237,21 @@ const pendingName = computed(() => {
           </div>
 
           <!-- 操作区 -->
-          <div class="shrink-0 flex items-center gap-3">
-            <SSwitch
-              :model-value="info.enabled"
-              @update:model-value="(v: boolean) => handleToggleEnabled(info.manifest.id, v)"
-            />
+          <div class="shrink-0 flex items-center gap-2">
             <SButton
-              variant="text"
+              :variant="info.enabled ? 'filled' : 'secondary'"
+              size="small"
+              :type="info.enabled ? 'primary' : 'default'"
+              @click="handleToggleEnabled(info.manifest.id, info.enabled)"
+            >
+              <template #icon>
+                <IconLucideCircleCheck v-if="info.enabled" class="size-4" />
+                <IconLucidePower v-else class="size-4" />
+              </template>
+              {{ info.enabled ? t("settings.plugins.enabled") : t("settings.plugins.enable") }}
+            </SButton>
+            <SButton
+              variant="secondary"
               size="small"
               type="error"
               @click="openUninstallConfirm(info.manifest.id)"
@@ -221,6 +266,34 @@ const pendingName = computed(() => {
       </li>
     </ul>
 
+    <!-- URL 导入 -->
+    <SDialog
+      v-model:open="urlDialogOpen"
+      :title="t('settings.plugins.importUrlTitle')"
+      width="480px"
+    >
+      <SInput
+        v-model="urlInput"
+        :placeholder="t('settings.plugins.importUrlPlaceholder')"
+        :disabled="urlSubmitting"
+        clearable
+        @keydown.enter="handleImportFromUrl"
+      />
+      <template #footer="{ close }">
+        <SButton variant="secondary" :disabled="urlSubmitting" @click="close">
+          {{ t("common.cancel") }}
+        </SButton>
+        <SButton
+          variant="secondary"
+          type="primary"
+          :loading="urlSubmitting"
+          @click="handleImportFromUrl"
+        >
+          {{ t("settings.plugins.importUrlSubmit") }}
+        </SButton>
+      </template>
+    </SDialog>
+
     <!-- 卸载确认 -->
     <SDialog
       v-model:open="confirmOpen"
@@ -232,7 +305,9 @@ const pendingName = computed(() => {
       </p>
       <template #footer="{ close }">
         <SButton variant="secondary" @click="close">{{ t("common.cancel") }}</SButton>
-        <SButton type="error" @click="handleConfirmUninstall">{{ t("common.confirm") }}</SButton>
+        <SButton variant="secondary" type="error" @click="handleConfirmUninstall">
+          {{ t("common.confirm") }}
+        </SButton>
       </template>
     </SDialog>
   </div>

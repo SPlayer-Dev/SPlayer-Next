@@ -14,30 +14,30 @@
 
 ### 主进程插件内核
 
-| 文件 | 职责 |
-|---|---|
-| `shared/types/plugin.ts` | 跨进程类型契约：`PluginManifest` / `PluginStatus` / `HostApi` / `SandboxIn/Out` / `PluginsApi` 等 |
-| `shared/defaults/plugin-api.ts` | `HOST_API_LEVEL` 常量、action 超时、错误码枚举、默认配置 |
-| `electron/main/plugins/sandbox.ts` | `utilityProcess.fork` 控制器：启停、心跳、崩溃重启、消息编解码 |
-| `electron/main/plugins/sandbox.worker.ts` | 子进程入口：`vm.createContext` → 注入 `splayer` + 可选 `lx` 垫片 → `vm.runInContext` |
-| `electron/main/plugins/host.ts` | `HostApi` 主进程侧 dispatch：network / storage / log |
-| `electron/main/plugins/net.ts` | 网络代理：`net.fetch` + URL 白名单（仅 http/https）+ 超时 |
-| `electron/main/plugins/storage.ts` | 每插件 KV 落盘 `{userData}/plugins/data/{id}.json`，原子写 |
-| `electron/main/plugins/loader.ts` | 头部 JSDoc 解析 + `gz_` 解压 + `id = name + sha1(source).slice(0,8)` |
-| `electron/main/plugins/registry.ts` | `Map<id, PluginRuntime>` + 扫描/启停/重启/生命周期状态机 |
-| `electron/main/plugins/router.ts` | action 调度：`search` / `musicUrl`（超时、取消、fallback） |
-| `electron/main/plugins/lx-shim.ts` | `window.lx` 适配：`request` / `on('request')` / `send('inited')` / `utils` |
-| `electron/main/ipc/plugin.ts` | IPC 注册：`plugin:list/install/pickAndInstall/uninstall/setEnabled/search/resolveUrl` + `plugin:status` 广播 |
+| 文件                                      | 职责                                                                                                         |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `shared/types/plugin.ts`                  | 跨进程类型契约：`PluginManifest` / `PluginStatus` / `HostApi` / `SandboxIn/Out` / `PluginsApi` 等            |
+| `shared/defaults/plugin-api.ts`           | `HOST_API_LEVEL` 常量、action 超时、错误码枚举、默认配置                                                     |
+| `electron/main/plugins/sandbox.ts`        | `utilityProcess.fork` 控制器：启停、心跳、崩溃重启、消息编解码                                               |
+| `electron/main/plugins/sandbox.worker.ts` | 子进程入口：`vm.createContext` → 注入 `splayer` + 可选 `lx` 垫片 → `vm.runInContext`                         |
+| `electron/main/plugins/host.ts`           | `HostApi` 主进程侧 dispatch：network / storage / log                                                         |
+| `electron/main/plugins/net.ts`            | 网络代理：`net.fetch` + URL 白名单（仅 http/https）+ 超时                                                    |
+| `electron/main/plugins/storage.ts`        | 每插件 KV 落盘 `{userData}/plugins/data/{id}.json`，原子写                                                   |
+| `electron/main/plugins/loader.ts`         | 头部 JSDoc 解析 + `gz_` 解压 + `id = name + sha1(source).slice(0,8)`                                         |
+| `electron/main/plugins/registry.ts`       | `Map<id, PluginRuntime>` + 扫描/启停/重启/生命周期状态机                                                     |
+| `electron/main/plugins/router.ts`         | action 调度：`search` / `musicUrl`（超时、取消、fallback）                                                   |
+| `electron/main/plugins/lx-shim.ts`        | `window.lx` 适配：`request` / `on('request')` / `send('inited')` / `utils`                                   |
+| `electron/main/ipc/plugin.ts`             | IPC 注册：`plugin:list/install/pickAndInstall/uninstall/setEnabled/search/resolveUrl` + `plugin:status` 广播 |
 
 ### 渲染端插件管理 UI
 
-| 文件 | 职责 |
-|---|---|
-| `src/stores/plugins.ts` | Pinia store：`list` / `load` / `pickAndInstall` / `uninstall` / `setEnabled` + 订阅 `plugin:status` |
-| `src/components/settings/custom/PluginManager.vue` | 管理面板：顶部导入条 / 空态 / 插件卡片列表 / 卸载确认 |
-| `src/components/settings/SettingsItem.vue` | 增加 `fullWidth` 分支渲染（custom 组件独占整行时跳过 label/卡片外壳） |
-| `src/types/settings-schema.ts` | `SettingItem.fullWidth?: boolean` |
-| `src/settings/schema.ts` | 新增 `plugins` category（puzzle 图标）+ 挂 `PluginManager`（fullWidth） |
+| 文件                                               | 职责                                                                                                |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `src/stores/plugins.ts`                            | Pinia store：`list` / `load` / `pickAndInstall` / `uninstall` / `setEnabled` + 订阅 `plugin:status` |
+| `src/components/settings/custom/PluginManager.vue` | 管理面板：顶部导入条 / 空态 / 插件卡片列表 / 卸载确认                                               |
+| `src/components/settings/SettingsItem.vue`         | 增加 `fullWidth` 分支渲染（custom 组件独占整行时跳过 label/卡片外壳）                               |
+| `src/types/settings-schema.ts`                     | `SettingItem.fullWidth?: boolean`                                                                   |
+| `src/settings/schema.ts`                           | 新增 `plugins` category（puzzle 图标）+ 挂 `PluginManager`（fullWidth）                             |
 
 ### 改动的现有文件
 
@@ -58,11 +58,14 @@
 3. 或直接放脚本到 `{userData}/plugins/scripts/{name}.js` + 重启
 4. DevTools 里：
    ```js
-   await window.api.plugins.list()
-   await window.api.plugins.search({ keyword: "test" })
+   await window.api.plugins.list();
+   await window.api.plugins.search({ keyword: "test" });
    await window.api.plugins.resolveUrl({
-     pluginId: "xxx", source: "kw", musicInfo: { songmid: "abc" }, quality: "320k"
-   })
+     pluginId: "xxx",
+     source: "kw",
+     musicInfo: { songmid: "abc" },
+     quality: "320k",
+   });
    ```
 5. 异常场景：
    - 强 kill utilityProcess 子进程 → 3 次指数退避自动重启（2s/8s/30s），累计 3 次失败后 `disabled`
@@ -72,21 +75,25 @@
 ## 二期待办（下次会话接续这里）
 
 ### 优先 1：让插件真正接入播放链路
+
 - `src/services/sourceResolver.ts` 渲染端门面：合并多插件结果、按优先级 fallback、去重
 - `src/services/audioLoader.ts` 判断 `track.source === "plugin"` → 先 `resolveUrl` 再交给 player
 - `src/pages/OnlineSearch.vue` 搜索页（或融入 Library）：输入关键词 → 结果列表 → 点击播放
 
 ### 优先 2：歌词/元数据接入
+
 - `src/services/lyricLoader.ts` 新增 `source.type === "plugin"` 分支 → `api.plugins.fetchLyric`
 - 主进程 `ipc/plugin.ts` 暴露 `plugin:fetchLyric` / `plugin:fetchMeta` handler
 - `router.ts` 里已有骨架，补 `lyric` / `meta` action 分派
 
 ### 优先 3：UI 增强
+
 - 每插件独立设置抽屉：读插件上报的 `settingsSchema`（HostApi 已预留）
 - 查看插件日志按钮（现已写文件 `{userData}/plugins/logs/{id}.log`，补一个查看入口）
 - 插件优先级拖拽排序（写 `settings.plugins.priority.{action}[]`）
 
 ### 待清理的技术细节
+
 - `registry.ts` 的 `pickForAction` 方法当前未被使用（router 直接按 listInfo 拿顺序），二期启用优先级后可统一用它
 - `router.ts` `searchAcrossPlugins` 对 `pluginRegistry.listInfo` 的访问写法不够优雅，二期重构
 - `sandbox.worker.ts` 几处 `any` 是因为 `process.parentPort` / `splayer.utils` 需要；Electron 类型出正式 typings 时可去掉
@@ -141,6 +148,7 @@ npx electron-vite build  # 产出 out/main/{index,sandbox.worker}.js
 ## 接续指引
 
 **新会话打开后**：
+
 1. 读这份 `docs/plugins-mvp.md`
 2. 读 `CLAUDE.md`（项目约定）
 3. `git log --oneline` 看最近提交确认已到位

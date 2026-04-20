@@ -87,7 +87,10 @@ const sha1 = (data: string): string => crypto.createHash("sha1").update(data).di
 
 /** 规范化 name 为 id 可用的 slug */
 const slugify = (name: string): string =>
-  name.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "plugin";
+  name
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "plugin";
 
 export interface LoadedScript {
   /** 纯文本源码 */
@@ -99,11 +102,7 @@ export interface LoadedScript {
 }
 
 /** 从磁盘或原始字符串加载并解析 */
-export const loadScript = (
-  rawOrPath: string,
-  isPath: boolean,
-  fileName?: string,
-): LoadedScript => {
+export const loadScript = (rawOrPath: string, isPath: boolean, fileName?: string): LoadedScript => {
   const raw = isPath ? fs.readFileSync(rawOrPath, "utf-8") : rawOrPath;
   const wasCompressed = raw.trim().startsWith(GZ_PREFIX);
   const source = decompressIfNeeded(raw);
@@ -115,15 +114,12 @@ export const loadScript = (
     });
   }
 
-  const platform: PluginPlatform =
-    header.platform ?? (wasCompressed ? "lx" : "splayer");
+  const platform: PluginPlatform = header.platform ?? (wasCompressed ? "lx" : "splayer");
   const apiLevel = header.apiLevel ?? 1;
 
   if (apiLevel > HOST_API_LEVEL) {
     throw Object.assign(
-      new Error(
-        `plugin requires apiLevel ${apiLevel} but host supports ${HOST_API_LEVEL}`,
-      ),
+      new Error(`plugin requires apiLevel ${apiLevel} but host supports ${HOST_API_LEVEL}`),
       { code: PluginErrorCodes.API_LEVEL_MISMATCH },
     );
   }

@@ -29,10 +29,13 @@ import type {
 import { installLxShim } from "./lx-shim";
 
 // utilityProcess 注入的全局 parentPort（Electron 类型没导出，用 any）
- 
-const parentPort: { on: (evt: "message", cb: (msg: any) => void) => void; postMessage: (msg: SandboxOut) => void } =
-   
-  (process as any).parentPort;
+// 注意：process.parentPort 仿 Web Worker 接口，'message' 回调参数是 MessageEvent，
+// 消息体在 event.data；与主进程侧 UtilityProcess.on('message', msg) 不同
+
+const parentPort: {
+  on: (evt: "message", cb: (event: { data: SandboxIn }) => void) => void;
+  postMessage: (msg: SandboxOut) => void;
+} = (process as any).parentPort;
 
 if (!parentPort) {
   // 未在 utilityProcess 下运行，退出
@@ -110,19 +113,27 @@ const buildSplayer = (init: Extract<SandboxIn, { kind: "init" }>): HostApi => ({
     keys: () => hostCall("storage.keys", []) as Promise<string[]>,
   },
 
-  getSetting: <T = unknown>(key: string): T | undefined =>
-    userSettingsCache[key] as T | undefined,
+  getSetting: <T = unknown>(key: string): T | undefined => userSettingsCache[key] as T | undefined,
 });
 
 /** 把 utils 暴露给沙箱（原生 Node 模块包装） */
 const buildUtils = (): object => ({
   crypto: {
     md5: (data: string | Uint8Array) =>
-      crypto.createHash("md5").update(data as crypto.BinaryLike).digest("hex"),
+      crypto
+        .createHash("md5")
+        .update(data as crypto.BinaryLike)
+        .digest("hex"),
     sha1: (data: string | Uint8Array) =>
-      crypto.createHash("sha1").update(data as crypto.BinaryLike).digest("hex"),
+      crypto
+        .createHash("sha1")
+        .update(data as crypto.BinaryLike)
+        .digest("hex"),
     sha256: (data: string | Uint8Array) =>
-      crypto.createHash("sha256").update(data as crypto.BinaryLike).digest("hex"),
+      crypto
+        .createHash("sha256")
+        .update(data as crypto.BinaryLike)
+        .digest("hex"),
     hmac: (algo: string, key: string | Uint8Array, data: string | Uint8Array) =>
       crypto
         .createHmac(algo, key as crypto.BinaryLike)
@@ -152,8 +163,10 @@ const buildUtils = (): object => ({
       crypto.publicEncrypt(publicKey, Buffer.from(data)),
   },
   buffer: {
-    from: (data: ArrayBuffer | SharedArrayBuffer | string | Uint8Array | number[], enc?: BufferEncoding) =>
-      typeof data === "string" ? Buffer.from(data, enc) : Buffer.from(data as ArrayBuffer),
+    from: (
+      data: ArrayBuffer | SharedArrayBuffer | string | Uint8Array | number[],
+      enc?: BufferEncoding,
+    ) => (typeof data === "string" ? Buffer.from(data, enc) : Buffer.from(data as ArrayBuffer)),
     bufToString: (buf: Buffer | Uint8Array, enc: BufferEncoding = "utf-8") =>
       Buffer.from(buf).toString(enc),
     concat: (list: Array<Buffer | Uint8Array>) => Buffer.concat(list),
@@ -174,7 +187,7 @@ const buildUtils = (): object => ({
 const runScript = (init: Extract<SandboxIn, { kind: "init" }>): void => {
   const splayer = buildSplayer(init);
   // splayer.utils 单独挂，避免被类型定义暴露（保持 HostApi 纯净）
-   
+
   (splayer as any).utils = buildUtils();
 
   const sandboxGlobal: Record<string, unknown> = {
@@ -203,12 +216,27 @@ const runScript = (init: Extract<SandboxIn, { kind: "init" }>): void => {
     },
   };
 
-  // lx 脚本：注入 window / lx 垫片
-  if (init.platform === "lx") {
-    installLxShim(sandboxGlobal, splayer, handlers, (sources) => {
+  // 统一注入 lx 垫片——无论脚本声明的 platform 是什么。
+  // 原因：很多 lx 脚本以明文 .js 分发且头注释里没写 @platform lx，
+  // 按 platform 推断会错判为 splayer，导致 globalThis.lx 为 undefined。
+  // splayer-native 脚本本身不会碰 lx 全局，多挂一个对象不干扰；
+  // lx 脚本调 splayer.on 又覆盖 lx 垫片预置的 handler，两条路径都能走通。
+  installLxShim(
+    sandboxGlobal,
+    splayer,
+    handlers,
+    (sources) => {
       registeredSources = { ...registeredSources, ...sources };
-    });
-  }
+    },
+    {
+      name: init.scriptInfo.name,
+      description: init.scriptInfo.description,
+      version: init.scriptInfo.version,
+      author: init.scriptInfo.author,
+      homepage: init.scriptInfo.homepage,
+      rawScript: init.source,
+    },
+  );
 
   // 允许脚本自引用全局
   sandboxGlobal.globalThis = sandboxGlobal;
@@ -242,8 +270,9 @@ const runScript = (init: Extract<SandboxIn, { kind: "init" }>): void => {
   });
 };
 
-/** 消息入口 */
-parentPort.on("message", async (msg: SandboxIn) => {
+/** 消息入口：event.data 是主进程发来的 SandboxIn */
+parentPort.on("message", async (event) => {
+  const msg = event.data;
   try {
     switch (msg.kind) {
       case "init": {
@@ -272,7 +301,7 @@ parentPort.on("message", async (msg: SandboxIn) => {
         if (msg.ok) w.resolve(msg.data);
         else {
           const err = new Error(msg.error?.message ?? "host call failed");
-           
+
           (err as any).code = msg.error?.code;
           w.reject(err);
         }
@@ -310,9 +339,7 @@ parentPort.on("message", async (msg: SandboxIn) => {
         } catch (err) {
           inflight.delete(msg.requestId);
           const payload: PluginErrorPayload = {
-            code:
-               
-              ((err as any)?.code as string) ?? "PLUGIN_HANDLER_ERROR",
+            code: ((err as any)?.code as string) ?? "PLUGIN_HANDLER_ERROR",
             message: err instanceof Error ? err.message : String(err),
           };
           send({ kind: "result", requestId: msg.requestId, ok: false, error: payload });

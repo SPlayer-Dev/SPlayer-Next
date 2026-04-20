@@ -1,11 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
 import type { TaskbarLyricSettings } from "@shared/types/settings";
-import type {
-  PluginInfo,
-  PluginResolveUrlArgs,
-  PluginSearchArgs,
-} from "@shared/types/plugin";
+import type { PluginInfo, PluginResolveUrlArgs } from "@shared/types/plugin";
 
 /** 订阅主进程推送的事件 */
 const subscribe = <T>(channel: string, callback: (data: T) => void): (() => void) => {
@@ -232,13 +228,13 @@ const api = {
     install: (filePath: string) => ipcRenderer.invoke("plugin:install", filePath),
     // 弹出原生文件选择框导入插件
     pickAndInstall: () => ipcRenderer.invoke("plugin:pickAndInstall"),
+    // 从远端 URL 下载并导入
+    installFromUrl: (url: string) => ipcRenderer.invoke("plugin:installFromUrl", url),
     // 卸载
     uninstall: (id: string) => ipcRenderer.invoke("plugin:uninstall", id),
     // 启用/禁用
     setEnabled: (id: string, enabled: boolean) =>
       ipcRenderer.invoke("plugin:setEnabled", id, enabled),
-    // 搜索
-    search: (args: PluginSearchArgs) => ipcRenderer.invoke("plugin:search", args),
     // 解析播放 URL
     resolveUrl: (args: PluginResolveUrlArgs) => ipcRenderer.invoke("plugin:resolveUrl", args),
     // 订阅插件状态变化

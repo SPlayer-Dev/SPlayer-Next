@@ -5,11 +5,9 @@ export const HOST_API_LEVEL = 1;
 
 /** 各动作的默认超时（毫秒） */
 export const ACTION_TIMEOUTS = {
-  search: 10_000,
   musicUrl: 20_000,
   lyric: 15_000,
   pic: 15_000,
-  meta: 15_000,
 } as const;
 
 /** 网络请求最大超时 */
@@ -20,6 +18,12 @@ export const REQUEST_DEFAULT_TIMEOUT = 15_000;
 
 /** 插件加载超时（从 fork 到收到 ready） */
 export const PLUGIN_LOAD_TIMEOUT = 10_000;
+
+/** 在线导入脚本大小上限（字节） */
+export const INSTALL_URL_MAX_SIZE = 9_000_000;
+
+/** 在线导入请求超时（毫秒） */
+export const INSTALL_URL_TIMEOUT = 15_000;
 
 /** 心跳间隔 */
 export const HEARTBEAT_INTERVAL = 10_000;
@@ -71,10 +75,9 @@ export const PluginErrorCodes = {
 export const defaultPluginsConfig: PluginsConfig = {
   enabled: {},
   priority: {
-    search: [],
     musicUrl: [],
     lyric: [],
-    meta: [],
+    pic: [],
   },
   perPlugin: {},
 };

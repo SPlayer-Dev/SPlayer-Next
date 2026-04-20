@@ -21,8 +21,7 @@ const ensureDir = (): void => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 };
 
-const fileOf = (pluginId: string): string =>
-  path.join(getPluginsDataDir(), `${pluginId}.json`);
+const fileOf = (pluginId: string): string => path.join(getPluginsDataDir(), `${pluginId}.json`);
 
 const load = (pluginId: string): Record<string, unknown> => {
   const cached = caches.get(pluginId);

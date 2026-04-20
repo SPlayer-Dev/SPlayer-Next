@@ -33,6 +33,15 @@ export const usePluginsStore = defineStore("plugins", () => {
     return res;
   };
 
+  /** 从远端 URL 下载并导入 */
+  const installFromUrl = async (
+    url: string,
+  ): Promise<{ ok: boolean; id?: string; error?: string }> => {
+    const res = await window.api.plugins.installFromUrl(url);
+    if (res.ok) await load();
+    return res;
+  };
+
   const uninstall = async (id: string): Promise<{ ok: boolean; error?: string }> => {
     const res = await window.api.plugins.uninstall(id);
     if (res.ok) list.value = list.value.filter((i) => i.manifest.id !== id);
@@ -49,10 +58,32 @@ export const usePluginsStore = defineStore("plugins", () => {
     }
   };
 
+  /** 启用指定插件，同时禁用其他所有已启用的插件（互斥） */
+  const enableExclusive = async (id: string): Promise<void> => {
+    const others = list.value.filter((i) => i.manifest.id !== id && i.enabled);
+    await Promise.all(others.map((i) => window.api.plugins.setEnabled(i.manifest.id, false)));
+    await window.api.plugins.setEnabled(id, true);
+    const next = list.value.map((i) => ({
+      ...i,
+      enabled: i.manifest.id === id,
+    }));
+    list.value = next;
+  };
+
   const dispose = (): void => {
     unsubscribe?.();
     unsubscribe = null;
   };
 
-  return { list, loaded, load, pickAndInstall, uninstall, setEnabled, dispose };
+  return {
+    list,
+    loaded,
+    load,
+    pickAndInstall,
+    installFromUrl,
+    uninstall,
+    setEnabled,
+    enableExclusive,
+    dispose,
+  };
 });

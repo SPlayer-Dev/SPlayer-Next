@@ -2,18 +2,14 @@
  * 插件动作路由
  *
  * 把渲染端 / 主进程内部的 action 请求转发给对应插件的 sandbox，
- * 并处理超时、取消、优先级 fallback。
- *
- * MVP 只实现 search / musicUrl；lyric / meta 接入点在二期启用。
+ * 并处理超时、取消。目前支持 musicUrl / lyric / pic 三个动作。
  */
 
 import type {
   MusicUrlReq,
   MusicUrlRes,
   PluginAction,
-  PluginSearchArgs,
   PluginResolveUrlArgs,
-  SearchRes,
   SourceCapability,
 } from "@shared/types/plugin";
 import { ACTION_TIMEOUTS, PluginErrorCodes } from "@shared/defaults/plugin-api";
@@ -76,50 +72,6 @@ const supportsAction = (
   return { ok: false };
 };
 
-export const searchAcrossPlugins = async (args: PluginSearchArgs): Promise<SearchRes> => {
-  const { keyword, page = 1, limit = 30, pluginId, source } = args;
-  const candidates: PluginRuntime[] = [];
-
-  if (pluginId) {
-    const rt = pluginRegistry.getRuntime(pluginId);
-    if (rt) candidates.push(rt);
-  } else {
-    // 按优先级 + 所有 ready 插件 fallback
-    const priority = (pluginRegistry as unknown as { listInfo: () => unknown }).listInfo
-      ? pluginRegistry.listInfo().map((i) => i.manifest.id)
-      : [];
-    for (const id of priority) {
-      const rt = pluginRegistry.getRuntime(id);
-      if (rt && rt.enabled && rt.status.state === "ready") candidates.push(rt);
-    }
-  }
-
-  const errors: Error[] = [];
-  for (const rt of candidates) {
-    const check = supportsAction(rt, source, "search");
-    if (!check.ok) continue;
-    try {
-      const res = await callOn<SearchRes>(
-        rt,
-        "search",
-        { source: check.source, keyword, page, limit },
-        ACTION_TIMEOUTS.search,
-      );
-      return res;
-    } catch (err) {
-      errors.push(err as Error);
-    }
-  }
-  throw Object.assign(
-    new Error(
-      errors.length
-        ? `all candidate plugins failed: ${errors.map((e) => e.message).join("; ")}`
-        : "no plugin supports search",
-    ),
-    { code: PluginErrorCodes.ACTION_UNSUPPORTED },
-  );
-};
-
 export const resolveUrl = async (args: PluginResolveUrlArgs): Promise<MusicUrlRes> => {
   const rt = pluginRegistry.getRuntime(args.pluginId);
   if (!rt) {
@@ -136,7 +88,7 @@ export const resolveUrl = async (args: PluginResolveUrlArgs): Promise<MusicUrlRe
   }
   const params: MusicUrlReq = {
     source: check.source!,
-    quality: args.quality ?? "320k",
+    quality: args.quality ?? "hq",
     musicInfo: args.musicInfo,
   };
   return callOn<MusicUrlRes>(rt, "musicUrl", params, ACTION_TIMEOUTS.musicUrl);

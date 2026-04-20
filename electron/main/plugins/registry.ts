@@ -147,8 +147,13 @@ class PluginRegistry extends EventEmitter {
 
   /** 导入本地脚本文件 */
   async install(filePath: string): Promise<PluginInfo> {
-    ensureDirs();
     const raw = fs.readFileSync(filePath, "utf-8");
+    return this.installFromSource(raw);
+  }
+
+  /** 从脚本源码安装（供本地文件、URL 下载等入口复用） */
+  async installFromSource(raw: string): Promise<PluginInfo> {
+    ensureDirs();
     const { source, manifest } = loadScript(raw, false);
     // 脚本落盘（明文）
     const fileName = `${manifest.id}.js`;
@@ -160,7 +165,15 @@ class PluginRegistry extends EventEmitter {
     stored.plugins[manifest.id] = manifest;
     writeStored(stored);
 
-    // 默认启用
+    // 互斥：新装的插件默认启用，先把其他已启用的插件停掉（sandbox + 配置 + 状态广播）
+    const others = [...this.runtimes.values()].filter(
+      (rt) => rt.manifest.id !== manifest.id && rt.enabled,
+    );
+    for (const other of others) {
+      await this.setEnabled(other.manifest.id, false);
+    }
+
+    // 默认启用新插件
     const enabledMap = {
       ...(store.get("plugins.enabled") as Record<string, boolean>),
       [manifest.id]: true,
@@ -230,9 +243,9 @@ class PluginRegistry extends EventEmitter {
     this.setStatus(rt, { state: "loading" });
 
     const userSettings =
-      ((store.get(`plugins.perPlugin.${rt.manifest.id}` as never) as
+      (store.get(`plugins.perPlugin.${rt.manifest.id}` as never) as
         | Record<string, unknown>
-        | undefined) ?? {});
+        | undefined) ?? {};
 
     const sandbox = new Sandbox(
       {
@@ -254,7 +267,7 @@ class PluginRegistry extends EventEmitter {
           if (ok) p.resolve(data);
           else {
             const err = new Error(error?.message ?? "call failed");
-             
+
             (err as any).code = error?.code ?? PluginErrorCodes.UNKNOWN;
             p.reject(err);
           }
@@ -266,6 +279,8 @@ class PluginRegistry extends EventEmitter {
           coreLog[level](`[plugin:${rt.manifest.id}]`, ...args);
         },
         onFatal: (error) => {
+          // 同时记录到主日志，避免错误只在 UI 卡片里可见
+          coreLog.error(`[plugin:${rt.manifest.id}] fatal ${error.code}: ${error.message}`);
           this.setStatus(rt, { state: "error", error });
           // 把所有 pending 失败掉
           for (const p of rt.pending.values()) {
@@ -299,14 +314,12 @@ class PluginRegistry extends EventEmitter {
     try {
       await sandbox.start();
     } catch (err) {
-       
       const code = ((err as any)?.code as string) ?? PluginErrorCodes.UNKNOWN;
+      const message = err instanceof Error ? err.message : String(err);
+      coreLog.error(`[plugin:${rt.manifest.id}] start failed ${code}: ${message}`);
       this.setStatus(rt, {
         state: "error",
-        error: {
-          code,
-          message: err instanceof Error ? err.message : String(err),
-        },
+        error: { code, message },
       });
       rt.sandbox = null;
     }

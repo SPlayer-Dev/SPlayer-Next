@@ -4,10 +4,18 @@
  */
 
 /** 支持的插件动作 */
-export type PluginAction = "search" | "musicUrl" | "lyric" | "pic" | "meta";
+export type PluginAction = "musicUrl" | "lyric" | "pic";
 
-/** 音质等级 */
-export type PluginQuality = "128k" | "320k" | "flac" | "hires";
+/**
+ * 音质等级
+ * 对齐 src/utils/quality.ts 的 QualityLevel（去掉 null），保持宿主与插件一致
+ * - hi-res：高解析度无损（采样率 ≥ 96kHz + 位深 ≥ 24bit）
+ * - lossless：无损（flac/ape/wav 等）
+ * - hq：有损 ≥ 320kbps
+ * - sq：有损 ≥ 192kbps
+ * - lq：有损 < 192kbps
+ */
+export type PluginQuality = "hi-res" | "lossless" | "hq" | "sq" | "lq";
 
 /** 插件脚本来源平台（用于识别 lx 脚本并启用垫片） */
 export type PluginPlatform = "splayer" | "lx";
@@ -65,26 +73,6 @@ export interface PluginInfo {
 
 /* ========== 调用请求 / 响应 ========== */
 
-export interface SearchReq {
-  source: string;
-  keyword: string;
-  page?: number;
-  limit?: number;
-}
-export interface SearchTrackItem {
-  songmid: string;
-  name: string;
-  singer: string;
-  albumName?: string;
-  interval?: string;
-  cover?: string;
-  qualities?: PluginQuality[];
-}
-export interface SearchRes {
-  list: SearchTrackItem[];
-  total?: number;
-}
-
 export interface MusicUrlReq {
   source: string;
   quality: PluginQuality;
@@ -125,24 +113,11 @@ export interface PicRes {
   url: string;
 }
 
-export interface MetaReq {
-  source: string;
-  musicInfo: { songmid?: string; name: string; singer?: string; [key: string]: unknown };
-}
-export interface MetaRes {
-  album?: string;
-  cover?: string;
-  year?: number;
-  [key: string]: unknown;
-}
-
 /** Action → 请求/响应映射，用于 HostApi.on 的重载 */
 export interface ActionIO {
-  search: { req: SearchReq; res: SearchRes };
   musicUrl: { req: MusicUrlReq; res: MusicUrlRes };
   lyric: { req: LyricReq; res: LyricRes };
   pic: { req: PicReq; res: PicRes };
-  meta: { req: MetaReq; res: MetaRes };
 }
 
 /* ========== 宿主暴露给插件的 API（在沙箱内注入为 globalThis.splayer） ========== */
@@ -224,6 +199,13 @@ export type SandboxIn =
       platform: PluginPlatform;
       userSettings: Record<string, unknown>;
       source: string;
+      scriptInfo: {
+        name: string;
+        description: string;
+        version: string;
+        author: string;
+        homepage: string;
+      };
     }
   | { kind: "call"; requestId: string; action: PluginAction; params: unknown }
   | { kind: "cancel"; requestId: string }
@@ -265,15 +247,6 @@ export type HostCallMethod =
 
 /* ========== 渲染端 ↔ 主进程的 IPC 请求参数 ========== */
 
-export interface PluginSearchArgs {
-  /** 不填则按 settings.plugins.priority.search 顺序尝试 */
-  pluginId?: string;
-  source?: string;
-  keyword: string;
-  page?: number;
-  limit?: number;
-}
-
 export interface PluginResolveUrlArgs {
   pluginId: string;
   source: string;
@@ -294,12 +267,12 @@ export interface PluginsApi {
     error?: string;
     cancelled?: boolean;
   }>;
+  /** 从远端 URL 下载并导入 */
+  installFromUrl: (url: string) => Promise<{ ok: boolean; id?: string; error?: string }>;
   /** 卸载（同时删除 scripts/{id}.js） */
   uninstall: (id: string) => Promise<{ ok: boolean; error?: string }>;
   /** 启用/禁用 */
   setEnabled: (id: string, enabled: boolean) => Promise<void>;
-  /** 搜索 */
-  search: (args: PluginSearchArgs) => Promise<SearchRes>;
   /** 获取播放 URL */
   resolveUrl: (args: PluginResolveUrlArgs) => Promise<MusicUrlRes>;
   /** 订阅插件状态变化 */
@@ -313,10 +286,9 @@ export interface PluginsConfig {
   enabled: Record<string, boolean>;
   /** 各动作的插件优先级列表 */
   priority: {
-    search: string[];
     musicUrl: string[];
     lyric: string[];
-    meta: string[];
+    pic: string[];
   };
   /** 每插件的用户设置 */
   perPlugin: Record<string, Record<string, unknown>>;

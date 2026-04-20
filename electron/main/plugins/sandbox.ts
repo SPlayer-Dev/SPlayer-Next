@@ -29,12 +29,7 @@ import {
 
 export interface SandboxEvents {
   onReady: (sources: Record<string, SourceCapability>) => void;
-  onResult: (
-    requestId: string,
-    ok: boolean,
-    data?: unknown,
-    error?: PluginErrorPayload,
-  ) => void;
+  onResult: (requestId: string, ok: boolean, data?: unknown, error?: PluginErrorPayload) => void;
   onHostCall: (callId: string, method: HostCallMethod, args: unknown[]) => void;
   onLog: (level: "debug" | "info" | "warn" | "error", args: unknown[]) => void;
   onFatal: (error: PluginErrorPayload) => void;
@@ -150,6 +145,13 @@ export class Sandbox {
         platform: this.opts.manifest.platform,
         userSettings: this.opts.userSettings,
         source: this.opts.source,
+        scriptInfo: {
+          name: this.opts.manifest.name,
+          description: this.opts.manifest.description ?? "",
+          version: this.opts.manifest.version,
+          author: this.opts.manifest.author ?? "",
+          homepage: this.opts.manifest.homepage ?? "",
+        },
       };
       this.child!.postMessage(initMsg);
     });
@@ -173,12 +175,7 @@ export class Sandbox {
     this.child.postMessage({ kind: "cancel", requestId } satisfies SandboxIn);
   }
 
-  sendHostResult(
-    callId: string,
-    ok: boolean,
-    data?: unknown,
-    error?: PluginErrorPayload,
-  ): void {
+  sendHostResult(callId: string, ok: boolean, data?: unknown, error?: PluginErrorPayload): void {
     if (!this.child) return;
     this.child.postMessage({ kind: "hostResult", callId, ok, data, error } satisfies SandboxIn);
   }
@@ -212,9 +209,7 @@ export class Sandbox {
       if (!this.child) return;
       this.heartbeatMisses++;
       if (this.heartbeatMisses > HEARTBEAT_MAX_MISSES) {
-        this.events.onLog("warn", [
-          `plugin ${this.opts.manifest.id} heartbeat lost, killing`,
-        ]);
+        this.events.onLog("warn", [`plugin ${this.opts.manifest.id} heartbeat lost, killing`]);
         this.kill();
         return;
       }

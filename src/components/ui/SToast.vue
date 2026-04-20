@@ -20,7 +20,7 @@ const iconStyles: Record<ToastType, string> = {
 <template>
   <Teleport to="body">
     <div
-      class="fixed bottom-24 inset-x-0 z-100 flex flex-col items-center gap-2 pointer-events-none"
+      class="fixed bottom-24 inset-x-0 z-999 flex flex-col items-center gap-2 pointer-events-none"
     >
       <TransitionGroup
         enter-active-class="transition-all duration-300 ease-out"
