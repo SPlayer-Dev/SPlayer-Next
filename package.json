@@ -28,7 +28,6 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@material/material-color-utilities": "^0.4.0",
-    "@neteasecloudmusicapienhanced/api": "^4.32.0",
     "@vueuse/core": "^14.2.1",
     "atomically": "^2.1.1",
     "better-sqlite3": "^12.8.0",
