@@ -16,7 +16,7 @@ import {
   getSessionCookies,
   saveSessionCookies,
 } from "@main/database/sessions";
-import { buildCacheKey, cacheClear, cacheGet, cacheSet, isCacheable } from "./core/cache";
+import { buildCacheKey, cacheClear, cacheGet, cacheSet } from "./core/cache";
 import { cookieToJson } from "./core/cookie";
 import { createRequest } from "./core/request";
 import { modules } from "./modules";
@@ -95,14 +95,11 @@ export const callNetease = async (
   if (!fn) throw new Error(`unknown netease api: ${name}`);
 
   const session = loadSession();
-  const musicU = session.MUSIC_U || "";
 
-  // 读缓存
-  const cacheKey = isCacheable(name) ? buildCacheKey(name, params, musicU) : "";
-  if (cacheKey) {
-    const hit = cacheGet(cacheKey);
-    if (hit) return hit;
-  }
+  // 读缓存；调用方如不想命中，按原项目惯例在 params 里带 `timestamp: Date.now()` 即可
+  const cacheKey = buildCacheKey(name, params);
+  const hit = cacheGet(cacheKey);
+  if (hit) return hit;
 
   const query = {
     ...params,
@@ -124,7 +121,7 @@ export const callNetease = async (
   }
 
   const value = { status: res.status, body: res.body };
-  if (cacheKey && res.status === 200) cacheSet(cacheKey, value);
+  if (res.status === 200) cacheSet(cacheKey, value);
 
   return value;
 };
