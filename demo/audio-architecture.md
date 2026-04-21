@@ -400,7 +400,7 @@ Rust 编译为 WASM，通过 `wasm-bindgen` 暴露给前端。
 | ----- | ---------- | --------------- | --------------------------------- |
 | LRC   | `lrc.rs`   | nom             | 标准时间标签格式 `[mm:ss.ms]text` |
 | TTML  | `ttml/`    | quick-xml + nom | Apple Music 格式，逐字时间        |
-| YRC   | `yrc.rs`   | nom             | 网易云格式，base64 编码           |
+| YRC   | `yrc.rs`   | nom             | Netease 格式，base64 编码         |
 | QRC   | `qrc.rs`   | nom             | QQ 音乐格式，加密                 |
 | EQRC  | `eqrc/`    | nom             | QRC 加密变体                      |
 | LYS   | `lys.rs`   | nom             | 荔枝 FM 格式                      |

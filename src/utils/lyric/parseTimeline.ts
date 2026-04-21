@@ -3,7 +3,7 @@
  *
  * 两种格式共享相同的行头结构 [起始ms,时长ms]，仅逐字部分的排列顺序不同：
  * - QRC（QQ 音乐）：文字(起始ms,时长ms) → 文字在前，时间在后
- * - YRC（网易云）：(起始ms,时长ms,0)文字 → 时间在前，文字在后
+ * - YRC (Netease)：(起始ms,时长ms,0)文字 → 时间在前，文字在后
  *
  * QRC 额外支持 XML 包裹（LyricContent 属性或 CDATA 段）
  */
@@ -100,7 +100,7 @@ export const parseQRC = (text: string): LyricLine[] => {
 };
 
 /**
- * 解析 YRC（网易云）歌词
+ * 解析 YRC (Netease) 歌词
  * 格式：[0,3000](0,500,0)Counting(500,500,0) Stars
  * @param text YRC 文本内容
  */

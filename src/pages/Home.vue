@@ -1,9 +1,56 @@
 <script setup lang="ts">
 import { useThemeStore } from "@/stores/theme";
 import { toast } from "@/composables/useToast";
+import { netease } from "@/apis/netease";
 import type { ThemeSource } from "@/types/theme";
 
 const theme = useThemeStore();
+
+/** Netease 搜索测试 */
+interface NeteaseSearchSong {
+  id: number;
+  name: string;
+  artists?: { name: string }[];
+  album?: { name: string };
+  duration?: number;
+}
+interface NeteaseSearchBody {
+  code: number;
+  result?: { songs?: NeteaseSearchSong[]; songCount?: number };
+  message?: string;
+}
+const searchKeyword = ref("告白气球");
+const searchLoading = ref(false);
+const searchError = ref("");
+const searchSongs = ref<NeteaseSearchSong[]>([]);
+const searchCount = ref(0);
+
+const handleSearch = async (): Promise<void> => {
+  const kw = searchKeyword.value.trim();
+  if (!kw) return;
+  searchLoading.value = true;
+  searchError.value = "";
+  try {
+    const body = await netease.search<NeteaseSearchBody>({ keywords: kw, limit: 10 });
+    if (body.code !== 200) {
+      searchError.value = body.message ?? `code=${body.code}`;
+      searchSongs.value = [];
+      searchCount.value = 0;
+      return;
+    }
+    searchSongs.value = body.result?.songs ?? [];
+    searchCount.value = body.result?.songCount ?? 0;
+  } catch (err) {
+    searchError.value = err instanceof Error ? err.message : String(err);
+    searchSongs.value = [];
+    searchCount.value = 0;
+  } finally {
+    searchLoading.value = false;
+  }
+};
+
+const formatArtists = (song: NeteaseSearchSong): string =>
+  song.artists?.map((a) => a.name).join(" / ") ?? "";
 
 /** 按钮加载状态演示 */
 const btnLoading = ref(false);
@@ -493,6 +540,56 @@ const testLoadingToast = (): void => {
             </div>
           </template>
         </STabs>
+      </div>
+    </div>
+
+    <!-- Netease 搜索测试 -->
+    <div class="w-full rounded-xl border border-solid border-outline-variant/40 p-4 space-y-3">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-on-surface">Netease 搜索测试</h3>
+        <span v-if="searchCount > 0" class="text-xs text-on-surface-variant">
+          共 {{ searchCount }} 条
+        </span>
+      </div>
+      <div class="flex gap-2">
+        <SInput
+          v-model="searchKeyword"
+          placeholder="输入关键词"
+          clearable
+          class="flex-1"
+          @keydown.enter="handleSearch"
+        />
+        <SButton type="primary" :loading="searchLoading" @click="handleSearch">
+          <template #icon>
+            <IconLucideSearch class="size-4" />
+          </template>
+          搜索
+        </SButton>
+      </div>
+      <div v-if="searchError" class="rounded-md bg-red-500/10 px-2 py-1.5 text-xs text-red-500">
+        {{ searchError }}
+      </div>
+      <ul v-if="searchSongs.length > 0" class="flex flex-col gap-1.5 list-none p-0 m-0">
+        <li
+          v-for="song in searchSongs"
+          :key="song.id"
+          class="flex items-center gap-3 rounded-lg bg-on-surface/5 px-3 py-2"
+        >
+          <div class="flex-1 min-w-0">
+            <div class="text-sm text-on-surface truncate">{{ song.name }}</div>
+            <div class="text-xs text-on-surface-variant truncate">
+              {{ formatArtists(song) }}
+              <template v-if="song.album?.name"> · {{ song.album.name }}</template>
+            </div>
+          </div>
+          <span class="text-xs text-on-surface-variant/60 font-mono">{{ song.id }}</span>
+        </li>
+      </ul>
+      <div
+        v-else-if="!searchLoading && !searchError"
+        class="py-4 text-center text-xs text-on-surface-variant/50"
+      >
+        输入关键词并点击搜索
       </div>
     </div>
   </div>

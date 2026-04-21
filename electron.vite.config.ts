@@ -19,12 +19,14 @@ export default defineConfig({
           // 插件沙箱 worker（utilityProcess 入口）
           "sandbox.worker": resolve(__dirname, "electron/main/plugins/sandbox.worker.ts"),
         },
+        // Netease API 包内部用 fs.readdirSync 动态加载 module/*.js，
+        // 无法被 rollup 打包，必须标记为外部依赖由 node_modules 运行时解析
+        external: ["@neteasecloudmusicapienhanced/api"],
       },
     },
     resolve: {
       alias: {
         "@main": resolve(__dirname, "electron/main"),
-        "@server": resolve(__dirname, "electron/server"),
         "@shared": resolve(__dirname, "shared"),
         "@splayer/audio-engine": resolve(__dirname, "native/audio-engine"),
         "@splayer/media-ctrl": resolve(__dirname, "native/media-ctrl"),

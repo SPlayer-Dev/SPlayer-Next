@@ -43,6 +43,12 @@ export const initDatabase = (): void => {
     );
     CREATE INDEX IF NOT EXISTS idx_tracks_title ON tracks(title);
     CREATE INDEX IF NOT EXISTS idx_tracks_album ON tracks(album);
+
+    CREATE TABLE IF NOT EXISTS account_sessions (
+      platform TEXT PRIMARY KEY,
+      cookies TEXT NOT NULL DEFAULT '{}',
+      updated_at INTEGER NOT NULL
+    );
   `);
   migrate(db);
   libraryLog.info(`数据库已初始化: ${dbPath}`);

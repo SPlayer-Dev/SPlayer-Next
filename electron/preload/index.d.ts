@@ -4,6 +4,7 @@ import { ConfigApi, LocaleCode } from "@shared/types/settings";
 import { LibraryApi } from "@shared/types/library";
 import { NowPlayingApi } from "@shared/types/nowPlaying";
 import { PluginsApi } from "@shared/types/plugin";
+import { NeteaseApi } from "@shared/types/netease";
 import {
   WindowApi,
   DesktopLyricApi,
@@ -34,6 +35,7 @@ declare global {
       taskbarLyric: TaskbarLyricApi;
       nowPlaying: NowPlayingApi;
       plugins: PluginsApi;
+      netease: NeteaseApi;
     };
   }
 }

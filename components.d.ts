@@ -69,7 +69,6 @@ declare module 'vue' {
     IconLucideMusic: typeof import('~icons/lucide/music')['default']
     IconLucidePause: typeof import('~icons/lucide/pause')['default']
     IconLucidePlay: typeof import('~icons/lucide/play')['default']
-    IconLucidePlus: typeof import('~icons/lucide/plus')['default']
     IconLucidePower: typeof import('~icons/lucide/power')['default']
     IconLucidePuzzle: typeof import('~icons/lucide/puzzle')['default']
     IconLucideRefreshCw: typeof import('~icons/lucide/refresh-cw')['default']

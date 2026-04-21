@@ -14,7 +14,7 @@ import {
   getTracksByIds,
 } from "@main/database";
 import { startScan, cancelScan, isScanning } from "@main/services/scanner";
-import { fetchArtistAvatar, prefetchArtistAvatars } from "@server/artistAvatar";
+import { fetchArtistAvatar, prefetchArtistAvatars } from "@main/apis/musicbrainz";
 import { libraryLog } from "@main/utils/logger";
 import { ErrorCode } from "@shared/types/errors";
 

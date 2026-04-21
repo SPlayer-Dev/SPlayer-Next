@@ -241,6 +241,13 @@ const api = {
     onStatus: (callback: (info: PluginInfo) => void) =>
       subscribe<PluginInfo>("plugin:status", callback),
   },
+  netease: {
+    // 调用任意 Netease 接口；主进程自动注入 cookie
+    call: (name: string, params?: Record<string, unknown>) =>
+      ipcRenderer.invoke("netease:call", name, params ?? {}),
+    // 清空登录 cookie
+    clearCookie: () => ipcRenderer.invoke("netease:clearCookie"),
+  },
   nowPlaying: {
     // 渲染进程同步当前播放状态到主进程
     update: (payload: unknown) => ipcRenderer.send("nowPlaying:update", payload),
