@@ -9,6 +9,7 @@
 import { ipcMain } from "electron";
 import { callNetease, clearNeteaseCookies } from "@main/apis/netease";
 import { callQQMusic } from "@main/apis/qqmusic";
+import { callKugou } from "@main/apis/kugou";
 import { coreLog } from "@main/utils/logger";
 import type { ApiPlatform } from "@shared/types/apis";
 
@@ -25,6 +26,10 @@ const dispatch = async (
     }
     case "qqmusic": {
       const data = await callQQMusic(name, params);
+      return { data };
+    }
+    case "kugou": {
+      const data = await callKugou(name, params);
       return { data };
     }
     default:
