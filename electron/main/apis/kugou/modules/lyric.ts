@@ -52,7 +52,11 @@ interface LyricOut {
 }
 
 const lyric: KGModule = async (params) => {
-  const { hash, name = "", duration } = params as {
+  const {
+    hash,
+    name = "",
+    duration,
+  } = params as {
     hash?: string;
     name?: string;
     duration?: number | string;
@@ -76,8 +80,7 @@ const lyric: KGModule = async (params) => {
     const candidate = searchResp.candidates?.[0];
     if (!candidate) return { code: 404, message: "no lyric candidate" } satisfies LyricOut;
 
-    const fmt =
-      candidate.krctype === 1 && candidate.contenttype !== 1 ? "krc" : "lrc";
+    const fmt = candidate.krctype === 1 && candidate.contenttype !== 1 ? "krc" : "lrc";
 
     // 第 2 步：下载 + 解码
     const downloadUrl =

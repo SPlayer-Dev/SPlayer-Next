@@ -85,7 +85,11 @@ const normalizeSong = (raw: KGSearchSong) => {
 };
 
 const search: KGModule = async (params) => {
-  const { keywords, page = 1, limit = 30 } = params as {
+  const {
+    keywords,
+    page = 1,
+    limit = 30,
+  } = params as {
     keywords?: string;
     page?: number;
     limit?: number;
