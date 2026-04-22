@@ -16,7 +16,7 @@ import { HOST_API_LEVEL, PluginErrorCodes } from "@shared/defaults/plugin-api";
 
 const GZ_PREFIX = "gz_";
 
-/** lx 脚本头部的 JSDoc 字段。字段长度上限参考 lx */
+/** 脚本头部字段长度上限 */
 const FIELD_LIMITS: Record<string, number> = {
   name: 24,
   description: 256,
@@ -25,7 +25,11 @@ const FIELD_LIMITS: Record<string, number> = {
   version: 36,
 };
 
-const HEADER_RE = /^\s*\*\s*@(\w+)\s+(.+?)\s*$/;
+// JSDoc 风格的 `* @key value`
+const HEADER_RE = /^\s?\*\s?@(\w+)\s(.+)$/;
+
+// 源码开头的第一个块注释（`/*` 或 `/**` 都行，允许前置空白，非贪婪）
+const BLOCK_COMMENT_RE = /^\s*\/\*[\s\S]+?\*\//;
 
 /** 解压 gz_ 前缀脚本；若不是 gz_ 直接返回原文 */
 export const decompressIfNeeded = (raw: string): string => {
@@ -48,33 +52,30 @@ interface HeaderFields {
 
 const parseHeader = (source: string): HeaderFields => {
   const out: HeaderFields = {};
-  // 只取第一块块注释 /** ... */
-  const commentEnd = source.indexOf("*/");
-  if (commentEnd < 0) return out;
-  const commentStart = source.indexOf("/**");
-  if (commentStart < 0 || commentStart > commentEnd) return out;
+  const m0 = BLOCK_COMMENT_RE.exec(source);
+  if (!m0) return out;
+  const block = m0[0].slice(2, -2);
 
-  const block = source.slice(commentStart + 3, commentEnd);
   for (const rawLine of block.split(/\r?\n/)) {
     const m = HEADER_RE.exec(rawLine);
     if (!m) continue;
     const key = m[1];
-    const val = m[2];
+    const raw = m[2].trim();
     const limit = FIELD_LIMITS[key];
-    const trimmed = limit ? val.slice(0, limit) : val;
+    const val = limit && raw.length > limit ? raw.slice(0, limit) + "..." : raw;
     switch (key) {
       case "name":
       case "description":
       case "version":
       case "author":
       case "homepage":
-        out[key] = trimmed;
+        out[key] = val;
         break;
       case "platform":
-        out.platform = trimmed === "lx" ? "lx" : "splayer";
+        out.platform = val === "lx" ? "lx" : "splayer";
         break;
       case "apiLevel": {
-        const n = parseInt(trimmed, 10);
+        const n = parseInt(val, 10);
         if (!Number.isNaN(n)) out.apiLevel = n;
         break;
       }
@@ -107,12 +108,11 @@ export const loadScript = (rawOrPath: string, isPath: boolean, fileName?: string
   const wasCompressed = raw.trim().startsWith(GZ_PREFIX);
   const source = decompressIfNeeded(raw);
   const header = parseHeader(source);
+  const hash = sha1(source);
 
-  if (!header.name || !header.version) {
-    throw Object.assign(new Error("plugin manifest missing @name or @version"), {
-      code: PluginErrorCodes.INVALID_MANIFEST,
-    });
-  }
+  // 稳定兜底——同一脚本 hash 一致，id 就一致
+  const name = header.name || `user_api_${hash.slice(0, 6)}`;
+  const version = header.version || "0.0.0";
 
   const platform: PluginPlatform = header.platform ?? (wasCompressed ? "lx" : "splayer");
   const apiLevel = header.apiLevel ?? 1;
@@ -124,14 +124,13 @@ export const loadScript = (rawOrPath: string, isPath: boolean, fileName?: string
     );
   }
 
-  const hash = sha1(source);
-  const id = `${slugify(header.name)}-${hash.slice(0, 8)}`;
+  const id = `${slugify(name)}-${hash.slice(0, 8)}`;
   const finalFileName = fileName ?? (isPath ? path.basename(rawOrPath) : `${id}.js`);
 
   const manifest: PluginManifest = {
     id,
-    name: header.name,
-    version: header.version,
+    name,
+    version,
     description: header.description,
     author: header.author,
     homepage: header.homepage,

@@ -1,4 +1,4 @@
-import type { ExternalLyric, LyricFormat, LyricLine } from "@shared/types/lyrics";
+import type { LyricFormat, LyricLine } from "@shared/types/lyrics";
 import { parseLRC } from "./parseLRC";
 import { parseQRC, parseYRC } from "./parseTimeline";
 import { parseTTML } from "./parseTTML";
@@ -14,7 +14,7 @@ const FORMAT_PRIORITY: LyricFormat[] = ["ttml", "lys", "qrc", "yrc", "lrc", "ass
  * @param lyrics 外部歌词列表
  * @returns 最优格式的索引，无可用歌词时返回 -1
  */
-export const bestExternalIndex = (lyrics: ExternalLyric[]): number => {
+export const bestExternalIndex = (lyrics: { format: LyricFormat }[]): number => {
   if (lyrics.length === 0) return -1;
   let bestIdx = 0;
   let bestPriority = FORMAT_PRIORITY.length;

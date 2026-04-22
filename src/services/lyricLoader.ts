@@ -7,21 +7,21 @@
  */
 
 import type { TrackDetail } from "@shared/types/player";
-import type { LyricSource } from "@shared/types/lyrics";
+import type { LyricData } from "@shared/types/lyrics";
 
 /**
  * 加载歌词内容
  * @param detail - 歌曲详情
- * @param source - 歌词来源
+ * @param source - 歌词数据（来源 + 格式 + 可选平台）
  * @returns 歌词原始内容，失败返回 null
  */
 export const loadLyricContent = async (
   detail: TrackDetail,
-  source: LyricSource,
+  source: LyricData,
 ): Promise<string | null> => {
   if (!source) return null;
 
-  if (source.type === "embedded") {
+  if (source.source === "embedded") {
     return detail.embeddedLyric ?? null;
   }
 

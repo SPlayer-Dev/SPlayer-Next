@@ -11,6 +11,7 @@ import crypto from "node:crypto";
 import zlib from "node:zlib";
 import type {
   HostApi,
+  MusicUrlRes,
   PluginAction,
   PluginQuality,
   PluginUpdateInfo,
@@ -267,10 +268,10 @@ export const installLxShim = (
                 const host = mapLxQualityToHost(q);
                 if (host) mapped.add(host);
               }
-              // lx 只支持 musicUrl/lyric/pic，过滤掉其他值
               const actions = (cap.actions ?? []).filter(
-                (a): a is PluginAction => a === "musicUrl" || a === "lyric" || a === "pic",
+                (a): a is PluginAction => a === "musicUrl",
               );
+              if (actions.length === 0) continue;
               normalized[key] = {
                 name: cap.name ?? key,
                 actions,
@@ -331,8 +332,7 @@ export const installLxShim = (
       }
       const reqObj = req as Record<string, unknown>;
       const source = (reqObj.source as string) ?? "";
-      // lx 对 musicUrl/lyric/pic 统一传 { type, musicInfo }
-      // 宿主的 quality 是 lq/sq/hq/lossless/hi-res，lx 脚本期待 128k/320k/flac/... 做一次翻译
+      // lx 期待 128k/320k/flac/... 音质字符串，宿主的 quality 做一次翻译
       const hostQuality = reqObj.quality as PluginQuality | undefined;
       const info: Record<string, unknown> = {
         type: hostQuality ? mapHostQualityToLx(hostQuality) : undefined,
@@ -340,18 +340,10 @@ export const installLxShim = (
       };
 
       const raw = await Promise.resolve(requestHandler({ source, action, info }));
-
-      // 转换返回值以对齐 splayer HostApi 的响应形状
-      switch (action) {
-        case "musicUrl":
-        case "pic":
-          if (typeof raw === "string") return { url: raw };
-          return raw;
-        default:
-          return raw;
-      }
+      if (typeof raw === "string") return { url: raw } as MusicUrlRes;
+      return raw;
     });
   };
 
-  (["musicUrl", "lyric", "pic"] as PluginAction[]).forEach(registerAction);
+  (["musicUrl"] as PluginAction[]).forEach(registerAction);
 };

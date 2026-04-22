@@ -1,4 +1,4 @@
-import type { ExternalLyric } from "./lyrics";
+import type { LyricFormat } from "./lyrics";
 
 /** 播放器状态 */
 export type PlayerState = "idle" | "loading" | "playing" | "paused" | "stopped";
@@ -79,7 +79,8 @@ export interface Track {
 export interface TrackDetail {
   quality: AudioQuality;
   embeddedLyric?: string;
-  externalLyrics: ExternalLyric[];
+  /** 外部歌词文件列表（同目录下扫描到的所有歌词文件） */
+  externalLyrics: { format: LyricFormat; path: string }[];
 }
 
 /** 播放器加载后返回的完整数据 */

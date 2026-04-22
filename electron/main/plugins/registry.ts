@@ -13,6 +13,7 @@ import { EventEmitter } from "node:events";
 import { app } from "electron";
 import { writeFileSync as atomicWriteSync } from "atomically";
 import type {
+  PluginAction,
   PluginInfo,
   PluginManifest,
   PluginStatus,
@@ -133,22 +134,20 @@ class PluginRegistry extends EventEmitter {
   }
 
   /** 按动作选一个已就绪的插件（优先级 → 首个 ready） */
-  pickForAction(action: keyof StoredPriority, source?: string): PluginRuntime | undefined {
+  pickForAction(action: PluginAction, source?: string): PluginRuntime | undefined {
     const priority = store.get(`plugins.priority.${action}` as never) as string[] | undefined;
     const ordered = (priority ?? []).slice();
-    // 把不在 priority 里的但能承接此动作的也接上
     for (const rt of this.runtimes.values()) {
       if (!ordered.includes(rt.manifest.id)) ordered.push(rt.manifest.id);
     }
     for (const id of ordered) {
       const rt = this.runtimes.get(id);
       if (!rt || !rt.enabled || rt.status.state !== "ready") continue;
-      // 检查是否声明了该源 + 动作
-      const sources = (rt.status as Extract<PluginStatus, { state: "ready" }>).sources;
+      const sources = rt.status.sources;
       const sourceKeys = source ? [source] : Object.keys(sources);
       for (const key of sourceKeys) {
         const cap = sources[key];
-        if (cap && cap.actions.includes(action as never)) return rt;
+        if (cap && cap.actions.includes(action)) return rt;
       }
     }
     return undefined;
@@ -373,13 +372,6 @@ class PluginRegistry extends EventEmitter {
     await Promise.all(Array.from(this.runtimes.values()).map((rt) => this.stop(rt)));
   }
 }
-
-type StoredPriority = {
-  search: string[];
-  musicUrl: string[];
-  lyric: string[];
-  meta: string[];
-};
 
 export const pluginRegistry = new PluginRegistry();
 export type { PluginRuntime };

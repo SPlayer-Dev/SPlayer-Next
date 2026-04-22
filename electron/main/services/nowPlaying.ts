@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import type { Track } from "@shared/types/player";
-import type { LyricLine, LyricSource } from "@shared/types/lyrics";
+import type { LyricLine, LyricData } from "@shared/types/lyrics";
 import type { NowPlayingSnapshot, NowPlayingPositionSync } from "@shared/types/nowPlaying";
 
 type NowPlayingEvents = {
@@ -17,7 +17,7 @@ let currentTrack: Track | null = null;
 /** 当前歌曲的完整解析歌词 */
 let currentLyric: LyricLine[] = [];
 /** 当前激活的歌词源 */
-let currentSource: LyricSource = null;
+let currentSource: LyricData = null;
 /** 最近一次播放位置（毫秒） */
 let lastPosition = 0;
 /** 当前是否处于播放态 */
@@ -27,7 +27,7 @@ let playing = false;
 const emitter = new EventEmitter<NowPlayingEvents>();
 
 /** 渲染进程同步当前播放状态 */
-export const update = (track: Track | null, lyric: LyricLine[], source: LyricSource): void => {
+export const update = (track: Track | null, lyric: LyricLine[], source: LyricData): void => {
   const trackChanged = (currentTrack?.id ?? null) !== (track?.id ?? null);
   currentTrack = track;
   currentLyric = lyric;

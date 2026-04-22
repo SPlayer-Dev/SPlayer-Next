@@ -1,8 +1,9 @@
 /**
  * 插件动作路由
  *
- * 把渲染端 / 主进程内部的 action 请求转发给对应插件的 sandbox，
- * 并处理超时、取消。目前支持 musicUrl / lyric / pic 三个动作。
+ * 把渲染端 / 主进程内部的 action 请求转发给对应插件的 sandbox，并处理超时、取消。
+ * 当前只有 musicUrl 一个动作——新增动作时，在 `shared/types/plugin.ts` 的 `PluginAction`
+ * / `ActionIO` 里登记，然后在这里补一个公共入口函数即可（callOn / supportsAction 都是泛型）。
  */
 
 import type {
@@ -65,7 +66,6 @@ const supportsAction = (
     if (!cap) return { ok: false };
     return { ok: cap.actions.includes(action), source };
   }
-  // 未指定 source：拿第一个支持此动作的
   for (const [key, cap] of Object.entries(sources)) {
     if (cap.actions.includes(action)) return { ok: true, source: key };
   }

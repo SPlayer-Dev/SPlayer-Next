@@ -1,5 +1,5 @@
 import type { Track, TrackDetail } from "@shared/types/player";
-import type { LyricFormat, LyricLine, LyricSource } from "@shared/types/lyrics";
+import type { LyricData, LyricFormat, LyricLine } from "@shared/types/lyrics";
 import { bestExternalIndex, detectFormat, parseLyric } from "@/utils/lyric/parse";
 import { findLyricIndex } from "@shared/utils/lyric";
 import { loadLyricContent } from "@/services/lyricLoader";
@@ -11,8 +11,8 @@ export const useMediaStore = defineStore("media", () => {
   /** 当前歌曲详细信息 */
   const detail = shallowRef<TrackDetail | null>(null);
 
-  /** 当前选中的歌词来源 */
-  const activeLyric = ref<LyricSource>(null);
+  /** 当前选中的歌词数据 */
+  const activeLyric = ref<LyricData>(null);
 
   /** 当前歌词原始内容（按需加载） */
   const lyricContent = ref<string | null>(null);
@@ -79,11 +79,11 @@ export const useMediaStore = defineStore("media", () => {
     const idx = bestExternalIndex(newDetail.externalLyrics);
     if (idx !== -1) {
       activeLyric.value = {
-        type: "external",
+        source: "external",
         format: newDetail.externalLyrics[idx].format,
       };
     } else if (newDetail.embeddedLyric) {
-      activeLyric.value = { type: "embedded", format: detectFormat(newDetail.embeddedLyric) };
+      activeLyric.value = { source: "embedded", format: detectFormat(newDetail.embeddedLyric) };
     } else {
       activeLyric.value = null;
     }
@@ -115,9 +115,9 @@ export const useMediaStore = defineStore("media", () => {
 
   /**
    * 手动切换歌词来源并加载内容
-   * @param source 目标歌词来源
+   * @param source 目标歌词数据
    */
-  const switchLyric = async (source: LyricSource): Promise<void> => {
+  const switchLyric = async (source: LyricData): Promise<void> => {
     activeLyric.value = source;
     await loadLyric();
   };

@@ -3,8 +3,13 @@
  * 用于主进程、预加载、渲染进程、沙箱子进程之间的契约
  */
 
-/** 支持的插件动作 */
-export type PluginAction = "musicUrl" | "lyric" | "pic";
+/**
+ * 支持的插件动作
+ * 当前仅有 musicUrl。扩展新动作的步骤：
+ * 1. 在此 union 追加字面量；2. 补 `ActionIO` 映射；3. 补 `ACTION_TIMEOUTS` / `PluginsConfig.priority`；
+ * 4. router 加入相应入口；其余（HostApi.on / handlers Map / SandboxIn.call）已泛型化，无需改动。
+ */
+export type PluginAction = "musicUrl";
 
 /**
  * 音质等级
@@ -52,7 +57,7 @@ export interface SourceCapability {
   name: string;
   /** 支持的动作 */
   actions: PluginAction[];
-  /** 支持的音质（仅 music 类动作相关） */
+  /** 支持的音质 */
   qualities?: PluginQuality[];
 }
 
@@ -103,35 +108,9 @@ export interface MusicUrlRes {
   expire?: number;
 }
 
-export interface LyricReq {
-  source: string;
-  musicInfo: {
-    songmid: string;
-    name?: string;
-    singer?: string;
-    [key: string]: unknown;
-  };
-}
-export interface LyricRes {
-  lyric: string;
-  tlyric?: string | null;
-  rlyric?: string | null;
-  lxlyric?: string | null;
-}
-
-export interface PicReq {
-  source: string;
-  musicInfo: { songmid: string; [key: string]: unknown };
-}
-export interface PicRes {
-  url: string;
-}
-
-/** Action → 请求/响应映射，用于 HostApi.on 的重载 */
+/** Action → 请求/响应映射，用于 HostApi.on 的重载。新增动作时在此追加。 */
 export interface ActionIO {
   musicUrl: { req: MusicUrlReq; res: MusicUrlRes };
-  lyric: { req: LyricReq; res: LyricRes };
-  pic: { req: PicReq; res: PicRes };
 }
 
 /* ========== 宿主暴露给插件的 API（在沙箱内注入为 globalThis.splayer） ========== */
@@ -302,8 +281,6 @@ export interface PluginsConfig {
   /** 各动作的插件优先级列表 */
   priority: {
     musicUrl: string[];
-    lyric: string[];
-    pic: string[];
   };
   /** 每插件的用户设置 */
   perPlugin: Record<string, Record<string, unknown>>;

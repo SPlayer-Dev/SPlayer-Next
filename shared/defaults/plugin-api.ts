@@ -3,11 +3,9 @@ import type { PluginsConfig } from "../types/plugin";
 /** 当前 Host API 级别；插件 `@apiLevel` 必须 ≤ 此值才加载 */
 export const HOST_API_LEVEL = 1;
 
-/** 各动作的默认超时（毫秒） */
+/** 各动作的默认超时（毫秒）。新增动作时在此追加。 */
 export const ACTION_TIMEOUTS = {
   musicUrl: 20_000,
-  lyric: 15_000,
-  pic: 15_000,
 } as const;
 
 /** 网络请求最大超时 */
@@ -76,8 +74,6 @@ export const defaultPluginsConfig: PluginsConfig = {
   enabled: {},
   priority: {
     musicUrl: [],
-    lyric: [],
-    pic: [],
   },
   perPlugin: {},
 };

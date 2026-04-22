@@ -1,18 +1,18 @@
+import type { Platform } from "./platform";
+
 /** 歌词格式 */
 export type LyricFormat = "ttml" | "lys" | "yrc" | "qrc" | "lrc" | "srt" | "ass";
 
-/** 外部歌词文件 */
-export interface ExternalLyric {
-  format: LyricFormat;
-  path: string;
-}
+/** 歌词来源 */
+export type LyricSource = "external" | "embedded" | "online";
 
-/** 歌词来源标识 */
-export type LyricSource =
-  | { type: "external"; format: LyricFormat }
-  | { type: "embedded"; format: LyricFormat }
-  | { type: "plugin"; pluginId: string; format: LyricFormat }
-  | null;
+/** 歌词数据 */
+export type LyricData = {
+  source: LyricSource;
+  format: LyricFormat;
+  /** 在线歌词所属平台，仅 source=online 时有值 */
+  platform?: Platform;
+} | null;
 
 /** 歌词时间片段 */
 export interface LyricSpan {
@@ -51,6 +51,6 @@ export interface LyricLine {
   endTime: number;
   /** 是否为背景歌词行 */
   isBG: boolean;
-  /** 是否为对唱歌词行（右对齐） */
+  /** 是否为对唱歌词行 */
   isDuet: boolean;
 }

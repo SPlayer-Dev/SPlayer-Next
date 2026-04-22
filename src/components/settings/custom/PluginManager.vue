@@ -2,6 +2,7 @@
 import type { PluginInfo } from "@shared/types/plugin";
 import { usePluginsStore } from "@/stores/plugins";
 import { toast } from "@/composables/useToast";
+import { isExternalUrl, openExternal } from "@/utils/url";
 
 defineOptions({ inheritAttrs: false });
 
@@ -45,12 +46,6 @@ const sourceNames = (info: PluginInfo): string[] => {
   return Object.keys(info.status.sources);
 };
 
-/** 打开外链（主进程 windowOpenHandler 已统一拦截为 shell.openExternal） */
-const openExternal = (url?: string): void => {
-  if (!url) return;
-  window.open(url, "_blank", "noopener,noreferrer");
-};
-
 const handleImportLocal = async (): Promise<void> => {
   importing.value = true;
   try {
@@ -70,7 +65,7 @@ const openUrlDialog = (): void => {
 
 const handleImportFromUrl = async (): Promise<void> => {
   const url = urlInput.value.trim();
-  if (!/^https?:\/\//i.test(url)) {
+  if (!isExternalUrl(url)) {
     toast.error(t("settings.plugins.importUrlInvalid"));
     return;
   }
@@ -180,7 +175,7 @@ const pendingName = computed(() => {
                 {{ info.manifest.name }}
               </span>
               <button
-                v-if="info.manifest.homepage"
+                v-if="isExternalUrl(info.manifest.homepage)"
                 type="button"
                 class="p-0 border-none bg-transparent text-on-surface-variant/50 hover:text-primary cursor-pointer transition-colors leading-0"
                 :title="info.manifest.homepage"
@@ -254,7 +249,7 @@ const pendingName = computed(() => {
                   </span>
                 </div>
                 <SButton
-                  v-if="info.updateInfo.updateUrl"
+                  v-if="isExternalUrl(info.updateInfo.updateUrl)"
                   variant="secondary"
                   size="tiny"
                   type="warning"
