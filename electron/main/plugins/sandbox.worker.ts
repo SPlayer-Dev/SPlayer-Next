@@ -262,7 +262,8 @@ const runScript = (init: Extract<SandboxIn, { kind: "init" }>): void => {
         message: err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err),
       },
     });
-    return;
+    // fatal 即终止：避免子进程在脚本未正常加载时继续空转
+    process.exit(1);
   }
 
   // 脚本同步部分执行完，上报 ready + 能力
@@ -358,6 +359,7 @@ parentPort.on("message", async (event) => {
         message: err instanceof Error ? err.message : String(err),
       },
     });
+    process.exit(1);
   }
 });
 
@@ -374,4 +376,5 @@ process.on("uncaughtException", (err) => {
     kind: "fatal",
     error: { code: "PLUGIN_SCRIPT_ERROR", message: err.message },
   });
+  process.exit(1);
 });

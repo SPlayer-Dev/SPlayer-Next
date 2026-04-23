@@ -252,8 +252,18 @@ export class Sandbox {
         this.heartbeatMisses = 0;
         return;
       case "fatal":
+        // fatal = 永久失败，不走 crash-restart。kill 是 worker 未自我退出时的兜底
+        this.intentionalKill = true;
         this.events.onFatal(msg.error);
         done(Object.assign(new Error(msg.error.message), { code: msg.error.code }));
+        if (this.child) {
+          try {
+            this.child.kill();
+          } catch {
+            /* ignore */
+          }
+        }
+        this.stopHeartbeat();
         return;
     }
   }

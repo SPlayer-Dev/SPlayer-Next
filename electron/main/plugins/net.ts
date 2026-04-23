@@ -41,11 +41,16 @@ export const hostRequest = async (
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
 
   // 构造 body
+  // 注意：Uint8Array 要按 byteOffset/byteLength 切片，避免 subarray 场景下
+  // `.buffer` 把多余的底层字节一起发出去
   let body: BodyInit | undefined;
   if (opts.body != null) {
     if (typeof opts.body === "string") body = opts.body;
     else if (opts.body instanceof ArrayBuffer) body = opts.body;
-    else body = (opts.body as Uint8Array).buffer as ArrayBuffer;
+    else {
+      const u8 = opts.body as Uint8Array;
+      body = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
+    }
   }
 
   try {
