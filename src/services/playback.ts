@@ -23,6 +23,13 @@ let playing = false;
 /** 是否正在 seek（暂停插值，固定在 seek 目标位置） */
 let seeking = false;
 
+/**
+ * 主进程推送位置与本地插值之间的容差（毫秒）
+ * 偏差小于此值视作 IPC 延迟 / 解码抖动，保留插值避免可见跳跃；
+ * 大于此值视作真实跳变（漏拦截的 seek、跳曲等），直接采用推送值
+ */
+const SYNC_TOLERANCE_MS = 1000;
+
 /** 获取当前播放位置（毫秒），播放中自动插值，seek 中冻结 */
 export const getCurrentTime = (): number => {
   if (!playing || seeking) return currentTimeMs;
@@ -36,10 +43,28 @@ export const getDuration = (): number => totalDurationMs;
 /** 是否正在播放 */
 export const isPlaying = (): boolean => playing;
 
-/** 同步主进程推送的位置 */
-export const setCurrentTime = (ms: number): void => {
+/**
+ * 同步主进程推送的位置
+ *
+ * 默认对小幅偏差应用单调防护：保留本地插值，仅刷新同步基准，
+ * 避免 IPC 延迟 / 暂停瞬间晚到的事件导致进度与歌词跳变或回缩。
+ *
+ * @param ms 主进程推送的位置（毫秒）
+ * @param options.force 强制采用 ms（如 load 重置、seek 跳转）
+ * @returns 实际生效的位置
+ */
+export const setCurrentTime = (ms: number, options: { force?: boolean } = {}): number => {
+  if (!options.force && !seeking && totalDurationMs > 0) {
+    const interpolated = getCurrentTime();
+    if (Math.abs(interpolated - ms) < SYNC_TOLERANCE_MS) {
+      currentTimeMs = interpolated;
+      lastSyncAt = performance.now();
+      return interpolated;
+    }
+  }
   currentTimeMs = ms;
   lastSyncAt = performance.now();
+  return ms;
 };
 
 /** 进入 seek 状态，冻结插值 */
@@ -55,10 +80,10 @@ export const setDuration = (ms: number): void => {
 
 /** 同步播放状态 */
 export const setPlaying = (value: boolean): void => {
-  if (value && !playing) {
-    // 恢复播放时重置同步时间，避免插值跳跃
-    lastSyncAt = performance.now();
-  }
+  if (value === playing) return;
+  // 暂停：冻结到当前可见位置
+  if (!value) currentTimeMs = getCurrentTime();
+  lastSyncAt = performance.now();
   playing = value;
 };
 
@@ -68,4 +93,5 @@ export const reset = (): void => {
   totalDurationMs = 0;
   lastSyncAt = 0;
   playing = false;
+  seeking = false;
 };

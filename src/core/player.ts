@@ -51,7 +51,7 @@ export const load = async (source: string, autoPlay = true): Promise<Track | nul
       status.state = autoPlay ? "playing" : "paused";
       status.currentSource = source;
       playback.setDuration(dur);
-      playback.setCurrentTime(0);
+      playback.setCurrentTime(0, { force: true });
       playback.setPlaying(autoPlay);
       return data.track;
     } else {
@@ -169,10 +169,10 @@ const hasReachedSeekTarget = (position: number): boolean => {
  */
 export const seek = async (posMs: number): Promise<void> => {
   const status = useStatusStore();
-  // 立即更新 UI，冻结插值避免时间自行推进
+  // 先冻结插值，再写入位置
+  playback.setSeeking(true);
   status.position = posMs;
   playback.setCurrentTime(posMs);
-  playback.setSeeking(true);
 
   // 设置 seek 目标，屏蔽旧 position 推送
   seekTarget = posMs;
@@ -434,28 +434,28 @@ const handleEvent = async (event: PlayerEvent): Promise<void> => {
       // seek 期间不从 status 事件更新 position，避免回跳
       // position 的更新统一由 position 事件负责
       if (seekTarget === null) {
-        status.position = event.data.position;
-        playback.setCurrentTime(event.data.position);
+        status.position = playback.setCurrentTime(event.data.position);
       }
       status.duration = event.data.duration;
       status.volume = event.data.volume;
       playback.setDuration(event.data.duration);
       playback.setPlaying(event.data.state === "playing");
       break;
-    case "position":
+    case "position": {
       // 歌曲加载中不更新进度
       if (status.trackLoading) break;
       // seek 后丢弃旧位置，直到后端推送的位置到达 seek 目标附近
       if (!hasReachedSeekTarget(event.data.position)) break;
-      status.position = event.data.position;
-      playback.setCurrentTime(event.data.position);
+      const adjusted = playback.setCurrentTime(event.data.position);
+      status.position = adjusted;
       if (event.data.duration > 0) {
         status.duration = event.data.duration;
         playback.setDuration(event.data.duration);
       }
-      // 同步歌词行索引
-      useMediaStore().updateLyricIndex(event.data.position);
+      // 用修正后的位置同步歌词索引，避免与显示进度不一致
+      useMediaStore().updateLyricIndex(adjusted);
       break;
+    }
     case "ended": {
       if (endedGuard) return;
       endedGuard = true;
