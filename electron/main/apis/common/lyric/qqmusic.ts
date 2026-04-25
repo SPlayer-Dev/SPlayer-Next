@@ -28,8 +28,15 @@ const pickFormatted = (
   return undefined;
 };
 
-/** 按 QQMusic song id 直取歌词 */
-export const getByPlatformId = async (id: string): Promise<LyricMatchResult | null> => {
+/**
+ * 按 QQMusic song id 直取歌词
+ * @param id  数字 id（QM 歌词接口必需）
+ * @param mid 字符串 mid（用于 AMLL TTML DB 等外部映射；可选）
+ */
+export const getByPlatformId = async (
+  id: string,
+  mid?: string,
+): Promise<LyricMatchResult | null> => {
   const cached = getCachedLyric("qqmusic", id);
   if (cached) return cached;
   try {
@@ -55,6 +62,7 @@ export const getByPlatformId = async (id: string): Promise<LyricMatchResult | nu
       translationFormat: trans ? "lrc" : undefined,
       romaji: roma || undefined,
       romajiFormat: roma ? main.format : undefined,
+      extra: mid ? { mid } : undefined,
     };
     setCachedLyric("qqmusic", id, result);
     return result;
@@ -67,13 +75,13 @@ export const getByPlatformId = async (id: string): Promise<LyricMatchResult | nu
 /** 按 Track 元数据模糊搜索：search → 挑最佳 → 单次请求歌词 */
 export const getByQuery = async (track: Track): Promise<LyricMatchResult | null> => {
   const fingerprint = buildFingerprint(track);
-  const cachedId = getMatchedId(fingerprint, "qqmusic");
-  if (cachedId) return getByPlatformId(cachedId);
+  const cached = getMatchedId(fingerprint, "qqmusic");
+  if (cached) return getByPlatformId(cached.platformId, cached.extra?.mid);
 
   const keyword = `${track.title} ${track.artists[0]?.name ?? ""}`.trim();
   if (!keyword) return null;
 
-  const candidates: LyricCandidate<{ id: string }>[] = [];
+  const candidates: LyricCandidate<{ id: string; mid: string }>[] = [];
   try {
     const body = await callQQMusic("search", { keywords: keyword, limit: 25 });
     if (body.code !== 200) return null;
@@ -83,7 +91,7 @@ export const getByQuery = async (track: Track): Promise<LyricMatchResult | null>
         artist: song.artist,
         album: song.album,
         duration: song.duration,
-        extra: { id: song.id },
+        extra: { id: song.id, mid: song.mid },
       });
     }
   } catch (err) {
@@ -96,6 +104,6 @@ export const getByQuery = async (track: Track): Promise<LyricMatchResult | null>
     `[lyric:qqmusic] fuzzy "${keyword}" → ${candidates.length} hits, best=${best?.name ?? "none"}`,
   );
   if (!best) return null;
-  setMatchedId(fingerprint, "qqmusic", best.extra.id);
-  return getByPlatformId(best.extra.id);
+  setMatchedId(fingerprint, "qqmusic", best.extra.id, { mid: best.extra.mid });
+  return getByPlatformId(best.extra.id, best.extra.mid);
 };

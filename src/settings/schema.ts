@@ -3,6 +3,7 @@ import { useSettingsStore } from "@/stores/settings";
 import DeviceSelector from "@/components/settings/custom/DeviceSelector.vue";
 import StorageManager from "@/components/settings/custom/StorageManager.vue";
 import PluginManager from "@/components/settings/custom/PluginManager.vue";
+import AmllDbServerConfig from "@/components/settings/custom/AmllDbServerConfig.vue";
 import IconLucideCog from "~icons/lucide/cog";
 import IconLucidePlay from "~icons/lucide/play";
 import IconLucideMic2 from "~icons/lucide/mic-2";
@@ -179,6 +180,21 @@ export const settingsSchema: SettingCategory[] = [
               { value: "self", labelKey: "settings.lyricSourcePreference.self" },
             ],
             defaultValue: "auto",
+          },
+          {
+            key: "enableOnlineTTMLLyric",
+            type: "switch",
+            binding: { store: "settings", path: "system.lyric.enableOnlineTTMLLyric" },
+            defaultValue: false,
+            tag: { text: "Beta", type: "warning" },
+            children: [
+              {
+                key: "amllDbServer",
+                type: "custom",
+                component: AmllDbServerConfig,
+                binding: { store: "settings", path: "system.lyric.amllDbServer" },
+              },
+            ],
           },
         ],
       },

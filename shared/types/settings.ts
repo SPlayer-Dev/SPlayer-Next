@@ -143,6 +143,14 @@ export interface LibrarySettings {
   scanDirs: string[];
 }
 
+/** 在线歌词服务配置 */
+export interface OnlineLyricSettings {
+  /** 启用在线 TTML 歌词 */
+  enableOnlineTTMLLyric: boolean;
+  /** AMLL TTML DB 服务地址，需含 %s 占位符 */
+  amllDbServer: string;
+}
+
 /** 主窗口几何 */
 export interface MainWindowState {
   width: number;
@@ -199,6 +207,8 @@ export interface SystemConfig {
   dynamicIsland: DynamicIslandSettings;
   /** 任务栏歌词配置（仅 Windows） */
   taskbarLyric: TaskbarLyricSettings;
+  /** 在线歌词服务配置 */
+  lyric: OnlineLyricSettings;
   /** 系统配置 */
   system: {
     /** 记忆窗口状态 */

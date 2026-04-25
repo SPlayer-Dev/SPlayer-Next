@@ -74,6 +74,10 @@ export const defaultSystemConfig: SystemConfig = {
     wordByWord: true,
     fontSize: 14,
   },
+  lyric: {
+    enableOnlineTTMLLyric: false,
+    amllDbServer: "https://amlldb.bikonoo.com/%p/%s.ttml",
+  },
   system: {
     rememberWindowState: true,
     taskbarProgress: true,

@@ -84,10 +84,10 @@ export const getByPlatformId = (hash: string): Promise<LyricMatchResult | null> 
 /** 按 Track 元数据模糊搜索：search → 挑最佳 → 单次请求歌词 */
 export const getByQuery = async (track: Track): Promise<LyricMatchResult | null> => {
   const fingerprint = buildFingerprint(track);
-  const cachedHash = getMatchedId(fingerprint, "kugou");
-  if (cachedHash) {
+  const cached = getMatchedId(fingerprint, "kugou");
+  if (cached) {
     return fetchLyric({
-      hash: cachedHash,
+      hash: cached.platformId,
       name: track.title,
       durationMs: track.duration,
     });

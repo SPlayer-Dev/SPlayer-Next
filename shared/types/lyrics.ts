@@ -70,15 +70,19 @@ export interface LyricInput {
   romajiFormat?: LyricFormat;
 }
 
-/**
- * 歌词匹配结果
- * 只携带原生格式文本（yrc / qrc / krc / lrc），不做解析
- * 渲染端通过 `parseLyric` + `pairTranslation` 得到最终 `LyricLine[]`
- */
+/** 平台额外字段 */
+export interface LyricMatchExtra {
+  /** QM 的 mid */
+  mid?: string;
+}
+
+/** 歌词匹配结果 */
 export interface LyricMatchResult extends LyricInput {
   platform: Platform;
   /** 主歌词格式 */
   format: LyricFormat;
+  /** 平台额外字段，netease/kugou 暂未使用 */
+  extra?: LyricMatchExtra;
 }
 
 /** 歌词匹配 IPC 响应 */

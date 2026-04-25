@@ -69,8 +69,8 @@ export const getByPlatformId = async (id: string): Promise<LyricMatchResult | nu
 export const getByQuery = async (track: Track): Promise<LyricMatchResult | null> => {
   // 命中映射缓存：跳过 search → 直接走 byId
   const fingerprint = buildFingerprint(track);
-  const cachedId = getMatchedId(fingerprint, "netease");
-  if (cachedId) return getByPlatformId(cachedId);
+  const cached = getMatchedId(fingerprint, "netease");
+  if (cached) return getByPlatformId(cached.platformId);
 
   const keyword = `${track.title} ${track.artists[0]?.name ?? ""}`.trim();
   if (!keyword) return null;

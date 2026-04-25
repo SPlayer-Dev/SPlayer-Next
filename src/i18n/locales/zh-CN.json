@@ -181,6 +181,21 @@
       "netease": "优先 NCM",
       "self": "跟随自身"
     },
+    "enableOnlineTTMLLyric": {
+      "label": "启用在线 TTML 歌词",
+      "description": "从 AMLL TTML DB 获取歌词，支持逐字、翻译、音译"
+    },
+    "amllDbServer": {
+      "label": "AMLL TTML DB 地址",
+      "description": "请确保地址正确，否则将导致歌词获取失败",
+      "button": "配置",
+      "placeholder": "请输入 AMLL TTML DB 地址",
+      "warning": "如果你不清楚这里是做什么的，请不要修改",
+      "hint": "请确保地址正确，并且包含指定的占位符",
+      "placeholders": "%p 为平台目录，%s 为歌曲 ID",
+      "docsHint": "更多信息可前往",
+      "invalid": "请输入正确的网址，需包含指定的占位符"
+    },
     "lyricMode": {
       "label": "歌词模式",
       "description": "全屏播放器中的歌词渲染方式",

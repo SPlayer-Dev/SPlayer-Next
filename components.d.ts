@@ -11,6 +11,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AmllDbServerConfig: typeof import('./src/components/settings/custom/AmllDbServerConfig.vue')['default']
     ColorSliderRoot: typeof import('reka-ui')['ColorSliderRoot']
     ColorSliderThumb: typeof import('reka-ui')['ColorSliderThumb']
     ColorSliderTrack: typeof import('reka-ui')['ColorSliderTrack']

@@ -181,6 +181,21 @@
       "netease": "Prefer NCM",
       "self": "Follow Self"
     },
+    "enableOnlineTTMLLyric": {
+      "label": "Enable Online TTML Lyrics",
+      "description": "Fetch lyrics from AMLL TTML DB. Supports word-level timing, translation, and romanization."
+    },
+    "amllDbServer": {
+      "label": "AMLL TTML DB Server",
+      "description": "Make sure the URL is correct, otherwise lyric fetch will fail",
+      "button": "Configure",
+      "placeholder": "Enter AMLL TTML DB URL",
+      "warning": "If you do not know what this does, please leave it as default",
+      "hint": "URL must be valid and contain the required placeholders",
+      "placeholders": "%p is the platform path, %s is the song ID",
+      "docsHint": "More info at",
+      "invalid": "Invalid URL — required placeholders missing"
+    },
     "lyricMode": {
       "label": "Lyric Mode",
       "description": "Lyric rendering style in full-screen player",

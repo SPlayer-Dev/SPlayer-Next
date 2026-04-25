@@ -69,6 +69,7 @@ export const initDatabase = (): void => {
       fingerprint TEXT NOT NULL,
       platform TEXT NOT NULL,
       platform_id TEXT NOT NULL,
+      extra TEXT,
       matched_at INTEGER NOT NULL,
       PRIMARY KEY (fingerprint, platform)
     );
