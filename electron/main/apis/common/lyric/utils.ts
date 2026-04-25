@@ -18,7 +18,7 @@ export interface LyricCandidate<Extra = unknown> {
 }
 
 /** 字符串归一化 */
-const normalize = (text: string | undefined | null): string => {
+export const normalize = (text: string | undefined | null): string => {
   if (!text) return "";
   return text.toLowerCase().replace(/[、&;，,/|()·・\s\-_'"`~!?？！.。]+/g, "");
 };

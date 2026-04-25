@@ -3,6 +3,8 @@
  *
  * - lyrics:matchById(platform, id)       按 id 直取
  * - lyrics:matchByQuery(platform, track)  按 Track 元数据模糊搜索
+ *
+ * 同 key 的并发请求会被 dedup：连按多次切歌只发一次网络。
  */
 
 import { ipcMain } from "electron";
@@ -14,6 +16,28 @@ import type { LyricMatchResponse } from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
 import type { Track } from "@shared/types/player";
 
+/** 进行中请求映射 */
+const inflight = new Map<string, Promise<LyricMatchResponse>>();
+
+/**
+ * 并发去重
+ * @param key 唯一键，相同 key 的并发请求共用同一个 Promise
+ * @param run 实际执行函数
+ */
+const dedup = (
+  key: string,
+  run: () => Promise<LyricMatchResponse>,
+): Promise<LyricMatchResponse> => {
+  const existing = inflight.get(key);
+  if (existing) return existing;
+  const promise = run().finally(() => {
+    if (inflight.get(key) === promise) inflight.delete(key);
+  });
+  inflight.set(key, promise);
+  return promise;
+};
+
+/** 按 (platform, id) 直取 */
 const resolveById = async (platform: Platform, id: string): Promise<LyricMatchResponse> => {
   try {
     switch (platform) {
@@ -30,6 +54,7 @@ const resolveById = async (platform: Platform, id: string): Promise<LyricMatchRe
   }
 };
 
+/** 按 Track 元数据 fuzzy 匹配 */
 const resolveByQuery = async (platform: Platform, track: Track): Promise<LyricMatchResponse> => {
   try {
     switch (platform) {
@@ -48,9 +73,9 @@ const resolveByQuery = async (platform: Platform, track: Track): Promise<LyricMa
 
 export const registerLyricsIpc = (): void => {
   ipcMain.handle("lyrics:matchById", (_evt, platform: Platform, id: string) =>
-    resolveById(platform, id),
+    dedup(`byId:${platform}:${id}`, () => resolveById(platform, id)),
   );
   ipcMain.handle("lyrics:matchByQuery", (_evt, platform: Platform, track: Track) =>
-    resolveByQuery(platform, track),
+    dedup(`byQuery:${platform}:${track.id}`, () => resolveByQuery(platform, track)),
   );
 };

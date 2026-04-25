@@ -10,6 +10,7 @@
 
 import { callNetease } from "@main/apis/netease";
 import { getCachedLyric, setCachedLyric } from "@main/database/lyricCache";
+import { buildFingerprint, getMatchedId, setMatchedId } from "@main/database/lyricMatchCache";
 import { coreLog } from "@main/utils/logger";
 import type { LyricMatchResult } from "@shared/types/lyrics";
 import type { Track } from "@shared/types/player";
@@ -66,6 +67,11 @@ export const getByPlatformId = async (id: string): Promise<LyricMatchResult | nu
  * @param track 歌曲信息
  */
 export const getByQuery = async (track: Track): Promise<LyricMatchResult | null> => {
+  // 命中映射缓存：跳过 search → 直接走 byId
+  const fingerprint = buildFingerprint(track);
+  const cachedId = getMatchedId(fingerprint, "netease");
+  if (cachedId) return getByPlatformId(cachedId);
+
   const keyword = `${track.title} ${track.artists[0]?.name ?? ""}`.trim();
   if (!keyword) return null;
   // 搜索 + 归一化
@@ -98,5 +104,6 @@ export const getByQuery = async (track: Track): Promise<LyricMatchResult | null>
     `[lyric:netease] fuzzy "${keyword}" → ${candidates.length} hits, best=${best?.name ?? "none"}`,
   );
   if (!best) return null;
+  setMatchedId(fingerprint, "netease", best.extra.id);
   return getByPlatformId(best.extra.id);
 };
