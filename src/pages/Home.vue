@@ -97,9 +97,7 @@ const runMatch = async (): Promise<void> => {
         当前：{{ media.track.title }} —
         {{ media.track.artists.map((a) => a.name).join(" / ") }}
         <span v-if="media.track.album?.name"> · {{ media.track.album.name }}</span>
-        <span v-if="media.track.duration">
-          · {{ Math.round(media.track.duration / 1000) }}s
-        </span>
+        <span v-if="media.track.duration"> · {{ Math.round(media.track.duration / 1000) }}s </span>
       </div>
       <div v-else class="text-xs text-on-surface-variant/60">暂无播放曲目</div>
 
@@ -130,17 +128,26 @@ const runMatch = async (): Promise<void> => {
 
       <details v-if="rawSearch" open class="text-xs">
         <summary class="cursor-pointer text-on-surface">search 原始返回</summary>
-        <pre class="mt-2 max-h-96 overflow-auto whitespace-pre-wrap rounded bg-on-surface/5 p-2 font-mono text-[11px]">{{ toJson(rawSearch) }}</pre>
+        <pre
+          class="mt-2 max-h-96 overflow-auto whitespace-pre-wrap rounded bg-on-surface/5 p-2 font-mono text-[11px]"
+          >{{ toJson(rawSearch) }}</pre
+        >
       </details>
 
       <details v-if="picked" class="text-xs">
         <summary class="cursor-pointer text-on-surface">选中的第一条候选（lyric 参数来源）</summary>
-        <pre class="mt-2 max-h-60 overflow-auto whitespace-pre-wrap rounded bg-on-surface/5 p-2 font-mono text-[11px]">{{ toJson(picked) }}</pre>
+        <pre
+          class="mt-2 max-h-60 overflow-auto whitespace-pre-wrap rounded bg-on-surface/5 p-2 font-mono text-[11px]"
+          >{{ toJson(picked) }}</pre
+        >
       </details>
 
       <details v-if="rawLyric" open class="text-xs">
         <summary class="cursor-pointer text-on-surface">lyric 原始返回</summary>
-        <pre class="mt-2 max-h-96 overflow-auto whitespace-pre-wrap rounded bg-on-surface/5 p-2 font-mono text-[11px]">{{ toJson(rawLyric) }}</pre>
+        <pre
+          class="mt-2 max-h-96 overflow-auto whitespace-pre-wrap rounded bg-on-surface/5 p-2 font-mono text-[11px]"
+          >{{ toJson(rawLyric) }}</pre
+        >
       </details>
     </div>
   </div>

@@ -32,9 +32,7 @@ const emit = defineEmits<{
   "update:open": [value: boolean];
 }>();
 
-const selectedOption = computed(() =>
-  props.options.find((o) => o.value === props.modelValue),
-);
+const selectedOption = computed(() => props.options.find((o) => o.value === props.modelValue));
 
 const handleChange = (val: string): void => {
   const opt = props.options.find((o) => String(o.value) === val);
@@ -91,10 +89,7 @@ const handleChange = (val: string): void => {
           >
             <SelectItemText class="flex-1 truncate">{{ opt.label }}</SelectItemText>
             <SelectItemIndicator class="absolute right-2">
-              <IconLucideCheck
-                class="size-3.5"
-                :class="cover ? 'text-cover' : 'text-primary'"
-              />
+              <IconLucideCheck class="size-3.5" :class="cover ? 'text-cover' : 'text-primary'" />
             </SelectItemIndicator>
           </SelectItem>
         </SelectViewport>

@@ -47,7 +47,8 @@ const handleConfirm = () => {
         <a
           class="text-primary cursor-pointer hover:underline"
           @click="openExternal('https://github.com/amll-dev/amll-ttml-db')"
-        >AMLL TTML DB</a>
+          >AMLL TTML DB</a
+        >
       </p>
     </div>
     <template #footer="{ close }">

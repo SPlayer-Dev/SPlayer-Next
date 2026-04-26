@@ -13,10 +13,7 @@ import type { Platform } from "@shared/types/platform";
 import { getDb } from "./index";
 
 /** 按 (platform, platformId) 命中原始接口返回，未命中返回 null */
-export const getCachedLyric = (
-  platform: Platform,
-  platformId: string,
-): LyricMatchResult | null => {
+export const getCachedLyric = (platform: Platform, platformId: string): LyricMatchResult | null => {
   const row = getDb()
     .prepare("SELECT data FROM lyric_cache WHERE platform = ? AND platform_id = ?")
     .get(platform, platformId) as { data: string } | undefined;
