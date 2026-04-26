@@ -47,6 +47,8 @@ const resolveById = async (platform: Platform, id: string): Promise<LyricMatchRe
         return { ok: true, data: await qqmusic.getByPlatformId(id) };
       case "kugou":
         return { ok: true, data: await kugou.getByPlatformId(id) };
+      default:
+        return { ok: false, error: `unsupported platform: ${platform}` };
     }
   } catch (err) {
     coreLog.warn(`[lyrics] matchById(${platform}, ${id}) failed:`, err);
@@ -64,6 +66,8 @@ const resolveByQuery = async (platform: Platform, track: Track): Promise<LyricMa
         return { ok: true, data: await qqmusic.getByQuery(track) };
       case "kugou":
         return { ok: true, data: await kugou.getByQuery(track) };
+      default:
+        return { ok: false, error: `unsupported platform: ${platform}` };
     }
   } catch (err) {
     coreLog.warn(`[lyrics] matchByQuery(${platform}, ${track.title}) failed:`, err);

@@ -24,27 +24,25 @@ let watcherInitialized = false;
 /** auto 模式下的平台回落顺序 */
 const AUTO_FALLBACK_ORDER: Platform[] = ["netease", "qqmusic", "kugou"];
 
-/** 挑本地歌词源：外置 > 内嵌 > null */
-const pickLocalSource = (detail: TrackDetail): LyricData => {
+/**
+ * 读取本地歌词
+ * @param detail - 歌曲详细信息
+ */
+const readLocal = async (
+  detail: TrackDetail,
+): Promise<{ source: NonNullable<LyricData>; content: string } | null> => {
   const idx = bestExternalIndex(detail.externalLyrics);
   if (idx !== -1) {
-    return { source: "external", format: detail.externalLyrics[idx].format };
+    const ext = detail.externalLyrics[idx];
+    const result = await window.api.player.readLyricFile(ext.path);
+    if (!result.success || result.data == null) return null;
+    return { source: { source: "external", format: ext.format }, content: result.data };
   }
   if (detail.embeddedLyric) {
-    return { source: "embedded", format: detectFormat(detail.embeddedLyric) };
-  }
-  return null;
-};
-
-/** 读取本地歌词内容：external 读文件，embedded 直取 detail 字段 */
-const readLocalContent = async (detail: TrackDetail, source: LyricData): Promise<string | null> => {
-  if (!source) return null;
-  if (source.source === "embedded") return detail.embeddedLyric ?? null;
-  if (source.source === "external") {
-    const ext = detail.externalLyrics.find((item) => item.format === source.format);
-    if (!ext) return null;
-    const result = await window.api.player.readLyricFile(ext.path);
-    return result.success ? (result.data ?? null) : null;
+    return {
+      source: { source: "embedded", format: detectFormat(detail.embeddedLyric) },
+      content: detail.embeddedLyric,
+    };
   }
   return null;
 };
@@ -156,33 +154,37 @@ export const beginLoad = (): number => {
  */
 export const loadForTrack = async (detail: TrackDetail | null): Promise<void> => {
   const token = beginLoad();
-  const media = useMediaStore();
-  const track = media.track;
-  // 无 track
-  if (!track) {
-    commit(token, null, null);
-    return;
-  }
-  // 在线歌曲
-  if (track.source === "online") {
-    commit(token, null, null);
-    return;
-  }
-  // 本地文件
-  const localSource = detail ? pickLocalSource(detail) : null;
-  const localContent = localSource && detail ? await readLocalContent(detail, localSource) : null;
-  if (token !== currentToken) return;
-  // 本地立即显示
-  if (localSource) commit(token, localSource, localContent ? { content: localContent } : null);
-  // 按偏好获取歌词
-  const online = await tryOnlineByPreference(token, track, !!localSource);
-  if (token !== currentToken) return;
-  if (online) {
-    commit(token, online.source, online.input);
-    if (shouldTryTTML(online.source.platform)) {
-      await tryTTMLOverlay(token, track, online.source.platform);
+  try {
+    const media = useMediaStore();
+    const track = media.track;
+    // 无 track
+    if (!track) {
+      commit(token, null, null);
+      return;
     }
-  } else if (!localSource) {
+    // 在线歌曲
+    if (track.source === "online") {
+      commit(token, null, null);
+      return;
+    }
+    // 本地文件
+    const local = detail ? await readLocal(detail) : null;
+    if (token !== currentToken) return;
+    // 本地立即显示
+    if (local) commit(token, local.source, { content: local.content });
+    // 按偏好获取歌词
+    const online = await tryOnlineByPreference(token, track, !!local);
+    if (token !== currentToken) return;
+    if (online) {
+      commit(token, online.source, online.input);
+      if (shouldTryTTML(online.source.platform)) {
+        await tryTTMLOverlay(token, track, online.source.platform);
+      }
+    } else if (!local) {
+      commit(token, null, null);
+    }
+  } catch (err) {
+    console.error("[lyricLoader] loadForTrack failed:", err);
     commit(token, null, null);
   }
 };
@@ -196,17 +198,17 @@ const refreshPreference = async (): Promise<void> => {
   if (!track || track.source === "online") return;
 
   const detail = media.detail;
-  const localSource = detail ? pickLocalSource(detail) : null;
+  const local = detail ? await readLocal(detail) : null;
+  if (token !== currentToken) return;
   const preference = useSettingsStore().lyric.lyricSourcePreference;
   const showingOnline = media.activeLyric?.source === "online";
 
   // 目标应当显示本地
-  const shouldShowLocal = preference === "self" || (preference === "auto" && !!localSource);
+  const shouldShowLocal = preference === "self" || (preference === "auto" && !!local);
   if (shouldShowLocal) {
     if (!showingOnline) return;
-    if (localSource && detail) {
-      const content = await readLocalContent(detail, localSource);
-      commit(token, localSource, content ? { content } : null);
+    if (local) {
+      commit(token, local.source, { content: local.content });
     } else {
       commit(token, null, null);
     }
@@ -214,18 +216,16 @@ const refreshPreference = async (): Promise<void> => {
   }
 
   // 其它情况需要查在线
-  const online = await tryOnlineByPreference(token, track, !!localSource);
+  const online = await tryOnlineByPreference(token, track, !!local);
   if (token !== currentToken) return;
   if (online) {
     commit(token, online.source, online.input);
     if (shouldTryTTML(online.source.platform)) {
       await tryTTMLOverlay(token, track, online.source.platform);
     }
-  } else if (localSource && detail) {
+  } else if (local) {
     // 在线失败：回退到本地
-    const content = await readLocalContent(detail, localSource);
-    if (token !== currentToken) return;
-    commit(token, localSource, content ? { content } : null);
+    commit(token, local.source, { content: local.content });
   } else {
     // 在线失败 + 无本地：清空旧歌词
     commit(token, null, null);

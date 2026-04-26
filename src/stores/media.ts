@@ -69,6 +69,7 @@ export const useMediaStore = defineStore("media", () => {
     lyricContent.value = null;
     lyricIndex.value = -1;
     lyricLoading.value = true;
+    syncToMain();
   };
 
   /**
