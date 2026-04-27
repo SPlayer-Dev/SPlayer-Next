@@ -1,4 +1,5 @@
 import type { LyricFormat, LyricInput, LyricLine } from "@shared/types/lyrics";
+import { DEFAULT_LYRIC_FORMAT_ORDER } from "@shared/types/lyrics";
 import { parseLRC } from "./parseLRC";
 import { parseQRC } from "./parseQRC";
 import { parseYRC } from "./parseYRC";
@@ -8,23 +9,25 @@ import { parseLyS } from "./parseLyS";
 import { parseSRT } from "./parseSRT";
 import { parseASS } from "./parseASS";
 
-/** 格式优先级（越靠前越优先） */
-const FORMAT_PRIORITY: LyricFormat[] = ["ttml", "lys", "qrc", "krc", "yrc", "lrc", "ass", "srt"];
-
 /**
  * 从外部歌词列表中选出最优格式的索引
- * @param lyrics 外部歌词列表
+ * @param lyrics   外部歌词列表
+ * @param priority 自定义格式优先级
  * @returns 最优格式的索引，无可用歌词时返回 -1
  */
-export const bestExternalIndex = (lyrics: { format: LyricFormat }[]): number => {
+export const bestExternalIndex = (
+  lyrics: { format: LyricFormat }[],
+  priority?: readonly LyricFormat[],
+): number => {
   if (lyrics.length === 0) return -1;
+  const order = priority && priority.length > 0 ? priority : DEFAULT_LYRIC_FORMAT_ORDER;
   let bestIdx = 0;
-  let bestPriority = FORMAT_PRIORITY.length;
+  let bestPriority = order.length;
   for (let i = 0; i < lyrics.length; i++) {
-    const p = FORMAT_PRIORITY.indexOf(lyrics[i].format);
-    const priority = p === -1 ? FORMAT_PRIORITY.length : p;
-    if (priority < bestPriority) {
-      bestPriority = priority;
+    const p = order.indexOf(lyrics[i].format);
+    const rank = p === -1 ? order.length : p;
+    if (rank < bestPriority) {
+      bestPriority = rank;
       bestIdx = i;
     }
   }

@@ -4,6 +4,8 @@ import DeviceSelector from "@/components/settings/custom/DeviceSelector.vue";
 import StorageManager from "@/components/settings/custom/StorageManager.vue";
 import PluginManager from "@/components/settings/custom/PluginManager.vue";
 import AmllDbServerConfig from "@/components/settings/custom/AmllDbServerConfig.vue";
+import LyricSourceOrderConfig from "@/components/settings/custom/LyricSourceOrderConfig.vue";
+import LyricFormatOrderConfig from "@/components/settings/custom/LyricFormatOrderConfig.vue";
 import IconLucideCog from "~icons/lucide/cog";
 import IconLucidePlay from "~icons/lucide/play";
 import IconLucideMic2 from "~icons/lucide/mic-2";
@@ -180,6 +182,16 @@ export const settingsSchema: SettingCategory[] = [
               { value: "self", labelKey: "settings.lyricSourcePreference.self" },
             ],
             defaultValue: "auto",
+          },
+          {
+            key: "lyricSourceOrder",
+            type: "custom",
+            component: LyricSourceOrderConfig,
+          },
+          {
+            key: "lyricFormatOrder",
+            type: "custom",
+            component: LyricFormatOrderConfig,
           },
           {
             key: "enableOnlineTTMLLyric",

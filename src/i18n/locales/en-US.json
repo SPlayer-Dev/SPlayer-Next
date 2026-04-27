@@ -181,6 +181,18 @@
       "netease": "Prefer NCM",
       "self": "Follow Self"
     },
+    "lyricSourceOrder": {
+      "label": "Source Order",
+      "description": "Customize source priority",
+      "button": "Configure",
+      "hint": "When using auto mode, sources are tried top-down; falls through to the next on miss"
+    },
+    "lyricFormatOrder": {
+      "label": "Lyric Format Priority",
+      "description": "Customize lyric format priority",
+      "button": "Configure",
+      "hint": "Picks the highest-ranked when multiple formats are available — e.g. multiple external lyric files, or TTML upgrade"
+    },
     "enableOnlineTTMLLyric": {
       "label": "Enable Online TTML Lyrics",
       "description": "Fetch lyrics from AMLL TTML DB. Supports word-level timing, translation, and romanization."

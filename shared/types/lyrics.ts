@@ -4,6 +4,18 @@ import type { Track } from "./player";
 /** 歌词格式 */
 export type LyricFormat = "ttml" | "lys" | "yrc" | "qrc" | "krc" | "lrc" | "srt" | "ass";
 
+/** 默认格式优先级（高到低）；本地外挂选择、TTML 升级判定共用 */
+export const DEFAULT_LYRIC_FORMAT_ORDER: readonly LyricFormat[] = [
+  "ttml",
+  "lys",
+  "qrc",
+  "krc",
+  "yrc",
+  "lrc",
+  "ass",
+  "srt",
+];
+
 /** 歌词来源 */
 export type LyricSource = "external" | "embedded" | "online";
 

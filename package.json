@@ -29,6 +29,7 @@
     "@electron-toolkit/utils": "^4.0.0",
     "@material/material-color-utilities": "^0.4.0",
     "@vueuse/core": "^14.2.1",
+    "@vueuse/integrations": "^14.2.1",
     "atomically": "^2.1.1",
     "better-sqlite3": "^12.8.0",
     "colord": "^2.9.3",
@@ -38,6 +39,7 @@
     "pinia": "^3.0.4",
     "pinia-plugin-persistedstate": "^4.7.1",
     "reka-ui": "^2.9.5",
+    "sortablejs": "^1.15.7",
     "vue-i18n": "^11.3.2",
     "vue-router": "^5.0.4"
   },
@@ -48,6 +50,7 @@
     "@napi-rs/cli": "^3.6.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.19.17",
+    "@types/sortablejs": "^1.15.9",
     "@vitejs/plugin-vue": "^6.0.5",
     "electron": "^39.8.7",
     "electron-builder": "^26.8.1",

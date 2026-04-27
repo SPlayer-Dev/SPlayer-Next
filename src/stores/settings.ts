@@ -4,7 +4,11 @@ import type {
   AppearanceSettings,
   SpringPreset,
 } from "@/types/settings";
-import { SPRING_PRESETS } from "@/types/settings";
+import {
+  DEFAULT_LYRIC_FORMAT_ORDER,
+  DEFAULT_LYRIC_SOURCE_ORDER,
+  SPRING_PRESETS,
+} from "@/types/settings";
 import type { SystemConfig, LocaleCode } from "@shared/types/settings";
 import { defaultSystemConfig } from "@shared/defaults/settings";
 
@@ -34,6 +38,8 @@ export const useSettingsStore = defineStore(
     /** 歌词 */
     const lyric = reactive<LyricSettings>({
       lyricSourcePreference: "auto",
+      lyricSourceOrder: [...DEFAULT_LYRIC_SOURCE_ORDER],
+      lyricFormatOrder: [...DEFAULT_LYRIC_FORMAT_ORDER],
       lyricMode: "effects",
       adaptiveFontSize: true,
       fontSize: 48,

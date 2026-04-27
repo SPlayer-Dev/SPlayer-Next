@@ -1,3 +1,7 @@
+import type { LyricFormat } from "@shared/types/lyrics";
+import { DEFAULT_LYRIC_FORMAT_ORDER as DEFAULT_LYRIC_FORMAT_ORDER_SHARED } from "@shared/types/lyrics";
+import type { Platform } from "@shared/types/platform";
+
 /** 播放器背景类型 */
 export type PlayerBgType = "blur" | "solid";
 
@@ -41,10 +45,26 @@ export const SPRING_PRESETS: Record<
   noBounce: { mass: 1.0, damping: 30, stiffness: 100 },
 };
 
+/** 音源排序：来源偏好为「智能选择」时，按此顺序依次尝试匹配 */
+export type LyricSourceOrder = Platform[];
+
+/** 歌词格式优先级：决定多种格式可用时的选择，以及 TTML 是否覆盖平台主格式 */
+export type LyricFormatOrder = LyricFormat[];
+
+/** 默认音源顺序 */
+export const DEFAULT_LYRIC_SOURCE_ORDER: LyricSourceOrder = ["netease", "qqmusic", "kugou"];
+
+/** 默认格式优先级（来自 shared/types/lyrics 的单一来源） */
+export const DEFAULT_LYRIC_FORMAT_ORDER: LyricFormatOrder = [...DEFAULT_LYRIC_FORMAT_ORDER_SHARED];
+
 /** 歌词设置 */
 export interface LyricSettings {
   /** 歌词来源偏好 */
   lyricSourcePreference: LyricSourcePreference;
+  /** 音源顺序 */
+  lyricSourceOrder: LyricSourceOrder;
+  /** 歌词格式优先级 */
+  lyricFormatOrder: LyricFormatOrder;
   /** 歌词渲染模式 */
   lyricMode: LyricMode;
   /** 字号自适应窗口大小 */

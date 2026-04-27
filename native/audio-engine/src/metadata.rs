@@ -37,7 +37,7 @@ pub struct Tags {
 const THUMB_SIZE: u32 = 300;
 
 /// 支持的歌词文件扩展名
-const LYRIC_EXTENSIONS: &[&str] = &["ttml", "lys", "yrc", "qrc", "lrc", "ass", "srt"];
+const LYRIC_EXTENSIONS: &[&str] = &["ttml", "lys", "qrc", "krc", "yrc", "lrc", "ass", "srt"];
 
 /// 从音频流参数中提取比特率、原始采样率和位深
 ///

@@ -181,6 +181,18 @@
       "netease": "优先 NCM",
       "self": "跟随自身"
     },
+    "lyricSourceOrder": {
+      "label": "音源排序",
+      "description": "自定义音源优先级",
+      "button": "配置",
+      "hint": "「智能选择」时按此顺序依次尝试匹配，未命中则跳到下一个"
+    },
+    "lyricFormatOrder": {
+      "label": "歌词格式优先级",
+      "description": "自定义歌词格式优先级",
+      "button": "配置",
+      "hint": "存在多个可用格式时按此顺序选择，例如本地多个外挂歌词、在线 TTML 升级等场景"
+    },
     "enableOnlineTTMLLyric": {
       "label": "启用在线 TTML 歌词",
       "description": "从 AMLL TTML DB 获取歌词，支持逐字、翻译、音译"

@@ -8,6 +8,7 @@ import type { Platform } from "@shared/types/platform";
 import { bestExternalIndex, detectFormat } from "@/utils/lyric/parse";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
+import { DEFAULT_LYRIC_FORMAT_ORDER, DEFAULT_LYRIC_SOURCE_ORDER } from "@/types/settings";
 
 /** 一次在线 fetch 的结果 */
 interface OnlineResult {
@@ -18,9 +19,6 @@ interface OnlineResult {
 /** 竞态 token */
 let currentToken = 0;
 
-/** auto 模式下的平台回落顺序 */
-const AUTO_FALLBACK_ORDER: Platform[] = ["netease", "qqmusic", "kugou"];
-
 /**
  * 读取本地歌词
  * @param detail - 歌曲详细信息
@@ -28,7 +26,8 @@ const AUTO_FALLBACK_ORDER: Platform[] = ["netease", "qqmusic", "kugou"];
 const readLocal = async (
   detail: TrackDetail,
 ): Promise<{ source: NonNullable<LyricData>; content: string } | null> => {
-  const idx = bestExternalIndex(detail.externalLyrics);
+  const order = useSettingsStore().lyric.lyricFormatOrder ?? DEFAULT_LYRIC_FORMAT_ORDER;
+  const idx = bestExternalIndex(detail.externalLyrics, order);
   if (idx !== -1) {
     const ext = detail.externalLyrics[idx];
     const result = await window.api.player.readLyricFile(ext.path);
@@ -71,10 +70,22 @@ const fetchFromPlatform = async (
   };
 };
 
-/** 是否对该平台尝试 TTML 升级 */
-const shouldTryTTML = (platform: Platform): platform is "netease" | "qqmusic" => {
+/**
+ * 是否对该平台尝试 TTML 升级
+ * 条件：① 平台支持 TTML（netease/qqmusic）② 总开关已开 ③ 格式优先级里 ttml 排在主格式之前
+ */
+const shouldTryTTML = (
+  platform: Platform,
+  mainFormat: LyricFormat,
+): platform is "netease" | "qqmusic" => {
   if (platform !== "netease" && platform !== "qqmusic") return false;
-  return useSettingsStore().system.lyric.enableOnlineTTMLLyric;
+  if (!useSettingsStore().system.lyric.enableOnlineTTMLLyric) return false;
+  const order = useSettingsStore().lyric.lyricFormatOrder ?? DEFAULT_LYRIC_FORMAT_ORDER;
+  const ttmlIdx = order.indexOf("ttml");
+  if (ttmlIdx === -1) return false;
+  const mainIdx = order.indexOf(mainFormat);
+  if (mainIdx === -1) return true;
+  return ttmlIdx < mainIdx;
 };
 
 /**
@@ -111,7 +122,8 @@ const tryOnlineByPreference = async (
   if (preference === "self") return null;
   if (preference === "auto") {
     if (hasLocal) return null;
-    for (const platform of AUTO_FALLBACK_ORDER) {
+    const order = useSettingsStore().lyric.lyricSourceOrder ?? DEFAULT_LYRIC_SOURCE_ORDER;
+    for (const platform of order) {
       const result = await fetchFromPlatform(platform, track);
       if (token !== currentToken) return null;
       if (result) return result;
@@ -174,7 +186,7 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
     if (token !== currentToken) return;
     if (online) {
       commit(token, online.source, online.input);
-      if (shouldTryTTML(online.source.platform)) {
+      if (shouldTryTTML(online.source.platform, online.source.format)) {
         await tryTTMLOverlay(token, track, online.source.platform);
       }
     } else if (!local) {
@@ -217,7 +229,7 @@ const refreshPreference = async (): Promise<void> => {
   if (token !== currentToken) return;
   if (online) {
     commit(token, online.source, online.input);
-    if (shouldTryTTML(online.source.platform)) {
+    if (shouldTryTTML(online.source.platform, online.source.format)) {
       await tryTTMLOverlay(token, track, online.source.platform);
     }
   } else if (local) {
@@ -230,14 +242,19 @@ const refreshPreference = async (): Promise<void> => {
 };
 
 /**
- * 监听偏好变化，触发刷新
+ * 监听歌词偏好变化（来源、音源排序、格式排序），触发刷新
  */
 export const watchLyricPreference = (): void => {
   const settings = useSettingsStore();
   watch(
-    () => settings.lyric.lyricSourcePreference,
+    () => [
+      settings.lyric.lyricSourcePreference,
+      settings.lyric.lyricSourceOrder,
+      settings.lyric.lyricFormatOrder,
+    ],
     () => {
       refreshPreference();
     },
+    { deep: true },
   );
 };
