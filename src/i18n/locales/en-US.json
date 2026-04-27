@@ -2,6 +2,7 @@
   "common": {
     "confirm": "Confirm",
     "cancel": "Cancel",
+    "close": "Close",
     "save": "Save",
     "reset": "Reset",
     "search": "Search",
@@ -9,6 +10,26 @@
     "noData": "No data",
     "success": "Success",
     "error": "Error"
+  },
+  "equalizer": {
+    "title": "Equalizer",
+    "statusOn": "Enabled",
+    "statusOff": "Disabled",
+    "preamp": "Preamp",
+    "reset": "Reset",
+    "preset": {
+      "label": "Preset",
+      "flat": "Default",
+      "pop": "Pop",
+      "rock": "Rock",
+      "classical": "Classical",
+      "electronic": "Electronic",
+      "bass": "Bass Boost",
+      "vocal": "Vocal",
+      "dance": "Dance",
+      "soft": "Soft",
+      "custom": "Custom"
+    }
   },
   "nav": {
     "home": "Home",

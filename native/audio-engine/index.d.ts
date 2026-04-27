@@ -45,6 +45,18 @@ export declare class AudioPlayer {
   setNormalizationEnabled(enabled: boolean): void
   /** 获取音量归一化开关状态 */
   getNormalizationEnabled(): boolean
+  /** 启用/禁用 10 频段均衡器 */
+  setEqualizerEnabled(enabled: boolean): void
+  /** 获取均衡器开关状态 */
+  getEqualizerEnabled(): boolean
+  /** 更新均衡器各频段增益（dB），长度必须为 10，范围 [-15, 15] */
+  setEqualizerBands(gainsDb: Array<number>): void
+  /** 获取均衡器各频段当前增益（dB） */
+  getEqualizerBands(): Array<number>
+  /** 设置前级增益（dB），范围 [-12, 12] */
+  setPreampGain(preampDb: number): void
+  /** 获取前级增益（dB） */
+  getPreampGain(): number
   /** 获取 FFT 频谱数据（128 个频段，值域 0.0 ~ 1.0） */
   getFftData(): Array<number>
   /**

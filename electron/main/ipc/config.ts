@@ -6,7 +6,12 @@ import {
   disable as disableMedia,
   reloadDiscordConfig,
 } from "@main/services/media";
-import { setNormalizationEnabled } from "@main/services/engine";
+import {
+  setNormalizationEnabled,
+  setEqualizerEnabled,
+  setEqualizerBands,
+  setPreampGain,
+} from "@main/services/engine";
 import {
   setTaskbarProgress,
   applyDesktopLyricLock,
@@ -32,6 +37,15 @@ const applyConfigChange = (keyPath: string, value: unknown): void => {
       break;
     case "player.loudnessNormalization":
       setNormalizationEnabled(value as boolean);
+      break;
+    case "player.equalizer.enabled":
+      setEqualizerEnabled(value as boolean);
+      break;
+    case "player.equalizer.bands":
+      setEqualizerBands(value as number[]);
+      break;
+    case "player.equalizer.preamp":
+      setPreampGain(value as number);
       break;
     case "system.taskbarProgress":
       if (!value) setTaskbarProgress(-1);

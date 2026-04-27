@@ -2,6 +2,7 @@
   "common": {
     "confirm": "确认",
     "cancel": "取消",
+    "close": "关闭",
     "save": "保存",
     "reset": "重置",
     "search": "搜索",
@@ -9,6 +10,26 @@
     "noData": "暂无数据",
     "success": "操作成功",
     "error": "操作失败"
+  },
+  "equalizer": {
+    "title": "均衡器",
+    "statusOn": "已启用",
+    "statusOff": "已关闭",
+    "preamp": "前级",
+    "reset": "重置",
+    "preset": {
+      "label": "预设",
+      "flat": "默认",
+      "pop": "流行",
+      "rock": "摇滚",
+      "classical": "古典",
+      "electronic": "电子",
+      "bass": "重低音",
+      "vocal": "人声",
+      "dance": "舞曲",
+      "soft": "轻音乐",
+      "custom": "自定义"
+    }
   },
   "nav": {
     "home": "首页",

@@ -43,6 +43,7 @@ declare module 'vue' {
     DropdownMenuSubTrigger: typeof import('reka-ui')['DropdownMenuSubTrigger']
     DropdownMenuTrigger: typeof import('reka-ui')['DropdownMenuTrigger']
     EffectsLyrics: typeof import('./src/components/player/EffectsLyrics/index.vue')['default']
+    EqualizerDialog: typeof import('./src/components/modals/EqualizerDialog.vue')['default']
     ExcludeLyricsConfig: typeof import('./src/components/settings/custom/ExcludeLyricsConfig.vue')['default']
     FullPlayer: typeof import('./src/components/player/FullPlayer/index.vue')['default']
     IconLucideArrowUpCircle: typeof import('~icons/lucide/arrow-up-circle')['default']

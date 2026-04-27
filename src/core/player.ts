@@ -516,10 +516,17 @@ export const initPlayer = async (): Promise<void> => {
   await window.api.player.setVolume(status.volume);
   syncPlayMode();
   // 应用渐入渐出配置
-  const { fadeEnabled, fadeDuration, loudnessNormalization } = settings.system.player;
+  const { fadeEnabled, fadeDuration, loudnessNormalization, equalizer } = settings.system.player;
   await window.api.player.setFadeDuration(fadeEnabled ? fadeDuration : 0);
   // 应用音量均衡配置
   await window.api.player.setNormalizationEnabled(loudnessNormalization ?? false);
+  // 应用均衡器配置（频段/前级先下发，再切总开关，避免开关瞬间用旧值）
+  // 注意：reactive 数组无法被 IPC structured-clone，需 spread 解包
+  if (equalizer) {
+    await window.api.player.setEqualizerBands([...equalizer.bands]);
+    await window.api.player.setPreampGain(equalizer.preamp);
+    await window.api.player.setEqualizerEnabled(equalizer.enabled);
+  }
   // 刷新设备列表并恢复上次选择的输出设备
   await refreshDevices();
   if (settings.player.outputDevice) {

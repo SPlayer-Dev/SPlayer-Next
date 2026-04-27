@@ -64,3 +64,24 @@ export const setNormalizationEnabled = (enabled: boolean): void => {
     playerInstance.setNormalizationEnabled(enabled);
   }
 };
+
+/** 同步均衡器开关到播放器 */
+export const setEqualizerEnabled = (enabled: boolean): void => {
+  if (playerInstance) {
+    playerInstance.setEqualizerEnabled(enabled);
+  }
+};
+
+/** 同步均衡器频段增益到播放器 */
+export const setEqualizerBands = (gainsDb: number[]): void => {
+  if (playerInstance) {
+    playerInstance.setEqualizerBands(gainsDb);
+  }
+};
+
+/** 同步前级增益到播放器 */
+export const setPreampGain = (preampDb: number): void => {
+  if (playerInstance) {
+    playerInstance.setPreampGain(preampDb);
+  }
+};

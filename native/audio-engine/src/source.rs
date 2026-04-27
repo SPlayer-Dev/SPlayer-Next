@@ -2,8 +2,10 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
 
+use parking_lot::Mutex;
 use rodio::Source;
 
+use crate::equalizer::Equalizer;
 use crate::fft::FftAnalyzer;
 use crate::shared::Shared;
 
@@ -12,6 +14,8 @@ use crate::shared::Shared;
 pub struct DecoderSource {
     shared: Arc<Shared>,
     fft: Arc<FftAnalyzer>,
+    /// 跨曲目共享的均衡器，load/seek 时通过 Arc::clone 传入
+    equalizer: Arc<Mutex<Equalizer>>,
     /// 本地缓冲，减少锁竞争
     local_buffer: VecDeque<f32>,
     sample_rate: u32,
@@ -22,12 +26,14 @@ impl DecoderSource {
     pub fn new(
         shared: Arc<Shared>,
         fft: Arc<FftAnalyzer>,
+        equalizer: Arc<Mutex<Equalizer>>,
         sample_rate: u32,
         channels: u16,
     ) -> Self {
         Self {
             shared,
             fft,
+            equalizer,
             local_buffer: VecDeque::new(),
             sample_rate,
             channels,
@@ -54,8 +60,11 @@ impl Iterator for DecoderSource {
 
                 // 填充本地缓冲，一次性批量计数（而非逐采样）
                 if !chunk.player_samples.is_empty() {
-                    let count = chunk.player_samples.len() as u64;
-                    self.local_buffer.extend(chunk.player_samples);
+                    let mut samples = chunk.player_samples;
+                    // 对整 chunk 应用 EQ：每秒只锁 50~100 次，开销摊到几千个样本上
+                    self.equalizer.lock().process_interleaved_stereo(&mut samples);
+                    let count = samples.len() as u64;
+                    self.local_buffer.extend(samples);
                     self.shared.advance_consumed(count);
                     return self.local_buffer.pop_front();
                 }

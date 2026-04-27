@@ -1,10 +1,14 @@
 <script setup lang="ts">
+import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
 import * as player from "@/core/player";
 import { formatTime } from "@/utils/time";
+import IconLucideSliders from "~icons/lucide/sliders-horizontal";
+import IconLucideMoreVertical from "~icons/lucide/more-vertical";
 
+const { t } = useI18n();
 const status = useStatusStore();
 const media = useMediaStore();
 const settings = useSettingsStore();
@@ -16,6 +20,20 @@ const hasTrack = computed(() => !!media.track);
 
 const toggleDesktopLyric = (): void => {
   window.api.window.toggleDesktopLyric().catch(() => {});
+};
+
+const equalizerOpen = ref(false);
+
+const moreMenuItems = computed<DropdownMenuItem[]>(() => [
+  {
+    key: "equalizer",
+    label: t("equalizer.title"),
+    icon: IconLucideSliders,
+  },
+]);
+
+const onMoreMenuSelect = (key: string): void => {
+  if (key === "equalizer") equalizerOpen.value = true;
 };
 
 /** 当前歌词文本，播放中且有匹配歌词时显示 */
@@ -197,7 +215,17 @@ const onSeekDragEnd = (value: number): void => {
         >
           <template #icon><IconLucideListMusic /></template>
         </SButton>
+        <!-- 更多 -->
+        <SDropdownMenu :items="moreMenuItems" side="top" align="end" @select="onMoreMenuSelect">
+          <template #trigger>
+            <SButton variant="ghost" circle :size="36" class="text-on-surface-variant">
+              <template #icon><IconLucideMoreVertical /></template>
+            </SButton>
+          </template>
+        </SDropdownMenu>
       </div>
     </div>
+    <!-- 均衡器对话框 -->
+    <EqualizerDialog v-model:open="equalizerOpen" />
   </div>
 </template>

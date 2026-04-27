@@ -46,6 +46,14 @@ const api = {
     // 启用/禁用音量均衡
     setNormalizationEnabled: (enabled: boolean) =>
       ipcRenderer.invoke("player:setNormalizationEnabled", enabled),
+    // 启用/禁用 10 频段均衡器
+    setEqualizerEnabled: (enabled: boolean) =>
+      ipcRenderer.invoke("player:setEqualizerEnabled", enabled),
+    // 更新均衡器各频段增益（dB 数组，长度 10）
+    setEqualizerBands: (gainsDb: number[]) =>
+      ipcRenderer.invoke("player:setEqualizerBands", gainsDb),
+    // 设置前级增益（dB）
+    setPreampGain: (preampDb: number) => ipcRenderer.invoke("player:setPreampGain", preampDb),
     // 重建音频输出设备
     reinit: () => ipcRenderer.invoke("player:reinit"),
     // 获取所有音频输出设备

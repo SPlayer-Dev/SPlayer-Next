@@ -2,6 +2,7 @@
 //! 通过 NAPI-RS 暴露给 Node.js，作为 Electron 主进程的原生模块。
 
 mod decoder;
+mod equalizer;
 mod fft;
 mod logger;
 mod loudness;
@@ -340,6 +341,48 @@ impl AudioPlayer {
     #[napi]
     pub fn get_normalization_enabled(&self) -> bool {
         self.inner.lock().normalization_enabled()
+    }
+
+    /// 启用/禁用 10 频段均衡器
+    #[napi]
+    pub fn set_equalizer_enabled(&self, enabled: bool) {
+        self.inner.lock().set_equalizer_enabled(enabled);
+    }
+
+    /// 获取均衡器开关状态
+    #[napi]
+    pub fn get_equalizer_enabled(&self) -> bool {
+        self.inner.lock().equalizer_enabled()
+    }
+
+    /// 更新均衡器各频段增益（dB），长度必须为 10，范围 [-15, 15]
+    #[napi]
+    pub fn set_equalizer_bands(&self, gains_db: Vec<f64>) {
+        let bands: Vec<f32> = gains_db.into_iter().map(|v| v as f32).collect();
+        self.inner.lock().set_equalizer_bands(&bands);
+    }
+
+    /// 获取均衡器各频段当前增益（dB）
+    #[napi]
+    pub fn get_equalizer_bands(&self) -> Vec<f64> {
+        self.inner
+            .lock()
+            .equalizer_bands()
+            .iter()
+            .map(|v| *v as f64)
+            .collect()
+    }
+
+    /// 设置前级增益（dB），范围 [-12, 12]
+    #[napi]
+    pub fn set_preamp_gain(&self, preamp_db: f64) {
+        self.inner.lock().set_preamp_gain(preamp_db as f32);
+    }
+
+    /// 获取前级增益（dB）
+    #[napi]
+    pub fn get_preamp_gain(&self) -> f64 {
+        self.inner.lock().preamp_gain() as f64
     }
 
     /// 获取 FFT 频谱数据（128 个频段，值域 0.0 ~ 1.0）

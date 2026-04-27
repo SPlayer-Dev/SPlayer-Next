@@ -288,6 +288,36 @@ export const registerPlayerIpc = (): void => {
     }
   });
 
+  // 启用/禁用均衡器
+  ipcMain.handle("player:setEqualizerEnabled", (_event, enabled: boolean) => {
+    try {
+      getPlayer().setEqualizerEnabled(enabled);
+      return { success: true };
+    } catch (error) {
+      return fail(ErrorCode.UNKNOWN, error);
+    }
+  });
+
+  // 更新均衡器频段增益（dB 数组，长度 10）
+  ipcMain.handle("player:setEqualizerBands", (_event, gainsDb: number[]) => {
+    try {
+      getPlayer().setEqualizerBands(gainsDb);
+      return { success: true };
+    } catch (error) {
+      return fail(ErrorCode.UNKNOWN, error);
+    }
+  });
+
+  // 设置前级增益（dB）
+  ipcMain.handle("player:setPreampGain", (_event, preampDb: number) => {
+    try {
+      getPlayer().setPreampGain(preampDb);
+      return { success: true };
+    } catch (error) {
+      return fail(ErrorCode.UNKNOWN, error);
+    }
+  });
+
   // 启用/禁用 FFT 频谱推送（前端组件挂载时启用，卸载时禁用）
   ipcMain.handle("player:setFftEnabled", (_event, enabled: boolean) => {
     try {
