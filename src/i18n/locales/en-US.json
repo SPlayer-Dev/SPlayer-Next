@@ -40,6 +40,31 @@
     "semitone": "{n} st",
     "reset": "Reset"
   },
+  "autoClose": {
+    "title": "Sleep Timer",
+    "duration": "Duration",
+    "unitHint": "minutes",
+    "custom": "Custom",
+    "minute": "{n} min",
+    "waitSongEnd": "Wait for current song to finish",
+    "waitSongEndTip": "When time is up, finish the current track before stopping",
+    "remaining": "Time left",
+    "start": "Start",
+    "update": "Update",
+    "stop": "Turn off"
+  },
+  "abLoop": {
+    "title": "A-B Loop",
+    "enable": "Enable loop",
+    "enableTip": "Set both A and B points, with B greater than A",
+    "pointA": "Point A",
+    "pointB": "Point B",
+    "setCurrent": "Set current",
+    "clear": "Clear",
+    "minus": "-{n}s",
+    "plus": "+{n}s",
+    "warningBLessThanA": "B must be later than A; loop disabled"
+  },
   "nav": {
     "home": "Home",
     "library": "Library",

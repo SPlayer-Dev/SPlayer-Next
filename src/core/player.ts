@@ -6,6 +6,8 @@ import { useStatusStore } from "@/stores/status";
 import * as queue from "@/stores/queue";
 import * as playback from "@/services/playback";
 import * as lyricLoader from "@/services/lyricLoader";
+import * as autoClose from "@/services/autoClose";
+import * as abLoop from "@/services/abLoop";
 import { loadAudio } from "@/services/audioLoader";
 import { extractColorFromUrl } from "@/utils/color";
 import { handleError, isSkippableError } from "@/utils/errors";
@@ -29,6 +31,8 @@ export const load = async (source: string, autoPlay = true): Promise<Track | nul
   const status = useStatusStore();
   const token = ++loadToken;
   status.trackLoading = true;
+  // 切歌即清空 AB 循环（per-song 状态）
+  abLoop.reset();
   // 清除上一次 seek 残留
   seekTarget = null;
   playback.setSeeking(false);
@@ -486,6 +490,8 @@ const handleEvent = async (event: PlayerEvent): Promise<void> => {
       }
       // 用修正后的位置同步歌词索引，避免与显示进度不一致
       useMediaStore().updateLyricIndex(adjusted);
+      // AB 循环：到达 B 点 seek 回 A
+      abLoop.checkLoop(adjusted);
       break;
     }
     case "fftData":
@@ -495,6 +501,8 @@ const handleEvent = async (event: PlayerEvent): Promise<void> => {
       if (endedGuard) return;
       endedGuard = true;
       try {
+        // 定时关闭"等本曲结束"模式：到点了就在这里 pause，吃掉本次 ended，不进入下一曲
+        if (autoClose.onTrackEnded()) break;
         // 单曲循环：seek 回开头继续播放（复用 FFmpeg 上下文，不重建）
         if (status.repeatMode === "one") {
           await seek(0);
@@ -567,6 +575,8 @@ export const initPlayer = async (): Promise<void> => {
   // 先订阅事件，确保 load 触发播放后 position 事件能被接收
   if (unsubscribe) unsubscribe();
   unsubscribe = window.api.player.onEvent(handleEvent);
+  // 恢复定时关闭倒计时（如果上次会话设了，且 endTime 仍在未来）
+  autoClose.restoreOnInit();
   const lastTrack = status.currentTrack;
   if (lastTrack?.path) {
     const lastPosition = status.position;

@@ -26,6 +26,22 @@ export const useStatusStore = defineStore(
     /** 音调同步：true = 变速保音调（默认），不持久化 */
     const pitchSync = ref(true);
 
+    /**定时关闭 */
+    const autoClose = reactive({
+      enable: false,
+      duration: 30, // 分钟
+      endTime: 0, // Unix ms
+      waitSongEnd: false,
+      remainTime: 0, // 秒
+    });
+
+    /** AB 循环 */
+    const abLoop = reactive({
+      enable: false,
+      pointA: null as number | null,
+      pointB: null as number | null,
+    });
+
     const isPlaying = computed(() => state.value === "playing");
     const isPaused = computed(() => state.value === "paused");
     const isLoading = computed(() => state.value === "loading");
@@ -58,13 +74,23 @@ export const useStatusStore = defineStore(
       speed,
       pitch,
       pitchSync,
+      autoClose,
+      abLoop,
       currentTrack,
     };
   },
   {
     persist: {
       storage: localStorage,
-      pick: ["playIndex", "repeatMode", "shuffleMode", "volume", "position", "duration"],
+      pick: [
+        "playIndex",
+        "repeatMode",
+        "shuffleMode",
+        "volume",
+        "position",
+        "duration",
+        "autoClose",
+      ],
     },
   },
 );

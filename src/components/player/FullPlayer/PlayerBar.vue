@@ -8,6 +8,8 @@ import { formatTime } from "@/utils/time";
 import IconLucideSliders from "~icons/lucide/sliders-horizontal";
 import IconLucideGauge from "~icons/lucide/gauge";
 import IconLucideMoreVertical from "~icons/lucide/more-vertical";
+import IconLucideClock from "~icons/lucide/clock";
+import IconLucideRepeat2 from "~icons/lucide/repeat-2";
 
 const { t } = useI18n();
 const status = useStatusStore();
@@ -25,6 +27,8 @@ const toggleDesktopLyric = (): void => {
 
 const equalizerOpen = ref(false);
 const speedOpen = ref(false);
+const autoCloseOpen = ref(false);
+const abLoopOpen = ref(false);
 
 const moreMenuItems = computed<DropdownMenuItem[]>(() => [
   {
@@ -37,11 +41,23 @@ const moreMenuItems = computed<DropdownMenuItem[]>(() => [
     label: t("speed.title"),
     icon: IconLucideGauge,
   },
+  {
+    key: "abLoop",
+    label: t("abLoop.title"),
+    icon: IconLucideRepeat2,
+  },
+  {
+    key: "autoClose",
+    label: t("autoClose.title"),
+    icon: IconLucideClock,
+  },
 ]);
 
 const onMoreMenuSelect = (key: string): void => {
   if (key === "equalizer") equalizerOpen.value = true;
   else if (key === "speed") speedOpen.value = true;
+  else if (key === "abLoop") abLoopOpen.value = true;
+  else if (key === "autoClose") autoCloseOpen.value = true;
 };
 
 /** 当前歌词文本，播放中且有匹配歌词时显示 */
@@ -238,5 +254,9 @@ const onSeekDragEnd = (value: number): void => {
     <EqualizerDialog v-model:open="equalizerOpen" />
     <!-- 播放速度 -->
     <SpeedDialog v-model:open="speedOpen" />
+    <!-- AB 循环 -->
+    <AbLoopDialog v-model:open="abLoopOpen" />
+    <!-- 定时关闭 -->
+    <AutoCloseDialog v-model:open="autoCloseOpen" />
   </div>
 </template>

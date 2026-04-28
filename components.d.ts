@@ -11,7 +11,9 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AbLoopDialog: typeof import('./src/components/modals/AbLoopDialog.vue')['default']
     AmllDbServerConfig: typeof import('./src/components/settings/custom/AmllDbServerConfig.vue')['default']
+    AutoCloseDialog: typeof import('./src/components/modals/AutoCloseDialog.vue')['default']
     BottomSpectrum: typeof import('./src/components/player/FullPlayer/BottomSpectrum.vue')['default']
     ColorSliderRoot: typeof import('reka-ui')['ColorSliderRoot']
     ColorSliderThumb: typeof import('reka-ui')['ColorSliderThumb']

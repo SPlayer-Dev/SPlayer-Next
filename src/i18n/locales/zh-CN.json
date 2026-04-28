@@ -40,6 +40,31 @@
     "semitone": "{n} 半音",
     "reset": "重置"
   },
+  "autoClose": {
+    "title": "定时关闭",
+    "duration": "时长",
+    "unitHint": "单位：分钟",
+    "custom": "自定义",
+    "minute": "{n} 分钟",
+    "waitSongEnd": "等待整首歌曲结束",
+    "waitSongEndTip": "到时间后等本曲播放完再停",
+    "remaining": "剩余时间",
+    "start": "启用",
+    "update": "更新",
+    "stop": "关闭定时"
+  },
+  "abLoop": {
+    "title": "AB 循环",
+    "enable": "启用循环",
+    "enableTip": "需要先设置 A 与 B 两个点，且 B > A",
+    "pointA": "起点 A",
+    "pointB": "终点 B",
+    "setCurrent": "设为当前",
+    "clear": "清除",
+    "minus": "-{n}s",
+    "plus": "+{n}s",
+    "warningBLessThanA": "B 点必须晚于 A 点，循环未启用"
+  },
   "nav": {
     "home": "首页",
     "library": "音乐库",
