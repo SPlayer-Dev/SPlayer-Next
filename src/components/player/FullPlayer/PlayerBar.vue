@@ -1,64 +1,15 @@
 <script setup lang="ts">
-import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
-import { useSettingsStore } from "@/stores/settings";
 import * as player from "@/core/player";
 import { formatTime } from "@/utils/time";
-import IconLucideSliders from "~icons/lucide/sliders-horizontal";
-import IconLucideGauge from "~icons/lucide/gauge";
-import IconLucideMoreVertical from "~icons/lucide/more-vertical";
-import IconLucideClock from "~icons/lucide/clock";
-import IconLucideRepeat2 from "~icons/lucide/repeat-2";
 
-const { t } = useI18n();
 const status = useStatusStore();
 const media = useMediaStore();
-const settings = useSettingsStore();
 const { isPlaying, isLoading, position, duration, isExpanded, repeatMode, shuffleMode } =
   storeToRefs(status);
-const { isDesktopLyricOpen } = storeToRefs(settings);
 
 const hasTrack = computed(() => !!media.track);
-
-const toggleDesktopLyric = (): void => {
-  window.api.window.toggleDesktopLyric().catch(() => {});
-};
-
-const equalizerOpen = ref(false);
-const speedOpen = ref(false);
-const autoCloseOpen = ref(false);
-const abLoopOpen = ref(false);
-
-const moreMenuItems = computed<DropdownMenuItem[]>(() => [
-  {
-    key: "equalizer",
-    label: t("equalizer.title"),
-    icon: IconLucideSliders,
-  },
-  {
-    key: "speed",
-    label: t("speed.title"),
-    icon: IconLucideGauge,
-  },
-  {
-    key: "abLoop",
-    label: t("abLoop.title"),
-    icon: IconLucideRepeat2,
-  },
-  {
-    key: "autoClose",
-    label: t("autoClose.title"),
-    icon: IconLucideClock,
-  },
-]);
-
-const onMoreMenuSelect = (key: string): void => {
-  if (key === "equalizer") equalizerOpen.value = true;
-  else if (key === "speed") speedOpen.value = true;
-  else if (key === "abLoop") abLoopOpen.value = true;
-  else if (key === "autoClose") autoCloseOpen.value = true;
-};
 
 /** 当前歌词文本，播放中且有匹配歌词时显示 */
 const currentLyricText = computed(() => {
@@ -94,7 +45,6 @@ const onSeekDragEnd = (value: number): void => {
 
     <!-- 主内容 -->
     <div class="grid grid-cols-[1fr_auto_1fr] items-center h-full px-3">
-      <!-- 左侧 -->
       <div class="flex items-center gap-3 min-w-0">
         <div
           class="relative size-14 shrink-0 rounded-lg overflow-hidden cursor-pointer group"
@@ -135,7 +85,6 @@ const onSeekDragEnd = (value: number): void => {
           </div>
         </Transition>
       </div>
-
       <!-- 播放控制 -->
       <div class="flex items-center gap-2 mx-15">
         <SButton
@@ -200,63 +149,14 @@ const onSeekDragEnd = (value: number): void => {
           </template>
         </SButton>
       </div>
-
-      <!-- 时间 + 音量 -->
       <div class="flex items-center justify-end gap-3 min-w-0">
+        <!-- 时间 -->
         <span class="text-xs text-on-surface-variant tabular-nums shrink-0">
           {{ formatTime(position) }} / {{ formatTime(duration) }}
         </span>
-        <div class="flex items-center gap-2 w-28 shrink-0">
-          <IconLucideVolume2 class="size-4 text-on-surface-variant shrink-0" />
-          <SSlider
-            :model-value="status.volume"
-            :min="0"
-            :max="1"
-            :step="0.01"
-            :thumb-size="12"
-            :track-height="3"
-            always-show-thumb
-            class="flex-1"
-            @change="player.setVolume($event)"
-          />
-        </div>
-        <!-- 桌面歌词按钮 -->
-        <SButton
-          variant="ghost"
-          circle
-          :size="36"
-          :class="isDesktopLyricOpen ? 'text-primary' : 'text-on-surface-variant'"
-          @click="toggleDesktopLyric"
-        >
-          <template #icon><IconLucideSubtitles /></template>
-        </SButton>
-        <!-- 播放列表按钮 -->
-        <SButton
-          variant="ghost"
-          circle
-          :size="36"
-          class="text-on-surface-variant"
-          @click="status.playlistOpen = true"
-        >
-          <template #icon><IconLucideListMusic /></template>
-        </SButton>
-        <!-- 更多 -->
-        <SDropdownMenu :items="moreMenuItems" side="top" align="end" @select="onMoreMenuSelect">
-          <template #trigger>
-            <SButton variant="ghost" circle :size="36" class="text-on-surface-variant">
-              <template #icon><IconLucideMoreVertical /></template>
-            </SButton>
-          </template>
-        </SDropdownMenu>
+        <!-- 工具栏 -->
+        <Toolbar />
       </div>
     </div>
-    <!-- 均衡器 -->
-    <EqualizerDialog v-model:open="equalizerOpen" />
-    <!-- 播放速度 -->
-    <SpeedDialog v-model:open="speedOpen" />
-    <!-- AB 循环 -->
-    <AbLoopDialog v-model:open="abLoopOpen" />
-    <!-- 定时关闭 -->
-    <AutoCloseDialog v-model:open="autoCloseOpen" />
   </div>
 </template>

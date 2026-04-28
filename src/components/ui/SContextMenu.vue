@@ -33,7 +33,7 @@ const contentClass =
 
 /** 菜单项样式 */
 const menuItemClass =
-  "flex items-center gap-2 px-2 py-1.5 rounded-md text-on-surface outline-none select-none cursor-pointer transition-colors data-[highlighted]:bg-on-surface/5 data-[disabled]:opacity-40 data-[disabled]:pointer-events-none";
+  "flex items-center gap-2 px-2 py-1.5 rounded-md text-on-surface outline-none select-none cursor-pointer data-[highlighted]:bg-on-surface/12 data-[disabled]:opacity-40 data-[disabled]:pointer-events-none";
 </script>
 
 <template>

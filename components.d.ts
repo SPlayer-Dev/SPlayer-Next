@@ -71,7 +71,9 @@ declare module 'vue' {
     IconLucideLock: typeof import('~icons/lucide/lock')['default']
     IconLucideMessageCircle: typeof import('~icons/lucide/message-circle')['default']
     IconLucideMic: typeof import('~icons/lucide/mic')['default']
+    IconLucideMicVocal: typeof import('~icons/lucide/mic-vocal')['default']
     IconLucideMinus: typeof import('~icons/lucide/minus')['default']
+    IconLucideMoreVertical: typeof import('~icons/lucide/more-vertical')['default']
     IconLucideMusic: typeof import('~icons/lucide/music')['default']
     IconLucidePause: typeof import('~icons/lucide/pause')['default']
     IconLucidePlay: typeof import('~icons/lucide/play')['default']
@@ -93,7 +95,10 @@ declare module 'vue' {
     IconLucideTriangleAlert: typeof import('~icons/lucide/triangle-alert')['default']
     IconLucideUnlock: typeof import('~icons/lucide/unlock')['default']
     IconLucideUser: typeof import('~icons/lucide/user')['default']
+    IconLucideVolume: typeof import('~icons/lucide/volume')['default']
+    IconLucideVolume1: typeof import('~icons/lucide/volume1')['default']
     IconLucideVolume2: typeof import('~icons/lucide/volume2')['default']
+    IconLucideVolumeX: typeof import('~icons/lucide/volume-x')['default']
     IconLucideX: typeof import('~icons/lucide/x')['default']
     IconSpLossless: typeof import('~icons/sp/lossless')['default']
     LyricFormatOrderConfig: typeof import('./src/components/settings/custom/LyricFormatOrderConfig.vue')['default']
@@ -167,6 +172,7 @@ declare module 'vue' {
     SVirtualList: typeof import('./src/components/ui/SVirtualList.vue')['default']
     SwitchRoot: typeof import('reka-ui')['SwitchRoot']
     SwitchThumb: typeof import('reka-ui')['SwitchThumb']
+    Toolbar: typeof import('./src/components/player/FullPlayer/Toolbar.vue')['default']
     Versions: typeof import('./src/components/Versions.vue')['default']
   }
 }

@@ -28,6 +28,8 @@ export interface SSliderProps {
   vertical?: boolean;
   /** 中心填充 */
   centerFill?: boolean;
+  /** 封面主题模式 */
+  cover?: boolean;
 }
 
 const props = withDefaults(defineProps<SSliderProps>(), {
@@ -45,6 +47,7 @@ const props = withDefaults(defineProps<SSliderProps>(), {
   marks: undefined,
   vertical: false,
   centerFill: false,
+  cover: false,
 });
 
 const emit = defineEmits<{
@@ -185,6 +188,13 @@ const onPointerUp = (): void => {
     :style="{
       '--s-slider-progress': progressPercent,
       '--s-slider-thumb-half': `${thumbSize / 2}px`,
+      ...(cover
+        ? {
+            '--s-slider-track-bg': 'rgb(var(--s-cover) / 0.25)',
+            '--s-slider-fill-bg': 'rgb(var(--s-cover))',
+            '--s-slider-thumb-bg': 'rgb(var(--s-cover))',
+          }
+        : {}),
     }"
     @mouseenter="isHovering = true"
     @mouseleave="isHovering = false"

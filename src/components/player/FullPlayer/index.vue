@@ -175,17 +175,14 @@ const onSeekDragEnd = (value: number): void => {
             暂无歌词
           </div>
         </div>
-
-        <!-- 底部控制栏：三分栏 -->
         <div class="absolute bottom-0 left-0 right-0 h-20 grid grid-cols-3 items-center px-4">
-          <!-- 左侧：收起按钮 -->
+          <!-- 左侧 -->
           <div class="flex items-center shrink-0">
-            <SButton type="cover" variant="ghost" circle @click="collapse">
+            <SButton type="cover" variant="ghost" size="large" circle @click="collapse">
               <template #icon><IconLucideChevronDown /></template>
             </SButton>
           </div>
 
-          <!-- 中部：控制按钮 + 进度条 -->
           <div class="flex flex-col items-center gap-1">
             <div class="flex items-center gap-3">
               <SButton
@@ -261,32 +258,8 @@ const onSeekDragEnd = (value: number): void => {
             </div>
           </div>
 
-          <!-- 右侧：音量 + 播放列表 -->
-          <div class="flex items-center justify-end gap-3">
-            <div class="flex items-center gap-2 w-28">
-              <IconLucideVolume2 class="size-4 text-cover/50 shrink-0" />
-              <SSlider
-                :model-value="status.volume"
-                :min="0"
-                :max="1"
-                :step="0.01"
-                always-show-thumb
-                :thumb-size="12"
-                :track-height="3"
-                class="flex-1"
-                @change="player.setVolume($event)"
-              />
-            </div>
-            <SButton
-              type="cover"
-              variant="ghost"
-              size="large"
-              circle
-              @click="status.playlistOpen = true"
-            >
-              <template #icon><IconLucideListMusic /></template>
-            </SButton>
-          </div>
+          <!-- 工具栏 -->
+          <Toolbar cover class="justify-end" />
         </div>
       </div>
     </Transition>

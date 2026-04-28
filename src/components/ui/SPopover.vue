@@ -20,6 +20,8 @@ export interface SPopoverProps {
   cover?: boolean;
   /** 触发器是否撑满父容器宽度 */
   block?: boolean;
+  /** 内容区附加 class */
+  contentClass?: string;
 }
 
 const props = withDefaults(defineProps<SPopoverProps>(), {
@@ -32,6 +34,7 @@ const props = withDefaults(defineProps<SPopoverProps>(), {
   arrow: false,
   cover: false,
   block: false,
+  contentClass: "",
 });
 
 const emit = defineEmits<{
@@ -118,6 +121,7 @@ onUnmounted(clearTimers);
           cover
             ? 'bg-black/55 backdrop-blur-xl backdrop-saturate-160 border border-solid border-white/10 text-cover'
             : 'bg-surface-bright text-on-surface',
+          contentClass,
         ]"
         @pointerenter="handlePointerEnter"
         @pointerleave="handlePointerLeave"

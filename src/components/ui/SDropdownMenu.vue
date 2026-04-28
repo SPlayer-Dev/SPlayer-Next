@@ -28,11 +28,14 @@ const props = withDefaults(
     align?: "start" | "center" | "end";
     /** 与触发元素的距离（px） */
     sideOffset?: number;
+    /** 封面主题模式 */
+    cover?: boolean;
   }>(),
   {
     side: "bottom",
     align: "center",
     sideOffset: 4,
+    cover: false,
   },
 );
 
@@ -49,12 +52,24 @@ const handleSelect = (item: DropdownMenuItem): void => {
 };
 
 /** 内容区域样式 */
-const contentClass =
-  "z-300 min-w-32 rounded-lg bg-surface-bright shadow-lg p-1 text-sm data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out";
+const contentClass = computed(() =>
+  [
+    "z-300 min-w-32 rounded-lg shadow-lg p-1 text-sm data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out",
+    props.cover
+      ? "bg-black/55 backdrop-blur-xl backdrop-saturate-160 border border-solid border-white/10"
+      : "bg-surface-bright",
+  ].join(" "),
+);
 
 /** 菜单项样式 */
-const menuItemClass =
-  "flex items-center gap-2 px-2 py-1.5 rounded-md text-on-surface outline-none select-none cursor-pointer transition-colors data-[highlighted]:bg-on-surface/5 data-[disabled]:opacity-40 data-[disabled]:pointer-events-none";
+const menuItemClass = computed(() =>
+  [
+    "flex items-center gap-2 px-2 py-1.5 rounded-md outline-none select-none cursor-pointer data-[disabled]:opacity-40 data-[disabled]:pointer-events-none",
+    props.cover
+      ? "text-cover data-[highlighted]:bg-cover/15"
+      : "text-on-surface data-[highlighted]:bg-on-surface/12",
+  ].join(" "),
+);
 </script>
 
 <template>
