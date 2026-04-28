@@ -107,7 +107,7 @@ const albumItems = computed<CoverItem[]>(() => {
   if (!artist.value?.albums.length) return [];
   return artist.value.albums.map((item) => ({
     ...item,
-    subtitle: t("artist.totalSongs", { count: item.trackCount }),
+    subtitle: t("common.totalSongs", { count: item.trackCount }),
   }));
 });
 </script>
@@ -149,11 +149,11 @@ const albumItems = computed<CoverItem[]>(() => {
               >
                 <span class="flex items-center gap-1">
                   <IconLucideListMusic class="shrink-0" />
-                  {{ t("artist.totalSongs", { count: artist.trackCount }) }}
+                  {{ t("common.totalSongs", { count: artist.trackCount }) }}
                 </span>
                 <span v-if="artist.albumCount" class="flex items-center gap-1">
                   <IconLucideDisc3 class="shrink-0" />
-                  {{ t("artist.totalAlbums", { count: artist.albumCount }) }}
+                  {{ t("common.totalAlbums", { count: artist.albumCount }) }}
                 </span>
                 <span v-if="totalDuration" class="flex items-center gap-1">
                   <IconLucideHourglass class="shrink-0" />
@@ -175,7 +175,7 @@ const albumItems = computed<CoverItem[]>(() => {
                 <template #icon>
                   <IconLucidePlay />
                 </template>
-                {{ t("collection.playAll") }}
+                {{ t("common.playAll") }}
               </SButton>
               <SDropdownMenu
                 :items="moreMenuItems"

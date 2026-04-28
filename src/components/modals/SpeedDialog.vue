@@ -143,7 +143,7 @@ const handleReset = (): void => {
     </div>
 
     <template #footer>
-      <SButton variant="secondary" @click="handleReset">{{ t("speed.reset") }}</SButton>
+      <SButton variant="secondary" @click="handleReset">{{ t("common.reset") }}</SButton>
     </template>
   </SDialog>
 </template>

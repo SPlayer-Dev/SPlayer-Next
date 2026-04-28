@@ -9,14 +9,16 @@
     "loading": "加载中",
     "noData": "暂无数据",
     "success": "操作成功",
-    "error": "操作失败"
+    "error": "操作失败",
+    "playAll": "播放全部",
+    "totalSongs": "共 {count} 首",
+    "totalAlbums": "共 {count} 张专辑"
   },
   "equalizer": {
     "title": "均衡器",
     "statusOn": "已启用",
     "statusOff": "已关闭",
     "preamp": "前级",
-    "reset": "重置",
     "preset": {
       "label": "预设",
       "flat": "默认",
@@ -37,8 +39,7 @@
     "pitchSync": "音调同步",
     "pitchSyncTip": "变速时保持原音调",
     "pitch": "音调",
-    "semitone": "{n} 半音",
-    "reset": "重置"
+    "semitone": "{n} 半音"
   },
   "autoClose": {
     "title": "定时关闭",
@@ -130,7 +131,6 @@
   },
   "playlist": {
     "title": "播放列表",
-    "totalSongs": "共 {count} 首",
     "empty": "播放列表为空",
     "unknownArtist": "未知艺术家",
     "clearList": "清空列表",
@@ -140,7 +140,6 @@
   },
   "library": {
     "title": "音乐库",
-    "totalSongs": "共 {count} 首",
     "empty": "音乐库为空",
     "emptyHint": "添加音乐文件夹开始使用",
     "noLocalData": "暂无本地内容",
@@ -160,7 +159,6 @@
     "removeFolderConfirm": "移除该目录后，其中的歌曲将从音乐库中删除！",
     "folderExists": "该文件夹已存在",
     "folderNested": "该文件夹与已有文件夹存在包含关系",
-    "playAll": "播放全部",
     "duration": "{time}"
   },
   "settings": {
@@ -320,6 +318,10 @@
     "followCoverColor": {
       "label": "跟随封面颜色",
       "description": "歌词颜色跟随当前封面主色调"
+    },
+    "autoImmersive": {
+      "label": "自动沉浸模式",
+      "description": "鼠标静止或离开窗口时，自动隐藏全屏播放器顶/底栏与鼠标"
     },
     "showTranslation": {
       "label": "显示翻译",
@@ -575,6 +577,10 @@
       "cover": "跟随封面",
       "solid": "纯色"
     },
+    "customColor": {
+      "label": "自定义主题色",
+      "description": "自定义来源使用的主色"
+    },
     "globalTint": {
       "label": "全局着色",
       "description": "将主题色应用到全局界面"
@@ -693,8 +699,6 @@
     }
   },
   "collection": {
-    "playAll": "播放全部",
-    "totalSongs": "共 {count} 首",
     "totalDuration": "约 {time}",
     "unknownAlbum": "未知专辑",
     "unknownCreator": "未知创建者",
@@ -719,13 +723,10 @@
     "label": "艺术家",
     "songs": "歌曲",
     "totalArtists": "共 {count} 位",
-    "totalSongs": "共 {count} 首",
-    "totalAlbums": "共 {count} 张专辑",
     "albums": "专辑"
   },
   "album": {
-    "label": "专辑",
-    "totalAlbums": "共 {count} 张"
+    "label": "专辑"
   },
   "errors": {
     "dialogTitle": "出错了",

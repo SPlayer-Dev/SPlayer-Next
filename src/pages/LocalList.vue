@@ -40,7 +40,7 @@ const items = computed<CoverItem[]>(() => {
           id: encodeURIComponent(item.name),
           title: item.name,
           cover: artistAvatars.value[item.name.trim().toLowerCase()],
-          subtitle: t("artist.totalSongs", { count: item.trackCount }),
+          subtitle: t("common.totalSongs", { count: item.trackCount }),
           trackCount: item.trackCount,
         }))
       : (source.value as AlbumSummary[]).map((item) => ({
@@ -72,7 +72,7 @@ const config = computed(() =>
     : {
         title: t("album.label"),
         countIcon: IconLucideDisc3,
-        countLabel: t("album.totalAlbums", { count: items.value.length }),
+        countLabel: t("common.totalAlbums", { count: items.value.length }),
         emptyIcon: IconLucideDisc3,
         coverType: "default" as const,
         minSize: 140,

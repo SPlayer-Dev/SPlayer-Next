@@ -105,7 +105,7 @@ const playerBarClass = computed(() => {
           class="text-xs"
           :class="status.isExpanded ? 'text-cover/50' : 'text-on-surface-variant'"
         >
-          {{ t("playlist.totalSongs", { count: queueLength }) }}
+          {{ t("common.totalSongs", { count: queueLength }) }}
         </span>
       </div>
     </template>

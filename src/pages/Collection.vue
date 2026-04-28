@@ -202,7 +202,7 @@ const handleMoreMenu = (key: string) => {
                 >
                   <span class="flex items-center gap-1">
                     <IconLucideListMusic class="shrink-0" />
-                    {{ t("collection.totalSongs", { count: collection.tracks.length }) }}
+                    {{ t("common.totalSongs", { count: collection.tracks.length }) }}
                   </span>
                   <span v-if="totalDuration" class="flex items-center gap-1">
                     <IconLucideHourglass class="shrink-0" />
@@ -229,7 +229,7 @@ const handleMoreMenu = (key: string) => {
                 <template #icon>
                   <IconLucidePlay />
                 </template>
-                {{ t("collection.playAll") }}
+                {{ t("common.playAll") }}
               </SButton>
               <SDropdownMenu
                 v-if="editable"

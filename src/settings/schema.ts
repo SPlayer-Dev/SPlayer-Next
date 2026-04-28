@@ -1,5 +1,6 @@
 import type { SettingCategory } from "@/types/settings-schema";
 import { useSettingsStore } from "@/stores/settings";
+import { useThemeStore } from "@/stores/theme";
 import DeviceSelector from "@/components/settings/custom/DeviceSelector.vue";
 import StorageManager from "@/components/settings/custom/StorageManager.vue";
 import PluginManager from "@/components/settings/custom/PluginManager.vue";
@@ -81,6 +82,91 @@ export const settingsSchema: SettingCategory[] = [
     ],
   },
   {
+    id: "appearance",
+    icon: IconLucidePalette,
+    sections: [
+      {
+        id: "theme",
+        items: [
+          {
+            key: "themeMode",
+            type: "select",
+            binding: { store: "theme", path: "mode" },
+            options: [
+              { value: "light", labelKey: "settings.themeMode.light" },
+              { value: "dark", labelKey: "settings.themeMode.dark" },
+              { value: "system", labelKey: "settings.themeMode.system" },
+            ],
+            defaultValue: "system",
+          },
+          {
+            key: "themeSource",
+            type: "select",
+            binding: { store: "theme", path: "source" },
+            options: [
+              { value: "default", labelKey: "settings.themeSource.default" },
+              { value: "custom", labelKey: "settings.themeSource.custom" },
+              { value: "cover", labelKey: "settings.themeSource.cover" },
+              { value: "solid", labelKey: "settings.themeSource.solid" },
+            ],
+            defaultValue: "default",
+            childrenCondition: () => useThemeStore().source === "custom",
+            children: [
+              {
+                key: "customColor",
+                type: "color",
+                binding: { store: "theme", path: "customColor" },
+                defaultValue: "#6750a4",
+                showAlpha: false,
+                colorFormat: "hex",
+              },
+            ],
+          },
+          {
+            key: "globalTint",
+            type: "switch",
+            binding: { store: "theme", path: "globalTint" },
+            defaultValue: false,
+          },
+        ],
+      },
+      {
+        id: "layout",
+        items: [
+          {
+            key: "layoutMode",
+            type: "select",
+            binding: { store: "settings", path: "appearance.layoutMode" },
+            options: [
+              { value: "default", labelKey: "settings.layoutMode.default" },
+              { value: "sidebar-full", labelKey: "settings.layoutMode.sidebarFull" },
+              { value: "floating", labelKey: "settings.layoutMode.floating" },
+            ],
+            defaultValue: "default",
+          },
+          {
+            key: "routeTransition",
+            type: "select",
+            binding: { store: "settings", path: "appearance.routeTransition" },
+            options: [
+              { value: "none", labelKey: "settings.routeTransition.none" },
+              { value: "fade", labelKey: "settings.routeTransition.fade" },
+              { value: "slide", labelKey: "settings.routeTransition.slide" },
+              { value: "zoom", labelKey: "settings.routeTransition.zoom" },
+            ],
+            defaultValue: "fade",
+          },
+          {
+            key: "sidebarCollapsed",
+            type: "switch",
+            binding: { store: "settings", path: "appearance.sidebarCollapsed" },
+            defaultValue: false,
+          },
+        ],
+      },
+    ],
+  },
+  {
     id: "player",
     icon: IconLucidePlay,
     sections: [
@@ -108,6 +194,12 @@ export const settingsSchema: SettingCategory[] = [
             type: "switch",
             binding: { store: "settings", path: "player.followCoverColor" },
             defaultValue: true,
+          },
+          {
+            key: "autoImmersive",
+            type: "switch",
+            binding: { store: "settings", path: "player.autoImmersive" },
+            defaultValue: false,
           },
         ],
       },
@@ -763,68 +855,6 @@ export const settingsSchema: SettingCategory[] = [
             },
           ]
         : []),
-    ],
-  },
-  {
-    id: "appearance",
-    icon: IconLucidePalette,
-    sections: [
-      {
-        id: "theme",
-        items: [
-          {
-            key: "themeMode",
-            type: "select",
-            binding: { store: "theme", path: "mode" },
-            options: [
-              { value: "light", labelKey: "settings.themeMode.light" },
-              { value: "dark", labelKey: "settings.themeMode.dark" },
-              { value: "system", labelKey: "settings.themeMode.system" },
-            ],
-            defaultValue: "system",
-          },
-          {
-            key: "globalTint",
-            type: "switch",
-            binding: { store: "theme", path: "globalTint" },
-            defaultValue: false,
-          },
-        ],
-      },
-      {
-        id: "layout",
-        items: [
-          {
-            key: "layoutMode",
-            type: "select",
-            binding: { store: "settings", path: "appearance.layoutMode" },
-            options: [
-              { value: "default", labelKey: "settings.layoutMode.default" },
-              { value: "sidebar-full", labelKey: "settings.layoutMode.sidebarFull" },
-              { value: "floating", labelKey: "settings.layoutMode.floating" },
-            ],
-            defaultValue: "default",
-          },
-          {
-            key: "routeTransition",
-            type: "select",
-            binding: { store: "settings", path: "appearance.routeTransition" },
-            options: [
-              { value: "none", labelKey: "settings.routeTransition.none" },
-              { value: "fade", labelKey: "settings.routeTransition.fade" },
-              { value: "slide", labelKey: "settings.routeTransition.slide" },
-              { value: "zoom", labelKey: "settings.routeTransition.zoom" },
-            ],
-            defaultValue: "fade",
-          },
-          {
-            key: "sidebarCollapsed",
-            type: "switch",
-            binding: { store: "settings", path: "appearance.sidebarCollapsed" },
-            defaultValue: false,
-          },
-        ],
-      },
     ],
   },
   {

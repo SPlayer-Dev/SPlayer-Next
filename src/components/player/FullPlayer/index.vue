@@ -33,7 +33,6 @@ const lyricMounted = ref(false);
 /** 展开前：非首次直接恢复渲染 */
 const onBeforeEnter = () => {
   if (lyricMounted.value) {
-    // 非首次展开：组件已常驻，直接恢复
     lyricRef.value?.resume();
     startTick();
   }
@@ -42,7 +41,6 @@ const onBeforeEnter = () => {
 /** 展开动画结束后：首次挂载歌词组件 */
 const onAfterEnter = () => {
   if (!lyricMounted.value) {
-    // 首次展开：动画结束后再挂载，避免阻塞展开动画
     lyricMounted.value = true;
     nextTick(() => {
       lyricRef.value?.resume();
@@ -78,6 +76,65 @@ const collapse = (): void => {
 const onSeekDragEnd = (value: number): void => {
   player.seek(value);
 };
+
+/** 沉浸模式闲置时间（ms） */
+const IMMERSIVE_IDLE_MS = 3000;
+/** 沉浸模式是否激活 */
+const immersive = ref(false);
+/** 鼠标是否悬停在顶栏或底栏 */
+const barHovered = ref(false);
+/** 闲置定时器 */
+let idleTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** 沉浸模式是否启用 */
+const immersiveEnabled = computed(() => settings.player.autoImmersive && isExpanded.value);
+
+/** 激活沉浸模式 */
+const armIdle = (): void => {
+  clearTimeout(idleTimer);
+  immersive.value = false;
+  if (!immersiveEnabled.value) return;
+  idleTimer = setTimeout(() => {
+    if (!barHovered.value) immersive.value = true;
+  }, IMMERSIVE_IDLE_MS);
+};
+
+/** 鼠标进入播放器区域 */
+const onPlayerMouseEnter = (): void => armIdle();
+
+/** 鼠标离开播放器区域 */
+const onPlayerMouseLeave = (): void => {
+  clearTimeout(idleTimer);
+  if (immersiveEnabled.value) immersive.value = true;
+};
+
+/** 鼠标移动 */
+const onMainMove = (): void => {
+  if (!barHovered.value) armIdle();
+};
+
+/** 鼠标进入顶/底栏 */
+const onBarEnter = (): void => {
+  barHovered.value = true;
+  clearTimeout(idleTimer);
+  immersive.value = false;
+};
+
+/** 鼠标离开顶/底栏 */
+const onBarLeave = (): void => {
+  barHovered.value = false;
+  armIdle();
+};
+
+watch(immersiveEnabled, (on) => {
+  if (!on) {
+    clearTimeout(idleTimer);
+    immersive.value = false;
+    barHovered.value = false;
+  }
+});
+
+onBeforeUnmount(() => clearTimeout(idleTimer));
 </script>
 
 <template>
@@ -94,96 +151,115 @@ const onSeekDragEnd = (value: number): void => {
       <div
         v-show="isExpanded"
         class="fixed inset-0 z-200 bg-surface overflow-hidden text-cover"
+        :class="immersive ? 'cursor-none' : ''"
         style="
           --lp-color: rgb(var(--s-cover));
           --s-slider-track-bg: rgb(var(--s-cover) / 0.25);
           --s-slider-fill-bg: rgb(var(--s-cover));
           --s-slider-thumb-bg: rgb(var(--s-cover));
         "
+        @mouseenter="onPlayerMouseEnter"
+        @mouseleave="onPlayerMouseLeave"
       >
         <!-- 背景 -->
         <PlayerBackground />
         <!-- 底部频谱 -->
-        <BottomSpectrum v-if="isExpanded && settings.player.enableSpectrum" :show="isPlaying" />
-        <!-- 左侧：封面 + 歌曲信息 -->
+        <BottomSpectrum
+          v-if="isExpanded && settings.player.enableSpectrum"
+          :show="isPlaying && immersive"
+        />
+        <!-- 顶栏 -->
         <div
-          class="absolute top-14 left-0 bottom-20 w-[45%] flex items-center justify-center px-12 transition-transform duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
-          :style="coverCentered ? 'transform: translateX(calc(100% * 11 / 18))' : undefined"
-        >
-          <!-- 封面 + 歌曲信息：切歌时整体左右淡入淡出 -->
-          <div class="relative w-[clamp(200px,85%,50vh)] -translate-y-[11vh]">
-            <Transition name="scale-switch" mode="out-in">
-              <div :key="media.track?.id">
-                <PlayerCover />
-                <!-- 歌曲信息（绝对定位，不影响封面居中位置） -->
-                <div class="absolute top-full left-0 w-full pt-6">
-                  <PlayerData align="left" />
-                </div>
-              </div>
-            </Transition>
-          </div>
-        </div>
-
-        <!-- 右侧：歌词区域 -->
-        <div
-          class="lyric-area absolute top-14 right-0 bottom-20 pr-20 w-[55%] transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
-          :class="coverCentered ? 'opacity-0 pointer-events-none' : 'opacity-100'"
-          :style="{
-            fontSize: settings.lyric.adaptiveFontSize
-              ? `calc(${settings.lyric.fontSize} / 1080 * 100vh)`
-              : `${settings.lyric.fontSize}px`,
-            fontWeight: String(settings.lyric.fontWeight),
-          }"
-        >
-          <EffectsLyrics
-            v-if="
-              lyricMounted &&
-              lyricMode === 'effects' &&
-              (media.parsedLyric.length > 0 || media.lyricLoading)
-            "
-            ref="lyricRef"
-            :lyric-lines="media.parsedLyric"
-            :playing="isPlaying"
-            :align-position="settings.lyric.alignPosition"
-            :word-fade-width="settings.lyric.wordFadeWidth"
-            :spring-config="springConfig"
-            :inactive-alpha="settings.lyric.inactiveAlpha"
-            :hide-passed-lines="settings.lyric.hidePassedLines"
-            :enable-blur="settings.lyric.enableBlur"
-            :enable-word-highlight="settings.lyric.enableWordHighlight"
-            :enable-float-animation="settings.lyric.enableFloatAnimation"
-            :enable-emphasize-effect="settings.lyric.enableEmphasizeEffect"
-            :show-translation="settings.lyric.showTranslation"
-            :show-romanization="settings.lyric.showRomanization"
-            @seek="player.seek($event)"
-          />
-          <SimpleLyrics
-            v-else-if="
-              lyricMounted &&
-              lyricMode === 'simple' &&
-              (media.parsedLyric.length > 0 || media.lyricLoading)
-            "
-            ref="lyricRef"
-            :lyric-lines="media.parsedLyric"
-            :playing="isPlaying"
-            @seek="player.seek($event)"
-          />
-          <div
-            v-else-if="lyricMounted && !media.lyricLoading"
-            class="w-full h-full flex items-center justify-center text-cover/30"
-          >
-            暂无歌词
-          </div>
-        </div>
-        <div class="absolute bottom-0 left-0 right-0 h-20 grid grid-cols-3 items-center px-4">
+          class="absolute top-0 inset-x-0 h-14 z-10 app-drag-region transition-opacity duration-400"
+          :class="immersive ? 'opacity-0 pointer-events-none' : 'opacity-100'"
+          @mouseenter="onBarEnter"
+          @mouseleave="onBarLeave"
+        />
+        <!-- 主区域 -->
+        <div class="absolute top-14 inset-x-0 bottom-20" @mousemove="onMainMove">
           <!-- 左侧 -->
-          <div class="flex items-center shrink-0">
+          <div
+            class="absolute inset-y-0 left-0 w-[45%] flex items-center justify-center px-12 transition-transform duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
+            :style="coverCentered ? 'transform: translateX(calc(100% * 11 / 18))' : undefined"
+          >
+            <!-- 封面 + 歌曲信息：切歌时整体左右淡入淡出 -->
+            <div class="relative w-[clamp(200px,85%,50vh)] -translate-y-[11vh]">
+              <Transition name="scale-switch" mode="out-in">
+                <div :key="media.track?.id">
+                  <PlayerCover />
+                  <!-- 歌曲信息（绝对定位，不影响封面居中位置） -->
+                  <div class="absolute top-full left-0 w-full pt-6">
+                    <PlayerData align="left" />
+                  </div>
+                </div>
+              </Transition>
+            </div>
+          </div>
+          <!-- 右侧 -->
+          <div
+            class="lyric-area absolute inset-y-0 right-0 pr-20 w-[55%] transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
+            :class="coverCentered ? 'opacity-0 pointer-events-none' : 'opacity-100'"
+            :style="{
+              fontSize: settings.lyric.adaptiveFontSize
+                ? `calc(${settings.lyric.fontSize} / 1080 * 100vh)`
+                : `${settings.lyric.fontSize}px`,
+              fontWeight: String(settings.lyric.fontWeight),
+            }"
+          >
+            <EffectsLyrics
+              v-if="
+                lyricMounted &&
+                lyricMode === 'effects' &&
+                (media.parsedLyric.length > 0 || media.lyricLoading)
+              "
+              ref="lyricRef"
+              :lyric-lines="media.parsedLyric"
+              :playing="isPlaying"
+              :align-position="settings.lyric.alignPosition"
+              :word-fade-width="settings.lyric.wordFadeWidth"
+              :spring-config="springConfig"
+              :inactive-alpha="settings.lyric.inactiveAlpha"
+              :hide-passed-lines="settings.lyric.hidePassedLines"
+              :enable-blur="settings.lyric.enableBlur"
+              :enable-word-highlight="settings.lyric.enableWordHighlight"
+              :enable-float-animation="settings.lyric.enableFloatAnimation"
+              :enable-emphasize-effect="settings.lyric.enableEmphasizeEffect"
+              :show-translation="settings.lyric.showTranslation"
+              :show-romanization="settings.lyric.showRomanization"
+              @seek="player.seek($event)"
+            />
+            <SimpleLyrics
+              v-else-if="
+                lyricMounted &&
+                lyricMode === 'simple' &&
+                (media.parsedLyric.length > 0 || media.lyricLoading)
+              "
+              ref="lyricRef"
+              :lyric-lines="media.parsedLyric"
+              :playing="isPlaying"
+              @seek="player.seek($event)"
+            />
+            <div
+              v-else-if="lyricMounted && !media.lyricLoading"
+              class="w-full h-full flex items-center justify-center text-cover/30"
+            >
+              暂无歌词
+            </div>
+          </div>
+        </div>
+        <!-- 底栏 -->
+        <div
+          class="absolute bottom-0 inset-x-0 h-20 z-10 flex items-center gap-4 px-4 transition-opacity duration-400"
+          :class="immersive ? 'opacity-0 pointer-events-none' : 'opacity-100'"
+          @mouseenter="onBarEnter"
+          @mouseleave="onBarLeave"
+        >
+          <div class="flex-1 min-w-0 flex items-center justify-start">
             <SButton type="cover" variant="ghost" size="large" circle @click="collapse">
               <template #icon><IconLucideChevronDown /></template>
             </SButton>
           </div>
-
-          <div class="flex flex-col items-center gap-1">
+          <div class="shrink-0 flex flex-col items-center gap-1 w-[clamp(360px,35%,480px)]">
             <div class="flex items-center gap-3">
               <SButton
                 type="cover"
@@ -239,7 +315,7 @@ const onSeekDragEnd = (value: number): void => {
                 </template>
               </SButton>
             </div>
-            <div class="flex items-center gap-2 w-full max-w-120">
+            <div class="flex items-center gap-2 w-full">
               <span class="text-xs text-cover/50 tabular-nums min-w-9 text-center">
                 {{ formatTime(position) }}
               </span>
@@ -257,9 +333,9 @@ const onSeekDragEnd = (value: number): void => {
               </span>
             </div>
           </div>
-
-          <!-- 工具栏 -->
-          <Toolbar cover class="justify-end" />
+          <div class="flex-1 min-w-0 flex items-center justify-end">
+            <Toolbar cover />
+          </div>
         </div>
       </div>
     </Transition>

@@ -202,7 +202,7 @@ const handleReset = (): void => {
 
     <template #footer="{ close }">
       <SButton variant="secondary" :disabled="!enabled" @click="handleReset">
-        {{ t("equalizer.reset") }}
+        {{ t("common.reset") }}
       </SButton>
       <SButton type="primary" @click="close">{{ t("common.close") }}</SButton>
     </template>

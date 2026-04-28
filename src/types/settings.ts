@@ -117,6 +117,8 @@ export interface PlayerSettings {
   autoCenterCover: boolean;
   /** 颜色是否跟随封面 */
   followCoverColor: boolean;
+  /** 全屏播放器自动进入沉浸模式（隐藏顶/底栏与鼠标） */
+  autoImmersive: boolean;
   /** 输出设备名称，null 表示跟随系统默认 */
   outputDevice: string | null;
   /** 是否启用音乐频谱可视化 */

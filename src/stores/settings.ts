@@ -32,6 +32,7 @@ export const useSettingsStore = defineStore(
       playerBgType: "blur",
       autoCenterCover: true,
       followCoverColor: true,
+      autoImmersive: true,
       outputDevice: null,
       enableSpectrum: false,
       spectrumBarWidth: 4,

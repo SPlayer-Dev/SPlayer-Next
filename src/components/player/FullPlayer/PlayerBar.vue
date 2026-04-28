@@ -86,12 +86,12 @@ const onSeekDragEnd = (value: number): void => {
         </Transition>
       </div>
       <!-- 播放控制 -->
-      <div class="flex items-center gap-2 mx-15">
+      <div class="flex items-center gap-2.5 mx-15">
         <SButton
           variant="ghost"
           circle
           ripple
-          :size="36"
+          :size="38"
           :class="shuffleMode === 'on' ? 'text-primary' : 'text-on-surface-variant'"
           @click="player.toggleShuffleMode()"
         >
@@ -139,7 +139,7 @@ const onSeekDragEnd = (value: number): void => {
           variant="ghost"
           circle
           ripple
-          :size="36"
+          :size="38"
           :class="repeatMode === 'off' ? 'text-on-surface-variant' : 'text-primary'"
           @click="player.cycleRepeatMode()"
         >

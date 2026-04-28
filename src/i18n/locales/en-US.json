@@ -9,14 +9,16 @@
     "loading": "Loading",
     "noData": "No data",
     "success": "Success",
-    "error": "Error"
+    "error": "Error",
+    "playAll": "Play All",
+    "totalSongs": "{count} songs",
+    "totalAlbums": "{count} albums"
   },
   "equalizer": {
     "title": "Equalizer",
     "statusOn": "Enabled",
     "statusOff": "Disabled",
     "preamp": "Preamp",
-    "reset": "Reset",
     "preset": {
       "label": "Preset",
       "flat": "Default",
@@ -37,8 +39,7 @@
     "pitchSync": "Preserve pitch",
     "pitchSyncTip": "Keep original pitch when changing speed",
     "pitch": "Pitch",
-    "semitone": "{n} st",
-    "reset": "Reset"
+    "semitone": "{n} st"
   },
   "autoClose": {
     "title": "Sleep Timer",
@@ -130,7 +131,6 @@
   },
   "playlist": {
     "title": "Playlist",
-    "totalSongs": "{count} songs",
     "empty": "Playlist is empty",
     "unknownArtist": "Unknown Artist",
     "clearList": "Clear All",
@@ -140,7 +140,6 @@
   },
   "library": {
     "title": "Library",
-    "totalSongs": "{count} songs",
     "empty": "Library is empty",
     "emptyHint": "Add a music folder to get started",
     "noLocalData": "No local content",
@@ -160,7 +159,6 @@
     "removeFolderConfirm": "Removing this directory will delete its songs from the library!",
     "folderExists": "This folder already exists",
     "folderNested": "This folder overlaps with an existing folder",
-    "playAll": "Play All",
     "duration": "{time}"
   },
   "settings": {
@@ -320,6 +318,10 @@
     "followCoverColor": {
       "label": "Follow Cover Color",
       "description": "Lyric color follows the current cover art"
+    },
+    "autoImmersive": {
+      "label": "Auto Immersive Mode",
+      "description": "Hide top/bottom bars and the cursor when the mouse is idle or leaves the window"
     },
     "showTranslation": {
       "label": "Show Translation",
@@ -575,6 +577,10 @@
       "cover": "From Cover",
       "solid": "Solid"
     },
+    "customColor": {
+      "label": "Custom Theme Color",
+      "description": "Primary color used by the custom source"
+    },
     "globalTint": {
       "label": "Global Tint",
       "description": "Apply theme color tint to the entire interface"
@@ -693,8 +699,6 @@
     }
   },
   "collection": {
-    "playAll": "Play All",
-    "totalSongs": "{count} songs",
     "totalDuration": "About {time}",
     "unknownAlbum": "Unknown Album",
     "unknownCreator": "Unknown Creator",
@@ -719,13 +723,10 @@
     "label": "Artists",
     "songs": "Songs",
     "totalArtists": "{count} artists",
-    "totalSongs": "{count} songs",
-    "totalAlbums": "{count} albums",
     "albums": "Albums"
   },
   "album": {
-    "label": "Albums",
-    "totalAlbums": "{count} albums"
+    "label": "Albums"
   },
   "errors": {
     "dialogTitle": "Something went wrong",

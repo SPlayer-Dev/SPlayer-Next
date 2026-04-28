@@ -145,7 +145,7 @@ onUnmounted(() => {
             >
               <span class="flex items-center gap-1">
                 <IconLucideMusic class="size-3.5" />
-                {{ t("library.totalSongs", { count: tracks.length }) }}
+                {{ t("common.totalSongs", { count: tracks.length }) }}
               </span>
               <span v-if="totalSize" class="flex items-center gap-1">
                 <IconLucideHardDrive class="size-3.5" />
@@ -167,7 +167,7 @@ onUnmounted(() => {
             <template #icon>
               <IconLucidePlay />
             </template>
-            {{ t("library.playAll") }}
+            {{ t("common.playAll") }}
           </SButton>
           <SButton
             variant="secondary"
