@@ -243,20 +243,21 @@ const onSeekDragEnd = (value: number): void => {
               </SButton>
             </div>
             <div class="flex items-center gap-2 w-full max-w-120">
-              <span class="text-xs text-cover/50 tabular-nums min-w-9 text-center">{{
-                formatTime(position)
-              }}</span>
+              <span class="text-xs text-cover/50 tabular-nums min-w-9 text-center">
+                {{ formatTime(position) }}
+              </span>
               <SSlider
                 :model-value="position"
                 :min="0"
                 :max="duration"
                 :step="100"
+                :always-show-thumb="false"
                 class="flex-1"
                 @drag-end="onSeekDragEnd"
               />
-              <span class="text-xs text-cover/50 tabular-nums min-w-9 text-center">{{
-                formatTime(duration)
-              }}</span>
+              <span class="text-xs text-cover/50 tabular-nums min-w-9 text-center">
+                {{ formatTime(duration) }}
+              </span>
             </div>
           </div>
 

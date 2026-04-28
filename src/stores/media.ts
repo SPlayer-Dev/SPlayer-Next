@@ -74,19 +74,21 @@ export const useMediaStore = defineStore("media", () => {
    * @param input - 主歌词 + 可选翻译 / 音译；传 null 即清空
    */
   const setLyric = (source: LyricData, input: LyricInput | null): void => {
-    activeLyric.value = source;
-    lyricContent.value = input;
+    let nextLines: LyricLine[] = [];
     if (source && input) {
       try {
         const lines = parseLyric(input, source.format);
-        parsedLyric.value = applyLyricExclude(lines, track.value);
+        nextLines = applyLyricExclude(lines, track.value);
       } catch (e) {
         console.error("[media] parse lyric failed:", e);
-        parsedLyric.value = [];
+        nextLines = [];
       }
-    } else {
-      parsedLyric.value = [];
     }
+    // 解析后无有效行视作无歌词
+    const hasContent = nextLines.length > 0;
+    activeLyric.value = hasContent ? source : null;
+    lyricContent.value = hasContent ? input : null;
+    parsedLyric.value = nextLines;
     lyricIndex.value = -1;
     lyricLoading.value = false;
     syncToMain();

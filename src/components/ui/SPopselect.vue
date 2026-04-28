@@ -66,7 +66,7 @@ const handleChange = (val: string): void => {
           'z-400 rounded-lg shadow-lg text-sm data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out',
           cover
             ? 'bg-black/55 backdrop-blur-xl backdrop-saturate-160 border border-solid border-white/10'
-            : 'bg-surface-bright border border-solid border-outline-variant/30',
+            : 'bg-surface-bright',
         ]"
       >
         <SelectViewport class="p-1 max-h-60">

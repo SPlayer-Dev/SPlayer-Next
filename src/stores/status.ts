@@ -19,6 +19,12 @@ export const useStatusStore = defineStore(
     const playIndex = ref(-1);
     const repeatMode = ref<RepeatMode>("list");
     const shuffleMode = ref<ShuffleMode>("off");
+    /** 播放速度（0.5 ~ 2.0），不持久化 */
+    const speed = ref(1.0);
+    /** 音调偏移（半音 -12 ~ 12），不持久化 */
+    const pitch = ref(0);
+    /** 音调同步：true = 变速保音调（默认），不持久化 */
+    const pitchSync = ref(true);
 
     const isPlaying = computed(() => state.value === "playing");
     const isPaused = computed(() => state.value === "paused");
@@ -49,6 +55,9 @@ export const useStatusStore = defineStore(
       playIndex,
       repeatMode,
       shuffleMode,
+      speed,
+      pitch,
+      pitchSync,
       currentTrack,
     };
   },

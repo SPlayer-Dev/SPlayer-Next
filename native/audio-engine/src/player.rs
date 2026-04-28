@@ -5,13 +5,16 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use cpal::traits::{DeviceTrait, HostTrait};
+use parking_lot::Mutex;
 use rodio::{OutputStream, OutputStreamHandle, Sink};
 use tracing::{debug, info};
 
 use crate::decoder;
+use crate::equalizer::{Equalizer, EQ_BAND_COUNT};
 use crate::fft::FftAnalyzer;
 use crate::shared::{AudioMetadata, Shared};
 use crate::source::DecoderSource;
+use crate::tempo::StretchProcessor;
 
 /// 播放器推送给 JS 侧的事件类型
 #[derive(Clone, Debug)]
@@ -104,6 +107,11 @@ pub struct InnerPlayer {
     selected_device_name: Option<String>,
     /// 音量归一化开关
     normalization_enabled: bool,
+    /// 跨曲目共享的均衡器（load/seek 时 Arc::clone 给 DecoderSource）
+    equalizer: Arc<Mutex<Equalizer>>,
+    /// 跨曲目共享的变速变调处理器（load/seek 时 Arc::clone 给 DecoderSource，
+    /// set_speed/set_pitch/set_pitch_sync 直接锁此字段更新参数）
+    tempo: Arc<Mutex<StretchProcessor>>,
 }
 
 /// 等待线程退出，最多等 timeout_ms 毫秒，超时则放弃
@@ -179,6 +187,11 @@ impl InnerPlayer {
             fft_timer_handle: None,
             selected_device_name: None,
             normalization_enabled: false,
+            equalizer: Arc::new(Mutex::new(Equalizer::new(decoder::TARGET_SAMPLE_RATE))),
+            tempo: Arc::new(Mutex::new(StretchProcessor::new(
+                decoder::TARGET_CHANNELS,
+                decoder::TARGET_SAMPLE_RATE,
+            ))),
         })
     }
 
@@ -419,6 +432,10 @@ impl InnerPlayer {
         debug!(source, auto_play, "开始加载音频源");
         self.stop_internal();
         self.fft.reset();
+        // 切歌时清空滤波器历史样本，避免上一首尾音残留导致瞬态不稳定
+        self.equalizer.lock().reset_state();
+        // 切歌时清空 stretch 内部 FFT 历史，但保留用户参数（speed/pitch/sync 跨曲目延续）
+        self.tempo.lock().reset();
 
         let shared = Shared::new(decoder::TARGET_SAMPLE_RATE, decoder::TARGET_CHANNELS);
         // 将归一化开关同步到新的 Shared 实例
@@ -436,6 +453,8 @@ impl InnerPlayer {
         let decoder_source = DecoderSource::new(
             Arc::clone(&shared),
             Arc::clone(&self.fft),
+            Arc::clone(&self.equalizer),
+            Arc::clone(&self.tempo),
             metadata.sample_rate,
             metadata.channels,
         );
@@ -638,9 +657,16 @@ impl InnerPlayer {
         let sink =
             Arc::new(Sink::try_new(out_handle).context("Failed to create audio sink")?);
 
+        // seek 时同样清空滤波器状态，避免不连续样本导致瞬态
+        self.equalizer.lock().reset_state();
+        // seek 时也清空 stretch 内部 FFT 历史
+        self.tempo.lock().reset();
+
         let decoder_source = DecoderSource::new(
             Arc::clone(&shared),
             Arc::clone(&self.fft),
+            Arc::clone(&self.equalizer),
+            Arc::clone(&self.tempo),
             self.audio_sample_rate,
             self.audio_channels,
         );
@@ -745,5 +771,66 @@ impl InnerPlayer {
     /// 获取音量归一化开关状态
     pub fn normalization_enabled(&self) -> bool {
         self.normalization_enabled
+    }
+
+    /// 设置均衡器开关
+    pub fn set_equalizer_enabled(&mut self, enabled: bool) {
+        self.equalizer.lock().set_enabled(enabled);
+    }
+
+    /// 获取均衡器开关状态
+    pub fn equalizer_enabled(&self) -> bool {
+        self.equalizer.lock().enabled()
+    }
+
+    /// 更新所有频段增益（dB），长度需为 EQ_BAND_COUNT
+    pub fn set_equalizer_bands(&mut self, gains_db: &[f32]) {
+        self.equalizer.lock().set_band_gains(gains_db);
+    }
+
+    /// 获取所有频段当前增益（dB）
+    pub fn equalizer_bands(&self) -> [f32; EQ_BAND_COUNT] {
+        self.equalizer.lock().band_gains_db()
+    }
+
+    /// 设置前级增益（dB，自动 clamp 到 ±12）
+    pub fn set_preamp_gain(&mut self, db: f32) {
+        self.equalizer.lock().set_preamp_db(db);
+    }
+
+    /// 获取前级增益（dB）
+    pub fn preamp_gain(&self) -> f32 {
+        self.equalizer.lock().preamp_db()
+    }
+
+    /// 设置播放速度（自动 clamp 到 [0.5, 2.0]）
+    pub fn set_speed(&mut self, speed: f32) {
+        self.tempo.lock().set_speed(speed);
+    }
+
+    /// 设置音调偏移（半音，自动 clamp 到 [-12, 12]）。
+    /// sync=ON 时立即下发；sync=OFF 时只更新内部值，不影响声音
+    pub fn set_pitch(&mut self, semitones: i8) {
+        self.tempo.lock().set_pitch(semitones);
+    }
+
+    /// 设置"音调同步"开关（true = 变速保音调，默认）
+    pub fn set_pitch_sync(&mut self, sync: bool) {
+        self.tempo.lock().set_pitch_sync(sync);
+    }
+
+    /// 获取当前播放速度
+    pub fn speed(&self) -> f32 {
+        self.tempo.lock().speed()
+    }
+
+    /// 获取当前音调（半音）
+    pub fn pitch(&self) -> i8 {
+        self.tempo.lock().pitch()
+    }
+
+    /// 获取"音调同步"开关
+    pub fn pitch_sync(&self) -> bool {
+        self.tempo.lock().pitch_sync()
     }
 }

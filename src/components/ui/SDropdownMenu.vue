@@ -50,7 +50,7 @@ const handleSelect = (item: DropdownMenuItem): void => {
 
 /** 内容区域样式 */
 const contentClass =
-  "z-300 min-w-32 rounded-lg bg-surface-bright border border-solid border-outline-variant/30 shadow-lg p-1 text-sm data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out";
+  "z-300 min-w-32 rounded-lg bg-surface-bright shadow-lg p-1 text-sm data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out";
 
 /** 菜单项样式 */
 const menuItemClass =

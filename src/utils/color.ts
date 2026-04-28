@@ -53,7 +53,7 @@ export const generatePalette = (hex: string, isDark: boolean, globalTint = false
       surface: isDark ? toneColor(20) : toneColor(94),
       surfaceAlt: isDark ? toneColor(25) : toneColor(86),
       surfacePanel: isDark ? toneColor(16) : toneColor(92),
-      surfaceBright: isDark ? toneColor(35) : toneColor(98),
+      surfaceBright: isDark ? toneColor(40) : toneColor(95),
       onSurface: primary,
       onSurfaceVariant: isDark ? toneColor(70) : toneColor(30),
       outline: isDark ? toneColor(40) : toneColor(60),
@@ -83,7 +83,7 @@ export const SOLID_PALETTE_LIGHT: ThemePalette = {
   outlineVariant: "228 228 231",
 };
 
-/** 纯色色板 — 深色（基于 Zinc 色系，注入微妙蓝灰色调避免纯灰的死板感） */
+/** 纯色色板 — 深色 */
 export const SOLID_PALETTE_DARK: ThemePalette = {
   primary: "244 244 245",
   primaryContainer: "63 63 70",

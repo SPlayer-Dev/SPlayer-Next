@@ -288,6 +288,66 @@ export const registerPlayerIpc = (): void => {
     }
   });
 
+  // 启用/禁用均衡器
+  ipcMain.handle("player:setEqualizerEnabled", (_event, enabled: boolean) => {
+    try {
+      getPlayer().setEqualizerEnabled(enabled);
+      return { success: true };
+    } catch (error) {
+      return fail(ErrorCode.UNKNOWN, error);
+    }
+  });
+
+  // 更新均衡器频段增益（dB 数组，长度 10）
+  ipcMain.handle("player:setEqualizerBands", (_event, gainsDb: number[]) => {
+    try {
+      getPlayer().setEqualizerBands(gainsDb);
+      return { success: true };
+    } catch (error) {
+      return fail(ErrorCode.UNKNOWN, error);
+    }
+  });
+
+  // 设置前级增益（dB）
+  ipcMain.handle("player:setPreampGain", (_event, preampDb: number) => {
+    try {
+      getPlayer().setPreampGain(preampDb);
+      return { success: true };
+    } catch (error) {
+      return fail(ErrorCode.UNKNOWN, error);
+    }
+  });
+
+  // 设置播放速度（0.5 ~ 2.0），引擎侧自动 clamp
+  ipcMain.handle("player:setSpeed", (_event, speed: number) => {
+    try {
+      getPlayer().setSpeed(speed);
+      return { success: true };
+    } catch (error) {
+      return fail(ErrorCode.UNKNOWN, error);
+    }
+  });
+
+  // 设置音调偏移（半音 -12 ~ 12），引擎侧自动 clamp
+  ipcMain.handle("player:setPitch", (_event, semitones: number) => {
+    try {
+      getPlayer().setPitch(semitones);
+      return { success: true };
+    } catch (error) {
+      return fail(ErrorCode.UNKNOWN, error);
+    }
+  });
+
+  // 设置"音调同步"开关（true = 变速保音调）
+  ipcMain.handle("player:setPitchSync", (_event, sync: boolean) => {
+    try {
+      getPlayer().setPitchSync(sync);
+      return { success: true };
+    } catch (error) {
+      return fail(ErrorCode.UNKNOWN, error);
+    }
+  });
+
   // 启用/禁用 FFT 频谱推送（前端组件挂载时启用，卸载时禁用）
   ipcMain.handle("player:setFftEnabled", (_event, enabled: boolean) => {
     try {

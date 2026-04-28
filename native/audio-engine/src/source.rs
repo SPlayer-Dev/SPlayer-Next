@@ -2,18 +2,27 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
 
+use parking_lot::Mutex;
 use rodio::Source;
 
+use crate::equalizer::Equalizer;
 use crate::fft::FftAnalyzer;
 use crate::shared::Shared;
+use crate::tempo::StretchProcessor;
 
 /// rodio 音频源，从共享缓冲区拉取样本。
 /// 使用 condvar 阻塞等待数据，不会返回静音填充。
 pub struct DecoderSource {
     shared: Arc<Shared>,
     fft: Arc<FftAnalyzer>,
+    /// 跨曲目共享的均衡器，load/seek 时通过 Arc::clone 传入
+    equalizer: Arc<Mutex<Equalizer>>,
+    /// 跨曲目共享的变速变调处理器，load/seek 时通过 Arc::clone 传入
+    tempo: Arc<Mutex<StretchProcessor>>,
     /// 本地缓冲，减少锁竞争
     local_buffer: VecDeque<f32>,
+    /// stretch 输出复用缓冲（避免每帧分配）
+    tempo_scratch: Vec<f32>,
     sample_rate: u32,
     channels: u16,
 }
@@ -22,13 +31,18 @@ impl DecoderSource {
     pub fn new(
         shared: Arc<Shared>,
         fft: Arc<FftAnalyzer>,
+        equalizer: Arc<Mutex<Equalizer>>,
+        tempo: Arc<Mutex<StretchProcessor>>,
         sample_rate: u32,
         channels: u16,
     ) -> Self {
         Self {
             shared,
             fft,
+            equalizer,
+            tempo,
             local_buffer: VecDeque::new(),
+            tempo_scratch: Vec::new(),
             sample_rate,
             channels,
         }
@@ -54,10 +68,23 @@ impl Iterator for DecoderSource {
 
                 // 填充本地缓冲，一次性批量计数（而非逐采样）
                 if !chunk.player_samples.is_empty() {
-                    let count = chunk.player_samples.len() as u64;
-                    self.local_buffer.extend(chunk.player_samples);
-                    self.shared.advance_consumed(count);
-                    return self.local_buffer.pop_front();
+                    let mut samples = chunk.player_samples;
+                    // 对整 chunk 应用 EQ：每秒只锁 50~100 次，开销摊到几千个样本上
+                    self.equalizer.lock().process_interleaved_stereo(&mut samples);
+                    // 源时间长度（按输入计数，与 speed 无关；让 consumed_position 反映源进度）
+                    let source_count = samples.len() as u64;
+                    // 变速变调（bypass 时直接 extend，零开销）
+                    self.tempo_scratch.clear();
+                    self.tempo.lock().process(&samples, &mut self.tempo_scratch);
+                    if !self.tempo_scratch.is_empty() {
+                        self.local_buffer.extend(self.tempo_scratch.drain(..));
+                    }
+                    self.shared.advance_consumed(source_count);
+                    // stretch 在预热期可能本帧没产出，没样本就继续拉下一块
+                    let Some(s) = self.local_buffer.pop_front() else {
+                        continue;
+                    };
+                    return Some(s);
                 }
                 // 空数据块（重采样器预热期），继续获取下一个
             } else {

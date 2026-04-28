@@ -78,7 +78,7 @@ const setOpen = (val: boolean): void => {
           height === 'auto' ? 'overflow-y-auto px-5 py-4' : 'flex flex-col',
           cover
             ? 'bg-black/55 backdrop-blur-xl backdrop-saturate-160 border border-solid border-white/10 text-cover'
-            : 'bg-surface-bright border border-solid border-outline-variant/30 text-on-surface',
+            : 'bg-surface-alt border border-solid border-outline-variant/30 text-on-surface',
         ]"
       >
         <!-- 标题 + 描述 -->

@@ -3,6 +3,31 @@ import type { PluginsConfig } from "./plugin";
 /** 支持的语言代码 */
 export type LocaleCode = "zh-CN" | "en-US";
 
+/** 均衡器预设标识 */
+export type EqualizerPreset =
+  | "flat"
+  | "custom"
+  | "pop"
+  | "rock"
+  | "classical"
+  | "electronic"
+  | "bass"
+  | "vocal"
+  | "dance"
+  | "soft";
+
+/** 均衡器配置 */
+export interface EqualizerSettings {
+  /** 是否启用均衡器 */
+  enabled: boolean;
+  /** 当前选中的预设 */
+  preset: EqualizerPreset;
+  /** 10 频段增益（dB），范围 [-15, 15]，对应 31/62/125/250/500/1k/2k/4k/8k/16k Hz */
+  bands: number[];
+  /** 前级增益（dB），范围 [-12, 12] */
+  preamp: number;
+}
+
 /** 播放器配置 */
 export interface PlayerSettings {
   /** 加载后自动播放 */
@@ -19,6 +44,8 @@ export interface PlayerSettings {
   volume: number;
   /** 音量均衡（响度归一化） */
   loudnessNormalization: boolean;
+  /** 均衡器配置 */
+  equalizer: EqualizerSettings;
 }
 
 /** Discord 显示模式 */

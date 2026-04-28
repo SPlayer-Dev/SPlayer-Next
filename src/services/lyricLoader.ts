@@ -144,6 +144,36 @@ const commit = (token: number, source: LyricData, input: LyricInput | null): voi
   useMediaStore().setLyric(source, input);
 };
 
+/** 本地歌词读取结果 */
+type LocalLyric = { source: NonNullable<LyricData>; content: string };
+
+/** 提交本地歌词 */
+const commitLocal = (token: number, local: LocalLyric): void => {
+  commit(token, local.source, { content: local.content });
+};
+
+/**
+ * 提交在线歌词；解析后为空时优先回退本地，本地也无再按需 TTML 升级
+ */
+const applyOnline = async (
+  token: number,
+  track: Track,
+  online: OnlineResult,
+  fallbackLocal: LocalLyric | null,
+): Promise<void> => {
+  commit(token, online.source, online.input);
+  if (token !== currentToken) return;
+  if (useMediaStore().parsedLyric.length === 0) {
+    if (fallbackLocal) {
+      commitLocal(token, fallbackLocal);
+      return;
+    }
+  }
+  if (shouldTryTTML(online.source.platform, online.source.format)) {
+    await tryTTMLOverlay(token, track, online.source.platform);
+  }
+};
+
 /** 开启新一轮加载周期 */
 export const beginLoad = (): number => {
   currentToken++;
@@ -180,16 +210,15 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
     const local = detail ? await readLocal(detail) : null;
     if (token !== currentToken) return;
     // 本地立即显示
-    if (local) commit(token, local.source, { content: local.content });
+    if (local) commitLocal(token, local);
+    // 本地文件存在但解析后空
+    const hasUsableLocal = !!local && media.parsedLyric.length > 0;
     // 按偏好获取歌词
-    const online = await tryOnlineByPreference(token, track, !!local);
+    const online = await tryOnlineByPreference(token, track, hasUsableLocal);
     if (token !== currentToken) return;
     if (online) {
-      commit(token, online.source, online.input);
-      if (shouldTryTTML(online.source.platform, online.source.format)) {
-        await tryTTMLOverlay(token, track, online.source.platform);
-      }
-    } else if (!local) {
+      await applyOnline(token, track, online, local);
+    } else if (!hasUsableLocal) {
       commit(token, null, null);
     }
   } catch (err) {
@@ -216,11 +245,8 @@ const refreshPreference = async (): Promise<void> => {
   const shouldShowLocal = preference === "self" || (preference === "auto" && !!local);
   if (shouldShowLocal) {
     if (!showingOnline) return;
-    if (local) {
-      commit(token, local.source, { content: local.content });
-    } else {
-      commit(token, null, null);
-    }
+    if (local) commitLocal(token, local);
+    else commit(token, null, null);
     return;
   }
 
@@ -228,13 +254,10 @@ const refreshPreference = async (): Promise<void> => {
   const online = await tryOnlineByPreference(token, track, !!local);
   if (token !== currentToken) return;
   if (online) {
-    commit(token, online.source, online.input);
-    if (shouldTryTTML(online.source.platform, online.source.format)) {
-      await tryTTMLOverlay(token, track, online.source.platform);
-    }
+    await applyOnline(token, track, online, local);
   } else if (local) {
     // 在线失败：回退到本地
-    commit(token, local.source, { content: local.content });
+    commitLocal(token, local);
   } else {
     // 在线失败 + 无本地：清空旧歌词
     commit(token, null, null);

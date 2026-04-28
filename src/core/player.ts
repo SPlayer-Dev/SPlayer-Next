@@ -195,6 +195,38 @@ export const setVolume = async (vol: number): Promise<void> => {
   }
 };
 
+/**
+ * 设置播放速度
+ * @param v - 速度（0.5 ~ 2.0）
+ */
+export const setSpeed = async (v: number): Promise<void> => {
+  const safe = Number.isFinite(v) ? Math.max(0.5, Math.min(2.0, v)) : 1.0;
+  const result = await window.api.player.setSpeed(safe);
+  if (result.success) {
+    useStatusStore().speed = safe;
+    // 同步给 playback 时间源，让墙钟插值正确换算到源时间
+    playback.setSpeed(safe);
+  }
+};
+
+/**
+ * 设置音调偏移（半音 -12 ~ 12）
+ */
+export const setPitch = async (n: number): Promise<void> => {
+  const safe = Number.isFinite(n) ? Math.max(-12, Math.min(12, Math.round(n))) : 0;
+  const result = await window.api.player.setPitch(safe);
+  if (result.success) useStatusStore().pitch = safe;
+};
+
+/**
+ * 设置"音调同步"开关
+ * @param on - true = 变速保音调，false = 变速变调
+ */
+export const setPitchSync = async (on: boolean): Promise<void> => {
+  const result = await window.api.player.setPitchSync(on);
+  if (result.success) useStatusStore().pitchSync = on;
+};
+
 /** 刷新音频输出设备列表 */
 export const refreshDevices = async (): Promise<void> => {
   const result = await window.api.player.getOutputDevices();
@@ -516,10 +548,17 @@ export const initPlayer = async (): Promise<void> => {
   await window.api.player.setVolume(status.volume);
   syncPlayMode();
   // 应用渐入渐出配置
-  const { fadeEnabled, fadeDuration, loudnessNormalization } = settings.system.player;
+  const { fadeEnabled, fadeDuration, loudnessNormalization, equalizer } = settings.system.player;
   await window.api.player.setFadeDuration(fadeEnabled ? fadeDuration : 0);
   // 应用音量均衡配置
   await window.api.player.setNormalizationEnabled(loudnessNormalization ?? false);
+  // 应用均衡器配置（频段/前级先下发，再切总开关，避免开关瞬间用旧值）
+  // 注意：reactive 数组无法被 IPC structured-clone，需 spread 解包
+  if (equalizer) {
+    await window.api.player.setEqualizerBands([...equalizer.bands]);
+    await window.api.player.setPreampGain(equalizer.preamp);
+    await window.api.player.setEqualizerEnabled(equalizer.enabled);
+  }
   // 刷新设备列表并恢复上次选择的输出设备
   await refreshDevices();
   if (settings.player.outputDevice) {

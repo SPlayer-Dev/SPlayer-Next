@@ -1,10 +1,15 @@
 <script setup lang="ts">
+import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
 import * as player from "@/core/player";
 import { formatTime } from "@/utils/time";
+import IconLucideSliders from "~icons/lucide/sliders-horizontal";
+import IconLucideGauge from "~icons/lucide/gauge";
+import IconLucideMoreVertical from "~icons/lucide/more-vertical";
 
+const { t } = useI18n();
 const status = useStatusStore();
 const media = useMediaStore();
 const settings = useSettingsStore();
@@ -16,6 +21,27 @@ const hasTrack = computed(() => !!media.track);
 
 const toggleDesktopLyric = (): void => {
   window.api.window.toggleDesktopLyric().catch(() => {});
+};
+
+const equalizerOpen = ref(false);
+const speedOpen = ref(false);
+
+const moreMenuItems = computed<DropdownMenuItem[]>(() => [
+  {
+    key: "equalizer",
+    label: t("equalizer.title"),
+    icon: IconLucideSliders,
+  },
+  {
+    key: "speed",
+    label: t("speed.title"),
+    icon: IconLucideGauge,
+  },
+]);
+
+const onMoreMenuSelect = (key: string): void => {
+  if (key === "equalizer") equalizerOpen.value = true;
+  else if (key === "speed") speedOpen.value = true;
 };
 
 /** 当前歌词文本，播放中且有匹配歌词时显示 */
@@ -43,6 +69,7 @@ const onSeekDragEnd = (value: number): void => {
         :step="100"
         :track-height="3"
         :thumb-size="12"
+        :always-show-thumb="false"
         @drag-end="onSeekDragEnd"
       >
         <template #popover="{ value }">{{ formatTime(value) }}</template>
@@ -197,7 +224,19 @@ const onSeekDragEnd = (value: number): void => {
         >
           <template #icon><IconLucideListMusic /></template>
         </SButton>
+        <!-- 更多 -->
+        <SDropdownMenu :items="moreMenuItems" side="top" align="end" @select="onMoreMenuSelect">
+          <template #trigger>
+            <SButton variant="ghost" circle :size="36" class="text-on-surface-variant">
+              <template #icon><IconLucideMoreVertical /></template>
+            </SButton>
+          </template>
+        </SDropdownMenu>
       </div>
     </div>
+    <!-- 均衡器 -->
+    <EqualizerDialog v-model:open="equalizerOpen" />
+    <!-- 播放速度 -->
+    <SpeedDialog v-model:open="speedOpen" />
   </div>
 </template>

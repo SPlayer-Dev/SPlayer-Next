@@ -19,6 +19,12 @@ export const defaultSystemConfig: SystemConfig = {
     outputDevice: null,
     volume: 1,
     loudnessNormalization: false,
+    equalizer: {
+      enabled: false,
+      preset: "flat",
+      bands: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      preamp: 0,
+    },
   },
   media: {
     systemMediaControls: true,
