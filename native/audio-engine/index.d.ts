@@ -72,6 +72,18 @@ export declare class AudioPlayer {
   setOutputDevice(deviceName?: string | undefined | null): void
   /** 获取当前选择的输出设备名称（None = 系统默认） */
   getSelectedDeviceName(): string | null
+  /** 设置播放速度（自动 clamp 到 [0.5, 2.0]） */
+  setSpeed(speed: number): void
+  /** 设置音调偏移（半音，自动 clamp 到 [-12, 12]） */
+  setPitch(semitones: number): void
+  /** 设置"音调同步"开关（true = 变速保音调） */
+  setPitchSync(sync: boolean): void
+  /** 获取当前播放速度 */
+  getSpeed(): number
+  /** 获取当前音调（半音） */
+  getPitch(): number
+  /** 获取"音调同步"开关状态 */
+  getPitchSync(): boolean
 }
 
 /** 取消正在进行的扫描任务 */

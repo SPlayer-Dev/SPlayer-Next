@@ -6,6 +6,7 @@ import { useSettingsStore } from "@/stores/settings";
 import * as player from "@/core/player";
 import { formatTime } from "@/utils/time";
 import IconLucideSliders from "~icons/lucide/sliders-horizontal";
+import IconLucideGauge from "~icons/lucide/gauge";
 import IconLucideMoreVertical from "~icons/lucide/more-vertical";
 
 const { t } = useI18n();
@@ -23,6 +24,7 @@ const toggleDesktopLyric = (): void => {
 };
 
 const equalizerOpen = ref(false);
+const speedOpen = ref(false);
 
 const moreMenuItems = computed<DropdownMenuItem[]>(() => [
   {
@@ -30,10 +32,16 @@ const moreMenuItems = computed<DropdownMenuItem[]>(() => [
     label: t("equalizer.title"),
     icon: IconLucideSliders,
   },
+  {
+    key: "speed",
+    label: t("speed.title"),
+    icon: IconLucideGauge,
+  },
 ]);
 
 const onMoreMenuSelect = (key: string): void => {
   if (key === "equalizer") equalizerOpen.value = true;
+  else if (key === "speed") speedOpen.value = true;
 };
 
 /** 当前歌词文本，播放中且有匹配歌词时显示 */
@@ -226,7 +234,9 @@ const onSeekDragEnd = (value: number): void => {
         </SDropdownMenu>
       </div>
     </div>
-    <!-- 均衡器对话框 -->
+    <!-- 均衡器 -->
     <EqualizerDialog v-model:open="equalizerOpen" />
+    <!-- 播放速度 -->
+    <SpeedDialog v-model:open="speedOpen" />
   </div>
 </template>

@@ -318,6 +318,36 @@ export const registerPlayerIpc = (): void => {
     }
   });
 
+  // 设置播放速度（0.5 ~ 2.0），引擎侧自动 clamp
+  ipcMain.handle("player:setSpeed", (_event, speed: number) => {
+    try {
+      getPlayer().setSpeed(speed);
+      return { success: true };
+    } catch (error) {
+      return fail(ErrorCode.UNKNOWN, error);
+    }
+  });
+
+  // 设置音调偏移（半音 -12 ~ 12），引擎侧自动 clamp
+  ipcMain.handle("player:setPitch", (_event, semitones: number) => {
+    try {
+      getPlayer().setPitch(semitones);
+      return { success: true };
+    } catch (error) {
+      return fail(ErrorCode.UNKNOWN, error);
+    }
+  });
+
+  // 设置"音调同步"开关（true = 变速保音调）
+  ipcMain.handle("player:setPitchSync", (_event, sync: boolean) => {
+    try {
+      getPlayer().setPitchSync(sync);
+      return { success: true };
+    } catch (error) {
+      return fail(ErrorCode.UNKNOWN, error);
+    }
+  });
+
   // 启用/禁用 FFT 频谱推送（前端组件挂载时启用，卸载时禁用）
   ipcMain.handle("player:setFftEnabled", (_event, enabled: boolean) => {
     try {

@@ -159,6 +159,12 @@ export interface PlayerApi {
   setEqualizerBands: (gainsDb: number[]) => Promise<IpcResponse>;
   /** 设置前级增益（dB） */
   setPreampGain: (preampDb: number) => Promise<IpcResponse>;
+  /** 设置播放速度（0.5 ~ 2.0） */
+  setSpeed: (speed: number) => Promise<IpcResponse>;
+  /** 设置音调偏移（半音 -12 ~ 12） */
+  setPitch: (semitones: number) => Promise<IpcResponse>;
+  /** 设置"音调同步"开关（true = 变速保音调） */
+  setPitchSync: (sync: boolean) => Promise<IpcResponse>;
   /** 获取所有音频输出设备 */
   getOutputDevices: () => Promise<IpcResponse<AudioDevice[]>>;
   /** 获取系统默认输出设备名称 */

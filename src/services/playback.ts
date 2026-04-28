@@ -24,17 +24,23 @@ let playing = false;
 let seeking = false;
 
 /**
+ * 当前播放速度倍率（用于把墙钟插值换算到源时间）
+ * 变速时 1ms 墙钟 = speed ms 源时间
+ */
+let speed = 1.0;
+
+/**
  * 主进程推送位置与本地插值之间的容差（毫秒）
  * 偏差小于此值视作 IPC 延迟 / 解码抖动，保留插值避免可见跳跃；
  * 大于此值视作真实跳变（漏拦截的 seek、跳曲等），直接采用推送值
  */
 const SYNC_TOLERANCE_MS = 1000;
 
-/** 获取当前播放位置（毫秒），播放中自动插值，seek 中冻结 */
+/** 获取当前播放位置（毫秒），播放中按 speed 插值，seek 中冻结 */
 export const getCurrentTime = (): number => {
   if (!playing || seeking) return currentTimeMs;
   const elapsed = performance.now() - lastSyncAt;
-  return Math.min(currentTimeMs + elapsed, totalDurationMs);
+  return Math.min(currentTimeMs + elapsed * speed, totalDurationMs);
 };
 
 /** 获取总时长（毫秒） */
@@ -87,6 +93,21 @@ export const setPlaying = (value: boolean): void => {
   playing = value;
 };
 
+/**
+ * 同步播放速度
+ * @param value - 播放速度
+ *
+ * 切速度瞬间，先按旧 speed 把可见位置推到 now，再切，避免视觉跳变
+ */
+export const setSpeed = (value: number): void => {
+  if (value === speed) return;
+  if (playing && !seeking) {
+    currentTimeMs = getCurrentTime();
+    lastSyncAt = performance.now();
+  }
+  speed = value;
+};
+
 /** 重置所有状态 */
 export const reset = (): void => {
   currentTimeMs = 0;
@@ -94,4 +115,5 @@ export const reset = (): void => {
   lastSyncAt = 0;
   playing = false;
   seeking = false;
+  speed = 1.0;
 };

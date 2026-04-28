@@ -31,6 +31,15 @@
       "custom": "自定义"
     }
   },
+  "speed": {
+    "title": "播放速度",
+    "speed": "速度",
+    "pitchSync": "音调同步",
+    "pitchSyncTip": "变速时保持原音调",
+    "pitch": "音调",
+    "semitone": "{n} 半音",
+    "reset": "重置"
+  },
   "nav": {
     "home": "首页",
     "library": "音乐库",

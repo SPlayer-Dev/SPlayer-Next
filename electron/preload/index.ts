@@ -54,6 +54,12 @@ const api = {
       ipcRenderer.invoke("player:setEqualizerBands", gainsDb),
     // 设置前级增益（dB）
     setPreampGain: (preampDb: number) => ipcRenderer.invoke("player:setPreampGain", preampDb),
+    // 设置播放速度（0.5 ~ 2.0），引擎侧自动 clamp
+    setSpeed: (speed: number) => ipcRenderer.invoke("player:setSpeed", speed),
+    // 设置音调偏移（半音 -12 ~ 12），引擎侧自动 clamp
+    setPitch: (semitones: number) => ipcRenderer.invoke("player:setPitch", semitones),
+    // 设置"音调同步"开关（true = 变速保音调）
+    setPitchSync: (sync: boolean) => ipcRenderer.invoke("player:setPitchSync", sync),
     // 重建音频输出设备
     reinit: () => ipcRenderer.invoke("player:reinit"),
     // 获取所有音频输出设备

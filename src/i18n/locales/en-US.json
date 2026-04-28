@@ -31,6 +31,15 @@
       "custom": "Custom"
     }
   },
+  "speed": {
+    "title": "Playback Speed",
+    "speed": "Speed",
+    "pitchSync": "Preserve pitch",
+    "pitchSyncTip": "Keep original pitch when changing speed",
+    "pitch": "Pitch",
+    "semitone": "{n} st",
+    "reset": "Reset"
+  },
   "nav": {
     "home": "Home",
     "library": "Library",

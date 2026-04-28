@@ -149,6 +149,7 @@ declare module 'vue' {
     SMarquee: typeof import('./src/components/ui/SMarquee.vue')['default']
     SMenu: typeof import('./src/components/ui/SMenu.vue')['default']
     SongList: typeof import('./src/components/list/SongList.vue')['default']
+    SpeedDialog: typeof import('./src/components/modals/SpeedDialog.vue')['default']
     SPopover: typeof import('./src/components/ui/SPopover.vue')['default']
     SPopselect: typeof import('./src/components/ui/SPopselect.vue')['default']
     SRadio: typeof import('./src/components/ui/SRadio.vue')['default']

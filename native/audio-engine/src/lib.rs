@@ -11,6 +11,7 @@ mod player;
 mod scanner;
 mod shared;
 mod source;
+mod tempo;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -431,6 +432,42 @@ impl AudioPlayer {
     #[napi]
     pub fn get_selected_device_name(&self) -> Option<String> {
         self.inner.lock().selected_device_name().map(String::from)
+    }
+
+    /// 设置播放速度（自动 clamp 到 [0.5, 2.0]）
+    #[napi]
+    pub fn set_speed(&self, speed: f64) {
+        self.inner.lock().set_speed(speed as f32);
+    }
+
+    /// 设置音调偏移（半音，自动 clamp 到 [-12, 12]）
+    #[napi]
+    pub fn set_pitch(&self, semitones: i32) {
+        self.inner.lock().set_pitch(semitones.clamp(-12, 12) as i8);
+    }
+
+    /// 设置"音调同步"开关（true = 变速保音调）
+    #[napi]
+    pub fn set_pitch_sync(&self, sync: bool) {
+        self.inner.lock().set_pitch_sync(sync);
+    }
+
+    /// 获取当前播放速度
+    #[napi]
+    pub fn get_speed(&self) -> f64 {
+        self.inner.lock().speed() as f64
+    }
+
+    /// 获取当前音调（半音）
+    #[napi]
+    pub fn get_pitch(&self) -> i32 {
+        self.inner.lock().pitch() as i32
+    }
+
+    /// 获取"音调同步"开关状态
+    #[napi]
+    pub fn get_pitch_sync(&self) -> bool {
+        self.inner.lock().pitch_sync()
     }
 }
 
