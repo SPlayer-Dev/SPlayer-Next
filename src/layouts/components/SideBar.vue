@@ -6,6 +6,7 @@ import IconLucideHome from "~icons/lucide/home";
 import IconLucideMusic from "~icons/lucide/music";
 import IconLucideUser from "~icons/lucide/user";
 import IconLucideDisc3 from "~icons/lucide/disc-3";
+import IconLucideFolder from "~icons/lucide/folder";
 import IconLucideListMusic from "~icons/lucide/list-music";
 import IconLucidePlus from "~icons/lucide/plus";
 import SButton from "@/components/ui/SButton.vue";
@@ -28,6 +29,7 @@ const menuItems = computed<SMenuItem[]>(() => [
   { key: "/library", label: t("nav.library"), icon: markRaw(IconLucideMusic) },
   { key: "/artists/local", label: t("artist.label"), icon: markRaw(IconLucideUser) },
   { key: "/albums/local", label: t("album.label"), icon: markRaw(IconLucideDisc3) },
+  { key: "/folders", label: t("folder.label"), icon: markRaw(IconLucideFolder) },
   { key: "divider", type: "divider" },
   {
     key: "playlist-group",

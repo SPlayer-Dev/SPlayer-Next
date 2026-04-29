@@ -3,6 +3,7 @@ import type { Track, Artist } from "@shared/types/player";
 import type { AlbumSummary, ArtistSummary, ScanProgress } from "@shared/types/library";
 import type { Collection } from "@/types/collection";
 import type { ArtistProfile, CoverItem } from "@/types/artist";
+import { buildFolderTree, countFolders } from "@/utils/folderTree";
 
 const trackDb = localforage.createInstance({ name: "splayer", storeName: "library" });
 
@@ -186,6 +187,12 @@ export const useLibraryStore = defineStore("library", () => {
     return { deleted: 0, failed: paths.length };
   };
 
+  /** 文件夹树：按磁盘路径聚合，详见 utils/folderTree */
+  const folderTree = computed(() => buildFolderTree(tracks.value, scanDirs.value));
+
+  /** 文件夹总数（递归） */
+  const folderCount = computed(() => countFolders(folderTree.value));
+
   /** 专辑聚合列表 */
   const getAlbumList = async (): Promise<AlbumSummary[]> => {
     const res = await window.api.library.getAlbums();
@@ -281,5 +288,7 @@ export const useLibraryStore = defineStore("library", () => {
     getAlbumList,
     getAlbumCollection,
     getArtistProfile,
+    folderTree,
+    folderCount,
   };
 });

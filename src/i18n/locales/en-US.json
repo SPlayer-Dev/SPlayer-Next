@@ -729,6 +729,10 @@
   "album": {
     "label": "Albums"
   },
+  "folder": {
+    "label": "Folders",
+    "totalFolders": "{count} folders"
+  },
   "errors": {
     "dialogTitle": "Something went wrong",
     "deviceHint": "No audio output device detected. Please connect headphones or speakers and try again.",

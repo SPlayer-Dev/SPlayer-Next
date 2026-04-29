@@ -729,6 +729,10 @@
   "album": {
     "label": "专辑"
   },
+  "folder": {
+    "label": "文件夹",
+    "totalFolders": "共 {count} 个"
+  },
   "errors": {
     "dialogTitle": "出错了",
     "deviceHint": "未检测到可用的音频输出设备，请连接耳机或音箱后重试。",

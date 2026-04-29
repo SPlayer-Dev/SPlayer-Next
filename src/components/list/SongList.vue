@@ -220,6 +220,8 @@ defineExpose({
         </template>
         <!-- 固定表头 -->
         <template #header>
+          <!-- 可选信息行 -->
+          <slot name="topInfo" />
           <!-- 批量模式 -->
           <div
             v-if="batch.active.value"
@@ -264,7 +266,9 @@ defineExpose({
               @click="batch.batchRemove"
             >
               <template #icon><IconLucideListMinus class="size-3.5" /></template>
-              <span>{{ t("collection.removeFrom", { type: batch.collectionTypeLabel.value }) }}</span>
+              <span>
+                {{ t("collection.removeFrom", { type: batch.collectionTypeLabel.value }) }}
+              </span>
             </SButton>
             <SButton
               v-if="source === 'local'"

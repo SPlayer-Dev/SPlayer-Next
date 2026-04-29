@@ -5,6 +5,7 @@ import { createWindow } from "./create";
 import { setTrayDesktopLyric } from "@main/services/tray";
 import { store } from "@main/store";
 import { broadcast } from "@main/utils/broadcast";
+import { isAppQuitting } from "@main/utils/lifecycle";
 
 let desktopLyricWindow: BrowserWindow | null = null;
 
@@ -230,6 +231,7 @@ export const createDesktopLyricWindow = (): BrowserWindow => {
   /** 设置托盘图标 */
   setTrayDesktopLyric(true);
   broadcast("desktopLyric:visibilityChange", true);
+  store.set("windowStates.desktopLyric.visible", true);
 
   /** 窗口关闭事件 */
   desktopLyricWindow.on("closed", () => {
@@ -237,6 +239,9 @@ export const createDesktopLyricWindow = (): BrowserWindow => {
     desktopLyricWindow = null;
     setTrayDesktopLyric(false);
     broadcast("desktopLyric:visibilityChange", false);
+    if (!isAppQuitting()) {
+      store.set("windowStates.desktopLyric.visible", false);
+    }
   });
   return desktopLyricWindow;
 };

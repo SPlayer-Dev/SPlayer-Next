@@ -6,6 +6,7 @@ import { loadNativeModule } from "@main/utils/nativeLoader";
 import { broadcast } from "@main/utils/broadcast";
 import { setTrayTaskbarLyric } from "@main/services/tray";
 import { store } from "@main/store";
+import { isAppQuitting } from "@main/utils/lifecycle";
 import type { TaskbarLyricPosition } from "@shared/types/settings";
 import type {
   JsRect,
@@ -264,10 +265,14 @@ export const createTaskbarLyricWindow = (): BrowserWindow | null => {
     cleanupWatchers();
     setTrayTaskbarLyric(false);
     broadcast("taskbarLyric:visibilityChange", false);
+    if (!isAppQuitting()) {
+      store.set("windowStates.taskbarLyric.visible", false);
+    }
   });
 
   setTrayTaskbarLyric(true);
   broadcast("taskbarLyric:visibilityChange", true);
+  store.set("windowStates.taskbarLyric.visible", true);
   return taskbarLyricWindow;
 };
 

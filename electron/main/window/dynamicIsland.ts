@@ -5,6 +5,7 @@ import { createWindow } from "./create";
 import { store } from "@main/store";
 import { broadcast } from "@main/utils/broadcast";
 import { setTrayDynamicIsland } from "@main/services/tray";
+import { isAppQuitting } from "@main/utils/lifecycle";
 import { DYNAMIC_ISLAND_BASE_HEIGHT } from "@shared/defaults/settings";
 
 let dynamicIslandWindow: BrowserWindow | null = null;
@@ -149,7 +150,12 @@ export const applyDynamicIslandSnapCentered = (snapCentered: boolean): void => {
   const saved = store.get("windowStates.dynamicIsland");
   if (saved.mode !== "snapped") return;
   if (snapCentered) {
-    store.set("windowStates.dynamicIsland", { mode: "snapped", x: null, y: null });
+    store.set("windowStates.dynamicIsland", {
+      ...saved,
+      mode: "snapped",
+      x: null,
+      y: null,
+    });
   } else if (saved.x === null) {
     const bounds = win.getBounds();
     const display = screen.getDisplayNearestPoint({
@@ -158,6 +164,7 @@ export const applyDynamicIslandSnapCentered = (snapCentered: boolean): void => {
     });
     // 存中心点 x，与拖拽吸附保持同一语义
     store.set("windowStates.dynamicIsland", {
+      ...saved,
       mode: "snapped",
       x: bounds.x + Math.round(bounds.width / 2),
       y: display.workArea.y,
@@ -385,6 +392,7 @@ export const createDynamicIslandWindow = (): BrowserWindow => {
 
   setTrayDynamicIsland(true);
   broadcast("dynamicIsland:visibilityChange", true);
+  store.set("windowStates.dynamicIsland.visible", true);
 
   dynamicIslandWindow.on("closed", () => {
     stopCursorPolling();
@@ -392,6 +400,9 @@ export const createDynamicIslandWindow = (): BrowserWindow => {
     lastBroadcastMode = null;
     setTrayDynamicIsland(false);
     broadcast("dynamicIsland:visibilityChange", false);
+    if (!isAppQuitting()) {
+      store.set("windowStates.dynamicIsland.visible", false);
+    }
   });
 
   return dynamicIslandWindow;
