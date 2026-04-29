@@ -184,7 +184,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="relative h-full @container/batch">
+  <div class="relative h-full">
     <SContextMenu :items="contextMenuItems" @select="onContextMenu">
       <template #header>
         <div v-if="contextTrack">
@@ -220,19 +220,76 @@ defineExpose({
         </template>
         <!-- 固定表头 -->
         <template #header>
+          <!-- 批量模式 -->
           <div
-            class="flex items-center gap-3 pl-3 pr-6 mx-3 h-10 text-sm text-on-surface-variant/60"
+            v-if="batch.active.value"
+            class="flex items-center gap-2 pl-3 pr-3 mx-3 h-10 text-sm"
           >
             <div v-if="showIndex" class="w-8 shrink-0 flex items-center justify-center">
               <SCheckbox
-                v-if="batch.active.value"
                 :checked="batch.isAllSelected.value"
                 :indeterminate="batch.isPartial.value"
                 size="small"
                 @update:checked="batch.toggleSelectAll"
                 @click.stop
               />
-              <span v-else>#</span>
+            </div>
+            <span class="text-on-surface-variant tabular-nums shrink-0">
+              {{ t("songList.batch.selected", { count: batch.selectedCount.value }) }}
+            </span>
+            <SDivider vertical />
+            <SButton
+              variant="ghost"
+              size="small"
+              :disabled="batch.selectedCount.value === 0"
+              @click="batch.invertSelection"
+            >
+              <template #icon><IconLucideArrowLeftRight class="size-3.5" /></template>
+              <span>{{ t("songList.batch.invert") }}</span>
+            </SButton>
+            <SButton
+              variant="ghost"
+              size="small"
+              :disabled="batch.selectedCount.value === 0"
+              @click="batch.addToQueue"
+            >
+              <template #icon><IconLucideListEnd class="size-3.5" /></template>
+              <span>{{ t("songList.batch.addToQueue") }}</span>
+            </SButton>
+            <SButton
+              v-if="batch.canRemove.value"
+              variant="ghost"
+              size="small"
+              :disabled="batch.selectedCount.value === 0"
+              @click="batch.batchRemove"
+            >
+              <template #icon><IconLucideListMinus class="size-3.5" /></template>
+              <span>{{ t("collection.removeFrom", { type: batch.collectionTypeLabel.value }) }}</span>
+            </SButton>
+            <SButton
+              v-if="source === 'local'"
+              type="error"
+              variant="ghost"
+              size="small"
+              :disabled="batch.selectedCount.value === 0"
+              @click="batch.batchDelete"
+            >
+              <template #icon><IconLucideTrash2 class="size-3.5" /></template>
+              <span>{{ t("songList.context.deleteFile") }}</span>
+            </SButton>
+            <SDivider vertical />
+            <SButton variant="ghost" size="small" @click="batch.exit">
+              <template #icon><IconLucideX class="size-3.5" /></template>
+              <span>{{ t("songList.batch.exit") }}</span>
+            </SButton>
+          </div>
+          <!-- 普通模式 -->
+          <div
+            v-else
+            class="flex items-center gap-3 pl-3 pr-6 mx-3 h-10 text-sm text-on-surface-variant/60"
+          >
+            <div v-if="showIndex" class="w-8 shrink-0 flex items-center justify-center">
+              <span>#</span>
             </div>
             <div class="flex-1 min-w-0">
               <SPopover
@@ -448,74 +505,6 @@ defineExpose({
         <SButton type="primary" variant="bordered" circle :size="40" @click="scrollToPlaying">
           <template #icon>
             <IconLucideLocate class="size-4.5" />
-          </template>
-        </SButton>
-      </div>
-    </Transition>
-    <!-- 批量操作栏 -->
-    <Transition name="fade">
-      <div
-        v-if="batch.active.value"
-        class="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 px-5 h-12 w-fit whitespace-nowrap rounded-xl bg-surface-bright/90 backdrop-blur-md border border-solid border-outline-variant/30 shadow-xl"
-      >
-        <span class="text-sm text-on-surface-variant tabular-nums shrink-0">
-          {{ t("songList.batch.selected", { count: batch.selectedCount.value }) }}
-        </span>
-        <SDivider vertical />
-        <SButton
-          variant="ghost"
-          size="small"
-          :disabled="batch.selectedCount.value === 0"
-          @click="batch.invertSelection"
-        >
-          <template #icon>
-            <IconLucideArrowLeftRight class="size-3.5" />
-          </template>
-          <span class="hidden @[640px]/batch:inline">{{ t("songList.batch.invert") }}</span>
-        </SButton>
-        <SDivider vertical />
-        <SButton
-          variant="ghost"
-          size="small"
-          :disabled="batch.selectedCount.value === 0"
-          @click="batch.addToQueue"
-        >
-          <template #icon>
-            <IconLucideListEnd class="size-3.5" />
-          </template>
-          <span class="hidden @[640px]/batch:inline">{{ t("songList.batch.addToQueue") }}</span>
-        </SButton>
-        <SButton
-          v-if="batch.canRemove.value"
-          variant="ghost"
-          size="small"
-          :disabled="batch.selectedCount.value === 0"
-          @click="batch.batchRemove"
-        >
-          <template #icon>
-            <IconLucideListMinus class="size-3.5" />
-          </template>
-          <span class="hidden @[640px]/batch:inline">
-            {{ t("collection.removeFrom", { type: batch.collectionTypeLabel.value }) }}
-          </span>
-        </SButton>
-        <SButton
-          v-if="source === 'local'"
-          type="error"
-          variant="ghost"
-          size="small"
-          :disabled="batch.selectedCount.value === 0"
-          @click="batch.batchDelete"
-        >
-          <template #icon>
-            <IconLucideTrash2 class="size-3.5" />
-          </template>
-          <span class="hidden @[640px]/batch:inline">{{ t("songList.context.deleteFile") }}</span>
-        </SButton>
-        <SDivider vertical />
-        <SButton variant="ghost" size="small" circle @click="batch.exit">
-          <template #icon>
-            <IconLucideX class="size-3.5" />
           </template>
         </SButton>
       </div>
