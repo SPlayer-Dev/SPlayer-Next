@@ -74,15 +74,25 @@ export const createMainWindow = (): BrowserWindow => {
     event.preventDefault();
     mainWindow?.hide();
   });
+  // 最大化
   mainWindow.on("maximize", () => {
     saveWindowState();
     broadcast("window:maximizeChange", true);
   });
+  // 取消最大化
   mainWindow.on("unmaximize", () => {
     saveWindowState();
     broadcast("window:maximizeChange", false);
   });
-
+  // 全屏
+  mainWindow.on("enter-full-screen", () => {
+    broadcast("window:fullscreenChange", true);
+  });
+  // 退出全屏
+  mainWindow.on("leave-full-screen", () => {
+    broadcast("window:fullscreenChange", false);
+  });
+  // 设置窗口打开处理程序
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url);
     return { action: "deny" };
@@ -136,6 +146,16 @@ export const toggleMaximizeMainWindow = (): void => {
 
 /** 查询是否最大化 */
 export const isMainWindowMaximized = (): boolean => !!getMainWindow()?.isMaximized();
+
+/** 切换全屏 */
+export const toggleFullscreenMainWindow = (): void => {
+  const win = getMainWindow();
+  if (!win) return;
+  win.setFullScreen(!win.isFullScreen());
+};
+
+/** 查询是否全屏 */
+export const isMainWindowFullscreen = (): boolean => !!getMainWindow()?.isFullScreen();
 
 /** 隐藏主窗口 */
 export const hideMainWindow = (): void => {

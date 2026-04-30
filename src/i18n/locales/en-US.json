@@ -181,9 +181,9 @@
       "lyricContent": "Lyric Content",
       "lyricExclude": "Metadata Stripping",
       "lyricGeneral": "Content & Style",
-      "effectsDisplay": "Display Effects",
-      "effectsSpring": "Spring Animation",
-      "effectsLayout": "Layout & Opacity",
+      "lyricDisplay": "Display Effects",
+      "lyricSpring": "Spring Animation",
+      "lyricLayout": "Layout & Opacity",
       "desktopLyric": "Desktop Lyric",
       "dynamicIsland": "Dynamic Island Lyric",
       "taskbarLyric": "Taskbar Lyric",
@@ -257,6 +257,10 @@
       "button": "Configure",
       "hint": "Picks the highest-ranked when multiple formats are available — e.g. multiple external lyric files, or TTML upgrade"
     },
+    "smartPreferOnline": {
+      "label": "Prefer Online Format",
+      "description": "Fetch online when a higher-ranked format is reachable"
+    },
     "enableOnlineTTMLLyric": {
       "label": "Enable Online TTML Lyrics",
       "description": "Fetch lyrics from AMLL TTML DB. Supports word-level timing, translation, and romanization."
@@ -293,12 +297,6 @@
       "clear": "Clear current list",
       "duplicate": "Rule already exists",
       "invalidRegex": "Invalid regex pattern"
-    },
-    "lyricMode": {
-      "label": "Lyric Mode",
-      "description": "Lyric rendering style in full-screen player",
-      "effects": "Effects",
-      "simple": "Simple"
     },
     "autoCenterCover": {
       "label": "Auto Center Cover",

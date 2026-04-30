@@ -3,22 +3,19 @@ import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
 import { usePlaybackTime } from "@/composables/usePlaybackTime";
-import EffectsLyrics from "@/components/player/EffectsLyrics/index.vue";
-import SimpleLyrics from "@/components/player/SimpleLyrics/index.vue";
+import Lyrics from "@/components/player/Lyrics/index.vue";
+import { useWindowControls } from "@/composables/useWindowControls";
 import * as player from "@/core/player";
 import { formatTime } from "@/utils/time";
 
 const status = useStatusStore();
 const media = useMediaStore();
 const settings = useSettingsStore();
-const { isPlaying, isLoading, position, duration, isExpanded, repeatMode, shuffleMode } =
+const { isPlaying, isLoading, position, duration, isExpanded, repeatMode, shuffleMode, showLyric } =
   storeToRefs(status);
 
-/** 歌词渲染模式 */
-const lyricMode = computed(() => settings.lyric.lyricMode);
-
 /** 歌词组件引用 */
-const lyricRef = ref<InstanceType<typeof EffectsLyrics> | InstanceType<typeof SimpleLyrics>>();
+const lyricRef = ref<InstanceType<typeof Lyrics>>();
 
 /** 精确播放时间（毫秒） */
 const { start: startTick, stop: stopTick } = usePlaybackTime((currentMs) => {
@@ -57,12 +54,18 @@ const onBeforeLeave = () => {
 
 const hasTrack = computed(() => !!media.track);
 
-/** 无歌词时居中封面 */
+/** 当前曲目是否有可显示的歌词 */
+const hasLyric = computed(() => media.parsedLyric.length > 0 || media.lyricLoading);
+
+/** 全屏 */
+const { isFullscreen, toggleFullscreen } = useWindowControls();
+
+/** 封面是否居中 */
 const coverCentered = computed(
-  () => settings.player.autoCenterCover && !media.lyricLoading && media.parsedLyric.length === 0,
+  () => !showLyric.value || (settings.player.autoCenterCover && !hasLyric.value),
 );
 
-/** 弹簧配置（从 store 三个独立值合成） */
+/** 弹簧配置 */
 const springConfig = computed(() => ({
   mass: settings.lyric.springMass,
   damping: settings.lyric.springDamping,
@@ -165,11 +168,34 @@ onBeforeUnmount(() => clearTimeout(idleTimer));
         />
         <!-- 顶栏 -->
         <div
-          class="absolute top-0 inset-x-0 h-14 z-10 app-drag-region transition-opacity duration-400"
+          class="absolute top-0 inset-x-0 h-14 z-10 app-drag-region transition-opacity duration-400 flex items-center justify-between px-3"
           :class="immersive ? 'opacity-0 pointer-events-none' : 'opacity-100'"
           @mouseenter="onBarEnter"
           @mouseleave="onBarLeave"
-        />
+        >
+          <div class="app-no-drag flex items-center gap-2">
+            <SButton
+              type="cover"
+              variant="ghost"
+              circle
+              :size="40"
+              :disabled="!hasLyric"
+              :class="showLyric && hasLyric ? 'opacity-100' : 'opacity-40'"
+              @click="showLyric = !showLyric"
+            >
+              <template #icon><IconLucideTextQuote /></template>
+            </SButton>
+          </div>
+          <div class="app-no-drag flex items-center gap-3">
+            <SButton type="cover" variant="ghost" circle :size="40" @click="toggleFullscreen">
+              <template #icon>
+                <IconLucideMinimize v-if="isFullscreen" />
+                <IconLucideMaximize v-else />
+              </template>
+            </SButton>
+            <WindowControls cover />
+          </div>
+        </div>
         <!-- 主区域 -->
         <div class="absolute top-14 inset-x-0 bottom-20" @mousemove="onMainMove">
           <!-- 左侧 -->
@@ -201,12 +227,8 @@ onBeforeUnmount(() => clearTimeout(idleTimer));
               fontWeight: String(settings.lyric.fontWeight),
             }"
           >
-            <EffectsLyrics
-              v-if="
-                lyricMounted &&
-                lyricMode === 'effects' &&
-                (media.parsedLyric.length > 0 || media.lyricLoading)
-              "
+            <Lyrics
+              v-if="lyricMounted && hasLyric"
               ref="lyricRef"
               :lyric-lines="media.parsedLyric"
               :playing="isPlaying"
@@ -223,19 +245,8 @@ onBeforeUnmount(() => clearTimeout(idleTimer));
               :show-romanization="settings.lyric.showRomanization"
               @seek="player.seek($event)"
             />
-            <SimpleLyrics
-              v-else-if="
-                lyricMounted &&
-                lyricMode === 'simple' &&
-                (media.parsedLyric.length > 0 || media.lyricLoading)
-              "
-              ref="lyricRef"
-              :lyric-lines="media.parsedLyric"
-              :playing="isPlaying"
-              @seek="player.seek($event)"
-            />
             <div
-              v-else-if="lyricMounted && !media.lyricLoading"
+              v-else-if="lyricMounted"
               class="w-full h-full flex items-center justify-center text-cover/30"
             >
               暂无歌词

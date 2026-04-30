@@ -22,6 +22,8 @@ import {
   minimizeMainWindow,
   toggleMaximizeMainWindow,
   isMainWindowMaximized,
+  toggleFullscreenMainWindow,
+  isMainWindowFullscreen,
   hideMainWindow,
 } from "@main/window";
 
@@ -109,6 +111,8 @@ export const registerWindowIpc = (): void => {
   ipcMain.on("window:minimize", () => minimizeMainWindow());
   ipcMain.on("window:toggleMaximize", () => toggleMaximizeMainWindow());
   ipcMain.handle("window:isMaximized", () => isMainWindowMaximized());
+  ipcMain.on("window:toggleFullscreen", () => toggleFullscreenMainWindow());
+  ipcMain.handle("window:isFullscreen", () => isMainWindowFullscreen());
   ipcMain.on("window:hide", () => hideMainWindow());
   ipcMain.on("window:quit", () => app.quit());
 };

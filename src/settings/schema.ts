@@ -298,6 +298,15 @@ export const settingsSchema: SettingCategory[] = [
               { value: "self", labelKey: "settings.lyricSourcePreference.self" },
             ],
             defaultValue: "auto",
+            childrenCondition: () => useSettingsStore().lyric.lyricSourcePreference === "auto",
+            children: [
+              {
+                key: "smartPreferOnline",
+                type: "switch",
+                binding: { store: "settings", path: "lyric.smartPreferOnline" },
+                defaultValue: false,
+              },
+            ],
           },
           {
             key: "lyricSourceOrder",
@@ -348,16 +357,6 @@ export const settingsSchema: SettingCategory[] = [
         id: "lyricGeneral",
         items: [
           {
-            key: "lyricMode",
-            type: "select",
-            binding: { store: "settings", path: "lyric.lyricMode" },
-            options: [
-              { value: "effects", labelKey: "settings.lyricMode.effects" },
-              { value: "simple", labelKey: "settings.lyricMode.simple" },
-            ],
-            defaultValue: "effects",
-          },
-          {
             key: "adaptiveFontSize",
             type: "switch",
             binding: { store: "settings", path: "lyric.adaptiveFontSize" },
@@ -398,47 +397,42 @@ export const settingsSchema: SettingCategory[] = [
         ],
       },
       {
-        id: "effectsDisplay",
+        id: "lyricDisplay",
         items: [
           {
             key: "enableWordHighlight",
             type: "switch",
             binding: { store: "settings", path: "lyric.enableWordHighlight" },
             defaultValue: true,
-            disabled: () => useSettingsStore().lyric.lyricMode !== "effects",
           },
           {
             key: "enableFloatAnimation",
             type: "switch",
             binding: { store: "settings", path: "lyric.enableFloatAnimation" },
             defaultValue: false,
-            disabled: () => useSettingsStore().lyric.lyricMode !== "effects",
           },
           {
             key: "enableEmphasizeEffect",
             type: "switch",
             binding: { store: "settings", path: "lyric.enableEmphasizeEffect" },
             defaultValue: false,
-            disabled: () => useSettingsStore().lyric.lyricMode !== "effects",
           },
           {
             key: "enableBlur",
             type: "switch",
             binding: { store: "settings", path: "lyric.enableBlur" },
             defaultValue: false,
-            disabled: () => useSettingsStore().lyric.lyricMode !== "effects",
           },
           {
             key: "hidePassedLines",
             type: "switch",
             binding: { store: "settings", path: "lyric.hidePassedLines" },
             defaultValue: false,
-            disabled: () => useSettingsStore().lyric.lyricMode !== "effects",
           },
         ],
       },
       {
-        id: "effectsSpring",
+        id: "lyricSpring",
         items: [
           {
             key: "springPreset",
@@ -454,7 +448,6 @@ export const settingsSchema: SettingCategory[] = [
               { value: "custom", labelKey: "settings.springPreset.custom" },
             ],
             defaultValue: "default",
-            disabled: () => useSettingsStore().lyric.lyricMode !== "effects",
             childrenCondition: () => useSettingsStore().lyric.springPreset === "custom",
             children: [
               {
@@ -492,7 +485,7 @@ export const settingsSchema: SettingCategory[] = [
         ],
       },
       {
-        id: "effectsLayout",
+        id: "lyricLayout",
         items: [
           {
             key: "alignPosition",
@@ -502,7 +495,6 @@ export const settingsSchema: SettingCategory[] = [
             max: 0.9,
             step: 0.05,
             defaultValue: 0.35,
-            disabled: () => useSettingsStore().lyric.lyricMode !== "effects",
             marks: { 0.1: "0.1", 0.35: "0.35", 0.9: "0.9" },
           },
           {
@@ -513,7 +505,6 @@ export const settingsSchema: SettingCategory[] = [
             max: 1,
             step: 0.1,
             defaultValue: 0.5,
-            disabled: () => useSettingsStore().lyric.lyricMode !== "effects",
             marks: { 0.1: "0.1", 0.5: "0.5", 1: "1" },
           },
           {
@@ -524,7 +515,6 @@ export const settingsSchema: SettingCategory[] = [
             max: 1,
             step: 0.05,
             defaultValue: 0.2,
-            disabled: () => useSettingsStore().lyric.lyricMode !== "effects",
             marks: { 0: "0", 0.2: "0.2", 1: "1" },
           },
         ],

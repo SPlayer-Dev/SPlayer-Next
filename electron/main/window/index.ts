@@ -13,6 +13,8 @@ export {
   minimizeMainWindow,
   toggleMaximizeMainWindow,
   isMainWindowMaximized,
+  toggleFullscreenMainWindow,
+  isMainWindowFullscreen,
   hideMainWindow,
 } from "./main";
 export {

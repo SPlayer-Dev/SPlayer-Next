@@ -11,7 +11,7 @@ import IconLucideRepeat2 from "~icons/lucide/repeat-2";
 
 const props = withDefaults(
   defineProps<{
-    /** 是否使用封面色（用于全屏播放器深色背景） */
+    /** 是否使用封面主题 */
     cover?: boolean;
   }>(),
   { cover: false },

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useSettingsDialog } from "@/settings/useSettingsDialog";
 import { useThemeStore } from "@/stores/theme";
-import { useWindowControls } from "@/composables/useWindowControls";
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import IconSun from "~icons/lucide/sun";
 import IconMoon from "~icons/lucide/moon";
@@ -9,17 +8,11 @@ import IconMonitor from "~icons/lucide/monitor";
 import IconRefreshCw from "~icons/lucide/refresh-cw";
 import IconTerminal from "~icons/lucide/terminal";
 import IconSettings from "~icons/lucide/settings";
-import IconMinus from "~icons/lucide/minus";
-import IconSquare from "~icons/lucide/square";
-import IconCopy from "~icons/lucide/copy";
-import IconX from "~icons/lucide/x";
 
 const router = useRouter();
 const { t } = useI18n();
 const { show: showSettings } = useSettingsDialog();
 const theme = useThemeStore();
-
-const { isMaximized, minimize, toggleMaximize, close } = useWindowControls();
 
 const themeIcon = computed(() => {
   if (theme.mode === "light") return IconMoon;
@@ -85,31 +78,7 @@ const onMenuSelect = (key: string): void => {
         </template>
       </SDropdownMenu>
       <SDivider vertical />
-      <SButton
-        class="app-no-drag"
-        variant="tertiary"
-        circle
-        :size="40"
-        :icon-size="16"
-        @click="minimize"
-      >
-        <template #icon><IconMinus /></template>
-      </SButton>
-      <SButton
-        class="app-no-drag"
-        variant="tertiary"
-        circle
-        :size="40"
-        :icon-size="16"
-        @click="toggleMaximize"
-      >
-        <template #icon>
-          <component :is="isMaximized ? IconCopy : IconSquare" />
-        </template>
-      </SButton>
-      <SButton class="app-no-drag" variant="tertiary" circle :size="40" @click="close">
-        <template #icon><IconX /></template>
-      </SButton>
+      <WindowControls />
     </div>
   </div>
 </template>

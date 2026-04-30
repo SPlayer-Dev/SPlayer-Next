@@ -175,6 +175,10 @@ const api = {
     isMaximized: () => ipcRenderer.invoke("window:isMaximized"),
     onMaximizeChange: (callback: (maximized: boolean) => void) =>
       subscribe<boolean>("window:maximizeChange", callback),
+    toggleFullscreen: () => ipcRenderer.send("window:toggleFullscreen"),
+    isFullscreen: () => ipcRenderer.invoke("window:isFullscreen"),
+    onFullscreenChange: (callback: (fullscreen: boolean) => void) =>
+      subscribe<boolean>("window:fullscreenChange", callback),
     hide: () => ipcRenderer.send("window:hide"),
     quit: () => ipcRenderer.send("window:quit"),
   },

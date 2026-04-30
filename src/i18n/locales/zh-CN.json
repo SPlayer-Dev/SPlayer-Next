@@ -181,9 +181,9 @@
       "lyricContent": "歌词内容",
       "lyricExclude": "歌词排除",
       "lyricGeneral": "内容样式",
-      "effectsDisplay": "显示效果",
-      "effectsSpring": "弹簧动画",
-      "effectsLayout": "布局与透明度",
+      "lyricDisplay": "显示效果",
+      "lyricSpring": "弹簧动画",
+      "lyricLayout": "布局与透明度",
       "desktopLyric": "桌面歌词",
       "dynamicIsland": "灵动岛歌词",
       "taskbarLyric": "任务栏歌词",
@@ -257,6 +257,10 @@
       "button": "配置",
       "hint": "存在多个可用格式时按此顺序选择，例如本地多个外挂歌词、在线 TTML 升级等场景"
     },
+    "smartPreferOnline": {
+      "label": "在线格式优先",
+      "description": "本地格式低于在线可达格式时，从在线获取并覆盖"
+    },
     "enableOnlineTTMLLyric": {
       "label": "启用在线 TTML 歌词",
       "description": "从 AMLL TTML DB 获取歌词，支持逐字、翻译、音译"
@@ -293,12 +297,6 @@
       "clear": "清空当前列表",
       "duplicate": "已存在该规则",
       "invalidRegex": "无效的正则表达式"
-    },
-    "lyricMode": {
-      "label": "歌词模式",
-      "description": "全屏播放器中的歌词渲染方式",
-      "effects": "特效模式",
-      "simple": "简约模式"
     },
     "autoCenterCover": {
       "label": "自动居中封面",

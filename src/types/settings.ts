@@ -5,9 +5,6 @@ import type { Platform } from "@shared/types/platform";
 /** 播放器背景类型 */
 export type PlayerBgType = "blur" | "solid";
 
-/** 歌词渲染模式 */
-export type LyricMode = "effects" | "simple";
-
 /**
  * 歌词来源偏好
  * - auto：智能选择（按打分结果）
@@ -65,8 +62,8 @@ export interface LyricSettings {
   lyricSourceOrder: LyricSourceOrder;
   /** 歌词格式优先级 */
   lyricFormatOrder: LyricFormatOrder;
-  /** 歌词渲染模式 */
-  lyricMode: LyricMode;
+  /** 智能选择是否优先在线 */
+  smartPreferOnline: boolean;
   /** 字号自适应窗口大小 */
   adaptiveFontSize: boolean;
   /** 歌词字号（px，自适应关闭时生效） */

@@ -18,7 +18,7 @@ export interface SettingItem {
   key: string;
   /** 控件类型 */
   type: SettingWidgetType;
-  /** store 绑定路径，如 { store: "settings", path: "player.lyricMode" } */
+  /** store 绑定路径，如 { store: "settings", path: "lyric.fontSize" } */
   binding?: { store: "settings" | "theme"; path: string };
   /** select 选项 */
   options?: SettingOption[];

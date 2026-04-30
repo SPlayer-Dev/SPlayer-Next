@@ -25,7 +25,7 @@ const currentLyricText = computed(() => {
 </script>
 
 <template>
-  <div class="flex items-center gap-3 min-w-0">
+  <div class="flex items-center min-w-0" :class="compact ? 'gap-2' : 'gap-3'">
     <!-- 封面 -->
     <div
       class="relative shrink-0 rounded-lg overflow-hidden cursor-pointer group"

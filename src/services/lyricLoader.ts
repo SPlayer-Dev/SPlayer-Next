@@ -88,6 +88,48 @@ const shouldTryTTML = (
   return ttmlIdx < mainIdx;
 };
 
+/** 平台主格式可达列表 */
+const PLATFORM_MAIN_FORMATS: Record<Platform, LyricFormat[]> = {
+  netease: ["yrc", "lrc"],
+  qqmusic: ["qrc", "lrc"],
+  kugou: ["krc", "lrc"],
+};
+
+/**
+ * 判断在指定平台是否能拿到比本地更优的主格式
+ * 用于「智能选择 - 优先在线」预筛
+ * @param platform - 平台
+ * @param localFormat - 本地格式
+ * @param formatOrder - 格式优先级
+ */
+const platformCanUpgrade = (
+  platform: Platform,
+  localFormat: LyricFormat,
+  formatOrder: readonly LyricFormat[],
+): boolean => {
+  const localIdx = formatOrder.indexOf(localFormat);
+  if (localIdx === -1) return true;
+  for (const f of PLATFORM_MAIN_FORMATS[platform] ?? []) {
+    const idx = formatOrder.indexOf(f);
+    if (idx !== -1 && idx < localIdx) return true;
+  }
+  return false;
+};
+
+/**
+ * 单次在线结果是否真的优于本地
+ * @param result - 在线结果
+ * @param localFormat - 本地格式
+ */
+const isOnlineResultUpgrade = (result: OnlineResult, localFormat: LyricFormat): boolean => {
+  const settings = useSettingsStore();
+  const formatOrder = settings.lyric.lyricFormatOrder ?? DEFAULT_LYRIC_FORMAT_ORDER;
+  const localIdx = formatOrder.indexOf(localFormat);
+  if (localIdx === -1) return true;
+  const mainIdx = formatOrder.indexOf(result.source.format);
+  return mainIdx !== -1 && mainIdx < localIdx;
+};
+
 /**
  * TTML 异步升级
  * @param token - 竞态 token
@@ -109,24 +151,35 @@ const tryTTMLOverlay = async (
 /**
  * 获取在线歌词
  * - self：不走第三方
- * - auto + 已有本地：不走第三方（本地优先）
- * - auto + 无本地：按 AUTO_FALLBACK_ORDER 顺序试，首个命中即返回
+ * - auto + 已有本地：默认不走；smartPreferOnline 开启时按格式优先级筛选可升级平台
+ * - auto + 无本地：按音源顺序试，首个命中即返回
  * - 指定平台：查该平台
  */
 const tryOnlineByPreference = async (
   token: number,
   track: Track,
   hasLocal: boolean,
+  localFormat: LyricFormat | null,
 ): Promise<OnlineResult | null> => {
-  const preference = useSettingsStore().lyric.lyricSourcePreference;
+  const settings = useSettingsStore();
+  const preference = settings.lyric.lyricSourcePreference;
   if (preference === "self") return null;
   if (preference === "auto") {
-    if (hasLocal) return null;
-    const order = useSettingsStore().lyric.lyricSourceOrder ?? DEFAULT_LYRIC_SOURCE_ORDER;
-    for (const platform of order) {
+    const order = settings.lyric.lyricSourceOrder ?? DEFAULT_LYRIC_SOURCE_ORDER;
+    let candidates: Platform[] = [...order];
+    if (hasLocal) {
+      if (!settings.lyric.smartPreferOnline || !localFormat) return null;
+      const formatOrder = settings.lyric.lyricFormatOrder ?? DEFAULT_LYRIC_FORMAT_ORDER;
+      candidates = order.filter((p) => platformCanUpgrade(p, localFormat, formatOrder));
+      if (candidates.length === 0) return null;
+    }
+    for (const platform of candidates) {
       const result = await fetchFromPlatform(platform, track);
       if (token !== currentToken) return null;
-      if (result) return result;
+      if (!result) continue;
+      // smart + 有本地：实际拿到的结果必须真的优于本地才接受，否则继续试下一个平台
+      if (hasLocal && localFormat && !isOnlineResultUpgrade(result, localFormat)) continue;
+      return result;
     }
     return null;
   }
@@ -213,8 +266,9 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
     if (local) commitLocal(token, local);
     // 本地文件存在但解析后空
     const hasUsableLocal = !!local && media.parsedLyric.length > 0;
+    const localFormat = local?.source.format ?? null;
     // 按偏好获取歌词
-    const online = await tryOnlineByPreference(token, track, hasUsableLocal);
+    const online = await tryOnlineByPreference(token, track, hasUsableLocal, localFormat);
     if (token !== currentToken) return;
     if (online) {
       await applyOnline(token, track, online, local);
@@ -238,46 +292,33 @@ const refreshPreference = async (): Promise<void> => {
   const detail = media.detail;
   const local = detail ? await readLocal(detail) : null;
   if (token !== currentToken) return;
-  const preference = useSettingsStore().lyric.lyricSourcePreference;
+  const localFormat = local?.source.format ?? null;
   const showingOnline = media.activeLyric?.source === "online";
 
-  // 目标应当显示本地
-  const shouldShowLocal = preference === "self" || (preference === "auto" && !!local);
-  if (shouldShowLocal) {
-    if (!showingOnline) return;
-    if (local) commitLocal(token, local);
-    else commit(token, null, null);
-    return;
-  }
-
-  // 其它情况需要查在线
-  const online = await tryOnlineByPreference(token, track, !!local);
+  /** 按偏好获取歌词 */
+  const online = await tryOnlineByPreference(token, track, !!local, localFormat);
   if (token !== currentToken) return;
   if (online) {
     await applyOnline(token, track, online, local);
-  } else if (local) {
-    // 在线失败：回退到本地
-    commitLocal(token, local);
-  } else {
-    // 在线失败 + 无本地：清空旧歌词
-    commit(token, null, null);
+    return;
   }
+  // 目标是本地
+  if (!showingOnline) return;
+  if (local) commitLocal(token, local);
+  else commit(token, null, null);
 };
 
-/**
- * 监听歌词偏好变化（来源、音源排序、格式排序），触发刷新
- */
+/** 监听歌词偏好变化 */
 export const watchLyricPreference = (): void => {
   const settings = useSettingsStore();
   watch(
     () => [
       settings.lyric.lyricSourcePreference,
-      settings.lyric.lyricSourceOrder,
-      settings.lyric.lyricFormatOrder,
+      settings.lyric.smartPreferOnline,
+      settings.system.lyric.enableOnlineTTMLLyric,
     ],
     () => {
       refreshPreference();
     },
-    { deep: true },
   );
 };

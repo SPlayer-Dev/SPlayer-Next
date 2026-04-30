@@ -5,19 +5,33 @@ import * as queue from "./queue";
 export const useStatusStore = defineStore(
   "status",
   () => {
+    /** 播放状态 */
     const state = ref<PlayerState>("idle");
+    /** 播放位置 */
     const position = ref(0);
+    /** 播放时长 */
     const duration = ref(0);
+    /** 音量 */
     const volume = ref(1);
+    /** FFT 数据 */
     const fftData = shallowRef<number[]>([]);
+    /** 当前音源 */
     const currentSource = ref<string | null>(null);
+    /** 输出设备 */
     const outputDevices = ref<AudioDevice[]>([]);
     /** 歌曲加载 */
     const trackLoading = ref(false);
+    /** 菜单折叠状态 */
     const isExpanded = ref(false);
+    /** 播放列表状态 */
     const playlistOpen = ref(false);
+    /** 全屏播放器是否展示歌词 */
+    const showLyric = ref(true);
+    /** 当前播放索引 */
     const playIndex = ref(-1);
+    /** 循环模式 */
     const repeatMode = ref<RepeatMode>("list");
+    /** 随机模式 */
     const shuffleMode = ref<ShuffleMode>("off");
     /** 播放速度（0.5 ~ 2.0），不持久化 */
     const speed = ref(1.0);
@@ -25,7 +39,6 @@ export const useStatusStore = defineStore(
     const pitch = ref(0);
     /** 音调同步：true = 变速保音调（默认），不持久化 */
     const pitchSync = ref(true);
-
     /**定时关闭 */
     const autoClose = reactive({
       enable: false,
@@ -34,17 +47,19 @@ export const useStatusStore = defineStore(
       waitSongEnd: false,
       remainTime: 0, // 秒
     });
-
     /** AB 循环 */
     const abLoop = reactive({
       enable: false,
       pointA: null as number | null,
       pointB: null as number | null,
     });
-
+    /** 是否正在播放 */
     const isPlaying = computed(() => state.value === "playing");
+    /** 是否暂停 */
     const isPaused = computed(() => state.value === "paused");
+    /** 是否加载中 */
     const isLoading = computed(() => state.value === "loading");
+    /** 播放进度 */
     const progress = computed(() => (duration.value > 0 ? position.value / duration.value : 0));
     /**
      * 当前播放索引对应的 Track，从队列按 playIndex 实时读取
@@ -67,6 +82,7 @@ export const useStatusStore = defineStore(
       trackLoading,
       isExpanded,
       playlistOpen,
+      showLyric,
       outputDevices,
       playIndex,
       repeatMode,

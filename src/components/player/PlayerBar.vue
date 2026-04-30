@@ -18,12 +18,12 @@ const onSeekDragEnd = (value: number): void => {
 
 <template>
   <!-- 浮动模式 -->
-  <div v-if="isFloating" class="relative flex items-center px-6 py-2 gap-4 min-w-0">
+  <div v-if="isFloating" class="relative flex items-center px-4 gap-4 min-w-0">
     <PlayerControls compact />
-    <div class="flex flex-col flex-1 min-w-0 gap-1.5">
-      <div class="flex items-center gap-3 min-w-0">
+    <div class="flex flex-col flex-1 min-w-0 gap-1 pt-2 pb-1">
+      <div class="flex items-center gap-2 min-w-0">
         <TrackInfo compact class="flex-1" />
-        <span class="text-[11px] text-on-surface-variant/70 tabular-nums shrink-0">
+        <span class="text-xs text-on-surface-variant/70 tabular-nums shrink-0">
           {{ formatTime(position) }} / {{ formatTime(duration) }}
         </span>
       </div>

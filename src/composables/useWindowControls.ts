@@ -3,15 +3,17 @@ import { useSettingsStore } from "@/stores/settings";
 import SRadio from "@/components/ui/SRadio.vue";
 import SCheckbox from "@/components/ui/SCheckbox.vue";
 
-/** 主窗口控制（最小化 / 最大化 / 隐藏 / 退出 / 关闭询问） */
+/** 主窗口控制 */
 export const useWindowControls = () => {
   const { t } = useI18n();
   const settings = useSettingsStore();
 
   const isMaximized = ref(false);
+  const isFullscreen = ref(false);
 
   const minimize = (): void => window.api.window.minimize();
   const toggleMaximize = (): void => window.api.window.toggleMaximize();
+  const toggleFullscreen = (): void => window.api.window.toggleFullscreen();
   const hide = (): void => window.api.window.hide();
   const quit = (): void => window.api.window.quit();
 
@@ -58,9 +60,23 @@ export const useWindowControls = () => {
 
   onMounted(() => {
     window.api.window.isMaximized().then((m) => (isMaximized.value = m));
-    const off = window.api.window.onMaximizeChange((m) => (isMaximized.value = m));
-    onBeforeUnmount(() => off());
+    window.api.window.isFullscreen().then((f) => (isFullscreen.value = f));
+    const offMax = window.api.window.onMaximizeChange((m) => (isMaximized.value = m));
+    const offFs = window.api.window.onFullscreenChange((f) => (isFullscreen.value = f));
+    onBeforeUnmount(() => {
+      offMax();
+      offFs();
+    });
   });
 
-  return { isMaximized, minimize, toggleMaximize, hide, quit, close };
+  return {
+    isMaximized,
+    isFullscreen,
+    minimize,
+    toggleMaximize,
+    toggleFullscreen,
+    hide,
+    quit,
+    close,
+  };
 };

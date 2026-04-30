@@ -43,7 +43,7 @@ export const useSettingsStore = defineStore(
       lyricSourcePreference: "auto",
       lyricSourceOrder: [...DEFAULT_LYRIC_SOURCE_ORDER],
       lyricFormatOrder: [...DEFAULT_LYRIC_FORMAT_ORDER],
-      lyricMode: "effects",
+      smartPreferOnline: false,
       adaptiveFontSize: true,
       fontSize: 48,
       fontWeight: 700,

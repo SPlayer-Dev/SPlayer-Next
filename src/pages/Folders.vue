@@ -96,7 +96,7 @@ onMounted(async () => {
     <div v-if="folderTree.length > 0" class="flex-1 min-h-0 flex">
       <!-- 文件夹树 -->
       <div
-        class="w-64 shrink-0 overflow-y-auto bg-surface-panel border border-solid border-primary/12 rounded-xl ml-3 mb-3 p-2"
+        class="w-64 shrink-0 bg-surface-panel border border-solid border-primary/12 rounded-xl ml-3 mb-3 overflow-hidden"
       >
         <STree
           v-model="selectedFolder"
@@ -124,7 +124,7 @@ onMounted(async () => {
           </template>
         </STree>
       </div>
-      <!-- 歌曲列表（信息行通过 SongList 的 topInfo slot 渲染，与列宽自动对齐） -->
+      <!-- 歌曲列表 -->
       <div class="flex-1 min-w-0">
         <SongList
           v-if="selectedFolder && selectedTracks.length > 0"
@@ -139,7 +139,6 @@ onMounted(async () => {
               <SButton
                 type="primary"
                 variant="secondary"
-                round
                 size="small"
                 :disabled="selectedTracks.length === 0"
                 @click="handlePlayAll"
