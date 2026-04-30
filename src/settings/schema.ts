@@ -282,23 +282,6 @@ export const settingsSchema: SettingCategory[] = [
     ],
   },
   {
-    id: "hotkeys",
-    icon: IconLucideKeyboard,
-    sections: [
-      {
-        id: "hotkeys",
-        items: [
-          {
-            key: "hotkeys",
-            type: "custom",
-            component: HotkeyConfig,
-            fullWidth: true,
-          },
-        ],
-      },
-    ],
-  },
-  {
     id: "lyric",
     icon: IconLucideMic2,
     sections: [
@@ -864,6 +847,23 @@ export const settingsSchema: SettingCategory[] = [
             },
           ]
         : []),
+    ],
+  },
+  {
+    id: "hotkeys",
+    icon: IconLucideKeyboard,
+    sections: [
+      {
+        id: "hotkeys",
+        items: [
+          {
+            key: "hotkeys",
+            type: "custom",
+            component: HotkeyConfig,
+            fullWidth: true,
+          },
+        ],
+      },
     ],
   },
   {

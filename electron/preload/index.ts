@@ -305,6 +305,7 @@ const api = {
     setGlobalEnabled: (enabled: boolean) =>
       ipcRenderer.invoke("hotkey:setGlobalEnabled", enabled),
     probe: (accelerator: string) => ipcRenderer.invoke("hotkey:probe", accelerator),
+    getConflicts: () => ipcRenderer.invoke("hotkey:getConflicts"),
     onTrigger: (callback: (id: HotkeyActionId) => void) =>
       subscribe<HotkeyActionId>("hotkey:trigger", callback),
     onConflicts: (callback: (conflicts: HotkeyConflict[]) => void) =>

@@ -171,7 +171,7 @@
       "lyric": "歌词设置",
       "externalLyric": "外部歌词",
       "appearance": "外观设置",
-      "hotkeys": "快捷键",
+      "hotkeys": "快捷键配置",
       "services": "网络与服务",
       "plugins": "插件管理"
     },
@@ -303,14 +303,16 @@
     "hotkeys": {
       "globalEnabled": "开启全局快捷键",
       "globalEnabledHint": "应用未聚焦时也可触发，可能与系统或其他应用冲突",
-      "tipRecording": "点击输入框开始录入；Backspace 清除；Esc 取消",
       "colAction": "动作",
       "colInApp": "应用内",
       "colGlobal": "全局",
       "unbound": "未绑定",
-      "recording": "请按下组合键…",
+      "recording": "请按下快捷键",
       "resetRow": "恢复默认",
       "resetAll": "全部恢复默认",
+      "resetAllHint": "将每个动作的快捷键还原为默认值",
+      "confirmResetTitle": "确认恢复默认？",
+      "confirmResetDesc": "所有快捷键将被重置，已自定义的绑定会被覆盖。",
       "duplicateWith": "与「{action}」冲突",
       "osOccupied": "该组合键已被系统或其他应用占用",
       "actions": {

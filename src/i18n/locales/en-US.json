@@ -171,7 +171,7 @@
       "lyric": "Lyrics",
       "externalLyric": "External Lyrics",
       "appearance": "Appearance",
-      "hotkeys": "Hotkeys",
+      "hotkeys": "Hotkey Settings",
       "services": "Services",
       "plugins": "Plugin Manager"
     },
@@ -303,14 +303,16 @@
     "hotkeys": {
       "globalEnabled": "Enable global shortcuts",
       "globalEnabledHint": "Fire even when the app is not focused. May conflict with the OS or other apps.",
-      "tipRecording": "Click an input to record; press Backspace to clear; Esc to cancel",
       "colAction": "Action",
       "colInApp": "In-App",
       "colGlobal": "Global",
       "unbound": "Unbound",
-      "recording": "Press a combination…",
+      "recording": "Press a shortcut",
       "resetRow": "Reset to default",
       "resetAll": "Reset all",
+      "resetAllHint": "Restore every action's shortcut to its default",
+      "confirmResetTitle": "Reset to defaults?",
+      "confirmResetDesc": "All shortcuts will be reset and any customizations will be overwritten.",
       "duplicateWith": "Conflicts with \"{action}\"",
       "osOccupied": "Already taken by the OS or another app",
       "actions": {

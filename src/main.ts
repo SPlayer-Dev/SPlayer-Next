@@ -39,10 +39,10 @@ watch(
 
 // 初始化程序
 router.isReady().then(async () => {
-  // 快捷键 store 必须在 mount 前完成 init（manager 启动时要读 bindings）
+  // 初始化快捷键
   await useHotkeyStore().init();
   installHotkeyManager();
-
+  // 挂载应用
   app.mount("#app");
   const loading = document.getElementById("app-loading");
   if (loading) {

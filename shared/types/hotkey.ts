@@ -65,6 +65,8 @@ export interface HotkeyApi {
   setGlobalEnabled: (enabled: boolean) => Promise<HotkeyConfig>;
   /** 探测某 accelerator 在系统层是否可注册（仅 global 录入预校验用） */
   probe: (accelerator: string) => Promise<boolean>;
+  /** 拉取当前冲突快照（init 时使用，避免错过启动时已 broadcast 的事件） */
+  getConflicts: () => Promise<HotkeyConflict[]>;
   /** 主进程触发某动作（global 命中后转回渲染端 dispatch） */
   onTrigger: (callback: (id: HotkeyActionId) => void) => () => void;
   /** 主进程上报当前冲突列表 */

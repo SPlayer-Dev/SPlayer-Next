@@ -21,8 +21,12 @@ export const useHotkeyStore = defineStore("hotkey", () => {
   /** 启动时拉取主进程权威数据 + 订阅冲突上报 */
   const init = async (): Promise<void> => {
     if (initialized.value) return;
-    const cfg = await window.api.hotkey.getAll();
+    const [cfg, initialConflicts] = await Promise.all([
+      window.api.hotkey.getAll(),
+      window.api.hotkey.getConflicts(),
+    ]);
     applyConfig(cfg);
+    conflicts.value = initialConflicts;
     window.api.hotkey.onConflicts((list) => {
       conflicts.value = list;
     });

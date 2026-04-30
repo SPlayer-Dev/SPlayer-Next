@@ -179,6 +179,15 @@ export const normalizeAccelerator = (accel: string): string => {
   return parts.join("+");
 };
 
+/** 直接对已解析结构与事件比较，避免热路径重复解析字符串 */
+export const matchParsed = (event: KeyboardEvent, parsed: ParsedAccelerator): boolean => {
+  if (event.ctrlKey !== parsed.ctrl) return false;
+  if (event.metaKey !== parsed.meta) return false;
+  if (event.altKey !== parsed.alt) return false;
+  if (event.shiftKey !== parsed.shift) return false;
+  return event.code === parsed.code;
+};
+
 /**
  * 把 KeyboardEvent 与 Accelerator 比较
  * @param event 浏览器键盘事件
@@ -192,11 +201,7 @@ export const matchEvent = (
 ): boolean => {
   const parsed = parseAccelerator(accel, isMac);
   if (!parsed) return false;
-  if (event.ctrlKey !== parsed.ctrl) return false;
-  if (event.metaKey !== parsed.meta) return false;
-  if (event.altKey !== parsed.alt) return false;
-  if (event.shiftKey !== parsed.shift) return false;
-  return event.code === parsed.code;
+  return matchParsed(event, parsed);
 };
 
 /**

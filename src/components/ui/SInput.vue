@@ -54,10 +54,10 @@ const handleClear = () => {
       round ? 'rounded-full' : 'rounded-lg',
       isFocused
         ? status === 'error'
-          ? 'bg-on-surface/8 border-error ring-2 ring-error/20'
+          ? 'bg-on-surface/8 border-red-500 ring-2 ring-red-500/20'
           : 'bg-on-surface/8 border-primary ring-2 ring-primary/20'
         : status === 'error'
-          ? 'bg-on-surface/3 border-error/60 hover:bg-on-surface/10'
+          ? 'bg-on-surface/3 border-red-500/60 hover:bg-on-surface/10'
           : 'bg-on-surface/3 border-on-surface/15 hover:bg-on-surface/10 hover:border-on-surface/25',
       disabled ? 'opacity-50 cursor-not-allowed' : '',
     ]"
