@@ -42,7 +42,8 @@ const labelOf = (id: HotkeyActionId): string => {
 /** 录入器 */
 const recorder = useHotkeyRecorder({
   isMac: isMac,
-  requireModifier: false,
+  // 避免单键（如 A / Space）被全局占用
+  requireModifier: () => recordingTarget.value?.scope === "global",
   onConfirm: async (accel) => {
     const target = recordingTarget.value;
     if (!target) return;

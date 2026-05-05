@@ -38,10 +38,7 @@ watch(
 );
 
 // 初始化程序
-router.isReady().then(async () => {
-  // 初始化快捷键
-  await useHotkeyStore().init();
-  installHotkeyManager();
+router.isReady().then(() => {
   // 挂载应用
   app.mount("#app");
   const loading = document.getElementById("app-loading");
@@ -49,5 +46,11 @@ router.isReady().then(async () => {
     loading.classList.add("hidden");
     loading.addEventListener("transitionend", () => loading.remove(), { once: true });
   }
+  // 初始化播放器
   initPlayer().catch(console.error);
+  // 初始化快捷键
+  useHotkeyStore()
+    .init()
+    .then(installHotkeyManager)
+    .catch((err) => console.error("[hotkey] init failed", err));
 });

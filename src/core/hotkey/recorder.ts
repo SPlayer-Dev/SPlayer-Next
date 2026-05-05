@@ -20,8 +20,8 @@ import { eventToAccelerator, formatAccelerator } from "@shared/utils/accelerator
 interface UseHotkeyRecorderOptions {
   /** 平台（用于显示 + accelerator 反推） */
   isMac: boolean;
-  /** 是否需要至少一个 modifier（global 录入设 true，避免单键被全局占用） */
-  requireModifier?: boolean;
+  /** 是否需要至少一个 modifier（global 录入设 true，避免单键被全局占用）。可传函数以按当前录入目标动态切换 */
+  requireModifier?: boolean | (() => boolean);
   /** 录入完成回调 */
   onConfirm: (accelerator: string) => void;
   /** 取消回调（Esc / 失焦） */
@@ -75,7 +75,9 @@ export const useHotkeyRecorder = (options: UseHotkeyRecorderOptions) => {
     }
 
     // 检查 requireModifier：global 不允许单键
-    if (requireModifier && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    const needsModifier =
+      typeof requireModifier === "function" ? requireModifier() : requireModifier;
+    if (needsModifier && !event.ctrlKey && !event.metaKey && !event.altKey) {
       // 只允许带 modifier 的组合；单键拒绝
       return;
     }

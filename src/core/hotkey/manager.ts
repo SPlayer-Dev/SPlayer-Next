@@ -71,7 +71,7 @@ export const installHotkeyManager = (): void => {
   installed = true;
   buildRegistry();
   recompile();
-  stopWatchBindings = watch(() => useHotkeyStore().bindings, recompile);
+  stopWatchBindings = watch(() => useHotkeyStore().bindings, recompile, { deep: true });
   window.addEventListener("keydown", onKeyDown, { capture: true });
   offGlobalTrigger = window.api.hotkey.onTrigger((id) => dispatch(id));
 };

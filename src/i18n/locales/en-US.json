@@ -301,6 +301,8 @@
       "invalidRegex": "Invalid regex pattern"
     },
     "hotkeys": {
+      "label": "Hotkeys",
+      "description": "Manage in-app and global keyboard shortcuts",
       "globalEnabled": "Enable global shortcuts",
       "globalEnabledHint": "Fire even when the app is not focused. May conflict with the OS or other apps.",
       "colAction": "Action",
@@ -312,7 +314,7 @@
       "resetAll": "Reset all",
       "resetAllHint": "Restore every action's shortcut to its default",
       "confirmResetTitle": "Reset to defaults?",
-      "confirmResetDesc": "All shortcuts will be reset and any customizations will be overwritten.",
+      "confirmResetDesc": "All shortcuts will be reset and any customizations will be overwritten!",
       "duplicateWith": "Conflicts with \"{action}\"",
       "osOccupied": "Already taken by the OS or another app",
       "actions": {

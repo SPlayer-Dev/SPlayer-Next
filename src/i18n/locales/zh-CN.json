@@ -301,6 +301,8 @@
       "invalidRegex": "无效的正则表达式"
     },
     "hotkeys": {
+      "label": "快捷键",
+      "description": "管理应用内与全局快捷键",
       "globalEnabled": "开启全局快捷键",
       "globalEnabledHint": "应用未聚焦时也可触发，可能与系统或其他应用冲突",
       "colAction": "动作",
@@ -312,7 +314,7 @@
       "resetAll": "全部恢复默认",
       "resetAllHint": "将每个动作的快捷键还原为默认值",
       "confirmResetTitle": "确认恢复默认？",
-      "confirmResetDesc": "所有快捷键将被重置，已自定义的绑定会被覆盖。",
+      "confirmResetDesc": "所有快捷键将被重置，已自定义的绑定会被覆盖！",
       "duplicateWith": "与「{action}」冲突",
       "osOccupied": "该组合键已被系统或其他应用占用",
       "actions": {
