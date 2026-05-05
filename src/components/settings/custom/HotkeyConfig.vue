@@ -14,6 +14,17 @@ defineOptions({ inheritAttrs: false });
 const { t } = useI18n();
 const hotkey = useHotkeyStore();
 
+/** 按 id 前缀分组 */
+const groupedActions = computed(() => {
+  const groups = new Map<string, typeof HOTKEY_ACTIONS>();
+  for (const action of HOTKEY_ACTIONS) {
+    const category = action.id.split(".")[0];
+    if (!groups.has(category)) groups.set(category, []);
+    groups.get(category)!.push(action);
+  }
+  return Array.from(groups, ([category, actions]) => ({ category, actions }));
+});
+
 /** 快捷键作用域 */
 type Scope = "inApp" | "global";
 
@@ -187,21 +198,29 @@ const errorTitleOf = (id: HotkeyActionId, scope: Scope): string => {
       <SSwitch :model-value="hotkey.globalEnabled" @update:model-value="toggleGlobalEnabled" />
     </div>
 
-    <!-- 第二块：绑定表 -->
+    <!-- 绑定表：按类分组 -->
     <div
+      v-for="group in groupedActions"
+      :key="group.category"
       class="rounded-xl bg-surface-panel border border-solid border-outline-variant/15 overflow-hidden"
     >
       <div
-        class="px-4 py-2.5 flex items-center gap-3 text-sm text-on-surface-variant/60 border-b border-solid border-outline-variant/10"
+        class="px-4 py-2.5 flex items-center gap-3 text-sm border-b border-solid border-outline-variant/10"
       >
-        <span class="flex-1">{{ t("settings.hotkeys.colAction") }}</span>
-        <span class="w-48 text-center">{{ t("settings.hotkeys.colInApp") }}</span>
-        <span class="w-48 text-center">{{ t("settings.hotkeys.colGlobal") }}</span>
+        <span class="flex-1 text-on-surface-variant/80">
+          {{ t(`settings.hotkeys.groups.${group.category}`) }}
+        </span>
+        <span class="w-48 text-center text-on-surface-variant/60">
+          {{ t("settings.hotkeys.colInApp") }}
+        </span>
+        <span class="w-48 text-center text-on-surface-variant/60">
+          {{ t("settings.hotkeys.colGlobal") }}
+        </span>
         <span class="w-9" />
       </div>
       <div class="flex flex-col">
         <div
-          v-for="action in HOTKEY_ACTIONS"
+          v-for="action in group.actions"
           :key="action.id"
           class="px-4 py-2.5 flex items-center gap-3 border-b border-solid border-outline-variant/10 last:border-b-0"
         >
@@ -218,7 +237,7 @@ const errorTitleOf = (id: HotkeyActionId, scope: Scope): string => {
             />
           </div>
 
-          <div class="w-48" :title="errorTitleOf(action.id, 'global')">
+          <div v-if="action.allowGlobal" class="w-48" :title="errorTitleOf(action.id, 'global')">
             <SInput
               readonly
               :disabled="!hotkey.globalEnabled"
@@ -229,6 +248,7 @@ const errorTitleOf = (id: HotkeyActionId, scope: Scope): string => {
               @blur="stopRecord"
             />
           </div>
+          <div v-else class="w-48 text-center text-sm text-on-surface-variant/30">—</div>
 
           <SButton
             variant="ghost"

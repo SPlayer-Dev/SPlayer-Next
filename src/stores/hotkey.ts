@@ -59,6 +59,12 @@ export const useHotkeyStore = defineStore("hotkey", () => {
     return window.api.hotkey.probe(accelerator);
   };
 
+  // HMR / store dispose 时清理监听，避免开发期累积
+  onScopeDispose(() => {
+    unsubscribeConflicts?.();
+    unsubscribeConflicts = null;
+  });
+
   /** 检测同 inApp scope 内重复占用 */
   const findInAppDuplicate = (
     accelerator: string,

@@ -317,6 +317,11 @@
       "confirmResetDesc": "所有快捷键将被重置，已自定义的绑定会被覆盖！",
       "duplicateWith": "与「{action}」冲突",
       "osOccupied": "该组合键已被系统或其他应用占用",
+      "groups": {
+        "player": "播放控制",
+        "window": "窗口",
+        "view": "视图"
+      },
       "actions": {
         "togglePlay": "播放 / 暂停",
         "next": "下一首",
@@ -326,7 +331,13 @@
         "volumeUp": "音量增加",
         "volumeDown": "音量减小",
         "cycleRepeat": "切换循环模式",
-        "toggleShuffle": "切换随机播放"
+        "toggleShuffle": "切换随机播放",
+        "toggleDesktopLyric": "切换桌面歌词",
+        "toggleDynamicIsland": "切换灵动岛",
+        "toggleTaskbarLyric": "切换任务栏歌词",
+        "openPlayer": "打开播放界面",
+        "closePlayer": "关闭播放界面",
+        "togglePlaylist": "切换播放列表"
       }
     },
     "autoCenterCover": {

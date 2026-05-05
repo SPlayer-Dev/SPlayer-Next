@@ -14,7 +14,7 @@ import type {
 } from "../types/hotkey";
 
 /**
- * 全部动作的元数据（顺序即设置 UI 中默认排列顺序）
+ * 全部动作的元数据
  *
  * 默认全局快捷键统一用 `CommandOrControl+Shift+...` 模式：
  * - 与 OS 媒体键路径正交，与 in-app 单/双修饰键模式正交
@@ -90,6 +90,42 @@ export const HOTKEY_ACTIONS: HotkeyActionMeta[] = [
     labelKey: "settings.hotkeys.actions.toggleShuffle",
     defaultBinding: { inApp: "CommandOrControl+S", global: null },
     allowGlobal: true,
+  },
+  {
+    id: "window.toggleDesktopLyric",
+    labelKey: "settings.hotkeys.actions.toggleDesktopLyric",
+    defaultBinding: { inApp: "CommandOrControl+L", global: null },
+    allowGlobal: true,
+  },
+  {
+    id: "window.toggleDynamicIsland",
+    labelKey: "settings.hotkeys.actions.toggleDynamicIsland",
+    defaultBinding: { inApp: "CommandOrControl+I", global: null },
+    allowGlobal: true,
+  },
+  {
+    id: "window.toggleTaskbarLyric",
+    labelKey: "settings.hotkeys.actions.toggleTaskbarLyric",
+    defaultBinding: { inApp: "CommandOrControl+B", global: null },
+    allowGlobal: true,
+  },
+  {
+    id: "view.openPlayer",
+    labelKey: "settings.hotkeys.actions.openPlayer",
+    defaultBinding: { inApp: "CommandOrControl+Enter", global: null },
+    allowGlobal: false,
+  },
+  {
+    id: "view.closePlayer",
+    labelKey: "settings.hotkeys.actions.closePlayer",
+    defaultBinding: { inApp: null, global: null },
+    allowGlobal: false,
+  },
+  {
+    id: "view.togglePlaylist",
+    labelKey: "settings.hotkeys.actions.togglePlaylist",
+    defaultBinding: { inApp: "CommandOrControl+P", global: null },
+    allowGlobal: false,
   },
 ];
 

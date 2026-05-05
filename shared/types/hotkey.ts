@@ -12,7 +12,13 @@ export type HotkeyActionId =
   | "player.volumeUp"
   | "player.volumeDown"
   | "player.cycleRepeat"
-  | "player.toggleShuffle";
+  | "player.toggleShuffle"
+  | "window.toggleDesktopLyric"
+  | "window.toggleDynamicIsland"
+  | "window.toggleTaskbarLyric"
+  | "view.openPlayer"
+  | "view.closePlayer"
+  | "view.togglePlaylist";
 
 /** 单个动作的两条作用域绑定 */
 export interface HotkeyBinding {
@@ -25,7 +31,7 @@ export interface HotkeyBinding {
 /** 全部动作的绑定表 */
 export type HotkeyBindingsMap = Record<HotkeyActionId, HotkeyBinding>;
 
-/** 完整快捷键配置（持久化在 settings.json 顶层 hotkeys 字段） */
+/** 完整快捷键配置 */
 export interface HotkeyConfig {
   /** 是否启用全局快捷键（关闭时不向系统注册任何 globalShortcut） */
   globalEnabled: boolean;
@@ -33,10 +39,10 @@ export interface HotkeyConfig {
   bindings: HotkeyBindingsMap;
 }
 
-/** 动作元数据（主/渲染共享，不含 handler） */
+/** 动作元数据 */
 export interface HotkeyActionMeta {
   id: HotkeyActionId;
-  /** i18n key，如 "settings.hotkeys.actions.togglePlay" */
+  /** i18n key */
   labelKey: string;
   /** 出厂默认绑定 */
   defaultBinding: HotkeyBinding;
@@ -53,7 +59,6 @@ export interface HotkeyConflict {
   conflictWith?: HotkeyActionId;
 }
 
-/** 渲染端 IPC 暴露给应用的快捷键 API */
 export interface HotkeyApi {
   /** 拉取完整配置 */
   getAll: () => Promise<HotkeyConfig>;

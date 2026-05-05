@@ -1,8 +1,6 @@
 /**
- * Electron Accelerator 字符串解析、规范化、匹配、显示工具（主/渲染共用）
- *
- * 持久化以 Electron Accelerator 原文存储（如 "CommandOrControl+Shift+R"），
- * 在解析/匹配/显示时按平台展开 CommandOrControl。
+ * Electron Accelerator 字符串解析、规范化、匹配、显示工具
+ * 在解析/匹配/显示时按平台展开 CommandOrControl
  */
 
 /** 解析后的加速键结构 */
@@ -31,8 +29,8 @@ const MODIFIER_TOKENS = new Set([
 ]);
 
 /**
- * 把 Accelerator 中的 key token（最后一段非 modifier）规范成 KeyboardEvent.code 形式。
- * Electron Accelerator 用的是 key 字符（如 "A"、"Right"），需要映射到 code。
+ * 把 Accelerator 中的 key token（最后一段非 modifier）规范成 KeyboardEvent.code 形式
+ * Electron Accelerator 用的是 key 字符（如 "A"、"Right"），需要映射到 code
  */
 const keyToCode = (token: string): string => {
   const t = token.trim();
@@ -84,7 +82,7 @@ const keyToCode = (token: string): string => {
     "`": "Backquote",
   };
   if (lower in map) return map[lower];
-  // 兜底：原样返回（recorder 会用真实 event.code）
+  // 兜底：原样返回
   return t;
 };
 
@@ -244,7 +242,7 @@ export const formatAccelerator = (accel: string | null, isMac: boolean): string 
 };
 
 /**
- * 从 KeyboardEvent 反推为 Accelerator 字符串（recorder 录入用）
+ * 从 KeyboardEvent 反推为 Accelerator 字符串
  * @param event 键盘事件
  * @param isMac 平台
  * @returns null 表示当前事件不构成有效组合（如只按了 modifier 单键）
@@ -298,17 +296,12 @@ export const eventToAccelerator = (event: KeyboardEvent, isMac: boolean): string
   };
 
   const parts: string[] = [];
-  // CommandOrControl 优先：跨平台 modifier 用统一表示
-  if (event.metaKey || event.ctrlKey) {
-    // mac 上 metaKey 是 Cmd，其他平台 ctrlKey 是 Ctrl，统一存 CommandOrControl
-    if ((isMac && event.metaKey) || (!isMac && event.ctrlKey)) {
-      parts.push("CommandOrControl");
-    } else if (event.metaKey) {
-      parts.push("Cmd"); // 非 mac 按了 Win 键
-    } else if (event.ctrlKey) {
-      parts.push("Ctrl"); // mac 按了 Ctrl
-    }
-  }
+  // mac 上 metaKey=Cmd 视作 CommandOrControl，非 mac 上 ctrlKey=Ctrl 视作 CommandOrControl；
+  // 另一个 cmd-like 键（mac 的 Ctrl / 非 mac 的 Win）独立保留，避免共按时丢 modifier
+  const cmdOrCtrl = isMac ? event.metaKey : event.ctrlKey;
+  const otherCmdLike = isMac ? event.ctrlKey : event.metaKey;
+  if (cmdOrCtrl) parts.push("CommandOrControl");
+  if (otherCmdLike) parts.push(isMac ? "Ctrl" : "Cmd");
   if (event.altKey) parts.push("Alt");
   if (event.shiftKey) parts.push("Shift");
   parts.push(codeToToken(event.code));

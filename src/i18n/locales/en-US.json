@@ -317,6 +317,11 @@
       "confirmResetDesc": "All shortcuts will be reset and any customizations will be overwritten!",
       "duplicateWith": "Conflicts with \"{action}\"",
       "osOccupied": "Already taken by the OS or another app",
+      "groups": {
+        "player": "Playback",
+        "window": "Windows",
+        "view": "Views"
+      },
       "actions": {
         "togglePlay": "Play / Pause",
         "next": "Next track",
@@ -326,7 +331,13 @@
         "volumeUp": "Volume up",
         "volumeDown": "Volume down",
         "cycleRepeat": "Cycle repeat mode",
-        "toggleShuffle": "Toggle shuffle"
+        "toggleShuffle": "Toggle shuffle",
+        "toggleDesktopLyric": "Toggle desktop lyric",
+        "toggleDynamicIsland": "Toggle Dynamic Island",
+        "toggleTaskbarLyric": "Toggle taskbar lyric",
+        "openPlayer": "Open player view",
+        "closePlayer": "Close player view",
+        "togglePlaylist": "Toggle playlist"
       }
     },
     "autoCenterCover": {
