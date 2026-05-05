@@ -1,4 +1,5 @@
 import type { PluginsConfig } from "./plugin";
+import type { HotkeyConfig } from "./hotkey";
 
 /** 支持的语言代码 */
 export type LocaleCode = "zh-CN" | "en-US";
@@ -247,6 +248,8 @@ export interface SystemConfig {
   windowStates: WindowStates;
   /** 插件系统配置 */
   plugins: PluginsConfig;
+  /** 快捷键配置（独立于其他配置，由 hotkey 模块独占） */
+  hotkeys: HotkeyConfig;
 }
 
 /** 配置 API */

@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
 import type { TaskbarLyricSettings } from "@shared/types/settings";
 import type { PluginInfo, PluginResolveUrlArgs } from "@shared/types/plugin";
+import type { HotkeyActionId, HotkeyBinding, HotkeyConflict } from "@shared/types/hotkey";
 
 /** 订阅主进程推送的事件 */
 const subscribe = <T>(channel: string, callback: (data: T) => void): (() => void) => {
@@ -291,6 +292,19 @@ const api = {
     // 订阅播放位置锚点（跟随 position 事件 5Hz）
     onPositionSync: (callback: (data: unknown) => void) =>
       subscribe("nowPlaying:position-sync", callback),
+  },
+  hotkey: {
+    getAll: () => ipcRenderer.invoke("hotkey:getAll"),
+    set: (id: HotkeyActionId, binding: HotkeyBinding) =>
+      ipcRenderer.invoke("hotkey:set", id, binding),
+    reset: (id?: HotkeyActionId) => ipcRenderer.invoke("hotkey:reset", id),
+    setGlobalEnabled: (enabled: boolean) => ipcRenderer.invoke("hotkey:setGlobalEnabled", enabled),
+    probe: (accelerator: string) => ipcRenderer.invoke("hotkey:probe", accelerator),
+    getConflicts: () => ipcRenderer.invoke("hotkey:getConflicts"),
+    onTrigger: (callback: (id: HotkeyActionId) => void) =>
+      subscribe<HotkeyActionId>("hotkey:trigger", callback),
+    onConflicts: (callback: (conflicts: HotkeyConflict[]) => void) =>
+      subscribe<HotkeyConflict[]>("hotkey:conflicts", callback),
   },
 };
 

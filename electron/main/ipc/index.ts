@@ -7,6 +7,7 @@ import { registerWindowIpc } from "./window";
 import { registerPluginIpc } from "./plugin";
 import { registerApisIpc } from "./apis";
 import { registerLyricsIpc } from "./lyrics";
+import { registerHotkeyIpc } from "./hotkey";
 
 /** 注册所有 IPC 处理 */
 export const registerIpcHandlers = (): void => {
@@ -19,4 +20,5 @@ export const registerIpcHandlers = (): void => {
   registerPluginIpc();
   registerApisIpc();
   registerLyricsIpc();
+  registerHotkeyIpc();
 };

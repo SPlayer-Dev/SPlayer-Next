@@ -3,6 +3,7 @@ import { electronApp, optimizer } from "@electron-toolkit/utils";
 import { createMainWindow, restoreLyricWindows } from "@main/window";
 import { registerIpcHandlers } from "@main/ipc";
 import { init as initMedia, shutdown as shutdownMedia } from "@main/services/media";
+import { initGlobalHotkey } from "@main/services/globalHotkey";
 import { initDatabase, closeDatabase } from "@main/database";
 import { pluginRegistry } from "@main/plugins/registry";
 import { registerCacheScheme, handleCacheProtocol } from "@main/utils/protocol";
@@ -67,6 +68,8 @@ export const initApp = (): void => {
     createMainWindow();
     // 恢复歌词相关窗口
     restoreLyricWindows();
+    // 注册全局快捷键
+    initGlobalHotkey();
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
     });

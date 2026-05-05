@@ -8,6 +8,7 @@ import AmllDbServerConfig from "@/components/settings/custom/AmllDbServerConfig.
 import LyricSourceOrderConfig from "@/components/settings/custom/LyricSourceOrderConfig.vue";
 import LyricFormatOrderConfig from "@/components/settings/custom/LyricFormatOrderConfig.vue";
 import ExcludeLyricsConfig from "@/components/settings/custom/ExcludeLyricsConfig.vue";
+import HotkeyConfig from "@/components/settings/custom/HotkeyConfig.vue";
 import IconLucideCog from "~icons/lucide/cog";
 import IconLucidePlay from "~icons/lucide/play";
 import IconLucideMic2 from "~icons/lucide/mic-2";
@@ -15,6 +16,7 @@ import IconLucideMonitor from "~icons/lucide/monitor";
 import IconLucidePalette from "~icons/lucide/palette";
 import IconLucideGlobe from "~icons/lucide/globe";
 import IconLucidePuzzle from "~icons/lucide/puzzle";
+import IconLucideKeyboard from "~icons/lucide/keyboard";
 
 export const settingsSchema: SettingCategory[] = [
   {
@@ -845,6 +847,23 @@ export const settingsSchema: SettingCategory[] = [
             },
           ]
         : []),
+    ],
+  },
+  {
+    id: "hotkeys",
+    icon: IconLucideKeyboard,
+    sections: [
+      {
+        id: "hotkeys",
+        items: [
+          {
+            key: "hotkeys",
+            type: "custom",
+            component: HotkeyConfig,
+            fullWidth: true,
+          },
+        ],
+      },
     ],
   },
   {

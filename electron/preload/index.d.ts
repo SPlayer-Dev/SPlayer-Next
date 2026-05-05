@@ -12,6 +12,7 @@ import {
   DynamicIslandApi,
   TaskbarLyricApi,
 } from "@shared/types/window";
+import { HotkeyApi } from "@shared/types/hotkey";
 
 declare global {
   interface Window {
@@ -38,6 +39,7 @@ declare global {
       plugins: PluginsApi;
       apis: ApisApi;
       lyrics: LyricsApi;
+      hotkey: HotkeyApi;
     };
   }
 }
