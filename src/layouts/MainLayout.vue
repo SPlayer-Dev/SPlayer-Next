@@ -39,12 +39,12 @@ const mainMarginClass = computed(() =>
 /** 外层播放条样式 */
 const playerBarWrapperClass = computed(() => {
   const base = "fixed bottom-0 z-50 transition-[left] duration-300 pointer-events-none";
-  const sidebarLeft = appearance.sidebarCollapsed ? "left-16" : "left-60";
+  const collapsed = appearance.sidebarCollapsed;
   switch (appearance.layoutMode) {
     case "sidebar-full":
-      return `${base} ${sidebarLeft} right-0`;
+      return `${base} ${collapsed ? "left-16" : "left-60"} right-0`;
     case "floating":
-      return `${base} ${sidebarLeft} right-0 px-4 pb-6`;
+      return `${base} ${collapsed ? "left-[76px]" : "left-[252px]"} right-0 px-4 pb-6`;
     default:
       return `${base} left-0 right-0`;
   }

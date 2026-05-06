@@ -11,7 +11,6 @@
  * - start()：进入录入态，监听 keydown
  * - 仅 modifier 单按：累积显示，不结束
  * - 非 modifier 键 + modifier：形成完整 binding，调 onConfirm
- * - Esc：取消
  * - 失焦：自动取消
  */
 
@@ -50,11 +49,6 @@ export const useHotkeyRecorder = (options: UseHotkeyRecorderOptions) => {
     if (!isRecording.value) return;
     event.preventDefault();
     event.stopPropagation();
-
-    if (event.code === "Escape") {
-      cancel();
-      return;
-    }
 
     // Backspace 清除当前 binding
     if (event.code === "Backspace") {

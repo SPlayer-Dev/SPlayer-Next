@@ -340,7 +340,7 @@
         "toggleTaskbarLyric": "切换任务栏歌词",
         "openPlayer": "打开播放界面",
         "closePlayer": "关闭播放界面",
-        "togglePlaylist": "切换播放列表"
+        "togglePlaylist": "展开 / 收起播放列表"
       }
     },
     "autoCenterCover": {

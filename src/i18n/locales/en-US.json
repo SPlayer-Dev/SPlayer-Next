@@ -340,7 +340,7 @@
         "toggleTaskbarLyric": "Toggle taskbar lyric",
         "openPlayer": "Open player view",
         "closePlayer": "Close player view",
-        "togglePlaylist": "Toggle playlist"
+        "togglePlaylist": "Show / hide playlist"
       }
     },
     "autoCenterCover": {

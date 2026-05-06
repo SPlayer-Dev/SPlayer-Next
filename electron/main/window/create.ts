@@ -12,7 +12,7 @@ const getDefaultOptions = (): BrowserWindowConstructorOptions => ({
   minHeight: 600,
   autoHideMenuBar: true,
   backgroundColor: nativeTheme.shouldUseDarkColors ? "#101014" : "#f6f6f6",
-  ...(process.platform === "linux" ? { icon } : {}),
+  icon,
   webPreferences: {
     preload: join(__dirname, "../preload/index.mjs"),
     sandbox: false,

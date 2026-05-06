@@ -15,17 +15,18 @@ import type { HotkeyActionId } from "@shared/types/hotkey";
 import { buildRegistry, dispatch } from "./registry";
 
 /**
- * 焦点元素是否吃掉快捷键：
- * - input/textarea/select/contenteditable
- * - button / role=button（避免 Space 同时切歌 + 点按钮）
+ * 焦点元素是否吃掉快捷键
+ * - input/textarea/select/contenteditable：拦截所有按键
+ * - button / role=button：仅在按 Space / Enter 时拦截
  */
-const isInputFocused = (): boolean => {
+const isInputFocused = (event: KeyboardEvent): boolean => {
   const el = document.activeElement as HTMLElement | null;
   if (!el) return false;
   if (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT") return true;
   if (el.isContentEditable) return true;
-  if (el.tagName === "BUTTON") return true;
-  if (el.getAttribute("role") === "button") return true;
+  if (el.tagName === "BUTTON" || el.getAttribute("role") === "button") {
+    return event.code === "Space" || event.code === "Enter";
+  }
   return false;
 };
 
@@ -49,14 +50,13 @@ let installed = false;
 let offGlobalTrigger: (() => void) | null = null;
 let stopWatchBindings: (() => void) | null = null;
 
-/** 全局 keydown 处理：仅扫描预编译表 */
+/** 全局 keydown 处理 */
 const onKeyDown = (event: KeyboardEvent): void => {
   if (event.isComposing) return;
-  if (isInputFocused()) return;
+  if (isInputFocused(event)) return;
   for (const entry of compiled) {
     if (matchParsed(event, entry.parsed)) {
-      event.preventDefault();
-      dispatch(entry.id);
+      if (dispatch(entry.id)) event.preventDefault();
       return;
     }
   }

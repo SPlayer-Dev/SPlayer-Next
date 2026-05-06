@@ -13,7 +13,12 @@ const VOLUME_STEP = 0.05;
 /** 快进/快退步长（毫秒） */
 const SEEK_STEP_MS = 5000;
 
-const handlers = new Map<HotkeyActionId, () => void | Promise<void>>();
+/**
+ * handler 返回值语义：
+ * - `true` / `void` / Promise：动作被消费，调用方应 `preventDefault`
+ * - `false`：动作未消费（如条件不满足），调用方应让事件继续传播
+ */
+const handlers = new Map<HotkeyActionId, () => boolean | void | Promise<void>>();
 
 /** 填充 handler 表 */
 export const buildRegistry = (): void => {
@@ -68,8 +73,11 @@ export const buildRegistry = (): void => {
     useStatusStore().isExpanded = true;
   });
   // 关闭播放器
-  handlers.set("view.closePlayer", () => {
-    useStatusStore().isExpanded = false;
+  handlers.set("view.closePlayer", (): boolean => {
+    const status = useStatusStore();
+    if (!status.isExpanded) return false;
+    status.isExpanded = false;
+    return true;
   });
   // 切换播放列表
   handlers.set("view.togglePlaylist", () => {
@@ -78,7 +86,15 @@ export const buildRegistry = (): void => {
   });
 };
 
-/** 派发某动作 */
-export const dispatch = (id: HotkeyActionId): void => {
-  handlers.get(id)?.();
+/**
+ * 派发某动作
+ * @param id - 动作 ID
+ * @returns 是否被消费（false 表示调用方不应 preventDefault）
+ */
+export const dispatch = (id: HotkeyActionId): boolean => {
+  const handler = handlers.get(id);
+  if (!handler) return false;
+  const result = handler();
+  if (result === false) return false;
+  return true;
 };
