@@ -662,7 +662,7 @@
       "useGlobal": "Follow global",
       "modeLabel": "Input method",
       "modeHint": "All fields below use this method",
-      "modeSelect": "Pick a font",
+      "modeSelect": "Manual pick",
       "modeCustom": "Custom font",
       "resetRow": "Reset to default",
       "fieldLabel": "{name} font",

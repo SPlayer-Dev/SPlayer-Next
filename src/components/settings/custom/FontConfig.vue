@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { StyleValue } from "vue";
 import { useSettingsStore } from "@/stores/settings";
 import { useSystemFonts } from "@/composables/useSystemFonts";
 import IconLucideRotateCcw from "~icons/lucide/rotate-ccw";
@@ -8,8 +9,6 @@ defineOptions({ inheritAttrs: false });
 const { t } = useI18n();
 const settings = useSettingsStore();
 const { families: fonts, loading: loadingFonts, ensureLoaded } = useSystemFonts();
-
-const DEFAULT_OPTION_VALUE = "__default_font__";
 
 type FontDraftKey = "global" | "lyric" | "desktopLyric" | "dynamicIsland" | "taskbarLyric";
 type FontGroup = "general" | "appLyric" | "externalLyric";
@@ -33,6 +32,7 @@ interface FontTarget {
 interface FontOption {
   value: string;
   label: string;
+  style?: StyleValue;
 }
 
 const open = ref(false);
@@ -83,24 +83,22 @@ const modeOptions = computed<FontOption[]>(() => [
 
 /** 系统字体下拉项 */
 const fontOptions = computed<FontOption[]>(() =>
-  fonts.value.map((font) => ({ value: font, label: font })),
+  fonts.value.map((font) => ({ value: font, label: font, style: { fontFamily: `"${font}"` } })),
 );
 
-/** 各字段的下拉选项 */
-const optionsByKey = computed<Record<FontDraftKey, FontOption[]>>(() => {
-  const base = fontOptions.value;
-  const map = {} as Record<FontDraftKey, FontOption[]>;
-  for (const g of groupedTargets.value) {
-    for (const target of g.items) {
-      map[target.key] = [{ value: DEFAULT_OPTION_VALUE, label: target.defaultLabel }, ...base];
-    }
-  }
-  return map;
-});
+/** 字符串 → 数组 */
+const parseFontChain = (value: string): string[] => {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((f) => f.trim().replace(/^["']|["']$/g, ""))
+    .filter(Boolean);
+};
 
-/** 获取选择值 */
-const getSelectValue = (value: string): string =>
-  !value || !fonts.value.includes(value) ? DEFAULT_OPTION_VALUE : value;
+/** 数组 → 字符串 */
+const stringifyFontChain = (chain: string[]): string => {
+  return chain.map((f) => (/[\s,]/.test(f) ? `"${f}"` : f)).join(", ");
+};
 
 /** 同步字体配置 */
 const syncDraft = (): void => {
@@ -119,8 +117,12 @@ watch(open, (value) => {
 });
 
 /** 选择字体 */
-const handleSelect = (key: FontDraftKey, value: string | number | boolean): void => {
-  draft[key] = value === DEFAULT_OPTION_VALUE ? "" : String(value);
+const handleChainChange = (
+  key: FontDraftKey,
+  value: string | number | (string | number)[],
+): void => {
+  const chain = Array.isArray(value) ? value : [value];
+  draft[key] = stringifyFontChain(chain.map(String));
 };
 
 /** 手动输入字体 */
@@ -186,7 +188,7 @@ const handleSave = async (): Promise<void> => {
         <div
           v-for="target in g.items"
           :key="target.key"
-          class="rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3.5"
+          class="flex flex-col gap-2.5 rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3.5"
         >
           <div class="flex items-center gap-3">
             <div class="min-w-0 flex-1">
@@ -194,25 +196,6 @@ const handleSave = async (): Promise<void> => {
               <div class="text-sm text-on-surface-variant/70 mt-0.5">
                 {{ target.description }}
               </div>
-            </div>
-            <div class="shrink-0 w-50 flex justify-end">
-              <SSelect
-                v-if="mode === 'select'"
-                class="w-full"
-                :model-value="getSelectValue(draft[target.key])"
-                :options="optionsByKey[target.key]"
-                :disabled="loadingFonts"
-                :placeholder="loadingFonts ? t('settings.fontConfig.loading') : target.defaultLabel"
-                @update:model-value="handleSelect(target.key, $event)"
-              />
-              <SInput
-                v-else
-                class="w-full"
-                :model-value="draft[target.key]"
-                :placeholder="t('settings.fontConfig.placeholder')"
-                clearable
-                @update:model-value="handleManualInput(target.key, $event)"
-              />
             </div>
             <SButton
               variant="ghost"
@@ -225,14 +208,26 @@ const handleSave = async (): Promise<void> => {
               <template #icon><IconLucideRotateCcw /></template>
             </SButton>
           </div>
-          <!-- 预览 -->
-          <div
-            v-if="draft[target.key]"
-            class="mt-2.5 px-3 py-2 rounded-lg bg-surface-bright/40 text-sm text-on-surface truncate"
-            :style="{ fontFamily: `'${draft[target.key]}'` }"
-          >
-            {{ t("settings.fontConfig.previewSample") }}
-          </div>
+          <SCombobox
+            v-if="mode === 'select'"
+            class="w-full"
+            :model-value="parseFontChain(draft[target.key])"
+            :options="fontOptions"
+            :disabled="loadingFonts"
+            :placeholder="loadingFonts ? t('settings.fontConfig.loading') : target.defaultLabel"
+            multiple
+            clearable
+            virtual
+            @update:model-value="handleChainChange(target.key, $event)"
+          />
+          <SInput
+            v-else
+            class="w-full"
+            :model-value="draft[target.key]"
+            :placeholder="t('settings.fontConfig.placeholder')"
+            clearable
+            @update:model-value="handleManualInput(target.key, $event)"
+          />
         </div>
       </div>
     </div>

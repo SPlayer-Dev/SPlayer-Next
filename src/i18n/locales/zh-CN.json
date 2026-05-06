@@ -662,7 +662,7 @@
       "useGlobal": "跟随全局",
       "modeLabel": "设置方式",
       "modeHint": "下方所有字段统一使用该方式",
-      "modeSelect": "单独选择",
+      "modeSelect": "手动选择",
       "modeCustom": "自定义字体",
       "resetRow": "恢复默认",
       "fieldLabel": "{name}字体",

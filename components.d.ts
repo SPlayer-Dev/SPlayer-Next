@@ -17,6 +17,7 @@ declare module 'vue' {
     BottomSpectrum: typeof import('./src/components/player/FullPlayer/BottomSpectrum.vue')['default']
     ComboboxAnchor: typeof import('reka-ui')['ComboboxAnchor']
     ComboboxContent: typeof import('reka-ui')['ComboboxContent']
+    ComboboxEmpty: typeof import('reka-ui')['ComboboxEmpty']
     ComboboxInput: typeof import('reka-ui')['ComboboxInput']
     ComboboxItem: typeof import('reka-ui')['ComboboxItem']
     ComboboxItemIndicator: typeof import('reka-ui')['ComboboxItemIndicator']
