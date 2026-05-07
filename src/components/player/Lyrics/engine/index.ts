@@ -788,6 +788,8 @@ export class LyricRenderer {
       scaleSpring.update(deltaTime);
 
       const yPos = posSpring.getCurrentPosition();
+      // 视口裁剪：屏幕外行跳过 transform 写入
+      if (!isFullSync && (yPos < -500 || yPos > viewHeight + 500)) continue;
       const scale = scaleSpring.getCurrentPosition() / 100;
       const transformStr = `translateY(${yPos.toFixed(1)}px) scale(${scale.toFixed(4)})`;
       if (this.cachedTransforms[i] !== transformStr) {

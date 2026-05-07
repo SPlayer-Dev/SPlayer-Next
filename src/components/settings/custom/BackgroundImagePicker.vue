@@ -26,6 +26,7 @@ const handlePick = async (): Promise<void> => {
 /** 清除 */
 const handleClear = (): void => {
   theme.imageBackground.src = "";
+  void window.api.theme.clearBackgroundImages();
 };
 </script>
 
@@ -40,7 +41,7 @@ const handleClear = (): void => {
         :src="theme.imageBackground.src"
         class="w-full h-full object-cover"
         draggable="false"
-        alt="cover"
+        alt=""
       />
       <IconLucideImage v-else class="size-6 text-on-surface-variant/50" />
     </div>
