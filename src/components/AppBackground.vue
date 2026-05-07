@@ -3,9 +3,7 @@ import { useThemeStore } from "@/stores/theme";
 
 const theme = useThemeStore();
 
-const visible = computed(
-  () => theme.effectiveStyle === "image" && !!theme.imageBackground.src,
-);
+const visible = computed(() => theme.effectiveStyle === "image" && !!theme.imageBackground.src);
 
 const imageStyle = computed<Record<string, string>>(() => ({
   objectFit: "cover",

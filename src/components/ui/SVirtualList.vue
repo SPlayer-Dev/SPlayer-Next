@@ -48,15 +48,15 @@ const contentRef = ref<HTMLElement | null>(null);
 const itemRefs = ref<HTMLElement[]>([]);
 
 const scrollTop = ref(0);
-const { height: containerHeight } = useElementSize(wrapperRef);
+
+// 测量滚动容器高度
+const { height: scrollViewportHeight } = useElementSize(scrollRef);
 
 const containerHeightStyle = computed(() =>
   typeof props.height === "number" ? `${props.height}px` : props.height,
 );
 
-const viewportHeight = computed(() =>
-  typeof props.height === "number" ? props.height : containerHeight.value || 0,
-);
+const viewportHeight = computed(() => scrollViewportHeight.value || 0);
 
 // 每项实际高度、累积顶部位置（仅动态高度模式）
 const itemHeights = shallowRef<number[]>([]);
@@ -350,20 +350,17 @@ defineExpose({
 <template>
   <div
     ref="wrapperRef"
-    class="w-full [overflow-anchor:none] contain-[layout_paint]"
+    class="w-full flex flex-col [overflow-anchor:none] contain-[layout_paint]"
     :style="{ height: containerHeightStyle }"
   >
-    <div ref="scrollRef" class="size-full overflow-y-auto" @scroll="handleScroll">
-      <div
-        v-if="items.length === 0 && $slots.empty"
-        class="flex items-center justify-center h-full"
-      >
-        <slot name="empty" />
+    <div v-if="items.length === 0 && $slots.empty" class="flex-1 flex items-center justify-center">
+      <slot name="empty" />
+    </div>
+    <template v-else>
+      <div v-if="$slots.header" class="shrink-0">
+        <slot name="header" />
       </div>
-      <template v-else>
-        <div v-if="$slots.header" class="sticky top-0 z-10 bg-surface">
-          <slot name="header" />
-        </div>
+      <div ref="scrollRef" class="flex-1 min-h-0 overflow-y-auto" @scroll="handleScroll">
         <div
           v-show="items.length > 0"
           :style="{
@@ -385,7 +382,7 @@ defineExpose({
             </div>
           </div>
         </div>
-      </template>
-    </div>
+      </div>
+    </template>
   </div>
 </template>

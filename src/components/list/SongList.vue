@@ -3,6 +3,7 @@ import type { Track, TrackSource } from "@shared/types/player";
 import type { CollectionType } from "@/types/collection";
 import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
+import { useSettingsStore } from "@/stores/settings";
 import { useTrackMenu } from "@/composables/useTrackMenu";
 import { useMultiSelect } from "@/composables/useMultiSelect";
 import { formatTime } from "@/utils/time";
@@ -58,6 +59,12 @@ const props = withDefaults(
 const { t } = useI18n();
 const media = useMediaStore();
 const status = useStatusStore();
+const settings = useSettingsStore();
+
+/** 悬浮布局且播放栏可见时 */
+const isFloatingPlayerBar = computed(
+  () => settings.appearance.layoutMode === "floating" && !!media.track,
+);
 
 /** 排序器 默认使用 base 敏感度，忽略大小写 */
 const textCollator = new Intl.Collator(undefined, {
@@ -504,7 +511,8 @@ defineExpose({
     <Transition name="fade">
       <div
         v-if="playingIndex >= 0 && !batch.active.value"
-        class="absolute right-6 bottom-5 z-20 rounded-full bg-surface-panel shadow-lg border border-solid border-primary/10"
+        class="absolute right-6 z-20 rounded-full bg-surface-panel backdrop-blur-2xl backdrop-saturate-150 shadow-lg border border-solid border-primary/10 transition-[bottom] duration-300"
+        :class="isFloatingPlayerBar ? 'bottom-26' : 'bottom-5'"
       >
         <SButton type="primary" variant="bordered" circle :size="40" @click="scrollToPlaying">
           <template #icon>

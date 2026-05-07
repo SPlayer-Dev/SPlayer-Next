@@ -184,6 +184,10 @@ export class LyricRenderer {
    */
   constructor(container: HTMLElement, config?: Partial<RendererConfig>) {
     this.container = container;
+    // 移除上一次实例残留的 lp-inner
+    for (const stale of Array.from(container.querySelectorAll(":scope > .lp-inner"))) {
+      stale.remove();
+    }
     container.classList.add("lp-root");
     // 创建内部包裹层
     this.innerElement = document.createElement("div");
@@ -222,6 +226,10 @@ export class LyricRenderer {
   freeze = () => {
     cancelAnimationFrame(this.animationFrameId);
     this.animationFrameId = 0;
+    // Web Animations 走自己的时间线，不随 rAF 暂停而停止；冻结期间也要 pause
+    for (const anims of this.activeAnimations.values()) {
+      for (const anim of anims) anim.pause();
+    }
   };
 
   /** 恢复渲染 */
@@ -229,6 +237,22 @@ export class LyricRenderer {
     if (this.animationFrameId !== 0) return;
     this.lastFrameTimestamp = 0;
     this.needsFullSync = true;
+    // 恢复时按当前播放时间重新对齐动画 currentTime 后再 play
+    if (this.isPlaying) {
+      for (const [lineIdx, anims] of this.activeAnimations) {
+        const line = this.lines[lineIdx];
+        if (!line) continue;
+        const relativeTime = Math.max(0, this.lastProcessedTime - line.startTime);
+        for (const anim of anims) {
+          const timing = anim.effect?.getComputedTiming();
+          const endTime = ((timing?.delay as number) || 0) + ((timing?.duration as number) || 0);
+          if (anim.playbackRate >= 0 && relativeTime < endTime) {
+            anim.currentTime = relativeTime;
+            anim.play();
+          }
+        }
+      }
+    }
     this.animationFrameId = requestAnimationFrame(this.onAnimationFrame);
   };
 
@@ -383,6 +407,8 @@ export class LyricRenderer {
     // 重置时间状态，避免残留旧歌的播放时间影响新歌词定位
     this.pendingPlayTime = -1;
     this.lastProcessedTime = -1;
+    // 重置帧时间戳，避免渲染器空闲后首帧 deltaTime 过大导致弹簧瞬移
+    this.lastFrameTimestamp = 0;
 
     // 初始布局 + 入场动画（从 time=0 开始）
     this.handleSeek(0);
@@ -512,7 +538,7 @@ export class LyricRenderer {
 
     const lines = this.lines;
     const activated: number[] = [];
-    const deactivated: number[] = [];
+    const deactivated = new Set<number>();
 
     // 检测新激活的行
     for (let i = 0; i < lines.length; i++) {
@@ -532,12 +558,12 @@ export class LyricRenderer {
     for (const lineIdx of this.activeLineSet) {
       const line = lines[lineIdx];
       if (!line) {
-        deactivated.push(lineIdx);
+        deactivated.add(lineIdx);
         continue;
       }
       if (line.isBG) {
-        if (!this.activeLineSet.has(lineIdx - 1) || deactivated.includes(lineIdx - 1))
-          deactivated.push(lineIdx);
+        if (!this.activeLineSet.has(lineIdx - 1) || deactivated.has(lineIdx - 1))
+          deactivated.add(lineIdx);
         continue;
       }
       const nextLine = lines[lineIdx + 1];
@@ -549,13 +575,13 @@ export class LyricRenderer {
           Math.max(line.endTime, nextMainLine?.startTime ?? Number.MAX_VALUE),
           Math.max(line.endTime, nextLine.endTime),
         );
-        if (pairStart > currentTime || pairEnd <= currentTime) deactivated.push(lineIdx);
+        if (pairStart > currentTime || pairEnd <= currentTime) deactivated.add(lineIdx);
       } else {
-        if (line.startTime > currentTime || line.endTime <= currentTime) deactivated.push(lineIdx);
+        if (line.startTime > currentTime || line.endTime <= currentTime) deactivated.add(lineIdx);
       }
     }
 
-    if (activated.length === 0 && deactivated.length === 0) return false;
+    if (activated.length === 0 && deactivated.size === 0) return false;
 
     // 执行停用/激活
     for (const lineIdx of deactivated) {
@@ -725,20 +751,21 @@ export class LyricRenderer {
     this.animationFrameId = requestAnimationFrame(this.onAnimationFrame);
     if (!this.isPageVisible) return;
 
-    // 计算帧间隔
-    const deltaTime = this.lastFrameTimestamp ? timestamp - this.lastFrameTimestamp : 16;
+    // 计算帧间隔，并夹紧上限避免 tab 后台 / 长时间冻结后的首帧 deltaTime 过大
+    const rawDelta = this.lastFrameTimestamp ? timestamp - this.lastFrameTimestamp : 16;
+    const deltaTime = rawDelta > 100 ? 100 : rawDelta;
     this.lastFrameTimestamp = timestamp;
 
     const lineCount = this.positionSprings.length;
     if (lineCount === 0) return;
 
-    // 1. 消费播放时间，检测激活行变化
+    // 消费播放时间，检测激活行变化
     const playTime = this.pendingPlayTime;
     if (playTime >= 0 && playTime !== this.lastProcessedTime) {
       if (this.processTime(playTime)) this.needsFullSync = true;
     }
 
-    // 2. 更新激活行的 --t CSS 变量（驱动逐字掩码位移）
+    // 更新激活行的 --t CSS 变量（驱动逐字掩码位移）
     if (this.enableWordHighlight && playTime >= 0) {
       const timeStr = String(playTime);
       if (timeStr !== this.cachedTimeString) {
@@ -749,7 +776,7 @@ export class LyricRenderer {
       }
     }
 
-    // 3. 推进弹簧 + 写入 transform（视口裁剪：屏幕外跳过 DOM 写入）
+    // 推进弹簧 + 写入 transform
     const viewHeight = this.containerHeight;
     const isFullSync = this.needsFullSync;
     this.needsFullSync = false;
@@ -761,8 +788,6 @@ export class LyricRenderer {
       scaleSpring.update(deltaTime);
 
       const yPos = posSpring.getCurrentPosition();
-      if (!isFullSync && (yPos < -500 || yPos > viewHeight + 500)) continue;
-
       const scale = scaleSpring.getCurrentPosition() / 100;
       const transformStr = `translateY(${yPos.toFixed(1)}px) scale(${scale.toFixed(4)})`;
       if (this.cachedTransforms[i] !== transformStr) {
@@ -771,7 +796,7 @@ export class LyricRenderer {
       }
     }
 
-    // 3.5 入场完成检测（弹簧全部稳定后标记完成）
+    // 入场完成检测
     if (!this.entranceComplete) {
       let allSettled = true;
       for (let i = 0; i < lineCount; i++) {
@@ -783,7 +808,7 @@ export class LyricRenderer {
       this.entranceComplete = allSettled;
     }
 
-    // 4. 透明度 / pass / 模糊（指数平滑插值，视口裁剪）
+    // 透明度 / pass / 模糊
     const frameDeltaSec = (deltaTime || 16) / 1000;
     const attackFactor = 1 - Math.exp(-this.alphaAttackSpeed * frameDeltaSec);
     const releaseFactor = 1 - Math.exp(-this.alphaReleaseSpeed * frameDeltaSec);
@@ -796,7 +821,7 @@ export class LyricRenderer {
 
     for (let i = 0; i < lineCount; i++) {
       const yPos = this.positionSprings[i].getCurrentPosition();
-      if (yPos < -500 || yPos > viewHeight + 500) continue;
+      if (!isFullSync && (yPos < -500 || yPos > viewHeight + 500)) continue;
 
       const isActive = this.activeLineSet.has(i);
       const isPassed =
@@ -881,7 +906,7 @@ export class LyricRenderer {
       }
     }
 
-    // 5. 间奏圆点呼吸动画
+    // 间奏圆点呼吸动画
     renderInterludeDots(
       playTime,
       this.interludeState,
@@ -891,8 +916,6 @@ export class LyricRenderer {
       this.breatheCycleTarget,
     );
   };
-
-  // ---- 懒动画管理 ----
 
   /**
    * 为指定行按需创建动画并播放（懒创建：仅在行激活时调用）
@@ -1005,8 +1028,6 @@ export class LyricRenderer {
     for (const [, anims] of this.activeAnimations) for (const anim of anims) anim.cancel();
     this.activeAnimations.clear();
   };
-
-  // ---- 事件处理 ----
 
   /**
    * 歌词行点击
@@ -1123,8 +1144,12 @@ export class LyricRenderer {
     if (this.isPageVisible) {
       this.lastFrameTimestamp = 0;
       this.measureLineHeights();
-      if (this.pendingPlayTime >= 0) this.handleSeek(this.pendingPlayTime);
-      this.calculateLayout(true);
+      // 兜底布局
+      if (this.pendingPlayTime >= 0) {
+        this.handleSeek(this.pendingPlayTime);
+      } else {
+        this.calculateLayout(true);
+      }
       this.needsFullSync = true;
     }
   };
