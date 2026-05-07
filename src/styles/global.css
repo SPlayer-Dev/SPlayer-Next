@@ -87,6 +87,12 @@ html[data-appearance-style="image"] .bg-field {
   backdrop-filter: blur(10px) saturate(1.3);
 }
 
+/* 仅保留弹窗内的底色 */
+html[data-appearance-style="image"] [role="dialog"] .bg-field,
+html[data-appearance-style="image"] [role="alertdialog"] .bg-field {
+  backdrop-filter: none;
+}
+
 ::selection {
   background: rgb(var(--s-primary) / 0.3);
   color: rgb(var(--s-on-surface));

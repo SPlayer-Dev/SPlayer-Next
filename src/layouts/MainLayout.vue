@@ -94,8 +94,7 @@ const playerBarInnerClass = computed(() => {
     </div>
   </div>
 
-  <!-- 底部播放栏：放在「主界面」缩放容器外，避免 isExpanded 时跟随 scale-95/opacity 变化；
-       同时 backdrop-filter 不会被祖先 transform 触发重栅格化导致闪烁。 -->
+  <!-- 底部播放栏 -->
   <Transition
     enter-active-class="transition-transform duration-300 ease-out"
     leave-active-class="transition-transform duration-300 ease-in"

@@ -112,10 +112,8 @@ const descriptionText = computed(() =>
         />
       </div>
     </div>
-
-    <!-- 子项（父级关闭时禁用） -->
     <div
-      v-if="item.children?.length"
+      v-if="item.children?.length && (!item.hideChildren || isChildrenActive)"
       class="mt-2.5 flex flex-col gap-2.5 transition-opacity duration-200"
       :class="isChildrenActive ? '' : 'opacity-50 pointer-events-none'"
     >

@@ -3,7 +3,7 @@ import type { Component } from "vue";
 /** 设置项控件类型 */
 export type SettingWidgetType = "switch" | "select" | "slider" | "color" | "button" | "custom";
 
-/** 选择项（select 用） */
+/** 选择项 */
 export interface SettingOption {
   value: string | number | boolean;
   /** i18n key */
@@ -42,14 +42,16 @@ export interface SettingItem {
   action?: () => void;
   /** custom 类型的组件 */
   component?: Component;
-  /** custom：独占整行（隐藏 label/description 与卡片包裹，组件自渲染） */
+  /** custom：独占整行 */
   fullWidth?: boolean;
   /** 搜索用额外关键词（i18n keys） */
   keywords?: string[];
-  /** 子项（折叠展开） */
+  /** 子项 */
   children?: SettingItem[];
-  /** 子项展开条件（默认：父级值为 true 时展开） */
+  /** 子项展开条件 */
   childrenCondition?: () => boolean;
+  /** 是否完全隐藏子项 */
+  hideChildren?: boolean;
   /** 标题旁的徽标 */
   tag?: SettingTag;
 }
@@ -60,7 +62,7 @@ export interface SettingTag {
   type?: "default" | "primary" | "cover" | "info" | "success" | "warning" | "error";
 }
 
-/** 设置分区（卡片区块） */
+/** 设置分区 */
 export interface SettingSection {
   /** i18n key: settings.section.{id} */
   id: string;
@@ -69,7 +71,7 @@ export interface SettingSection {
   tag?: SettingTag;
 }
 
-/** 设置分类（左侧菜单项） */
+/** 设置分类 */
 export interface SettingCategory {
   /** i18n key: settings.group.{id}，同时作为菜单 key */
   id: string;

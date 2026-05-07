@@ -231,9 +231,7 @@ const errorTitleOf = (id: HotkeyActionId, scope: Scope): string => {
       :key="group.category"
       class="rounded-xl bg-surface-panel border border-solid border-outline-variant/15 overflow-hidden"
     >
-      <div
-        class="px-4 py-2.5 flex items-center gap-3 text-sm border-b border-solid border-outline-variant/10"
-      >
+      <div class="px-4 py-2.5 flex items-center gap-3 text-sm">
         <span class="flex-1 text-on-surface-variant/80">
           {{ t(`settings.hotkeys.groups.${group.category}`) }}
         </span>
@@ -245,47 +243,47 @@ const errorTitleOf = (id: HotkeyActionId, scope: Scope): string => {
         </span>
         <span class="w-9" />
       </div>
+      <SDivider />
       <div class="flex flex-col">
-        <div
-          v-for="action in group.actions"
-          :key="action.id"
-          class="px-4 py-2.5 flex items-center gap-3 border-b border-solid border-outline-variant/10 last:border-b-0"
-        >
-          <span class="flex-1 text-sm">{{ t(action.labelKey) }}</span>
+        <template v-for="(action, idx) in group.actions" :key="action.id">
+          <div class="px-4 py-2.5 flex items-center gap-3">
+            <span class="flex-1 text-sm">{{ t(action.labelKey) }}</span>
 
-          <div class="w-48" :title="errorTitleOf(action.id, 'inApp')">
-            <SInput
-              readonly
-              :model-value="valueOf(action.id, 'inApp')"
-              :placeholder="placeholderOf(action.id, 'inApp')"
-              :status="statusOf(action.id, 'inApp')"
-              @click="startRecord(action.id, 'inApp')"
-              @blur="stopRecord"
-            />
+            <div class="w-48" :title="errorTitleOf(action.id, 'inApp')">
+              <SInput
+                readonly
+                :model-value="valueOf(action.id, 'inApp')"
+                :placeholder="placeholderOf(action.id, 'inApp')"
+                :status="statusOf(action.id, 'inApp')"
+                @click="startRecord(action.id, 'inApp')"
+                @blur="stopRecord"
+              />
+            </div>
+
+            <div v-if="action.allowGlobal" class="w-48" :title="errorTitleOf(action.id, 'global')">
+              <SInput
+                readonly
+                :disabled="!hotkey.globalEnabled"
+                :model-value="valueOf(action.id, 'global')"
+                :placeholder="placeholderOf(action.id, 'global')"
+                :status="statusOf(action.id, 'global')"
+                @click="startRecord(action.id, 'global')"
+                @blur="stopRecord"
+              />
+            </div>
+            <div v-else class="w-48 text-center text-sm text-on-surface-variant/30">—</div>
+
+            <SButton
+              variant="ghost"
+              circle
+              :title="t('settings.hotkeys.resetRow')"
+              @click="resetSingle(action.id)"
+            >
+              <template #icon><IconLucideRotateCcw /></template>
+            </SButton>
           </div>
-
-          <div v-if="action.allowGlobal" class="w-48" :title="errorTitleOf(action.id, 'global')">
-            <SInput
-              readonly
-              :disabled="!hotkey.globalEnabled"
-              :model-value="valueOf(action.id, 'global')"
-              :placeholder="placeholderOf(action.id, 'global')"
-              :status="statusOf(action.id, 'global')"
-              @click="startRecord(action.id, 'global')"
-              @blur="stopRecord"
-            />
-          </div>
-          <div v-else class="w-48 text-center text-sm text-on-surface-variant/30">—</div>
-
-          <SButton
-            variant="ghost"
-            circle
-            :title="t('settings.hotkeys.resetRow')"
-            @click="resetSingle(action.id)"
-          >
-            <template #icon><IconLucideRotateCcw /></template>
-          </SButton>
-        </div>
+          <SDivider v-if="idx < group.actions.length - 1" />
+        </template>
       </div>
     </div>
 

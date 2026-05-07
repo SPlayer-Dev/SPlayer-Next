@@ -163,9 +163,7 @@ const handleSave = async (): Promise<void> => {
   >
     <div class="flex flex-col gap-3">
       <!-- 设置方式 -->
-      <div
-        class="flex items-center gap-3 rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3.5"
-      >
+      <SCard class="flex items-center gap-3">
         <div class="min-w-0 flex-1">
           <div class="text-base">{{ t("settings.fontConfig.modeLabel") }}</div>
           <div class="text-sm text-on-surface-variant/70 mt-0.5">
@@ -175,7 +173,7 @@ const handleSave = async (): Promise<void> => {
         <div class="shrink-0 w-60">
           <SSelect :model-value="mode" :options="modeOptions" @update:model-value="updateMode" />
         </div>
-      </div>
+      </SCard>
 
       <!-- 各分组 -->
       <div v-for="g in groupedTargets" :key="g.group" class="flex flex-col gap-2.5">
@@ -183,10 +181,10 @@ const handleSave = async (): Promise<void> => {
           <span class="w-1 h-4 rounded-full bg-primary" />
           {{ t(`settings.fontConfig.groups.${g.group}`) }}
         </h4>
-        <div
+        <SCard
           v-for="target in g.items"
           :key="target.key"
-          class="flex flex-col gap-2.5 rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3.5"
+          class="flex flex-col gap-2.5"
         >
           <div class="flex items-center gap-3">
             <div class="min-w-0 flex-1 text-base">{{ target.label }}</div>
@@ -221,7 +219,7 @@ const handleSave = async (): Promise<void> => {
             clearable
             @update:model-value="handleManualInput(target.key, $event)"
           />
-        </div>
+        </SCard>
       </div>
     </div>
 

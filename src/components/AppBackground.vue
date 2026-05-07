@@ -3,12 +3,10 @@ import { useThemeStore } from "@/stores/theme";
 
 const theme = useThemeStore();
 
-/** 仅当生效风格为 image 时挂载 DOM；solid 时整个组件不渲染 */
 const visible = computed(
   () => theme.effectiveStyle === "image" && !!theme.imageBackground.src,
 );
 
-/** 底图永远 object-fit:cover；再叠 transform:scale 控制缩放（>1 溢出可掩盖模糊白边） */
 const imageStyle = computed<Record<string, string>>(() => ({
   objectFit: "cover",
   filter: theme.imageBackground.blur > 0 ? `blur(${theme.imageBackground.blur}px)` : "none",
