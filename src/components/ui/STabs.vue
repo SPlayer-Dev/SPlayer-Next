@@ -188,7 +188,8 @@ const panelTransitionClasses = computed(() => {
     class="relative items-center select-none"
     :style="(type === 'line' || type === 'bar') && justifyContent ? { justifyContent } : undefined"
     :class="[
-      type === 'segment' && 'flex w-full gap-1 p-1 rounded-lg bg-primary/10',
+      type === 'segment' &&
+        'flex w-full gap-1 p-1 rounded-lg bg-on-surface/5 border border-solid border-outline-variant/15',
       type === 'line' &&
         (justifyContent ? 'flex w-full pb-1' : 'flex w-full justify-start gap-3 pb-1'),
       type === 'bar' && (justifyContent ? 'flex w-full pb-1' : 'inline-flex shrink-0 gap-3 pb-1'),
@@ -201,7 +202,7 @@ const panelTransitionClasses = computed(() => {
       :class="[
         'absolute pointer-events-none transition-[left,width] duration-320 ease-[cubic-bezier(0.4,0,0.2,1)]',
         type === 'segment'
-          ? 'inset-y-1 bg-surface-panel rounded-md shadow-sm'
+          ? 'inset-y-1 bg-primary/25 rounded-md shadow-sm'
           : 'bottom-0.5 h-[3px] bg-primary rounded-full',
       ]"
       :style="indicatorStyle"

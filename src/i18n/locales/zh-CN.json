@@ -666,7 +666,6 @@
       "modeCustom": "自定义字体",
       "resetRow": "恢复默认",
       "fieldLabel": "{name}字体",
-      "fieldDescription": "应用于{name}",
       "groups": {
         "general": "通用字体",
         "appLyric": "歌词字体",

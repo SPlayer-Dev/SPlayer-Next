@@ -11,7 +11,7 @@ import { useSettingsStore } from "@/stores/settings";
 import { useThemeStore } from "@/stores/theme";
 
 /** 默认主色 */
-export const DEFAULT_PRIMARY = "#6750a4";
+export const DEFAULT_PRIMARY = "#fe7971";
 
 /** 将 ARGB 整数转为 HEX 字符串 */
 const argbToHex = (argb: number): string => {

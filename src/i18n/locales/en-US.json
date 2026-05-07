@@ -666,7 +666,6 @@
       "modeCustom": "Custom font",
       "resetRow": "Reset to default",
       "fieldLabel": "{name} font",
-      "fieldDescription": "Applied to {name}",
       "groups": {
         "general": "General",
         "appLyric": "Lyric Font",

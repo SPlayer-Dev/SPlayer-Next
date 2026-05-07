@@ -119,7 +119,7 @@ export const settingsSchema: SettingCategory[] = [
                 key: "customColor",
                 type: "color",
                 binding: { store: "theme", path: "customColor" },
-                defaultValue: "#6750a4",
+                defaultValue: "#fe7971",
                 showAlpha: false,
                 colorFormat: "hex",
               },

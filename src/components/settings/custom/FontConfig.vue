@@ -25,7 +25,6 @@ interface FontDraft {
 interface FontTarget {
   key: FontDraftKey;
   label: string;
-  description: string;
   defaultLabel: string;
 }
 
@@ -64,7 +63,6 @@ const groupedTargets = computed<Array<{ group: FontGroup; items: FontTarget[] }>
     return {
       key,
       label: t("settings.fontConfig.fieldLabel", { name }),
-      description: t("settings.fontConfig.fieldDescription", { name }),
       defaultLabel:
         key === "lyric" ? t("settings.fontConfig.useGlobal") : t("settings.fontConfig.useSystem"),
     };
@@ -191,12 +189,7 @@ const handleSave = async (): Promise<void> => {
           class="flex flex-col gap-2.5 rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3.5"
         >
           <div class="flex items-center gap-3">
-            <div class="min-w-0 flex-1">
-              <div class="text-base">{{ target.label }}</div>
-              <div class="text-sm text-on-surface-variant/70 mt-0.5">
-                {{ target.description }}
-              </div>
-            </div>
+            <div class="min-w-0 flex-1 text-base">{{ target.label }}</div>
             <SButton
               variant="ghost"
               circle

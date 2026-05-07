@@ -45,12 +45,15 @@ export const registerSystemIpc = (): void => {
   });
 
   // 获取系统已安装字体
-  ipcMain.handle("system:listFonts", async (): Promise<string[]> => {
-    try {
-      return await getFonts({ disableQuoting: true });
-    } catch (err) {
-      systemLog.error("[system] listFonts failed", err);
-      return [];
+  let fontsCache: Promise<string[]> | null = null;
+  ipcMain.handle("system:listFonts", (): Promise<string[]> => {
+    if (!fontsCache) {
+      fontsCache = getFonts({ disableQuoting: true }).catch((err) => {
+        systemLog.error("[system] listFonts failed", err);
+        fontsCache = null;
+        return [];
+      });
     }
+    return fontsCache;
   });
 };
