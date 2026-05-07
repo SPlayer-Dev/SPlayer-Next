@@ -55,7 +55,7 @@ const playerBarInnerClass = computed(() => {
   const base = "pointer-events-auto";
   switch (appearance.layoutMode) {
     case "floating":
-      return `${base} mx-auto max-w-4xl bg-surface-panel/80 backdrop-blur-2xl backdrop-saturate-150 rounded-full shadow-xl border border-solid border-primary/10`;
+      return `${base} mx-auto max-w-4xl glass-panel rounded-full shadow-xl border border-solid border-primary/10`;
     default:
       return `${base} h-20 bg-surface-panel border-t border-t-solid border-t-primary/10`;
   }
@@ -65,7 +65,7 @@ const playerBarInnerClass = computed(() => {
 <template>
   <!-- 主界面 -->
   <div
-    class="h-screen flex bg-surface text-on-surface transition-[transform,opacity] duration-500 ease-[cubic-bezier(0.7,0,0.3,1)] origin-center"
+    class="h-screen flex bg-app text-on-surface transition-[transform,opacity] duration-500 ease-[cubic-bezier(0.7,0,0.3,1)] origin-center"
     :class="isExpanded ? 'scale-95 opacity-0 pointer-events-none' : ''"
   >
     <!-- 侧边栏 -->
@@ -92,21 +92,23 @@ const playerBarInnerClass = computed(() => {
         </RouterView>
       </main>
     </div>
-
-    <!-- 底部播放栏 -->
-    <Transition
-      enter-active-class="transition-transform duration-300 ease-out"
-      leave-active-class="transition-transform duration-300 ease-in"
-      enter-from-class="translate-y-full"
-      leave-to-class="translate-y-full"
-    >
-      <div v-if="showPlayerBar" :class="playerBarWrapperClass">
-        <footer :class="playerBarInnerClass">
-          <PlayerBar />
-        </footer>
-      </div>
-    </Transition>
   </div>
+
+  <!-- 底部播放栏：放在「主界面」缩放容器外，避免 isExpanded 时跟随 scale-95/opacity 变化；
+       同时 backdrop-filter 不会被祖先 transform 触发重栅格化导致闪烁。 -->
+  <Transition
+    enter-active-class="transition-transform duration-300 ease-out"
+    leave-active-class="transition-transform duration-300 ease-in"
+    enter-from-class="translate-y-full"
+    leave-to-class="translate-y-full"
+  >
+    <div v-if="showPlayerBar" :class="playerBarWrapperClass">
+      <footer :class="playerBarInnerClass">
+        <PlayerBar />
+      </footer>
+    </div>
+  </Transition>
+
   <!-- Toast -->
   <SToast :max="5" />
   <!-- Dialog -->

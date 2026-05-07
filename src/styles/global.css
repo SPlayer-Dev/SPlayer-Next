@@ -29,11 +29,62 @@ img {
   -webkit-app-region: no-drag;
 }
 
+/* 应用主背景 */
+:root {
+  --s-app-bg: rgb(var(--s-surface));
+}
+html[data-appearance-style="image"] {
+  --s-app-bg: transparent;
+}
+
 html,
 body {
-  background-color: rgb(var(--s-surface));
+  background-color: var(--s-app-bg);
   color: rgb(var(--s-on-surface));
   font-family: var(--user-font, var(--app-font));
+}
+
+/* 主区域容器 */
+.bg-app {
+  background-color: var(--s-app-bg);
+}
+
+/* image 风格 */
+html[data-appearance-style="image"] .bg-surface {
+  background-color: transparent;
+}
+
+/* 顶层面板 + 玻璃面板 */
+html[data-appearance-style="image"] .bg-surface-panel,
+html[data-appearance-style="image"] .bg-surface-alt,
+html[data-appearance-style="image"] .glass-panel {
+  background-color: rgb(var(--s-surface-bright) / 0.22);
+}
+
+/* 默认布局播放栏 */
+html[data-appearance-style="image"] footer.bg-surface-panel {
+  backdrop-filter: blur(16px) saturate(1.4);
+}
+
+/* 弹层主体 */
+html[data-appearance-style="image"] [role="dialog"].bg-surface-panel,
+html[data-appearance-style="image"] [role="dialog"].bg-surface-alt,
+html[data-appearance-style="image"] [role="alertdialog"].bg-surface-panel,
+html[data-appearance-style="image"] [role="alertdialog"].bg-surface-alt {
+  backdrop-filter: blur(16px) saturate(1.4);
+}
+
+/* 弹层内嵌套面板 */
+html[data-appearance-style="image"] [role="dialog"] .bg-surface-panel,
+html[data-appearance-style="image"] [role="alertdialog"] .bg-surface-panel {
+  background-color: rgb(var(--s-surface-panel) / 0.35);
+}
+
+/* 浮层 + 表单控件 */
+html[data-appearance-style="image"] .bg-surface-bright,
+html[data-appearance-style="image"] .bg-field {
+  background-color: rgb(var(--s-surface-bright) / 0.55);
+  backdrop-filter: blur(10px) saturate(1.3);
 }
 
 ::selection {

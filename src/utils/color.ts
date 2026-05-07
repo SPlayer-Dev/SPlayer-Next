@@ -74,7 +74,7 @@ export const SOLID_PALETTE_LIGHT: ThemePalette = {
   secondary: "82 82 91",
   secondaryContainer: "244 244 245",
   surface: "246 246 246",
-  surfaceAlt: "244 244 245",
+  surfaceAlt: "250 250 251",
   surfacePanel: "255 255 255",
   surfaceBright: "255 255 255",
   onSurface: "24 24 27",
@@ -135,6 +135,20 @@ export const extractColorFromUrl = (url: string | null): void => {
     themeStore.coverColor = null;
   };
   img.src = url;
+};
+
+/**
+ * 从图片 URL 提取主色
+ * @returns 主色 HEX 或 null（图片加载失败 / 单调 / 低彩度）
+ */
+export const extractColorFromImageUrl = (url: string): Promise<string | null> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(extractColorFromImageElement(img));
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
 };
 
 /**

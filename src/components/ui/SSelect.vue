@@ -42,7 +42,7 @@ const handleChange = (val: string) => {
     @update:model-value="handleChange"
   >
     <SelectTrigger
-      class="flex w-full items-center justify-between gap-2 h-8.5 px-3 text-sm text-on-surface bg-surface-bright/40 border border-solid border-on-surface/20 rounded-lg cursor-pointer outline-none focus-visible:outline-none transition-[border-color,box-shadow,opacity] duration-250 hover:border-on-surface/50 data-[state=open]:border-primary data-[state=open]:shadow-[0_0_0_2px_rgb(var(--s-primary)/0.25)] disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
+      class="flex w-full items-center justify-between gap-2 h-8.5 px-3 text-sm text-on-surface bg-field border border-solid border-on-surface/20 rounded-lg cursor-pointer outline-none focus-visible:outline-none transition-[border-color,box-shadow,opacity] duration-250 hover:border-on-surface/50 data-[state=open]:border-primary data-[state=open]:ring-2 data-[state=open]:ring-primary/25 disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
     >
       <SelectValue class="min-w-0 truncate">
         <span class="truncate">{{ selectedLabel }}</span>

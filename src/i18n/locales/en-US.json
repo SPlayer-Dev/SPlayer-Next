@@ -191,6 +191,7 @@
       "dynamicIsland": "Dynamic Island Lyric",
       "taskbarLyric": "Taskbar Lyric",
       "theme": "Theme",
+      "appearanceStyle": "Appearance Style",
       "layout": "Layout",
       "font": "Fonts",
       "media": "Media Controls",
@@ -619,10 +620,10 @@
     "themeSource": {
       "label": "Theme Color Source",
       "description": "How the theme color is determined",
-      "default": "Default",
-      "custom": "Custom",
-      "cover": "From Cover",
-      "solid": "Solid"
+      "default": "Default Color",
+      "custom": "Custom Color",
+      "cover": "From Cover / Background",
+      "solid": "No Theme Color"
     },
     "customColor": {
       "label": "Custom Theme Color",
@@ -631,6 +632,31 @@
     "globalTint": {
       "label": "Global Tint",
       "description": "Apply theme color tint to the entire interface"
+    },
+    "appearanceStyle": {
+      "label": "Appearance Style",
+      "description": "How the application background is rendered",
+      "solid": "Solid color",
+      "image": "Custom image"
+    },
+    "backgroundImage": {
+      "label": "Background Image",
+      "description": "Pick a local image as the app background",
+      "select": "Choose image",
+      "replace": "Replace",
+      "clear": "Clear"
+    },
+    "backgroundBlur": {
+      "label": "Background Blur",
+      "description": "Gaussian blur applied to the background image"
+    },
+    "backgroundDim": {
+      "label": "Dim Overlay",
+      "description": "Black overlay opacity for foreground readability"
+    },
+    "backgroundScale": {
+      "label": "Scale",
+      "description": "Background image scale factor"
     },
     "layoutMode": {
       "label": "Layout Mode",

@@ -8,6 +8,7 @@ import { registerPluginIpc } from "./plugin";
 import { registerApisIpc } from "./apis";
 import { registerLyricsIpc } from "./lyrics";
 import { registerHotkeyIpc } from "./hotkey";
+import { registerThemeIpc } from "./theme";
 
 /** 注册所有 IPC 处理 */
 export const registerIpcHandlers = (): void => {
@@ -21,4 +22,5 @@ export const registerIpcHandlers = (): void => {
   registerApisIpc();
   registerLyricsIpc();
   registerHotkeyIpc();
+  registerThemeIpc();
 };

@@ -2,6 +2,12 @@ import { defineConfig, presetWind3, presetIcons } from "unocss";
 
 export default defineConfig({
   presets: [presetWind3(), presetIcons()],
+  shortcuts: {
+    // 玻璃感面板
+    "glass-panel": "bg-surface-panel/80 backdrop-blur-2xl backdrop-saturate-150",
+    // 表单控件底色
+    "bg-field": "bg-surface-bright/40",
+  },
   theme: {
     fontFamily: {
       logo: "logo",

@@ -135,7 +135,7 @@ const compareByValue = (a: unknown, b: unknown): boolean => {
       <ComboboxTrigger
         as="div"
         :class="[
-          'group flex w-full items-center justify-between gap-2 min-h-8.5 px-2 py-1 text-sm text-on-surface bg-surface-bright/40 border border-solid border-on-surface/20 rounded-lg transition-[border-color,box-shadow,opacity] duration-250 data-[state=open]:border-primary data-[state=open]:shadow-[0_0_0_2px_rgb(var(--s-primary)/0.25)] data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed overflow-hidden',
+          'group flex w-full items-center justify-between gap-2 min-h-8.5 px-2 py-1 text-sm text-on-surface bg-field border border-solid border-on-surface/20 rounded-lg transition-[border-color,box-shadow,opacity] duration-250 data-[state=open]:border-primary data-[state=open]:ring-2 data-[state=open]:ring-primary/25 data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed overflow-hidden',
           disabled ? '' : 'cursor-pointer hover:border-on-surface/50',
         ]"
       >

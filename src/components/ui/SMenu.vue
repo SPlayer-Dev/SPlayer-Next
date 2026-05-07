@@ -78,7 +78,7 @@ const handleSelect = (item: SMenuItem) => {
             sizeClass.item,
             modelValue === item.key
               ? 'bg-primary/10 text-primary'
-              : 'text-on-surface-variant hover:bg-on-surface/5',
+              : 'text-on-surface/80 hover:bg-on-surface/5',
             item.disabled ? 'opacity-40 pointer-events-none' : '',
           ]"
           @click="handleSelect(item)"

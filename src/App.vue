@@ -10,5 +10,6 @@ watchEffect(() => {
 </script>
 
 <template>
+  <AppBackground />
   <RouterView />
 </template>

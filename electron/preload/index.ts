@@ -295,6 +295,13 @@ const api = {
     onPositionSync: (callback: (data: unknown) => void) =>
       subscribe("nowPlaying:position-sync", callback),
   },
+  theme: {
+    // 弹出文件选择框
+    pickBackgroundImage: (): Promise<string | null> =>
+      ipcRenderer.invoke("theme:pickBackgroundImage"),
+    // 清空已缓存的背景图
+    clearBackgroundImages: (): Promise<void> => ipcRenderer.invoke("theme:clearBackgroundImages"),
+  },
   hotkey: {
     getAll: () => ipcRenderer.invoke("hotkey:getAll"),
     set: (id: HotkeyActionId, binding: HotkeyBinding) =>

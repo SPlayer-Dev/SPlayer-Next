@@ -27,7 +27,12 @@ const themeLabel = computed(() => {
 });
 
 const menuItems = computed<DropdownMenuItem[]>(() => [
-  { key: "theme", label: themeLabel.value, icon: themeIcon.value },
+  {
+    key: "theme",
+    label: themeLabel.value,
+    icon: themeIcon.value,
+    disabled: theme.appearanceStyle === "image",
+  },
   { key: "reload", label: t("nav.reload"), icon: IconRefreshCw, separator: true },
   { key: "devtools", label: t("nav.devtools"), icon: IconTerminal },
   { key: "settings", label: t("nav.globalSettings"), icon: IconSettings },

@@ -40,6 +40,10 @@ declare global {
       plugins: PluginsApi;
       apis: ApisApi;
       lyrics: LyricsApi;
+      theme: {
+        pickBackgroundImage: () => Promise<string | null>;
+        clearBackgroundImages: () => Promise<void>;
+      };
       hotkey: HotkeyApi;
     };
   }

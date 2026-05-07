@@ -4,6 +4,21 @@ export type ThemeMode = "light" | "dark" | "system";
 /** 主题颜色来源 */
 export type ThemeSource = "default" | "custom" | "cover" | "solid";
 
+/** 背景层外观风格 */
+export type AppearanceStyle = "solid" | "image";
+
+/** 图片背景配置 */
+export interface ImageBackgroundConfig {
+  /** cache:// URL */
+  src: string;
+  /** 背景模糊半径（px，0~80） */
+  blur: number;
+  /** 遮罩浓度（0~1） */
+  dim: number;
+  /** 缩放倍数（1~2） */
+  scale: number;
+}
+
 /** 主题色板（值为 "R G B" 格式，用于 CSS rgb() / <alpha-value>） */
 export interface ThemePalette {
   /** 主色 */

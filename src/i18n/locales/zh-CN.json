@@ -190,7 +190,8 @@
       "desktopLyric": "桌面歌词",
       "dynamicIsland": "灵动岛歌词",
       "taskbarLyric": "任务栏歌词",
-      "theme": "主题与风格",
+      "theme": "主题与颜色",
+      "appearanceStyle": "外观风格",
       "layout": "布局",
       "font": "字体",
       "media": "媒体控制",
@@ -619,10 +620,10 @@
     "themeSource": {
       "label": "主题色来源",
       "description": "主题色的获取方式",
-      "default": "默认",
-      "custom": "自定义",
-      "cover": "跟随封面",
-      "solid": "纯色"
+      "default": "默认主题色",
+      "custom": "自定义主色",
+      "cover": "跟随封面 / 背景",
+      "solid": "无主题色"
     },
     "customColor": {
       "label": "自定义主题色",
@@ -631,6 +632,31 @@
     "globalTint": {
       "label": "全局着色",
       "description": "将主题色应用到全局界面"
+    },
+    "appearanceStyle": {
+      "label": "外观风格",
+      "description": "应用主背景的呈现方式",
+      "solid": "纯色背景",
+      "image": "自定义图片"
+    },
+    "backgroundImage": {
+      "label": "背景图片",
+      "description": "选择本地图片作为应用背景",
+      "select": "选择图片",
+      "replace": "更换图片",
+      "clear": "清除"
+    },
+    "backgroundBlur": {
+      "label": "背景模糊",
+      "description": "对背景图片应用高斯模糊"
+    },
+    "backgroundDim": {
+      "label": "遮罩浓度",
+      "description": "叠加的黑色遮罩透明度，越高前景越易读"
+    },
+    "backgroundScale": {
+      "label": "缩放大小",
+      "description": "背景图的缩放倍数"
     },
     "layoutMode": {
       "label": "布局模式",
