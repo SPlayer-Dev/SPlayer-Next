@@ -24,6 +24,19 @@ export const pickLatestStartedIndex = (lines: LyricLine[], time: number): number
 };
 
 /**
+ * 提前切到下一行
+ * @param lines 歌词行数组
+ * @param time 当前播放毫秒
+ */
+export const pickAdvanceOnEndIndex = (lines: LyricLine[], time: number): number => {
+  const idx = pickLatestStartedIndex(lines, time);
+  if (idx >= 0 && idx + 1 < lines.length && lines[idx].endTime <= time) {
+    return idx + 1;
+  }
+  return idx;
+};
+
+/**
  * 选出当前应作为 primary 的行索引
  * @param lines 歌词行数组
  * @param time 当前播放毫秒

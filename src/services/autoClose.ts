@@ -84,4 +84,3 @@ export const onTrackEnded = (): boolean => {
   cancel();
   return true;
 };
-

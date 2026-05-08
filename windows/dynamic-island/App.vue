@@ -4,7 +4,7 @@ import type { LyricLine } from "@shared/types/lyrics";
 import { DYNAMIC_ISLAND_BASE_HEIGHT } from "@shared/defaults/settings";
 import DEFAULT_COVER from "@/assets/images/song.jpg";
 import IslandLyricLine from "./components/IslandLyricLine.vue";
-import { pickLatestStartedIndex } from "@shared/utils/lyricSync";
+import { pickAdvanceOnEndIndex } from "@shared/utils/lyricSync";
 import { useNowPlayingSync } from "@windows/shared/composables/useNowPlayingSync";
 import { useDragWindow } from "./composables/useDragWindow";
 
@@ -42,7 +42,7 @@ const subFontSize = computed(() => Math.max(11, Math.round(fontSize.value * 0.65
 const subRowHeight = computed(() => Math.round(subFontSize.value * 1.2));
 
 const { track, lyric, primaryIndex } = useNowPlayingSync({
-  pickIndex: pickLatestStartedIndex,
+  pickIndex: pickAdvanceOnEndIndex,
   logTag: "dynamic-island",
 });
 const { onRootPointerDown } = useDragWindow();
