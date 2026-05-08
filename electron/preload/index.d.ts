@@ -13,6 +13,7 @@ import {
   TaskbarLyricApi,
 } from "@shared/types/window";
 import { HotkeyApi } from "@shared/types/hotkey";
+import { StreamingApi } from "@shared/types/streaming";
 
 declare global {
   interface Window {
@@ -45,6 +46,7 @@ declare global {
         clearBackgroundImages: () => Promise<void>;
       };
       hotkey: HotkeyApi;
+      streaming: StreamingApi;
     };
   }
 }

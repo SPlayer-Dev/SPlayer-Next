@@ -1,5 +1,6 @@
 import type { PluginsConfig } from "./plugin";
 import type { HotkeyConfig } from "./hotkey";
+import type { StreamingServerConfig } from "./streaming";
 
 /** 支持的语言代码 */
 export type LocaleCode = "zh-CN" | "en-US";
@@ -185,6 +186,14 @@ export interface OnlineLyricSettings {
   amllDbServer: string;
 }
 
+/** 流媒体服务器配置 */
+export interface StreamingSettings {
+  /** 已配置的服务器列表，密码字段已加密 */
+  servers: StreamingServerConfig[];
+  /** 当前激活的服务器 ID，未选择时为 null */
+  activeServerId: string | null;
+}
+
 /** 主窗口几何 */
 export interface MainWindowState {
   width: number;
@@ -243,6 +252,8 @@ export interface SystemConfig {
   taskbarLyric: TaskbarLyricSettings;
   /** 在线歌词服务配置 */
   lyric: OnlineLyricSettings;
+  /** 流媒体服务器配置 */
+  streaming: StreamingSettings;
   /** 系统配置 */
   system: {
     /** 记忆窗口状态 */

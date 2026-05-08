@@ -11,7 +11,7 @@ export type RepeatMode = "off" | "list" | "one";
 export type ShuffleMode = "off" | "on";
 
 /** 歌曲来源 */
-export type TrackSource = "local" | "online";
+export type TrackSource = "local" | "online" | "streaming";
 
 /** 歌手 */
 export interface Artist {
@@ -43,6 +43,10 @@ export interface Track {
   platform?: Platform;
   /** 本地路径 */
   path?: string;
+  /** 流媒体服务器实例 ID（仅 source==='streaming'） */
+  serverId?: string;
+  /** 流媒体服务器原生 ID（仅 source==='streaming'） */
+  originalId?: string;
   /** 标题 */
   title: string;
   /** 注释/副标题 */
@@ -75,10 +79,21 @@ export interface TrackDetail {
   externalLyrics: { format: LyricFormat; path: string }[];
 }
 
+/** 播放器加载后从音频流提取出的可覆盖元数据 */
+export interface MediaInfo {
+  /** 时长（毫秒） */
+  duration: number;
+  /** 缩略封面（cache:// URL 或 base64） */
+  cover?: string;
+  /** 音质信息 */
+  quality?: AudioQuality;
+}
+
 /** 播放器加载后返回的完整数据 */
 export interface LoadResult {
-  track: Track;
   detail: TrackDetail;
+  /** 引擎从音频流提取的元数据，用于 enrich 渲染层已持有的 Track */
+  mediaInfo: MediaInfo;
 }
 
 /** 播放器状态快照 */
@@ -123,6 +138,11 @@ export interface IpcResponse<T = void> {
 export interface PlayerApi {
   /** 加载音频（本地路径或网络地址） */
   load: (source: string, autoPlay?: boolean) => Promise<IpcResponse<LoadResult>>;
+  /**
+   * 设置当前播放曲目的元数据，用于 SMTC/托盘等系统媒体集成。
+   * 应当在 load 之前调用，确保 status 推送/setMetadata 用到正确信息。
+   */
+  setNowPlayingMeta: (track: Track) => Promise<IpcResponse>;
   /** 恢复播放 */
   play: () => Promise<IpcResponse>;
   /** 暂停播放 */

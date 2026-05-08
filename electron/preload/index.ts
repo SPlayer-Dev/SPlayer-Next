@@ -3,6 +3,8 @@ import { electronAPI } from "@electron-toolkit/preload";
 import type { TaskbarLyricSettings } from "@shared/types/settings";
 import type { PluginInfo, PluginResolveUrlArgs } from "@shared/types/plugin";
 import type { HotkeyActionId, HotkeyBinding, HotkeyConflict } from "@shared/types/hotkey";
+import type { Track } from "@shared/types/player";
+import type { StreamingServerInput } from "@shared/types/streaming";
 
 /** 订阅主进程推送的事件 */
 const subscribe = <T>(channel: string, callback: (data: T) => void): (() => void) => {
@@ -22,6 +24,8 @@ const api = {
   player: {
     // 加载音频（本地路径或网络地址）
     load: (source: string, autoPlay = true) => ipcRenderer.invoke("player:load", source, autoPlay),
+    // 在 load 之前下发当前曲目元数据（SMTC/托盘/标题用），保证 streaming/online 等不被引擎 tag 覆盖
+    setNowPlayingMeta: (track: Track) => ipcRenderer.invoke("player:setNowPlayingMeta", track),
     // 恢复播放
     play: () => ipcRenderer.invoke("player:play"),
     // 暂停播放
@@ -301,6 +305,19 @@ const api = {
       ipcRenderer.invoke("theme:pickBackgroundImage"),
     // 清空已缓存的背景图
     clearBackgroundImages: (): Promise<void> => ipcRenderer.invoke("theme:clearBackgroundImages"),
+  },
+  streaming: {
+    listServers: () => ipcRenderer.invoke("streaming:listServers"),
+    getActiveServer: () => ipcRenderer.invoke("streaming:getActiveServer"),
+    setActiveServer: (id: string | null) => ipcRenderer.invoke("streaming:setActiveServer", id),
+    addServer: (input: StreamingServerInput) => ipcRenderer.invoke("streaming:addServer", input),
+    updateServer: (id: string, patch: Partial<StreamingServerInput>) =>
+      ipcRenderer.invoke("streaming:updateServer", id, patch),
+    removeServer: (id: string) => ipcRenderer.invoke("streaming:removeServer", id),
+    testConnection: (input: StreamingServerInput) =>
+      ipcRenderer.invoke("streaming:testConnection", input),
+    resolveUrl: (track: Track) => ipcRenderer.invoke("streaming:resolveUrl", track),
+    getLyrics: (track: Track) => ipcRenderer.invoke("streaming:getLyrics", track),
   },
   hotkey: {
     getAll: () => ipcRenderer.invoke("hotkey:getAll"),

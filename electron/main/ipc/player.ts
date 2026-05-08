@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { app, ipcMain, powerMonitor } from "electron";
 import { sendToMain } from "@main/utils/broadcast";
@@ -16,9 +15,16 @@ import { appName } from "@main/utils/config";
 import { parseArtists, parseAlbum, formatArtists } from "@main/utils/metadata";
 import { playerLog } from "@main/utils/logger";
 import { ErrorCode } from "@shared/types/errors";
-import type { RepeatMode, ShuffleMode } from "@shared/types/player";
+import type { RepeatMode, ShuffleMode, Track } from "@shared/types/player";
 import type { MediaEvent } from "@main/services/media";
 import { JsPlayerEvent } from "@splayer/audio-engine";
+
+/**
+ * 渲染进程下发的当前曲目元数据，用于 SMTC/托盘/窗口标题。
+ * 在 player:load 之前由渲染进程通过 player:setNowPlayingMeta 设置。
+ * 缺失时（如直接通过文件关联打开）回退到 audio-engine 解析出的 tag。
+ */
+let nowPlayingMeta: Track | null = null;
 
 type AudioEngineModule = typeof import("@splayer/audio-engine");
 
@@ -114,6 +120,17 @@ export const registerPlayerIpc = (): void => {
   // 注册实例创建/重建时的回调
   onPlayerCreated(registerNativeEvents);
   onPlayerCreated(() => startDevicePolling());
+  // 渲染层在 load 之前下发当前曲目的"权威"元数据，用于 SMTC/托盘/标题。
+  // 这样 streaming/online 等类型的 Track 不会被 audio-engine 解析出的稀疏 tag 覆盖。
+  ipcMain.handle("player:setNowPlayingMeta", (_event, track: Track) => {
+    try {
+      nowPlayingMeta = track;
+      return { success: true };
+    } catch (error) {
+      return fail(ErrorCode.UNKNOWN, error);
+    }
+  });
+
   // 加载音频文件
   ipcMain.handle("player:load", (_event, source: string, autoPlay = true) => {
     try {
@@ -129,41 +146,36 @@ export const registerPlayerIpc = (): void => {
         },
       });
       const meta = inst.load(source, autoPlay);
-      // 提前解析元数据
-      const artists = parseArtists(meta.artist ?? "");
-      const artistStr = formatArtists(artists);
-      const trackTitle = meta.title || source.split(/[/\\]/).pop() || source;
-      const trackAlbum = parseAlbum(meta.album ?? "");
       const durationMs = toMs(meta.duration);
-      const trackId = createHash("sha256").update(source).digest("hex").slice(0, 16);
-      // 高清封面更新系统媒体控件
+      // 高清封面（系统媒体控件需要 raw 字节，渲染层显示用 toCacheUrl）
       const coverData = inst.getCoverRaw() ?? undefined;
+      const coverUrl = toCacheUrl(meta.cover);
+      // SMTC/托盘元数据：优先用渲染层下发的 nowPlayingMeta；缺失时回退到引擎解析结果
+      const fallbackArtists = parseArtists(meta.artist ?? "");
+      const fallbackTitle = meta.title || source.split(/[/\\]/).pop() || source;
+      const fallbackAlbumName = parseAlbum(meta.album ?? "")?.name ?? "";
+      const displayTitle = nowPlayingMeta?.title ?? fallbackTitle;
+      const displayArtist = nowPlayingMeta
+        ? formatArtists(nowPlayingMeta.artists ?? [])
+        : formatArtists(fallbackArtists);
+      const displayAlbum = nowPlayingMeta?.album?.name ?? fallbackAlbumName;
       mediaService.setMetadata({
-        title: trackTitle,
-        artist: artistStr,
-        album: trackAlbum?.name ?? "",
+        title: displayTitle,
+        artist: displayArtist,
+        album: displayAlbum,
         coverData,
         durationMs,
       });
       const playState = autoPlay ? "Playing" : "Paused";
       mediaService.setPlayState({ status: playState });
-      // 更新窗口标题和托盘
-      const displayTitle = artistStr ? `${trackTitle} - ${artistStr}` : trackTitle || appName;
-      getMainWindow()?.setTitle(displayTitle);
-      setTraySongName(displayTitle);
+      // 窗口标题和托盘
+      const headerTitle = displayArtist
+        ? `${displayTitle} - ${displayArtist}`
+        : displayTitle || appName;
+      getMainWindow()?.setTitle(headerTitle);
+      setTraySongName(headerTitle);
       setTrayPlayState(autoPlay ? "playing" : "paused");
       const data = {
-        track: {
-          id: trackId,
-          source: "local",
-          path: source,
-          title: trackTitle,
-          comment: meta.comment ?? undefined,
-          artists,
-          album: trackAlbum,
-          duration: durationMs,
-          cover: toCacheUrl(meta.cover),
-        },
         detail: {
           quality: {
             sampleRate: meta.originalSampleRate,
@@ -175,8 +187,19 @@ export const registerPlayerIpc = (): void => {
           embeddedLyric: meta.embeddedLyric,
           externalLyrics: meta.externalLyrics,
         },
+        mediaInfo: {
+          duration: durationMs,
+          cover: coverUrl,
+          quality: {
+            sampleRate: meta.originalSampleRate,
+            channels: meta.channels,
+            bitsPerSample: meta.bitsPerSample,
+            bitRate: meta.bitRate,
+            codec: meta.codec,
+          },
+        },
       };
-      playerLog.debug(`加载成功: ${trackTitle}`);
+      playerLog.debug(`加载成功: ${displayTitle}`);
       return { success: true, data };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);

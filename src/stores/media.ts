@@ -1,4 +1,4 @@
-import type { Track, TrackDetail } from "@shared/types/player";
+import type { MediaInfo, Track, TrackDetail } from "@shared/types/player";
 import type { LyricData, LyricFormat, LyricInput, LyricLine } from "@shared/types/lyrics";
 import { findLyricIndex } from "@shared/utils/lyric";
 import { watchLyricPreference } from "@/services/lyricLoader";
@@ -54,6 +54,22 @@ export const useMediaStore = defineStore("media", () => {
   const setTrack = (newTrack: Track, newDetail?: TrackDetail): void => {
     track.value = newTrack;
     detail.value = newDetail ?? null;
+  };
+
+  /**
+   * 把 audio-engine 解析出的元数据合并到当前 Track 上。
+   * 保留身份字段（id/source/serverId/originalId/platform/path）；
+   * 仅对未设置或空值的展示字段做兜底填充（cover/quality/duration）。
+   */
+  const enrichTrack = (info: MediaInfo, newDetail?: TrackDetail): void => {
+    if (!track.value) return;
+    track.value = {
+      ...track.value,
+      duration: track.value.duration > 0 ? track.value.duration : info.duration,
+      cover: track.value.cover ?? info.cover,
+      quality: track.value.quality ?? info.quality,
+    };
+    if (newDetail) detail.value = newDetail;
   };
 
   /** 重置歌词状态 */
@@ -122,6 +138,7 @@ export const useMediaStore = defineStore("media", () => {
     lyricLoading,
     lyricIndex,
     setTrack,
+    enrichTrack,
     resetLyricState,
     setLyric,
     updateLyricIndex,

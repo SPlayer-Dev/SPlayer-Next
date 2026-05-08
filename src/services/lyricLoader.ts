@@ -259,6 +259,18 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
       commit(token, null, null);
       return;
     }
+    // 流媒体服务器：仅取流媒体提供的 LRC，不再走本地/平台匹配
+    if (track.source === "streaming") {
+      const res = await window.api.streaming.getLyrics(track);
+      if (token !== currentToken) return;
+      const text = res.success ? res.data : null;
+      if (text && text.trim()) {
+        commit(token, { source: "external", format: "lrc" }, { content: text });
+      } else {
+        commit(token, null, null);
+      }
+      return;
+    }
     // 本地文件
     const local = detail ? await readLocal(detail) : null;
     if (token !== currentToken) return;
@@ -287,7 +299,7 @@ const refreshPreference = async (): Promise<void> => {
   const token = currentToken;
   const media = useMediaStore();
   const track = media.track;
-  if (!track || track.source === "online") return;
+  if (!track || track.source === "online" || track.source === "streaming") return;
 
   const detail = media.detail;
   const local = detail ? await readLocal(detail) : null;
