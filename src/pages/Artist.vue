@@ -30,6 +30,9 @@ const id = route.params.id as string;
 
 const artist = shallowRef<ArtistProfile | null>(null);
 
+/** 在线头像未到位时，用任一曲目的封面顶替 */
+const fallbackTrackCover = computed(() => artist.value?.tracks.find((t) => t.cover)?.cover);
+
 /** 折叠状态 */
 const collapsed = ref(false);
 
@@ -122,7 +125,7 @@ const albumItems = computed<CoverItem[]>(() => {
       >
         <!-- 头像 -->
         <SImg
-          :src="artist.avatar"
+          :src="artist.avatar ?? fallbackTrackCover"
           :fallback="artistFallback"
           :alt="artist.name"
           class="shrink-0 rounded-full transition-[width,height] duration-300"

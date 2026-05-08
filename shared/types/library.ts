@@ -12,6 +12,8 @@ export interface AlbumSummary {
 export interface ArtistSummary {
   name: string;
   trackCount: number;
+  /** 该歌手任一曲目的封面 */
+  cover?: string;
 }
 
 /** 扫描进度事件 */

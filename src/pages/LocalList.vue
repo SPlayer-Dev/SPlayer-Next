@@ -39,7 +39,7 @@ const items = computed<CoverItem[]>(() => {
       ? source.value.map((item: ArtistSummary) => ({
           id: encodeURIComponent(item.name),
           title: item.name,
-          cover: artistAvatars.value[item.name.trim().toLowerCase()],
+          cover: artistAvatars.value[item.name.trim().toLowerCase()] ?? item.cover,
           subtitle: t("common.totalSongs", { count: item.trackCount }),
           trackCount: item.trackCount,
         }))

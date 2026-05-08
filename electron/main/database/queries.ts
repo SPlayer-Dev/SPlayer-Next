@@ -190,17 +190,23 @@ export const getAlbumList = (): AlbumSummary[] => {
 
 /** 歌手列表 */
 export const getArtistList = (): ArtistSummary[] => {
-  return getDb()
+  const rows = getDb()
     .prepare(
       `SELECT
          json_extract(a.value, '$.name') AS name,
-         COUNT(DISTINCT t.id) AS trackCount
+         COUNT(DISTINCT t.id) AS trackCount,
+         MAX(CASE WHEN t.cover IS NOT NULL THEN t.cover END) AS cover
        FROM tracks t, json_each(t.artists) a
        WHERE json_extract(a.value, '$.name') IS NOT NULL
          AND TRIM(json_extract(a.value, '$.name')) != ''
        GROUP BY name`,
     )
-    .all() as ArtistSummary[];
+    .all() as { name: string; trackCount: number; cover: string | null }[];
+  return rows.map((row) => ({
+    name: row.name,
+    trackCount: row.trackCount,
+    cover: row.cover ?? undefined,
+  }));
 };
 
 /** 按专辑名获取全部曲目 */

@@ -61,10 +61,7 @@ const INFO_HEIGHT = 76;
 /** CSS auto-fill 等价计算：列数 = floor((W + G) / (M + G)) */
 const columnCount = computed(() => {
   if (!innerWidth.value) return 1;
-  return Math.max(
-    1,
-    Math.floor((innerWidth.value + props.gap) / (props.minSize + props.gap)),
-  );
+  return Math.max(1, Math.floor((innerWidth.value + props.gap) / (props.minSize + props.gap)));
 });
 
 /** 单列实际宽度 */
