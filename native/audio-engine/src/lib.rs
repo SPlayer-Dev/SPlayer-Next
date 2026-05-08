@@ -100,7 +100,7 @@ pub struct JsAudioDevice {
 #[napi(object)]
 #[derive(Default)]
 pub struct JsPlayerEvent {
-    /// 事件类型："stateChanged" | "ended" | "position" | "fftData"
+    /// 事件类型："stateChanged" | "ended" | "position" | "fftData" | "outputStalled"
     #[napi(js_name = "type")]
     pub event_type: String,
     /// 状态（仅 stateChanged 时有值）
@@ -195,6 +195,10 @@ impl AudioPlayer {
                 PlayerEvent::FftData { data } => JsPlayerEvent {
                     event_type: "fftData".into(),
                     fft_data: Some(data.into_iter().map(|v| v as f64).collect()),
+                    ..Default::default()
+                },
+                PlayerEvent::OutputStalled => JsPlayerEvent {
+                    event_type: "outputStalled".into(),
                     ..Default::default()
                 },
             };

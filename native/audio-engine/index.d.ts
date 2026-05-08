@@ -146,7 +146,7 @@ export interface JsMusicMetadata {
 
 /** 播放器事件，推送给 JS 侧 */
 export interface JsPlayerEvent {
-  /** 事件类型："stateChanged" | "ended" | "position" | "fftData" */
+  /** 事件类型："stateChanged" | "ended" | "position" | "fftData" | "outputStalled" */
   type: string
   /** 状态（仅 stateChanged 时有值） */
   state?: string

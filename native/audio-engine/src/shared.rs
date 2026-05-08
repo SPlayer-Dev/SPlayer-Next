@@ -81,6 +81,16 @@ impl Shared {
         self.samples_consumed.fetch_add(count, Ordering::Relaxed);
     }
 
+    /// 已消费采样的原始计数（用于停滞检测，不做单位换算）
+    pub fn samples_consumed_count(&self) -> u64 {
+        self.samples_consumed.load(Ordering::Relaxed)
+    }
+
+    /// 缓冲区是否为空（true 表示解码 underrun，sink 不消费可能是正常等待数据）
+    pub fn is_buffer_empty(&self) -> bool {
+        self.buffer.lock().is_empty()
+    }
+
     /// 标记所有数据已被消费完毕（DecoderSource 迭代结束时调用）
     pub fn mark_all_consumed(&self) {
         self.all_consumed.store(true, Ordering::Release);

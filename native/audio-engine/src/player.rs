@@ -27,6 +27,8 @@ pub enum PlayerEvent {
     Position { position: f64, duration: f64 },
     /// FFT 频谱数据推送
     FftData { data: Vec<f32> },
+    /// 输出流停滞（rodio sink 长时间未消费样本，需要外部重建输出）
+    OutputStalled,
 }
 
 /// 事件发射器类型（跨线程安全）
@@ -299,7 +301,13 @@ impl InnerPlayer {
         let duration = self.duration();
 
         let handle = thread::spawn(move || {
+            // 停滞检测：消费计数连续 STALL_THRESHOLD_TICKS 次未变 + 缓冲区非空 → sink 静默死亡
+            const STALL_THRESHOLD_TICKS: u32 = 6; // 6 * 200ms = 1.2s
+            let mut last_consumed = shared.samples_consumed_count();
+            let mut stall_ticks: u32 = 0;
+
             while !stop_flag.load(Ordering::Relaxed) {
+                let consumed = shared.samples_consumed_count();
                 let position = seek_base + shared.consumed_position();
                 cb(PlayerEvent::Position { position, duration });
 
@@ -311,6 +319,19 @@ impl InnerPlayer {
                     });
                     break;
                 }
+
+                // 缓冲区空时认为是解码 underrun，等待解码补数据，不视为停滞
+                if consumed == last_consumed && !shared.is_buffer_empty() {
+                    stall_ticks += 1;
+                    if stall_ticks >= STALL_THRESHOLD_TICKS {
+                        cb(PlayerEvent::OutputStalled);
+                        // 发完归零，依赖主进程冷却防抖
+                        stall_ticks = 0;
+                    }
+                } else {
+                    stall_ticks = 0;
+                }
+                last_consumed = consumed;
 
                 thread::sleep(Duration::from_millis(200));
             }

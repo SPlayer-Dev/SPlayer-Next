@@ -33,6 +33,9 @@ const fail = (code: ErrorCode, error?: unknown) => {
  * @param inst 播放器实例
  */
 const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"]>): void => {
+  // 自动重建输出的冷却时间戳
+  let lastReinitAt = 0;
+  const REINIT_COOLDOWN_MS = 5000;
   inst.onEvent((event: JsPlayerEvent) => {
     switch (event.type) {
       case "stateChanged": {
@@ -88,6 +91,18 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
           type: "fftData",
           data: event.fftData ?? [],
         });
+        break;
+      }
+      case "outputStalled": {
+        const now = Date.now();
+        if (now - lastReinitAt < REINIT_COOLDOWN_MS) break;
+        lastReinitAt = now;
+        playerLog.warn("检测到音频输出停滞，自动重建");
+        try {
+          inst.reinitOutput();
+        } catch (error) {
+          playerLog.error("自动重建音频输出失败:", error);
+        }
         break;
       }
     }
