@@ -4,6 +4,7 @@ import type { Collection, CollectionType } from "@/types/collection";
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import { usePlaylistStore } from "@/stores/playlist";
 import { useLibraryStore } from "@/stores/library";
+import { useStreamingStore } from "@/stores/streaming";
 import SongList from "@/components/list/SongList.vue";
 import { formatTime } from "@/utils/time";
 import * as player from "@/core/player";
@@ -18,6 +19,7 @@ const { t } = useI18n();
 const route = useRoute();
 const playlistStore = usePlaylistStore();
 const libraryStore = useLibraryStore();
+const streamingStore = useStreamingStore();
 
 const source = route.params.source as TrackSource;
 const type = route.params.type as CollectionType;
@@ -49,6 +51,36 @@ const loadCollection = async () => {
   } else if (source === "local" && type === "album") {
     const albumName = decodeURIComponent(id);
     collection.value = await libraryStore.getAlbumCollection(albumName);
+  } else if (source === "streaming") {
+    const originalId = decodeURIComponent(id);
+    if (type === "album") {
+      const album = streamingStore.albums.find((a) => a.id === originalId);
+      const tracks = await streamingStore.fetchAlbumSongs(originalId);
+      collection.value = {
+        id: originalId,
+        type,
+        source,
+        title: album?.name ?? originalId,
+        cover: album?.cover ?? tracks[0]?.cover,
+        creator: album?.artist,
+        tracks,
+        trackCount: tracks.length,
+      };
+    } else if (type === "playlist") {
+      const pl = streamingStore.playlists.find((p) => p.id === originalId);
+      const tracks = await streamingStore.fetchPlaylistSongs(originalId);
+      collection.value = {
+        id: originalId,
+        type,
+        source,
+        title: pl?.name ?? originalId,
+        cover: pl?.cover ?? tracks[0]?.cover,
+        description: pl?.description,
+        creator: pl?.owner,
+        tracks,
+        trackCount: tracks.length,
+      };
+    }
   }
   // TODO: online / radio
 };

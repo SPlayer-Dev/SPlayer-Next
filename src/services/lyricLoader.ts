@@ -8,6 +8,7 @@ import type { Platform } from "@shared/types/platform";
 import { bestExternalIndex, detectFormat } from "@/utils/lyric/parse";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
+import { useStreamingStore } from "@/stores/streaming";
 import { DEFAULT_LYRIC_FORMAT_ORDER, DEFAULT_LYRIC_SOURCE_ORDER } from "@/types/settings";
 
 /** 一次在线 fetch 的结果 */
@@ -259,13 +260,20 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
       commit(token, null, null);
       return;
     }
-    // 流媒体服务器：仅取流媒体提供的 LRC，不再走本地/平台匹配
+    // 流媒体服务器
     if (track.source === "streaming") {
-      const res = await window.api.streaming.getLyrics(track);
+      const text = await useStreamingStore().getLyrics(track);
       if (token !== currentToken) return;
-      const text = res.success ? res.data : null;
       if (text && text.trim()) {
         commit(token, { source: "external", format: "lrc" }, { content: text });
+        return;
+      }
+      if (detail?.embeddedLyric) {
+        commit(
+          token,
+          { source: "embedded", format: detectFormat(detail.embeddedLyric) },
+          { content: detail.embeddedLyric },
+        );
       } else {
         commit(token, null, null);
       }

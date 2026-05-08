@@ -3,6 +3,7 @@ import type { TrackSource } from "@shared/types/player";
 import type { ArtistProfile, CoverItem } from "@/types/artist";
 import { useLibraryStore } from "@/stores/library";
 import { useSettingsStore } from "@/stores/settings";
+import { useStreamingStore } from "@/stores/streaming";
 import { navigateToAlbum } from "@/utils/navigate";
 import SongList from "@/components/list/SongList.vue";
 import { formatTime } from "@/utils/time";
@@ -18,6 +19,7 @@ import IconLucideListChecks from "~icons/lucide/list-checks";
 const { t } = useI18n();
 const route = useRoute();
 const libraryStore = useLibraryStore();
+const streamingStore = useStreamingStore();
 const { appearance } = useSettingsStore();
 
 const tabTransitionName = computed(() => {
@@ -59,6 +61,31 @@ const loadArtist = async () => {
         artist.value = { ...artist.value, avatar: res.data };
       }
     }
+  } else if (source === "streaming") {
+    const artistId = decodeURIComponent(id);
+    const cached = streamingStore.artists.find((a) => a.id === artistId);
+    const albumList = await streamingStore.fetchArtistAlbums(artistId);
+    // 一次性把所有专辑的曲目拉回来聚合
+    const trackLists = await Promise.all(
+      albumList.map((al) => streamingStore.fetchAlbumSongs(al.id).catch(() => [])),
+    );
+    const tracks = trackLists.flat();
+    artist.value = {
+      id: artistId,
+      name: cached?.name ?? artistId,
+      avatar: cached?.avatar,
+      source,
+      tracks,
+      albums: albumList.map((al) => ({
+        id: al.id,
+        title: al.name,
+        cover: al.cover,
+        subtitle: al.year ? String(al.year) : (al.artist ?? ""),
+        trackCount: al.songCount ?? 0,
+      })),
+      trackCount: tracks.length,
+      albumCount: albumList.length,
+    };
   }
   // TODO: online
 };
@@ -239,7 +266,7 @@ const albumItems = computed<CoverItem[]>(() => {
               :items="albumItems"
               :padding-x="20"
               :padding-bottom="24"
-              @click="(item) => navigateToAlbum(item.title)"
+              @click="(item) => navigateToAlbum(item.title, { source, albumId: item.id })"
             />
           </div>
         </Transition>

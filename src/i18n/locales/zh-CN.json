@@ -13,7 +13,9 @@
     "error": "操作失败",
     "playAll": "播放全部",
     "totalSongs": "共 {count} 首",
-    "totalAlbums": "共 {count} 张专辑"
+    "totalAlbums": "共 {count} 张专辑",
+    "totalArtists": "共 {count} 位歌手",
+    "totalPlaylists": "共 {count} 个歌单"
   },
   "equalizer": {
     "title": "均衡器",
@@ -70,10 +72,64 @@
   "nav": {
     "home": "首页",
     "library": "音乐库",
+    "streaming": "流媒体",
     "settings": "设置",
     "reload": "热重载",
     "devtools": "开发者工具",
     "globalSettings": "全局设置"
+  },
+  "streaming": {
+    "hint": "接入自建的 Subsonic / Navidrome / Jellyfin / Emby 服务器",
+    "hintDetail": "服务器配置（含密码）保存在本地浏览器，不上传任何远端服务",
+    "tabs": {
+      "songs": "歌曲",
+      "albums": "专辑",
+      "artists": "歌手",
+      "playlists": "歌单"
+    },
+    "empty": {
+      "noServer": "尚未配置流媒体服务器",
+      "addHint": "点击右上角添加一个开始使用",
+      "goToSettings": "前往设置添加",
+      "notConnected": "未连接到服务器",
+      "noResults": "没有找到内容"
+    },
+    "server": {
+      "type": "服务器类型",
+      "name": "服务器名称",
+      "namePlaceholder": "用于识别的别名",
+      "url": "服务器地址",
+      "username": "用户名",
+      "password": "密码",
+      "test": "测试连接",
+      "testOk": "连接成功",
+      "testFail": "连接失败",
+      "add": "添加服务器",
+      "added": "服务器已添加",
+      "edit": "编辑服务器",
+      "updated": "服务器已更新",
+      "delete": "删除",
+      "removed": "服务器已删除",
+      "deleteConfirmTitle": "删除服务器",
+      "deleteConfirm": "确定删除服务器「{name}」吗？此操作不可撤销。",
+      "connect": "连接",
+      "connected": "已连接",
+      "connectFailed": "连接失败",
+      "disconnect": "断开",
+      "disconnected": "已断开",
+      "active": "当前激活",
+      "lastConnected": "最近连接",
+      "errors": {
+        "nameEmpty": "请输入服务器名称",
+        "urlInvalid": "请输入合法的 URL（http:// 或 https://）",
+        "usernameEmpty": "请输入用户名",
+        "passwordEmpty": "请输入密码"
+      }
+    },
+    "actions": {
+      "refresh": "刷新",
+      "search": "搜索"
+    }
   },
   "player": {
     "play": "播放",
@@ -175,6 +231,7 @@
       "appearance": "外观设置",
       "hotkeys": "快捷键配置",
       "services": "网络与服务",
+      "streaming": "流媒体",
       "plugins": "插件管理"
     },
     "section": {
@@ -201,7 +258,8 @@
       "discord": "Discord RPC",
       "systemConfig": "系统配置",
       "reset": "重置",
-      "pluginsList": "已安装插件"
+      "pluginsList": "已安装插件",
+      "servers": "服务器管理"
     },
     "language": {
       "label": "界面语言",

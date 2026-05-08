@@ -13,7 +13,9 @@
     "error": "Error",
     "playAll": "Play All",
     "totalSongs": "{count} songs",
-    "totalAlbums": "{count} albums"
+    "totalAlbums": "{count} albums",
+    "totalArtists": "{count} artists",
+    "totalPlaylists": "{count} playlists"
   },
   "equalizer": {
     "title": "Equalizer",
@@ -70,10 +72,64 @@
   "nav": {
     "home": "Home",
     "library": "Library",
+    "streaming": "Streaming",
     "settings": "Settings",
     "reload": "Reload",
     "devtools": "Developer Tools",
     "globalSettings": "Global Settings"
+  },
+  "streaming": {
+    "hint": "Connect to your Subsonic / Navidrome / Jellyfin / Emby server",
+    "hintDetail": "Server credentials are stored locally in your browser only",
+    "tabs": {
+      "songs": "Songs",
+      "albums": "Albums",
+      "artists": "Artists",
+      "playlists": "Playlists"
+    },
+    "empty": {
+      "noServer": "No streaming server configured",
+      "addHint": "Click the button at the top right to add one",
+      "goToSettings": "Go to settings",
+      "notConnected": "Not connected to any server",
+      "noResults": "No results"
+    },
+    "server": {
+      "type": "Server type",
+      "name": "Server name",
+      "namePlaceholder": "Friendly name for this server",
+      "url": "Server URL",
+      "username": "Username",
+      "password": "Password",
+      "test": "Test connection",
+      "testOk": "Connection succeeded",
+      "testFail": "Connection failed",
+      "add": "Add server",
+      "added": "Server added",
+      "edit": "Edit server",
+      "updated": "Server updated",
+      "delete": "Delete",
+      "removed": "Server removed",
+      "deleteConfirmTitle": "Delete server",
+      "deleteConfirm": "Delete server \"{name}\"? This cannot be undone.",
+      "connect": "Connect",
+      "connected": "Connected",
+      "connectFailed": "Connection failed",
+      "disconnect": "Disconnect",
+      "disconnected": "Disconnected",
+      "active": "Active",
+      "lastConnected": "Last connected",
+      "errors": {
+        "nameEmpty": "Please enter a server name",
+        "urlInvalid": "Please enter a valid URL (http:// or https://)",
+        "usernameEmpty": "Please enter a username",
+        "passwordEmpty": "Please enter a password"
+      }
+    },
+    "actions": {
+      "refresh": "Refresh",
+      "search": "Search"
+    }
   },
   "player": {
     "play": "Play",
@@ -175,6 +231,7 @@
       "appearance": "Appearance",
       "hotkeys": "Hotkey Settings",
       "services": "Services",
+      "streaming": "Streaming",
       "plugins": "Plugin Manager"
     },
     "section": {
@@ -201,7 +258,8 @@
       "discord": "Discord RPC",
       "systemConfig": "System",
       "reset": "Reset",
-      "pluginsList": "Installed Plugins"
+      "pluginsList": "Installed Plugins",
+      "servers": "Servers"
     },
     "language": {
       "label": "Language",

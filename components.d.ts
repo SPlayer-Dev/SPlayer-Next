@@ -180,6 +180,7 @@ declare module 'vue' {
     SToast: typeof import('./src/components/ui/SToast.vue')['default']
     STooltip: typeof import('./src/components/ui/STooltip.vue')['default']
     StorageManager: typeof import('./src/components/settings/custom/StorageManager.vue')['default']
+    StreamingServerList: typeof import('./src/components/settings/custom/StreamingServerList.vue')['default']
     STree: typeof import('./src/components/ui/STree.vue')['default']
     SVirtualList: typeof import('./src/components/ui/SVirtualList.vue')['default']
     SwitchRoot: typeof import('reka-ui')['SwitchRoot']

@@ -96,6 +96,17 @@ export interface LoadResult {
   mediaInfo: MediaInfo;
 }
 
+/** player:load 的可选参数 */
+export interface LoadOptions {
+  /** 是否自动播放，默认 true */
+  autoPlay?: boolean;
+  /**
+   * 渲染层下发的权威 Track 元数据，用于 SMTC/托盘/窗口标题。
+   * streaming/online 源应当下发；本地源缺省时主进程回退到引擎解析的 tag。
+   */
+  meta?: Track;
+}
+
 /** 播放器状态快照 */
 export interface PlayerStatus {
   state: PlayerState;
@@ -136,13 +147,8 @@ export interface IpcResponse<T = void> {
 
 /** 播放器 API */
 export interface PlayerApi {
-  /** 加载音频（本地路径或网络地址） */
-  load: (source: string, autoPlay?: boolean) => Promise<IpcResponse<LoadResult>>;
-  /**
-   * 设置当前播放曲目的元数据，用于 SMTC/托盘等系统媒体集成。
-   * 应当在 load 之前调用，确保 status 推送/setMetadata 用到正确信息。
-   */
-  setNowPlayingMeta: (track: Track) => Promise<IpcResponse>;
+  /** 加载音频（本地路径或网络地址）。可选下发权威 meta 用于 SMTC/托盘 */
+  load: (source: string, options?: LoadOptions) => Promise<IpcResponse<LoadResult>>;
   /** 恢复播放 */
   play: () => Promise<IpcResponse>;
   /** 暂停播放 */

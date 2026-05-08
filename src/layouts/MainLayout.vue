@@ -19,6 +19,17 @@ const routeTransitionName = computed(() => {
   return transition === "none" ? "" : `route-${transition}`;
 });
 
+/**
+ * 顶级路由组件的 key：
+ * - 路由链含 :param（如 /collection/:source/:type/:id）→ 按 fullPath，让参数变化触发重建
+ * - 全静态路由（如 /streaming/songs）→ 按顶级 children path，让嵌套子路由切换时外层不重建
+ */
+const route = useRoute();
+const routeKey = computed(() => {
+  const hasParam = route.matched.some((m) => m.path.includes(":"));
+  return hasParam ? route.fullPath : (route.matched[1]?.path ?? route.fullPath);
+});
+
 /** 侧边栏样式 */
 const sidebarClass = computed(() => {
   const classes: string[] = [];
@@ -87,7 +98,7 @@ const playerBarInnerClass = computed(() => {
       <main class="flex-1 overflow-y-auto overflow-x-hidden">
         <RouterView v-slot="{ Component }">
           <Transition :name="routeTransitionName" mode="out-in">
-            <component :is="Component" :key="$route.fullPath" />
+            <component :is="Component" :key="routeKey" />
           </Transition>
         </RouterView>
       </main>

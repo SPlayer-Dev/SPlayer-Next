@@ -3,6 +3,7 @@ import type { RepeatMode, ShuffleMode } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
 import { useStatusStore } from "@/stores/status";
+import { useStreamingStore } from "@/stores/streaming";
 import * as queue from "@/stores/queue";
 import * as playback from "@/services/playback";
 import * as lyricLoader from "@/services/lyricLoader";
@@ -24,10 +25,15 @@ const SKIP_ON_ERROR_DELAY_MS = 1000;
 /**
  * 加载音频源
  * @param source - 音频文件路径或网络地址
- * @param autoPlay - 是否自动播放，默认 true，false 时加载后暂停
+ * @param autoPlay - 是否自动播放
+ * @param meta - 渲染层下发给主进程的权威 Track（用于 SMTC/托盘）
  * @returns 加载成功返回 Track，失败返回 null
  */
-export const load = async (source: string, autoPlay = true): Promise<Track | null> => {
+export const load = async (
+  source: string,
+  autoPlay = true,
+  meta?: Track,
+): Promise<Track | null> => {
   const status = useStatusStore();
   const token = ++loadToken;
   status.trackLoading = true;
@@ -40,7 +46,7 @@ export const load = async (source: string, autoPlay = true): Promise<Track | nul
   const wasPlaying = status.isPlaying;
   status.state = wasPlaying ? "playing" : "loading";
   try {
-    const { data, error } = await loadAudio(source, autoPlay);
+    const { data, error } = await loadAudio(source, { autoPlay, meta });
     // 竞态保护
     if (token !== loadToken) return null;
     if (data) {
@@ -93,16 +99,18 @@ export const load = async (source: string, autoPlay = true): Promise<Track | nul
 /**
  * 把 Track 解析成可喂给 audio-engine 的 source 字符串。
  * - local：track.path
- * - streaming：通过主进程 streaming 服务取实时 URL
+ * - streaming：通过 streaming store 调主进程拼带鉴权的 URL
  * - online：暂未实现，返回 null
  */
 const resolveTrackSource = async (track: Track): Promise<string | null> => {
   if (track.source === "local") return track.path ?? null;
   if (track.source === "streaming") {
-    const res = await window.api.streaming.resolveUrl(track);
-    if (res.success && res.data) return res.data;
-    if (res.error) handleError(res.error);
-    return null;
+    try {
+      return await useStreamingStore().getStreamUrl(track);
+    } catch (err) {
+      handleError(err instanceof Error ? err.message : String(err));
+      return null;
+    }
   }
   // TODO: online（netease/qqmusic/kugou）
   return null;
@@ -119,10 +127,9 @@ const loadTrack = async (track: Track | null): Promise<void> => {
   if (!source) return;
   // 乐观更新：同步写入 track，开启歌词加载周期
   useMediaStore().setTrack(track);
-  // 把权威元数据下发主进程，让 SMTC/托盘/标题不被引擎 tag 覆盖
-  window.api.player.setNowPlayingMeta(track);
   lyricLoader.beginLoad();
-  await load(source);
+  // meta 随 load 一起下发：SMTC/托盘/标题用 track 上的权威字段
+  await load(source, true, track);
 };
 
 /** 恢复播放 */
@@ -606,9 +613,8 @@ export const initPlayer = async (): Promise<void> => {
     useMediaStore().setTrack(lastTrack);
     const source = await resolveTrackSource(lastTrack);
     if (source) {
-      window.api.player.setNowPlayingMeta(lastTrack);
       lyricLoader.beginLoad();
-      const result = await load(source, settings.system.player.autoPlay);
+      const result = await load(source, settings.system.player.autoPlay, lastTrack);
       if (result && settings.system.player.rememberLastTrack && lastPosition > 0) {
         await seek(lastPosition);
       }

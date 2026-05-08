@@ -88,10 +88,6 @@ export const defaultSystemConfig: SystemConfig = {
     enableOnlineTTMLLyric: false,
     amllDbServer: "https://amlldb.bikonoo.com/%p/%s.ttml",
   },
-  streaming: {
-    servers: [],
-    activeServerId: null,
-  },
   system: {
     rememberWindowState: true,
     taskbarProgress: true,

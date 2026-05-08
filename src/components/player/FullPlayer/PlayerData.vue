@@ -36,14 +36,23 @@ const lyricSourceOptions = computed<SSelectOption[]>(() => [
 
 /** 跳转到专辑页 */
 const goToAlbum = () => {
-  const name = media.track?.album?.name;
-  if (!name) return;
+  const track = media.track;
+  if (!track?.album?.name) return;
   status.isExpanded = false;
-  navigateToAlbum(name);
+  navigateToAlbum(track.album.name, { source: track.source, albumId: track.album.id });
 };
 
 /** 来源标签 */
-const sourceLabel = computed(() => (media.track?.source === "online" ? "ONLINE" : "LOCAL"));
+const sourceLabel = computed(() => {
+  switch (media.track?.source) {
+    case "online":
+      return "ONLINE";
+    case "streaming":
+      return "STREAMING";
+    default:
+      return "LOCAL";
+  }
+});
 
 /** 音质等级标签 */
 const qualityLabel = computed(() => getQualityLabel(media.detail?.quality));

@@ -465,7 +465,7 @@ defineExpose({
                         v-for="(artist, i) in item.artists"
                         :key="artist.id ?? i"
                         class="cursor-pointer transition-opacity hover:opacity-70"
-                        @click.stop="navigateToArtist(artist.name)"
+                        @click.stop="navigateToArtist(artist.name, { source, artistId: artist.id })"
                       >
                         {{ artist.name }}
                         <span v-if="i < item.artists.length - 1" class="mx-0.5 opacity-50">/</span>
@@ -482,7 +482,7 @@ defineExpose({
                 v-if="showAlbum"
                 class="flex-1 min-w-0 truncate text-sm cursor-pointer transition-opacity hover:opacity-70"
                 :class="playingId === item.id ? 'text-primary/70' : 'text-on-surface'"
-                @click.stop="navigateToAlbum(item.album?.name)"
+                @click.stop="navigateToAlbum(item.album?.name, { source, albumId: item.album?.id })"
               >
                 {{ item.album?.name }}
               </div>
