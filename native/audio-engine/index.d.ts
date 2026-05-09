@@ -13,16 +13,30 @@ export declare class AudioPlayer {
   /**
    * 加载音频源，返回完整元信息（含封面路径和歌词）
    * @param auto_play - 是否自动播放，false 时加载后立即暂停
+   *
+   * 异步三段式：
+   * 1. 主线程持锁瞬间（微秒级）：take 旧解码线程 handle + 拿参数（cover_dir / 归一化开关）
+   * 2. spawn_blocking 工作线程（**不持有 inner 引用**）：join 旧线程 + ffmpeg 打开 URL（耗时大头）
+   * 3. 主线程持锁瞬间：构造 sink + attach + emit stateChanged
+   * 持锁阶段都是纯内存操作，主线程其它同步 NAPI 调用最多等几微秒，不会被 IO 卡住
    */
-  load(source: string, autoPlay?: boolean): JsMusicMetadata
+  load(source: string, autoPlay?: boolean): Promise<JsMusicMetadata>
   /** 恢复播放。如果已停止或播放结束，自动从头重新加载。 */
   play(): void
   /** 暂停播放 */
   pause(): void
   /** 停止播放并释放资源 */
   stop(): void
-  /** 跳转到指定播放位置（秒） */
-  seek(position: number): void
+  /**
+   * 跳转到指定播放位置（秒）
+   *
+   * 异步三段式：与 load 同样的设计原则
+   * 1. 主线程瞬时持锁：take 旧解码线程 + 拿归一化参数
+   * 2. 工作线程：join 旧线程 → ffmpeg seek → resume_decode 启动新解码线程
+   * 3. 主线程瞬时持锁：attach 新 sink + emit 状态
+   * seek 失败时 fallback 到完整 load
+   */
+  seek(position: number): Promise<void>
   /** 设置音量（0.0 ~ 1.0） */
   setVolume(volume: number): void
   /** 获取当前音量（0.0 ~ 1.0） */

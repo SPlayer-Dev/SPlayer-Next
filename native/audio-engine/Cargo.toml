@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-napi = { version = "3.8", features = ["napi9", "serde-json"] }
+napi = { version = "3.8", features = ["napi9", "serde-json", "tokio_rt"] }
 napi-derive = "3.5"
 ffmpeg-next = { version = "8", default-features = false, features = [
   "codec",
@@ -35,6 +35,7 @@ tracing-subscriber = { version = "0.3", features = [
 tracing-appender = "0.2"
 time = { version = "0.3", features = ["macros", "formatting"] }
 walkdir = "2"
+tokio = { version = "1", features = ["rt"] }
 
 [build-dependencies]
 napi-build = "2.3"

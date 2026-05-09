@@ -198,6 +198,7 @@ dependencies = [
  "rustfft",
  "signalsmith-stretch",
  "time",
+ "tokio",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",

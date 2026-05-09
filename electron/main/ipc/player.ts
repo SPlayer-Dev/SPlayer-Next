@@ -133,7 +133,7 @@ export const registerPlayerIpc = (): void => {
           isFinished: false,
         },
       });
-      const meta = inst.load(source, autoPlay);
+      const meta = await inst.load(source, autoPlay);
       const durationMs = toMs(meta.duration);
       // SMTC/托盘元数据
       const fallbackTitle = meta.title || source.split(/[/\\]/).pop() || source;
@@ -230,10 +230,10 @@ export const registerPlayerIpc = (): void => {
   });
 
   // 跳转到指定播放位置
-  ipcMain.handle("player:seek", (_event, positionMs: number) => {
+  ipcMain.handle("player:seek", async (_event, positionMs: number) => {
     try {
       const positionSecs = positionMs / 1000;
-      getPlayer().seek(positionSecs);
+      await getPlayer().seek(positionSecs);
       mediaService.setTimeline({
         currentMs: positionMs,
         totalMs: toMs(getPlayer().getDuration()),
@@ -474,11 +474,13 @@ export const registerPlayerIpc = (): void => {
           break;
         case "Seek":
           if (event.positionMs != null) {
-            inst.seek(event.positionMs / 1000);
-            mediaService.setTimeline({
-              currentMs: event.positionMs,
-              totalMs: toMs(inst.getDuration()),
-              seeked: true,
+            const targetMs = event.positionMs;
+            void inst.seek(targetMs / 1000).then(() => {
+              mediaService.setTimeline({
+                currentMs: targetMs,
+                totalMs: toMs(inst.getDuration()),
+                seeked: true,
+              });
             });
           }
           break;

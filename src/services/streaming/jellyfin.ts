@@ -144,19 +144,23 @@ export const getStreamUrl = async (
   playSessionId?: string,
 ): Promise<string> => {
   if (!cfg.accessToken) throw new StreamingAuthError("缺少 accessToken");
+  // Container 列表与 Jellyfin 官方网页版对齐：mp3 必须出现两次（容器+编码）
+  // 否则 server 会误判客户端不直接支持原 mp3 文件，强制走 HLS 转码（多分片 + 多连接，
+  // 用 ffmpeg 同步打开 m3u8 比直接拉一个字节流慢得多，是切歌卡顿的主要原因）
   const params = new URLSearchParams({
     UserId: cfg.userId ?? "",
     DeviceId: deviceId(cfg),
     MaxStreamingBitrate: "140000000",
-    Container: "opus,webm|opus,ts|mp3,aac,m4a|aac,m4b|aac,flac,webma,webm|webma,wav,ogg",
-    TranscodingContainer: "ts",
+    Container: "opus,webm|opus,ts|mp3,mp3,aac,m4a|aac,m4b|aac,flac,webma,webm|webma,wav,ogg",
+    TranscodingContainer: "mp4",
     TranscodingProtocol: "hls",
     AudioCodec: "aac",
     PlaySessionId: playSessionId ?? crypto.randomUUID(),
     api_key: cfg.accessToken,
     StartTimeTicks: "0",
     EnableRedirection: "true",
-    EnableRemoteMedia: "true",
+    EnableRemoteMedia: "false",
+    EnableAudioVbrEncoding: "true",
   });
   return `${normalizeBase(cfg.url)}/Audio/${originalId}/universal?${params.toString()}`;
 };

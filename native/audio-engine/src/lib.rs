@@ -15,14 +15,26 @@ mod tempo;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::thread;
+use std::thread::{self, JoinHandle};
 
 use napi::bindgen_prelude::*;
 use napi::threadsafe_function::ThreadsafeFunctionCallMode;
 use napi_derive::napi;
 use parking_lot::Mutex;
-use player::{InnerPlayer, PlayerEvent, PlayerState};
 use tracing::info;
+
+use player::{InnerPlayer, PlayerEvent, PlayerState, SeekTake};
+
+/// async seek 阶段 2 的输出
+enum SeekOutcome {
+    /// seek 成功 + 已启动新解码线程
+    Resumed {
+        shared: Arc<crate::shared::Shared>,
+        handle: JoinHandle<crate::decoder::DecoderData>,
+    },
+    /// seek 失败，需要 fallback 到完整 load
+    Fallback,
+}
 
 /// 全局扫描取消标志
 static SCAN_CANCEL: Mutex<Option<Arc<AtomicBool>>> = Mutex::new(None);
@@ -141,7 +153,7 @@ fn state_to_str(state: PlayerState) -> &'static str {
 /// 音频播放器，通过 napi-rs 暴露给 Node.js
 #[napi]
 pub struct AudioPlayer {
-    inner: Mutex<InnerPlayer>,
+    inner: Arc<Mutex<InnerPlayer>>,
 }
 
 #[napi]
@@ -152,7 +164,7 @@ impl AudioPlayer {
         let inner = InnerPlayer::new().into_napi()?;
         info!("AudioPlayer 实例已创建");
         Ok(Self {
-            inner: Mutex::new(inner),
+            inner: Arc::new(Mutex::new(inner)),
         })
     }
 
@@ -211,17 +223,67 @@ impl AudioPlayer {
 
     /// 加载音频源，返回完整元信息（含封面路径和歌词）
     /// @param auto_play - 是否自动播放，false 时加载后立即暂停
+    ///
+    /// 异步三段式：
+    /// 1. 主线程持锁瞬间（微秒级）：take 旧解码线程 handle + 拿参数（cover_dir / 归一化开关）
+    /// 2. spawn_blocking 工作线程（**不持有 inner 引用**）：join 旧线程 + ffmpeg 打开 URL（耗时大头）
+    /// 3. 主线程持锁瞬间：构造 sink + attach + emit stateChanged
+    /// 持锁阶段都是纯内存操作，主线程其它同步 NAPI 调用最多等几微秒，不会被 IO 卡住
     #[napi]
-    pub fn load(
+    pub async fn load(
         &self,
         source: String,
         #[napi(ts_arg_type = "boolean")] auto_play: Option<bool>,
     ) -> Result<JsMusicMetadata> {
+        use crate::decoder;
+        use crate::shared::Shared;
+
         let auto_play = auto_play.unwrap_or(true);
         info!(source = %source, auto_play, "加载音频源");
-        let mut player = self.inner.lock();
-        let meta = player.load(&source, auto_play).into_napi()?;
-        Ok(Self::meta_to_js(meta))
+
+        // 阶段 1：主线程持锁瞬间，take 所有旧线程 handle + 拿参数
+        let (old_threads, cover_dir, normalization_enabled) = {
+            let mut player = self.inner.lock();
+            let old_threads = player.take_for_async_load();
+            player.ensure_output_pub().into_napi()?;
+            (
+                old_threads,
+                player.cover_cache_dir().map(String::from),
+                player.is_normalization_enabled(),
+            )
+        };
+
+        // 创建 shared（不持锁）
+        let shared = Shared::new(decoder::TARGET_SAMPLE_RATE, decoder::TARGET_CHANNELS);
+        shared.set_normalization_enabled(normalization_enabled);
+        let shared_for_decoder = Arc::clone(&shared);
+        let source_for_decoder = source.clone();
+
+        // 阶段 2：工作线程（不持有 inner 引用）—— join 旧 timer/fade/decoder + 跑 ffmpeg open URL
+        let (metadata, decode_handle) = tokio::task::spawn_blocking(move || {
+            // 先 join 所有旧辅助线程（timer/fade），再 join 旧解码线程
+            if let Some(h) = old_threads.join_aux() {
+                let _ = h.join();
+            }
+            decoder::start_decode(
+                &source_for_decoder,
+                shared_for_decoder,
+                cover_dir.as_deref(),
+            )
+        })
+        .await
+        .map_err(|e| Error::from_reason(format!("load task join error: {e}")))?
+        .into_napi()?;
+
+        // 阶段 3：主线程持锁瞬间，attach 新资源
+        let returned_meta = {
+            let mut player = self.inner.lock();
+            player
+                .commit_loaded(&source, auto_play, metadata, decode_handle, shared)
+                .into_napi()?
+        };
+
+        Ok(Self::meta_to_js(returned_meta))
     }
 
     /// 内部：将 AudioMetadata 转为 JS 结构
@@ -270,9 +332,66 @@ impl AudioPlayer {
     }
 
     /// 跳转到指定播放位置（秒）
+    ///
+    /// 异步三段式：与 load 同样的设计原则
+    /// 1. 主线程瞬时持锁：take 旧解码线程 + 拿归一化参数
+    /// 2. 工作线程：join 旧线程 → ffmpeg seek → resume_decode 启动新解码线程
+    /// 3. 主线程瞬时持锁：attach 新 sink + emit 状态
+    /// seek 失败时 fallback 到完整 load
     #[napi]
-    pub fn seek(&self, position: f64) -> Result<()> {
-        self.inner.lock().seek(position).into_napi()
+    pub async fn seek(&self, position: f64) -> Result<()> {
+        use crate::decoder;
+        use crate::shared::Shared;
+
+        // 阶段 1：主线程持锁瞬间，take 旧资源
+        let take = {
+            let mut player = self.inner.lock();
+            player.take_for_async_seek()
+        };
+
+        let SeekTake {
+            old_threads,
+            normalization_enabled,
+            normalization_gain,
+            current_source,
+            was_playing,
+        } = take;
+
+        // 阶段 2：工作线程（不持有 inner 引用）—— join 旧 timer/fade/decoder + ffmpeg seek + 启动新解码
+        let outcome: SeekOutcome = tokio::task::spawn_blocking(move || {
+            let decoder_data = old_threads.join_aux().and_then(|h| h.join().ok());
+            let mut decoder_data = match decoder_data {
+                Some(d) => d,
+                None => return SeekOutcome::Fallback,
+            };
+            if !decoder_data.seek(position) {
+                return SeekOutcome::Fallback;
+            }
+            let shared = Shared::new(decoder::TARGET_SAMPLE_RATE, decoder::TARGET_CHANNELS);
+            shared.set_normalization_enabled(normalization_enabled);
+            shared.set_normalization_gain(normalization_gain);
+            let handle = decoder::resume_decode(decoder_data, Arc::clone(&shared));
+            SeekOutcome::Resumed { shared, handle }
+        })
+        .await
+        .map_err(|e| Error::from_reason(format!("seek task join error: {e}")))?;
+
+        match outcome {
+            SeekOutcome::Resumed { shared, handle } => {
+                // 阶段 3：主线程持锁瞬间，attach
+                let mut player = self.inner.lock();
+                player.commit_seeked(position, shared, handle).into_napi()
+            }
+            SeekOutcome::Fallback => {
+                // seek 失败（线程 panic 或 ffmpeg seek 出错），回退到完整 load 重新打开
+                if let Some(src) = current_source {
+                    self.load(src, Some(was_playing)).await?;
+                    Ok(())
+                } else {
+                    Err(Error::from_reason("seek 失败且无 current_source"))
+                }
+            }
+        }
     }
 
     /// 设置音量（0.0 ~ 1.0）

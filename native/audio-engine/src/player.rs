@@ -116,6 +116,50 @@ pub struct InnerPlayer {
     tempo: Arc<Mutex<StretchProcessor>>,
 }
 
+/// 切换/seek 时要 join 的旧线程集合，全部挪到 spawn_blocking 工作线程 join，
+/// 主线程持锁阶段只 take handle，避免最坏 200ms+ 的卡顿
+pub struct OldThreads {
+    pub decoder_thread: Option<JoinHandle<decoder::DecoderData>>,
+    pub position_timer: Option<JoinHandle<()>>,
+    pub fft_timer: Option<JoinHandle<()>>,
+    pub fade_handle: Option<JoinHandle<()>>,
+}
+
+impl OldThreads {
+    /// 在工作线程上 join 所有旧 timer/fade，返回旧解码线程 handle 供调用方继续使用
+    /// 忽略 join 错误：辅助线程 panic 不阻止新加载，主播放路径不依赖它们
+    pub fn join_aux(self) -> Option<JoinHandle<decoder::DecoderData>> {
+        for h in [self.position_timer, self.fft_timer, self.fade_handle]
+            .into_iter()
+            .flatten()
+        {
+            let _ = h.join();
+        }
+        self.decoder_thread
+    }
+}
+
+/// async seek 阶段 1 的输出：带到工作线程做 join + ffmpeg seek + 重启解码
+pub struct SeekTake {
+    /// 所有旧线程 handle（工作线程 join）
+    pub old_threads: OldThreads,
+    /// 归一化开关（继承到新 Shared）
+    pub normalization_enabled: bool,
+    /// 归一化增益（继承到新 Shared）
+    pub normalization_gain: f32,
+    /// 当前音频源（seek 失败时 fallback 到 load）
+    pub current_source: Option<String>,
+    /// seek 前是否在播放（fallback 到 load 时保留状态）
+    pub was_playing: bool,
+}
+
+// SAFETY: InnerPlayer 持有 cpal::Stream（!Send），但 NAPI async fn 要求
+// `&AudioPlayer: Send` → `Arc<Mutex<InnerPlayer>>: Sync` → `InnerPlayer: Send`。
+// 这里仅为类型系统占位。**运行时严格保证 InnerPlayer 不跨线程访问**：
+// - lib.rs async load/seek 中 spawn_blocking 闭包不持有 inner 引用，仅持有纯数据
+// - 所有 inner.lock() 都在主线程上执行，cpal Stream 不会跨线程被 mutate
+unsafe impl Send for InnerPlayer {}
+
 /// 等待线程退出，最多等 timeout_ms 毫秒，超时则放弃
 fn join_with_timeout(handle: JoinHandle<()>, timeout_ms: u64) {
     // 利用 thread::park_timeout 无法实现 join timeout，
@@ -446,6 +490,210 @@ impl InnerPlayer {
     /// 设置封面缓存目录
     pub fn set_cover_cache_dir(&mut self, dir: String) {
         self.cover_cache_dir = Some(dir);
+    }
+
+    /// 暴露给 lib.rs：cover 缓存目录
+    pub fn cover_cache_dir(&self) -> Option<&str> {
+        self.cover_cache_dir.as_deref()
+    }
+
+    /// 暴露给 lib.rs：归一化开关
+    pub fn is_normalization_enabled(&self) -> bool {
+        self.normalization_enabled
+    }
+
+    /// 暴露给 lib.rs：确保输出设备已就绪（不返回引用，避免借用冲突）
+    pub fn ensure_output_pub(&mut self) -> Result<()> {
+        self.ensure_output().map(|_| ())
+    }
+
+    /// 给 lib.rs async load 用：原子地发出停止信号 + take 所有旧线程 handle
+    /// 调用方负责在工作线程 join 这些 handle，主线程持锁阶段不阻塞
+    pub fn take_for_async_load(&mut self) -> OldThreads {
+        // 发停止信号（原子写，纳秒级）
+        if let Some(flag) = self.fade_cancel.take() {
+            flag.store(true, Ordering::Relaxed);
+        }
+        if let Some(flag) = self.position_timer_stop.take() {
+            flag.store(true, Ordering::Relaxed);
+        }
+        if let Some(flag) = self.fft_timer_stop.take() {
+            flag.store(true, Ordering::Relaxed);
+        }
+
+        if let Some(ref shared) = self.shared {
+            shared.stop();
+        }
+        if let Some(sink) = self.sink.take() {
+            sink.stop();
+        }
+        if let Some(ref shared) = self.shared {
+            shared.drain_buffer();
+        }
+        self.shared = None;
+        self.cover_raw = None;
+        self.seek_base = 0.0;
+        self.fft.reset();
+        self.equalizer.lock().reset_state();
+        self.tempo.lock().reset();
+
+        OldThreads {
+            decoder_thread: self.decoder_thread.take(),
+            position_timer: self.position_timer_handle.take(),
+            fft_timer: self.fft_timer_handle.take(),
+            fade_handle: self.fade_handle.take(),
+        }
+    }
+
+    /// 给 lib.rs async seek 用：原子发出停止信号 + take 所有旧线程 handle（不 join）
+    pub fn take_for_async_seek(&mut self) -> SeekTake {
+        if let Some(flag) = self.fade_cancel.take() {
+            flag.store(true, Ordering::Relaxed);
+        }
+        if let Some(flag) = self.position_timer_stop.take() {
+            flag.store(true, Ordering::Relaxed);
+        }
+        if let Some(flag) = self.fft_timer_stop.take() {
+            flag.store(true, Ordering::Relaxed);
+        }
+
+        if let Some(ref shared) = self.shared {
+            shared.stop();
+        }
+        if let Some(sink) = self.sink.take() {
+            sink.stop();
+        }
+
+        let old_threads = OldThreads {
+            decoder_thread: self.decoder_thread.take(),
+            position_timer: self.position_timer_handle.take(),
+            fft_timer: self.fft_timer_handle.take(),
+            fade_handle: self.fade_handle.take(),
+        };
+
+        let (norm_enabled, norm_gain) = match self.shared.take() {
+            Some(s) => {
+                s.drain_buffer();
+                (s.is_normalization_enabled(), s.normalization_gain())
+            }
+            None => (self.normalization_enabled, 0.0),
+        };
+
+        self.fft.reset();
+
+        SeekTake {
+            old_threads,
+            normalization_enabled: norm_enabled,
+            normalization_gain: norm_gain,
+            current_source: self.current_source.clone(),
+            was_playing: self.state == PlayerState::Playing,
+        }
+    }
+
+    /// seek 三段式的最后一段：主线程持锁，attach 新 sink + 新解码线程
+    pub fn commit_seeked(
+        &mut self,
+        position_secs: f64,
+        shared: Arc<Shared>,
+        handle: JoinHandle<decoder::DecoderData>,
+    ) -> Result<()> {
+        let stream_handle = self.ensure_output()?;
+        let sink = Arc::new(Sink::try_new(stream_handle).context("Failed to create audio sink")?);
+
+        self.equalizer.lock().reset_state();
+        self.tempo.lock().reset();
+
+        let decoder_source = DecoderSource::new(
+            Arc::clone(&shared),
+            Arc::clone(&self.fft),
+            Arc::clone(&self.equalizer),
+            Arc::clone(&self.tempo),
+            self.audio_sample_rate,
+            self.audio_channels,
+        );
+
+        let was_paused = self.state == PlayerState::Paused;
+        sink.set_volume(self.target_volume);
+        if was_paused {
+            sink.pause();
+        }
+        sink.append(decoder_source);
+
+        self.sink = Some(sink);
+        self.shared = Some(shared);
+        self.decoder_thread = Some(handle);
+        self.seek_base = position_secs;
+
+        if was_paused {
+            self.state = PlayerState::Paused;
+            self.emit(PlayerEvent::StateChanged {
+                state: PlayerState::Paused,
+            });
+        } else {
+            self.state = PlayerState::Playing;
+            self.emit(PlayerEvent::StateChanged {
+                state: PlayerState::Playing,
+            });
+            self.start_position_timer();
+            self.start_fft_timer();
+        }
+
+        Ok(())
+    }
+
+    /// load 的下半部分：lib.rs async load 在 IO 完成后由主线程持锁调用
+    pub fn commit_loaded(
+        &mut self,
+        source: &str,
+        auto_play: bool,
+        mut metadata: AudioMetadata,
+        decode_handle: JoinHandle<decoder::DecoderData>,
+        shared: Arc<Shared>,
+    ) -> Result<AudioMetadata> {
+        let stream_handle = self.ensure_output()?;
+        let sink = Arc::new(Sink::try_new(stream_handle).context("Failed to create audio sink")?);
+
+        let decoder_source = DecoderSource::new(
+            Arc::clone(&shared),
+            Arc::clone(&self.fft),
+            Arc::clone(&self.equalizer),
+            Arc::clone(&self.tempo),
+            metadata.sample_rate,
+            metadata.channels,
+        );
+
+        sink.set_volume(self.target_volume);
+        if !auto_play {
+            sink.pause();
+        }
+        sink.append(decoder_source);
+
+        self.sink = Some(sink);
+        self.shared = Some(shared);
+        self.decoder_thread = Some(decode_handle);
+        self.seek_base = 0.0;
+        self.current_source = Some(source.to_string());
+
+        self.audio_sample_rate = metadata.sample_rate;
+        self.audio_channels = metadata.channels;
+        self.audio_duration = metadata.duration_secs;
+        self.cover_raw = metadata.cover_raw.take();
+
+        if auto_play {
+            self.state = PlayerState::Playing;
+            self.emit(PlayerEvent::StateChanged {
+                state: PlayerState::Playing,
+            });
+            self.start_position_timer();
+            self.start_fft_timer();
+        } else {
+            self.state = PlayerState::Paused;
+            self.emit(PlayerEvent::StateChanged {
+                state: PlayerState::Paused,
+            });
+        }
+
+        Ok(metadata)
     }
 
     /// 加载音频源，auto_play 控制是否自动播放
