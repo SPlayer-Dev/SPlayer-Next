@@ -136,10 +136,7 @@ export const getPlaylistSongs = (
  * @param cfg - 服务器配置
  * @param artistId - 歌手 id
  */
-export const getArtistAlbums = (
-  cfg: StreamingServerConfig,
-  artistId: string,
-): Promise<Album[]> => {
+export const getArtistAlbums = (cfg: StreamingServerConfig, artistId: string): Promise<Album[]> => {
   if (isSubsonic(cfg.type)) return subsonic.getArtistAlbums(cfg, artistId);
   if (cfg.type === "jellyfin") return jellyfin.getArtistAlbums(cfg, artistId);
   if (cfg.type === "emby") return emby.getArtistAlbums(cfg, artistId);

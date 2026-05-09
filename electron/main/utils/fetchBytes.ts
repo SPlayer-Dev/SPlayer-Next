@@ -12,9 +12,9 @@ const MAX_BYTES = 5 * 1024 * 1024;
 
 /**
  * 获取远端 URL 的字节
- * @param url 
- * @param timeoutMs 
- * @returns 
+ * @param url
+ * @param timeoutMs
+ * @returns
  */
 export const fetchBytes = async (
   url: string,

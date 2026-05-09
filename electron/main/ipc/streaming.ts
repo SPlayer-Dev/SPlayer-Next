@@ -15,8 +15,10 @@ import type { StreamingServerConfig } from "@shared/types/streaming";
 const STORAGE_FILE = path.join(app.getPath("userData"), "streaming.json");
 
 /** 持久化形态：密码加密、accessToken/userId 不持久化（每次会话重新登录） */
-interface PersistedServer
-  extends Omit<StreamingServerConfig, "password" | "accessToken" | "userId"> {
+interface PersistedServer extends Omit<
+  StreamingServerConfig,
+  "password" | "accessToken" | "userId"
+> {
   encryptedPassword: string;
 }
 
@@ -95,10 +97,7 @@ export const registerStreamingIpc = (): void => {
 
   ipcMain.handle(
     "streaming:saveServers",
-    (
-      _e,
-      payload: { servers: StreamingServerConfig[]; activeServerId: string | null },
-    ): void => {
+    (_e, payload: { servers: StreamingServerConfig[]; activeServerId: string | null }): void => {
       const servers: PersistedServer[] = (payload?.servers ?? []).map((s) => ({
         id: s.id,
         name: s.name,

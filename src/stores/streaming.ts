@@ -67,7 +67,7 @@ export const useStreamingStore = defineStore("streaming", () => {
   /** 把 servers + activeServerId 写到主进程 */
   const persistServers = (): void => {
     void window.api.streaming.saveServers({
-      servers: toRaw(servers.value),
+      servers: servers.value.map((s) => ({ ...s })),
       activeServerId: activeServerId.value,
     });
   };
@@ -467,9 +467,7 @@ export const useStreamingStore = defineStore("streaming", () => {
     }
     const fresh = servers.value.find((s) => s.id === cfg.id) ?? cfg;
     const sessionId = getOrCreatePlaySessionId(track.id);
-    return withAutoReauthFor(fresh, (c) =>
-      client.getStreamUrl(c, track.originalId!, sessionId),
-    );
+    return withAutoReauthFor(fresh, (c) => client.getStreamUrl(c, track.originalId!, sessionId));
   };
 
   /**

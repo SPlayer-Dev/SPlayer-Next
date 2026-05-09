@@ -97,7 +97,7 @@ const handleServerSelect = async (value: string | number | boolean): Promise<voi
 };
 
 const goToSettings = (): void => {
-  settingsDialog.show("streaming");
+  settingsDialog.show("mediaSource");
 };
 
 /** 重连当前激活服务器 */
@@ -199,10 +199,7 @@ const handleMoreMenu = (key: string): void => {
       </div>
     </div>
     <!-- 已配置服务器但未连接 -->
-    <div
-      v-else-if="!isConnected"
-      class="flex-1 flex items-center justify-center"
-    >
+    <div v-else-if="!isConnected" class="flex-1 flex items-center justify-center">
       <div class="text-center text-on-surface-variant/60 max-w-md px-6">
         <IconLucideUnplug class="size-12 mx-auto mb-3 opacity-30" />
         <div class="text-sm mb-1">{{ t("streaming.empty.notConnected") }}</div>
