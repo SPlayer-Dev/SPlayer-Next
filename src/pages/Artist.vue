@@ -67,7 +67,9 @@ const loadArtist = async () => {
     const albumList = await streamingStore.fetchArtistAlbums(artistId);
     // 一次性把所有专辑的曲目拉回来聚合
     const trackLists = await Promise.all(
-      albumList.map((al) => streamingStore.fetchAlbumSongs(al.id).catch(() => [])),
+      albumList
+        .filter((al) => !!al.id)
+        .map((al) => streamingStore.fetchAlbumSongs(al.id!).catch(() => [])),
     );
     const tracks = trackLists.flat();
     artist.value = {
@@ -77,11 +79,11 @@ const loadArtist = async () => {
       source,
       tracks,
       albums: albumList.map((al) => ({
-        id: al.id,
+        id: al.id ?? "",
         title: al.name,
         cover: al.cover,
         subtitle: al.year ? String(al.year) : (al.artist ?? ""),
-        trackCount: al.songCount ?? 0,
+        trackCount: al.trackCount ?? 0,
       })),
       trackCount: tracks.length,
       albumCount: albumList.length,

@@ -1,20 +1,16 @@
 /**
  * 流媒体响应 → 统一 Track / Album / Artist / Playlist 类型
- *
- * 各服务器返回结构差异巨大；这里把所有映射逻辑集中，便于校对。
  */
-import type { Artist, Track } from "@shared/types/player";
-import type {
-  StreamingAlbum,
-  StreamingArtist,
-  StreamingPlaylist,
-  StreamingServerConfig,
-} from "@shared/types/streaming";
+import type { Album, Artist, Playlist, Track } from "@shared/types/player";
+import type { StreamingServerConfig } from "@shared/types/streaming";
 
 /** 常见的歌手分隔符 */
 const ARTIST_SEPARATOR = /\s*(?:feat\.?|ft\.?)\s+|[/&;,×|、，]\s*/i;
 
-/** 把"周杰伦/林俊杰"风格字符串拆成 Artist 数组 */
+/**
+ * 把字符串拆成 Artist 数组
+ * @param raw - 原始字符串
+ */
 const parseArtists = (raw: string): Artist[] => {
   if (!raw) return [];
   return raw
@@ -24,14 +20,19 @@ const parseArtists = (raw: string): Artist[] => {
     .map((name) => ({ name }));
 };
 
-/** 生成稳定的 Track.id：${cfg.id}:${originalId} */
+/**
+ * 生成稳定的 Track.id：`${cfg.id}:${originalId}`
+ * @param cfg - 服务器配置
+ * @param originalId - 服务器侧 id
+ */
 export const trackId = (cfg: StreamingServerConfig, originalId: string): string =>
   `${cfg.id}:${originalId}`;
 
-/** 秒 → 毫秒（subsonic 用秒） */
+/**
+ * 秒 → 毫秒（Subsonic 用秒）
+ * @param s - 秒数
+ */
 export const secToMs = (s?: number): number => Math.max(0, Math.floor((s ?? 0) * 1000));
-
-/* ───────────── Subsonic ───────────── */
 
 export interface SubsonicSong {
   id: string;
@@ -82,6 +83,13 @@ export interface SubsonicPlaylist {
 /** 每次请求都要新生成 salt+token，所以传一个 builder 闭包 */
 export type SubsonicAuthBuilder = (cfg: StreamingServerConfig) => URLSearchParams;
 
+/**
+ * 拼 Subsonic getCoverArt URL；coverArtId 为空返回 undefined
+ * @param cfg - 服务器配置
+ * @param coverArtId - 服务器侧封面 id
+ * @param buildAuth - 鉴权 query builder
+ * @param size - 可选边长（像素）
+ */
 const subsonicCoverUrl = (
   cfg: StreamingServerConfig,
   coverArtId: string | undefined,
@@ -96,6 +104,12 @@ const subsonicCoverUrl = (
   return `${base}/rest/getCoverArt?${params.toString()}`;
 };
 
+/**
+ * 拼 Subsonic stream URL（带 estimateContentLength）
+ * @param cfg - 服务器配置
+ * @param songId - 歌曲 id
+ * @param buildAuth - 鉴权 query builder
+ */
 export const subsonicStreamUrl = (
   cfg: StreamingServerConfig,
   songId: string,
@@ -104,9 +118,16 @@ export const subsonicStreamUrl = (
   const base = cfg.url.replace(/\/+$/, "");
   const params = buildAuth(cfg);
   params.set("id", songId);
+  params.set("estimateContentLength", "true");
   return `${base}/rest/stream?${params.toString()}`;
 };
 
+/**
+ * Subsonic 歌曲 → 统一 Track
+ * @param cfg - 服务器配置
+ * @param song - Subsonic 响应里的 song 节点
+ * @param buildAuth - 鉴权 query builder
+ */
 export const subsonicSongToTrack = (
   cfg: StreamingServerConfig,
   song: SubsonicSong,
@@ -120,7 +141,8 @@ export const subsonicSongToTrack = (
   artists: parseArtists(song.artist ?? ""),
   album: song.album ? { id: song.albumId, name: song.album } : undefined,
   duration: secToMs(song.duration),
-  cover: subsonicCoverUrl(cfg, song.coverArt, buildAuth, 300),
+  // Track 封面同时用于列表（小图）和全屏播放器（大图），取 500 兼顾两者
+  cover: subsonicCoverUrl(cfg, song.coverArt, buildAuth, 500),
   fileSize: song.size,
   quality: {
     sampleRate: song.samplingRate ?? 0,
@@ -131,44 +153,60 @@ export const subsonicSongToTrack = (
   },
 });
 
+/**
+ * Subsonic 专辑 → 统一 Album
+ * @param cfg - 服务器配置
+ * @param album - Subsonic album 节点
+ * @param buildAuth - 鉴权 query builder
+ */
 export const subsonicAlbumToView = (
   cfg: StreamingServerConfig,
   album: SubsonicAlbum,
   buildAuth: SubsonicAuthBuilder,
-): StreamingAlbum => ({
+): Album => ({
   id: album.id,
   name: album.name,
   artist: album.artist,
   cover: subsonicCoverUrl(cfg, album.coverArt ?? album.id, buildAuth, 300),
-  songCount: album.songCount,
+  trackCount: album.songCount,
   year: album.year,
 });
 
+/**
+ * Subsonic 歌手 → 统一 Artist
+ * @param cfg - 服务器配置
+ * @param artist - Subsonic artist 节点
+ * @param buildAuth - 鉴权 query builder
+ */
 export const subsonicArtistToView = (
   cfg: StreamingServerConfig,
   artist: SubsonicArtist,
   buildAuth: SubsonicAuthBuilder,
-): StreamingArtist => ({
+): Artist => ({
   id: artist.id,
   name: artist.name,
   avatar: subsonicCoverUrl(cfg, artist.coverArt ?? artist.id, buildAuth, 300),
   albumCount: artist.albumCount,
 });
 
+/**
+ * Subsonic 歌单 → 统一 Playlist
+ * @param cfg - 服务器配置
+ * @param pl - Subsonic playlist 节点
+ * @param buildAuth - 鉴权 query builder
+ */
 export const subsonicPlaylistToView = (
   cfg: StreamingServerConfig,
   pl: SubsonicPlaylist,
   buildAuth: SubsonicAuthBuilder,
-): StreamingPlaylist => ({
+): Playlist => ({
   id: pl.id,
   name: pl.name,
   description: pl.comment,
   cover: subsonicCoverUrl(cfg, pl.coverArt ?? pl.id, buildAuth, 300),
-  songCount: pl.songCount,
+  trackCount: pl.songCount,
   owner: pl.owner,
 });
-
-/* ───────────── Jellyfin / Emby ───────────── */
 
 export interface JellyItem {
   Id: string;
@@ -199,12 +237,22 @@ export interface JellyItem {
   }[];
 }
 
+/**
+ * Jellyfin/Emby 100ns ticks → 毫秒
+ * @param ticks - RunTimeTicks
+ */
 const jellyTicksToMs = (ticks?: number): number => {
   if (!ticks) return 0;
-  // RunTimeTicks 是 100ns ticks：1ms = 10000 ticks
   return Math.floor(ticks / 10_000);
 };
 
+/**
+ * 拼 Jellyfin/Emby 封面图 URL；缺 accessToken 返回 undefined
+ * @param cfg - 服务器配置
+ * @param itemId - 条目 itemId
+ * @param tag - 图片 tag（用于缓存破坏）
+ * @param maxHeight - 缩放高度上限
+ */
 export const jellyImageUrl = (
   cfg: StreamingServerConfig,
   itemId: string,
@@ -219,14 +267,17 @@ export const jellyImageUrl = (
   return `${base}/Items/${itemId}/Images/Primary?${params.toString()}`;
 };
 
+/**
+ * Jellyfin/Emby 音频条目 → 统一 Track
+ * @param cfg - 服务器配置
+ * @param item - 服务器返回的 JellyItem
+ */
 export const jellyItemToTrack = (cfg: StreamingServerConfig, item: JellyItem): Track => {
   const audioStream = item.MediaSources?.[0]?.MediaStreams?.find((s) => s.Type === "Audio");
   const mediaSrc = item.MediaSources?.[0];
-  // Jellyfin/Emby 对 audio item：扫描 ID3 嵌入封面后，audio 自己会有 ImageTags.Primary。
-  // 没有自己的 imageTag 就不显示封面 —— 与老项目一致，避免 fallback 到 album 时
-  // 触发 album 自身没图的 404 刷屏（用 truthy 判断同时排除空字符串）。
+  // 没有自己的 imageTag 就不显示封面，避免 fallback 到 album 时的 404 刷屏
   const imageTag = item.ImageTags?.Primary;
-  const cover = imageTag ? jellyImageUrl(cfg, item.Id, imageTag, 300) : undefined;
+  const cover = imageTag ? jellyImageUrl(cfg, item.Id, imageTag, 500) : undefined;
   return {
     id: trackId(cfg, item.Id),
     source: "streaming",
@@ -251,36 +302,48 @@ export const jellyItemToTrack = (cfg: StreamingServerConfig, item: JellyItem): T
   };
 };
 
-export const jellyItemToAlbum = (cfg: StreamingServerConfig, item: JellyItem): StreamingAlbum => ({
+/**
+ * Jellyfin/Emby 专辑条目 → 统一 Album
+ * @param cfg - 服务器配置
+ * @param item - 服务器返回的 JellyItem
+ */
+export const jellyItemToAlbum = (cfg: StreamingServerConfig, item: JellyItem): Album => ({
   id: item.Id,
   name: item.Name ?? "",
   artist: item.AlbumArtist,
   cover: jellyImageUrl(cfg, item.Id, item.ImageTags?.Primary, 300),
-  songCount: item.ChildCount,
+  trackCount: item.ChildCount,
   year: item.ProductionYear,
 });
 
-export const jellyItemToArtist = (
-  cfg: StreamingServerConfig,
-  item: JellyItem,
-): StreamingArtist => ({
+/**
+ * Jellyfin/Emby 歌手条目 → 统一 Artist
+ * @param cfg - 服务器配置
+ * @param item - 服务器返回的 JellyItem
+ */
+export const jellyItemToArtist = (cfg: StreamingServerConfig, item: JellyItem): Artist => ({
   id: item.Id,
   name: item.Name ?? "",
   avatar: jellyImageUrl(cfg, item.Id, item.ImageTags?.Primary, 300),
   albumCount: item.ChildCount,
 });
 
-export const jellyItemToPlaylist = (
-  cfg: StreamingServerConfig,
-  item: JellyItem,
-): StreamingPlaylist => ({
+/**
+ * Jellyfin/Emby 歌单条目 → 统一 Playlist
+ * @param cfg - 服务器配置
+ * @param item - 服务器返回的 JellyItem
+ */
+export const jellyItemToPlaylist = (cfg: StreamingServerConfig, item: JellyItem): Playlist => ({
   id: item.Id,
   name: item.Name ?? "",
   cover: jellyImageUrl(cfg, item.Id, item.ImageTags?.Primary, 300),
-  songCount: item.ChildCount,
+  trackCount: item.ChildCount,
 });
 
-/** 把毫秒数格式化为 LRC 时间戳 [mm:ss.xx] */
+/**
+ * 毫秒 → LRC 时间戳 `[mm:ss.xx]`
+ * @param ms - 毫秒数
+ */
 export const formatLrcTimestamp = (ms: number): string => {
   const safe = Math.max(0, ms);
   const mm = Math.floor(safe / 60000);

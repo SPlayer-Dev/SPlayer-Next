@@ -15,7 +15,7 @@ import SButton from "@/components/ui/SButton.vue";
 const { t } = useI18n();
 const router = useRouter();
 const route = useRoute();
-const { appearance } = useSettingsStore();
+const { appearance, system: systemSettings } = useSettingsStore();
 const playlistStore = usePlaylistStore();
 
 const handleCreate = async () => {
@@ -32,9 +32,13 @@ const menuItems = computed<SMenuItem[]>(() => [
   { key: "/artists/local", label: t("artist.label"), icon: markRaw(IconLucideUser) },
   { key: "/albums/local", label: t("album.label"), icon: markRaw(IconLucideDisc3) },
   { key: "/folders", label: t("folder.label"), icon: markRaw(IconLucideFolder) },
-  // 流媒体
-  { key: "divider-streaming", type: "divider" },
-  { key: "/streaming", label: t("nav.streaming"), icon: markRaw(IconLucideServer) },
+  // 流媒体（受 system.streaming.enabled 总开关控制）
+  ...(systemSettings.streaming.enabled
+    ? ([
+        { key: "divider-streaming", type: "divider" },
+        { key: "/streaming", label: t("nav.streaming"), icon: markRaw(IconLucideServer) },
+      ] satisfies SMenuItem[])
+    : []),
   // 歌单分组
   { key: "divider-playlist", type: "divider" },
   {

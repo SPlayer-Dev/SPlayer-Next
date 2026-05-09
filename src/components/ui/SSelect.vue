@@ -13,12 +13,15 @@ export interface SSelectProps {
   options?: SSelectOption[];
   disabled?: boolean;
   placeholder?: string;
+  /** 全圆角胶囊形 */
+  round?: boolean;
 }
 
 const props = withDefaults(defineProps<SSelectProps>(), {
   options: () => [],
   disabled: false,
   placeholder: "",
+  round: false,
 });
 
 const emit = defineEmits<{
@@ -42,13 +45,16 @@ const handleChange = (val: string) => {
     @update:model-value="handleChange"
   >
     <SelectTrigger
-      class="flex w-full items-center justify-between gap-2 h-8.5 px-3 text-sm text-on-surface bg-field border border-solid border-on-surface/20 rounded-lg cursor-pointer outline-none focus-visible:outline-none transition-[border-color,box-shadow,opacity] duration-250 hover:border-on-surface/50 data-[state=open]:border-primary data-[state=open]:ring-2 data-[state=open]:ring-primary/25 disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
+      class="group flex w-full items-center justify-between gap-2 h-8.5 px-3 text-sm text-on-surface bg-field border border-solid border-on-surface/20 cursor-pointer outline-none focus-visible:outline-none transition-[border-color,box-shadow,opacity] duration-250 hover:border-on-surface/50 data-[state=open]:border-primary data-[state=open]:ring-2 data-[state=open]:ring-primary/25 disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
+      :class="round ? 'rounded-full' : 'rounded-lg'"
     >
       <SelectValue class="min-w-0 truncate">
         <span class="truncate">{{ selectedLabel }}</span>
       </SelectValue>
       <SelectIcon as-child>
-        <IconLucideChevronDown class="size-3.5 text-on-surface-variant/50 shrink-0" />
+        <IconLucideChevronDown
+          class="size-3.5 text-on-surface-variant/50 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180"
+        />
       </SelectIcon>
     </SelectTrigger>
 

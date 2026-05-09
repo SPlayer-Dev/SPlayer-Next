@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { CoverItem } from "@/types/artist";
-import type { StreamingArtist } from "@shared/types/streaming";
+import type { Artist } from "@shared/types/player";
 import { useStreamingStore } from "@/stores/streaming";
 import CoverList from "@/components/list/CoverList.vue";
 
@@ -23,8 +23,8 @@ onMounted(() => {
 });
 
 const items = computed<CoverItem[]>(() =>
-  artists.value.map((a: StreamingArtist) => ({
-    id: a.id,
+  artists.value.map((a: Artist) => ({
+    id: a.id ?? "",
     title: a.name,
     cover: a.avatar,
     subtitle: a.albumCount ? t("common.totalAlbums", { count: a.albumCount }) : "",

@@ -177,6 +177,12 @@ export interface LibrarySettings {
   scanDirs: string[];
 }
 
+/** 流媒体总开关 */
+export interface StreamingSettings {
+  /** 启用流媒体；关闭后侧边栏隐藏入口 */
+  enabled: boolean;
+}
+
 /** 在线歌词服务配置 */
 export interface OnlineLyricSettings {
   /** 启用在线 TTML 歌词 */
@@ -243,6 +249,8 @@ export interface SystemConfig {
   taskbarLyric: TaskbarLyricSettings;
   /** 在线歌词服务配置 */
   lyric: OnlineLyricSettings;
+  /** 流媒体总开关 */
+  streaming: StreamingSettings;
   /** 系统配置 */
   system: {
     /** 记忆窗口状态 */

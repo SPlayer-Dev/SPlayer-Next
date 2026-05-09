@@ -307,6 +307,13 @@ const api = {
   streaming: {
     // 把远端封面 URL 拉成字节，给 SMTC 高清封面用
     fetchCoverBytes: (url: string) => ipcRenderer.invoke("streaming:fetchCoverBytes", url),
+    // 加载服务器配置（密码已解密）
+    loadServers: () => ipcRenderer.invoke("streaming:loadServers"),
+    // 持久化服务器配置（密码经 safeStorage 加密）
+    saveServers: (payload: {
+      servers: unknown[];
+      activeServerId: string | null;
+    }): Promise<void> => ipcRenderer.invoke("streaming:saveServers", payload),
   },
   hotkey: {
     getAll: () => ipcRenderer.invoke("hotkey:getAll"),

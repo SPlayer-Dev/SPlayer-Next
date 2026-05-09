@@ -18,12 +18,33 @@ export interface Artist {
   id?: string;
   name: string;
   avatar?: string;
+  /** 名下专辑数 */
+  albumCount?: number;
 }
 
 /** 专辑 */
 export interface Album {
   id?: string;
   name: string;
+  /** 封面 URL */
+  cover?: string;
+  /** 专辑歌手字符串 */
+  artist?: string;
+  /** 曲目数 */
+  trackCount?: number;
+  /** 发行年份 */
+  year?: number;
+}
+
+/** 歌单 */
+export interface Playlist {
+  id?: string;
+  name: string;
+  cover?: string;
+  description?: string;
+  trackCount?: number;
+  /** 创建者 */
+  owner?: string;
 }
 
 /** 音质信息 */

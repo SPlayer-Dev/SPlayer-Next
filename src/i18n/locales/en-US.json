@@ -79,8 +79,14 @@
     "globalSettings": "Global Settings"
   },
   "streaming": {
-    "hint": "Connect to your Subsonic / Navidrome / Jellyfin / Emby server",
-    "hintDetail": "Server credentials are stored locally in your browser only",
+    "hint": "Connect to a streaming platform",
+    "hintDetail": "Server credentials are encrypted by the OS and stored locally; nothing is uploaded",
+    "errorCode": {
+      "auth": "Authentication failed",
+      "network": "Network error",
+      "protocol": "Protocol error",
+      "unknown": "Unknown error"
+    },
     "tabs": {
       "songs": "Songs",
       "albums": "Albums",
@@ -128,7 +134,8 @@
     },
     "actions": {
       "refresh": "Refresh",
-      "search": "Search"
+      "search": "Search",
+      "settings": "Streaming settings"
     }
   },
   "player": {
@@ -231,7 +238,7 @@
       "appearance": "Appearance",
       "hotkeys": "Hotkey Settings",
       "services": "Services",
-      "streaming": "Streaming",
+      "mediaSource": "Media Sources",
       "plugins": "Plugin Manager"
     },
     "section": {
@@ -259,7 +266,7 @@
       "systemConfig": "System",
       "reset": "Reset",
       "pluginsList": "Installed Plugins",
-      "servers": "Servers"
+      "streaming": "Streaming"
     },
     "language": {
       "label": "Language",
@@ -789,6 +796,10 @@
     "taskbarProgress": {
       "label": "Taskbar Progress",
       "description": "Show playback progress on the taskbar icon"
+    },
+    "streamingEnabled": {
+      "label": "Enable streaming",
+      "description": "When disabled, the streaming entry is hidden from the sidebar"
     },
     "closeAction": {
       "label": "Close Button Action",

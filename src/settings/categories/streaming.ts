@@ -1,14 +1,20 @@
 import type { SettingCategory } from "@/types/settings-schema";
 import StreamingServerList from "@/components/settings/custom/StreamingServerList.vue";
-import IconLucideServer from "~icons/lucide/server";
+import IconLucideLibrary from "~icons/lucide/library";
 
-const streamingCategory: SettingCategory = {
-  id: "streaming",
-  icon: IconLucideServer,
+const mediaSourceCategory: SettingCategory = {
+  id: "mediaSource",
+  icon: IconLucideLibrary,
   sections: [
     {
-      id: "servers",
+      id: "streaming",
       items: [
+        {
+          key: "streamingEnabled",
+          type: "switch",
+          binding: { store: "settings", path: "system.streaming.enabled" },
+          defaultValue: true,
+        },
         {
           key: "streamingServerList",
           type: "custom",
@@ -21,4 +27,4 @@ const streamingCategory: SettingCategory = {
   ],
 };
 
-export default streamingCategory;
+export default mediaSourceCategory;

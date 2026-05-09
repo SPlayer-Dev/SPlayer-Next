@@ -1,4 +1,4 @@
-import type { Track, IpcResponse } from "./player";
+import type { Album, Artist, IpcResponse, Track } from "./player";
 
 /** 支持的流媒体服务器类型 */
 export type StreamingServerType = "subsonic" | "navidrome" | "opensubsonic" | "jellyfin" | "emby";
@@ -16,7 +16,7 @@ export interface StreamingServerConfig {
   username: string;
   /** 明文密码 */
   password: string;
-  /** Jellyfin/Emby 鉴权后回填，过期时由 store 重新登录 */
+  /** Jellyfin/Emby 鉴权后回填 */
   accessToken?: string;
   /** Jellyfin/Emby 鉴权后回填的用户 ID */
   userId?: string;
@@ -24,7 +24,7 @@ export interface StreamingServerConfig {
   lastConnected?: number;
 }
 
-/** 添加/编辑表单提交时的 payload（id/token 由 store 生成、回填） */
+/** 添加/编辑表单提交时的 payload */
 export interface StreamingServerInput {
   name: string;
   type: StreamingServerType;
@@ -33,6 +33,9 @@ export interface StreamingServerInput {
   password: string;
 }
 
+/** 错误归类 */
+export type StreamingErrorCode = "auth" | "network" | "protocol" | "unknown";
+
 /** 连通性测试结果 */
 export interface StreamingPingResult {
   ok: boolean;
@@ -40,6 +43,8 @@ export interface StreamingPingResult {
   version?: string;
   /** 失败描述 */
   error?: string;
+  /** 失败归类（仅 ok=false 时有意义） */
+  code?: StreamingErrorCode;
 }
 
 /** Jellyfin/Emby 登录返回 */
@@ -54,47 +59,28 @@ export interface StreamingListParams {
   limit?: number;
 }
 
-/** 流媒体专辑（用于 CoverList） */
-export interface StreamingAlbum {
-  id: string;
-  name: string;
-  artist?: string;
-  cover?: string;
-  songCount?: number;
-  year?: number;
-}
-
-/** 流媒体歌手（用于 CoverList） */
-export interface StreamingArtist {
-  id: string;
-  name: string;
-  avatar?: string;
-  albumCount?: number;
-}
-
-/** 流媒体歌单（用于 CoverList） */
-export interface StreamingPlaylist {
-  id: string;
-  name: string;
-  cover?: string;
-  description?: string;
-  songCount?: number;
-  owner?: string;
-}
-
 /** 搜索结果聚合 */
 export interface StreamingSearchResult {
   songs: Track[];
-  albums: StreamingAlbum[];
-  artists: StreamingArtist[];
+  albums: Album[];
+  artists: Artist[];
 }
 
 /**
  * 主进程暴露给渲染层的 streaming IPC 接口
  *
- * 仅一个职责：把远端封面 URL 拉成字节给 SMTC 用（系统媒体集成需要 Buffer）。
- * 其它流媒体操作（鉴权/浏览/搜索/歌词）都在渲染层 src/services/streaming 完成。
+ * - fetchCoverBytes：把远端封面 URL 拉成字节给 SMTC 用（系统媒体集成需要 Buffer）
+ * - loadServers / saveServers：服务器配置持久化，密码经 safeStorage 加密写入
+ *   `{userData}/streaming.json`；accessToken/userId 不持久化
  */
 export interface StreamingApi {
   fetchCoverBytes: (url: string) => Promise<IpcResponse<Buffer | null>>;
+  loadServers: () => Promise<{
+    servers: StreamingServerConfig[];
+    activeServerId: string | null;
+  }>;
+  saveServers: (payload: {
+    servers: StreamingServerConfig[];
+    activeServerId: string | null;
+  }) => Promise<void>;
 }

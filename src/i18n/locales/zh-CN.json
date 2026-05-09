@@ -79,8 +79,14 @@
     "globalSettings": "全局设置"
   },
   "streaming": {
-    "hint": "接入自建的 Subsonic / Navidrome / Jellyfin / Emby 服务器",
-    "hintDetail": "服务器配置（含密码）保存在本地浏览器，不上传任何远端服务",
+    "hint": "连接到流媒体平台",
+    "hintDetail": "服务器配置经系统加密后保存在本地，不上传任何远端服务",
+    "errorCode": {
+      "auth": "鉴权失败",
+      "network": "网络错误",
+      "protocol": "协议错误",
+      "unknown": "未知错误"
+    },
     "tabs": {
       "songs": "歌曲",
       "albums": "专辑",
@@ -128,7 +134,8 @@
     },
     "actions": {
       "refresh": "刷新",
-      "search": "搜索"
+      "search": "搜索",
+      "settings": "流媒体配置"
     }
   },
   "player": {
@@ -231,7 +238,7 @@
       "appearance": "外观设置",
       "hotkeys": "快捷键配置",
       "services": "网络与服务",
-      "streaming": "流媒体",
+      "mediaSource": "媒体源配置",
       "plugins": "插件管理"
     },
     "section": {
@@ -259,7 +266,7 @@
       "systemConfig": "系统配置",
       "reset": "重置",
       "pluginsList": "已安装插件",
-      "servers": "服务器管理"
+      "streaming": "流媒体管理"
     },
     "language": {
       "label": "界面语言",
@@ -789,6 +796,10 @@
     "taskbarProgress": {
       "label": "任务栏播放进度",
       "description": "在任务栏图标上显示当前播放进度"
+    },
+    "streamingEnabled": {
+      "label": "启用流媒体",
+      "description": "关闭后将隐藏侧边栏的流媒体入口"
     },
     "closeAction": {
       "label": "关闭按钮行为",
