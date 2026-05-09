@@ -179,6 +179,7 @@ const { items: contextMenuItems, handleSelect: onContextMenu } = useTrackMenu(co
 
 const emit = defineEmits<{
   scroll: [event: Event];
+  reachBottom: [];
   change: [];
 }>();
 
@@ -217,6 +218,7 @@ defineExpose({
         item-fixed
         height="100%"
         @scroll="(event: Event) => emit('scroll', event)"
+        @reach-bottom="emit('reachBottom')"
       >
         <!-- 搜索无结果 -->
         <template v-if="searchQuery && sortedItems.length === 0" #empty>
@@ -504,6 +506,9 @@ defineExpose({
               </div>
             </div>
           </div>
+        </template>
+        <template v-if="$slots.footer" #footer>
+          <slot name="footer" />
         </template>
       </SVirtualList>
     </SContextMenu>

@@ -180,7 +180,7 @@ export const listPlaylists = async (cfg: StreamingServerConfig): Promise<Playlis
 };
 
 /**
- * 拉歌曲列表（Subsonic 无原生端点，用 newest 专辑展开）
+ * 拉歌曲列表
  * @param cfg - 服务器配置
  * @param params - 可选分页参数
  */
@@ -188,25 +188,14 @@ export const listSongs = async (
   cfg: StreamingServerConfig,
   params?: StreamingListParams,
 ): Promise<Track[]> => {
-  const limit = params?.limit ?? 100;
-  const wrap = await callApi<{ albumList2?: { album?: SubsonicAlbum[] } }>(cfg, "getAlbumList2", {
-    type: "newest",
-    size: Math.max(20, Math.ceil(limit / 5)),
-    offset: params?.offset ?? 0,
+  const wrap = await callApi<{ searchResult3?: { song?: SubsonicSong[] } }>(cfg, "search3", {
+    query: "",
+    songCount: params?.limit ?? 100,
+    songOffset: params?.offset ?? 0,
+    artistCount: 0,
+    albumCount: 0,
   });
-  const albumList = wrap.albumList2?.album ?? [];
-  if (albumList.length === 0) return [];
-  const songsPerAlbum = await Promise.all(
-    albumList.map((a) =>
-      callApi<{ album?: SubsonicAlbum }>(cfg, "getAlbum", { id: a.id })
-        .then((r) => r.album?.song ?? [])
-        .catch(() => [] as SubsonicSong[]),
-    ),
-  );
-  return songsPerAlbum
-    .flat()
-    .slice(0, limit)
-    .map((s) => subsonicSongToTrack(cfg, s, buildAuth));
+  return (wrap.searchResult3?.song ?? []).map((s) => subsonicSongToTrack(cfg, s, buildAuth));
 };
 
 /**

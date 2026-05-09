@@ -39,8 +39,14 @@ export const useStreamingStore = defineStore("streaming", () => {
     error?: string;
     errorCode?: StreamingErrorCode;
   }>({ connected: false });
-  /** 是否正在拉数据 */
+  /** 是否正在拉数据（首次加载/刷新） */
   const loading = ref(false);
+  /** 是否正在加载下一页歌曲（分页触底） */
+  const loadingMoreSongs = ref(false);
+  /** 歌曲列表是否还有下一页 */
+  const hasMoreSongs = ref(true);
+  /** 单页歌曲数量 */
+  const SONGS_PAGE_SIZE = 100;
 
   /** 运行时缓存 */
   const songs = shallowRef<Track[]>([]);
@@ -354,18 +360,42 @@ export const useStreamingStore = defineStore("streaming", () => {
   };
 
   /**
-   * 拉取歌曲列表并写入运行时缓存
-   * @param params - 可选分页参数（offset/limit）
+   * 拉取首页歌曲列表，覆盖现有缓存
    */
-  const fetchSongs = async (params?: StreamingListParams): Promise<void> => {
+  const fetchSongs = async (): Promise<void> => {
     loading.value = true;
+    hasMoreSongs.value = true;
     try {
-      songs.value = await withActive((cfg) => client.listSongs(cfg, params));
+      const result = await withActive((cfg) =>
+        client.listSongs(cfg, { offset: 0, limit: SONGS_PAGE_SIZE }),
+      );
+      songs.value = result;
+      hasMoreSongs.value = result.length >= SONGS_PAGE_SIZE;
       persistCache();
     } catch (err) {
       console.error("[streaming] fetchSongs failed:", err);
     } finally {
       loading.value = false;
+    }
+  };
+
+  /**
+   * 拉取下一页歌曲并追加到列表；无下一页或正在加载时直接返回
+   */
+  const fetchMoreSongs = async (): Promise<void> => {
+    if (!hasMoreSongs.value || loadingMoreSongs.value || loading.value) return;
+    loadingMoreSongs.value = true;
+    try {
+      const result = await withActive((cfg) =>
+        client.listSongs(cfg, { offset: songs.value.length, limit: SONGS_PAGE_SIZE }),
+      );
+      songs.value = [...songs.value, ...result];
+      hasMoreSongs.value = result.length >= SONGS_PAGE_SIZE;
+      persistCache();
+    } catch (err) {
+      console.error("[streaming] fetchMoreSongs failed:", err);
+    } finally {
+      loadingMoreSongs.value = false;
     }
   };
 
@@ -482,6 +512,8 @@ export const useStreamingStore = defineStore("streaming", () => {
     activeServer,
     connectionStatus,
     loading,
+    loadingMoreSongs,
+    hasMoreSongs,
     hasServer,
     isConnected,
     hydrated,
@@ -505,6 +537,7 @@ export const useStreamingStore = defineStore("streaming", () => {
     fetchArtists,
     fetchPlaylists,
     fetchSongs,
+    fetchMoreSongs,
     fetchAlbumSongs,
     fetchPlaylistSongs,
     fetchArtistAlbums,

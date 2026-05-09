@@ -390,6 +390,9 @@ defineExpose({
             </div>
           </div>
         </div>
+        <div v-if="$slots.footer && items.length > 0" class="shrink-0">
+          <slot name="footer" />
+        </div>
       </div>
     </template>
   </div>
