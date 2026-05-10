@@ -54,6 +54,9 @@ const sourceLabel = computed(() => {
   }
 });
 
+/** 是否禁用歌词来源切换 */
+const lyricSwitchDisabled = computed(() => media.track?.source === "streaming");
+
 /** 音质等级标签 */
 const qualityLabel = computed(() => getQualityLabel(media.detail?.quality));
 
@@ -61,6 +64,14 @@ const qualityLabel = computed(() => getQualityLabel(media.detail?.quality));
 const showLosslessIcon = computed(() => {
   const level = getQualityLevel(media.detail?.quality);
   return level === "hi-res" || level === "lossless";
+});
+
+/** 声道描述 */
+const channelText = computed(() => {
+  const ch = media.detail?.quality?.channels ?? 0;
+  if (ch === 2) return t("quality.stereo");
+  if (ch === 1) return t("quality.mono");
+  return t("quality.multiChannel");
 });
 
 /** 歌词格式标签 */
@@ -104,7 +115,6 @@ const alignItems = computed(() => {
       <SPopover side="top" :side-offset="8" cover trigger="hover">
         <template #trigger>
           <span
-            v-if="qualityLabel"
             class="inline-flex items-center gap-1 leading-none px-1.5 py-1.2 rounded-md border border-solid border-cover/30 cursor-pointer transition-colors hover:border-cover/60"
           >
             <IconSpLossless v-if="showLosslessIcon" class="text-[1.4em] -my-[0.4em]" />
@@ -112,36 +122,27 @@ const alignItems = computed(() => {
           </span>
         </template>
         <div v-if="media.detail?.quality" class="min-w-48 text-xs">
-          <div class="font-medium text-sm mb-2 text-cover">音质详情</div>
+          <div class="font-medium text-sm mb-2 text-cover">{{ t("quality.details") }}</div>
           <div class="flex flex-col gap-1.5 text-cover/70">
             <div class="flex justify-between">
-              <span class="text-cover/40">编码格式</span>
+              <span class="text-cover/40">{{ t("quality.codec") }}</span>
               <span>{{ media.detail.quality.codec.toUpperCase() }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-cover/40">采样率</span>
+              <span class="text-cover/40">{{ t("quality.sampleRate") }}</span>
               <span>{{ (media.detail.quality.sampleRate / 1000).toFixed(1) }} kHz</span>
             </div>
             <div v-if="media.detail.quality.bitsPerSample > 0" class="flex justify-between">
-              <span class="text-cover/40">位深</span>
+              <span class="text-cover/40">{{ t("quality.bitDepth") }}</span>
               <span>{{ media.detail.quality.bitsPerSample }} bit</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-cover/40">比特率</span>
+              <span class="text-cover/40">{{ t("quality.bitRate") }}</span>
               <span>{{ Math.round(media.detail.quality.bitRate / 1000) }} kbps</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-cover/40">声道</span>
-              <span>
-                {{
-                  media.detail.quality.channels === 2
-                    ? "立体声"
-                    : media.detail.quality.channels === 1
-                      ? "单声道"
-                      : "多声道"
-                }}
-                · {{ media.detail.quality.channels }} 声道
-              </span>
+              <span class="text-cover/40">{{ t("quality.channels") }}</span>
+              <span>{{ channelText }} · {{ media.detail.quality.channels }}</span>
             </div>
           </div>
         </div>
@@ -149,13 +150,15 @@ const alignItems = computed(() => {
       <SPopselect
         v-model="settings.lyric.lyricSourcePreference"
         :options="lyricSourceOptions"
+        :disabled="lyricSwitchDisabled"
         side="top"
         :side-offset="8"
         cover
       >
         <template #trigger>
           <span
-            class="inline-flex items-center justify-center leading-none px-1.5 py-1.2 rounded-md border border-solid border-cover/30 cursor-pointer transition-colors hover:border-cover/60"
+            class="inline-flex items-center justify-center leading-none px-1.5 py-1.2 rounded-md border border-solid border-cover/30 transition-colors"
+            :class="lyricSwitchDisabled ? 'cursor-default' : 'cursor-pointer hover:border-cover/60'"
           >
             {{ lyricLabel }}
           </span>
@@ -163,18 +166,18 @@ const alignItems = computed(() => {
       </SPopselect>
     </div>
     <!-- 歌手 -->
-    <div
-      v-if="media.track.artists.length"
-      class="max-w-full flex items-center gap-1.5 text-[1.2em] text-cover/60"
-    >
+    <div class="max-w-full flex items-center gap-1.5 text-[1.2em] text-cover/60">
       <IconLucideMic class="shrink-0 translate-y-px text-cover/40" />
       <span class="truncate">
-        <template v-for="(artist, index) in media.track.artists" :key="index">
-          <span class="cursor-pointer transition-colors hover:text-cover">
-            {{ artist.name }}
-          </span>
-          <span v-if="index < media.track.artists.length - 1">/</span>
+        <template v-if="media.track.artists.length">
+          <template v-for="(artist, index) in media.track.artists" :key="index">
+            <span class="cursor-pointer transition-colors hover:text-cover">
+              {{ artist.name }}
+            </span>
+            <span v-if="index < media.track.artists.length - 1">/</span>
+          </template>
         </template>
+        <span v-else class="opacity-60">{{ t("playlist.unknownArtist") }}</span>
       </span>
     </div>
     <!-- 专辑 -->

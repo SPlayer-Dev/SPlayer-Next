@@ -53,6 +53,8 @@ const loadCollection = async () => {
     collection.value = await libraryStore.getAlbumCollection(albumName);
   } else if (source === "streaming") {
     const originalId = decodeURIComponent(id);
+    // 名称兜底
+    const fallbackName = typeof route.query.name === "string" ? route.query.name : originalId;
     if (type === "album") {
       const album = streamingStore.albums.find((a) => a.id === originalId);
       const tracks = await streamingStore.fetchAlbumSongs(originalId);
@@ -60,7 +62,7 @@ const loadCollection = async () => {
         id: originalId,
         type,
         source,
-        title: album?.name ?? originalId,
+        title: album?.name ?? fallbackName,
         cover: album?.cover ?? tracks[0]?.cover,
         creator: album?.artist,
         tracks,
@@ -73,7 +75,7 @@ const loadCollection = async () => {
         id: originalId,
         type,
         source,
-        title: pl?.name ?? originalId,
+        title: pl?.name ?? fallbackName,
         cover: pl?.cover ?? tracks[0]?.cover,
         description: pl?.description,
         creator: pl?.owner,

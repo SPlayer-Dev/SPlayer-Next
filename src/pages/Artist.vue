@@ -64,29 +64,18 @@ const loadArtist = async () => {
   } else if (source === "streaming") {
     const artistId = decodeURIComponent(id);
     const cached = streamingStore.artists.find((a) => a.id === artistId);
-    const albumList = await streamingStore.fetchArtistAlbums(artistId);
-    // 一次性把所有专辑的曲目拉回来聚合
-    const trackLists = await Promise.all(
-      albumList
-        .filter((al) => !!al.id)
-        .map((al) => streamingStore.fetchAlbumSongs(al.id!).catch(() => [])),
-    );
-    const tracks = trackLists.flat();
+    const fallbackName = typeof route.query.name === "string" ? route.query.name : artistId;
+    // 直接拿歌手名下所有歌曲
+    const tracks = await streamingStore.fetchArtistSongs(artistId);
     artist.value = {
       id: artistId,
-      name: cached?.name ?? artistId,
+      name: cached?.name ?? fallbackName,
       avatar: cached?.avatar,
       source,
       tracks,
-      albums: albumList.map((al) => ({
-        id: al.id ?? "",
-        title: al.name,
-        cover: al.cover,
-        subtitle: al.year ? String(al.year) : (al.artist ?? ""),
-        trackCount: al.trackCount ?? 0,
-      })),
+      albums: [],
       trackCount: tracks.length,
-      albumCount: albumList.length,
+      albumCount: 0,
     };
   }
   // TODO: online

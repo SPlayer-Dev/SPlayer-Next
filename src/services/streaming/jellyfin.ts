@@ -144,23 +144,15 @@ export const getStreamUrl = async (
   playSessionId?: string,
 ): Promise<string> => {
   if (!cfg.accessToken) throw new StreamingAuthError("缺少 accessToken");
-  // Container 列表与 Jellyfin 官方网页版对齐：mp3 必须出现两次（容器+编码）
-  // 否则 server 会误判客户端不直接支持原 mp3 文件，强制走 HLS 转码（多分片 + 多连接，
-  // 用 ffmpeg 同步打开 m3u8 比直接拉一个字节流慢得多，是切歌卡顿的主要原因）
   const params = new URLSearchParams({
     UserId: cfg.userId ?? "",
     DeviceId: deviceId(cfg),
-    MaxStreamingBitrate: "140000000",
-    Container: "opus,webm|opus,ts|mp3,mp3,aac,m4a|aac,m4b|aac,flac,webma,webm|webma,wav,ogg",
-    TranscodingContainer: "mp4",
-    TranscodingProtocol: "hls",
-    AudioCodec: "aac",
+    Container: "mp3,m4a|aac,m4a|alac,m4b|aac,flac,webma|opus,webm|opus,ogg|opus,ogg|vorbis,wav,oga",
     PlaySessionId: playSessionId ?? crypto.randomUUID(),
     api_key: cfg.accessToken,
     StartTimeTicks: "0",
     EnableRedirection: "true",
     EnableRemoteMedia: "false",
-    EnableAudioVbrEncoding: "true",
   });
   return `${normalizeBase(cfg.url)}/Audio/${originalId}/universal?${params.toString()}`;
 };
@@ -306,6 +298,27 @@ export const getArtistAlbums = async (
     SortOrder: "Descending",
   });
   return (data.Items ?? []).map((it) => jellyItemToAlbum(cfg, it));
+};
+
+/**
+ * 拉指定歌手名下的所有歌曲（按专辑+曲号排序）
+ * Jellyfin 直接支持按 ArtistIds 过滤，无需逐专辑遍历
+ * @param cfg - 服务器配置
+ * @param artistId - 歌手 itemId
+ */
+export const getArtistSongs = async (
+  cfg: StreamingServerConfig,
+  artistId: string,
+): Promise<Track[]> => {
+  const userId = requireAuth(cfg);
+  const data = await fetchUserItems(cfg, userId, {
+    ArtistIds: artistId,
+    IncludeItemTypes: "Audio",
+    Recursive: "true",
+    Fields: "MediaSources",
+    SortBy: "Album,ParentIndexNumber,IndexNumber,SortName",
+  });
+  return (data.Items ?? []).map((it) => jellyItemToTrack(cfg, it));
 };
 
 /**

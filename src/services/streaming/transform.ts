@@ -1,24 +1,9 @@
 /**
  * 流媒体响应 → 统一 Track / Album / Artist / Playlist 类型
  */
+import { secToMs } from "@/utils/time";
 import type { Album, Artist, Playlist, Track } from "@shared/types/player";
 import type { StreamingServerConfig } from "@shared/types/streaming";
-
-/** 常见的歌手分隔符 */
-const ARTIST_SEPARATOR = /\s*(?:feat\.?|ft\.?)\s+|[/&;,×|、，]\s*/i;
-
-/**
- * 把字符串拆成 Artist 数组
- * @param raw - 原始字符串
- */
-const parseArtists = (raw: string): Artist[] => {
-  if (!raw) return [];
-  return raw
-    .split(ARTIST_SEPARATOR)
-    .map((name) => name.trim())
-    .filter(Boolean)
-    .map((name) => ({ name }));
-};
 
 /**
  * 生成稳定的 Track.id：`${cfg.id}:${originalId}`
@@ -27,12 +12,6 @@ const parseArtists = (raw: string): Artist[] => {
  */
 export const trackId = (cfg: StreamingServerConfig, originalId: string): string =>
   `${cfg.id}:${originalId}`;
-
-/**
- * 秒 → 毫秒（Subsonic 用秒）
- * @param s - 秒数
- */
-export const secToMs = (s?: number): number => Math.max(0, Math.floor((s ?? 0) * 1000));
 
 export interface SubsonicSong {
   id: string;
@@ -50,6 +29,10 @@ export interface SubsonicSong {
   size?: number;
   coverArt?: string;
   year?: number;
+  /** OpenSubsonic 扩展：结构化的多歌手数组，优先于 artist 字符串 */
+  artists?: { id?: string; name: string }[];
+  /** OpenSubsonic 扩展：服务器选定的显示串，如 "AC/DC" */
+  displayArtist?: string;
 }
 
 export interface SubsonicAlbum {
@@ -61,6 +44,8 @@ export interface SubsonicAlbum {
   songCount?: number;
   year?: number;
   song?: SubsonicSong[];
+  /** OpenSubsonic 扩展：服务器选定的显示串 */
+  displayArtist?: string;
 }
 
 export interface SubsonicArtist {
@@ -105,7 +90,9 @@ const subsonicCoverUrl = (
 };
 
 /**
- * 拼 Subsonic stream URL（带 estimateContentLength）
+ * 拼 Subsonic stream URL（带 format=raw 强制原文件，避免服务器侧默认转码）
+ *
+ * format=raw 是 OpenSubsonic 标准；旧 Subsonic 不识别会忽略，配合 maxBitRate=0 双保险
  * @param cfg - 服务器配置
  * @param songId - 歌曲 id
  * @param buildAuth - 鉴权 query builder
@@ -119,7 +106,19 @@ export const subsonicStreamUrl = (
   const params = buildAuth(cfg);
   params.set("id", songId);
   params.set("estimateContentLength", "true");
+  params.set("format", "raw");
+  params.set("maxBitRate", "0");
   return `${base}/rest/stream?${params.toString()}`;
+};
+
+/** 取 Subsonic 歌曲的歌手字段 */
+const resolveSubsonicArtists = (song: SubsonicSong): Artist[] => {
+  if (song.artists && song.artists.length > 0) {
+    return song.artists.map((a) => ({ id: a.id, name: a.name }));
+  }
+  const name = (song.displayArtist ?? song.artist ?? "").trim();
+  if (!name) return [];
+  return [{ id: song.artistId, name }];
 };
 
 /**
@@ -138,7 +137,7 @@ export const subsonicSongToTrack = (
   serverId: cfg.id,
   originalId: song.id,
   title: song.title || "",
-  artists: parseArtists(song.artist ?? ""),
+  artists: resolveSubsonicArtists(song),
   album: song.album ? { id: song.albumId, name: song.album } : undefined,
   duration: secToMs(song.duration),
   // Track 封面同时用于列表（小图）和全屏播放器（大图），取 500 兼顾两者
@@ -166,8 +165,10 @@ export const subsonicAlbumToView = (
 ): Album => ({
   id: album.id,
   name: album.name,
-  artist: album.artist,
-  cover: subsonicCoverUrl(cfg, album.coverArt ?? album.id, buildAuth, 300),
+  // 优先 OpenSubsonic 的 displayArtist
+  artist: album.displayArtist ?? album.artist,
+  // 只用服务器明确返回的 coverArt id
+  cover: subsonicCoverUrl(cfg, album.coverArt, buildAuth, 300),
   trackCount: album.songCount,
   year: album.year,
 });
@@ -185,7 +186,8 @@ export const subsonicArtistToView = (
 ): Artist => ({
   id: artist.id,
   name: artist.name,
-  avatar: subsonicCoverUrl(cfg, artist.coverArt ?? artist.id, buildAuth, 300),
+  // 只用 coverArt 字段；artist.id 兜底会触发 404
+  avatar: subsonicCoverUrl(cfg, artist.coverArt, buildAuth, 300),
   albumCount: artist.albumCount,
 });
 
@@ -203,7 +205,7 @@ export const subsonicPlaylistToView = (
   id: pl.id,
   name: pl.name,
   description: pl.comment,
-  cover: subsonicCoverUrl(cfg, pl.coverArt ?? pl.id, buildAuth, 300),
+  cover: subsonicCoverUrl(cfg, pl.coverArt, buildAuth, 300),
   trackCount: pl.songCount,
   owner: pl.owner,
 });

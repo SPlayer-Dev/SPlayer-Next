@@ -507,8 +507,15 @@ defineExpose({
             </div>
           </div>
         </template>
-        <template v-if="$slots.footer" #footer>
-          <slot name="footer" />
+        <template #footer>
+          <slot name="footer">
+            <div
+              v-if="sortedItems.length > 0"
+              class="py-6 text-center text-xs text-on-surface-variant/40"
+            >
+              {{ t("common.noMore") }}
+            </div>
+          </slot>
         </template>
       </SVirtualList>
     </SContextMenu>

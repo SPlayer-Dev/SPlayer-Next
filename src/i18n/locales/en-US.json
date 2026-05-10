@@ -195,6 +195,17 @@
       "fileConfirm": "Permanently delete {count} files from disk? This cannot be undone"
     }
   },
+  "quality": {
+    "details": "Audio Quality",
+    "codec": "Codec",
+    "sampleRate": "Sample Rate",
+    "bitDepth": "Bit Depth",
+    "bitRate": "Bit Rate",
+    "channels": "Channels",
+    "stereo": "Stereo",
+    "mono": "Mono",
+    "multiChannel": "Multi-channel"
+  },
   "playlist": {
     "title": "Playlist",
     "empty": "Playlist is empty",

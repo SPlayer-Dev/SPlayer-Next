@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
@@ -114,6 +114,10 @@ pub struct InnerPlayer {
     /// 跨曲目共享的变速变调处理器（load/seek 时 Arc::clone 给 DecoderSource，
     /// set_speed/set_pitch/set_pitch_sync 直接锁此字段更新参数）
     tempo: Arc<Mutex<StretchProcessor>>,
+    /// load 单调递增 token：每次 take_for_async_load 自增一次
+    /// commit_loaded 比对 token 与最新值，不一致则该次加载已被新加载取代，需丢弃
+    /// 用于防止快速切歌时旧 IO 完成后覆盖新音频的竞态
+    load_token: Arc<AtomicU64>,
 }
 
 /// 切换/seek 时要 join 的旧线程集合，全部挪到 spawn_blocking 工作线程 join，
@@ -238,6 +242,7 @@ impl InnerPlayer {
                 decoder::TARGET_CHANNELS,
                 decoder::TARGET_SAMPLE_RATE,
             ))),
+            load_token: Arc::new(AtomicU64::new(0)),
         })
     }
 
@@ -509,7 +514,11 @@ impl InnerPlayer {
 
     /// 给 lib.rs async load 用：原子地发出停止信号 + take 所有旧线程 handle
     /// 调用方负责在工作线程 join 这些 handle，主线程持锁阶段不阻塞
-    pub fn take_for_async_load(&mut self) -> OldThreads {
+    /// 返回的 token 用于在 commit_loaded 时校验本次 load 是否已被更新的 load 取代
+    pub fn take_for_async_load(&mut self) -> (OldThreads, u64) {
+        // 自增 token：本次 load 的标识；任何并发的更早 commit_loaded 比较时会发现不匹配
+        let token = self.load_token.fetch_add(1, Ordering::AcqRel) + 1;
+
         // 发停止信号（原子写，纳秒级）
         if let Some(flag) = self.fade_cancel.take() {
             flag.store(true, Ordering::Relaxed);
@@ -537,13 +546,15 @@ impl InnerPlayer {
         self.equalizer.lock().reset_state();
         self.tempo.lock().reset();
 
-        OldThreads {
+        let old_threads = OldThreads {
             decoder_thread: self.decoder_thread.take(),
             position_timer: self.position_timer_handle.take(),
             fft_timer: self.fft_timer_handle.take(),
             fade_handle: self.fade_handle.take(),
-        }
+        };
+        (old_threads, token)
     }
+
 
     /// 给 lib.rs async seek 用：原子发出停止信号 + take 所有旧线程 handle（不 join）
     pub fn take_for_async_seek(&mut self) -> SeekTake {
@@ -642,14 +653,29 @@ impl InnerPlayer {
     }
 
     /// load 的下半部分：lib.rs async load 在 IO 完成后由主线程持锁调用
+    ///
+    /// `token` 为 take_for_async_load 时拿到的标识。本函数比对当前最新 token：
+    /// - 不一致 → 本次 load 已被更新的 load 抢占，丢弃 sink/shared，stop 解码线程后返回 None
+    /// - 一致 → 正常 attach 新资源
     pub fn commit_loaded(
         &mut self,
+        token: u64,
         source: &str,
         auto_play: bool,
         mut metadata: AudioMetadata,
         decode_handle: JoinHandle<decoder::DecoderData>,
         shared: Arc<Shared>,
-    ) -> Result<AudioMetadata> {
+    ) -> Result<Option<AudioMetadata>> {
+        // 抢占检查：比对最新 token，不等说明已有更新的 load 在路上 / 已 commit
+        if token != self.load_token.load(Ordering::Acquire) {
+            // 停止新解码线程（它会写入 shared 但没人消费），让 join 能尽快返回
+            shared.stop();
+            // shared / sink / decode_handle 在此函数返回时 drop；解码线程读到 stop 信号后退出
+            // decode_handle 故意不 join，避免阻塞主线程持锁阶段（让解码线程在后台自然结束）
+            drop(decode_handle);
+            return Ok(None);
+        }
+
         let stream_handle = self.ensure_output()?;
         let sink = Arc::new(Sink::try_new(stream_handle).context("Failed to create audio sink")?);
 
@@ -693,7 +719,7 @@ impl InnerPlayer {
             });
         }
 
-        Ok(metadata)
+        Ok(Some(metadata))
     }
 
     /// 加载音频源，auto_play 控制是否自动播放
@@ -894,6 +920,12 @@ impl InnerPlayer {
         }
 
         self.fft.reset();
+
+        // 清掉中断标志：上面 shared.stop() 已让 interrupt_flag=true，
+        // 否则 ffmpeg 的 avformat_seek_file 一进入就会被中断
+        if let Some(ref d) = decoder_data {
+            d.reset_interrupt();
+        }
 
         // 在已有上下文上 seek（不重新打开文件）
         let seek_ok = decoder_data

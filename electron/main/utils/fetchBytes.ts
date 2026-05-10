@@ -12,9 +12,12 @@ const MAX_BYTES = 5 * 1024 * 1024;
 
 /**
  * 获取远端 URL 的字节
- * @param url
- * @param timeoutMs
- * @returns
+ *
+ * 流式累加并按 MAX_BYTES 提前 abort，避免恶意/异常服务器返回 GB 级 body 时
+ * 把主进程内存吃光（res.arrayBuffer() 会无视 5MB 上限先全部缓冲）
+ *
+ * @param url 目标 URL
+ * @param timeoutMs 总超时（包含读 body）
  */
 export const fetchBytes = async (
   url: string,
@@ -24,10 +27,28 @@ export const fetchBytes = async (
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, { signal: controller.signal });
-    if (!res.ok) return null;
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length === 0 || buf.length > MAX_BYTES) return null;
-    return buf;
+    if (!res.ok || !res.body) return null;
+
+    // Content-Length 优先：超 MAX_BYTES 直接拒绝，不开始读
+    const contentLength = Number(res.headers.get("content-length") ?? "");
+    if (Number.isFinite(contentLength) && contentLength > MAX_BYTES) return null;
+
+    // 流式读取，累计超 MAX_BYTES 时 abort 释放底层 socket
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    const reader = res.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.length;
+      if (total > MAX_BYTES) {
+        controller.abort();
+        return null;
+      }
+      chunks.push(value);
+    }
+    if (total === 0) return null;
+    return Buffer.concat(chunks, total);
   } catch {
     return null;
   } finally {

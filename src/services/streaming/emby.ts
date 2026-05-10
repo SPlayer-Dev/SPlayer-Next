@@ -15,6 +15,7 @@ export {
   getAlbumSongs,
   getPlaylistSongs,
   getArtistAlbums,
+  getArtistSongs,
   search,
   getLyrics,
 } from "./jellyfin";

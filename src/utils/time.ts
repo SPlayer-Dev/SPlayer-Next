@@ -36,3 +36,9 @@ export const formatCountdown = (totalSec: number): string => {
   const pad = (n: number): string => n.toString().padStart(2, "0");
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 };
+
+/**
+ * 秒 → 毫秒
+ * @param s - 秒数
+ */
+export const secToMs = (s?: number): number => Math.max(0, Math.floor((s ?? 0) * 1000));

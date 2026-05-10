@@ -241,13 +241,14 @@ impl AudioPlayer {
         let auto_play = auto_play.unwrap_or(true);
         info!(source = %source, auto_play, "加载音频源");
 
-        // 阶段 1：主线程持锁瞬间，take 所有旧线程 handle + 拿参数
-        let (old_threads, cover_dir, normalization_enabled) = {
+        // 阶段 1：主线程持锁瞬间，take 所有旧线程 handle + 拿参数 + 拿 load token
+        let (old_threads, token, cover_dir, normalization_enabled) = {
             let mut player = self.inner.lock();
-            let old_threads = player.take_for_async_load();
+            let (old_threads, token) = player.take_for_async_load();
             player.ensure_output_pub().into_napi()?;
             (
                 old_threads,
+                token,
                 player.cover_cache_dir().map(String::from),
                 player.is_normalization_enabled(),
             )
@@ -276,14 +277,18 @@ impl AudioPlayer {
         .into_napi()?;
 
         // 阶段 3：主线程持锁瞬间，attach 新资源
+        // commit_loaded 内部比对 token，被新 load 抢占时返回 None：丢弃本次结果，避免覆盖
         let returned_meta = {
             let mut player = self.inner.lock();
             player
-                .commit_loaded(&source, auto_play, metadata, decode_handle, shared)
+                .commit_loaded(token, &source, auto_play, metadata, decode_handle, shared)
                 .into_napi()?
         };
 
-        Ok(Self::meta_to_js(returned_meta))
+        match returned_meta {
+            Some(meta) => Ok(Self::meta_to_js(meta)),
+            None => Err(Error::from_reason("load 已被更新的 load 取代")),
+        }
     }
 
     /// 内部：将 AudioMetadata 转为 JS 结构
@@ -364,6 +369,10 @@ impl AudioPlayer {
                 Some(d) => d,
                 None => return SeekOutcome::Fallback,
             };
+            // 关键：清掉中断标志再 seek
+            // take_for_async_seek 调过 old_shared.stop()，已把 interrupt_flag 设为 true，
+            // 否则 ffmpeg 的 avformat_seek_file 一进入就会被中断回调拒绝
+            decoder_data.reset_interrupt();
             if !decoder_data.seek(position) {
                 return SeekOutcome::Fallback;
             }

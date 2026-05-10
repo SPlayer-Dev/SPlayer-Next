@@ -9,6 +9,7 @@ import * as playback from "@/services/playback";
 import * as lyricLoader from "@/services/lyricLoader";
 import * as autoClose from "@/services/autoClose";
 import * as abLoop from "@/services/abLoop";
+import * as session from "@/services/streaming/session";
 import { loadAudio } from "@/services/audioLoader";
 import { extractColorFromUrl } from "@/utils/color";
 import { handleError, isSkippableError } from "@/utils/errors";
@@ -128,6 +129,9 @@ const loadTrack = async (track: Track | null): Promise<void> => {
   // 乐观更新：同步写入 track，开启歌词加载周期
   useMediaStore().setTrack(track);
   lyricLoader.beginLoad();
+  // 通知流媒体 PlayState：给上一首发 Stopped、给新一首发 Playing
+  // 上一首位置取当前 status.position（旧值，切歌前的最后位置）
+  session.notifyTrackChanged(track, useStatusStore().position);
   // meta 随 load 一起下发：SMTC/托盘/标题用 track 上的权威字段
   await load(source, true, track);
 };
@@ -174,6 +178,8 @@ export const stop = async (): Promise<void> => {
   const result = await window.api.player.stop();
   if (result.success) {
     const status = useStatusStore();
+    // 上报 Stopped 给流媒体服务器
+    session.notifyTrackChanged(null, status.position);
     status.state = "stopped";
     status.position = 0;
     playback.reset();
@@ -343,6 +349,8 @@ const onQueueEnded = async (): Promise<void> => {
   // 通知主进程停止音频引擎
   await window.api.player.stop();
   const status = useStatusStore();
+  // Jellyfin/Emby 上报 Stopped，释放 server 端会话
+  session.notifyTrackChanged(null, status.position);
   status.state = "stopped";
   status.position = status.duration;
 };
@@ -507,6 +515,10 @@ const handleEvent = async (event: PlayerEvent): Promise<void> => {
       status.volume = event.data.volume;
       playback.setDuration(event.data.duration);
       playback.setPlaying(event.data.state === "playing");
+      // Jellyfin/Emby 的 PlayState 暂停/恢复立即上报，让 Now Playing 状态及时刷新
+      if (event.data.state === "playing" || event.data.state === "paused") {
+        session.notifyStateChanged(event.data.position, event.data.state === "paused");
+      }
       break;
     case "position": {
       // 歌曲加载中不更新进度
@@ -523,6 +535,8 @@ const handleEvent = async (event: PlayerEvent): Promise<void> => {
       useMediaStore().updateLyricIndex(adjusted);
       // AB 循环：到达 B 点 seek 回 A
       abLoop.checkLoop(adjusted);
+      // Jellyfin/Emby 进度心跳；session 内部节流到 10s
+      session.notifyProgress(adjusted, !status.isPlaying);
       break;
     }
     case "fftData":
@@ -581,6 +595,8 @@ export const initPlayer = async (): Promise<void> => {
   // 先从主进程同步后端配置，确保 system 设置可用
   const settings = useSettingsStore();
   await settings.syncSystem();
+  // 流媒体 store 必须在恢复队列前就绪，否则队列里的 streaming track 拿不到 cfg
+  await useStreamingStore().init();
   await queue.restoreQueue();
   const status = useStatusStore();
   // 恢复上次的音量和播放模式到主进程

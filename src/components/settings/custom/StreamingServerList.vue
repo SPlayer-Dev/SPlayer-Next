@@ -22,17 +22,27 @@ const streaming = useStreamingStore();
 const { servers, activeServerId } = storeToRefs(streaming);
 
 const TYPE_OPTIONS: { value: StreamingServerType; label: string }[] = [
-  { value: "subsonic", label: "Subsonic" },
   { value: "navidrome", label: "Navidrome" },
-  { value: "opensubsonic", label: "OpenSubsonic" },
   { value: "jellyfin", label: "Jellyfin" },
   { value: "emby", label: "Emby" },
+  { value: "opensubsonic", label: "OpenSubsonic" },
+  { value: "airsonic", label: "Airsonic" },
+  { value: "gonic", label: "Gonic" },
+  { value: "lms", label: "LMS" },
+  { value: "subsonic", label: "Subsonic" },
 ];
 
 /** 表单 / 编辑状态 */
 const dialogOpen = ref(false);
 const editingId = ref<string | null>(null);
-const form = ref<StreamingServerInput>(emptyForm());
+const EMPTY_FORM: StreamingServerInput = {
+  name: "",
+  type: "navidrome",
+  url: "",
+  username: "",
+  password: "",
+};
+const form = ref<StreamingServerInput>({ ...EMPTY_FORM });
 const submitting = ref(false);
 const testing = ref(false);
 const testResult = ref<StreamingPingResult | null>(null);
@@ -48,13 +58,9 @@ const pendingRemoveName = computed(
 /** 切换激活服务器的 loading */
 const switchingId = ref<string | null>(null);
 
-function emptyForm(): StreamingServerInput {
-  return { name: "", type: "subsonic", url: "", username: "", password: "" };
-}
-
 const openAdd = (): void => {
   editingId.value = null;
-  form.value = emptyForm();
+  form.value = { ...EMPTY_FORM };
   testResult.value = null;
   formError.value = null;
   dialogOpen.value = true;

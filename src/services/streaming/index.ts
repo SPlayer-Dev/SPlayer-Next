@@ -15,12 +15,24 @@ import * as subsonic from "./subsonic";
 import * as jellyfin from "./jellyfin";
 import * as emby from "./emby";
 
+/** Subsonic 视图鉴权缓存失效 */
+export const invalidateViewAuth = subsonic.invalidateViewAuth;
+
+/** Subsonic 协议家族类型集合 */
+const SUBSONIC_TYPES = new Set<StreamingServerType>([
+  "subsonic",
+  "navidrome",
+  "opensubsonic",
+  "airsonic",
+  "gonic",
+  "lms",
+]);
+
 /**
  * 是否 Subsonic 协议家族
  * @param type - 服务器类型
  */
-const isSubsonic = (type: StreamingServerType): boolean =>
-  type === "subsonic" || type === "navidrome" || type === "opensubsonic";
+const isSubsonic = (type: StreamingServerType): boolean => SUBSONIC_TYPES.has(type);
 
 /**
  * 是否需要 token 鉴权（Jellyfin/Emby 走 AuthenticateByName，Subsonic 系不走）
@@ -140,6 +152,18 @@ export const getArtistAlbums = (cfg: StreamingServerConfig, artistId: string): P
   if (isSubsonic(cfg.type)) return subsonic.getArtistAlbums(cfg, artistId);
   if (cfg.type === "jellyfin") return jellyfin.getArtistAlbums(cfg, artistId);
   if (cfg.type === "emby") return emby.getArtistAlbums(cfg, artistId);
+  throw unsupported(cfg);
+};
+
+/**
+ * 拉指定歌手名下的所有歌曲
+ * @param cfg - 服务器配置
+ * @param artistId - 歌手 id
+ */
+export const getArtistSongs = (cfg: StreamingServerConfig, artistId: string): Promise<Track[]> => {
+  if (isSubsonic(cfg.type)) return subsonic.getArtistSongs(cfg, artistId);
+  if (cfg.type === "jellyfin") return jellyfin.getArtistSongs(cfg, artistId);
+  if (cfg.type === "emby") return emby.getArtistSongs(cfg, artistId);
   throw unsupported(cfg);
 };
 

@@ -58,7 +58,7 @@ export const useStatusStore = defineStore(
     /** 是否暂停 */
     const isPaused = computed(() => state.value === "paused");
     /** 是否加载中 */
-    const isLoading = computed(() => state.value === "loading");
+    const isLoading = computed(() => state.value === "loading" || trackLoading.value);
     /** 播放进度 */
     const progress = computed(() => (duration.value > 0 ? position.value / duration.value : 0));
     /**

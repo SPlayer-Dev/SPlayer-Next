@@ -7,7 +7,7 @@ import IconLucideSearch from "~icons/lucide/search";
 
 const { t } = useI18n();
 const streaming = useStreamingStore();
-const { songs, loading, loadingMoreSongs, hasMoreSongs, isConnected } = storeToRefs(streaming);
+const { songs, loading, isConnected } = storeToRefs(streaming);
 
 const refreshKey = inject<{ value: number }>("streamingRefreshKey", { value: 0 });
 const searchQuery = ref("");
@@ -29,10 +29,6 @@ onMounted(() => {
 const handlePlayAll = (): void => {
   if (songs.value.length === 0) return;
   player.playFrom(songs.value, 0);
-};
-
-const handleReachBottom = (): void => {
-  streaming.fetchMoreSongs();
 };
 </script>
 
@@ -64,19 +60,7 @@ const handleReachBottom = (): void => {
       </SInput>
     </div>
     <div v-if="songs.length > 0" class="flex-1 min-h-0">
-      <SongList
-        :items="songs"
-        :search-query="searchQuery"
-        source="streaming"
-        @reach-bottom="handleReachBottom"
-      >
-        <template #footer>
-          <div class="py-4 text-center text-xs text-on-surface-variant/40">
-            <span v-if="loadingMoreSongs">{{ t("common.loading") }}</span>
-            <span v-else-if="!hasMoreSongs">{{ t("common.noMore") }}</span>
-          </div>
-        </template>
-      </SongList>
+      <SongList :items="songs" :search-query="searchQuery" source="streaming" />
     </div>
     <div v-else class="flex-1 flex items-center justify-center text-on-surface-variant/50">
       <div class="text-sm">

@@ -1,7 +1,15 @@
 import type { Album, Artist, IpcResponse, Track } from "./player";
 
 /** 支持的流媒体服务器类型 */
-export type StreamingServerType = "subsonic" | "navidrome" | "opensubsonic" | "jellyfin" | "emby";
+export type StreamingServerType =
+  | "subsonic"
+  | "navidrome"
+  | "opensubsonic"
+  | "airsonic"
+  | "gonic"
+  | "lms"
+  | "jellyfin"
+  | "emby";
 
 /**
  * 服务器配置

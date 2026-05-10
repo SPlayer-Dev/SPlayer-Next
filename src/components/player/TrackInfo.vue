@@ -67,14 +67,17 @@ const currentLyricText = computed(() => {
             class="text-on-surface-variant truncate"
             :class="compact ? 'text-xs leading-tight mt-0.5' : 'text-sm mt-1'"
           >
-            <span
-              v-for="(artist, i) in media.track.artists"
-              :key="artist.id ?? i"
-              class="cursor-pointer transition-colors hover:text-primary"
-            >
-              {{ artist.name }}
-              <span v-if="i < media.track.artists.length - 1" class="mx-1 opacity-60">/</span>
-            </span>
+            <template v-if="media.track.artists.length">
+              <span
+                v-for="(artist, i) in media.track.artists"
+                :key="artist.id ?? i"
+                class="cursor-pointer transition-colors hover:text-primary"
+              >
+                {{ artist.name }}
+                <span v-if="i < media.track.artists.length - 1" class="mx-1 opacity-60">/</span>
+              </span>
+            </template>
+            <span v-else class="opacity-50">{{ $t("playlist.unknownArtist") }}</span>
           </div>
         </Transition>
       </div>

@@ -10,12 +10,13 @@ import type {
   StreamingServerType,
 } from "@shared/types/streaming";
 import * as client from "@/services/streaming";
+import * as session from "@/services/streaming/session";
 import { StreamingAuthError, classifyError } from "@/services/streaming/errors";
 
 const NEEDS_AUTH: StreamingServerType[] = ["jellyfin", "emby"];
 const needsAccessToken = (type: StreamingServerType): boolean => NEEDS_AUTH.includes(type);
 
-/** 浏览缓存：每个 serverId 一个 cache 条目 */
+/** 浏览缓存 */
 interface ServerCache {
   songs: Track[];
   albums: Album[];
@@ -39,14 +40,10 @@ export const useStreamingStore = defineStore("streaming", () => {
     error?: string;
     errorCode?: StreamingErrorCode;
   }>({ connected: false });
-  /** 是否正在拉数据（首次加载/刷新） */
+  /** 是否正在拉数据（首次加载/刷新；后台分批继续拉时仍为 false，UI 不再阻塞） */
   const loading = ref(false);
-  /** 是否正在加载下一页歌曲（分页触底） */
-  const loadingMoreSongs = ref(false);
-  /** 歌曲列表是否还有下一页 */
-  const hasMoreSongs = ref(true);
-  /** 单页歌曲数量 */
-  const SONGS_PAGE_SIZE = 100;
+  /** 单页歌曲数量；首批返回后后台继续按此分批拉到拉完 */
+  const SONGS_PAGE_SIZE = 500;
 
   /** 运行时缓存 */
   const songs = shallowRef<Track[]>([]);
@@ -105,6 +102,8 @@ export const useStreamingStore = defineStore("streaming", () => {
       return;
     }
     const cached = await cacheDb.getItem<ServerCache>(key).catch(() => null);
+    // 竞态保护：await 期间用户可能已切到其它服务器，丢弃过期结果
+    if (key !== currentCacheKey()) return;
     if (cached) {
       songs.value = cached.songs;
       albums.value = cached.albums;
@@ -158,7 +157,7 @@ export const useStreamingStore = defineStore("streaming", () => {
   };
 
   /**
-   * 局部更新服务器配置；改 url/username/password/type 会清空 token
+   * 局部更新服务器配置；改 url/username/password/type 会清空 token + 视图鉴权缓存
    * @param id - 目标 server id
    * @param patch - 表单字段子集
    */
@@ -181,6 +180,7 @@ export const useStreamingStore = defineStore("streaming", () => {
       accessToken: credentialsChanged ? undefined : old.accessToken,
       userId: credentialsChanged ? undefined : old.userId,
     };
+    if (credentialsChanged) client.invalidateViewAuth(id);
     const list = [...servers.value];
     list[idx] = next;
     servers.value = list;
@@ -189,9 +189,14 @@ export const useStreamingStore = defineStore("streaming", () => {
 
   /**
    * 移除服务器；若目标是当前激活的，连同激活 ID + IndexedDB 浏览缓存一并清空
+   * Jellyfin/Emby 主动 logout 释放 server 端 session，Subsonic 视图鉴权缓存也清空
    * @param id - 目标 server id
    */
   const removeServer = (id: string): void => {
+    const target = servers.value.find((s) => s.id === id);
+    // 先 logout 再移除：要用到 accessToken
+    if (target) void session.logout(target);
+    client.invalidateViewAuth(id);
     servers.value = servers.value.filter((s) => s.id !== id);
     cacheDb.removeItem(cacheKey(id)).catch(() => {});
     if (activeServerId.value === id) {
@@ -203,7 +208,7 @@ export const useStreamingStore = defineStore("streaming", () => {
   };
 
   /**
-   * 用临时 cfg 测试连接（不写 store）；jellyfin/emby 先 authenticate 再 ping
+   * 用临时 cfg 测试连接
    * @param input - 用户填的表单
    */
   const testConnection = async (input: StreamingServerInput): Promise<StreamingPingResult> => {
@@ -290,7 +295,11 @@ export const useStreamingStore = defineStore("streaming", () => {
   /** 断开当前激活服务器（内存数据保留作为缓存显示，但 token 清空） */
   const disconnect = (): void => {
     const id = activeServerId.value;
-    if (id) patchServer(id, { accessToken: undefined, userId: undefined });
+    if (id) {
+      const target = servers.value.find((s) => s.id === id);
+      if (target) void session.logout(target);
+      patchServer(id, { accessToken: undefined, userId: undefined });
+    }
     connectionStatus.value = { connected: false };
   };
 
@@ -360,18 +369,23 @@ export const useStreamingStore = defineStore("streaming", () => {
   };
 
   /**
-   * 拉取首页歌曲列表，覆盖现有缓存
+   * 拉取所有歌曲，覆盖现有缓存
+   *
+   * 首批返回后立即解除 loading 让 UI 可用，剩余分批在后台递归继续拉到拉完
+   * @param serverId - 触发时绑定的 server id；切换服务器后旧 loop 自动停
    */
   const fetchSongs = async (): Promise<void> => {
+    const serverId = activeServerId.value;
     loading.value = true;
-    hasMoreSongs.value = true;
     try {
-      const result = await withActive((cfg) =>
+      const first = await withActive((cfg) =>
         client.listSongs(cfg, { offset: 0, limit: SONGS_PAGE_SIZE }),
       );
-      songs.value = result;
-      hasMoreSongs.value = result.length >= SONGS_PAGE_SIZE;
+      songs.value = first;
       persistCache();
+      if (first.length >= SONGS_PAGE_SIZE) {
+        void fetchRemainingSongs(serverId);
+      }
     } catch (err) {
       console.error("[streaming] fetchSongs failed:", err);
     } finally {
@@ -380,22 +394,28 @@ export const useStreamingStore = defineStore("streaming", () => {
   };
 
   /**
-   * 拉取下一页歌曲并追加到列表；无下一页或正在加载时直接返回
+   * 后台递归拉剩余歌曲；服务器切换或断开时自动停止
+   * @param serverId - 启动时绑定的 server id
    */
-  const fetchMoreSongs = async (): Promise<void> => {
-    if (!hasMoreSongs.value || loadingMoreSongs.value || loading.value) return;
-    loadingMoreSongs.value = true;
-    try {
-      const result = await withActive((cfg) =>
-        client.listSongs(cfg, { offset: songs.value.length, limit: SONGS_PAGE_SIZE }),
-      );
-      songs.value = [...songs.value, ...result];
-      hasMoreSongs.value = result.length >= SONGS_PAGE_SIZE;
-      persistCache();
-    } catch (err) {
-      console.error("[streaming] fetchMoreSongs failed:", err);
-    } finally {
-      loadingMoreSongs.value = false;
+  const fetchRemainingSongs = async (serverId: string | null): Promise<void> => {
+    while (
+      activeServerId.value === serverId &&
+      connectionStatus.value.connected &&
+      songs.value.length % SONGS_PAGE_SIZE === 0
+    ) {
+      try {
+        const next = await withActive((cfg) =>
+          client.listSongs(cfg, { offset: songs.value.length, limit: SONGS_PAGE_SIZE }),
+        );
+        if (activeServerId.value !== serverId) return;
+        if (next.length === 0) return;
+        songs.value = [...songs.value, ...next];
+        persistCache();
+        if (next.length < SONGS_PAGE_SIZE) return;
+      } catch (err) {
+        console.error("[streaming] fetchRemainingSongs failed:", err);
+        return;
+      }
     }
   };
 
@@ -421,6 +441,13 @@ export const useStreamingStore = defineStore("streaming", () => {
     withActive((cfg) => client.getArtistAlbums(cfg, artistId));
 
   /**
+   * 拉取指定歌手名下的所有歌曲
+   * @param artistId - 歌手 originalId
+   */
+  const fetchArtistSongs = (artistId: string): Promise<Track[]> =>
+    withActive((cfg) => client.getArtistSongs(cfg, artistId));
+
+  /**
    * 在激活服务器上搜索（歌曲/专辑/歌手聚合）
    * @param query - 搜索关键词
    */
@@ -438,40 +465,32 @@ export const useStreamingStore = defineStore("streaming", () => {
   };
 
   /**
-   * Jellyfin/Emby PlaySessionId 跟随当前 Track：同一首歌反复要 URL 复用同一个
-   * sessionId（重新连接、重试时不切会话），切到下一首才更新
-   * Subsonic 不用 PlaySessionId，但保持同一签名简化 dispatcher
-   */
-  let lastPlaySession: { trackId: string; sessionId: string } | null = null;
-  const getOrCreatePlaySessionId = (trackId: string): string => {
-    if (lastPlaySession?.trackId === trackId) return lastPlaySession.sessionId;
-    const sessionId = crypto.randomUUID();
-    lastPlaySession = { trackId, sessionId };
-    return sessionId;
-  };
-
-  /**
-   * 取流播放 URL；未连接时尝试自动重连，失败抛错阻止播放
+   * 取流播放 URL
    * @param track - source="streaming" 的 Track（必须带 serverId/originalId）
    */
   const getStreamUrl = async (track: Track): Promise<string> => {
     const cfg = findCfgForTrack(track);
-    // 未连接时尝试自动重连一次；仍失败则阻止播放
-    // （subsonic 的 stream URL 不依赖 token，单靠 cfg 就能生成，
-    //  必须在此处把关，否则脱机也能拼出 URL 让 audio-engine 去试）
-    if (cfg.id === activeServerId.value && !connectionStatus.value.connected) {
+    const isActive = cfg.id === activeServerId.value;
+    const needsConnect = isActive
+      ? !connectionStatus.value.connected
+      : needsAccessToken(cfg.type) && !cfg.accessToken;
+    if (needsConnect) {
       const ok = await connectToServer(cfg.id);
       if (!ok) {
-        throw new Error(connectionStatus.value.error ?? "未连接到流媒体服务器");
+        throw new Error(
+          isActive
+            ? (connectionStatus.value.error ?? "未连接到流媒体服务器")
+            : "无法连接到该曲所在的流媒体服务器",
+        );
       }
     }
     const fresh = servers.value.find((s) => s.id === cfg.id) ?? cfg;
-    const sessionId = getOrCreatePlaySessionId(track.id);
+    const sessionId = session.sessionIdForTrack(track.id);
     return withAutoReauthFor(fresh, (c) => client.getStreamUrl(c, track.originalId!, sessionId));
   };
 
   /**
-   * 取流媒体歌词；任意失败返回 null（不抛错，让 lyricLoader 走兜底链路）
+   * 取流媒体歌词
    * @param track - source="streaming" 的 Track
    */
   const getLyrics = async (track: Track): Promise<string | null> => {
@@ -489,8 +508,7 @@ export const useStreamingStore = defineStore("streaming", () => {
   };
 
   /**
-   * 初始化：从主进程加载服务器列表（密码已解密），水合 IndexedDB 浏览缓存
-   * 重复调用安全
+   * 初始化：从主进程加载服务器列表
    */
   const init = async (): Promise<void> => {
     if (hydrated.value) return;
@@ -510,8 +528,6 @@ export const useStreamingStore = defineStore("streaming", () => {
     activeServer,
     connectionStatus,
     loading,
-    loadingMoreSongs,
-    hasMoreSongs,
     hasServer,
     isConnected,
     hydrated,
@@ -535,10 +551,10 @@ export const useStreamingStore = defineStore("streaming", () => {
     fetchArtists,
     fetchPlaylists,
     fetchSongs,
-    fetchMoreSongs,
     fetchAlbumSongs,
     fetchPlaylistSongs,
     fetchArtistAlbums,
+    fetchArtistSongs,
     search,
     // for player.ts / lyricLoader.ts
     getStreamUrl,

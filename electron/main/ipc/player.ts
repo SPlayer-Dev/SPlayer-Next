@@ -142,18 +142,13 @@ export const registerPlayerIpc = (): void => {
         ? formatArtists(authoritative.artists ?? [])
         : formatArtists(parseArtists(meta.artist ?? ""));
       const displayAlbum = authoritative?.album?.name ?? parseAlbum(meta.album ?? "")?.name ?? "";
-      // 高清封面
-      let coverData: Buffer | null = null;
-      if (isStreaming && authoritative?.cover) {
-        coverData = await fetchBytes(authoritative.cover);
-      } else {
-        coverData = inst.getCoverRaw() ?? null;
-      }
+      // 本地封面：解码时已一次性提取，同步可取
+      const localCover = isStreaming ? null : (inst.getCoverRaw() ?? null);
       mediaService.setMetadata({
         title: displayTitle,
         artist: displayArtist,
         album: displayAlbum,
-        coverData: coverData ?? undefined,
+        coverData: localCover ?? undefined,
         durationMs,
       });
       mediaService.setPlayState({ status: autoPlay ? "Playing" : "Paused" });
@@ -164,6 +159,21 @@ export const registerPlayerIpc = (): void => {
       getMainWindow()?.setTitle(headerTitle);
       setTraySongName(headerTitle);
       setTrayPlayState(autoPlay ? "playing" : "paused");
+      // 流媒体高清封面：fire-and-forget 异步抓取，不阻塞 load IPC 返回
+      // 抓到后再补刷 SMTC metadata；切歌前完成不了不影响下首加载
+      if (isStreaming && authoritative?.cover) {
+        const coverUrl = authoritative.cover;
+        void fetchBytes(coverUrl).then((buf) => {
+          if (!buf) return;
+          mediaService.setMetadata({
+            title: displayTitle,
+            artist: displayArtist,
+            album: displayAlbum,
+            coverData: buf,
+            durationMs,
+          });
+        });
+      }
       const quality = {
         sampleRate: meta.originalSampleRate,
         channels: meta.channels,

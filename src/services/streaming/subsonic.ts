@@ -41,7 +41,48 @@ const newSalt = (): string => {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 };
 
-/** 每个请求新生成 salt+token */
+/**
+ * 视图用的稳定 salt+token 缓存：cfg.id + 密码哈希 → 同一组 salt+token
+ *
+ * 列表/封面 URL 走这个 builder，整个会话期间不变，让浏览器的 <img> 缓存能命中
+ * key 含密码 hash 头几位，密码改了自动失效
+ */
+const viewAuthCache = new Map<string, URLSearchParams>();
+const viewAuthKey = (cfg: StreamingServerConfig): string =>
+  `${cfg.id}:${md5(cfg.password).slice(0, 8)}`;
+
+/**
+ * 视图用 builder：稳定 salt+token，整会话复用
+ * cover URL 等"被 <img> 反复加载"的场景必须用这个，否则每次列表刷新都生成新 URL，
+ * 浏览器缓存全部失效，1000 首歌的列表会瞬时打爆服务器
+ */
+const buildViewAuth: SubsonicAuthBuilder = (cfg) => {
+  const key = viewAuthKey(cfg);
+  let params = viewAuthCache.get(key);
+  if (!params) {
+    const salt = newSalt();
+    params = new URLSearchParams({
+      u: cfg.username,
+      t: md5(cfg.password + salt),
+      s: salt,
+      v: API_VERSION,
+      c: CLIENT_NAME,
+      f: "json",
+    });
+    viewAuthCache.set(key, params);
+  }
+  // 返回拷贝，调用方 set("id", ...) 不污染缓存
+  return new URLSearchParams(params);
+};
+
+/** 失效指定服务器的视图鉴权缓存（密码改变 / 服务器移除时调用） */
+export const invalidateViewAuth = (serverId: string): void => {
+  for (const key of viewAuthCache.keys()) {
+    if (key.startsWith(`${serverId}:`)) viewAuthCache.delete(key);
+  }
+};
+
+/** 每个请求新生成 salt+token（API 调用用） */
 const buildAuth: SubsonicAuthBuilder = (cfg) => {
   const salt = newSalt();
   return new URLSearchParams({
@@ -149,7 +190,7 @@ export const listAlbums = async (
     size: params?.limit ?? 500,
     offset: params?.offset ?? 0,
   });
-  return (wrap.albumList2?.album ?? []).map((a) => subsonicAlbumToView(cfg, a, buildAuth));
+  return (wrap.albumList2?.album ?? []).map((a) => subsonicAlbumToView(cfg, a, buildViewAuth));
 };
 
 /**
@@ -162,7 +203,7 @@ export const listArtists = async (cfg: StreamingServerConfig): Promise<Artist[]>
   }>(cfg, "getArtists");
   const out: Artist[] = [];
   for (const idx of wrap.artists?.index ?? []) {
-    for (const ar of idx.artist ?? []) out.push(subsonicArtistToView(cfg, ar, buildAuth));
+    for (const ar of idx.artist ?? []) out.push(subsonicArtistToView(cfg, ar, buildViewAuth));
   }
   return out;
 };
@@ -176,7 +217,7 @@ export const listPlaylists = async (cfg: StreamingServerConfig): Promise<Playlis
     cfg,
     "getPlaylists",
   );
-  return (wrap.playlists?.playlist ?? []).map((p) => subsonicPlaylistToView(cfg, p, buildAuth));
+  return (wrap.playlists?.playlist ?? []).map((p) => subsonicPlaylistToView(cfg, p, buildViewAuth));
 };
 
 /**
@@ -195,7 +236,7 @@ export const listSongs = async (
     artistCount: 0,
     albumCount: 0,
   });
-  return (wrap.searchResult3?.song ?? []).map((s) => subsonicSongToTrack(cfg, s, buildAuth));
+  return (wrap.searchResult3?.song ?? []).map((s) => subsonicSongToTrack(cfg, s, buildViewAuth));
 };
 
 /**
@@ -208,7 +249,7 @@ export const getAlbumSongs = async (
   albumId: string,
 ): Promise<Track[]> => {
   const wrap = await callApi<{ album?: SubsonicAlbum }>(cfg, "getAlbum", { id: albumId });
-  return (wrap.album?.song ?? []).map((s) => subsonicSongToTrack(cfg, s, buildAuth));
+  return (wrap.album?.song ?? []).map((s) => subsonicSongToTrack(cfg, s, buildViewAuth));
 };
 
 /**
@@ -223,7 +264,7 @@ export const getPlaylistSongs = async (
   const wrap = await callApi<{ playlist?: SubsonicPlaylist }>(cfg, "getPlaylist", {
     id: playlistId,
   });
-  return (wrap.playlist?.entry ?? []).map((s) => subsonicSongToTrack(cfg, s, buildAuth));
+  return (wrap.playlist?.entry ?? []).map((s) => subsonicSongToTrack(cfg, s, buildViewAuth));
 };
 
 /**
@@ -238,7 +279,41 @@ export const getArtistAlbums = async (
   const wrap = await callApi<{ artist?: { album?: SubsonicAlbum[] } }>(cfg, "getArtist", {
     id: artistId,
   });
-  return (wrap.artist?.album ?? []).map((a) => subsonicAlbumToView(cfg, a, buildAuth));
+  return (wrap.artist?.album ?? []).map((a) => subsonicAlbumToView(cfg, a, buildViewAuth));
+};
+
+/**
+ * 拉指定歌手名下的所有歌曲
+ *
+ * Subsonic 没有"按 artistId 拉歌曲"的端点，最少 HTTP 调用方案：
+ * 1. getArtist 拿到 artist + 旗下所有 album（含 albumId）
+ * 2. 逐个 getAlbum 拉曲目（顺序，避免并发打爆服务器）
+ *
+ * 旧 Subsonic 服务器没有更优解法；OpenSubsonic 可考虑 search3
+ * @param cfg - 服务器配置
+ * @param artistId - 歌手 id
+ */
+export const getArtistSongs = async (
+  cfg: StreamingServerConfig,
+  artistId: string,
+): Promise<Track[]> => {
+  const wrap = await callApi<{ artist?: { album?: SubsonicAlbum[] } }>(cfg, "getArtist", {
+    id: artistId,
+  });
+  const albums = wrap.artist?.album ?? [];
+  const tracks: Track[] = [];
+  for (const al of albums) {
+    if (!al.id) continue;
+    try {
+      const albumWrap = await callApi<{ album?: SubsonicAlbum }>(cfg, "getAlbum", { id: al.id });
+      for (const s of albumWrap.album?.song ?? []) {
+        tracks.push(subsonicSongToTrack(cfg, s, buildViewAuth));
+      }
+    } catch {
+      // 单张专辑失败不影响其它
+    }
+  }
+  return tracks;
 };
 
 /**
@@ -263,9 +338,13 @@ export const search = async (
     songCount: 100,
   });
   return {
-    songs: (wrap.searchResult3?.song ?? []).map((s) => subsonicSongToTrack(cfg, s, buildAuth)),
-    albums: (wrap.searchResult3?.album ?? []).map((a) => subsonicAlbumToView(cfg, a, buildAuth)),
-    artists: (wrap.searchResult3?.artist ?? []).map((a) => subsonicArtistToView(cfg, a, buildAuth)),
+    songs: (wrap.searchResult3?.song ?? []).map((s) => subsonicSongToTrack(cfg, s, buildViewAuth)),
+    albums: (wrap.searchResult3?.album ?? []).map((a) =>
+      subsonicAlbumToView(cfg, a, buildViewAuth),
+    ),
+    artists: (wrap.searchResult3?.artist ?? []).map((a) =>
+      subsonicArtistToView(cfg, a, buildViewAuth),
+    ),
   };
 };
 
