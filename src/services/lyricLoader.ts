@@ -264,16 +264,21 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
     if (track.source === "streaming") {
       const text = await useStreamingStore().getLyrics(track);
       if (token !== currentToken) return;
+      const embeddedFallback = detail?.embeddedLyric
+        ? {
+            source: { source: "embedded" as const, format: detectFormat(detail.embeddedLyric) },
+            content: detail.embeddedLyric,
+          }
+        : null;
       if (text && text.trim()) {
-        commit(token, { source: "external", format: "lrc" }, { content: text });
-        return;
+        // 服务器可能给行级 LRC，也可能给逐字（ttml/yrc/qrc 等）或纯文本（Jellyfin 非同步）
+        commit(token, { source: "external", format: detectFormat(text) }, { content: text });
+        if (token !== currentToken) return;
+        // 解析后无有效行（如 Jellyfin 纯文本被 parseLRC 丢弃）→ 回退 embedded
+        if (useMediaStore().parsedLyric.length > 0) return;
       }
-      if (detail?.embeddedLyric) {
-        commit(
-          token,
-          { source: "embedded", format: detectFormat(detail.embeddedLyric) },
-          { content: detail.embeddedLyric },
-        );
+      if (embeddedFallback) {
+        commit(token, embeddedFallback.source, { content: embeddedFallback.content });
       } else {
         commit(token, null, null);
       }

@@ -157,7 +157,7 @@ export const sessionIdForTrack = (trackId: string): string => {
 };
 
 let activeSession: {
-  cfg: StreamingServerConfig;
+  serverId: string;
   trackId: string;
   originalId: string;
   sessionId: string;
@@ -165,9 +165,13 @@ let activeSession: {
 let lastProgressAt = 0;
 const PROGRESS_INTERVAL_MS = 10_000;
 
+/** 按 serverId 现取 cfg；重登换 token 后这里能拿到新值 */
+const cfgFor = (serverId: string): StreamingServerConfig | null =>
+  useStreamingStore().servers.find((s) => s.id === serverId) ?? null;
+
 const findCfgForTrack = (track: Track): StreamingServerConfig | null => {
   if (track.source !== "streaming" || !track.serverId) return null;
-  return useStreamingStore().servers.find((s) => s.id === track.serverId) ?? null;
+  return cfgFor(track.serverId);
 };
 
 /**
@@ -180,14 +184,20 @@ export const notifyTrackChanged = (track: Track | null, positionMs = 0): void =>
     const prev = activeSession;
     activeSession = null;
     lastProgressAt = 0;
-    void reportStopped(prev.cfg, prev.originalId, prev.sessionId, positionMs);
+    const prevCfg = cfgFor(prev.serverId);
+    if (prevCfg) void reportStopped(prevCfg, prev.originalId, prev.sessionId, positionMs);
   }
   if (!track || !track.originalId) return;
   if (activeSession?.trackId === track.id) return;
   const cfg = findCfgForTrack(track);
   if (!cfg) return;
   const sessionId = sessionIdForTrack(track.id);
-  activeSession = { cfg, trackId: track.id, originalId: track.originalId, sessionId };
+  activeSession = {
+    serverId: cfg.id,
+    trackId: track.id,
+    originalId: track.originalId,
+    sessionId,
+  };
   lastProgressAt = Date.now();
   void reportPlaying(cfg, track.originalId, sessionId);
 };
@@ -201,9 +211,11 @@ export const notifyProgress = (positionMs: number, isPaused: boolean): void => {
   if (!activeSession) return;
   const now = Date.now();
   if (now - lastProgressAt < PROGRESS_INTERVAL_MS) return;
+  const cfg = cfgFor(activeSession.serverId);
+  if (!cfg) return;
   lastProgressAt = now;
   void reportProgress(
-    activeSession.cfg,
+    cfg,
     activeSession.originalId,
     activeSession.sessionId,
     positionMs,
@@ -218,9 +230,11 @@ export const notifyProgress = (positionMs: number, isPaused: boolean): void => {
  */
 export const notifyStateChanged = (positionMs: number, isPaused: boolean): void => {
   if (!activeSession) return;
+  const cfg = cfgFor(activeSession.serverId);
+  if (!cfg) return;
   lastProgressAt = Date.now();
   void reportProgress(
-    activeSession.cfg,
+    cfg,
     activeSession.originalId,
     activeSession.sessionId,
     positionMs,
