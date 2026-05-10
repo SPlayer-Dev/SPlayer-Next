@@ -82,6 +82,22 @@ export const invalidateViewAuth = (serverId: string): void => {
   }
 };
 
+/**
+ * 给已剥离 auth 的 cover URL 附上当前会话鉴权
+ * @param url - 已剥离 u/t/s/v/c/f 的 URL
+ * @param cfg - 服务器配置（password 必须在）
+ */
+export const attachAuthToUrl = (url: string, cfg: StreamingServerConfig): string => {
+  try {
+    const u = new URL(url);
+    const auth = buildViewAuth(cfg);
+    for (const [k, v] of auth) u.searchParams.set(k, v);
+    return u.toString();
+  } catch {
+    return url;
+  }
+};
+
 /** 每个请求新生成 salt+token（API 调用用） */
 const buildAuth: SubsonicAuthBuilder = (cfg) => {
   const salt = newSalt();

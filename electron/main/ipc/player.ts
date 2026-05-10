@@ -161,7 +161,7 @@ export const registerPlayerIpc = (): void => {
       setTrayPlayState(autoPlay ? "playing" : "paused");
       // 流媒体高清封面：fire-and-forget 异步抓取，不阻塞 load IPC 返回
       // 抓到后再补刷 SMTC metadata；切歌前完成不了不影响下首加载
-      if (isStreaming && authoritative?.cover) {
+      if (isStreaming && authoritative?.cover && /^https?:\/\//i.test(authoritative.cover)) {
         const coverUrl = authoritative.cover;
         void fetchBytes(coverUrl).then((buf) => {
           if (!buf) return;

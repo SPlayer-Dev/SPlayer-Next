@@ -10,6 +10,7 @@ import path from "node:path";
 import { app, ipcMain, safeStorage } from "electron";
 import { writeFileSync as atomicWriteSync } from "atomically";
 import { fetchBytes } from "@main/utils/fetchBytes";
+import { streamingLog } from "@main/utils/logger";
 import type { StreamingServerConfig } from "@shared/types/streaming";
 
 const STORAGE_FILE = path.join(app.getPath("userData"), "streaming.json");
@@ -43,7 +44,7 @@ const writePersisted = (data: PersistedState): void => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     atomicWriteSync(STORAGE_FILE, JSON.stringify(data, null, 2));
   } catch (err) {
-    console.error("[streaming] write streaming.json failed:", err);
+    streamingLog.error("写入 streaming.json 失败:", err);
   }
 };
 

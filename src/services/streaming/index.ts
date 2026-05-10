@@ -34,6 +34,53 @@ const SUBSONIC_TYPES = new Set<StreamingServerType>([
  */
 const isSubsonic = (type: StreamingServerType): boolean => SUBSONIC_TYPES.has(type);
 
+/** Subsonic cover URL 中需剥离的鉴权参数 */
+const SUBSONIC_AUTH_KEYS = ["u", "t", "s", "v", "c", "f"] as const;
+/** Jellyfin/Emby image URL 中需剥离的鉴权参数 */
+const JELLY_AUTH_KEY = "api_key";
+
+/**
+ * 剥离 cover/image URL 中的鉴权参数（用于落盘前清洗）
+ * @param url - 完整 URL
+ * @param type - 服务器类型
+ */
+export const stripCoverAuth = (
+  url: string | undefined,
+  type: StreamingServerType,
+): string | undefined => {
+  if (!url) return url;
+  try {
+    const u = new URL(url);
+    if (isSubsonic(type)) {
+      for (const k of SUBSONIC_AUTH_KEYS) u.searchParams.delete(k);
+    } else if (type === "jellyfin" || type === "emby") {
+      u.searchParams.delete(JELLY_AUTH_KEY);
+    }
+    return u.toString();
+  } catch {
+    return url;
+  }
+};
+
+/**
+ * 用当前会话凭据刷新 cover/image URL（先剥离再附上当前 token）
+ * Jellyfin/Emby 在未连接时（无 accessToken）只剥离不附加，连接成功后再调一次
+ * @param url - 完整或已剥离的 URL
+ * @param cfg - 服务器配置
+ */
+export const refreshCoverAuth = (
+  url: string | undefined,
+  cfg: StreamingServerConfig,
+): string | undefined => {
+  const stripped = stripCoverAuth(url, cfg.type);
+  if (!stripped) return stripped;
+  if (isSubsonic(cfg.type)) return subsonic.attachAuthToUrl(stripped, cfg);
+  if (cfg.type === "jellyfin" || cfg.type === "emby") {
+    return jellyfin.attachAuthToUrl(stripped, cfg);
+  }
+  return stripped;
+};
+
 /**
  * 是否需要 token 鉴权（Jellyfin/Emby 走 AuthenticateByName，Subsonic 系不走）
  * @param type - 服务器类型

@@ -72,16 +72,55 @@ export const useStreamingStore = defineStore("streaming", () => {
   const currentCacheKey = (): string | null =>
     activeServerId.value ? cacheKey(activeServerId.value) : null;
 
+  /** 落盘前剥离 cover/avatar URL 上的鉴权参数；落盘的不是可重放凭据 */
+  const stripCacheAuth = (snapshot: ServerCache, type: StreamingServerType): ServerCache => ({
+    songs: snapshot.songs.map((it) =>
+      it.cover ? { ...it, cover: client.stripCoverAuth(it.cover, type) } : it,
+    ),
+    albums: snapshot.albums.map((it) =>
+      it.cover ? { ...it, cover: client.stripCoverAuth(it.cover, type) } : it,
+    ),
+    artists: snapshot.artists.map((it) =>
+      it.avatar ? { ...it, avatar: client.stripCoverAuth(it.avatar, type) } : it,
+    ),
+    playlists: snapshot.playlists.map((it) =>
+      it.cover ? { ...it, cover: client.stripCoverAuth(it.cover, type) } : it,
+    ),
+    updatedAt: snapshot.updatedAt,
+  });
+
+  /** 用当前 cfg 凭据为内存中的 cover/avatar URL 重新贴上鉴权 */
+  const refreshCoverUrlsForActive = (): void => {
+    const cfg = activeServer.value;
+    if (!cfg) return;
+    songs.value = songs.value.map((it) =>
+      it.cover ? { ...it, cover: client.refreshCoverAuth(it.cover, cfg) } : it,
+    );
+    albums.value = albums.value.map((it) =>
+      it.cover ? { ...it, cover: client.refreshCoverAuth(it.cover, cfg) } : it,
+    );
+    artists.value = artists.value.map((it) =>
+      it.avatar ? { ...it, avatar: client.refreshCoverAuth(it.avatar, cfg) } : it,
+    );
+    playlists.value = playlists.value.map((it) =>
+      it.cover ? { ...it, cover: client.refreshCoverAuth(it.cover, cfg) } : it,
+    );
+  };
+
   const persistCache = (): void => {
     const key = currentCacheKey();
-    if (!key) return;
-    const snapshot: ServerCache = {
-      songs: toRaw(songs.value),
-      albums: toRaw(albums.value),
-      artists: toRaw(artists.value),
-      playlists: toRaw(playlists.value),
-      updatedAt: Date.now(),
-    };
+    const cfg = activeServer.value;
+    if (!key || !cfg) return;
+    const snapshot = stripCacheAuth(
+      {
+        songs: toRaw(songs.value),
+        albums: toRaw(albums.value),
+        artists: toRaw(artists.value),
+        playlists: toRaw(playlists.value),
+        updatedAt: Date.now(),
+      },
+      cfg.type,
+    );
     lastFetchedAt.value = snapshot.updatedAt;
     cacheDb.setItem(key, snapshot).catch(() => {});
   };
@@ -110,6 +149,9 @@ export const useStreamingStore = defineStore("streaming", () => {
       artists.value = cached.artists;
       playlists.value = cached.playlists;
       lastFetchedAt.value = cached.updatedAt;
+      // Subsonic 此时已有密码，覆盖鉴权立即生效；Jellyfin/Emby 缺 token 则仅剥离，
+      // 待 connectToServer 成功再贴一次（防御性：旧版本可能落盘了带 api_key 的 URL）
+      refreshCoverUrlsForActive();
     } else {
       clearMemoryLists();
     }
@@ -237,13 +279,16 @@ export const useStreamingStore = defineStore("streaming", () => {
   };
 
   /**
-   * 连接到指定服务器；jellyfin/emby 自动登录拿 token，subsonic 系仅 ping
-   * token 和 lastConnected 合并一次落盘
+   * 连接/重登的内部实现
    * @param id - 目标 server id
+   * @param updateStatus - 是否写全局 connectionStatus；非激活服务器的静默重登传 false
    */
-  const connectToServer = async (id: string): Promise<boolean> => {
+  const runConnect = async (id: string, updateStatus: boolean): Promise<boolean> => {
     const cfg = servers.value.find((s) => s.id === id);
     if (!cfg) return false;
+    const writeStatus = (next: typeof connectionStatus.value): void => {
+      if (updateStatus) connectionStatus.value = next;
+    };
     try {
       const updates: Partial<StreamingServerConfig> = {};
       let probe = cfg;
@@ -255,26 +300,35 @@ export const useStreamingStore = defineStore("streaming", () => {
       }
       const ping = await client.ping(probe);
       if (!ping.ok) {
-        connectionStatus.value = {
+        writeStatus({
           connected: false,
           error: ping.error,
           errorCode: ping.code ?? "unknown",
-        };
+        });
         return false;
       }
       updates.lastConnected = Date.now();
       patchServer(id, updates);
-      connectionStatus.value = { connected: true };
+      writeStatus({ connected: true });
+      // 拿到新 token 后刷新内存中 cover URL（仅当目标是当前激活服务器）
+      if (id === activeServerId.value) refreshCoverUrlsForActive();
       return true;
     } catch (err) {
-      connectionStatus.value = {
+      writeStatus({
         connected: false,
         error: err instanceof Error ? err.message : String(err),
         errorCode: classifyError(err),
-      };
+      });
       return false;
     }
   };
+
+  /**
+   * 连接到指定服务器；jellyfin/emby 自动登录拿 token，subsonic 系仅 ping
+   * token 和 lastConnected 合并一次落盘
+   * @param id - 目标 server id
+   */
+  const connectToServer = (id: string): Promise<boolean> => runConnect(id, true);
 
   /**
    * 设为激活服务器并触发连接；id 与当前相同（断开状态重连）也会再走一遍
@@ -306,6 +360,9 @@ export const useStreamingStore = defineStore("streaming", () => {
   /**
    * 包装：执行 fn；遇到 StreamingAuthError 自动重登重试一次
    * 仅 jellyfin/emby 走重登；subsonic 系密码错就是错，没有 token 概念
+   *
+   * 重登只在重登目标 === 当前激活服务器时写全局 connectionStatus，
+   * 否则（队列里混入其它 server 的 Track）只静默更新 token，不污染激活态
    */
   const withAutoReauthFor = async <T>(
     cfg: StreamingServerConfig,
@@ -315,7 +372,8 @@ export const useStreamingStore = defineStore("streaming", () => {
       return await fn(cfg);
     } catch (err) {
       if (!(err instanceof StreamingAuthError) || !needsAccessToken(cfg.type)) throw err;
-      const ok = await connectToServer(cfg.id);
+      const isActive = cfg.id === activeServerId.value;
+      const ok = await runConnect(cfg.id, isActive);
       if (!ok) throw err;
       const refreshed = servers.value.find((s) => s.id === cfg.id);
       if (!refreshed) throw err;

@@ -10,7 +10,6 @@ import * as lyricLoader from "@/services/lyricLoader";
 import * as autoClose from "@/services/autoClose";
 import * as abLoop from "@/services/abLoop";
 import * as session from "@/services/streaming/session";
-import { loadAudio } from "@/services/audioLoader";
 import { extractColorFromUrl } from "@/utils/color";
 import { handleError, isSkippableError } from "@/utils/errors";
 
@@ -47,18 +46,19 @@ export const load = async (
   const wasPlaying = status.isPlaying;
   status.state = wasPlaying ? "playing" : "loading";
   try {
-    const { data, error } = await loadAudio(source, { autoPlay, meta });
+    const result = await window.api.player.load(source, { autoPlay, meta });
     // 竞态保护
     if (token !== loadToken) return null;
-    if (data) {
+    if (result.success && result.data) {
+      const { detail, mediaInfo } = result.data;
       consecutiveFailures = 0;
       const media = useMediaStore();
       // 把引擎提取的 mediaInfo 与已有 Track 合并；身份字段保留
-      media.enrichTrack(data.mediaInfo, data.detail);
+      media.enrichTrack(mediaInfo, detail);
       const enriched = media.track;
-      lyricLoader.loadForTrack(data.detail);
+      lyricLoader.loadForTrack(detail);
       extractColorFromUrl(enriched?.cover ?? null);
-      const dur = enriched?.duration ?? data.mediaInfo.duration;
+      const dur = enriched?.duration ?? mediaInfo.duration;
       status.duration = dur;
       status.position = 0;
       status.state = autoPlay ? "playing" : "paused";
@@ -70,10 +70,10 @@ export const load = async (
     } else {
       status.state = "idle";
       lyricLoader.loadForTrack(null);
-      if (error) {
-        handleError(error);
+      if (result.error) {
+        handleError(result.error);
         // 仅单曲级错误才跳下一首（设备等全局错误跳了也没用）
-        if (isSkippableError(error)) {
+        if (isSkippableError(result.error)) {
           consecutiveFailures++;
           const reachedHardLimit = consecutiveFailures >= MAX_CONSECUTIVE_FAILURES;
           const reachedQueueEnd = consecutiveFailures >= queue.queueLength.value;

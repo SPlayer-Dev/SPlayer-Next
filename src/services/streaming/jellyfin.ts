@@ -30,6 +30,22 @@ const DEVICE_NAME = "SPlayer Desktop";
 const deviceId = (cfg: StreamingServerConfig): string => `splayer-next-${cfg.id}`;
 
 /**
+ * 给已剥离 api_key 的 image URL 附上当前 accessToken；无 token 直接透传
+ * @param url - 已剥离 api_key 的 URL
+ * @param cfg - 服务器配置
+ */
+export const attachAuthToUrl = (url: string, cfg: StreamingServerConfig): string => {
+  if (!cfg.accessToken) return url;
+  try {
+    const u = new URL(url);
+    u.searchParams.set("api_key", cfg.accessToken);
+    return u.toString();
+  } catch {
+    return url;
+  }
+};
+
+/**
  * 拼 MediaBrowser 鉴权 header 字符串
  * @param cfg - 服务器配置
  */
