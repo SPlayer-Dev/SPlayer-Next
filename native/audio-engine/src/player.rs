@@ -4,11 +4,11 @@ use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use cpal::traits::{DeviceTrait, HostTrait};
 use parking_lot::Mutex;
-use rodio::{OutputStream, OutputStreamHandle, Sink};
+use rodio::Sink;
 use tracing::{debug, info};
 
+use crate::audio_output::AudioOutput;
 use crate::decoder;
 use crate::equalizer::{Equalizer, EQ_BAND_COUNT};
 use crate::fft::FftAnalyzer;
@@ -65,8 +65,9 @@ pub enum PlayerState {
 
 /// 内部播放器，管理音频输出、解码和状态
 pub struct InnerPlayer {
-    stream: Option<OutputStream>,
-    stream_handle: Option<OutputStreamHandle>,
+    /// 跨线程安全的音频输出包装：内部专用线程独占 cpal::Stream，
+    /// 此处只持有 Send 的 OutputStreamHandle，保证 InnerPlayer 整体是 Send 的
+    output: Option<AudioOutput>,
     /// 使用 Arc 包装，允许 fade 线程在 Mutex 外操作音量
     sink: Option<Arc<Sink>>,
     shared: Option<Arc<Shared>>,
@@ -157,12 +158,12 @@ pub struct SeekTake {
     pub was_playing: bool,
 }
 
-// SAFETY: InnerPlayer 持有 cpal::Stream（!Send），但 NAPI async fn 要求
-// `&AudioPlayer: Send` → `Arc<Mutex<InnerPlayer>>: Sync` → `InnerPlayer: Send`。
-// 这里仅为类型系统占位。**运行时严格保证 InnerPlayer 不跨线程访问**：
-// - lib.rs async load/seek 中 spawn_blocking 闭包不持有 inner 引用，仅持有纯数据
-// - 所有 inner.lock() 都在主线程上执行，cpal Stream 不会跨线程被 mutate
-unsafe impl Send for InnerPlayer {}
+/// 编译期保证 `InnerPlayer: Send`：cpal::Stream（!Send）已通过 AudioOutput 隔离到专用线程，
+/// 此处不再需要 `unsafe impl Send`。如果未来有人加了 !Send 字段，这条断言会编译失败提醒。
+const _: fn() = || {
+    fn assert_send<T: Send>() {}
+    assert_send::<InnerPlayer>();
+};
 
 /// 等待线程退出，最多等 timeout_ms 毫秒，超时则放弃
 fn join_with_timeout(handle: JoinHandle<()>, timeout_ms: u64) {
@@ -174,45 +175,29 @@ fn join_with_timeout(handle: JoinHandle<()>, timeout_ms: u64) {
 }
 
 impl InnerPlayer {
-    /// 确保音频输出已就绪，未初始化或设备丢失时重新打开
-    fn ensure_output(&mut self) -> Result<&OutputStreamHandle> {
-        if self.stream_handle.is_none() {
-            let (stream, handle) = Self::build_output_stream(self.selected_device_name.as_ref())?;
-            self.stream = Some(stream);
-            self.stream_handle = Some(handle);
+    /// 未初始化时通过 `AudioOutput::new` 懒构造音频输出，返回当前输出。
+    /// 设备失效时的重建由 `reinit_output` 显式处理，不在此函数内自动恢复。
+    fn ensure_output(&mut self) -> Result<&AudioOutput> {
+        if self.output.is_none() {
+            self.output = Some(AudioOutput::new(self.selected_device_name.as_deref())?);
         }
-        Ok(self.stream_handle.as_ref().unwrap())
-    }
-
-    /// 根据选择的设备名称构建音频输出流
-    fn build_output_stream(
-        device_name: Option<&String>,
-    ) -> Result<(OutputStream, OutputStreamHandle)> {
-        match device_name {
-            Some(name) => {
-                let host = cpal::default_host();
-                let device = host
-                    .output_devices()
-                    .context("Failed to enumerate output devices")?
-                    .find(|d| d.name().map(|n| n == *name).unwrap_or(false))
-                    .with_context(|| format!("Output device '{}' not found", name))?;
-                OutputStream::try_from_device(&device).context("Failed to open named output device")
-            }
-            None => OutputStream::try_default().context("Failed to open default output device"),
+        // None 分支不可达：上面分支若进入则 output 已被赋为 Some，否则进入这里之前就是 Some
+        // 仍写成 match：在 NLL 限制下既能让借用检查通过，又规避非测试代码 unwrap/expect
+        match self.output {
+            Some(ref output) => Ok(output),
+            None => Err(anyhow::anyhow!(
+                "ensure_output post-condition violated: output should be Some"
+            )),
         }
     }
 
     pub fn new() -> Result<Self> {
         // 延迟初始化：构造时不要求有音频设备，load 时再打开
-        let (stream, stream_handle) = match Self::build_output_stream(None) {
-            Ok(s) => (Some(s.0), Some(s.1)),
-            Err(_) => (None, None),
-        };
+        let output = AudioOutput::new(None).ok();
         debug!("InnerPlayer 已创建");
 
         Ok(Self {
-            stream,
-            stream_handle,
+            output,
             sink: None,
             shared: None,
             decoder_thread: None,
@@ -244,31 +229,6 @@ impl InnerPlayer {
             ))),
             load_token: Arc::new(AtomicU64::new(0)),
         })
-    }
-
-    /// 获取所有输出设备列表
-    pub fn get_output_devices() -> Vec<(String, bool)> {
-        let host = cpal::default_host();
-        let default_name = host.default_output_device().and_then(|d| d.name().ok());
-
-        host.output_devices()
-            .map(|devices| {
-                devices
-                    .filter_map(|d| {
-                        let name = d.name().ok()?;
-                        let is_default = default_name.as_ref() == Some(&name);
-                        Some((name, is_default))
-                    })
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
-
-    /// 获取系统默认输出设备名称
-    pub fn get_default_device_name() -> Option<String> {
-        cpal::default_host()
-            .default_output_device()
-            .and_then(|d| d.name().ok())
     }
 
     /// 切换输出设备（None = 系统默认）
@@ -444,9 +404,11 @@ impl InnerPlayer {
         self.fft_enabled.load(Ordering::Relaxed)
     }
 
-    /// 重新初始化音频输出设备（系统休眠唤醒后调用，恢复失效的 OutputStream 句柄）
+    /// 重新初始化音频输出设备（系统休眠唤醒、设备热拔插等场景调用）
     ///
-    /// 保存当前播放状态（来源、位置、音量），重建音频输出后自动恢复：
+    /// 通过赋值新的 `AudioOutput` 触发旧 `AudioOutput` 的 `Drop`：旧 owner 线程
+    /// 退出 + 旧 `cpal::Stream` 在该线程内释放，再创建新 `AudioOutput`（新 owner 线程）。
+    /// 保存当前播放状态（来源、位置、音量），重建后自动恢复：
     /// - Playing → seek 到原位置继续播放
     /// - Paused  → seek 到原位置并暂停
     /// - 其他状态 → 仅重建输出，不恢复播放
@@ -462,9 +424,8 @@ impl InnerPlayer {
         self.stop_internal();
 
         // 重建音频输出（使用用户选择的设备或系统默认）
-        let (stream, stream_handle) = Self::build_output_stream(self.selected_device_name.as_ref())?;
-        self.stream = Some(stream);
-        self.stream_handle = Some(stream_handle);
+        // 旧 AudioOutput 在赋值时被 drop，其 owner 线程随之退出并 drop 旧 cpal::Stream
+        self.output = Some(AudioOutput::new(self.selected_device_name.as_deref())?);
 
         // 恢复播放状态
         match prev_state {
@@ -555,7 +516,6 @@ impl InnerPlayer {
         (old_threads, token)
     }
 
-
     /// 给 lib.rs async seek 用：原子发出停止信号 + take 所有旧线程 handle（不 join）
     pub fn take_for_async_seek(&mut self) -> SeekTake {
         if let Some(flag) = self.fade_cancel.take() {
@@ -608,8 +568,10 @@ impl InnerPlayer {
         shared: Arc<Shared>,
         handle: JoinHandle<decoder::DecoderData>,
     ) -> Result<()> {
-        let stream_handle = self.ensure_output()?;
-        let sink = Arc::new(Sink::try_new(stream_handle).context("Failed to create audio sink")?);
+        let sink = {
+            let output = self.ensure_output()?;
+            Arc::new(Sink::try_new(output.handle()).context("Failed to create audio sink")?)
+        };
 
         self.equalizer.lock().reset_state();
         self.tempo.lock().reset();
@@ -676,8 +638,10 @@ impl InnerPlayer {
             return Ok(None);
         }
 
-        let stream_handle = self.ensure_output()?;
-        let sink = Arc::new(Sink::try_new(stream_handle).context("Failed to create audio sink")?);
+        let sink = {
+            let output = self.ensure_output()?;
+            Arc::new(Sink::try_new(output.handle()).context("Failed to create audio sink")?)
+        };
 
         let decoder_source = DecoderSource::new(
             Arc::clone(&shared),
@@ -740,10 +704,10 @@ impl InnerPlayer {
         let (mut metadata, decode_handle) =
             decoder::start_decode(source, Arc::clone(&shared), self.cover_cache_dir.as_deref())?;
 
-        let sink = Arc::new(
-            Sink::try_new(self.stream_handle.as_ref().unwrap())
-                .context("Failed to create audio sink")?,
-        );
+        let sink = {
+            let output = self.ensure_output()?;
+            Arc::new(Sink::try_new(output.handle()).context("Failed to create audio sink")?)
+        };
 
         let decoder_source = DecoderSource::new(
             Arc::clone(&shared),
@@ -928,9 +892,7 @@ impl InnerPlayer {
         }
 
         // 在已有上下文上 seek（不重新打开文件）
-        let seek_ok = decoder_data
-            .as_mut()
-            .is_some_and(|d| d.seek(position_secs));
+        let seek_ok = decoder_data.as_mut().is_some_and(|d| d.seek(position_secs));
 
         if !seek_ok {
             // 回收失败（线程 panic 或 seek 出错），回退到从头 load，不再递归 seek
@@ -954,9 +916,10 @@ impl InnerPlayer {
         }
         let handle = decoder::resume_decode(decoder_data, Arc::clone(&shared));
 
-        let out_handle = self.ensure_output()?;
-        let sink =
-            Arc::new(Sink::try_new(out_handle).context("Failed to create audio sink")?);
+        let sink = {
+            let output = self.ensure_output()?;
+            Arc::new(Sink::try_new(output.handle()).context("Failed to create audio sink")?)
+        };
 
         // seek 时同样清空滤波器状态，避免不连续样本导致瞬态
         self.equalizer.lock().reset_state();

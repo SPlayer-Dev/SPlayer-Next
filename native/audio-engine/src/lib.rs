@@ -1,6 +1,7 @@
 //! FFmpeg 音频解码 + rodio 播放 + FFT 频谱分析。
 //! 通过 NAPI-RS 暴露给 Node.js，作为 Electron 主进程的原生模块。
 
+mod audio_output;
 mod decoder;
 mod equalizer;
 mod fft;
@@ -541,7 +542,7 @@ impl AudioPlayer {
     /// 获取所有音频输出设备列表
     #[napi]
     pub fn get_output_devices(&self) -> Vec<JsAudioDevice> {
-        player::InnerPlayer::get_output_devices()
+        audio_output::list_output_devices()
             .into_iter()
             .map(|(name, is_default)| JsAudioDevice { name, is_default })
             .collect()
@@ -550,7 +551,7 @@ impl AudioPlayer {
     /// 获取系统默认输出设备名称
     #[napi]
     pub fn get_default_device_name(&self) -> Option<String> {
-        player::InnerPlayer::get_default_device_name()
+        audio_output::default_device_name()
     }
 
     /// 切换输出设备（传 None/undefined 使用系统默认）
