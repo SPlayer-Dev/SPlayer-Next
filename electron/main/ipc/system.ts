@@ -6,6 +6,7 @@ import { systemLog } from "@main/utils/logger";
 import { refreshTray } from "@main/services/tray";
 import { getThumbar } from "@main/services/thumbar";
 import { getMainWindow, focusMainWindow } from "@main/window";
+import { fetchBytes } from "@main/utils/fetchBytes";
 
 /**
  * 注册系统相关的 IPC 事件
@@ -27,7 +28,7 @@ export const registerSystemIpc = (): void => {
     shell.showItemInFolder(filePath);
   });
 
-  // 切换主进程语言（托盘菜单、缩略图工具栏等）
+  // 切换主进程语言
   ipcMain.on("system:setLocale", (_event, locale: LocaleCode) => {
     if (setLocale(locale)) {
       refreshTray();
@@ -55,5 +56,15 @@ export const registerSystemIpc = (): void => {
       });
     }
     return fontsCache;
+  });
+
+  // 把任意 http(s) URL 拉成字节回渲染层
+  // 用于 canvas 取色等需要绕过跨域 tainted 的场景；不限流媒体
+  ipcMain.handle("system:fetchRemoteBytes", async (_event, url: string) => {
+    if (typeof url !== "string" || !/^https?:\/\//i.test(url)) {
+      return { success: false, error: "无效的 URL" };
+    }
+    const buf = await fetchBytes(url);
+    return { success: true, data: buf };
   });
 };

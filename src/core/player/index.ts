@@ -1,4 +1,5 @@
-import type { PlayerEvent, Track } from "@shared/types/player";
+import type { Track } from "@shared/types/player";
+import { handleEvent } from "./events";
 import type { RepeatMode, ShuffleMode } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
@@ -7,7 +8,6 @@ import { useStreamingStore } from "@/stores/streaming";
 import * as queue from "@/stores/queue";
 import * as playback from "@/services/playback";
 import * as lyricLoader from "@/services/lyricLoader";
-import * as autoClose from "@/services/autoClose";
 import * as abLoop from "@/services/abLoop";
 import * as session from "@/services/streaming/session";
 import { resolveTrackSource } from "@/services/audioSource";
@@ -46,6 +46,12 @@ export const load = async (
   // 不提前重置，保持播放状态
   const wasPlaying = status.isPlaying;
   status.state = wasPlaying ? "playing" : "loading";
+  // 非本地并行歌词与取色
+  const isOnline = meta?.source !== "local";
+  if (isOnline) {
+    void lyricLoader.loadForTrack(null);
+    extractColorFromUrl(meta?.coverOriginal ?? meta?.cover ?? null);
+  }
   try {
     const result = await window.api.player.load(source, { autoPlay, meta });
     // 竞态保护
@@ -57,8 +63,11 @@ export const load = async (
       // 把引擎提取的 mediaInfo 与已有 Track 合并；身份字段保留
       media.enrichTrack(mediaInfo, detail);
       const enriched = media.track;
-      lyricLoader.loadForTrack(detail);
-      extractColorFromUrl(enriched?.cover ?? null);
+      // 避免重复请求
+      if (!isOnline) {
+        lyricLoader.loadForTrack(detail);
+        extractColorFromUrl(enriched?.cover ?? null);
+      }
       const dur = enriched?.duration ?? mediaInfo.duration;
       status.duration = dur;
       status.position = 0;
@@ -73,7 +82,7 @@ export const load = async (
       lyricLoader.loadForTrack(null);
       if (result.error) {
         handleError(result.error);
-        // 仅单曲级错误才跳下一首（设备等全局错误跳了也没用）
+        // 仅单曲级错误才跳下一首
         if (isSkippableError(result.error)) {
           consecutiveFailures++;
           const reachedHardLimit = consecutiveFailures >= MAX_CONSECUTIVE_FAILURES;
@@ -83,7 +92,6 @@ export const load = async (
             consecutiveFailures = 0;
             await onQueueEnded();
           } else {
-            // 节流：给主进程/文件系统喘息时间，也避免日志刷屏
             setTimeout(() => {
               // 期间用户可能已手动操作，token 变化则放弃
               if (token === loadToken) nextTrack();
@@ -173,8 +181,12 @@ export const stop = async (): Promise<void> => {
  */
 let seekTarget: number | null = null;
 
-/** 判断后端推送的 position 是否已到达 seek 目标附近 */
-const hasReachedSeekTarget = (position: number): boolean => {
+/**
+ * 判断后端推送的 position 是否已到达 seek 目标附近
+ * @param position - 后端推送的播放位置（毫秒）
+ * @returns 是否已到达 seek 目标
+ */
+export const hasReachedSeekTarget = (position: number): boolean => {
   if (seekTarget === null) return true;
   // 容差：后端推送的位置在 seek 目标 ±1s 内视为已到达
   if (Math.abs(position - seekTarget) < 1000) {
@@ -184,6 +196,9 @@ const hasReachedSeekTarget = (position: number): boolean => {
   }
   return false;
 };
+
+/** 当前是否正在 seek */
+export const isSeeking = (): boolean => seekTarget !== null;
 
 /**
  * 跳转到指定播放位置
@@ -470,98 +485,6 @@ export const moveInQueue = (fromIndex: number, toIndex: number): void => {
     status.playIndex--;
   } else if (fromIndex > status.playIndex && toIndex <= status.playIndex) {
     status.playIndex++;
-  }
-};
-
-/** 防止 onTrackEnded 重入 */
-let endedGuard = false;
-
-/**
- * 处理主进程推送的播放事件
- * @param event - 播放事件
- */
-const handleEvent = async (event: PlayerEvent): Promise<void> => {
-  const status = useStatusStore();
-  switch (event.type) {
-    case "status":
-      // 歌曲加载中或 loading 事件不更新 UI，保持当前封面/进度/播放状态平滑过渡
-      if (event.data.state === "loading" || status.trackLoading) break;
-      status.state = event.data.state;
-      // seek 期间不从 status 事件更新 position，避免回跳
-      // position 的更新统一由 position 事件负责
-      if (seekTarget === null) {
-        status.position = playback.setCurrentTime(event.data.position);
-      }
-      status.duration = event.data.duration;
-      status.volume = event.data.volume;
-      playback.setDuration(event.data.duration);
-      playback.setPlaying(event.data.state === "playing");
-      // Jellyfin/Emby 的 PlayState 暂停/恢复立即上报，让 Now Playing 状态及时刷新
-      if (event.data.state === "playing" || event.data.state === "paused") {
-        session.notifyStateChanged(event.data.position, event.data.state === "paused");
-      }
-      break;
-    case "position": {
-      // 歌曲加载中不更新进度
-      if (status.trackLoading) break;
-      // seek 后丢弃旧位置，直到后端推送的位置到达 seek 目标附近
-      if (!hasReachedSeekTarget(event.data.position)) break;
-      const adjusted = playback.setCurrentTime(event.data.position);
-      status.position = adjusted;
-      if (event.data.duration > 0) {
-        status.duration = event.data.duration;
-        playback.setDuration(event.data.duration);
-      }
-      // 用修正后的位置同步歌词索引，避免与显示进度不一致
-      useMediaStore().updateLyricIndex(adjusted);
-      // AB 循环：到达 B 点 seek 回 A
-      abLoop.checkLoop(adjusted);
-      // Jellyfin/Emby 进度心跳；session 内部节流到 10s
-      session.notifyProgress(adjusted, !status.isPlaying);
-      break;
-    }
-    case "fftData":
-      status.fftData = event.data;
-      break;
-    case "ended": {
-      if (endedGuard) return;
-      endedGuard = true;
-      try {
-        // 定时关闭"等本曲结束"模式：到点了就在这里 pause，吃掉本次 ended，不进入下一曲
-        if (autoClose.onTrackEnded()) break;
-        // 单曲循环：seek 回开头继续播放（复用 FFmpeg 上下文，不重建）
-        if (status.repeatMode === "one") {
-          await seek(0);
-          await play();
-        } else {
-          await nextTrack();
-        }
-      } finally {
-        endedGuard = false;
-      }
-      break;
-    }
-    case "play":
-      await play();
-      break;
-    case "pause":
-      await pause();
-      break;
-    case "next":
-      await nextTrack();
-      break;
-    case "prev":
-      await prevTrack();
-      break;
-    case "setShuffle":
-      setShuffleMode(event.data.mode);
-      break;
-    case "setRepeat":
-      setRepeatMode(event.data.mode);
-      break;
-    case "deviceChanged":
-      refreshDevices();
-      break;
   }
 };
 

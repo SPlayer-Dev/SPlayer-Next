@@ -4,6 +4,7 @@ import type { TaskbarLyricSettings } from "@shared/types/settings";
 import type { PluginInfo, PluginResolveUrlArgs } from "@shared/types/plugin";
 import type { HotkeyActionId, HotkeyBinding, HotkeyConflict } from "@shared/types/hotkey";
 import type { LoadOptions } from "@shared/types/player";
+import type { StreamingServerConfig } from "@shared/types/streaming";
 
 /** 订阅主进程推送的事件 */
 const subscribe = <T>(channel: string, callback: (data: T) => void): (() => void) => {
@@ -103,6 +104,8 @@ const api = {
       subscribe<{ category?: string; highlight?: string }>("system:openSettings", callback),
     // 获取系统已安装字体
     listFonts: () => ipcRenderer.invoke("system:listFonts"),
+    // 拉远端字节回渲染层
+    fetchRemoteBytes: (url: string) => ipcRenderer.invoke("system:fetchRemoteBytes", url),
   },
   library: {
     // 开始扫描（默认增量）
@@ -308,8 +311,10 @@ const api = {
     // 加载服务器配置（密码已解密）
     loadServers: () => ipcRenderer.invoke("streaming:loadServers"),
     // 持久化服务器配置（密码经 safeStorage 加密）
-    saveServers: (payload: { servers: unknown[]; activeServerId: string | null }): Promise<void> =>
-      ipcRenderer.invoke("streaming:saveServers", payload),
+    saveServers: (payload: {
+      servers: StreamingServerConfig[];
+      activeServerId: string | null;
+    }): Promise<void> => ipcRenderer.invoke("streaming:saveServers", payload),
   },
   hotkey: {
     getAll: () => ipcRenderer.invoke("hotkey:getAll"),

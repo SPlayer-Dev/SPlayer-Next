@@ -159,13 +159,13 @@ export const getStreamUrl = async (
   originalId: string,
   playSessionId?: string,
 ): Promise<string> => {
-  if (!cfg.accessToken) throw new StreamingAuthError("缺少 accessToken");
+  const userId = requireAuth(cfg);
   const params = new URLSearchParams({
-    UserId: cfg.userId ?? "",
+    UserId: userId,
     DeviceId: deviceId(cfg),
     Container: "mp3,m4a|aac,m4a|alac,m4b|aac,flac,webma|opus,webm|opus,ogg|opus,ogg|vorbis,wav,oga",
     PlaySessionId: playSessionId ?? crypto.randomUUID(),
-    api_key: cfg.accessToken,
+    api_key: cfg.accessToken!,
     StartTimeTicks: "0",
     EnableRedirection: "true",
     EnableRemoteMedia: "false",

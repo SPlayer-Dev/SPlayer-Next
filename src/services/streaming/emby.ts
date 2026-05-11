@@ -34,9 +34,11 @@ export const getStreamUrl = async (
   originalId: string,
   playSessionId?: string,
 ): Promise<string> => {
-  if (!cfg.accessToken) throw new StreamingAuthError("缺少 accessToken");
+  if (!cfg.accessToken || !cfg.userId) {
+    throw new StreamingAuthError("缺少 accessToken / userId");
+  }
   const params = new URLSearchParams({
-    UserId: cfg.userId ?? "",
+    UserId: cfg.userId,
     DeviceId: deviceId(cfg),
     PlaySessionId: playSessionId ?? crypto.randomUUID(),
     api_key: cfg.accessToken,

@@ -14,6 +14,7 @@ import {
 } from "@shared/types/window";
 import { HotkeyApi } from "@shared/types/hotkey";
 import { StreamingApi } from "@shared/types/streaming";
+import { IpcResponse } from "@shared/types/player";
 
 declare global {
   interface Window {
@@ -31,6 +32,7 @@ declare global {
           callback: (payload: { category?: string; highlight?: string }) => void,
         ) => () => void;
         listFonts: () => Promise<string[]>;
+        fetchRemoteBytes: (url: string) => Promise<IpcResponse<Buffer | null>>;
       };
       library: LibraryApi;
       window: WindowApi;

@@ -94,11 +94,11 @@ const updateTops = (fromIndex = 0): void => {
 
 const totalHeight = computed(() => {
   if (props.itemFixed) {
-    return props.items.length * props.itemHeight + props.paddingTop;
+    return props.items.length * props.itemHeight + props.paddingTop + props.paddingBottom;
   }
-  if (itemTops.value.length === 0) return props.paddingTop;
+  if (itemTops.value.length === 0) return props.paddingTop + props.paddingBottom;
   const last = itemTops.value.length - 1;
-  return itemTops.value[last] + itemHeights.value[last] + props.paddingTop;
+  return itemTops.value[last] + itemHeights.value[last] + props.paddingTop + props.paddingBottom;
 });
 
 const actualStartIndex = ref(0);
@@ -390,11 +390,7 @@ defineExpose({
             </div>
           </div>
         </div>
-        <div
-          v-if="$slots.footer && items.length > 0"
-          class="shrink-0"
-          :style="{ paddingBottom: `${paddingBottom}px` }"
-        >
+        <div v-if="$slots.footer && items.length > 0" class="shrink-0">
           <slot name="footer" />
         </div>
       </div>

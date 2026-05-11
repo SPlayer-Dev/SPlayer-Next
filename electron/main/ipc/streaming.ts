@@ -1,8 +1,6 @@
 /**
  * 流媒体相关 IPC：
- * - loadServers / saveServers：服务器配置持久化（密码用 safeStorage 加密）
- *
- * 服务器配置之外的网络调用（鉴权/列表/搜索/歌词）仍在渲染层完成。
+ * - loadServers / saveServers：服务器配置持久化
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -47,8 +45,9 @@ const writePersisted = (data: PersistedState): void => {
 };
 
 /**
- * safeStorage 加密：Windows 走 DPAPI、macOS 走 Keychain、Linux 走 libsecret/kwallet。
- * 不可用时退化为 base64（仅遮蔽，未真正加密；用户场景多见于无 secret service 的 Linux）。
+ * 加密密码
+ * @param plain 明文密码
+ * @returns 加密后的密码
  */
 const encryptPassword = (plain: string): string => {
   if (!plain) return "";
@@ -58,6 +57,11 @@ const encryptPassword = (plain: string): string => {
   return safeStorage.encryptString(plain).toString("base64");
 };
 
+/**
+ * 解密密码
+ * @param encrypted 加密后的密码
+ * @returns 明文密码
+ */
 const decryptPassword = (encrypted: string): string => {
   if (!encrypted) return "";
   try {

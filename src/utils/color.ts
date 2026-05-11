@@ -118,12 +118,17 @@ export const extractColorFromImage = (img: HTMLImageElement | null): void => {
 /**
  * 从图片 URL 提取主色并应用（不依赖 DOM 渲染）
  * 适用于启动时组件还未挂载的场景
+ * http(s) URL 走主进程取字节构造 blob URL，避免跨域 canvas tainted
  * @param url 封面图片 URL，传 null 清除颜色
  */
 export const extractColorFromUrl = (url: string | null): void => {
   const themeStore = useThemeStore();
   if (!url || !useSettingsStore().player.followCoverColor) {
     themeStore.coverColor = null;
+    return;
+  }
+  if (/^https?:\/\//i.test(url)) {
+    void loadColorFromRemote(url);
     return;
   }
   const img = new Image();
@@ -135,6 +140,32 @@ export const extractColorFromUrl = (url: string | null): void => {
     themeStore.coverColor = null;
   };
   img.src = url;
+};
+
+/** 跨域封面：主进程拉字节 → blob URL → 同源 canvas 取色 */
+const loadColorFromRemote = async (url: string): Promise<void> => {
+  const themeStore = useThemeStore();
+  try {
+    const result = await window.api.system.fetchRemoteBytes(url);
+    if (!result.success || !result.data) {
+      themeStore.coverColor = null;
+      return;
+    }
+    const blob = new Blob([new Uint8Array(result.data)]);
+    const blobUrl = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      themeStore.coverColor = extractColorFromImageElement(img);
+      URL.revokeObjectURL(blobUrl);
+    };
+    img.onerror = () => {
+      themeStore.coverColor = null;
+      URL.revokeObjectURL(blobUrl);
+    };
+    img.src = blobUrl;
+  } catch {
+    themeStore.coverColor = null;
+  }
 };
 
 /**
@@ -162,7 +193,15 @@ const extractColorFromImageElement = (img: HTMLImageElement): string | null => {
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) return null;
   ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, 50, 50);
-  const { data } = ctx.getImageData(0, 0, 50, 50);
+  // 跨域无 CORS 头会污染 canvas，getImageData 抛 SecurityError → 静默放弃提色
+  let data: Uint8ClampedArray;
+  try {
+    data = ctx.getImageData(0, 0, 50, 50).data;
+  } catch {
+    canvas.width = 0;
+    canvas.height = 0;
+    return null;
+  }
   // RGBA → ARGB int
   const pixels: number[] = [];
   for (let i = 0; i < data.length; i += 4) {

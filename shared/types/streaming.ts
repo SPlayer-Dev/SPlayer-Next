@@ -74,11 +74,6 @@ export interface StreamingSearchResult {
   artists: Artist[];
 }
 
-/**
- * 主进程暴露给渲染层的 streaming IPC 接口
- * - loadServers / saveServers：服务器配置持久化，密码经 safeStorage 加密写入
- *   `{userData}/streaming.json`；accessToken/userId 不持久化
- */
 export interface StreamingApi {
   loadServers: () => Promise<{
     servers: StreamingServerConfig[];
