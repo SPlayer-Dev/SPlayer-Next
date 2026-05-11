@@ -47,6 +47,14 @@ declare global {
         pickBackgroundImage: () => Promise<string | null>;
         clearBackgroundImages: () => Promise<void>;
       };
+      cache: {
+        getStats: () => Promise<{ id: string; path: string; size: number }[]>;
+        clear: (id: string) => Promise<void>;
+        clearAll: () => Promise<void>;
+        getDir: () => Promise<string>;
+        pickDir: () => Promise<{ ok: boolean; dir: string; reason?: "canceled" | "notEmpty" }>;
+        resetDir: () => Promise<string>;
+      };
       hotkey: HotkeyApi;
       streaming: StreamingApi;
     };

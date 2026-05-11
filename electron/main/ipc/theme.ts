@@ -2,12 +2,9 @@ import { dialog, ipcMain } from "electron";
 import path from "node:path";
 import fs from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { appCacheDir } from "@main/utils/config";
+import { getBackgroundsDir } from "@main/utils/config";
 import { toCacheUrl } from "@main/utils/protocol";
 import { systemLog } from "@main/utils/logger";
-
-/** 背景图片缓存目录 */
-const bgDir = path.join(appCacheDir, "backgrounds");
 
 /** 允许的图片扩展名 */
 const allowedExt = new Set([".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"]);
@@ -47,9 +44,9 @@ export const registerThemeIpc = (): void => {
       // 内容 hash 作为文件名
       const hash = createHash("sha1").update(data).digest("hex").slice(0, 16);
       // 清空整个目录再写入新图
-      await fs.rm(bgDir, { recursive: true, force: true });
-      await fs.mkdir(bgDir, { recursive: true });
-      const dest = path.join(bgDir, `${hash}${ext}`);
+      await fs.rm(getBackgroundsDir(), { recursive: true, force: true });
+      await fs.mkdir(getBackgroundsDir(), { recursive: true });
+      const dest = path.join(getBackgroundsDir(), `${hash}${ext}`);
       await fs.writeFile(dest, data);
       return toCacheUrl(dest) ?? null;
     } catch (err) {
@@ -63,7 +60,7 @@ export const registerThemeIpc = (): void => {
    */
   ipcMain.handle("theme:clearBackgroundImages", async (): Promise<void> => {
     try {
-      await fs.rm(bgDir, { recursive: true, force: true });
+      await fs.rm(getBackgroundsDir(), { recursive: true, force: true });
     } catch (err) {
       systemLog.error("[theme] clearBackgroundImages failed", err);
     }

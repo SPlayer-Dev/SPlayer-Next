@@ -7,6 +7,7 @@ import externalLyricCategory from "./categories/externalLyric";
 import hotkeysCategory from "./categories/hotkeys";
 import servicesCategory from "./categories/services";
 import mediaSourceCategory from "./categories/streaming";
+import localCacheCategory from "./categories/localCache";
 import pluginsCategory from "./categories/plugins";
 
 /** 设置项 schema：左侧分类（category）→ 区块（section）→ 设置项（item）三级结构。
@@ -20,5 +21,6 @@ export const settingsSchema: SettingCategory[] = [
   hotkeysCategory,
   servicesCategory,
   mediaSourceCategory,
+  localCacheCategory,
   pluginsCategory,
 ];

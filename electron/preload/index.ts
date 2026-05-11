@@ -307,6 +307,20 @@ const api = {
     // 清空已缓存的背景图
     clearBackgroundImages: (): Promise<void> => ipcRenderer.invoke("theme:clearBackgroundImages"),
   },
+  cache: {
+    // 各类别占用统计
+    getStats: () => ipcRenderer.invoke("cache:getStats"),
+    // 清除单个类别
+    clear: (id: string) => ipcRenderer.invoke("cache:clear", id),
+    // 清空全部
+    clearAll: () => ipcRenderer.invoke("cache:clearAll"),
+    // 获取当前缓存目录
+    getDir: () => ipcRenderer.invoke("cache:getDir"),
+    // 选择新的缓存目录
+    pickDir: () => ipcRenderer.invoke("cache:pickDir"),
+    // 还原默认缓存目录
+    resetDir: () => ipcRenderer.invoke("cache:resetDir"),
+  },
   streaming: {
     // 加载服务器配置（密码已解密）
     loadServers: () => ipcRenderer.invoke("streaming:loadServers"),

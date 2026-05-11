@@ -1,6 +1,6 @@
 import path from "node:path";
 import { net, protocol, session } from "electron";
-import { appCacheDir } from "./config";
+import { getAppCacheDir } from "./config";
 
 /** cache:// 协议方案名 */
 const SCHEME = "cache";
@@ -26,7 +26,7 @@ export const registerCacheScheme = (): void => {
 /** cache:// 协议的处理函数 */
 const cacheHandler = (request: Request): Response | Promise<Response> => {
   const relativePath = decodeURIComponent(request.url.slice(`${SCHEME}://`.length));
-  const filePath = path.join(appCacheDir, relativePath);
+  const filePath = path.join(getAppCacheDir(), relativePath);
   return net.fetch(`file://${filePath.replace(/\\/g, "/")}`);
 };
 
@@ -53,6 +53,6 @@ export const handleCacheProtocolOnPartition = (partition: string): void => {
  */
 export const toCacheUrl = (filePath: string | undefined | null): string | undefined => {
   if (!filePath) return undefined;
-  const relative = path.relative(appCacheDir, filePath).replace(/\\/g, "/");
+  const relative = path.relative(getAppCacheDir(), filePath).replace(/\\/g, "/");
   return `${SCHEME}://${relative}`;
 };

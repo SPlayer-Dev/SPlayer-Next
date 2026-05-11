@@ -11,7 +11,7 @@ import { broadcast } from "@main/utils/broadcast";
 import { toCacheUrl } from "@main/utils/protocol";
 import { toMs } from "@main/utils/time";
 import { parseArtists, parseAlbum } from "@main/utils/metadata";
-import { coverCacheDir } from "@main/utils/config";
+import { getCoverCacheDir } from "@main/utils/config";
 import { libraryLog } from "@main/utils/logger";
 
 let scanning = false;
@@ -106,7 +106,7 @@ export const startScan = (dirs: string[], incremental = true): void => {
         }
       }
     },
-    coverCacheDir,
+    getCoverCacheDir(),
     incrementalData,
   );
 };

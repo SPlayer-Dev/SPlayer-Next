@@ -191,6 +191,18 @@ export interface OnlineLyricSettings {
   amllDbServer: string;
 }
 
+/** 本地歌词配置 */
+export interface LocalLyricSettings {
+  /** 启用本地 TTML 覆盖：扫描到同目录的 .ttml 时优先于在线源 */
+  enableLocalTTMLOverride: boolean;
+}
+
+/** 缓存配置 */
+export interface CacheSettings {
+  /** 自定义缓存目录；null 使用默认 {userData}/app-cache */
+  dir: string | null;
+}
+
 /** 主窗口几何 */
 export interface MainWindowState {
   width: number;
@@ -249,6 +261,10 @@ export interface SystemConfig {
   taskbarLyric: TaskbarLyricSettings;
   /** 在线歌词服务配置 */
   lyric: OnlineLyricSettings;
+  /** 本地歌词配置 */
+  localLyric: LocalLyricSettings;
+  /** 缓存配置 */
+  cache: CacheSettings;
   /** 流媒体总开关 */
   streaming: StreamingSettings;
   /** 系统配置 */

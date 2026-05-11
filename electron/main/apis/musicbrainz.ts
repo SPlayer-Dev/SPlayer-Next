@@ -1,7 +1,7 @@
 import { net } from "electron";
 import fs from "node:fs";
 import path from "node:path";
-import { artistCacheDir } from "@main/utils/config";
+import { getArtistCacheDir } from "@main/utils/config";
 import { toCacheUrl } from "@main/utils/protocol";
 
 /** MusicBrainz User-Agent */
@@ -34,8 +34,8 @@ const getNotFoundFileName = (artistName: string): string => {
 
 /** 确保缓存目录存在 */
 const ensureCacheDir = (): void => {
-  if (!fs.existsSync(artistCacheDir)) {
-    fs.mkdirSync(artistCacheDir, { recursive: true });
+  if (!fs.existsSync(getArtistCacheDir())) {
+    fs.mkdirSync(getArtistCacheDir(), { recursive: true });
   }
 };
 
@@ -92,13 +92,13 @@ const fetchArtistAvatarCore = async (artistName: string): Promise<string | null>
   // 确保目录存在
   ensureCacheDir();
   const cacheFileName = getCacheFileName(name);
-  const cachePath = path.join(artistCacheDir, cacheFileName);
+  const cachePath = path.join(getArtistCacheDir(), cacheFileName);
   // 已缓存
   if (fs.existsSync(cachePath)) {
     return toCacheUrl(cachePath) ?? null;
   }
   // 已标记为未找到（7 天过期）
-  const notFoundPath = path.join(artistCacheDir, getNotFoundFileName(name));
+  const notFoundPath = path.join(getArtistCacheDir(), getNotFoundFileName(name));
   if (fs.existsSync(notFoundPath)) {
     const stat = fs.statSync(notFoundPath);
     if (Date.now() - stat.mtimeMs < 7 * 24 * 60 * 60 * 1000) return null;

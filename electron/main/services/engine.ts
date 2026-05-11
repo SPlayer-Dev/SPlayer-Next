@@ -1,5 +1,5 @@
 import { loadNativeModule } from "@main/utils/nativeLoader";
-import { coverCacheDir, isDev } from "@main/utils/config";
+import { getCoverCacheDir, isDev } from "@main/utils/config";
 import { playerLog, nativeLogsDir } from "@main/utils/logger";
 
 type AudioEngineModule = typeof import("@splayer/audio-engine");
@@ -36,7 +36,7 @@ export const getPlayer = (): PlayerInstance => {
   if (!playerInstance) {
     const mod = getEngine();
     playerInstance = new mod.AudioPlayer();
-    playerInstance.setCoverCacheDir(coverCacheDir);
+    playerInstance.setCoverCacheDir(getCoverCacheDir());
     for (const cb of onCreatedCallbacks) {
       cb(playerInstance);
     }
@@ -83,5 +83,12 @@ export const setEqualizerBands = (gainsDb: number[]): void => {
 export const setPreampGain = (preampDb: number): void => {
   if (playerInstance) {
     playerInstance.setPreampGain(preampDb);
+  }
+};
+
+/** 同步当前封面缓存目录到原生引擎（缓存路径切换时调用） */
+export const syncCoverCacheDir = (): void => {
+  if (playerInstance) {
+    playerInstance.setCoverCacheDir(getCoverCacheDir());
   }
 };

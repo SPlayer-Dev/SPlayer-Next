@@ -231,136 +231,139 @@ defineExpose({
         <template #header>
           <!-- 可选信息行 -->
           <slot name="topInfo" />
-          <!-- 批量模式 -->
-          <div
-            v-if="batch.active.value"
-            class="flex items-center gap-2 pl-3 pr-3 mx-3 h-10 text-sm"
-          >
-            <div v-if="showIndex" class="w-8 shrink-0 flex items-center justify-center">
-              <SCheckbox
-                :checked="batch.isAllSelected.value"
-                :indeterminate="batch.isPartial.value"
-                size="small"
-                @update:checked="batch.toggleSelectAll"
-                @click.stop
-              />
-            </div>
-            <span class="text-on-surface-variant tabular-nums shrink-0">
-              {{ t("songList.batch.selected", { count: batch.selectedCount.value }) }}
-            </span>
-            <SDivider vertical />
-            <SButton
-              variant="ghost"
-              size="small"
-              :disabled="batch.selectedCount.value === 0"
-              @click="batch.invertSelection"
+          <!-- 补偿滚动条占据的边缘 -->
+          <div class="pr-1.5">
+            <!-- 批量模式 -->
+            <div
+              v-if="batch.active.value"
+              class="flex items-center gap-2 pl-3 pr-3 mx-3 h-10 text-sm"
             >
-              <template #icon><IconLucideArrowLeftRight class="size-3.5" /></template>
-              <span>{{ t("songList.batch.invert") }}</span>
-            </SButton>
-            <SButton
-              variant="ghost"
-              size="small"
-              :disabled="batch.selectedCount.value === 0"
-              @click="batch.addToQueue"
-            >
-              <template #icon><IconLucideListEnd class="size-3.5" /></template>
-              <span>{{ t("songList.batch.addToQueue") }}</span>
-            </SButton>
-            <SButton
-              v-if="batch.canRemove.value"
-              variant="ghost"
-              size="small"
-              :disabled="batch.selectedCount.value === 0"
-              @click="batch.batchRemove"
-            >
-              <template #icon><IconLucideListMinus class="size-3.5" /></template>
-              <span>
-                {{ t("collection.removeFrom", { type: batch.collectionTypeLabel.value }) }}
-              </span>
-            </SButton>
-            <SButton
-              v-if="source === 'local'"
-              type="error"
-              variant="ghost"
-              size="small"
-              :disabled="batch.selectedCount.value === 0"
-              @click="batch.batchDelete"
-            >
-              <template #icon><IconLucideTrash2 class="size-3.5" /></template>
-              <span>{{ t("songList.context.deleteFile") }}</span>
-            </SButton>
-            <SDivider vertical />
-            <SButton variant="ghost" size="small" @click="batch.exit">
-              <template #icon><IconLucideX class="size-3.5" /></template>
-              <span>{{ t("songList.batch.exit") }}</span>
-            </SButton>
-          </div>
-          <!-- 普通模式 -->
-          <div
-            v-else
-            class="flex items-center gap-3 pl-3 pr-6 mx-3 h-10 text-sm text-on-surface-variant/60"
-          >
-            <div v-if="showIndex" class="w-8 shrink-0 flex items-center justify-center">
-              <span>#</span>
-            </div>
-            <div class="flex-1 min-w-0">
-              <SPopover
-                v-if="enableSort"
-                :side-offset="6"
-                trigger="click"
-                side="bottom"
-                align="start"
-                block
-              >
-                <template #trigger>
-                  <div
-                    class="w-full h-full px-1.5 py-1 rounded-md cursor-pointer transition-colors hover:bg-on-surface/8"
-                  >
-                    {{ sortTitleText }}
-                  </div>
-                </template>
-                <div class="w-60 flex flex-col gap-3 text-sm">
-                  <div class="flex items-center gap-2 text-xs">
-                    <IconArrowUpDown class="size-3.5" />
-                    <span>{{ t("songList.sort.mode") }}</span>
-                  </div>
-                  <SRadioGroup v-model:value="sortField" size="small">
-                    <SRadio value="none" :label="t('songList.sort.default')" />
-                    <SRadio value="title" :label="t('songList.sort.byTitle')" />
-                    <SRadio value="artist" :label="t('songList.sort.byArtist')" />
-                    <SRadio value="album" :label="t('songList.sort.byAlbum')" />
-                    <SRadio value="duration" :label="t('songList.sort.byDuration')" />
-                    <SRadio value="size" :label="t('songList.sort.bySize')" />
-                    <SRadio value="mtime" :label="t('songList.sort.byMtime')" />
-                    <SRadio value="ctime" :label="t('songList.sort.byCtime')" />
-                  </SRadioGroup>
-
-                  <div class="h-px bg-outline-variant/25" />
-
-                  <div class="flex items-center gap-2 text-xs">
-                    <IconArrowUpAz class="size-3.5" />
-                    <span>{{ t("songList.sort.order") }}</span>
-                  </div>
-                  <SRadioGroup
-                    v-model:value="sortOrder"
-                    size="small"
-                    :disabled="sortField === 'none'"
-                  >
-                    <SRadio value="asc" :label="t('songList.sort.asc')" />
-                    <SRadio value="desc" :label="t('songList.sort.desc')" />
-                  </SRadioGroup>
-                </div>
-              </SPopover>
-              <div v-else class="w-full h-full px-1.5 py-1">
-                {{ t("songList.title") }}
+              <div v-if="showIndex" class="w-8 shrink-0 flex items-center justify-center">
+                <SCheckbox
+                  :checked="batch.isAllSelected.value"
+                  :indeterminate="batch.isPartial.value"
+                  size="small"
+                  @update:checked="batch.toggleSelectAll"
+                  @click.stop
+                />
               </div>
+              <span class="text-on-surface-variant tabular-nums shrink-0">
+                {{ t("songList.batch.selected", { count: batch.selectedCount.value }) }}
+              </span>
+              <SDivider vertical />
+              <SButton
+                variant="ghost"
+                size="small"
+                :disabled="batch.selectedCount.value === 0"
+                @click="batch.invertSelection"
+              >
+                <template #icon><IconLucideArrowLeftRight class="size-3.5" /></template>
+                <span>{{ t("songList.batch.invert") }}</span>
+              </SButton>
+              <SButton
+                variant="ghost"
+                size="small"
+                :disabled="batch.selectedCount.value === 0"
+                @click="batch.addToQueue"
+              >
+                <template #icon><IconLucideListEnd class="size-3.5" /></template>
+                <span>{{ t("songList.batch.addToQueue") }}</span>
+              </SButton>
+              <SButton
+                v-if="batch.canRemove.value"
+                variant="ghost"
+                size="small"
+                :disabled="batch.selectedCount.value === 0"
+                @click="batch.batchRemove"
+              >
+                <template #icon><IconLucideListMinus class="size-3.5" /></template>
+                <span>
+                  {{ t("collection.removeFrom", { type: batch.collectionTypeLabel.value }) }}
+                </span>
+              </SButton>
+              <SButton
+                v-if="source === 'local'"
+                type="error"
+                variant="ghost"
+                size="small"
+                :disabled="batch.selectedCount.value === 0"
+                @click="batch.batchDelete"
+              >
+                <template #icon><IconLucideTrash2 class="size-3.5" /></template>
+                <span>{{ t("songList.context.deleteFile") }}</span>
+              </SButton>
+              <SDivider vertical />
+              <SButton variant="ghost" size="small" @click="batch.exit">
+                <template #icon><IconLucideX class="size-3.5" /></template>
+                <span>{{ t("songList.batch.exit") }}</span>
+              </SButton>
             </div>
-            <div v-if="showAlbum" class="flex-1 min-w-0">{{ t("songList.album") }}</div>
-            <div v-if="showDuration" class="w-16 shrink-0 text-center">
-              {{ t("songList.duration") }}
+            <!-- 普通模式 -->
+            <div
+              v-else
+              class="flex items-center gap-3 pl-3 pr-6 mx-3 h-10 text-sm text-on-surface-variant/60"
+            >
+              <div v-if="showIndex" class="w-8 shrink-0 flex items-center justify-center">
+                <span>#</span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <SPopover
+                  v-if="enableSort"
+                  :side-offset="6"
+                  trigger="click"
+                  side="bottom"
+                  align="start"
+                  block
+                >
+                  <template #trigger>
+                    <div
+                      class="w-full h-full px-1.5 py-1 rounded-md cursor-pointer transition-colors hover:bg-on-surface/8"
+                    >
+                      {{ sortTitleText }}
+                    </div>
+                  </template>
+                  <div class="w-60 flex flex-col gap-3 text-sm">
+                    <div class="flex items-center gap-2 text-xs">
+                      <IconArrowUpDown class="size-3.5" />
+                      <span>{{ t("songList.sort.mode") }}</span>
+                    </div>
+                    <SRadioGroup v-model:value="sortField" size="small">
+                      <SRadio value="none" :label="t('songList.sort.default')" />
+                      <SRadio value="title" :label="t('songList.sort.byTitle')" />
+                      <SRadio value="artist" :label="t('songList.sort.byArtist')" />
+                      <SRadio value="album" :label="t('songList.sort.byAlbum')" />
+                      <SRadio value="duration" :label="t('songList.sort.byDuration')" />
+                      <SRadio value="size" :label="t('songList.sort.bySize')" />
+                      <SRadio value="mtime" :label="t('songList.sort.byMtime')" />
+                      <SRadio value="ctime" :label="t('songList.sort.byCtime')" />
+                    </SRadioGroup>
+
+                    <div class="h-px bg-outline-variant/25" />
+
+                    <div class="flex items-center gap-2 text-xs">
+                      <IconArrowUpAz class="size-3.5" />
+                      <span>{{ t("songList.sort.order") }}</span>
+                    </div>
+                    <SRadioGroup
+                      v-model:value="sortOrder"
+                      size="small"
+                      :disabled="sortField === 'none'"
+                    >
+                      <SRadio value="asc" :label="t('songList.sort.asc')" />
+                      <SRadio value="desc" :label="t('songList.sort.desc')" />
+                    </SRadioGroup>
+                  </div>
+                </SPopover>
+                <div v-else class="w-full h-full px-1.5 py-1">
+                  {{ t("songList.title") }}
+                </div>
+              </div>
+              <div v-if="showAlbum" class="flex-1 min-w-0">{{ t("songList.album") }}</div>
+              <div v-if="showDuration" class="w-16 shrink-0 text-center">
+                {{ t("songList.duration") }}
+              </div>
+              <div v-if="showSize" class="w-16 shrink-0 text-center">{{ t("songList.size") }}</div>
             </div>
-            <div v-if="showSize" class="w-16 shrink-0 text-center">{{ t("songList.size") }}</div>
           </div>
         </template>
         <!-- 列表项 -->

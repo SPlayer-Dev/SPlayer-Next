@@ -251,6 +251,7 @@
       "hotkeys": "快捷键配置",
       "services": "网络与服务",
       "mediaSource": "媒体源配置",
+      "localCache": "本地与缓存",
       "plugins": "插件管理"
     },
     "section": {
@@ -278,7 +279,9 @@
       "systemConfig": "系统配置",
       "reset": "重置",
       "pluginsList": "已安装插件",
-      "streaming": "流媒体管理"
+      "streaming": "流媒体管理",
+      "localFiles": "本地文件",
+      "cache": "缓存数据库"
     },
     "language": {
       "label": "界面语言",
@@ -878,6 +881,53 @@
     "pluginManager": {
       "label": "插件管理",
       "description": "导入、启用或卸载扩展脚本"
+    },
+    "enableLocalTTMLOverride": {
+      "label": "本地 TTML 覆盖",
+      "description": "当本地存在 .ttml 歌词文件时，优先使用本地内容覆盖在线歌词"
+    },
+    "cacheManager": {
+      "label": "缓存管理",
+      "description": "查看缓存占用并清理"
+    },
+    "cacheDir": {
+      "label": "缓存目录",
+      "open": "在文件管理器中打开",
+      "change": "更改",
+      "reset": "还原默认",
+      "hint": "封面、歌手头像、背景图都会存到该目录下；切换会先清空旧缓存，新位置必须是空文件夹",
+      "changedHint": "缓存目录已切换",
+      "notEmpty": "所选文件夹不为空，请选择一个空文件夹",
+      "switchConfirmTitle": "切换缓存目录？",
+      "switchConfirmDesc": "切换前会清空当前的封面、歌手头像、背景图缓存，新位置必须是空文件夹。歌词等数据库缓存不受影响。",
+      "switchConfirmOk": "选择文件夹",
+      "resetConfirmTitle": "还原默认缓存目录？",
+      "resetConfirmDesc": "还原前同样会清空当前的文件类缓存"
+    },
+    "cacheUsage": {
+      "label": "类型占用",
+      "total": "合计",
+      "refresh": "刷新"
+    },
+    "cacheCategory": {
+      "covers": "封面缩略图",
+      "artists": "歌手头像",
+      "backgrounds": "背景图",
+      "lyric": "歌词内容缓存",
+      "lyricTTML": "TTML 歌词缓存",
+      "lyricMatch": "歌词匹配缓存"
+    },
+    "cacheCategoryClear": {
+      "label": "清除",
+      "confirmTitle": "清除「{name}」？",
+      "confirmDesc": "此操作将删除该类别下的全部缓存数据，不可撤销"
+    },
+    "cacheClearAll": {
+      "label": "一键清空",
+      "description": "清空所有类别的缓存数据，不可撤销",
+      "button": "清空全部",
+      "confirmTitle": "清空所有缓存？",
+      "confirmDesc": "将删除以上全部类别的缓存数据，下次使用时会重新生成，不可撤销"
     }
   },
   "collection": {

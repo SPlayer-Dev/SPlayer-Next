@@ -17,6 +17,7 @@ declare module 'vue' {
     AutoCloseDialog: typeof import('./src/components/modals/AutoCloseDialog.vue')['default']
     BackgroundImagePicker: typeof import('./src/components/settings/custom/BackgroundImagePicker.vue')['default']
     BottomSpectrum: typeof import('./src/components/player/FullPlayer/BottomSpectrum.vue')['default']
+    CacheManager: typeof import('./src/components/settings/custom/CacheManager.vue')['default']
     ComboboxAnchor: typeof import('reka-ui')['ComboboxAnchor']
     ComboboxContent: typeof import('reka-ui')['ComboboxContent']
     ComboboxEmpty: typeof import('reka-ui')['ComboboxEmpty']

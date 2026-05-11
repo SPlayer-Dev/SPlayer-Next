@@ -88,6 +88,12 @@ export const defaultSystemConfig: SystemConfig = {
     enableOnlineTTMLLyric: false,
     amllDbServer: "https://amlldb.bikonoo.com/%p/%s.ttml",
   },
+  localLyric: {
+    enableLocalTTMLOverride: false,
+  },
+  cache: {
+    dir: null,
+  },
   streaming: {
     enabled: true,
   },

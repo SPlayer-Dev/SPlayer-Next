@@ -251,6 +251,7 @@
       "hotkeys": "Hotkey Settings",
       "services": "Services",
       "mediaSource": "Media Sources",
+      "localCache": "Local & Cache",
       "plugins": "Plugin Manager"
     },
     "section": {
@@ -278,7 +279,9 @@
       "systemConfig": "System",
       "reset": "Reset",
       "pluginsList": "Installed Plugins",
-      "streaming": "Streaming"
+      "streaming": "Streaming",
+      "localFiles": "Local Files",
+      "cache": "Cache Database"
     },
     "language": {
       "label": "Language",
@@ -878,6 +881,53 @@
     "pluginManager": {
       "label": "Plugin Manager",
       "description": "Import, enable, or uninstall extension scripts"
+    },
+    "enableLocalTTMLOverride": {
+      "label": "Local TTML Override",
+      "description": "Prefer a local .ttml file (when available) over online lyrics"
+    },
+    "cacheManager": {
+      "label": "Cache Manager",
+      "description": "Inspect cache usage and clear it"
+    },
+    "cacheDir": {
+      "label": "Cache Directory",
+      "open": "Open in file manager",
+      "change": "Change",
+      "reset": "Reset",
+      "hint": "Covers, artist avatars and backgrounds live under this folder. Switching wipes the old caches; the new location must be an empty folder.",
+      "changedHint": "Cache directory switched",
+      "notEmpty": "The selected folder isn't empty. Please pick an empty folder.",
+      "switchConfirmTitle": "Switch cache directory?",
+      "switchConfirmDesc": "Current cover / artist / background caches will be cleared before the switch, and the new location must be an empty folder. Database-backed lyric caches are unaffected.",
+      "switchConfirmOk": "Pick Folder",
+      "resetConfirmTitle": "Reset to default cache directory?",
+      "resetConfirmDesc": "Current file caches will be cleared before resetting."
+    },
+    "cacheUsage": {
+      "label": "Usage by Category",
+      "total": "Total",
+      "refresh": "Refresh"
+    },
+    "cacheCategory": {
+      "covers": "Cover Thumbnails",
+      "artists": "Artist Avatars",
+      "backgrounds": "Backgrounds",
+      "lyric": "Lyric Content Cache",
+      "lyricTTML": "TTML Lyric Cache",
+      "lyricMatch": "Lyric Match Cache"
+    },
+    "cacheCategoryClear": {
+      "label": "Clear",
+      "confirmTitle": "Clear \"{name}\"?",
+      "confirmDesc": "All cached data in this category will be deleted. This cannot be undone."
+    },
+    "cacheClearAll": {
+      "label": "Clear All",
+      "description": "Wipe cached data across all categories. This cannot be undone.",
+      "button": "Clear All",
+      "confirmTitle": "Clear all caches?",
+      "confirmDesc": "All cached data above will be deleted and regenerated on next use. This cannot be undone."
     }
   },
   "collection": {

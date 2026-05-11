@@ -10,6 +10,7 @@ import { registerLyricsIpc } from "./lyrics";
 import { registerHotkeyIpc } from "./hotkey";
 import { registerThemeIpc } from "./theme";
 import { registerStreamingIpc } from "./streaming";
+import { registerCacheIpc } from "./cache";
 
 /** 注册所有 IPC 处理 */
 export const registerIpcHandlers = (): void => {
@@ -25,4 +26,5 @@ export const registerIpcHandlers = (): void => {
   registerHotkeyIpc();
   registerThemeIpc();
   registerStreamingIpc();
+  registerCacheIpc();
 };
