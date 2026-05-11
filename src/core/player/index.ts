@@ -46,6 +46,12 @@ export const load = async (
   // 不提前重置，保持播放状态
   const wasPlaying = status.isPlaying;
   status.state = wasPlaying ? "playing" : "loading";
+  // 立即重置进度
+  const initialDuration = meta?.duration ?? 0;
+  status.position = 0;
+  status.duration = initialDuration;
+  playback.setCurrentTime(0, { force: true });
+  playback.setDuration(initialDuration);
   // 非本地并行歌词与取色
   const isOnline = meta?.source !== "local";
   if (isOnline) {
@@ -70,11 +76,9 @@ export const load = async (
       }
       const dur = enriched?.duration ?? mediaInfo.duration;
       status.duration = dur;
-      status.position = 0;
       status.state = autoPlay ? "playing" : "paused";
       status.currentSource = source;
       playback.setDuration(dur);
-      playback.setCurrentTime(0, { force: true });
       playback.setPlaying(autoPlay);
       return enriched;
     } else {
