@@ -165,6 +165,14 @@ let activeSession: {
 let lastProgressAt = 0;
 const PROGRESS_INTERVAL_MS = 10_000;
 
+/** 同 server 内串行：切歌时让 reportStopped 早于 reportPlaying 到达，避免 Now Playing 卡在旧曲 */
+const sendQueue = new Map<string, Promise<void>>();
+const enqueue = (serverId: string, fn: () => Promise<void>): void => {
+  const prev = sendQueue.get(serverId) ?? Promise.resolve();
+  const next = prev.then(fn).catch(() => {});
+  sendQueue.set(serverId, next);
+};
+
 /** 按 serverId 现取 cfg；重登换 token 后这里能拿到新值 */
 const cfgFor = (serverId: string): StreamingServerConfig | null =>
   useStreamingStore().servers.find((s) => s.id === serverId) ?? null;
@@ -185,21 +193,21 @@ export const notifyTrackChanged = (track: Track | null, positionMs = 0): void =>
     activeSession = null;
     lastProgressAt = 0;
     const prevCfg = cfgFor(prev.serverId);
-    if (prevCfg) void reportStopped(prevCfg, prev.originalId, prev.sessionId, positionMs);
+    if (prevCfg) {
+      enqueue(prev.serverId, () =>
+        reportStopped(prevCfg, prev.originalId, prev.sessionId, positionMs),
+      );
+    }
   }
   if (!track || !track.originalId) return;
   if (activeSession?.trackId === track.id) return;
   const cfg = findCfgForTrack(track);
   if (!cfg) return;
+  const originalId = track.originalId;
   const sessionId = sessionIdForTrack(track.id);
-  activeSession = {
-    serverId: cfg.id,
-    trackId: track.id,
-    originalId: track.originalId,
-    sessionId,
-  };
+  activeSession = { serverId: cfg.id, trackId: track.id, originalId, sessionId };
   lastProgressAt = Date.now();
-  void reportPlaying(cfg, track.originalId, sessionId);
+  enqueue(cfg.id, () => reportPlaying(cfg, originalId, sessionId));
 };
 
 /**
@@ -214,7 +222,8 @@ export const notifyProgress = (positionMs: number, isPaused: boolean): void => {
   const cfg = cfgFor(activeSession.serverId);
   if (!cfg) return;
   lastProgressAt = now;
-  void reportProgress(cfg, activeSession.originalId, activeSession.sessionId, positionMs, isPaused);
+  const { originalId, sessionId, serverId } = activeSession;
+  enqueue(serverId, () => reportProgress(cfg, originalId, sessionId, positionMs, isPaused));
 };
 
 /**
@@ -227,5 +236,6 @@ export const notifyStateChanged = (positionMs: number, isPaused: boolean): void 
   const cfg = cfgFor(activeSession.serverId);
   if (!cfg) return;
   lastProgressAt = Date.now();
-  void reportProgress(cfg, activeSession.originalId, activeSession.sessionId, positionMs, isPaused);
+  const { originalId, sessionId, serverId } = activeSession;
+  enqueue(serverId, () => reportProgress(cfg, originalId, sessionId, positionMs, isPaused));
 };

@@ -140,8 +140,9 @@ export const subsonicSongToTrack = (
   artists: resolveSubsonicArtists(song),
   album: song.album ? { id: song.albumId, name: song.album } : undefined,
   duration: secToMs(song.duration),
-  // Track 封面同时用于列表（小图）和全屏播放器（大图），取 500 兼顾两者
+  // 列表/缩略图用 500，全屏播放器/背景用 1500 兜底原图大小
   cover: subsonicCoverUrl(cfg, song.coverArt, buildAuth, 500),
+  coverOriginal: subsonicCoverUrl(cfg, song.coverArt, buildAuth, 1500),
   fileSize: song.size,
   quality: {
     sampleRate: song.samplingRate ?? 0,
@@ -280,6 +281,7 @@ export const jellyItemToTrack = (cfg: StreamingServerConfig, item: JellyItem): T
   // 没有自己的 imageTag 就不显示封面，避免 fallback 到 album 时的 404 刷屏
   const imageTag = item.ImageTags?.Primary;
   const cover = imageTag ? jellyImageUrl(cfg, item.Id, imageTag, 500) : undefined;
+  const coverOriginal = imageTag ? jellyImageUrl(cfg, item.Id, imageTag, 1500) : undefined;
   return {
     id: trackId(cfg, item.Id),
     source: "streaming",
@@ -293,6 +295,7 @@ export const jellyItemToTrack = (cfg: StreamingServerConfig, item: JellyItem): T
     album: item.Album ? { id: item.AlbumId, name: item.Album } : undefined,
     duration: jellyTicksToMs(item.RunTimeTicks),
     cover,
+    coverOriginal,
     fileSize: mediaSrc?.Size,
     quality: {
       sampleRate: audioStream?.SampleRate ?? 0,

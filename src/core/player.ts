@@ -10,6 +10,7 @@ import * as lyricLoader from "@/services/lyricLoader";
 import * as autoClose from "@/services/autoClose";
 import * as abLoop from "@/services/abLoop";
 import * as session from "@/services/streaming/session";
+import { resolveTrackSource } from "@/services/audioSource";
 import { extractColorFromUrl } from "@/utils/color";
 import { handleError, isSkippableError } from "@/utils/errors";
 
@@ -95,26 +96,6 @@ export const load = async (
   } finally {
     if (token === loadToken) status.trackLoading = false;
   }
-};
-
-/**
- * 把 Track 解析成可喂给 audio-engine 的 source 字符串。
- * - local：track.path
- * - streaming：通过 streaming store 调主进程拼带鉴权的 URL
- * - online：暂未实现，返回 null
- */
-const resolveTrackSource = async (track: Track): Promise<string | null> => {
-  if (track.source === "local") return track.path ?? null;
-  if (track.source === "streaming") {
-    try {
-      return await useStreamingStore().getStreamUrl(track);
-    } catch (err) {
-      handleError(err instanceof Error ? err.message : String(err));
-      return null;
-    }
-  }
-  // TODO: online（netease/qqmusic/kugou）
-  return null;
 };
 
 /**

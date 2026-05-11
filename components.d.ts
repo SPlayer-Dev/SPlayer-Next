@@ -67,7 +67,6 @@ declare module 'vue' {
     IconLucideChevronUp: typeof import('~icons/lucide/chevron-up')['default']
     IconLucideCircleCheck: typeof import('~icons/lucide/circle-check')['default']
     IconLucideCircleX: typeof import('~icons/lucide/circle-x')['default']
-    IconLucideCog: typeof import('~icons/lucide/cog')['default']
     IconLucideDatabase: typeof import('~icons/lucide/database')['default']
     IconLucideDisc3: typeof import('~icons/lucide/disc3')['default']
     IconLucideEllipsis: typeof import('~icons/lucide/ellipsis')['default']
@@ -188,7 +187,6 @@ declare module 'vue' {
     SwitchThumb: typeof import('reka-ui')['SwitchThumb']
     Toolbar: typeof import('./src/components/player/Toolbar.vue')['default']
     TrackInfo: typeof import('./src/components/player/TrackInfo.vue')['default']
-    Versions: typeof import('./src/components/Versions.vue')['default']
     WindowControls: typeof import('./src/layouts/components/WindowControls.vue')['default']
   }
 }

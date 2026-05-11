@@ -21,8 +21,9 @@ const coverColor = computed(() => {
 });
 
 // 模糊模式：双缓冲层，切歌时交叉淡入淡出
+const initialCover = media.track?.coverOriginal || media.track?.cover || DEFAULT_COVER;
 const blurLayers = reactive([
-  { src: media.track?.cover || DEFAULT_COVER, active: true },
+  { src: initialCover, active: true },
   { src: "", active: false },
 ]);
 let currentLayerIndex = 0;
@@ -30,7 +31,7 @@ let preloadImg: HTMLImageElement | null = null;
 let switchToken = 0;
 
 watch(
-  () => media.track?.cover,
+  () => media.track?.coverOriginal || media.track?.cover,
   (newCover) => {
     const token = ++switchToken;
 
@@ -95,7 +96,7 @@ onBeforeUnmount(() => {
   <div v-else class="absolute inset-0 overflow-hidden -z-1 bg-solid-wrap">
     <Transition name="fade">
       <div
-        :key="media.track?.cover"
+        :key="media.track?.coverOriginal || media.track?.cover"
         class="color"
         :style="{ backgroundColor: `rgb(${coverColor})` }"
       />

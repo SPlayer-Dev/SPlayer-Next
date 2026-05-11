@@ -1,4 +1,4 @@
-import type { Album, Artist, IpcResponse, Track } from "./player";
+import type { Album, Artist, Track } from "./player";
 
 /** 支持的流媒体服务器类型 */
 export type StreamingServerType =
@@ -76,13 +76,10 @@ export interface StreamingSearchResult {
 
 /**
  * 主进程暴露给渲染层的 streaming IPC 接口
- *
- * - fetchCoverBytes：把远端封面 URL 拉成字节给 SMTC 用（系统媒体集成需要 Buffer）
  * - loadServers / saveServers：服务器配置持久化，密码经 safeStorage 加密写入
  *   `{userData}/streaming.json`；accessToken/userId 不持久化
  */
 export interface StreamingApi {
-  fetchCoverBytes: (url: string) => Promise<IpcResponse<Buffer | null>>;
   loadServers: () => Promise<{
     servers: StreamingServerConfig[];
     activeServerId: string | null;

@@ -109,18 +109,20 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
   });
 };
 
+/** 每次 player:load 自增 */
+let loadSeq = 0;
+
 /** 播放器相关 IPC */
 export const registerPlayerIpc = (): void => {
   // 注册实例创建/重建时的回调
   onPlayerCreated(registerNativeEvents);
   onPlayerCreated(() => startDevicePolling());
-
   // 加载音频文件
-  // 歌曲加载并返回元数据
   ipcMain.handle("player:load", async (_event, source: string, options: LoadOptions = {}) => {
     const autoPlay = options.autoPlay ?? true;
     const authoritative = options.meta ?? null;
     const isStreaming = authoritative?.source === "streaming";
+    const seq = ++loadSeq;
     try {
       const inst = getPlayer();
       sendToMain("player:event", {
@@ -133,38 +135,48 @@ export const registerPlayerIpc = (): void => {
           isFinished: false,
         },
       });
+      // 写一次 SMTC/托盘/标题
+      const applyDisplay = (
+        title: string,
+        artist: string,
+        album: string,
+        coverData: Buffer | undefined,
+        durationMs: number,
+      ): void => {
+        const header = artist ? `${title} - ${artist}` : title || appName;
+        mediaService.setMetadata({ title, artist, album, coverData, durationMs });
+        mediaService.setPlayState({ status: autoPlay ? "Playing" : "Paused" });
+        getMainWindow()?.setTitle(header);
+        setTraySongName(header);
+        setTrayPlayState(autoPlay ? "playing" : "paused");
+      };
+      // 流媒体乐观更新
+      if (authoritative) {
+        applyDisplay(
+          authoritative.title || source.split(/[/\\]/).pop() || source,
+          formatArtists(authoritative.artists ?? []),
+          authoritative.album?.name ?? "",
+          undefined,
+          authoritative.duration ?? 0,
+        );
+      }
       const meta = await inst.load(source, autoPlay);
       const durationMs = toMs(meta.duration);
-      // SMTC/托盘元数据
       const fallbackTitle = meta.title || source.split(/[/\\]/).pop() || source;
       const displayTitle = authoritative?.title ?? fallbackTitle;
       const displayArtist = authoritative
         ? formatArtists(authoritative.artists ?? [])
         : formatArtists(parseArtists(meta.artist ?? ""));
       const displayAlbum = authoritative?.album?.name ?? parseAlbum(meta.album ?? "")?.name ?? "";
-      // 本地封面：解码时已一次性提取，同步可取
+      // 本地封面
       const localCover = isStreaming ? null : (inst.getCoverRaw() ?? null);
-      mediaService.setMetadata({
-        title: displayTitle,
-        artist: displayArtist,
-        album: displayAlbum,
-        coverData: localCover ?? undefined,
-        durationMs,
-      });
-      mediaService.setPlayState({ status: autoPlay ? "Playing" : "Paused" });
-      // 窗口标题和托盘
-      const headerTitle = displayArtist
-        ? `${displayTitle} - ${displayArtist}`
-        : displayTitle || appName;
-      getMainWindow()?.setTitle(headerTitle);
-      setTraySongName(headerTitle);
-      setTrayPlayState(autoPlay ? "playing" : "paused");
-      // 流媒体高清封面：fire-and-forget 异步抓取，不阻塞 load IPC 返回
-      // 抓到后再补刷 SMTC metadata；切歌前完成不了不影响下首加载
+      applyDisplay(displayTitle, displayArtist, displayAlbum, localCover ?? undefined, durationMs);
+      // 流媒体高清封面
       if (isStreaming && authoritative?.cover && /^https?:\/\//i.test(authoritative.cover)) {
         const coverUrl = authoritative.cover;
         void fetchBytes(coverUrl).then((buf) => {
           if (!buf) return;
+          if (seq !== loadSeq) return;
           mediaService.setMetadata({
             title: displayTitle,
             artist: displayArtist,
@@ -187,7 +199,6 @@ export const registerPlayerIpc = (): void => {
           embeddedLyric: meta.embeddedLyric,
           externalLyrics: meta.externalLyrics,
         },
-        // streaming 不回传 cover：避免覆盖渲染层已经持有的远端 URL
         mediaInfo: {
           duration: durationMs,
           cover: isStreaming ? undefined : toCacheUrl(meta.cover),

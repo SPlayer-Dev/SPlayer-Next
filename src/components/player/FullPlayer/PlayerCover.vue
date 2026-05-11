@@ -5,9 +5,11 @@ import { useStatusStore } from "@/stores/status";
 const media = useMediaStore();
 const { isPlaying } = storeToRefs(useStatusStore());
 
-// 高清封面 data URL（从主进程按需获取）
+// 高清封面 data URL
 const hdCover = ref<string | null>(null);
-const coverSrc = computed(() => hdCover.value || media.track?.cover);
+const coverSrc = computed(
+  () => hdCover.value || media.track?.coverOriginal || media.track?.cover,
+);
 
 // 歌曲切换时获取高清封面，拿到前保持旧封面
 watch(

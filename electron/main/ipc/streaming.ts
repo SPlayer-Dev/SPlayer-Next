@@ -1,6 +1,5 @@
 /**
  * 流媒体相关 IPC：
- * - fetchCoverBytes：把远端封面 URL 拉成字节给 SMTC 用
  * - loadServers / saveServers：服务器配置持久化（密码用 safeStorage 加密）
  *
  * 服务器配置之外的网络调用（鉴权/列表/搜索/歌词）仍在渲染层完成。
@@ -9,7 +8,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { app, ipcMain, safeStorage } from "electron";
 import { writeFileSync as atomicWriteSync } from "atomically";
-import { fetchBytes } from "@main/utils/fetchBytes";
 import { streamingLog } from "@main/utils/logger";
 import type { StreamingServerConfig } from "@shared/types/streaming";
 
@@ -74,14 +72,6 @@ const decryptPassword = (encrypted: string): string => {
 };
 
 export const registerStreamingIpc = (): void => {
-  ipcMain.handle("streaming:fetchCoverBytes", async (_e, url: string) => {
-    if (typeof url !== "string" || !/^https?:\/\//i.test(url)) {
-      return { success: false, error: "无效的 URL" };
-    }
-    const buf = await fetchBytes(url);
-    return { success: true, data: buf };
-  });
-
   ipcMain.handle("streaming:loadServers", () => {
     const persisted = readPersisted();
     const servers: StreamingServerConfig[] = persisted.servers.map((s) => ({

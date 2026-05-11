@@ -74,17 +74,19 @@ export const useStreamingStore = defineStore("streaming", () => {
 
   /** 落盘前剥离 cover/avatar URL 上的鉴权参数；落盘的不是可重放凭据 */
   const stripCacheAuth = (snapshot: ServerCache, type: StreamingServerType): ServerCache => ({
-    songs: snapshot.songs.map((it) =>
-      it.cover ? { ...it, cover: client.stripCoverAuth(it.cover, type) } : it,
+    songs: snapshot.songs.map((track) =>
+      track.cover ? { ...track, cover: client.stripCoverAuth(track.cover, type) } : track,
     ),
-    albums: snapshot.albums.map((it) =>
-      it.cover ? { ...it, cover: client.stripCoverAuth(it.cover, type) } : it,
+    albums: snapshot.albums.map((album) =>
+      album.cover ? { ...album, cover: client.stripCoverAuth(album.cover, type) } : album,
     ),
-    artists: snapshot.artists.map((it) =>
-      it.avatar ? { ...it, avatar: client.stripCoverAuth(it.avatar, type) } : it,
+    artists: snapshot.artists.map((artist) =>
+      artist.avatar ? { ...artist, avatar: client.stripCoverAuth(artist.avatar, type) } : artist,
     ),
-    playlists: snapshot.playlists.map((it) =>
-      it.cover ? { ...it, cover: client.stripCoverAuth(it.cover, type) } : it,
+    playlists: snapshot.playlists.map((playlist) =>
+      playlist.cover
+        ? { ...playlist, cover: client.stripCoverAuth(playlist.cover, type) }
+        : playlist,
     ),
     updatedAt: snapshot.updatedAt,
   });
@@ -93,17 +95,19 @@ export const useStreamingStore = defineStore("streaming", () => {
   const refreshCoverUrlsForActive = (): void => {
     const cfg = activeServer.value;
     if (!cfg) return;
-    songs.value = songs.value.map((it) =>
-      it.cover ? { ...it, cover: client.refreshCoverAuth(it.cover, cfg) } : it,
+    songs.value = songs.value.map((track) =>
+      track.cover ? { ...track, cover: client.refreshCoverAuth(track.cover, cfg) } : track,
     );
-    albums.value = albums.value.map((it) =>
-      it.cover ? { ...it, cover: client.refreshCoverAuth(it.cover, cfg) } : it,
+    albums.value = albums.value.map((album) =>
+      album.cover ? { ...album, cover: client.refreshCoverAuth(album.cover, cfg) } : album,
     );
-    artists.value = artists.value.map((it) =>
-      it.avatar ? { ...it, avatar: client.refreshCoverAuth(it.avatar, cfg) } : it,
+    artists.value = artists.value.map((artist) =>
+      artist.avatar ? { ...artist, avatar: client.refreshCoverAuth(artist.avatar, cfg) } : artist,
     );
-    playlists.value = playlists.value.map((it) =>
-      it.cover ? { ...it, cover: client.refreshCoverAuth(it.cover, cfg) } : it,
+    playlists.value = playlists.value.map((playlist) =>
+      playlist.cover
+        ? { ...playlist, cover: client.refreshCoverAuth(playlist.cover, cfg) }
+        : playlist,
     );
   };
 
@@ -278,16 +282,19 @@ export const useStreamingStore = defineStore("streaming", () => {
     }
   };
 
+  /** runConnect 返回值；ok=false 时把具体错误透传给调用方 */
+  type ConnectResult = { ok: true } | { ok: false; error: string; code: StreamingErrorCode };
+
   /**
    * 连接/重登的内部实现
    * @param id - 目标 server id
-   * @param updateStatus - 是否写全局 connectionStatus；非激活服务器的静默重登传 false
+   * @param isActive - 写 connectionStatus 时再求值；避免长 await 期间用户切了 server，把旧结果写到当前激活态上
    */
-  const runConnect = async (id: string, updateStatus: boolean): Promise<boolean> => {
+  const runConnect = async (id: string, isActive: () => boolean): Promise<ConnectResult> => {
     const cfg = servers.value.find((s) => s.id === id);
-    if (!cfg) return false;
+    if (!cfg) return { ok: false, error: "找不到服务器配置", code: "unknown" };
     const writeStatus = (next: typeof connectionStatus.value): void => {
-      if (updateStatus) connectionStatus.value = next;
+      if (isActive()) connectionStatus.value = next;
     };
     try {
       const updates: Partial<StreamingServerConfig> = {};
@@ -300,26 +307,21 @@ export const useStreamingStore = defineStore("streaming", () => {
       }
       const ping = await client.ping(probe);
       if (!ping.ok) {
-        writeStatus({
-          connected: false,
-          error: ping.error,
-          errorCode: ping.code ?? "unknown",
-        });
-        return false;
+        const code = ping.code ?? "unknown";
+        const error = ping.error ?? "ping 失败";
+        writeStatus({ connected: false, error, errorCode: code });
+        return { ok: false, error, code };
       }
       updates.lastConnected = Date.now();
       patchServer(id, updates);
       writeStatus({ connected: true });
-      // 拿到新 token 后刷新内存中 cover URL（仅当目标是当前激活服务器）
       if (id === activeServerId.value) refreshCoverUrlsForActive();
-      return true;
+      return { ok: true };
     } catch (err) {
-      writeStatus({
-        connected: false,
-        error: err instanceof Error ? err.message : String(err),
-        errorCode: classifyError(err),
-      });
-      return false;
+      const error = err instanceof Error ? err.message : String(err);
+      const code = classifyError(err);
+      writeStatus({ connected: false, error, errorCode: code });
+      return { ok: false, error, code };
     }
   };
 
@@ -328,7 +330,10 @@ export const useStreamingStore = defineStore("streaming", () => {
    * token 和 lastConnected 合并一次落盘
    * @param id - 目标 server id
    */
-  const connectToServer = (id: string): Promise<boolean> => runConnect(id, true);
+  const connectToServer = async (id: string): Promise<boolean> => {
+    const r = await runConnect(id, () => id === activeServerId.value);
+    return r.ok;
+  };
 
   /**
    * 设为激活服务器并触发连接；id 与当前相同（断开状态重连）也会再走一遍
@@ -372,9 +377,8 @@ export const useStreamingStore = defineStore("streaming", () => {
       return await fn(cfg);
     } catch (err) {
       if (!(err instanceof StreamingAuthError) || !needsAccessToken(cfg.type)) throw err;
-      const isActive = cfg.id === activeServerId.value;
-      const ok = await runConnect(cfg.id, isActive);
-      if (!ok) throw err;
+      const r = await runConnect(cfg.id, () => cfg.id === activeServerId.value);
+      if (!r.ok) throw err;
       const refreshed = servers.value.find((s) => s.id === cfg.id);
       if (!refreshed) throw err;
       return fn(refreshed);
@@ -385,87 +389,83 @@ export const useStreamingStore = defineStore("streaming", () => {
     withAutoReauthFor(requireActiveCfg(), fn);
 
   /**
-   * 拉取专辑列表并写入运行时缓存
-   * @param params - 可选分页参数（offset/limit）
+   * 拉一次列表并写入对应运行时缓存；带 loading 与失败日志
+   * fetchSongs 不走这里（它有分批 + seq 竞态）
    */
-  const fetchAlbums = async (params?: StreamingListParams): Promise<void> => {
+  const runListFetch = async <T>(
+    fetch: (cfg: StreamingServerConfig) => Promise<T[]>,
+    target: ShallowRef<T[]>,
+    label: string,
+  ): Promise<void> => {
     loading.value = true;
     try {
-      albums.value = await withActive((cfg) => client.listAlbums(cfg, params));
+      target.value = await withActive(fetch);
       persistCache();
     } catch (err) {
-      console.error("[streaming] fetchAlbums failed:", err);
-    } finally {
-      loading.value = false;
-    }
-  };
-
-  /** 拉取歌手列表并写入运行时缓存 */
-  const fetchArtists = async (): Promise<void> => {
-    loading.value = true;
-    try {
-      artists.value = await withActive((cfg) => client.listArtists(cfg));
-      persistCache();
-    } catch (err) {
-      console.error("[streaming] fetchArtists failed:", err);
-    } finally {
-      loading.value = false;
-    }
-  };
-
-  /** 拉取歌单列表并写入运行时缓存 */
-  const fetchPlaylists = async (): Promise<void> => {
-    loading.value = true;
-    try {
-      playlists.value = await withActive((cfg) => client.listPlaylists(cfg));
-      persistCache();
-    } catch (err) {
-      console.error("[streaming] fetchPlaylists failed:", err);
+      console.error(`[streaming] ${label} failed:`, err);
     } finally {
       loading.value = false;
     }
   };
 
   /**
-   * 拉取所有歌曲，覆盖现有缓存
-   *
-   * 首批返回后立即解除 loading 让 UI 可用，剩余分批在后台递归继续拉到拉完
-   * @param serverId - 触发时绑定的 server id；切换服务器后旧 loop 自动停
+   * 拉取专辑列表并写入运行时缓存
+   * @param params - 可选分页参数（offset/limit）
    */
+  const fetchAlbums = (params?: StreamingListParams): Promise<void> =>
+    runListFetch((cfg) => client.listAlbums(cfg, params), albums, "fetchAlbums");
+
+  /** 拉取歌手列表并写入运行时缓存 */
+  const fetchArtists = (): Promise<void> =>
+    runListFetch((cfg) => client.listArtists(cfg), artists, "fetchArtists");
+
+  /** 拉取歌单列表并写入运行时缓存 */
+  const fetchPlaylists = (): Promise<void> =>
+    runListFetch((cfg) => client.listPlaylists(cfg), playlists, "fetchPlaylists");
+
+  /** 防止刷新撞上后台分批 */
+  let songsFetchSeq = 0;
+
+  /** 拉取所有歌曲，覆盖现有缓存 */
   const fetchSongs = async (): Promise<void> => {
     const serverId = activeServerId.value;
+    const seq = ++songsFetchSeq;
     loading.value = true;
     try {
       const first = await withActive((cfg) =>
         client.listSongs(cfg, { offset: 0, limit: SONGS_PAGE_SIZE }),
       );
+      if (seq !== songsFetchSeq) return;
       songs.value = first;
       persistCache();
       if (first.length >= SONGS_PAGE_SIZE) {
-        void fetchRemainingSongs(serverId);
+        void fetchRemainingSongs(serverId, seq);
       }
     } catch (err) {
       console.error("[streaming] fetchSongs failed:", err);
     } finally {
-      loading.value = false;
+      if (seq === songsFetchSeq) loading.value = false;
     }
   };
 
   /**
-   * 后台递归拉剩余歌曲；服务器切换或断开时自动停止
+   * 后台递归拉剩余歌曲；服务器切换、断开或被新一轮 fetchSongs 覆盖时自动停止
    * @param serverId - 启动时绑定的 server id
+   * @param seq - 启动时绑定的 songsFetchSeq
    */
-  const fetchRemainingSongs = async (serverId: string | null): Promise<void> => {
+  const fetchRemainingSongs = async (serverId: string | null, seq: number): Promise<void> => {
     while (
+      seq === songsFetchSeq &&
       activeServerId.value === serverId &&
       connectionStatus.value.connected &&
       songs.value.length % SONGS_PAGE_SIZE === 0
     ) {
       try {
+        const offset = songs.value.length;
         const next = await withActive((cfg) =>
-          client.listSongs(cfg, { offset: songs.value.length, limit: SONGS_PAGE_SIZE }),
+          client.listSongs(cfg, { offset, limit: SONGS_PAGE_SIZE }),
         );
-        if (activeServerId.value !== serverId) return;
+        if (seq !== songsFetchSeq || activeServerId.value !== serverId) return;
         if (next.length === 0) return;
         songs.value = [...songs.value, ...next];
         persistCache();
@@ -524,6 +524,7 @@ export const useStreamingStore = defineStore("streaming", () => {
 
   /**
    * 取流播放 URL
+   * 非激活服务器静默重连
    * @param track - source="streaming" 的 Track（必须带 serverId/originalId）
    */
   const getStreamUrl = async (track: Track): Promise<string> => {
@@ -533,14 +534,8 @@ export const useStreamingStore = defineStore("streaming", () => {
       ? !connectionStatus.value.connected
       : needsAccessToken(cfg.type) && !cfg.accessToken;
     if (needsConnect) {
-      const ok = await connectToServer(cfg.id);
-      if (!ok) {
-        throw new Error(
-          isActive
-            ? (connectionStatus.value.error ?? "未连接到流媒体服务器")
-            : "无法连接到该曲所在的流媒体服务器",
-        );
-      }
+      const result = await runConnect(cfg.id, () => cfg.id === activeServerId.value);
+      if (!result.ok) throw new Error(isActive ? result.error : `${cfg.name}: ${result.error}`);
     }
     const fresh = servers.value.find((s) => s.id === cfg.id) ?? cfg;
     const sessionId = session.sessionIdForTrack(track.id);
@@ -560,7 +555,8 @@ export const useStreamingStore = defineStore("streaming", () => {
           title: track.title,
         }),
       );
-    } catch {
+    } catch (err) {
+      console.warn("[streaming] getLyrics failed:", err);
       return null;
     }
   };

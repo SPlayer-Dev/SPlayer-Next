@@ -511,7 +511,7 @@ defineExpose({
           <slot name="footer">
             <div
               v-if="sortedItems.length > 0"
-              class="py-6 text-center text-xs text-on-surface-variant/40"
+              class="py-3 text-center text-xs text-on-surface-variant/40"
             >
               {{ t("common.noMore") }}
             </div>

@@ -31,6 +31,7 @@ export const createMainWindow = (): BrowserWindow => {
     frame: false,
     webPreferences: {
       partition: MAIN_PARTITION,
+      webSecurity: false,
     },
   });
 

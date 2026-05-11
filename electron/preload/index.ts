@@ -305,8 +305,6 @@ const api = {
     clearBackgroundImages: (): Promise<void> => ipcRenderer.invoke("theme:clearBackgroundImages"),
   },
   streaming: {
-    // 把远端封面 URL 拉成字节，给 SMTC 高清封面用
-    fetchCoverBytes: (url: string) => ipcRenderer.invoke("streaming:fetchCoverBytes", url),
     // 加载服务器配置（密码已解密）
     loadServers: () => ipcRenderer.invoke("streaming:loadServers"),
     // 持久化服务器配置（密码经 safeStorage 加密）
