@@ -20,6 +20,14 @@ const api = {
     set: (keyPath: string, value: unknown) => ipcRenderer.invoke("config:set", keyPath, value),
     getAll: () => ipcRenderer.invoke("config:getAll"),
     reset: () => ipcRenderer.invoke("config:reset"),
+    replaceAll: (config: unknown) => ipcRenderer.invoke("config:replaceAll", config),
+    exportToFile: (
+      payload: unknown,
+    ): Promise<{ ok: boolean; reason?: "canceled" | "writeFailed" }> =>
+      ipcRenderer.invoke("config:exportToFile", payload),
+    importFromFile: (): Promise<
+      { ok: true; data: unknown } | { ok: false; reason: "canceled" | "readFailed" | "parseFailed" }
+    > => ipcRenderer.invoke("config:importFromFile"),
   },
   player: {
     // 加载音频（本地路径或网络地址）
@@ -106,6 +114,8 @@ const api = {
     listFonts: () => ipcRenderer.invoke("system:listFonts"),
     // 拉远端字节回渲染层
     fetchRemoteBytes: (url: string) => ipcRenderer.invoke("system:fetchRemoteBytes", url),
+    // 重启应用
+    relaunch: () => ipcRenderer.invoke("system:relaunch"),
   },
   library: {
     // 开始扫描（默认增量）
@@ -312,8 +322,8 @@ const api = {
     getStats: () => ipcRenderer.invoke("cache:getStats"),
     // 清除单个类别
     clear: (id: string) => ipcRenderer.invoke("cache:clear", id),
-    // 清空全部
-    clearAll: () => ipcRenderer.invoke("cache:clearAll"),
+    // 按介质清空
+    clearAllByKind: (kind: "file" | "db") => ipcRenderer.invoke("cache:clearAllByKind", kind),
     // 获取当前缓存目录
     getDir: () => ipcRenderer.invoke("cache:getDir"),
     // 选择新的缓存目录

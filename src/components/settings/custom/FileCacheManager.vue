@@ -10,55 +10,27 @@ import IconLucideRefreshCw from "~icons/lucide/refresh-cw";
 import IconLucideImage from "~icons/lucide/image";
 import IconLucideUserRound from "~icons/lucide/user-round";
 import IconLucideImagePlus from "~icons/lucide/image-plus";
-import IconLucideMic2 from "~icons/lucide/mic-2";
-import IconLucideFileText from "~icons/lucide/file-text";
-import IconLucideSearch from "~icons/lucide/search";
 import IconLucideDatabase from "~icons/lucide/database";
+import { useCacheStats } from "@/composables/useCacheStats";
 
 defineOptions({ inheritAttrs: false });
 
 const { t } = useI18n();
+const { stats, cacheDir, loading, clearingId, clearingKind, refresh, setCacheDir } =
+  useCacheStats();
 
-interface CacheStat {
-  id: string;
-  path: string;
-  size: number;
-}
-
-/** 类别 → 图标 */
 const iconMap: Record<string, Component> = {
   covers: IconLucideImage,
   artists: IconLucideUserRound,
   backgrounds: IconLucideImagePlus,
-  lyric: IconLucideMic2,
-  lyricTTML: IconLucideFileText,
-  lyricMatch: IconLucideSearch,
 };
 
-const stats = ref<CacheStat[]>([]);
-const cacheDir = ref<string>("");
-const loading = ref(false);
-const clearingId = ref<string | null>(null);
-const clearingAll = ref(false);
+const fileStats = computed(() => stats.value.filter((stat) => stat.kind === "file"));
+const totalSize = computed(() => fileStats.value.reduce((sum, stat) => sum + stat.size, 0));
 
-/** 总占用 */
-const totalSize = computed(() => stats.value.reduce((sum, s) => sum + s.size, 0));
-
-const refresh = async (): Promise<void> => {
-  loading.value = true;
-  try {
-    const [list, dir] = await Promise.all([
-      window.api.cache.getStats(),
-      window.api.cache.getDir(),
-    ]);
-    stats.value = list;
-    cacheDir.value = dir;
-  } finally {
-    loading.value = false;
-  }
-};
-
-onMounted(refresh);
+onMounted(() => {
+  if (stats.value.length === 0) void refresh();
+});
 
 const handlePickDir = async (): Promise<void> => {
   const confirmed = await dialog.confirm({
@@ -73,7 +45,7 @@ const handlePickDir = async (): Promise<void> => {
     if (result.reason === "notEmpty") toast.error(t("settings.cacheDir.notEmpty"));
     return;
   }
-  cacheDir.value = result.dir;
+  setCacheDir(result.dir);
   await refresh();
   toast.success(t("settings.cacheDir.changedHint"));
 };
@@ -85,7 +57,7 @@ const handleResetDir = async (): Promise<void> => {
     type: "warning",
   });
   if (!confirmed) return;
-  cacheDir.value = await window.api.cache.resetDir();
+  setCacheDir(await window.api.cache.resetDir());
   await refresh();
 };
 
@@ -113,17 +85,17 @@ const requestClear = async (id: string): Promise<void> => {
 
 const requestClearAll = async (): Promise<void> => {
   const confirmed = await dialog.confirm({
-    title: t("settings.cacheClearAll.confirmTitle"),
-    content: t("settings.cacheClearAll.confirmDesc"),
+    title: t("settings.fileClearAll.confirmTitle"),
+    content: t("settings.fileClearAll.confirmDesc"),
     type: "error",
   });
   if (!confirmed) return;
-  clearingAll.value = true;
+  clearingKind.value = "file";
   try {
-    await window.api.cache.clearAll();
+    await window.api.cache.clearAllByKind("file");
     await refresh();
   } finally {
-    clearingAll.value = false;
+    clearingKind.value = null;
   }
 };
 </script>
@@ -190,7 +162,7 @@ const requestClearAll = async (): Promise<void> => {
       </div>
       <SDivider />
       <div class="flex flex-col">
-        <template v-for="(stat, idx) in stats" :key="stat.id">
+        <template v-for="(stat, idx) in fileStats" :key="stat.id">
           <div class="px-4 py-2.5 flex items-center gap-3">
             <component
               :is="iconMap[stat.id] ?? IconLucideDatabase"
@@ -219,7 +191,7 @@ const requestClearAll = async (): Promise<void> => {
               <template #icon><IconLucideTrash2 /></template>
             </SButton>
           </div>
-          <SDivider v-if="idx < stats.length - 1" />
+          <SDivider v-if="idx < fileStats.length - 1" />
         </template>
       </div>
     </div>
@@ -229,19 +201,19 @@ const requestClearAll = async (): Promise<void> => {
       class="rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3.5 flex items-center justify-between gap-4"
     >
       <div class="min-w-0 flex-1">
-        <div class="text-base">{{ t("settings.cacheClearAll.label") }}</div>
+        <div class="text-base">{{ t("settings.fileClearAll.label") }}</div>
         <div class="text-sm text-on-surface-variant/70 mt-0.5">
-          {{ t("settings.cacheClearAll.description") }}
+          {{ t("settings.fileClearAll.description") }}
         </div>
       </div>
       <SButton
         type="error"
         variant="secondary"
-        :loading="clearingAll"
+        :loading="clearingKind === 'file'"
         :disabled="totalSize === 0"
         @click="requestClearAll"
       >
-        {{ t("settings.cacheClearAll.button") }}
+        {{ t("settings.fileClearAll.button") }}
       </SButton>
     </div>
   </div>

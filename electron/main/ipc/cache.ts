@@ -26,10 +26,14 @@ export type CacheCategory =
   | "lyricTTML"
   | "lyricMatch";
 
+/** 缓存介质 */
+export type CacheKind = "file" | "db";
+
 /** 单类别的占用情况 */
 export interface CacheStat {
   id: CacheCategory;
-  /** 显示用路径或来源；DB 类条目展示表名 */
+  kind: CacheKind;
+  /** 显示用路径或来源 */
   path: string;
   size: number;
 }
@@ -80,51 +84,65 @@ const tableSize = (table: string, columns: string[]): number => {
   }
 };
 
-/** 类别 → 占用统计 / 路径展示 / 清空动作 */
+/** 类别 → 介质 / 占用统计 / 路径展示 / 清空动作 */
 const categoryHandlers: Record<
   CacheCategory,
-  { path: () => string; size: () => number; clear: () => void | Promise<void> }
+  {
+    kind: CacheKind;
+    path: () => string;
+    size: () => number;
+    clear: () => void | Promise<void>;
+  }
 > = {
   covers: {
+    kind: "file",
     path: getCoverCacheDir,
     size: () => dirSize(getCoverCacheDir()),
     clear: () => clearDir(getCoverCacheDir()),
   },
   artists: {
+    kind: "file",
     path: getArtistCacheDir,
     size: () => dirSize(getArtistCacheDir()),
     clear: () => clearDir(getArtistCacheDir()),
   },
   backgrounds: {
+    kind: "file",
     path: getBackgroundsDir,
     size: () => dirSize(getBackgroundsDir()),
     clear: () => clearDir(getBackgroundsDir()),
   },
   lyric: {
+    kind: "db",
     path: () => "lyric_cache",
     size: () => tableSize("lyric_cache", ["data"]),
     clear: clearLyricCache,
   },
   lyricTTML: {
+    kind: "db",
     path: () => "lyric_ttml_cache",
     size: () => tableSize("lyric_ttml_cache", ["content"]),
     clear: clearLyricTtmlCache,
   },
   lyricMatch: {
+    kind: "db",
     path: () => "lyric_match_cache",
     size: () => tableSize("lyric_match_cache", ["fingerprint", "platform_id", "extra"]),
     clear: clearLyricMatchCache,
   },
 };
 
-/** 文件类目（受自定义缓存目录影响，切换时需要清空） */
-const fileCategories: CacheCategory[] = ["covers", "artists", "backgrounds"];
+const idsByKind = (kind: CacheKind): CacheCategory[] =>
+  (Object.keys(categoryHandlers) as CacheCategory[]).filter(
+    (id) => categoryHandlers[id].kind === kind,
+  );
 
 /** 注册缓存相关 IPC */
 export const registerCacheIpc = (): void => {
   ipcMain.handle("cache:getStats", (): CacheStat[] => {
     return (Object.keys(categoryHandlers) as CacheCategory[]).map((id) => ({
       id,
+      kind: categoryHandlers[id].kind,
       path: categoryHandlers[id].path(),
       size: categoryHandlers[id].size(),
     }));
@@ -142,11 +160,11 @@ export const registerCacheIpc = (): void => {
     }
   });
 
-  ipcMain.handle("cache:clearAll", async (): Promise<void> => {
-    await Promise.all(
-      (Object.keys(categoryHandlers) as CacheCategory[]).map((id) => categoryHandlers[id].clear()),
-    );
-    systemLog.info(`[cache] cleared all`);
+  /** 一键清空：按介质分桶，避免误删另一类 */
+  ipcMain.handle("cache:clearAllByKind", async (_event, kind: CacheKind): Promise<void> => {
+    const ids = idsByKind(kind);
+    await Promise.all(ids.map((id) => categoryHandlers[id].clear()));
+    systemLog.info(`[cache] cleared all (${kind})`);
   });
 
   ipcMain.handle("cache:getDir", (): string => getAppCacheDir());
@@ -154,8 +172,7 @@ export const registerCacheIpc = (): void => {
   /**
    * 切换缓存目录
    * - 用户必须选择空目录才允许切换
-   * - 切换前清空旧目录下的文件类缓存（封面 / 头像 / 背景图）
-   * - sqlite 中的歌词等缓存路径独立，不参与本次清空
+   * - 切换前清空旧目录下的文件类缓存
    */
   ipcMain.handle(
     "cache:pickDir",
@@ -172,7 +189,7 @@ export const registerCacheIpc = (): void => {
       if (!(await isDirEmpty(next))) {
         return { ok: false, dir: current, reason: "notEmpty" };
       }
-      await Promise.all(fileCategories.map((id) => categoryHandlers[id].clear()));
+      await Promise.all(idsByKind("file").map((id) => categoryHandlers[id].clear()));
       store.set("cache.dir", next);
       syncCoverCacheDir();
       systemLog.info(`[cache] dir switched to ${next}`);
@@ -182,7 +199,7 @@ export const registerCacheIpc = (): void => {
 
   /** 还原默认缓存目录（同样清空旧的文件类缓存） */
   ipcMain.handle("cache:resetDir", async (): Promise<string> => {
-    await Promise.all(fileCategories.map((id) => categoryHandlers[id].clear()));
+    await Promise.all(idsByKind("file").map((id) => categoryHandlers[id].clear()));
     store.set("cache.dir", null);
     syncCoverCacheDir();
     return defaultAppCacheDir;

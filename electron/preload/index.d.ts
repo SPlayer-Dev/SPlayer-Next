@@ -33,6 +33,7 @@ declare global {
         ) => () => void;
         listFonts: () => Promise<string[]>;
         fetchRemoteBytes: (url: string) => Promise<IpcResponse<Buffer | null>>;
+        relaunch: () => Promise<void>;
       };
       library: LibraryApi;
       window: WindowApi;
@@ -48,9 +49,11 @@ declare global {
         clearBackgroundImages: () => Promise<void>;
       };
       cache: {
-        getStats: () => Promise<{ id: string; path: string; size: number }[]>;
+        getStats: () => Promise<
+          { id: string; kind: "file" | "db"; path: string; size: number }[]
+        >;
         clear: (id: string) => Promise<void>;
-        clearAll: () => Promise<void>;
+        clearAllByKind: (kind: "file" | "db") => Promise<void>;
         getDir: () => Promise<string>;
         pickDir: () => Promise<{ ok: boolean; dir: string; reason?: "canceled" | "notEmpty" }>;
         resetDir: () => Promise<string>;

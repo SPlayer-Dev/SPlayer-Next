@@ -123,4 +123,11 @@ export const store = {
     data = structuredClone(defaultSystemConfig);
     flush(data);
   },
+
+  /** 用导入的配置替换当前配置 */
+  replaceAll(input: unknown): void {
+    const raw = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+    data = deepMerge(defaultSystemConfig, raw);
+    flushImmediate(data);
+  },
 };

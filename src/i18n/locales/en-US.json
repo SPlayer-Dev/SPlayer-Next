@@ -16,7 +16,8 @@
     "totalSongs": "{count} songs",
     "totalAlbums": "{count} albums",
     "totalArtists": "{count} artists",
-    "totalPlaylists": "{count} playlists"
+    "totalPlaylists": "{count} playlists",
+    "comingSoon": "Feature coming soon"
   },
   "equalizer": {
     "title": "Equalizer",
@@ -277,11 +278,12 @@
       "musicSpectrum": "Music Spectrum",
       "discord": "Discord RPC",
       "systemConfig": "System",
-      "reset": "Reset",
       "pluginsList": "Installed Plugins",
       "streaming": "Streaming",
       "localFiles": "Local Files",
-      "cache": "Cache Database"
+      "cache": "Caches",
+      "database": "Database",
+      "backupReset": "Backup & Reset"
     },
     "language": {
       "label": "Language",
@@ -835,15 +837,39 @@
     },
     "storageManager": {
       "label": "Data Management",
-      "description": "Reset settings or clear all data"
+      "description": "Backup, restore, reset settings, or clear all data"
+    },
+    "backup": {
+      "label": "Backup Settings",
+      "description": "Export current settings to a backup file",
+      "button": "Backup",
+      "exported": "Backup saved",
+      "failed": "Backup failed"
+    },
+    "restore": {
+      "label": "Restore Settings",
+      "description": "Import settings from a backup file. Current settings will be overwritten.",
+      "button": "Restore",
+      "confirmTitle": "Restore settings and relaunch?",
+      "confirmDesc": "Your current settings will be overwritten by the backup file, and the app will relaunch immediately to apply them. Local library, playlists and playback history are not affected.",
+      "invalid": "Invalid backup file",
+      "failed": "Restore failed"
     },
     "resetSettings": {
       "label": "Reset Settings",
-      "confirm": "Are you sure you want to restore all settings to default?"
+      "description": "Restore all settings to defaults. Playlists and local library are not affected.",
+      "button": "Reset",
+      "confirmTitle": "Reset settings?",
+      "confirmDesc": "All settings will be restored to their defaults. This cannot be undone.",
+      "done": "Settings have been reset"
     },
     "resetAll": {
-      "label": "Reset All Data",
-      "confirm": "This will clear all playlists, sign out, and reset all settings. This action cannot be undone!"
+      "label": "Clear All Data",
+      "description": "Wipe all playlists, sign-in state and caches, then reset settings",
+      "button": "Clear",
+      "confirmTitle": "Clear all data?",
+      "confirmDesc": "All playlists, sign-in state and caches will be wiped and settings reset. This cannot be undone.",
+      "done": "All data has been cleared"
     },
     "plugins": {
       "hint": "Install from local file or URL",
@@ -886,9 +912,13 @@
       "label": "Local TTML Override",
       "description": "Prefer a local .ttml file (when available) over online lyrics"
     },
-    "cacheManager": {
+    "fileCacheManager": {
       "label": "Cache Manager",
       "description": "Inspect cache usage and clear it"
+    },
+    "dbCacheManager": {
+      "label": "Database Manager",
+      "description": "Inspect database usage and clear it"
     },
     "cacheDir": {
       "label": "Cache Directory",
@@ -905,7 +935,7 @@
       "resetConfirmDesc": "Current file caches will be cleared before resetting."
     },
     "cacheUsage": {
-      "label": "Usage by Category",
+      "label": "Usage",
       "total": "Total",
       "refresh": "Refresh"
     },
@@ -922,12 +952,19 @@
       "confirmTitle": "Clear \"{name}\"?",
       "confirmDesc": "All cached data in this category will be deleted. This cannot be undone."
     },
-    "cacheClearAll": {
-      "label": "Clear All",
-      "description": "Wipe cached data across all categories. This cannot be undone.",
+    "fileClearAll": {
+      "label": "Clear File Caches",
+      "description": "Clear all caches. This cannot be undone.",
       "button": "Clear All",
-      "confirmTitle": "Clear all caches?",
-      "confirmDesc": "All cached data above will be deleted and regenerated on next use. This cannot be undone."
+      "confirmTitle": "Clear all file caches?",
+      "confirmDesc": "All file caches above will be deleted and regenerated on next use. This cannot be undone."
+    },
+    "dbClearAll": {
+      "label": "Clear Database Caches",
+      "description": "Wipe lyric and matching caches stored in the database. Your local library and account data are not affected.",
+      "button": "Clear All",
+      "confirmTitle": "Clear all database caches?",
+      "confirmDesc": "All database caches above will be cleared. This cannot be undone."
     }
   },
   "collection": {

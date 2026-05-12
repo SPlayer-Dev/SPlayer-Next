@@ -292,4 +292,12 @@ export interface ConfigApi {
   getAll: () => Promise<SystemConfig>;
   /** 重置为默认值 */
   reset: () => Promise<void>;
+  /** 整盘替换主进程配置 */
+  replaceAll: (config: unknown) => Promise<void>;
+  /** 写入用户选择的备份文件 */
+  exportToFile: (payload: unknown) => Promise<{ ok: boolean; reason?: "canceled" | "writeFailed" }>;
+  /** 读取用户选择的备份文件 */
+  importFromFile: () => Promise<
+    { ok: true; data: unknown } | { ok: false; reason: "canceled" | "readFailed" | "parseFailed" }
+  >;
 }
