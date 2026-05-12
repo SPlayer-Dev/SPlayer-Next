@@ -48,24 +48,22 @@ declare global {
         pickBackgroundImage: () => Promise<string | null>;
         clearBackgroundImages: () => Promise<void>;
       };
-      songCache: {
-        lookup: (cacheKey: string) => Promise<string | null>;
-        fetch: (
-          cacheKey: string,
-          source: TrackSource,
-          streamUrl: string,
-        ) => Promise<string | null>;
-        cancel: (cacheKey: string) => Promise<void>;
-      };
       cache: {
-        getStats: () => Promise<
-          { id: string; kind: "file" | "db"; path: string; size: number }[]
-        >;
+        getStats: () => Promise<{ id: string; kind: "file" | "db"; path: string; size: number }[]>;
         clear: (id: string) => Promise<void>;
         clearAllByKind: (kind: "file" | "db") => Promise<void>;
         getDir: () => Promise<string>;
         pickDir: () => Promise<{ ok: boolean; dir: string; reason?: "canceled" | "notEmpty" }>;
         resetDir: () => Promise<string>;
+        song: {
+          lookup: (cacheKey: string) => Promise<string | null>;
+          fetch: (
+            cacheKey: string,
+            source: TrackSource,
+            streamUrl: string,
+          ) => Promise<string | null>;
+          cancel: (cacheKey: string) => Promise<void>;
+        };
       };
       hotkey: HotkeyApi;
       streaming: StreamingApi;

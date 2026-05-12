@@ -201,8 +201,8 @@ export interface LocalLyricSettings {
 export interface SongCacheSettings {
   /** 开关：开启后播放远程歌曲会异步下载落盘，下次播放命中本地 */
   enabled: boolean;
-  /** 上限（MB），超限按 LRU 淘汰 */
-  sizeLimitMb: number;
+  /** 上限（GB），0 表示不限制；超限按 LRU 淘汰 */
+  sizeLimitGb: number;
 }
 
 /** 缓存配置 */

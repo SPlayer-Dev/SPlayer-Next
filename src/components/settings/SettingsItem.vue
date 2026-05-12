@@ -104,6 +104,17 @@ const descriptionText = computed(() =>
         >
           {{ t(`settings.${item.key}.label`) }}
         </SButton>
+        <SNumberInput
+          v-else-if="item.type === 'number'"
+          v-model="model"
+          :min="item.min"
+          :max="item.max"
+          :step="item.step"
+          :unit="item.unit"
+          :placeholder="item.placeholderKey ? t(item.placeholderKey) : ''"
+          :disabled="isDisabled"
+          class="w-full"
+        />
         <component
           :is="item.component"
           v-else-if="item.type === 'custom' && item.component"

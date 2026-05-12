@@ -38,10 +38,10 @@ const inFlight = new Map<string, InFlight>();
 /** 等待槽位的队列；只存 starter，槽位空出来时取队头执行 */
 const waiting: Array<() => void> = [];
 
-/** sizeLimit 字节数 */
+/** sizeLimit 字节数；0/负数视为不限制 */
 const sizeLimitBytes = (): number => {
-  const mb = store.get("cache.songCache.sizeLimitMb") ?? 5120;
-  return mb * 1024 * 1024;
+  const gb = store.get("cache.songCache.sizeLimitGb") ?? 10;
+  return gb > 0 ? gb * 1024 * 1024 * 1024 : Number.POSITIVE_INFINITY;
 };
 
 /** 是否启用歌曲缓存 */
@@ -131,7 +131,6 @@ const cleanupOrphans = async (): Promise<void> => {
 
 /**
  * LRU 淘汰：超过 cap 时按 last_used_at 升序批量删
- * @returns
  * - 删超过 cap 的
  * - 删表里有文件不在的
  * - 删目录里有表里没的
@@ -265,7 +264,13 @@ export const lookup = async (cacheKey: string): Promise<string | null> => {
   return full;
 };
 
-/** 异步排队下载；inFlight 去重 */
+/**
+ * 异步排队下载
+ * @param cacheKey - 缓存键
+ * @param source - 来源
+ * @param streamUrl - 流 URL
+ * @returns 文件路径
+ */
 export const fetchAsync = (
   cacheKey: string,
   source: TrackSource,
@@ -289,13 +294,20 @@ export const fetchAsync = (
   return promise;
 };
 
-/** 取消正在进行的下载 */
+/**
+ * 取消正在进行的下载
+ * @param cacheKey - 缓存键
+ */
 export const cancel = (cacheKey: string): void => {
   const entry = inFlight.get(cacheKey);
   if (entry) entry.controller.abort();
 };
 
-/** 删除一条缓存（文件 + 表行）。invalidate by absolute path（来自 player:load 解码错误） */
+/**
+ * 失效：删文件 + 删表
+ * 如果表里没有或文件不存在则静默返回
+ * @param sourcePath - 传入原始来源路径（streamUrl 或本地路径），用来找到对应的 cacheKey 和文件
+ */
 export const invalidate = async (sourcePath: string): Promise<void> => {
   const filename = path.basename(sourcePath);
   const row = findByFilename(filename);
@@ -305,7 +317,7 @@ export const invalidate = async (sourcePath: string): Promise<void> => {
   songCacheLog.info(`[invalidate] path=${sourcePath}`);
 };
 
-/** 清空全部（cache:clear/clearAllByKind 调用） */
+/** 清空全部 */
 export const clearAll = async (): Promise<void> => {
   for (const entry of inFlight.values()) entry.controller.abort();
   inFlight.clear();
@@ -317,7 +329,7 @@ export const clearAll = async (): Promise<void> => {
   songCacheLog.info("[clearAll] done");
 };
 
-/** 占用统计（给 cache:getStats） */
+/** 占用统计 */
 export const stats = (): { size: number; path: string } => ({
   size: totalSize(),
   path: cacheDir,

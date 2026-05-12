@@ -97,10 +97,7 @@ const requestClearAll = async (): Promise<void> => {
             />
             <div class="flex-1 min-w-0">
               <div class="text-sm">{{ t(`settings.cacheCategory.${stat.id}`) }}</div>
-              <div
-                class="text-xs text-on-surface-variant/60 truncate font-mono"
-                :title="stat.path"
-              >
+              <div class="text-xs text-on-surface-variant/60 truncate font-mono" :title="stat.path">
                 {{ stat.path }}
               </div>
             </div>

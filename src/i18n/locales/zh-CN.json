@@ -955,7 +955,7 @@
     },
     "songCacheSizeLimit": {
       "label": "缓存上限",
-      "description": "缓存占用达到上限后按最少使用顺序自动清理"
+      "description": "缓存占用达到上限后按最少使用顺序自动清理；∞ 表示不限制"
     },
     "cacheCategoryClear": {
       "label": "清除",

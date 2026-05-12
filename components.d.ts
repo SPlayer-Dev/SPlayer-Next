@@ -169,6 +169,8 @@ declare module 'vue' {
     SLogo: typeof import('./src/components/ui/SLogo.vue')['default']
     SMarquee: typeof import('./src/components/ui/SMarquee.vue')['default']
     SMenu: typeof import('./src/components/ui/SMenu.vue')['default']
+    SNumberInput: typeof import('./src/components/ui/SNumberInput.vue')['default']
+    SongCacheSizeLimit: typeof import('./src/components/settings/custom/SongCacheSizeLimit.vue')['default']
     SongList: typeof import('./src/components/list/SongList.vue')['default']
     SpeedDialog: typeof import('./src/components/modals/SpeedDialog.vue')['default']
     SPopover: typeof import('./src/components/ui/SPopover.vue')['default']

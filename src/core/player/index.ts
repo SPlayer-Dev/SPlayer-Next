@@ -9,7 +9,6 @@ import * as queue from "@/stores/queue";
 import * as playback from "@/services/playback";
 import * as lyricLoader from "@/services/lyricLoader";
 import * as abLoop from "@/services/abLoop";
-import * as session from "@/services/streaming/session";
 import { resolveTrackSource } from "@/services/audioSource";
 import { extractColorFromUrl } from "@/utils/color";
 import { handleError, isSkippableError } from "@/utils/errors";
@@ -122,13 +121,6 @@ const loadTrack = async (track: Track | null): Promise<void> => {
   // 乐观更新：同步写入 track，开启歌词加载周期
   useMediaStore().setTrack(track);
   lyricLoader.beginLoad();
-  // 命中本地缓存：仅给上一首发 Stopped，不给新曲发 Playing，跳过整条流媒体心跳链路
-  // 未命中：走原 PlayState 流程
-  if (resolved.fromCache) {
-    session.notifyTrackChanged(null, useStatusStore().position);
-  } else {
-    session.notifyTrackChanged(track, useStatusStore().position);
-  }
   // meta 随 load 一起下发：SMTC/托盘/标题用 track 上的权威字段
   await load(resolved.source, true, track);
 };
@@ -175,8 +167,6 @@ export const stop = async (): Promise<void> => {
   const result = await window.api.player.stop();
   if (result.success) {
     const status = useStatusStore();
-    // 上报 Stopped 给流媒体服务器
-    session.notifyTrackChanged(null, status.position);
     status.state = "stopped";
     status.position = 0;
     playback.reset();
@@ -353,8 +343,6 @@ const onQueueEnded = async (): Promise<void> => {
   // 通知主进程停止音频引擎
   await window.api.player.stop();
   const status = useStatusStore();
-  // Jellyfin/Emby 上报 Stopped，释放 server 端会话
-  session.notifyTrackChanged(null, status.position);
   status.state = "stopped";
   status.position = status.duration;
 };

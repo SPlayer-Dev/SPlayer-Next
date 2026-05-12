@@ -244,23 +244,19 @@ export const registerCacheIpc = (): void => {
 
   /** 歌曲文件级缓存：命中查询 */
   ipcMain.handle(
-    "songCache:lookup",
+    "cache:song:lookup",
     (_event, cacheKey: string): Promise<string | null> => songCache.lookup(cacheKey),
   );
 
   /** 歌曲文件级缓存：排队下载 */
   ipcMain.handle(
-    "songCache:fetch",
-    (
-      _event,
-      cacheKey: string,
-      source: TrackSource,
-      streamUrl: string,
-    ): Promise<string | null> => songCache.fetchAsync(cacheKey, source, streamUrl),
+    "cache:song:fetch",
+    (_event, cacheKey: string, source: TrackSource, streamUrl: string): Promise<string | null> =>
+      songCache.fetchAsync(cacheKey, source, streamUrl),
   );
 
   /** 歌曲文件级缓存：取消进行中的下载 */
-  ipcMain.handle("songCache:cancel", (_event, cacheKey: string): void => {
+  ipcMain.handle("cache:song:cancel", (_event, cacheKey: string): void => {
     songCache.cancel(cacheKey);
   });
 };

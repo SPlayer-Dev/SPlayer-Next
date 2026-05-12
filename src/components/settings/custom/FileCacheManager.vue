@@ -110,20 +110,12 @@ const requestClearAll = async (): Promise<void> => {
     >
       <div class="min-w-0 flex-1">
         <div class="text-base">{{ t("settings.cacheDir.label") }}</div>
-        <div
-          class="text-sm text-on-surface-variant/70 mt-0.5 truncate font-mono"
-          :title="cacheDir"
-        >
+        <div class="text-sm text-on-surface-variant/70 mt-0.5 truncate font-mono" :title="cacheDir">
           {{ cacheDir || "—" }}
         </div>
       </div>
       <div class="shrink-0 flex items-center gap-2">
-        <SButton
-          variant="ghost"
-          circle
-          :title="t('settings.cacheDir.open')"
-          @click="handleOpenDir"
-        >
+        <SButton variant="ghost" circle :title="t('settings.cacheDir.open')" @click="handleOpenDir">
           <template #icon><IconLucideFolderOpen /></template>
         </SButton>
         <SButton
@@ -172,10 +164,7 @@ const requestClearAll = async (): Promise<void> => {
             />
             <div class="flex-1 min-w-0">
               <div class="text-sm">{{ t(`settings.cacheCategory.${stat.id}`) }}</div>
-              <div
-                class="text-xs text-on-surface-variant/60 truncate font-mono"
-                :title="stat.path"
-              >
+              <div class="text-xs text-on-surface-variant/60 truncate font-mono" :title="stat.path">
                 {{ stat.path }}
               </div>
             </div>

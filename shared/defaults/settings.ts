@@ -95,7 +95,7 @@ export const defaultSystemConfig: SystemConfig = {
     dir: null,
     songCache: {
       enabled: false,
-      sizeLimitMb: 5120,
+      sizeLimitGb: 10,
     },
   },
   streaming: {

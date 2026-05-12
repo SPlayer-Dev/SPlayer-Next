@@ -317,20 +317,6 @@ const api = {
     // 清空已缓存的背景图
     clearBackgroundImages: (): Promise<void> => ipcRenderer.invoke("theme:clearBackgroundImages"),
   },
-  songCache: {
-    // 命中查询：返回本地绝对路径或 null
-    lookup: (cacheKey: string): Promise<string | null> =>
-      ipcRenderer.invoke("songCache:lookup", cacheKey),
-    // 排队下载（fire-and-forget 也可 await）
-    fetch: (
-      cacheKey: string,
-      source: TrackSource,
-      streamUrl: string,
-    ): Promise<string | null> =>
-      ipcRenderer.invoke("songCache:fetch", cacheKey, source, streamUrl),
-    // 取消正在进行的下载
-    cancel: (cacheKey: string): Promise<void> => ipcRenderer.invoke("songCache:cancel", cacheKey),
-  },
   cache: {
     // 各类别占用统计
     getStats: () => ipcRenderer.invoke("cache:getStats"),
@@ -344,6 +330,18 @@ const api = {
     pickDir: () => ipcRenderer.invoke("cache:pickDir"),
     // 还原默认缓存目录
     resetDir: () => ipcRenderer.invoke("cache:resetDir"),
+    // 单曲文件缓存运行时
+    song: {
+      // 命中查询：返回本地绝对路径或 null
+      lookup: (cacheKey: string): Promise<string | null> =>
+        ipcRenderer.invoke("cache:song:lookup", cacheKey),
+      // 排队下载（fire-and-forget 也可 await）
+      fetch: (cacheKey: string, source: TrackSource, streamUrl: string): Promise<string | null> =>
+        ipcRenderer.invoke("cache:song:fetch", cacheKey, source, streamUrl),
+      // 取消正在进行的下载
+      cancel: (cacheKey: string): Promise<void> =>
+        ipcRenderer.invoke("cache:song:cancel", cacheKey),
+    },
   },
   streaming: {
     // 加载服务器配置（密码已解密）

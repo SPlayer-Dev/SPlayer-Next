@@ -1,7 +1,14 @@
 import type { Component } from "vue";
 
 /** 设置项控件类型 */
-export type SettingWidgetType = "switch" | "select" | "slider" | "color" | "button" | "custom";
+export type SettingWidgetType =
+  | "switch"
+  | "select"
+  | "slider"
+  | "color"
+  | "button"
+  | "custom"
+  | "number";
 
 /** 选择项 */
 export interface SettingOption {
@@ -22,12 +29,16 @@ export interface SettingItem {
   binding?: { store: "settings" | "theme"; path: string };
   /** select 选项 */
   options?: SettingOption[];
-  /** slider 参数 */
+  /** slider / number 数值边界 */
   min?: number;
   max?: number;
   step?: number;
   /** slider 刻度标记 */
   marks?: Record<number, string>;
+  /** number 单位后缀 */
+  unit?: string;
+  /** number / 文本输入框的 placeholder */
+  placeholderKey?: string;
   /** color 控件是否启用透明度（默认 true） */
   showAlpha?: boolean;
   /** color 控件输出格式（默认 rgb） */

@@ -955,7 +955,7 @@
     },
     "songCacheSizeLimit": {
       "label": "Size Limit",
-      "description": "When the cap is reached, least-recently-used entries are evicted automatically"
+      "description": "When the cap is reached, least-recently-used entries are evicted automatically; ∞ means unlimited"
     },
     "cacheCategoryClear": {
       "label": "Clear",
