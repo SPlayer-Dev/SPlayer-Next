@@ -197,10 +197,20 @@ export interface LocalLyricSettings {
   enableLocalTTMLOverride: boolean;
 }
 
+/** 歌曲缓存配置 */
+export interface SongCacheSettings {
+  /** 开关：开启后播放远程歌曲会异步下载落盘，下次播放命中本地 */
+  enabled: boolean;
+  /** 上限（MB），超限按 LRU 淘汰 */
+  sizeLimitMb: number;
+}
+
 /** 缓存配置 */
 export interface CacheSettings {
   /** 自定义缓存目录；null 使用默认 {userData}/app-cache */
   dir: string | null;
+  /** 歌曲文件级缓存 */
+  songCache: SongCacheSettings;
 }
 
 /** 主窗口几何 */

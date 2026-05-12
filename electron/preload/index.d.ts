@@ -1,5 +1,5 @@
 import { ElectronAPI } from "@electron-toolkit/preload";
-import { PlayerApi } from "@shared/types/player";
+import { PlayerApi, TrackSource } from "@shared/types/player";
 import { ConfigApi, LocaleCode } from "@shared/types/settings";
 import { LibraryApi } from "@shared/types/library";
 import { NowPlayingApi } from "@shared/types/nowPlaying";
@@ -47,6 +47,15 @@ declare global {
       theme: {
         pickBackgroundImage: () => Promise<string | null>;
         clearBackgroundImages: () => Promise<void>;
+      };
+      songCache: {
+        lookup: (cacheKey: string) => Promise<string | null>;
+        fetch: (
+          cacheKey: string,
+          source: TrackSource,
+          streamUrl: string,
+        ) => Promise<string | null>;
+        cancel: (cacheKey: string) => Promise<void>;
       };
       cache: {
         getStats: () => Promise<

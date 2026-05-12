@@ -39,3 +39,6 @@ export const getArtistCacheDir = (): string => path.join(getAppCacheDir(), "arti
 
 /** 当前生效的背景图目录 */
 export const getBackgroundsDir = (): string => path.join(getAppCacheDir(), "backgrounds");
+
+/** 当前生效的歌曲缓存目录 */
+export const getSongCacheDir = (): string => path.join(getAppCacheDir(), "songs");

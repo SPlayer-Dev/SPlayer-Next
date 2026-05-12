@@ -281,6 +281,7 @@
       "pluginsList": "已安装插件",
       "streaming": "流媒体管理",
       "localFiles": "本地文件",
+      "songCache": "歌曲缓存",
       "cache": "缓存",
       "database": "数据库",
       "backupReset": "备份与重置"
@@ -943,9 +944,18 @@
       "covers": "封面缩略图",
       "artists": "歌手头像",
       "backgrounds": "背景图",
+      "songs": "歌曲文件",
       "lyric": "歌词内容缓存",
       "lyricTTML": "TTML 歌词缓存",
       "lyricMatch": "歌词匹配缓存"
+    },
+    "enableSongCache": {
+      "label": "歌曲缓存",
+      "description": "播放在线歌曲时下载到本地，下次播放可秒开"
+    },
+    "songCacheSizeLimit": {
+      "label": "缓存上限",
+      "description": "缓存占用达到上限后按最少使用顺序自动清理"
     },
     "cacheCategoryClear": {
       "label": "清除",

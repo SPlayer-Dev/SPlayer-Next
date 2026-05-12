@@ -10,6 +10,7 @@ import IconLucideRefreshCw from "~icons/lucide/refresh-cw";
 import IconLucideImage from "~icons/lucide/image";
 import IconLucideUserRound from "~icons/lucide/user-round";
 import IconLucideImagePlus from "~icons/lucide/image-plus";
+import IconLucideMusic from "~icons/lucide/music";
 import IconLucideDatabase from "~icons/lucide/database";
 import { useCacheStats } from "@/composables/useCacheStats";
 
@@ -23,6 +24,7 @@ const iconMap: Record<string, Component> = {
   covers: IconLucideImage,
   artists: IconLucideUserRound,
   backgrounds: IconLucideImagePlus,
+  songs: IconLucideMusic,
 };
 
 const fileStats = computed(() => stats.value.filter((stat) => stat.kind === "file"));

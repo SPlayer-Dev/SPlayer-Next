@@ -117,16 +117,20 @@ export const load = async (
  */
 const loadTrack = async (track: Track | null): Promise<void> => {
   if (!track) return;
-  const source = await resolveTrackSource(track);
-  if (!source) return;
+  const resolved = await resolveTrackSource(track);
+  if (!resolved) return;
   // 乐观更新：同步写入 track，开启歌词加载周期
   useMediaStore().setTrack(track);
   lyricLoader.beginLoad();
-  // 通知流媒体 PlayState：给上一首发 Stopped、给新一首发 Playing
-  // 上一首位置取当前 status.position（旧值，切歌前的最后位置）
-  session.notifyTrackChanged(track, useStatusStore().position);
+  // 命中本地缓存：仅给上一首发 Stopped，不给新曲发 Playing，跳过整条流媒体心跳链路
+  // 未命中：走原 PlayState 流程
+  if (resolved.fromCache) {
+    session.notifyTrackChanged(null, useStatusStore().position);
+  } else {
+    session.notifyTrackChanged(track, useStatusStore().position);
+  }
   // meta 随 load 一起下发：SMTC/托盘/标题用 track 上的权威字段
-  await load(source, true, track);
+  await load(resolved.source, true, track);
 };
 
 /** 恢复播放 */
@@ -535,10 +539,10 @@ export const initPlayer = async (): Promise<void> => {
     const lastPosition = status.position;
     // 先设置 track 信息（确保播放条显示），再尝试解析 source 并 load
     useMediaStore().setTrack(lastTrack);
-    const source = await resolveTrackSource(lastTrack);
-    if (source) {
+    const resolved = await resolveTrackSource(lastTrack);
+    if (resolved) {
       lyricLoader.beginLoad();
-      const result = await load(source, settings.system.player.autoPlay, lastTrack);
+      const result = await load(resolved.source, settings.system.player.autoPlay, lastTrack);
       if (result && settings.system.player.rememberLastTrack && lastPosition > 0) {
         await seek(lastPosition);
       }

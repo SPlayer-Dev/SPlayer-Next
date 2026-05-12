@@ -9,12 +9,15 @@ import {
   getCoverCacheDir,
   getArtistCacheDir,
   getBackgroundsDir,
+  getSongCacheDir,
 } from "@main/utils/config";
 import { syncCoverCacheDir } from "@main/services/engine";
 import { getDb } from "@main/database";
 import { clearLyricCache } from "@main/database/lyricCache";
 import { clearLyricTtmlCache } from "@main/database/lyricTtmlCache";
 import { clearLyricMatchCache } from "@main/database/lyricMatchCache";
+import * as songCache from "@main/services/songCache";
+import type { TrackSource } from "@shared/types/player";
 import { systemLog } from "@main/utils/logger";
 
 /** 已知的缓存类别 */
@@ -22,6 +25,7 @@ export type CacheCategory =
   | "covers"
   | "artists"
   | "backgrounds"
+  | "songs"
   | "lyric"
   | "lyricTTML"
   | "lyricMatch";
@@ -38,7 +42,11 @@ export interface CacheStat {
   size: number;
 }
 
-/** 递归累计目录占用 */
+/**
+ * 递归累计目录占用
+ * @param dir - 目录路径
+ * @returns 占用字节数
+ */
 const dirSize = (dir: string): number => {
   if (!existsSync(dir)) return 0;
   let total = 0;
@@ -55,7 +63,10 @@ const dirSize = (dir: string): number => {
   return total;
 };
 
-/** 清空目录但保留目录本身 */
+/**
+ * 清空目录但保留目录本身
+ * @param dir - 目录路径
+ */
 const clearDir = async (dir: string): Promise<void> => {
   if (!existsSync(dir)) return;
   const entries = await fs.readdir(dir);
@@ -64,14 +75,23 @@ const clearDir = async (dir: string): Promise<void> => {
   );
 };
 
-/** 目录是否为空（不存在视为空） */
+/**
+ * 目录是否为空（不存在视为空）
+ * @param dir - 目录路径
+ * @returns 是否为空
+ */
 const isDirEmpty = async (dir: string): Promise<boolean> => {
   if (!existsSync(dir)) return true;
   const entries = await fs.readdir(dir);
   return entries.length === 0;
 };
 
-/** sqlite 单表占用：取所有 TEXT/BLOB 字段 length 之和 */
+/**
+ * sqlite 单表占用：取所有 TEXT/BLOB 字段 length 之和
+ * @param table - 表名
+ * @param columns - 列名列表
+ * @returns 占用字节数
+ */
 const tableSize = (table: string, columns: string[]): number => {
   try {
     const expr = columns.map((c) => `COALESCE(length(${c}), 0)`).join(" + ");
@@ -84,7 +104,11 @@ const tableSize = (table: string, columns: string[]): number => {
   }
 };
 
-/** 类别 → 介质 / 占用统计 / 路径展示 / 清空动作 */
+/**
+ * 类别 → 介质 / 占用统计 / 路径展示 / 清空动作
+ * @param category - 类别
+ * @returns 介质 / 占用统计 / 路径展示 / 清空动作
+ */
 const categoryHandlers: Record<
   CacheCategory,
   {
@@ -112,6 +136,12 @@ const categoryHandlers: Record<
     size: () => dirSize(getBackgroundsDir()),
     clear: () => clearDir(getBackgroundsDir()),
   },
+  songs: {
+    kind: "file",
+    path: getSongCacheDir,
+    size: () => songCache.stats().size,
+    clear: () => songCache.clearAll(),
+  },
   lyric: {
     kind: "db",
     path: () => "lyric_cache",
@@ -132,6 +162,11 @@ const categoryHandlers: Record<
   },
 };
 
+/**
+ * 按介质类型获取类别列表
+ * @param kind - 介质类型
+ * @returns 类别列表
+ */
 const idsByKind = (kind: CacheKind): CacheCategory[] =>
   (Object.keys(categoryHandlers) as CacheCategory[]).filter(
     (id) => categoryHandlers[id].kind === kind,
@@ -192,6 +227,7 @@ export const registerCacheIpc = (): void => {
       await Promise.all(idsByKind("file").map((id) => categoryHandlers[id].clear()));
       store.set("cache.dir", next);
       syncCoverCacheDir();
+      songCache.reloadDir();
       systemLog.info(`[cache] dir switched to ${next}`);
       return { ok: true, dir: next };
     },
@@ -202,6 +238,29 @@ export const registerCacheIpc = (): void => {
     await Promise.all(idsByKind("file").map((id) => categoryHandlers[id].clear()));
     store.set("cache.dir", null);
     syncCoverCacheDir();
+    songCache.reloadDir();
     return defaultAppCacheDir;
+  });
+
+  /** 歌曲文件级缓存：命中查询 */
+  ipcMain.handle(
+    "songCache:lookup",
+    (_event, cacheKey: string): Promise<string | null> => songCache.lookup(cacheKey),
+  );
+
+  /** 歌曲文件级缓存：排队下载 */
+  ipcMain.handle(
+    "songCache:fetch",
+    (
+      _event,
+      cacheKey: string,
+      source: TrackSource,
+      streamUrl: string,
+    ): Promise<string | null> => songCache.fetchAsync(cacheKey, source, streamUrl),
+  );
+
+  /** 歌曲文件级缓存：取消进行中的下载 */
+  ipcMain.handle("songCache:cancel", (_event, cacheKey: string): void => {
+    songCache.cancel(cacheKey);
   });
 };

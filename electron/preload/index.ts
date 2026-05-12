@@ -3,7 +3,7 @@ import { electronAPI } from "@electron-toolkit/preload";
 import type { TaskbarLyricSettings } from "@shared/types/settings";
 import type { PluginInfo, PluginResolveUrlArgs } from "@shared/types/plugin";
 import type { HotkeyActionId, HotkeyBinding, HotkeyConflict } from "@shared/types/hotkey";
-import type { LoadOptions } from "@shared/types/player";
+import type { LoadOptions, TrackSource } from "@shared/types/player";
 import type { StreamingServerConfig } from "@shared/types/streaming";
 
 /** 订阅主进程推送的事件 */
@@ -316,6 +316,20 @@ const api = {
       ipcRenderer.invoke("theme:pickBackgroundImage"),
     // 清空已缓存的背景图
     clearBackgroundImages: (): Promise<void> => ipcRenderer.invoke("theme:clearBackgroundImages"),
+  },
+  songCache: {
+    // 命中查询：返回本地绝对路径或 null
+    lookup: (cacheKey: string): Promise<string | null> =>
+      ipcRenderer.invoke("songCache:lookup", cacheKey),
+    // 排队下载（fire-and-forget 也可 await）
+    fetch: (
+      cacheKey: string,
+      source: TrackSource,
+      streamUrl: string,
+    ): Promise<string | null> =>
+      ipcRenderer.invoke("songCache:fetch", cacheKey, source, streamUrl),
+    // 取消正在进行的下载
+    cancel: (cacheKey: string): Promise<void> => ipcRenderer.invoke("songCache:cancel", cacheKey),
   },
   cache: {
     // 各类别占用统计

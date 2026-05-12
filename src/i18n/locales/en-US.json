@@ -281,6 +281,7 @@
       "pluginsList": "Installed Plugins",
       "streaming": "Streaming",
       "localFiles": "Local Files",
+      "songCache": "Song Cache",
       "cache": "Caches",
       "database": "Database",
       "backupReset": "Backup & Reset"
@@ -943,9 +944,18 @@
       "covers": "Cover Thumbnails",
       "artists": "Artist Avatars",
       "backgrounds": "Backgrounds",
+      "songs": "Song Files",
       "lyric": "Lyric Content Cache",
       "lyricTTML": "TTML Lyric Cache",
       "lyricMatch": "Lyric Match Cache"
+    },
+    "enableSongCache": {
+      "label": "Song Cache",
+      "description": "Download online tracks to local cache so they play instantly next time"
+    },
+    "songCacheSizeLimit": {
+      "label": "Size Limit",
+      "description": "When the cap is reached, least-recently-used entries are evicted automatically"
     },
     "cacheCategoryClear": {
       "label": "Clear",
