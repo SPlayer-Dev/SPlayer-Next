@@ -78,7 +78,25 @@
     "settings": "设置",
     "reload": "热重载",
     "devtools": "开发者工具",
-    "globalSettings": "全局设置"
+    "globalSettings": "全局设置",
+    "searchPlaceholder": "搜索歌曲、歌手或专辑",
+    "searchEmpty": "输入关键词开始搜索",
+    "searchGoto": "搜索「{keyword}」",
+    "searchSection": {
+      "quick": "快捷"
+    }
+  },
+  "search": {
+    "title": "搜索",
+    "titleSuffix": "的搜索结果",
+    "emptyKeyword": "请输入关键词开始搜索",
+    "noResults": "没有找到匹配内容",
+    "tabs": {
+      "songs": "单曲",
+      "albums": "专辑",
+      "artists": "歌手",
+      "playlists": "歌单"
+    }
   },
   "streaming": {
     "hint": "连接到流媒体平台",

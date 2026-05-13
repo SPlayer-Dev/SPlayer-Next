@@ -84,12 +84,12 @@ const handleClear = () => {
       "
     />
 
-    <!-- 清空按钮 -->
+    <!-- 清空按钮：mousedown.prevent 保留输入焦点，避免触发 blur 让 focus-within 宽度回缩导致点击错位 -->
     <Transition name="fade">
       <IconLucideX
         v-if="showClear"
         class="size-3.5 text-on-surface-variant/50 shrink-0 cursor-pointer transition-colors duration-200 hover:text-on-surface"
-        @click="handleClear"
+        @mousedown.prevent.stop="handleClear"
       />
     </Transition>
 

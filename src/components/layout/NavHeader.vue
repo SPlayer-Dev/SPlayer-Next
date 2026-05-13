@@ -70,6 +70,7 @@ const onMenuSelect = (key: string): void => {
       >
         <template #icon><IconLucideChevronRight /></template>
       </SButton>
+      <NavSearch />
     </div>
     <!-- 中间 -->
     <div class="flex-1 h-full" />

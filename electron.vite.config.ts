@@ -91,7 +91,7 @@ export default defineConfig({
         },
       }),
       Components({
-        dirs: ["src/components", "src/layouts/components"],
+        dirs: ["src/components"],
         resolvers: [RekaResolver(), IconsResolver({ prefix: "icon", customCollections: ["sp"] })],
       }),
     ],

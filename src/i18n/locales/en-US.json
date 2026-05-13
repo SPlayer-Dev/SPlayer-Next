@@ -78,7 +78,25 @@
     "settings": "Settings",
     "reload": "Reload",
     "devtools": "Developer Tools",
-    "globalSettings": "Global Settings"
+    "globalSettings": "Global Settings",
+    "searchPlaceholder": "Search songs, artists or albums",
+    "searchEmpty": "Start typing to search",
+    "searchGoto": "Search for \"{keyword}\"",
+    "searchSection": {
+      "quick": "Quick"
+    }
+  },
+  "search": {
+    "title": "Search",
+    "titleSuffix": "search results",
+    "emptyKeyword": "Type a keyword to start searching",
+    "noResults": "No matching results",
+    "tabs": {
+      "songs": "Songs",
+      "albums": "Albums",
+      "artists": "Artists",
+      "playlists": "Playlists"
+    }
   },
   "streaming": {
     "hint": "Connect to a streaming platform",

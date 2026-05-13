@@ -46,6 +46,7 @@ const actualFallback = computed(() => {
 
 const emit = defineEmits<{
   click: [item: CoverItem];
+  reachBottom: [];
 }>();
 
 const virtualListRef = ref<SVirtualListExposed | null>(null);
@@ -103,6 +104,7 @@ const getRowKey = (row: Row): string => row.id;
     :padding-top="paddingTop"
     :padding-bottom="paddingBottom"
     height="100%"
+    @reach-bottom="emit('reachBottom')"
   >
     <template #default="{ item: row }: { item: Row }">
       <div
