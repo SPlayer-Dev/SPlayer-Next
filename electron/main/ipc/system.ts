@@ -1,4 +1,4 @@
-import { ipcMain, shell } from "electron";
+import { app, ipcMain, shell } from "electron";
 import { getFonts } from "font-list";
 import type { LocaleCode } from "@shared/types/settings";
 import { setLocale } from "@main/utils/i18n";
@@ -56,6 +56,12 @@ export const registerSystemIpc = (): void => {
       });
     }
     return fontsCache;
+  });
+
+  // 重启应用
+  ipcMain.handle("system:relaunch", () => {
+    app.relaunch();
+    app.exit(0);
   });
 
   // 把任意 http(s) URL 拉成字节回渲染层

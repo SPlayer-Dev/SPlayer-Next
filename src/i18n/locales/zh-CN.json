@@ -16,7 +16,8 @@
     "totalSongs": "共 {count} 首",
     "totalAlbums": "共 {count} 张专辑",
     "totalArtists": "共 {count} 位歌手",
-    "totalPlaylists": "共 {count} 个歌单"
+    "totalPlaylists": "共 {count} 个歌单",
+    "comingSoon": "功能开发中，敬请期待"
   },
   "equalizer": {
     "title": "均衡器",
@@ -147,7 +148,11 @@
     "shuffle": "随机播放",
     "repeat": "循环播放",
     "repeatOne": "单曲循环",
-    "volume": "音量"
+    "volume": "音量",
+    "lyricOffset": {
+      "title": "歌词偏移",
+      "hint": "正值为歌词提前，单位毫秒"
+    }
   },
   "songList": {
     "title": "标题",
@@ -251,6 +256,7 @@
       "hotkeys": "快捷键配置",
       "services": "网络与服务",
       "mediaSource": "媒体源配置",
+      "localCache": "本地与缓存",
       "plugins": "插件管理"
     },
     "section": {
@@ -276,9 +282,13 @@
       "musicSpectrum": "音乐频谱",
       "discord": "Discord RPC",
       "systemConfig": "系统配置",
-      "reset": "重置",
       "pluginsList": "已安装插件",
-      "streaming": "流媒体管理"
+      "streaming": "流媒体管理",
+      "localFiles": "本地文件",
+      "songCache": "歌曲缓存",
+      "cache": "缓存",
+      "database": "数据库",
+      "backupReset": "备份与重置"
     },
     "language": {
       "label": "界面语言",
@@ -832,15 +842,39 @@
     },
     "storageManager": {
       "label": "数据管理",
-      "description": "重置设置或清空全部数据"
+      "description": "备份、恢复、重置设置或清除全部数据"
+    },
+    "backup": {
+      "label": "备份设置",
+      "description": "将当前的设置项导出为备份文件",
+      "button": "备份",
+      "exported": "备份已保存",
+      "failed": "备份失败"
+    },
+    "restore": {
+      "label": "恢复设置",
+      "description": "从备份文件导入设置项，将覆盖当前设置",
+      "button": "恢复",
+      "confirmTitle": "恢复设置并重启？",
+      "confirmDesc": "将用备份文件覆盖当前的设置项，应用会立即重启以让全部设置生效；本地音乐库、歌单与播放历史不受影响",
+      "invalid": "备份文件无效",
+      "failed": "恢复失败"
     },
     "resetSettings": {
       "label": "重置设置",
-      "confirm": "确定要将所有设置恢复为默认值吗？"
+      "description": "将全部设置项还原为默认值，不影响歌单与本地音乐库",
+      "button": "重置",
+      "confirmTitle": "重置设置？",
+      "confirmDesc": "全部设置项将还原为默认值，操作不可恢复",
+      "done": "设置已重置"
     },
     "resetAll": {
-      "label": "重置全部数据",
-      "confirm": "将会清空全部歌单、退出登录状态以及重置全部设置，此操作不可撤销！"
+      "label": "清除全部数据",
+      "description": "清空全部歌单、登录状态、缓存并重置设置",
+      "button": "清除",
+      "confirmTitle": "清除全部数据？",
+      "confirmDesc": "将清空全部歌单、登录状态、缓存并重置设置，操作不可恢复",
+      "done": "全部数据已清除"
     },
     "plugins": {
       "hint": "从本地或在线安装",
@@ -878,6 +912,73 @@
     "pluginManager": {
       "label": "插件管理",
       "description": "导入、启用或卸载扩展脚本"
+    },
+    "enableLocalTTMLOverride": {
+      "label": "本地 TTML 覆盖",
+      "description": "当本地存在 .ttml 歌词文件时，优先使用本地内容覆盖在线歌词"
+    },
+    "fileCacheManager": {
+      "label": "缓存管理",
+      "description": "查看缓存占用并清理"
+    },
+    "dbCacheManager": {
+      "label": "数据库管理",
+      "description": "查看数据库占用并清理"
+    },
+    "cacheDir": {
+      "label": "缓存目录",
+      "open": "在文件管理器中打开",
+      "change": "更改",
+      "reset": "还原默认",
+      "hint": "封面、歌手头像、背景图都会存到该目录下；切换会先清空旧缓存，新位置必须是空文件夹",
+      "changedHint": "缓存目录已切换",
+      "notEmpty": "所选文件夹不为空，请选择一个空文件夹",
+      "switchConfirmTitle": "切换缓存目录？",
+      "switchConfirmDesc": "切换前会清空当前的封面、歌手头像、背景图缓存，新位置必须是空文件夹。歌词等数据库缓存不受影响。",
+      "switchConfirmOk": "选择文件夹",
+      "resetConfirmTitle": "还原默认缓存目录？",
+      "resetConfirmDesc": "还原前同样会清空当前的文件类缓存"
+    },
+    "cacheUsage": {
+      "label": "占用情况",
+      "total": "合计",
+      "refresh": "刷新"
+    },
+    "cacheCategory": {
+      "covers": "封面缩略图",
+      "artists": "歌手头像",
+      "backgrounds": "背景图",
+      "songs": "歌曲文件",
+      "lyric": "歌词内容缓存",
+      "lyricTTML": "TTML 歌词缓存",
+      "lyricMatch": "歌词匹配缓存"
+    },
+    "enableSongCache": {
+      "label": "歌曲缓存",
+      "description": "播放在线歌曲时缓存至本地，提升加载速度"
+    },
+    "songCacheSizeLimit": {
+      "label": "缓存上限",
+      "description": "缓存达到上限后将自动清理，∞ 表示不限制"
+    },
+    "cacheCategoryClear": {
+      "label": "清除",
+      "confirmTitle": "清除「{name}」？",
+      "confirmDesc": "此操作将删除该类别下的全部缓存数据，不可撤销"
+    },
+    "fileClearAll": {
+      "label": "清空文件缓存",
+      "description": "清空全部缓存，操作不可恢复",
+      "button": "清空全部",
+      "confirmTitle": "清空全部文件缓存？",
+      "confirmDesc": "将删除上方全部文件类缓存，下次使用时会重新生成，不可撤销"
+    },
+    "dbClearAll": {
+      "label": "清空数据库缓存",
+      "description": "清空歌词及匹配信息等数据库缓存；本地音乐库与账号信息不受影响",
+      "button": "清空全部",
+      "confirmTitle": "清空全部数据库缓存？",
+      "confirmDesc": "将删除上方全部数据库缓存，操作不可恢复"
     }
   },
   "collection": {

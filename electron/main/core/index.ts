@@ -5,6 +5,7 @@ import { registerIpcHandlers } from "@main/ipc";
 import { init as initMedia, shutdown as shutdownMedia } from "@main/services/media";
 import { initGlobalHotkey } from "@main/services/globalHotkey";
 import { initDatabase, closeDatabase } from "@main/database";
+import { init as initSongCache } from "@main/services/songCache";
 import { pluginRegistry } from "@main/plugins/registry";
 import { registerCacheScheme, handleCacheProtocol } from "@main/utils/protocol";
 import { coreLog, initLogger } from "@main/utils/logger";
@@ -58,6 +59,8 @@ export const initApp = (): void => {
     });
     // 初始化数据库
     initDatabase();
+    // 启动歌曲缓存服务
+    initSongCache();
     // 注册 IPC
     registerIpcHandlers();
     // 初始化系统媒体控件

@@ -26,6 +26,7 @@ export const defaultSystemConfig: SystemConfig = {
       bands: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       preamp: 0,
     },
+    lyricOffsets: {},
   },
   media: {
     systemMediaControls: true,
@@ -87,6 +88,16 @@ export const defaultSystemConfig: SystemConfig = {
   lyric: {
     enableOnlineTTMLLyric: false,
     amllDbServer: "https://amlldb.bikonoo.com/%p/%s.ttml",
+  },
+  localLyric: {
+    enableLocalTTMLOverride: false,
+  },
+  cache: {
+    dir: null,
+    songCache: {
+      enabled: false,
+      sizeLimitGb: 10,
+    },
   },
   streaming: {
     enabled: true,

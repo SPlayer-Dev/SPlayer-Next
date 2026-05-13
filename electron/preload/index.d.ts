@@ -1,5 +1,5 @@
 import { ElectronAPI } from "@electron-toolkit/preload";
-import { PlayerApi } from "@shared/types/player";
+import { PlayerApi, TrackSource } from "@shared/types/player";
 import { ConfigApi, LocaleCode } from "@shared/types/settings";
 import { LibraryApi } from "@shared/types/library";
 import { NowPlayingApi } from "@shared/types/nowPlaying";
@@ -33,6 +33,7 @@ declare global {
         ) => () => void;
         listFonts: () => Promise<string[]>;
         fetchRemoteBytes: (url: string) => Promise<IpcResponse<Buffer | null>>;
+        relaunch: () => Promise<void>;
       };
       library: LibraryApi;
       window: WindowApi;
@@ -46,6 +47,23 @@ declare global {
       theme: {
         pickBackgroundImage: () => Promise<string | null>;
         clearBackgroundImages: () => Promise<void>;
+      };
+      cache: {
+        getStats: () => Promise<{ id: string; kind: "file" | "db"; path: string; size: number }[]>;
+        clear: (id: string) => Promise<void>;
+        clearAllByKind: (kind: "file" | "db") => Promise<void>;
+        getDir: () => Promise<string>;
+        pickDir: () => Promise<{ ok: boolean; dir: string; reason?: "canceled" | "notEmpty" }>;
+        resetDir: () => Promise<string>;
+        song: {
+          lookup: (cacheKey: string) => Promise<string | null>;
+          fetch: (
+            cacheKey: string,
+            source: TrackSource,
+            streamUrl: string,
+          ) => Promise<string | null>;
+          cancel: (cacheKey: string) => Promise<void>;
+        };
       };
       hotkey: HotkeyApi;
       streaming: StreamingApi;

@@ -1,6 +1,8 @@
-import { ipcMain } from "electron";
+import fs from "node:fs/promises";
+import { dialog, ipcMain } from "electron";
 import { store } from "@main/store";
 import type { ConfigPath } from "@main/store/types";
+import { systemLog } from "@main/utils/logger";
 import {
   enable as enableMedia,
   disable as disableMedia,
@@ -94,4 +96,63 @@ export const registerConfigIpc = (): void => {
   });
   ipcMain.handle("config:getAll", () => store.store);
   ipcMain.handle("config:reset", () => store.clear());
+
+  /** 替换整盘配置 */
+  ipcMain.handle("config:replaceAll", (_event, payload: unknown) => {
+    store.replaceAll(payload);
+  });
+
+  /** 备份 */
+  ipcMain.handle(
+    "config:exportToFile",
+    async (
+      _event,
+      payload: unknown,
+    ): Promise<{ ok: boolean; reason?: "canceled" | "writeFailed" }> => {
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const result = await dialog.showSaveDialog({
+        title: "导出设置备份",
+        defaultPath: `splayer-settings-${stamp}.json`,
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (result.canceled || !result.filePath) return { ok: false, reason: "canceled" };
+      try {
+        await fs.writeFile(result.filePath, JSON.stringify(payload, null, 2), "utf-8");
+        systemLog.info(`[config] settings exported to ${result.filePath}`);
+        return { ok: true };
+      } catch (err) {
+        systemLog.error("[config] exportToFile failed", err);
+        return { ok: false, reason: "writeFailed" };
+      }
+    },
+  );
+
+  /** 恢复 */
+  ipcMain.handle(
+    "config:importFromFile",
+    async (): Promise<
+      { ok: true; data: unknown } | { ok: false; reason: "canceled" | "readFailed" | "parseFailed" }
+    > => {
+      const result = await dialog.showOpenDialog({
+        title: "选择设置备份文件",
+        filters: [{ name: "JSON", extensions: ["json"] }],
+        properties: ["openFile"],
+      });
+      if (result.canceled || result.filePaths.length === 0) {
+        return { ok: false, reason: "canceled" };
+      }
+      try {
+        const text = await fs.readFile(result.filePaths[0], "utf-8");
+        try {
+          return { ok: true, data: JSON.parse(text) };
+        } catch (err) {
+          systemLog.error("[config] importFromFile parse failed", err);
+          return { ok: false, reason: "parseFailed" };
+        }
+      } catch (err) {
+        systemLog.error("[config] importFromFile read failed", err);
+        return { ok: false, reason: "readFailed" };
+      }
+    },
+  );
 };

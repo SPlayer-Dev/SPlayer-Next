@@ -4,7 +4,6 @@ import { useStatusStore } from "@/stores/status";
 import * as playback from "@/services/playback";
 import * as autoClose from "@/services/autoClose";
 import * as abLoop from "@/services/abLoop";
-import * as session from "@/services/streaming/session";
 import {
   hasReachedSeekTarget,
   isSeeking,
@@ -40,10 +39,6 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
       status.volume = event.data.volume;
       playback.setDuration(event.data.duration);
       playback.setPlaying(event.data.state === "playing");
-      // Jellyfin/Emby 的 PlayState 暂停/恢复立即上报，让 Now Playing 状态及时刷新
-      if (event.data.state === "playing" || event.data.state === "paused") {
-        session.notifyStateChanged(event.data.position, event.data.state === "paused");
-      }
       break;
     case "position": {
       // 歌曲加载中不更新进度
@@ -56,12 +51,10 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
         status.duration = event.data.duration;
         playback.setDuration(event.data.duration);
       }
-      // 用修正后的位置同步歌词索引，避免与显示进度不一致
-      useMediaStore().updateLyricIndex(adjusted);
+      // 歌词索引叠加用户设置的偏移；进度条仍走 adjusted 不受影响
+      useMediaStore().updateLyricIndex(adjusted + status.lyricOffsetMs);
       // AB 循环：到达 B 点 seek 回 A
       abLoop.checkLoop(adjusted);
-      // Jellyfin/Emby 进度心跳；session 内部节流到 10s
-      session.notifyProgress(adjusted, !status.isPlaying);
       break;
     }
     case "fftData":

@@ -47,6 +47,8 @@ export interface PlayerSettings {
   loudnessNormalization: boolean;
   /** 均衡器配置 */
   equalizer: EqualizerSettings;
+  /** 按 Track.id 记忆的歌词偏移（ms，正值为歌词提前）；为 0 时不写入 */
+  lyricOffsets: Record<string, number>;
 }
 
 /** Discord 显示模式 */
@@ -191,6 +193,28 @@ export interface OnlineLyricSettings {
   amllDbServer: string;
 }
 
+/** 本地歌词配置 */
+export interface LocalLyricSettings {
+  /** 启用本地 TTML 覆盖：扫描到同目录的 .ttml 时优先于在线源 */
+  enableLocalTTMLOverride: boolean;
+}
+
+/** 歌曲缓存配置 */
+export interface SongCacheSettings {
+  /** 开关：开启后播放远程歌曲会异步下载落盘，下次播放命中本地 */
+  enabled: boolean;
+  /** 上限（GB），0 表示不限制；超限按 LRU 淘汰 */
+  sizeLimitGb: number;
+}
+
+/** 缓存配置 */
+export interface CacheSettings {
+  /** 自定义缓存目录；null 使用默认 {userData}/app-cache */
+  dir: string | null;
+  /** 歌曲文件级缓存 */
+  songCache: SongCacheSettings;
+}
+
 /** 主窗口几何 */
 export interface MainWindowState {
   width: number;
@@ -249,6 +273,10 @@ export interface SystemConfig {
   taskbarLyric: TaskbarLyricSettings;
   /** 在线歌词服务配置 */
   lyric: OnlineLyricSettings;
+  /** 本地歌词配置 */
+  localLyric: LocalLyricSettings;
+  /** 缓存配置 */
+  cache: CacheSettings;
   /** 流媒体总开关 */
   streaming: StreamingSettings;
   /** 系统配置 */
@@ -276,4 +304,12 @@ export interface ConfigApi {
   getAll: () => Promise<SystemConfig>;
   /** 重置为默认值 */
   reset: () => Promise<void>;
+  /** 整盘替换主进程配置 */
+  replaceAll: (config: unknown) => Promise<void>;
+  /** 写入用户选择的备份文件 */
+  exportToFile: (payload: unknown) => Promise<{ ok: boolean; reason?: "canceled" | "writeFailed" }>;
+  /** 读取用户选择的备份文件 */
+  importFromFile: () => Promise<
+    { ok: true; data: unknown } | { ok: false; reason: "canceled" | "readFailed" | "parseFailed" }
+  >;
 }

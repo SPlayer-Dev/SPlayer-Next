@@ -1,6 +1,6 @@
 import path from "node:path";
 import { net, protocol, session } from "electron";
-import { appCacheDir } from "./config";
+import { getAppCacheDir } from "./config";
 
 /** cache:// 协议方案名 */
 const SCHEME = "cache";
@@ -26,8 +26,14 @@ export const registerCacheScheme = (): void => {
 /** cache:// 协议的处理函数 */
 const cacheHandler = (request: Request): Response | Promise<Response> => {
   const relativePath = decodeURIComponent(request.url.slice(`${SCHEME}://`.length));
-  const filePath = path.join(appCacheDir, relativePath);
-  return net.fetch(`file://${filePath.replace(/\\/g, "/")}`);
+  const root = getAppCacheDir();
+  const resolved = path.resolve(root, relativePath);
+  // 防 cache://../ 逃逸：解析后的绝对路径必须仍在缓存根目录内
+  const rootWithSep = root.endsWith(path.sep) ? root : root + path.sep;
+  if (resolved !== root && !resolved.startsWith(rootWithSep)) {
+    return new Response(null, { status: 403 });
+  }
+  return net.fetch(`file://${resolved.replace(/\\/g, "/")}`);
 };
 
 /**
@@ -53,6 +59,8 @@ export const handleCacheProtocolOnPartition = (partition: string): void => {
  */
 export const toCacheUrl = (filePath: string | undefined | null): string | undefined => {
   if (!filePath) return undefined;
-  const relative = path.relative(appCacheDir, filePath).replace(/\\/g, "/");
-  return `${SCHEME}://${relative}`;
+  const relative = path.relative(getAppCacheDir(), filePath);
+  // 路径不在缓存根目录下时拒绝生成 URL，避免产出可逃逸的 cache:// 链接
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) return undefined;
+  return `${SCHEME}://${relative.replace(/\\/g, "/")}`;
 };

@@ -9,7 +9,6 @@ import * as queue from "@/stores/queue";
 import * as playback from "@/services/playback";
 import * as lyricLoader from "@/services/lyricLoader";
 import * as abLoop from "@/services/abLoop";
-import * as session from "@/services/streaming/session";
 import { resolveTrackSource } from "@/services/audioSource";
 import { extractColorFromUrl } from "@/utils/color";
 import { handleError, isSkippableError } from "@/utils/errors";
@@ -117,16 +116,13 @@ export const load = async (
  */
 const loadTrack = async (track: Track | null): Promise<void> => {
   if (!track) return;
-  const source = await resolveTrackSource(track);
-  if (!source) return;
+  const resolved = await resolveTrackSource(track);
+  if (!resolved) return;
   // 乐观更新：同步写入 track，开启歌词加载周期
   useMediaStore().setTrack(track);
   lyricLoader.beginLoad();
-  // 通知流媒体 PlayState：给上一首发 Stopped、给新一首发 Playing
-  // 上一首位置取当前 status.position（旧值，切歌前的最后位置）
-  session.notifyTrackChanged(track, useStatusStore().position);
   // meta 随 load 一起下发：SMTC/托盘/标题用 track 上的权威字段
-  await load(source, true, track);
+  await load(resolved.source, true, track);
 };
 
 /** 恢复播放 */
@@ -171,8 +167,6 @@ export const stop = async (): Promise<void> => {
   const result = await window.api.player.stop();
   if (result.success) {
     const status = useStatusStore();
-    // 上报 Stopped 给流媒体服务器
-    session.notifyTrackChanged(null, status.position);
     status.state = "stopped";
     status.position = 0;
     playback.reset();
@@ -349,8 +343,6 @@ const onQueueEnded = async (): Promise<void> => {
   // 通知主进程停止音频引擎
   await window.api.player.stop();
   const status = useStatusStore();
-  // Jellyfin/Emby 上报 Stopped，释放 server 端会话
-  session.notifyTrackChanged(null, status.position);
   status.state = "stopped";
   status.position = status.duration;
 };
@@ -530,15 +522,21 @@ export const initPlayer = async (): Promise<void> => {
   // 先订阅事件，确保 load 触发播放后 position 事件能被接收
   if (unsubscribe) unsubscribe();
   unsubscribe = window.api.player.onEvent(handleEvent);
+  // 订阅主进程下发的歌词偏移变化
+  const media = useMediaStore();
+  window.api.nowPlaying.onLyricOffsetChange(({ offsetMs }) => {
+    status.lyricOffsetMs = offsetMs;
+    media.updateLyricIndex(playback.getCurrentTime() + offsetMs);
+  });
   const lastTrack = status.currentTrack;
   if (lastTrack) {
     const lastPosition = status.position;
     // 先设置 track 信息（确保播放条显示），再尝试解析 source 并 load
     useMediaStore().setTrack(lastTrack);
-    const source = await resolveTrackSource(lastTrack);
-    if (source) {
+    const resolved = await resolveTrackSource(lastTrack);
+    if (resolved) {
       lyricLoader.beginLoad();
-      const result = await load(source, settings.system.player.autoPlay, lastTrack);
+      const result = await load(resolved.source, settings.system.player.autoPlay, lastTrack);
       if (result && settings.system.player.rememberLastTrack && lastPosition > 0) {
         await seek(lastPosition);
       }

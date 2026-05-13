@@ -235,13 +235,9 @@ export const useStreamingStore = defineStore("streaming", () => {
 
   /**
    * 移除服务器；若目标是当前激活的，连同激活 ID + IndexedDB 浏览缓存一并清空
-   * Jellyfin/Emby 主动 logout 释放 server 端 session，Subsonic 视图鉴权缓存也清空
    * @param id - 目标 server id
    */
   const removeServer = (id: string): void => {
-    const target = servers.value.find((s) => s.id === id);
-    // 先 logout 再移除：要用到 accessToken
-    if (target) void session.logout(target);
     client.invalidateViewAuth(id);
     servers.value = servers.value.filter((s) => s.id !== id);
     cacheDb.removeItem(cacheKey(id)).catch(() => {});
@@ -355,8 +351,6 @@ export const useStreamingStore = defineStore("streaming", () => {
   const disconnect = (): void => {
     const id = activeServerId.value;
     if (id) {
-      const target = servers.value.find((s) => s.id === id);
-      if (target) void session.logout(target);
       patchServer(id, { accessToken: undefined, userId: undefined });
     }
     connectionStatus.value = { connected: false };
@@ -526,8 +520,9 @@ export const useStreamingStore = defineStore("streaming", () => {
    * 取流播放 URL
    * 非激活服务器静默重连
    * @param track - source="streaming" 的 Track（必须带 serverId/originalId）
+   * @param opts.playSessionId - 覆盖默认 PlaySessionId；用于背景缓存下载与播放流并发时区分会话
    */
-  const getStreamUrl = async (track: Track): Promise<string> => {
+  const getStreamUrl = async (track: Track, opts?: { playSessionId?: string }): Promise<string> => {
     const cfg = findCfgForTrack(track);
     const isActive = cfg.id === activeServerId.value;
     const needsConnect = isActive
@@ -538,7 +533,7 @@ export const useStreamingStore = defineStore("streaming", () => {
       if (!result.ok) throw new Error(isActive ? result.error : `${cfg.name}: ${result.error}`);
     }
     const fresh = servers.value.find((s) => s.id === cfg.id) ?? cfg;
-    const sessionId = session.sessionIdForTrack(track.id);
+    const sessionId = opts?.playSessionId ?? session.sessionIdForTrack(track.id);
     return withAutoReauthFor(fresh, (c) => client.getStreamUrl(c, track.originalId!, sessionId));
   };
 
@@ -561,9 +556,6 @@ export const useStreamingStore = defineStore("streaming", () => {
     }
   };
 
-  /**
-   * 初始化：从主进程加载服务器列表
-   */
   const init = async (): Promise<void> => {
     if (hydrated.value) return;
     const result = await window.api.streaming.loadServers();
@@ -573,6 +565,7 @@ export const useStreamingStore = defineStore("streaming", () => {
       activeServerId.value = null;
     }
     await hydrateFromCache();
+    if (activeServerId.value) void connectToServer(activeServerId.value);
   };
 
   return {

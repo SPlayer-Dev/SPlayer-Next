@@ -3,7 +3,7 @@ import { electronAPI } from "@electron-toolkit/preload";
 import type { TaskbarLyricSettings } from "@shared/types/settings";
 import type { PluginInfo, PluginResolveUrlArgs } from "@shared/types/plugin";
 import type { HotkeyActionId, HotkeyBinding, HotkeyConflict } from "@shared/types/hotkey";
-import type { LoadOptions } from "@shared/types/player";
+import type { LoadOptions, TrackSource } from "@shared/types/player";
 import type { StreamingServerConfig } from "@shared/types/streaming";
 
 /** 订阅主进程推送的事件 */
@@ -20,6 +20,14 @@ const api = {
     set: (keyPath: string, value: unknown) => ipcRenderer.invoke("config:set", keyPath, value),
     getAll: () => ipcRenderer.invoke("config:getAll"),
     reset: () => ipcRenderer.invoke("config:reset"),
+    replaceAll: (config: unknown) => ipcRenderer.invoke("config:replaceAll", config),
+    exportToFile: (
+      payload: unknown,
+    ): Promise<{ ok: boolean; reason?: "canceled" | "writeFailed" }> =>
+      ipcRenderer.invoke("config:exportToFile", payload),
+    importFromFile: (): Promise<
+      { ok: true; data: unknown } | { ok: false; reason: "canceled" | "readFailed" | "parseFailed" }
+    > => ipcRenderer.invoke("config:importFromFile"),
   },
   player: {
     // 加载音频（本地路径或网络地址）
@@ -106,6 +114,8 @@ const api = {
     listFonts: () => ipcRenderer.invoke("system:listFonts"),
     // 拉远端字节回渲染层
     fetchRemoteBytes: (url: string) => ipcRenderer.invoke("system:fetchRemoteBytes", url),
+    // 重启应用
+    relaunch: () => ipcRenderer.invoke("system:relaunch"),
   },
   library: {
     // 开始扫描（默认增量）
@@ -290,6 +300,9 @@ const api = {
     update: (payload: unknown) => ipcRenderer.send("nowPlaying:update", payload),
     // 拉取当前完整快照
     requestSnapshot: () => ipcRenderer.invoke("nowPlaying:requestSnapshot"),
+    // 写入指定曲目的歌词偏移（ms），0 视为清除
+    setLyricOffset: (trackId: string, offsetMs: number) =>
+      ipcRenderer.send("nowPlaying:setLyricOffset", trackId, offsetMs),
     // 订阅歌曲切换事件
     onTrackChange: (callback: (data: unknown) => void) =>
       subscribe("nowPlaying:track-change", callback),
@@ -299,6 +312,9 @@ const api = {
     // 订阅播放位置锚点（跟随 position 事件 5Hz）
     onPositionSync: (callback: (data: unknown) => void) =>
       subscribe("nowPlaying:position-sync", callback),
+    // 订阅当前曲目歌词偏移变化
+    onLyricOffsetChange: (callback: (data: unknown) => void) =>
+      subscribe("nowPlaying:lyric-offset-change", callback),
   },
   theme: {
     // 弹出文件选择框
@@ -306,6 +322,32 @@ const api = {
       ipcRenderer.invoke("theme:pickBackgroundImage"),
     // 清空已缓存的背景图
     clearBackgroundImages: (): Promise<void> => ipcRenderer.invoke("theme:clearBackgroundImages"),
+  },
+  cache: {
+    // 各类别占用统计
+    getStats: () => ipcRenderer.invoke("cache:getStats"),
+    // 清除单个类别
+    clear: (id: string) => ipcRenderer.invoke("cache:clear", id),
+    // 按介质清空
+    clearAllByKind: (kind: "file" | "db") => ipcRenderer.invoke("cache:clearAllByKind", kind),
+    // 获取当前缓存目录
+    getDir: () => ipcRenderer.invoke("cache:getDir"),
+    // 选择新的缓存目录
+    pickDir: () => ipcRenderer.invoke("cache:pickDir"),
+    // 还原默认缓存目录
+    resetDir: () => ipcRenderer.invoke("cache:resetDir"),
+    // 单曲文件缓存运行时
+    song: {
+      // 命中查询：返回本地绝对路径或 null
+      lookup: (cacheKey: string): Promise<string | null> =>
+        ipcRenderer.invoke("cache:song:lookup", cacheKey),
+      // 排队下载（fire-and-forget 也可 await）
+      fetch: (cacheKey: string, source: TrackSource, streamUrl: string): Promise<string | null> =>
+        ipcRenderer.invoke("cache:song:fetch", cacheKey, source, streamUrl),
+      // 取消正在进行的下载
+      cancel: (cacheKey: string): Promise<void> =>
+        ipcRenderer.invoke("cache:song:cancel", cacheKey),
+    },
   },
   streaming: {
     // 加载服务器配置（密码已解密）

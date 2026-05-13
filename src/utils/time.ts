@@ -42,3 +42,14 @@ export const formatCountdown = (totalSec: number): string => {
  * @param s - 秒数
  */
 export const secToMs = (s?: number): number => Math.max(0, Math.floor((s ?? 0) * 1000));
+
+/**
+ * 毫秒 → 带符号秒数文本
+ * 保留最多 1 位小数，去掉尾随 0
+ * @param ms 毫秒（正负皆可）
+ */
+export const formatSignedSec = (ms: number): string => {
+  if (ms === 0) return "0";
+  const sec = (ms / 1000).toFixed(1).replace(/\.?0+$/, "");
+  return ms > 0 ? `+${sec}` : sec;
+};

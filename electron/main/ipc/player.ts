@@ -12,7 +12,8 @@ import { getThumbar } from "@main/services/thumbar";
 import { setTraySongName, setTrayPlayState, setTrayPlayMode } from "@main/services/tray";
 import { getMainWindow, setTaskbarProgress } from "@main/window";
 import { store } from "@main/store";
-import { appName } from "@main/utils/config";
+import { appName, getSongCacheDir } from "@main/utils/config";
+import * as songCache from "@main/services/songCache";
 import { parseArtists, parseAlbum, formatArtists } from "@main/utils/metadata";
 import { playerLog } from "@main/utils/logger";
 import { ErrorCode } from "@shared/types/errors";
@@ -216,6 +217,10 @@ export const registerPlayerIpc = (): void => {
         : isNetwork
           ? ErrorCode.NETWORK_ERROR
           : ErrorCode.FILE_DECODE_ERROR;
+      // 解码失败的源指向歌曲缓存目录 → 文件已损坏，把这条缓存项作废
+      if (code === ErrorCode.FILE_DECODE_ERROR && source.startsWith(getSongCacheDir())) {
+        void songCache.invalidate(source);
+      }
       return fail(code, error);
     }
   });

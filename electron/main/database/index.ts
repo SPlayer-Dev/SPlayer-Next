@@ -81,6 +81,18 @@ export const initDatabase = (): void => {
       fetched_at INTEGER NOT NULL,
       PRIMARY KEY (platform, id)
     );
+
+    CREATE TABLE IF NOT EXISTS song_cache (
+      cache_key TEXT PRIMARY KEY,
+      source TEXT NOT NULL,
+      filename TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      mime TEXT,
+      cached_at INTEGER NOT NULL,
+      last_used_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_song_cache_last_used ON song_cache(last_used_at);
+    CREATE INDEX IF NOT EXISTS idx_song_cache_source ON song_cache(source);
   `);
   migrate(db);
   libraryLog.info(`数据库已初始化: ${dbPath}`);

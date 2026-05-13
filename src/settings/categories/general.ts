@@ -55,12 +55,14 @@ const generalCategory: SettingCategory = {
       ],
     },
     {
-      id: "reset",
+      id: "backupReset",
       items: [
         {
           key: "storageManager",
           type: "custom",
           component: StorageManager,
+          fullWidth: true,
+          keywords: ["backup.label", "restore.label", "resetSettings.label", "resetAll.label"],
         },
       ],
     },
