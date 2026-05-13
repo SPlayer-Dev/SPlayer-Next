@@ -148,7 +148,11 @@
     "shuffle": "随机播放",
     "repeat": "循环播放",
     "repeatOne": "单曲循环",
-    "volume": "音量"
+    "volume": "音量",
+    "lyricOffset": {
+      "title": "歌词偏移",
+      "hint": "正值为歌词提前，单位毫秒"
+    }
   },
   "songList": {
     "title": "标题",
@@ -951,11 +955,11 @@
     },
     "enableSongCache": {
       "label": "歌曲缓存",
-      "description": "播放在线歌曲时下载到本地，下次播放可秒开"
+      "description": "播放在线歌曲时缓存至本地，提升加载速度"
     },
     "songCacheSizeLimit": {
       "label": "缓存上限",
-      "description": "缓存占用达到上限后按最少使用顺序自动清理；∞ 表示不限制"
+      "description": "缓存达到上限后将自动清理，∞ 表示不限制"
     },
     "cacheCategoryClear": {
       "label": "清除",

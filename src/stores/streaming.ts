@@ -556,9 +556,6 @@ export const useStreamingStore = defineStore("streaming", () => {
     }
   };
 
-  /**
-   * 初始化：从主进程加载服务器列表
-   */
   const init = async (): Promise<void> => {
     if (hydrated.value) return;
     const result = await window.api.streaming.loadServers();
@@ -568,6 +565,7 @@ export const useStreamingStore = defineStore("streaming", () => {
       activeServerId.value = null;
     }
     await hydrateFromCache();
+    if (activeServerId.value) void connectToServer(activeServerId.value);
   };
 
   return {

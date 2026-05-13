@@ -148,7 +148,11 @@
     "shuffle": "Shuffle",
     "repeat": "Repeat",
     "repeatOne": "Repeat One",
-    "volume": "Volume"
+    "volume": "Volume",
+    "lyricOffset": {
+      "title": "Lyric Offset",
+      "hint": "Positive values advance lyrics, in milliseconds"
+    }
   },
   "songList": {
     "title": "Title",
@@ -951,11 +955,11 @@
     },
     "enableSongCache": {
       "label": "Song Cache",
-      "description": "Download online tracks to local cache so they play instantly next time"
+      "description": "Cache online tracks locally to improve loading speed"
     },
     "songCacheSizeLimit": {
       "label": "Size Limit",
-      "description": "When the cap is reached, least-recently-used entries are evicted automatically; ∞ means unlimited"
+      "description": "When the limit is reached, entries are evicted automatically; ∞ means unlimited"
     },
     "cacheCategoryClear": {
       "label": "Clear",

@@ -26,6 +26,7 @@ export const defaultSystemConfig: SystemConfig = {
       bands: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       preamp: 0,
     },
+    lyricOffsets: {},
   },
   media: {
     systemMediaControls: true,

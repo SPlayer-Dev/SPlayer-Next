@@ -9,6 +9,11 @@ export const registerNowPlayingIpc = (): void => {
     nowPlaying.update(payload.track, payload.lyric, payload.source);
   });
 
+  // 渲染进程写入指定曲目的歌词偏移
+  ipcMain.on("nowPlaying:setLyricOffset", (_event, trackId: string, offsetMs: number) => {
+    nowPlaying.setLyricOffset(trackId, offsetMs);
+  });
+
   // 窗口拉取当前完整快照
   ipcMain.handle("nowPlaying:requestSnapshot", () => nowPlaying.snapshot());
 
@@ -16,4 +21,5 @@ export const registerNowPlayingIpc = (): void => {
   nowPlaying.onTrackChange((data) => broadcast("nowPlaying:track-change", data));
   nowPlaying.onLyricChange((snap) => broadcast("nowPlaying:lyric-change", snap));
   nowPlaying.onPositionSync((data) => broadcast("nowPlaying:position-sync", data));
+  nowPlaying.onLyricOffsetChange((data) => broadcast("nowPlaying:lyric-offset-change", data));
 };

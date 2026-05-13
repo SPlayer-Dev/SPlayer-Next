@@ -300,6 +300,9 @@ const api = {
     update: (payload: unknown) => ipcRenderer.send("nowPlaying:update", payload),
     // 拉取当前完整快照
     requestSnapshot: () => ipcRenderer.invoke("nowPlaying:requestSnapshot"),
+    // 写入指定曲目的歌词偏移（ms），0 视为清除
+    setLyricOffset: (trackId: string, offsetMs: number) =>
+      ipcRenderer.send("nowPlaying:setLyricOffset", trackId, offsetMs),
     // 订阅歌曲切换事件
     onTrackChange: (callback: (data: unknown) => void) =>
       subscribe("nowPlaying:track-change", callback),
@@ -309,6 +312,9 @@ const api = {
     // 订阅播放位置锚点（跟随 position 事件 5Hz）
     onPositionSync: (callback: (data: unknown) => void) =>
       subscribe("nowPlaying:position-sync", callback),
+    // 订阅当前曲目歌词偏移变化
+    onLyricOffsetChange: (callback: (data: unknown) => void) =>
+      subscribe("nowPlaying:lyric-offset-change", callback),
   },
   theme: {
     // 弹出文件选择框

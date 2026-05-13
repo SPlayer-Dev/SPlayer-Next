@@ -3,7 +3,6 @@ export interface SNumberInputProps {
   modelValue?: number | null;
   placeholder?: string;
   disabled?: boolean;
-  readonly?: boolean;
   round?: boolean;
   min?: number;
   max?: number;
@@ -18,7 +17,6 @@ const props = withDefaults(defineProps<SNumberInputProps>(), {
   modelValue: null,
   placeholder: "",
   disabled: false,
-  readonly: false,
   round: false,
   size: "medium",
   status: "default",
@@ -31,56 +29,39 @@ const emit = defineEmits<{
 }>();
 
 const sizeClasses = computed(() => {
-  if (props.size === "small") return "h-7 px-2 text-xs";
-  if (props.size === "large") return "h-10 px-4 text-base";
-  return "h-8.5 px-3 text-sm";
+  if (props.size === "small") return "h-7 text-xs";
+  if (props.size === "large") return "h-10 text-base";
+  return "h-8.5 text-sm";
 });
 
-/**
- * 编辑中的本地字符串
- */
-const draft = ref<string>(props.modelValue == null ? "" : String(props.modelValue));
+/** 步进按钮尺寸（与高度相同，呈正方形） */
+const stepperClass = computed(() => {
+  if (props.size === "small") return "w-7";
+  if (props.size === "large") return "w-10";
+  return "w-8.5";
+});
 
-watch(
-  () => props.modelValue,
-  (v) => {
-    const next = v == null ? "" : String(v);
-    if (next !== draft.value) draft.value = next;
-  },
+/** NumberField modelValue 是 number；null/undefined 走 undefined 让组件内部判断 */
+const innerValue = computed<number | undefined>(() =>
+  props.modelValue == null ? undefined : props.modelValue,
 );
 
-const clamp = (n: number): number => {
-  const min = props.min ?? -Infinity;
-  const max = props.max ?? Infinity;
-  return Math.max(min, Math.min(max, n));
+const onUpdate = (value: number): void => {
+  emit("update:modelValue", value);
 };
 
 const isFocused = ref(false);
-
-/** 输入即写回 */
-const onInput = (event: Event): void => {
-  const raw = (event.target as HTMLInputElement).value;
-  draft.value = raw;
-  if (raw === "" || raw === "-") return;
-  const n = Number(raw);
-  if (!Number.isFinite(n)) return;
-  emit("update:modelValue", clamp(n));
-};
-
-/** 失焦回退：draft 不是合法数字 → 恢复成 props.modelValue */
-const onBlur = (): void => {
-  const n = Number(draft.value);
-  if (draft.value === "" || !Number.isFinite(n)) {
-    draft.value = props.modelValue == null ? "" : String(props.modelValue);
-  }
-  isFocused.value = false;
-  emit("blur");
-};
 </script>
 
 <template>
-  <div
-    class="flex items-center gap-2 text-on-surface border border-solid transition-[border-color,box-shadow,background-color,width,opacity] duration-250"
+  <NumberFieldRoot
+    :model-value="innerValue"
+    :min="min"
+    :max="max"
+    :step="step ?? 1"
+    :disabled="disabled"
+    :format-options="{ useGrouping: false }"
+    class="inline-flex items-center text-on-surface border border-solid overflow-hidden transition-[border-color,box-shadow,background-color,width,opacity] duration-250"
     :class="[
       sizeClasses,
       round ? 'rounded-full' : 'rounded-lg',
@@ -93,29 +74,40 @@ const onBlur = (): void => {
           : 'bg-on-surface/3 border-on-surface/15 hover:bg-on-surface/10 hover:border-on-surface/25',
       disabled ? 'opacity-50 cursor-not-allowed' : '',
     ]"
+    @update:model-value="onUpdate"
   >
+    <NumberFieldDecrement
+      :class="[
+        stepperClass,
+        'h-full inline-flex items-center justify-center shrink-0 bg-transparent border-none outline-none cursor-pointer text-on-surface-variant/70 hover:text-on-surface hover:bg-on-surface/8 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-on-surface-variant/70',
+      ]"
+    >
+      <IconLucideMinus class="size-3.5" />
+    </NumberFieldDecrement>
     <slot name="prefix" />
-
-    <input
-      :value="draft"
-      type="number"
+    <!-- 中：输入 -->
+    <NumberFieldInput
       :placeholder="placeholder"
-      :disabled="disabled"
-      :readonly="readonly"
-      :min="min"
-      :max="max"
-      :step="step"
-      class="flex-1 min-w-0 h-full bg-transparent outline-none border-none shadow-none text-on-surface placeholder:text-on-surface-variant/40 disabled:cursor-not-allowed"
-      :class="readonly ? 'cursor-pointer' : ''"
-      @input="onInput"
+      class="flex-1 min-w-0 h-full px-1 bg-transparent outline-none border-none shadow-none text-center text-on-surface placeholder:text-on-surface-variant/40 disabled:cursor-not-allowed"
       @focus="
         isFocused = true;
         emit('focus');
       "
-      @blur="onBlur"
+      @blur="
+        isFocused = false;
+        emit('blur');
+      "
     />
 
     <slot name="suffix" />
-    <span v-if="unit" class="text-xs text-on-surface-variant/60 pr-1">{{ unit }}</span>
-  </div>
+    <span v-if="unit" class="text-xs text-on-surface-variant/60 mr-1">{{ unit }}</span>
+    <NumberFieldIncrement
+      :class="[
+        stepperClass,
+        'h-full inline-flex items-center justify-center shrink-0 bg-transparent border-none outline-none cursor-pointer text-on-surface-variant/70 hover:text-on-surface hover:bg-on-surface/8 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-on-surface-variant/70',
+      ]"
+    >
+      <IconLucidePlus class="size-3.5" />
+    </NumberFieldIncrement>
+  </NumberFieldRoot>
 </template>

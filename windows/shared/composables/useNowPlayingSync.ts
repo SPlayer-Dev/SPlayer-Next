@@ -42,12 +42,15 @@ export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSyn
   let anchorPerf = 0;
   let anchorInitialized = false;
   let rafId: number | null = null;
+  /** 当前曲目歌词偏移（ms，正值为歌词提前） */
+  let lyricOffsetMs = 0;
 
   const resetAnchor = (positionMs: number, sendTimestamp: number): void => {
     const ipcDelay = Math.max(0, Date.now() - sendTimestamp);
     anchorPos = positionMs + (playing.value ? ipcDelay : 0);
     anchorPerf = performance.now();
-    currentNowPlayingMs = anchorPos;
+    // currentNowPlayingMs 始终是「叠加 offset 后的歌词时间」，与 syncOnce 保持一致
+    currentNowPlayingMs = anchorPos + lyricOffsetMs;
     anchorInitialized = true;
   };
 
@@ -70,14 +73,15 @@ export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSyn
     const mainLines = snap.lyric.filter((line) => !line.isBG);
     lyric.value = clampLastLineEnd(mainLines, snap.track?.duration);
     playing.value = snap.playing;
+    lyricOffsetMs = snap.lyricOffsetMs;
     primaryIndex.value = -1;
     resetAnchor(snap.position, snap.sendTimestamp);
   };
 
   const syncOnce = (): void => {
     const next = playing.value ? anchorPos + (performance.now() - anchorPerf) : anchorPos;
-    currentNowPlayingMs = next;
-    const idx = pickIndex(lyric.value, next);
+    currentNowPlayingMs = next + lyricOffsetMs;
+    const idx = pickIndex(lyric.value, currentNowPlayingMs);
     if (idx !== primaryIndex.value) primaryIndex.value = idx;
   };
 
@@ -110,6 +114,11 @@ export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSyn
         playing.value = data.playing;
         applyAnchor(data.position, data.sendTimestamp);
         kickTick();
+      }),
+      window.api.nowPlaying.onLyricOffsetChange(({ offsetMs }) => {
+        lyricOffsetMs = offsetMs;
+        // 暂停时主动重算一次
+        syncOnce();
       }),
     );
 

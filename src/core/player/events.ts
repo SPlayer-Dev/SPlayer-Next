@@ -51,8 +51,8 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
         status.duration = event.data.duration;
         playback.setDuration(event.data.duration);
       }
-      // 用修正后的位置同步歌词索引，避免与显示进度不一致
-      useMediaStore().updateLyricIndex(adjusted);
+      // 歌词索引叠加用户设置的偏移；进度条仍走 adjusted 不受影响
+      useMediaStore().updateLyricIndex(adjusted + status.lyricOffsetMs);
       // AB 循环：到达 B 点 seek 回 A
       abLoop.checkLoop(adjusted);
       break;

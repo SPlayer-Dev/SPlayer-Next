@@ -53,6 +53,8 @@ export const useStatusStore = defineStore(
       pointA: null as number | null,
       pointB: null as number | null,
     });
+    /** 当前曲目歌词偏移（ms，正值为歌词提前）；主进程为权威源，本地仅做镜像 */
+    const lyricOffsetMs = ref(0);
     /** 是否正在播放 */
     const isPlaying = computed(() => state.value === "playing");
     /** 是否暂停 */
@@ -92,6 +94,7 @@ export const useStatusStore = defineStore(
       pitchSync,
       autoClose,
       abLoop,
+      lyricOffsetMs,
       currentTrack,
     };
   },

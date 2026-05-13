@@ -522,6 +522,12 @@ export const initPlayer = async (): Promise<void> => {
   // 先订阅事件，确保 load 触发播放后 position 事件能被接收
   if (unsubscribe) unsubscribe();
   unsubscribe = window.api.player.onEvent(handleEvent);
+  // 订阅主进程下发的歌词偏移变化
+  const media = useMediaStore();
+  window.api.nowPlaying.onLyricOffsetChange(({ offsetMs }) => {
+    status.lyricOffsetMs = offsetMs;
+    media.updateLyricIndex(playback.getCurrentTime() + offsetMs);
+  });
   const lastTrack = status.currentTrack;
   if (lastTrack) {
     const lastPosition = status.position;
