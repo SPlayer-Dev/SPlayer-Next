@@ -77,9 +77,7 @@ const textCollator = new Intl.Collator(undefined, {
 const playingId = computed(() => media.track?.id);
 
 /** 非本地源需要真实 id */
-const needsRealId = computed(
-  () => props.source === "streaming" || props.source === "online",
-);
+const needsRealId = computed(() => props.source === "streaming" || props.source === "online");
 
 /** 专辑是否可跳转 */
 const isAlbumLinkable = (item: Track): boolean => {

@@ -2,8 +2,7 @@ import type { TrackSource } from "@shared/types/player";
 import router from "@/router";
 
 /** 非本地源 */
-const isExternal = (source: TrackSource): boolean =>
-  source === "streaming" || source === "online";
+const isExternal = (source: TrackSource): boolean => source === "streaming" || source === "online";
 
 /**
  * 跳转到专辑页

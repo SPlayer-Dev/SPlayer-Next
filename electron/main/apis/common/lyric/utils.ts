@@ -27,23 +27,35 @@ export const normalize = (text: string | undefined | null): string => {
 const bothContains = (left: string, right: string): boolean =>
   left.length > 0 && right.length > 0 && (left.includes(right) || right.includes(left));
 
-/** 时长是否接近 */
+/** 时长是否在容差内（ms） */
 const durationClose = (leftMs?: number, rightMs?: number, tolMs = 5000): boolean => {
   if (!leftMs || !rightMs) return false;
   return Math.abs(leftMs - rightMs) <= tolMs;
 };
 
 /**
+ * 时长差是否大到能确认"不是同一首"
+ * @param leftMs - 左时长（ms）
+ * @param rightMs - 右时长（ms）
+ * @param tolMs - 容差（ms）
+ */
+const durationFar = (leftMs?: number, rightMs?: number, tolMs = 20000): boolean => {
+  if (!leftMs || !rightMs) return false;
+  return Math.abs(leftMs - rightMs) > tolMs;
+};
+
+/**
  * 从候选列表里挑出最匹配 track 的那一个
+ *
+ * 硬性条件（不满足直接跳过）
+ *  - name 必须全等或双向 includes
+ *  - 双方都给了 duration 时，差距不能超过 20s
  *
  * 打分规则（分数越高越优先）
  *  - name 全等：+10；name 双向 includes：+4
  *  - artist 全等：+5；artist 双向 includes：+2
  *  - album 全等（且 track 有 album）：+2
  *  - duration 接近（±5s）：+3
- *
- * name 既不等也无 includes 的直接跳过（相关性太差）
- * 最终最高分 < 1 视为无匹配，返回 null
  */
 export const pickBestCandidate = <E>(
   candidates: LyricCandidate<E>[],
@@ -66,6 +78,8 @@ export const pickBestCandidate = <E>(
     if (candName === trackName) score += 10;
     else if (bothContains(candName, trackName)) score += 4;
     else continue;
+
+    if (durationFar(candidate.duration, trackDuration)) continue;
 
     if (candArtist === trackArtist) score += 5;
     else if (bothContains(candArtist, trackArtist)) score += 2;

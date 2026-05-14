@@ -76,9 +76,7 @@ const songToTrack = (song: NeteaseSong): Track => {
     platform: "netease",
     title: song.name,
     artists: (song.ar ?? []).map((artist) => ({ id: String(artist.id), name: artist.name })),
-    album: song.al
-      ? { id: String(song.al.id), name: song.al.name, cover }
-      : undefined,
+    album: song.al ? { id: String(song.al.id), name: song.al.name, cover } : undefined,
     duration: song.dt ?? 0,
     cover,
   };
