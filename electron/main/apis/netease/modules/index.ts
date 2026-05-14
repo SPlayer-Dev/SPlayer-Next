@@ -48,6 +48,9 @@ import lyric from "./lyric";
 import lyric_new from "./lyric_new";
 import cloud_lyric_get from "./cloud_lyric_get";
 
+// 播放
+import song_url from "./song_url";
+
 export const modules: Record<string, NeteaseModule> = {
   captcha_sent,
   captcha_verify,
@@ -85,4 +88,6 @@ export const modules: Record<string, NeteaseModule> = {
   lyric,
   lyric_new,
   cloud_lyric_get,
+
+  song_url,
 };

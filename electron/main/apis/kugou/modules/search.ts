@@ -30,6 +30,7 @@ interface NormalizedSong {
   album: string;
   albumId: string | number;
   cover?: string;
+  coverOriginal?: string;
   /** 秒 */
   interval: number;
   /** 毫秒 */
@@ -39,8 +40,8 @@ interface NormalizedSong {
   sizes: Partial<Record<Quality, number>>;
 }
 
-/** trans_param.union_cover 含 `{size}` 占位，统一替成 300 */
-const fillCover = (url: string | undefined, size = 300): string | undefined => {
+/** trans_param.union_cover 含 `{size}` 占位，按需替换 */
+const fillCover = (url: string | undefined, size: number): string | undefined => {
   if (!url) return undefined;
   return url.replace(/\{size\}/g, String(size));
 };
@@ -113,6 +114,7 @@ const normalizeFromMobile = (raw: MobileSong): NormalizedSong => {
   }
 
   const interval = raw.duration ?? 0;
+  const coverTpl = raw.trans_param?.union_cover;
   return {
     id: String(raw.audio_id ?? ""),
     audioId: raw.audio_id ?? 0,
@@ -121,7 +123,8 @@ const normalizeFromMobile = (raw: MobileSong): NormalizedSong => {
     artist: formatMobileArtist(raw.singername),
     album: decodeName(raw.album_name ?? ""),
     albumId: raw.album_id ?? "",
-    cover: fillCover(raw.trans_param?.union_cover),
+    cover: fillCover(coverTpl, 300),
+    coverOriginal: fillCover(coverTpl, 480),
     interval,
     duration: interval * 1000,
     qualities: Object.keys(hashes) as Quality[],

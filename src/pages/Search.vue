@@ -67,7 +67,11 @@ const fetchers = {
   playlists: searchPlaylists,
 } as const;
 
-/** 拉取指定 tab：append=true 时追加下一页，否则首屏拉取 */
+/**
+ * 拉取指定 tab
+ * @param tab - 要拉取的 tab
+ * @param append - 是否追加下一页
+ */
 const fetchTab = async (tab: TabKey, append: boolean): Promise<void> => {
   if (!keyword.value) return;
   const state = states[tab];
@@ -87,10 +91,11 @@ const fetchTab = async (tab: TabKey, append: boolean): Promise<void> => {
       offset,
       PAGE_SIZE,
     );
+    const items = result.items.map((item) => markRaw(item));
     if (append) {
-      (state.items as Track[]).push(...(result.items as Track[]));
+      (state.items as Track[]).push(...(items as Track[]));
     } else {
-      state.items = result.items as never;
+      state.items = items as Track[];
     }
     state.total = result.total;
     state.hasMore = result.hasMore;

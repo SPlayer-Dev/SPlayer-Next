@@ -372,8 +372,8 @@
       "hint": "Picks the highest-ranked when multiple formats are available — e.g. multiple external lyric files, or TTML upgrade"
     },
     "smartPreferOnline": {
-      "label": "Prefer Online Format",
-      "description": "Fetch online when a higher-ranked format is reachable"
+      "label": "Auto-Upgrade Lyric Format",
+      "description": "Fetch a higher-ranked format from other platforms when the current one is low"
     },
     "enableOnlineTTMLLyric": {
       "label": "Enable Online TTML Lyrics",
@@ -1071,6 +1071,8 @@
     "FILE_NOT_SELECTED": "No file selected",
     "NETWORK_ERROR": "Network connection failed",
     "NETWORK_TIMEOUT": "Network request timed out",
+    "URL_RESOLVE_FAILED": "Failed to get playback URL",
+    "NO_PLUGIN_AVAILABLE": "No plugin available for this platform",
     "SCAN_NO_DIRS": "No scan directories configured",
     "SCAN_DIR_EXISTS": "Directory already exists",
     "SCAN_DIR_NOT_FOUND": "Directory not found",

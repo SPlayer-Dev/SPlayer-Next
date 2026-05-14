@@ -19,11 +19,13 @@ interface SongsResp {
   songs?: QMSong[];
 }
 
-const albumCoverByMid = (mid: string): string =>
-  `https://y.gtimg.cn/music/photo_new/T002R300x300M000${mid}.jpg`;
+/** QM 封面 URL：size 为像素，T002 限到 800 以内 */
+const albumCoverByMid = (mid: string, size = 300): string =>
+  `https://y.gtimg.cn/music/photo_new/T002R${size}x${size}M000${mid}.jpg`;
 
 const songToTrack = (song: QMSong): Track => {
   const cover = song.albumMid ? albumCoverByMid(song.albumMid) : undefined;
+  const coverOriginal = song.albumMid ? albumCoverByMid(song.albumMid, 800) : undefined;
   return {
     id: song.mid || song.id,
     source: "online",
@@ -36,6 +38,7 @@ const songToTrack = (song: QMSong): Track => {
     album: song.album ? { name: song.album, cover } : undefined,
     duration: song.duration ?? 0,
     cover,
+    coverOriginal,
   };
 };
 
@@ -57,8 +60,7 @@ export const songs = async (
   return { items, total, hasMore: offset + items.length < total };
 };
 
-/* eslint-disable @typescript-eslint/no-unused-vars */
-// 在线专辑/歌手/歌单详情页未接通，搜出来也没法跳，先返回空（同 kugou）
+// 在线专辑/歌手/歌单详情页未接通
 export const albums = async (
   _keyword: string,
   _offset: number,

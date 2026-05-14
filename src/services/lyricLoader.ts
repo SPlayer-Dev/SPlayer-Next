@@ -153,7 +153,7 @@ const tryTTMLOverlay = async (
  * 获取在线歌词
  * - self：不走第三方
  * - auto + 已有本地：默认不走；smartPreferOnline 开启时按格式优先级筛选可升级平台
- * - auto + 无本地：按音源顺序试，首个命中即返回
+ * - auto + 无本地：按音源顺序试；smart 开启时跳过 lrc 找带时间戳的格式，全是 lrc 则兜底返第一个
  * - 指定平台：查该平台
  */
 const tryOnlineByPreference = async (
@@ -174,15 +174,21 @@ const tryOnlineByPreference = async (
       candidates = order.filter((p) => platformCanUpgrade(p, localFormat, formatOrder));
       if (candidates.length === 0) return null;
     }
+    let lrcFallback: OnlineResult | null = null;
     for (const platform of candidates) {
       const result = await fetchFromPlatform(platform, track);
       if (token !== currentToken) return null;
       if (!result) continue;
       // smart + 有本地：实际拿到的结果必须真的优于本地才接受，否则继续试下一个平台
       if (hasLocal && localFormat && !isOnlineResultUpgrade(result, localFormat)) continue;
+      // smart + 无本地：lrc 不够，记下兜底继续找带时间戳的
+      if (!hasLocal && settings.lyric.smartPreferOnline && result.source.format === "lrc") {
+        lrcFallback ??= result;
+        continue;
+      }
       return result;
     }
-    return null;
+    return lrcFallback;
   }
   return fetchFromPlatform(preference, track);
 };
@@ -239,7 +245,9 @@ export const beginLoad = (): number => {
  * 为当前 track 加载歌词
  *
  * 1. 无 track：commit null 收尾
- * 2. 在线歌曲：暂无
+ * 2. 在线歌曲：
+ *    - 默认顺序下，track.platform 与候选平台一致时走 matchById
+ *    - 不一致则走 matchByQuery
  * 3. 本地歌曲：本地有先立即 commit 显示；再按偏好查在线，命中热替换
  * 4. 本地 + 在线都无：commit null 收尾 loading
  *
@@ -257,7 +265,10 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
     }
     // 在线歌曲
     if (track.source === "online") {
-      commit(token, null, null);
+      const online = await tryOnlineByPreference(token, track, false, null);
+      if (token !== currentToken) return;
+      if (online) await applyOnline(token, track, online, null);
+      else commit(token, null, null);
       return;
     }
     // 流媒体服务器
@@ -312,14 +323,21 @@ const refreshPreference = async (): Promise<void> => {
   const token = currentToken;
   const media = useMediaStore();
   const track = media.track;
-  if (!track || track.source === "online" || track.source === "streaming") return;
-
+  if (!track || track.source === "streaming") return;
+  // 在线歌曲
+  if (track.source === "online") {
+    const online = await tryOnlineByPreference(token, track, false, null);
+    if (token !== currentToken) return;
+    if (online) await applyOnline(token, track, online, null);
+    else commit(token, null, null);
+    return;
+  }
+  // 本地歌曲
   const detail = media.detail;
   const local = detail ? await readLocal(detail) : null;
   if (token !== currentToken) return;
   const localFormat = local?.source.format ?? null;
   const showingOnline = media.activeLyric?.source === "online";
-
   /** 按偏好获取歌词 */
   const online = await tryOnlineByPreference(token, track, !!local, localFormat);
   if (token !== currentToken) return;

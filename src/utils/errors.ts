@@ -16,6 +16,8 @@ const SKIPPABLE_ERRORS = new Set<string>([
   ErrorCode.FILE_DECODE_ERROR,
   ErrorCode.NETWORK_ERROR,
   ErrorCode.NETWORK_TIMEOUT,
+  ErrorCode.URL_RESOLVE_FAILED,
+  ErrorCode.NO_PLUGIN_AVAILABLE,
 ]);
 
 /** 需要用 dialog 强提示的严重错误（阻断性，用户必须介入） */

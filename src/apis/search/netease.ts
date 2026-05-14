@@ -70,6 +70,7 @@ const call = (
 
 const songToTrack = (song: NeteaseSong): Track => {
   const cover = withSize(song.al?.picUrl);
+  const coverOriginal = withSize(song.al?.picUrl, 1024);
   return {
     id: String(song.id),
     source: "online",
@@ -79,6 +80,7 @@ const songToTrack = (song: NeteaseSong): Track => {
     album: song.al ? { id: String(song.al.id), name: song.al.name, cover } : undefined,
     duration: song.dt ?? 0,
     cover,
+    coverOriginal,
   };
 };
 

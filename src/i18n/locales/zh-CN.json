@@ -372,8 +372,8 @@
       "hint": "存在多个可用格式时按此顺序选择，例如本地多个外挂歌词、在线 TTML 升级等场景"
     },
     "smartPreferOnline": {
-      "label": "在线格式优先",
-      "description": "本地格式低于在线可达格式时，从在线获取并覆盖"
+      "label": "自动升级歌词格式",
+      "description": "当前歌词格式较低时，从其他平台获取更高级的格式覆盖"
     },
     "enableOnlineTTMLLyric": {
       "label": "启用在线 TTML 歌词",
@@ -1071,6 +1071,8 @@
     "FILE_NOT_SELECTED": "未选择文件",
     "NETWORK_ERROR": "网络连接失败，请检查网络",
     "NETWORK_TIMEOUT": "网络请求超时",
+    "URL_RESOLVE_FAILED": "无法获取播放地址",
+    "NO_PLUGIN_AVAILABLE": "未找到支持该平台的插件",
     "SCAN_NO_DIRS": "未配置扫描目录",
     "SCAN_DIR_EXISTS": "该目录已存在",
     "SCAN_DIR_NOT_FOUND": "目录不存在",

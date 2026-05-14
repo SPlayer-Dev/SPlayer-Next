@@ -11,8 +11,8 @@ interface KGSong {
   artist: string;
   album?: string;
   albumId?: string | number;
-  /** gateway 路径才会带，trans_param.union_cover 取出来；兜底路径为空 */
   cover?: string;
+  coverOriginal?: string;
   duration: number;
 }
 
@@ -30,6 +30,7 @@ const songToTrack = (song: KGSong): Track => ({
   // album.id 暂不暴露（在线专辑详情页未接通），列表里跟着 artist 一起暗显
   album: song.album ? { name: song.album, cover: song.cover } : undefined,
   cover: song.cover,
+  coverOriginal: song.coverOriginal,
   duration: song.duration ?? 0,
 });
 
@@ -50,7 +51,6 @@ export const songs = async (
   return { items, total, hasMore: offset + items.length < total };
 };
 
-/* eslint-disable @typescript-eslint/no-unused-vars */
 export const albums = async (
   _keyword: string,
   _offset: number,

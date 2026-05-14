@@ -28,6 +28,12 @@ export enum ErrorCode {
   /** 网络请求超时 */
   NETWORK_TIMEOUT = "NETWORK_TIMEOUT",
 
+  // 在线源相关
+  /** 无法获取播放地址（API + 插件都失败） */
+  URL_RESOLVE_FAILED = "URL_RESOLVE_FAILED",
+  /** 未找到支持该平台的插件 */
+  NO_PLUGIN_AVAILABLE = "NO_PLUGIN_AVAILABLE",
+
   // 扫描相关
   /** 未配置扫描目录 */
   SCAN_NO_DIRS = "SCAN_NO_DIRS",
