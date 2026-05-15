@@ -36,6 +36,8 @@ export interface SandboxEvents {
   onFatal: (error: PluginErrorPayload) => void;
   /** 脚本上报"有新版本" */
   onUpdateAvailable: (info: PluginUpdateInfo) => void;
+  /** sources 增量上报 */
+  onSourcesUpdate: (sources: Record<string, SourceCapability>) => void;
   /** 子进程退出（可能是崩溃或主动 kill）。isCrash=true 表示非主动 kill */
   onExit: (isCrash: boolean, code: number | null) => void;
 }
@@ -244,6 +246,9 @@ export class Sandbox {
         return;
       case "updateAvailable":
         this.events.onUpdateAvailable(msg.info);
+        return;
+      case "sourcesUpdate":
+        this.events.onSourcesUpdate(msg.sources);
         return;
       case "log":
         this.events.onLog(msg.level, msg.args);

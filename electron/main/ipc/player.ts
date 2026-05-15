@@ -127,7 +127,8 @@ export const registerPlayerIpc = (): void => {
   ipcMain.handle("player:load", async (_event, source: string, options: LoadOptions = {}) => {
     const autoPlay = options.autoPlay ?? true;
     const authoritative = options.meta ?? null;
-    const isStreaming = authoritative?.source === "streaming";
+    // 非本地音源
+    const isRemote = authoritative != null && authoritative.source !== "local";
     const seq = ++loadSeq;
     try {
       const inst = getPlayer();
@@ -177,12 +178,12 @@ export const registerPlayerIpc = (): void => {
         : formatArtists(parseArtists(meta.artist ?? ""));
       const displayAlbum = authoritative?.album?.name ?? parseAlbum(meta.album ?? "")?.name ?? "";
       // 本地封面
-      const localCover = isStreaming ? null : (inst.getCoverRaw() ?? null);
+      const localCover = isRemote ? null : (inst.getCoverRaw() ?? null);
       applyDisplay(displayTitle, displayArtist, displayAlbum, localCover ?? undefined, durationMs);
-      // 流媒体高清封面
-      if (isStreaming && authoritative?.cover && /^https?:\/\//i.test(authoritative.cover)) {
-        const coverUrl = authoritative.cover;
-        void fetchBytes(coverUrl).then((buf) => {
+      // 远端高清封面
+      const remoteCover = isRemote ? (authoritative?.coverOriginal ?? authoritative?.cover) : null;
+      if (remoteCover && /^https?:\/\//i.test(remoteCover)) {
+        void fetchBytes(remoteCover).then((buf) => {
           if (!buf) return;
           if (seq !== loadSeq) return;
           mediaService.setMetadata({
@@ -209,7 +210,7 @@ export const registerPlayerIpc = (): void => {
         },
         mediaInfo: {
           duration: durationMs,
-          cover: isStreaming ? undefined : toCacheUrl(meta.cover),
+          cover: isRemote ? undefined : toCacheUrl(meta.cover),
           quality,
         },
       };

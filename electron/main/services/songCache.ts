@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import fsp from "node:fs/promises";
+import fsp, { type FileHandle } from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 import { Readable } from "node:stream";
@@ -25,6 +25,41 @@ import {
 const MAX_CONCURRENT = 2;
 /** 一批 LRU 淘汰数 */
 const EVICT_BATCH = 8;
+
+/**
+ * 拒绝的响应 Content-Type 前缀（命中即不入缓存）
+ * 第三方代理常用 200 包一段 HTML/JSON 错误体冒充音频，这里第一道拦截
+ */
+const REJECTED_MIME_PREFIXES = ["text/html", "application/json", "application/xml", "text/xml"];
+
+const isRejectedMime = (mime: string | null): boolean => {
+  if (!mime) return false;
+  const lower = mime.toLowerCase();
+  return REJECTED_MIME_PREFIXES.some((prefix) => lower.startsWith(prefix));
+};
+
+/**
+ * 文件头是否像音频
+ *
+ * 反向看首字节，挡 HTML/JSON 错误页冒充音频的常见骗局。
+ * 不做正向 magic 枚举（容器太多枚举不全反而漏判），剩余漏网坏文件由 player.ts:228
+ * 的解码失败 invalidate 兜底
+ */
+const looksLikeAudio = async (filePath: string): Promise<boolean> => {
+  let fd: FileHandle | null = null;
+  try {
+    fd = await fsp.open(filePath, "r");
+    const buf = Buffer.alloc(4);
+    const { bytesRead } = await fd.read(buf, 0, 4, 0);
+    if (bytesRead === 0) return false;
+    // '<' = HTML/XML，'{' = JSON 对象，'[' = JSON 数组
+    return buf[0] !== 0x3c && buf[0] !== 0x7b && buf[0] !== 0x5b;
+  } catch {
+    return false;
+  } finally {
+    if (fd) await fd.close().catch(() => {});
+  }
+};
 
 interface InFlight {
   promise: Promise<string | null>;
@@ -186,6 +221,11 @@ const runDownload = async (
     }
 
     const mime = response.headers.get("content-type");
+    // 拦截第三方代理常用 200+html 错误页冒充音频
+    if (isRejectedMime(mime)) {
+      songCacheLog.warn(`[fetch] reject mime key=${cacheKey} mime=${mime}`);
+      return null;
+    }
     const contentLengthHeader = response.headers.get("content-length");
     const declaredSize = contentLengthHeader ? Number(contentLengthHeader) : NaN;
     if (Number.isFinite(declaredSize) && declaredSize > sizeLimitBytes()) {
@@ -206,6 +246,12 @@ const runDownload = async (
     if (stat.size > sizeLimitBytes()) {
       await fsp.unlink(partPath).catch(() => {});
       songCacheLog.warn(`[fetch] post oversize key=${cacheKey} actual=${stat.size}`);
+      return null;
+    }
+    // 拦截首字节看着像音频才放行
+    if (!(await looksLikeAudio(partPath))) {
+      await fsp.unlink(partPath).catch(() => {});
+      songCacheLog.warn(`[fetch] not audio key=${cacheKey} mime=${mime} size=${stat.size}`);
       return null;
     }
 

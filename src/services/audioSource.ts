@@ -38,26 +38,24 @@ const resolveByPlugin = async (track: Track): Promise<string | null> => {
   const pluginSource = PLATFORM_TO_PLUGIN_SOURCE[track.platform];
   if (!pluginSource) return null;
   const plugins = usePluginsStore();
-  // 任意 enabled+ready 插件都拿来试；声明了对应 source 的优先
-  // 不强求 inited 上报，让插件脚本自己按 source 字段路由
-  const ready = plugins.list.filter(
-    (info) => info.enabled && info.status.state === "ready",
+  const candidates = plugins.list.filter(
+    (info) =>
+      info.enabled &&
+      info.status.state === "ready" &&
+      info.status.sources[pluginSource]?.actions.includes("musicUrl"),
   );
-  if (ready.length === 0) {
+  if (candidates.length === 0) {
     handleError(ErrorCode.NO_PLUGIN_AVAILABLE);
     return null;
   }
-  const preferred = ready.filter(
-    (info) => info.status.state === "ready" && info.status.sources[pluginSource],
-  );
-  const candidates = preferred.length > 0 ? preferred : ready;
   // MusicInfoBase 形状；id / songmid / songId 三种别名都给，兼容不同年代脚本
   const totalSec = track.duration > 0 ? Math.round(track.duration / 1000) : 0;
-  const interval = totalSec > 0
-    ? `${Math.floor(totalSec / 60)
-        .toString()
-        .padStart(2, "0")}:${(totalSec % 60).toString().padStart(2, "0")}`
-    : null;
+  const interval =
+    totalSec > 0
+      ? `${Math.floor(totalSec / 60)
+          .toString()
+          .padStart(2, "0")}:${(totalSec % 60).toString().padStart(2, "0")}`
+      : null;
   const singer = track.artists.map((artist) => artist.name).join("/");
   const musicInfo = {
     id: track.id,

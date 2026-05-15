@@ -23,9 +23,9 @@ export enum ErrorCode {
   FILE_NOT_SELECTED = "FILE_NOT_SELECTED",
 
   // 网络相关
-  /** 网络连接失败 */
+  /** 音源连接失败 */
   NETWORK_ERROR = "NETWORK_ERROR",
-  /** 网络请求超时 */
+  /** 音源响应超时 */
   NETWORK_TIMEOUT = "NETWORK_TIMEOUT",
 
   // 在线源相关

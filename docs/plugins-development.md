@@ -71,7 +71,7 @@ splayer.on("lyric", async (req) => {
 
 - **没有** Node 内置模块（`fs` / `net` / `child_process` 等），**没有** `require` / `import`
 - **没有** DOM / Electron API（`window` 仅在 lx 兼容模式下作为 `{ lx }` 垫片）
-- **有** 以下全局：`splayer`、`Buffer`、`URL` / `URLSearchParams`、`TextEncoder` / `TextDecoder`、`Promise`、`setTimeout` / `setInterval` / `clearTimeout` / `clearInterval` / `setImmediate` / `clearImmediate` / `queueMicrotask`、`console`（重定向到 `splayer.log`）
+- **有** 以下全局：`splayer`、`Buffer`、`URL` / `URLSearchParams`、`TextEncoder` / `TextDecoder`、`btoa` / `atob`、`Promise`、`setTimeout` / `setInterval` / `clearTimeout` / `clearInterval` / `setImmediate` / `clearImmediate` / `queueMicrotask`、`console`（重定向到 `splayer.log`）
 
 硬性约束：
 
@@ -101,7 +101,7 @@ splayer.register({
   sources: {
     [sourceKey: string]: {
       name: string;                    // 展示名
-      actions: ("musicUrl" | "lyric" | "pic")[];
+      actions: "musicUrl"[];           // 当前 level 1 仅 musicUrl；lyric / pic 计划在 level 2 加入
       qualities?: ("lq" | "sq" | "hq" | "lossless" | "hi-res")[];
     };
   };
@@ -118,29 +118,47 @@ splayer.register({
 | `sq`       | 有损 ≥ 192kbps                                |
 | `lq`       | 有损 < 192kbps                                |
 
-lx 脚本声明的 `128k/192k/320k/flac/flac24bit/ape/wav` 会被垫片自动映射到上面的等级；handler 收到的 `info.type` 也会反向映射为 lx 原生值，老脚本无需改动。
+lx 脚本声明的 `128k/192k/320k/flac/flac24bit/ape/wav` 会被垫片自动映射到上面的等级；**lx 脚本的** handler 经由 `lx.on('request')` 收到的 `info.type` 也会反向映射为 lx 原生值，老脚本无需改动。
 
-**必须在脚本同步部分调用**。注册完后宿主才知道这个插件能做什么、支持哪些源。
+**建议在脚本同步部分调用**。注册完后 UI 才能显示插件支持的源/动作；handler 真正被分派依赖请求里的 `source` 字段，宿主不会因为没 register 就拒绝调用，但 UI 上会看不到能力声明。
 
 ### 注册动作处理器
 
 ```ts
 splayer.on("musicUrl", async (req) => res);
-splayer.on("lyric", async (req) => res);
-splayer.on("pic", async (req) => res);
 ```
 
-每个 action 最多一个 handler，重复注册后者覆盖前者。目前仅这三个动作，搜索和元数据由宿主自身负责。
+每个 action 最多一个 handler，重复注册后者覆盖前者。**当前 level 1 只实现了 `musicUrl`，`lyric` / `pic` 在路线图（计划在 level 2 加入）**，搜索与元数据由宿主自身负责。
 
 #### 请求/响应形状
 
-| Action     | 请求                             | 响应                                    | 默认超时 |
-| ---------- | -------------------------------- | --------------------------------------- | -------- |
-| `musicUrl` | `{ source, quality, musicInfo }` | `{ url, quality?, expire? }`            | 20 s     |
-| `lyric`    | `{ source, musicInfo }`          | `{ lyric, tlyric?, rlyric?, lxlyric? }` | 15 s     |
-| `pic`      | `{ source, musicInfo }`          | `{ url }`                               | 15 s     |
+下表仅列 level 1 已实现的 `musicUrl`：
 
-`musicInfo`：宿主会传至少 `{ songmid }`，可能还带 `name` / `singer` 等用于辅助识别。
+| Action     | 请求                             | 响应                         | 默认超时 |
+| ---------- | -------------------------------- | ---------------------------- | -------- |
+| `musicUrl` | `{ source, quality, musicInfo }` | `{ url, quality?, expire? }` | 20 s     |
+
+`musicInfo` 当前由宿主实际下发的字段集（splayer-native 与 lx 兼容路径共用同一份）：
+
+```ts
+{
+  id: string,           // Track 主键
+  songmid: string,      // 与 id 同值，兼容旧脚本字段名
+  songId: string,       // 与 id 同值，兼容更旧的字段名
+  name: string,         // 歌曲名
+  singer: string,       // "/" 拼接的艺术家串
+  source: string,       // "wy" | "tx" | "kg" | ...，与请求外层 source 一致
+  interval: string|null,// "mm:ss" 格式时长
+  meta: {
+    songId: string,
+    albumName: string,
+    albumId?: string,
+    picUrl?: string,
+  },
+}
+```
+
+如果脚本声明 `@platform lx`（或以 `gz_` 压缩分发），lx 垫片会原样把上述对象交给 `lx.on('request')` 的 handler —— 字段与 `LX.Music.MusicInfo` 形状基本对齐。
 
 handler 抛出的异常会被宿主捕获，错误码透传到上层。超时未返回 → 被主进程 cancel。
 
@@ -194,7 +212,7 @@ splayer.storage.keys(): Promise<string[]>;
 splayer.getSetting<T>(key: string): T | undefined;
 ```
 
-同步读取用户在设置界面给此插件配置的值。设置 schema 通过 `register()` 扩展的能力将在后续 API level 加入；当前 level 1 下返回 `undefined`。
+同步读取用户给此插件配置的值（来源是 `settings.json` 里 `plugins.perPlugin.{id}.{key}`）。未配置时返回 `undefined`。设置 schema 通过 `register()` 声明的能力将在后续 API level 加入；当前只能从外部写入配置，UI 编辑入口尚未开放。
 
 ### 工具（`splayer.utils`）
 
@@ -225,22 +243,23 @@ splayer.utils.zlib.gunzip(data) / gzip(data)
 
 handler 抛异常时可通过 `err.code` 带上错误码；不带的话宿主默认 `PLUGIN_HANDLER_ERROR`。
 
-| Code                        | 含义                    |
-| --------------------------- | ----------------------- |
-| `PLUGIN_NOT_FOUND`          | 找不到指定插件          |
-| `PLUGIN_DISABLED`           | 插件已禁用              |
-| `PLUGIN_NOT_READY`          | 插件未就绪 / 沙箱未启动 |
-| `PLUGIN_ACTION_UNSUPPORTED` | 插件没注册该动作        |
-| `PLUGIN_LOAD_TIMEOUT`       | 加载超 10 秒            |
-| `PLUGIN_SCRIPT_ERROR`       | 脚本语法或运行错误      |
-| `PLUGIN_INVALID_MANIFEST`   | 头部字段缺失或不合法    |
-| `PLUGIN_API_LEVEL_MISMATCH` | 声明 apiLevel 高于宿主  |
-| `PLUGIN_REQUEST_TIMEOUT`    | 动作或 request 超时     |
-| `PLUGIN_CANCELLED`          | 被上层取消              |
-| `PLUGIN_NETWORK_ERROR`      | 网络错误                |
-| `PLUGIN_URL_NOT_ALLOWED`    | URL 协议不在白名单      |
-| `PLUGIN_HANDLER_ERROR`      | handler 默认错误码      |
-| `PLUGIN_WORKER_CRASHED`     | 子进程崩溃              |
+| Code                        | 含义                                                               |
+| --------------------------- | ------------------------------------------------------------------ |
+| `PLUGIN_NOT_FOUND`          | 找不到指定插件                                                     |
+| `PLUGIN_DISABLED`           | 插件已禁用                                                         |
+| `PLUGIN_NOT_READY`          | 插件未就绪 / 沙箱未启动                                            |
+| `PLUGIN_ACTION_UNSUPPORTED` | 插件没注册该动作                                                   |
+| `PLUGIN_LOAD_TIMEOUT`       | 加载超 10 秒                                                       |
+| `PLUGIN_SCRIPT_ERROR`       | 脚本语法或运行错误                                                 |
+| `PLUGIN_INVALID_MANIFEST`   | 头部字段缺失或不合法                                               |
+| `PLUGIN_API_LEVEL_MISMATCH` | 声明 apiLevel 高于宿主                                             |
+| `PLUGIN_REQUEST_TIMEOUT`    | 动作或 request 超时                                                |
+| `PLUGIN_CANCELLED`          | 被上层取消                                                         |
+| `PLUGIN_NETWORK_ERROR`      | 网络错误                                                           |
+| `PLUGIN_URL_NOT_ALLOWED`    | URL 协议不在白名单                                                 |
+| `PLUGIN_HANDLER_ERROR`      | handler 默认错误码                                                 |
+| `PLUGIN_WORKER_CRASHED`     | 子进程崩溃                                                         |
+| `PLUGIN_INVALID_RESULT`     | 插件返回的结果形状不合法（musicUrl 必须是字符串 URL 或 `{ url }`） |
 
 ## 完整示例结构
 
@@ -253,44 +272,31 @@ handler 抛异常时可通过 `err.code` 带上错误码；不带的话宿主默
  * @apiLevel 1
  */
 
-const SOURCES = ["sa", "sb"]; // 你内部的源标识
-
 splayer.register({
   sources: {
-    sa: { name: "SA 音源", actions: ["musicUrl", "lyric"], qualities: ["lq", "hq"] },
-    sb: { name: "SB 音源", actions: ["musicUrl", "pic"], qualities: ["lq", "hq", "lossless"] },
+    sa: { name: "SA 音源", actions: ["musicUrl"], qualities: ["lq", "hq"] },
+    sb: { name: "SB 音源", actions: ["musicUrl"], qualities: ["lq", "hq", "lossless"] },
   },
 });
 
 const apis = {
-  sa: {
-    musicUrl: async ({ musicInfo, quality }) => {
-      /* ... */
-    },
-    lyric: async ({ musicInfo }) => {
-      /* ... */
-    },
+  sa: async ({ musicInfo, quality }) => {
+    /* 调用 SA 接口拿到 url */
+    return { url: "https://...", quality };
   },
-  sb: {
-    musicUrl: async ({ musicInfo, quality }) => {
-      /* ... */
-    },
-    pic: async ({ musicInfo }) => {
-      /* ... */
-    },
+  sb: async ({ musicInfo, quality }) => {
+    /* 调用 SB 接口拿到 url */
+    return { url: "https://...", quality };
   },
 };
 
-const dispatch = (action) => async (req) => {
-  const fn = apis[req.source]?.[action];
-  if (!fn)
+splayer.on("musicUrl", async (req) => {
+  const fn = apis[req.source];
+  if (!fn) {
     throw Object.assign(new Error("source not supported"), { code: "PLUGIN_ACTION_UNSUPPORTED" });
+  }
   return fn(req);
-};
-
-splayer.on("musicUrl", dispatch("musicUrl"));
-splayer.on("lyric", dispatch("lyric"));
-splayer.on("pic", dispatch("pic"));
+});
 ```
 
 ## 调试

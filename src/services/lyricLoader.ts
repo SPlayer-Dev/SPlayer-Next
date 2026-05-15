@@ -53,9 +53,11 @@ const fetchFromPlatform = async (
   track: Track,
 ): Promise<OnlineResult | null> => {
   const mode = track.platform === platform ? "byId" : "byQuery";
+  // QM lyric 接口要数字 songID
+  const lookupId = platform === "qqmusic" ? (track.extId ?? track.id) : track.id;
   const resp =
     mode === "byId"
-      ? await window.api.lyrics.matchById(platform, track.id)
+      ? await window.api.lyrics.matchById(platform, lookupId)
       : await window.api.lyrics.matchByQuery(platform, track);
   if (!resp.ok || !resp.data) return null;
   const data = resp.data;

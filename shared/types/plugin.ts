@@ -229,7 +229,9 @@ export type SandboxOut =
       args: unknown[];
     }
   | { kind: "fatal"; error: PluginErrorPayload }
-  | { kind: "pong" };
+  | { kind: "pong" }
+  /** sources 增量上报 */
+  | { kind: "sourcesUpdate"; sources: Record<string, SourceCapability> };
 
 /** worker 调用回宿主的方法名 */
 export type HostCallMethod =

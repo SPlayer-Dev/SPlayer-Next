@@ -58,9 +58,7 @@ const sanitizeForIpc = (value: unknown, depth = 0): unknown => {
   if (Buffer.isBuffer(value)) return new Uint8Array(value);
   if (value instanceof Uint8Array || value instanceof ArrayBuffer) return value;
   if (Array.isArray(value)) {
-    return value
-      .map((v) => sanitizeForIpc(v, depth + 1))
-      .filter((v) => v !== undefined);
+    return value.map((v) => sanitizeForIpc(v, depth + 1)).filter((v) => v !== undefined);
   }
   if (t === "object") {
     const out: Record<string, unknown> = Object.create(null);
@@ -159,6 +157,8 @@ const buildSplayer = (init: Extract<SandboxIn, { kind: "init" }>): HostApi => ({
 
   register: (caps) => {
     registeredSources = { ...registeredSources, ...caps.sources };
+    // 异步 register 时主进程的 status.sources 已经定格，主动通知刷新
+    send({ kind: "sourcesUpdate", sources: registeredSources });
   },
 
   on: <A extends PluginAction>(
@@ -281,6 +281,10 @@ const runScript = (init: Extract<SandboxIn, { kind: "init" }>): void => {
     URLSearchParams,
     TextEncoder,
     TextDecoder,
+    // Web 标准 base64
+    // vm.createContext 模式下必须显式注入，否则 ReferenceError 把脚本打成 fatal
+    btoa: (str: string): string => Buffer.from(str, "binary").toString("base64"),
+    atob: (str: string): string => Buffer.from(str, "base64").toString("binary"),
     // console 转发到 log
     console: {
       log: splayer.log.info,
@@ -302,6 +306,8 @@ const runScript = (init: Extract<SandboxIn, { kind: "init" }>): void => {
     handlers,
     (sources) => {
       registeredSources = { ...registeredSources, ...sources };
+      // 同 register：异步 lx.send('inited') 时也要补发 sourcesUpdate
+      send({ kind: "sourcesUpdate", sources: registeredSources });
     },
     (info) => {
       send({ kind: "updateAvailable", info });

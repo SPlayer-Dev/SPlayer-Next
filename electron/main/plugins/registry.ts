@@ -292,6 +292,12 @@ class PluginRegistry extends EventEmitter {
           // 沿当前状态再广播一次，渲染端就能拿到 updateInfo 字段
           this.setStatus(rt, rt.status);
         },
+        onSourcesUpdate: (sources) => {
+          // 异步 lx.send('inited') / splayer.register 触发
+          if (rt.status.state !== "ready") return;
+          const merged = { ...rt.status.sources, ...sources };
+          this.setStatus(rt, { state: "ready", sources: merged });
+        },
         onFatal: (error) => {
           // 同时记录到主日志，避免错误只在 UI 卡片里可见
           coreLog.error(`[plugin:${rt.manifest.id}] fatal ${error.code}: ${error.message}`);

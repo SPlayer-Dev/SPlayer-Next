@@ -179,25 +179,41 @@ export const installLxShim = (
         if (typeof v === "string") headers[k] = v;
         else if (v != null) headers[k] = String(v);
       }
-      // body：保留 string / 字节数组；其它 object 走 JSON 序列化（对齐 needle/json 行为）
-      const rawBody = o.body ?? o.form ?? o.formData;
+      // form/formData 在 needle 里会被 urlencode/multipart 序列化
+      // 这里 body 优先，其次 form/formData 走 URLSearchParams 序列化并补 content-type
+      const rawBody = o.body;
+      const rawForm = (o.form ?? o.formData) as Record<string, unknown> | undefined;
       let body: string | Uint8Array | ArrayBuffer | undefined;
-      if (rawBody == null) body = undefined;
-      else if (typeof rawBody === "string") body = rawBody;
-      else if (rawBody instanceof Uint8Array || rawBody instanceof ArrayBuffer) body = rawBody;
-      else if (typeof rawBody === "object") {
-        try {
-          body = JSON.stringify(rawBody);
-        } catch {
-          body = undefined;
+      let formContentType: string | undefined;
+      if (rawBody != null) {
+        if (typeof rawBody === "string") body = rawBody;
+        else if (rawBody instanceof Uint8Array || rawBody instanceof ArrayBuffer) body = rawBody;
+        else if (typeof rawBody === "object") {
+          try {
+            body = JSON.stringify(rawBody);
+          } catch {
+            body = undefined;
+          }
         }
+      } else if (rawForm && typeof rawForm === "object") {
+        const usp = new URLSearchParams();
+        for (const [field, value] of Object.entries(rawForm)) {
+          if (value == null) continue;
+          usp.append(field, String(value));
+        }
+        body = usp.toString();
+        formContentType = "application/x-www-form-urlencoded";
       }
+      // 默认 content-type 放前面，让用户传的 headers 仍能覆盖
+      const finalHeaders: Record<string, string> = formContentType
+        ? { "content-type": formContentType, ...headers }
+        : headers;
       let aborted = false;
 
       splayer
         .request(url, {
           method,
-          headers,
+          headers: finalHeaders,
           body,
           timeout,
           responseType: "text",
@@ -282,8 +298,11 @@ export const installLxShim = (
                 if (host) mapped.add(host);
               }
               const actions = (cap.actions ?? []).filter(
-                (a): a is PluginAction => a === "musicUrl",
+                (action): action is PluginAction => action === "musicUrl",
               );
+              // 不支持任何宿主已识别动作的源直接丢弃，避免 audioSource 误把
+              // lyric-only 脚本当成 musicUrl 候选去调，结果走到归一校验抛 PLUGIN_INVALID_RESULT
+              if (actions.length === 0) continue;
               normalized[key] = {
                 name: cap.name ?? key,
                 actions,

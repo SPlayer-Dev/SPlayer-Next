@@ -58,7 +58,11 @@ export interface AudioQuality {
 
 /** 歌曲信息 */
 export interface Track {
+  /** 平台 id */
   id: string;
+  /** 平台二级 id */
+  extId?: string;
+  /** 歌曲来源 */
   source: TrackSource;
   /** 在线平台 */
   platform?: Platform;
@@ -96,7 +100,7 @@ export interface Track {
 export interface TrackDetail {
   quality: AudioQuality;
   embeddedLyric?: string;
-  /** 外部歌词文件列表（同目录下扫描到的所有歌词文件） */
+  /** 外部歌词文件列表 */
   externalLyrics: { format: LyricFormat; path: string }[];
 }
 

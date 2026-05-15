@@ -30,9 +30,9 @@ const pickFormatted = (
 };
 
 /**
- * 按 QQMusic song id 直取歌词
- * @param id  数字 id（QM 歌词接口必需）
- * @param mid 字符串 mid（用于 AMLL TTML DB 等外部映射；可选）
+ * 按 QQMusic 数字 songID 直取歌词
+ * @param id  数字 songID
+ * @param mid 字符串 mid（用于 AMLL TTML DB 等外部映射）
  */
 export const getByPlatformId = async (
   id: string,

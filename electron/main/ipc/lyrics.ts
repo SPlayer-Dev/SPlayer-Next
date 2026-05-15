@@ -37,7 +37,12 @@ const dedup = <T>(key: string, run: () => Promise<T>): Promise<T> => {
   return promise;
 };
 
-/** 按 (platform, id) 直取 */
+/**
+ * 按 (platform, id) 直取
+ * @param platform 平台
+ * @param id 平台 id
+ * @returns 歌词匹配结果
+ */
 const resolveById = async (platform: Platform, id: string): Promise<LyricMatchResponse> => {
   try {
     switch (platform) {
@@ -91,9 +96,11 @@ const resolveTTMLOverlay = async (
     };
     const fingerprint = buildFingerprint(track);
     const cached = getMatchedId(fingerprint, platform);
-    // QM mid 放前面
+    // QM mid 放前面（AMLL DB 早期 QM 条目以 mid 为文件名的居多）
     if (platform === "qqmusic") push(cached?.extra?.mid);
     if (track.platform === platform) push(track.id);
+    // QM 在线 Track 默认走 byId
+    if (track.platform === platform) push(track.extId);
     push(cached?.platformId);
     if (ids.length === 0) return { ok: true, data: null };
     return { ok: true, data: await fetchTTML(platform, ids) };

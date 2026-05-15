@@ -26,8 +26,10 @@ const albumCoverByMid = (mid: string, size = 300): string =>
 const songToTrack = (song: QMSong): Track => {
   const cover = song.albumMid ? albumCoverByMid(song.albumMid) : undefined;
   const coverOriginal = song.albumMid ? albumCoverByMid(song.albumMid, 800) : undefined;
+  // id 优先 mid
   return {
     id: song.mid || song.id,
+    extId: song.mid && song.id !== song.mid ? song.id : undefined,
     source: "online",
     platform: "qqmusic",
     title: song.name,
