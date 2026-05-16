@@ -23,6 +23,24 @@ export interface ApisApi {
     name: string,
     params?: Record<string, unknown>,
   ) => Promise<ApiCallResponse>;
-  /** 清空指定平台的登录态（目前仅 netease 有意义） */
+  /**
+   * 清空指定平台的登录态
+   * @param platform 音源平台
+   */
   clearSession: (platform: ApiPlatform) => Promise<void>;
+  /**
+   * 打开官方网页登录
+   * @param platform 音源平台
+   * @returns 登录成功 `{ ok: true }`；用户取消 / 失败 `{ ok: false, error }`
+   */
+  openLoginWeb: (platform: ApiPlatform) => Promise<{ ok: true } | { ok: false; error: string }>;
+  /**
+   * 手动写入 cookie 登录（目前仅 netease）
+   * @param platform 音源平台
+   * @param cookie 形如 `MUSIC_U=xxx; __csrf=yyy` 的 cookie 字符串
+   */
+  setCookie: (
+    platform: ApiPlatform,
+    cookie: string,
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
 }

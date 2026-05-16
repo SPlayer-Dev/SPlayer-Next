@@ -283,6 +283,11 @@ const api = {
       ipcRenderer.invoke("apis:call", platform, name, params ?? {}),
     // 清空指定平台的登录态
     clearSession: (platform: string) => ipcRenderer.invoke("apis:clearSession", platform),
+    // 打开官方网页登录窗口
+    openLoginWeb: (platform: string) => ipcRenderer.invoke("apis:openLoginWeb", platform),
+    // 手动写入 cookie 登录
+    setCookie: (platform: string, cookie: string) =>
+      ipcRenderer.invoke("apis:setCookie", platform, cookie),
   },
   lyrics: {
     // 按 id 直取某平台歌词

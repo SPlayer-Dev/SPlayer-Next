@@ -50,6 +50,21 @@ const skipOnFailure = async (myToken: number, getCurrentToken: () => number): Pr
 export type LoadOutcome = { ok: true; track: Track | null } | { ok: false; error?: string };
 
 /**
+ * 切歌通用前置
+ * @param duration 新歌时长（毫秒），未知时传 0
+ */
+const resetForLoad = (duration: number): void => {
+  const status = useStatusStore();
+  status.state = "loading";
+  status.trackLoading = true;
+  status.position = 0;
+  status.duration = duration;
+  playback.setCurrentTime(0, { force: true });
+  playback.setDuration(duration);
+  playback.setPlaying(false);
+};
+
+/**
  * 加载音频源
  * @param source - 音频文件路径或网络地址
  * @param autoPlay - 是否自动播放
@@ -58,21 +73,12 @@ export type LoadOutcome = { ok: true; track: Track | null } | { ok: false; error
 export const load = async (source: string, autoPlay = true, meta?: Track): Promise<LoadOutcome> => {
   const status = useStatusStore();
   const token = ++loadToken;
-  status.trackLoading = true;
   // 切歌即清空 AB 循环（per-song 状态）
   abLoop.reset();
   // 清除上一次 seek 残留
   seekTarget = null;
   playback.setSeeking(false);
-  // 不提前重置，保持播放状态
-  const wasPlaying = status.isPlaying;
-  status.state = wasPlaying ? "playing" : "loading";
-  // 立即重置进度
-  const initialDuration = meta?.duration ?? 0;
-  status.position = 0;
-  status.duration = initialDuration;
-  playback.setCurrentTime(0, { force: true });
-  playback.setDuration(initialDuration);
+  resetForLoad(meta?.duration ?? 0);
   // 非本地并行歌词与取色
   const isOnline = meta?.source !== "local";
   if (isOnline) {
@@ -121,9 +127,11 @@ const loadTrack = async (track: Track | null): Promise<void> => {
   if (!track) return;
   const myToken = ++trackToken;
   // 乐观更新
-  const media = useMediaStore();
-  media.setTrack(track);
+  useMediaStore().setTrack(track);
   lyricLoader.beginLoad();
+  resetForLoad(track.duration ?? 0);
+  void window.api.player.stop();
+  // 解析 URL
   const resolved = await resolveTrackSource(track);
   // 期间有新点击，让位给最新的 loadTrack
   if (myToken !== trackToken) return;
@@ -135,7 +143,7 @@ const loadTrack = async (track: Track | null): Promise<void> => {
     status.currentSource = null;
     status.state = "idle";
     void window.api.player.stop();
-    media.setLyric(null, null);
+    useMediaStore().setLyric(null, null);
     shouldSkip = true;
   } else {
     const result = await load(resolved.source, true, track);
