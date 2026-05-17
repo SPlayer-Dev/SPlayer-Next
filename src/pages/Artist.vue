@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { TrackSource } from "@shared/types/player";
 import type { ArtistProfile, CoverItem } from "@/types/artist";
-import { useLibraryStore } from "@/stores/library";
 import { useSettingsStore } from "@/stores/settings";
-import { useStreamingStore } from "@/stores/streaming";
+import { loadArtist as loadArtistService } from "@/services/artistLoader";
+import { fetchArtistSongs } from "@/apis/user/netease";
 import { navigateToAlbum } from "@/utils/navigate";
 import SongList from "@/components/list/SongList.vue";
 import { formatTime } from "@/utils/time";
@@ -18,8 +18,6 @@ import IconLucideListChecks from "~icons/lucide/list-checks";
 
 const { t } = useI18n();
 const route = useRoute();
-const libraryStore = useLibraryStore();
-const streamingStore = useStreamingStore();
 const { appearance } = useSettingsStore();
 
 const tabTransitionName = computed(() => {
@@ -31,6 +29,13 @@ const source = route.params.source as TrackSource;
 const id = route.params.id as string;
 
 const artist = shallowRef<ArtistProfile | null>(null);
+/** 正在加载（任一来源） */
+const loading = ref(false);
+/** 取消当次加载 */
+let loadAbort: AbortController | null = null;
+/** NCM 歌手歌曲分页：是否还有更多 + 加载中 */
+const hasMoreSongs = ref(false);
+const loadingMore = ref(false);
 
 /** 在线头像未到位时，用任一曲目的封面顶替 */
 const fallbackTrackCover = computed(() => artist.value?.tracks.find((t) => t.cover)?.cover);
@@ -47,41 +52,61 @@ const handleListScroll = (event: Event) => {
   }
 };
 
-/** 加载数据 */
-const loadArtist = async () => {
+/** 加载数据：派发到 services/artistLoader，本组件只管 ref + loading + abort */
+const loadArtist = async (): Promise<void> => {
   collapsed.value = false;
-  if (source === "local") {
-    const artistName = decodeURIComponent(id);
-    artist.value = await libraryStore.getArtistProfile(artistName);
-    // 获取歌手头像
-    if (artist.value && !artist.value.avatar) {
-      const res = await window.api.library.fetchArtistAvatar(artistName);
-      if (res.success && res.data && artist.value?.name === artistName) {
-        libraryStore.setArtistAvatar(artistName, res.data);
-        artist.value = { ...artist.value, avatar: res.data };
-      }
-    }
-  } else if (source === "streaming") {
-    const artistId = decodeURIComponent(id);
-    const cached = streamingStore.artists.find((a) => a.id === artistId);
-    const fallbackName = typeof route.query.name === "string" ? route.query.name : artistId;
-    // 直接拿歌手名下所有歌曲
-    const tracks = await streamingStore.fetchArtistSongs(artistId);
-    artist.value = {
-      id: artistId,
-      name: cached?.name ?? fallbackName,
-      avatar: cached?.avatar,
-      source,
-      tracks,
-      albums: [],
-      trackCount: tracks.length,
-      albumCount: 0,
-    };
+  loadAbort?.abort();
+  const myAbort = new AbortController();
+  loadAbort = myAbort;
+  loading.value = true;
+  hasMoreSongs.value = false;
+
+  try {
+    await loadArtistService(source, id, {
+      fallbackName: typeof route.query.name === "string" ? route.query.name : undefined,
+      signal: myAbort.signal,
+      onUpdate: (next) => {
+        if (myAbort.signal.aborted) return;
+        artist.value = next;
+        // 仅 NCM 支持触底分页（artist_songs）；首屏 50 首后开放加载更多
+        if (next && source === "netease" && next.tracks.length >= 50) {
+          hasMoreSongs.value = true;
+        }
+      },
+    });
+  } finally {
+    if (!myAbort.signal.aborted) loading.value = false;
   }
-  // TODO: online
+};
+
+/** 触底加载更多 NCM 歌手歌曲 */
+const onReachBottom = async (): Promise<void> => {
+  if (source !== "netease" || !hasMoreSongs.value || loadingMore.value || !artist.value) return;
+  const current = artist.value;
+  loadingMore.value = true;
+  try {
+    const { tracks, more } = await fetchArtistSongs(decodeURIComponent(id), current.tracks.length);
+    if (loadAbort?.signal.aborted || artist.value?.id !== current.id) return;
+    if (tracks.length === 0) {
+      hasMoreSongs.value = false;
+      return;
+    }
+    artist.value = {
+      ...current,
+      tracks: [...current.tracks, ...tracks],
+      trackCount: current.tracks.length + tracks.length,
+    };
+    hasMoreSongs.value = more;
+  } finally {
+    loadingMore.value = false;
+  }
 };
 
 loadArtist();
+
+onBeforeUnmount(() => {
+  loadAbort?.abort();
+});
 
 /** 总时长 */
 const totalDuration = computed(() => {
@@ -246,9 +271,12 @@ const albumItems = computed<CoverItem[]>(() => {
               :search-query="searchQuery"
               :source="source"
               :show-size="source === 'local'"
+              :has-more="hasMoreSongs"
+              :loading-more="loadingMore"
               enable-sort
               @scroll="handleListScroll"
               @change="loadArtist"
+              @reach-bottom="onReachBottom"
             />
           </div>
           <!-- 专辑网格 -->
@@ -261,6 +289,13 @@ const albumItems = computed<CoverItem[]>(() => {
             />
           </div>
         </Transition>
+      </div>
+      <!-- 加载中 -->
+      <div v-else-if="loading" key="loading" class="flex-1 flex items-center justify-center">
+        <div class="text-center text-on-surface-variant/60">
+          <SLoading class="text-4xl text-primary/70 mb-4 mx-auto block" />
+          <div class="text-sm">{{ t("common.loading") }}</div>
+        </div>
       </div>
       <!-- 空状态 -->
       <div v-else-if="artist" key="empty" class="flex-1 flex items-center justify-center">

@@ -23,8 +23,7 @@ interface SongsResp {
 
 const songToTrack = (song: KGSong): Track => ({
   id: song.hash || song.id,
-  source: "online",
-  platform: "kugou",
+  source: "kugou",
   title: song.name,
   artists: song.artist ? [{ name: song.artist }] : [],
   // album.id 暂不暴露（在线专辑详情页未接通），列表里跟着 artist 一起暗显

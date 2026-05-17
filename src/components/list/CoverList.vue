@@ -22,6 +22,10 @@ export interface CoverListProps {
   paddingTop?: number;
   /** 底部 padding（px） */
   paddingBottom?: number;
+  /** 是否还能继续触底加载 */
+  hasMore?: boolean;
+  /** 触底加载中 */
+  loadingMore?: boolean;
 }
 
 const props = withDefaults(defineProps<CoverListProps>(), {
@@ -32,7 +36,11 @@ const props = withDefaults(defineProps<CoverListProps>(), {
   paddingX: 0,
   paddingTop: 0,
   paddingBottom: 0,
+  hasMore: false,
+  loadingMore: false,
 });
+
+const { t } = useI18n();
 
 const coverRounded = computed(() => {
   if (props.type === "artist") return "rounded-full";
@@ -106,6 +114,21 @@ const getRowKey = (row: Row): string => row.id;
     height="100%"
     @reach-bottom="emit('reachBottom')"
   >
+    <template #footer>
+      <div
+        v-if="rows.length > 0 && loadingMore"
+        class="py-3 flex items-center justify-center gap-2 text-sm text-on-surface-variant/50"
+      >
+        <SLoading class="size-3.5 text-primary/70 shrink-0" />
+        <span>{{ t("common.loading") }}</span>
+      </div>
+      <div
+        v-else-if="rows.length > 0 && !hasMore"
+        class="py-3 text-center text-sm text-on-surface-variant/40"
+      >
+        {{ t("common.noMore") }}
+      </div>
+    </template>
     <template #default="{ item: row }: { item: Row }">
       <div
         class="grid"

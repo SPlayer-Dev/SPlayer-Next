@@ -10,8 +10,8 @@ export type RepeatMode = "off" | "list" | "one";
 /** 随机模式 */
 export type ShuffleMode = "off" | "on";
 
-/** 歌曲来源 */
-export type TrackSource = "local" | "online" | "streaming";
+/** 歌曲来源：本地 / 流媒体 / 在线平台 */
+export type TrackSource = "local" | "streaming" | Platform;
 
 /** 歌手 */
 export interface Artist {
@@ -72,8 +72,6 @@ export interface Track {
   extId?: string;
   /** 歌曲来源 */
   source: TrackSource;
-  /** 在线平台 */
-  platform?: Platform;
   /** 本地路径 */
   path?: string;
   /** 流媒体服务器实例 ID（仅 source==='streaming'） */

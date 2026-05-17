@@ -52,6 +52,23 @@ import cloud_lyric_get from "./cloud_lyric_get";
 import song_detail from "./song_detail";
 import song_url from "./song_url";
 
+// 歌单 / 喜欢
+import playlist_detail from "./playlist_detail";
+import likelist from "./likelist";
+import like from "./like";
+
+// 专辑
+import album from "./album";
+
+// 歌手
+import artists from "./artists";
+import artist_album from "./artist_album";
+import artist_songs from "./artist_songs";
+
+// 用户收藏
+import album_sublist from "./album_sublist";
+import artist_sublist from "./artist_sublist";
+
 export const modules: Record<string, NeteaseModule> = {
   captcha_sent,
   captcha_verify,
@@ -92,4 +109,17 @@ export const modules: Record<string, NeteaseModule> = {
 
   song_detail,
   song_url,
+
+  playlist_detail,
+  likelist,
+  like,
+
+  album,
+
+  artists,
+  artist_album,
+  artist_songs,
+
+  album_sublist,
+  artist_sublist,
 };

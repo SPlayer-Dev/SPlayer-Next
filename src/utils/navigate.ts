@@ -2,7 +2,7 @@ import type { TrackSource } from "@shared/types/player";
 import router from "@/router";
 
 /** 非本地源 */
-const isExternal = (source: TrackSource): boolean => source === "streaming" || source === "online";
+const isExternal = (source: TrackSource): boolean => source !== "local";
 
 /**
  * 跳转到专辑页
@@ -31,8 +31,8 @@ export const navigateToAlbum = (
  * 跳转到歌手页
  * 非本地源没拿到真实 artistId 时静默忽略
  * @param artistName - 歌手名称（本地用作聚合 key；非本地用于 query 兜底显示）
- * @param options.source - 来源（local/streaming/online）；默认为 local
- * @param options.artistId - 真实歌手 ID（streaming/online 必填）
+ * @param options.source - 来源；默认为 local
+ * @param options.artistId - 真实歌手 ID（非本地必填）
  */
 export const navigateToArtist = (
   artistName?: string,
@@ -47,5 +47,25 @@ export const navigateToArtist = (
     name: "artist",
     params: { source, id: encodeURIComponent(id) },
     query,
+  });
+};
+
+/**
+ * 跳转到歌单页
+ * 任意来源都依赖 playlistId（不像专辑/歌手有本地"按名聚合"的语义）
+ * @param playlistId - 歌单 ID（必填）
+ * @param options.source - 来源；默认为 local
+ * @param options.name - 标题兜底（元数据返回前用于头部占位）
+ */
+export const navigateToPlaylist = (
+  playlistId: string | undefined,
+  options: { source?: TrackSource; name?: string } = {},
+) => {
+  if (!playlistId?.trim()) return;
+  const source = options.source ?? "local";
+  router.push({
+    name: "collection",
+    params: { source, type: "playlist", id: encodeURIComponent(playlistId) },
+    query: options.name ? { name: options.name } : undefined,
   });
 };

@@ -1,5 +1,4 @@
 import type { Track } from "@shared/types/player";
-import type { NeteaseSong } from "@/types/netease";
 import { netease as neteaseApi } from "@/apis/netease";
 import { songsToTracks } from "@/utils/netease";
 
@@ -11,16 +10,9 @@ import { songsToTracks } from "@/utils/netease";
 export const songsByIds = async (ids: Array<string | number>): Promise<Track[]> => {
   const cleaned = ids.map((v) => String(v).trim()).filter(Boolean);
   if (cleaned.length === 0) return [];
-  const body = await neteaseApi.song_detail<{ songs?: NeteaseSong[] }>({ ids: cleaned.join(",") });
+  const body = await neteaseApi.song_detail({ ids: cleaned.join(",") });
   return songsToTracks(body?.songs);
 };
-
-interface SongUrlResp {
-  data?: {
-    url: string | null;
-    freeTrialInfo: unknown | null;
-  }[];
-}
 
 /**
  * 解析网易云 Track 的可播放 URL
@@ -28,7 +20,7 @@ interface SongUrlResp {
  * @param track - track.id 为云端 songId
  */
 export const resolveNeteaseUrl = async (track: Track): Promise<string | null> => {
-  const body = await neteaseApi.song_url<SongUrlResp>({ id: track.id, level: "exhigh" });
+  const body = await neteaseApi.song_url({ id: track.id, level: "exhigh" });
   const item = body?.data?.[0];
   if (!item?.url || item.freeTrialInfo) return null;
   return item.url;

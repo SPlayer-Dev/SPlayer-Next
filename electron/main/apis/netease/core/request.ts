@@ -45,6 +45,19 @@ export interface RequestResponse {
   cookie: string[];
 }
 
+/** 非 200 响应抛出的错误 */
+export class NeteaseRequestError extends Error {
+  readonly response: RequestResponse;
+  constructor(response: RequestResponse) {
+    const body = response.body as { code?: number | string; msg?: string; message?: string };
+    const code = body?.code ?? response.status;
+    const msg = body?.msg ?? body?.message ?? "";
+    super(msg ? `netease ${code}: ${msg}` : `netease ${code}`);
+    this.name = "NeteaseRequestError";
+    this.response = response;
+  }
+}
+
 interface NeteaseBody {
   code?: number | string;
   [key: string]: unknown;
@@ -215,7 +228,7 @@ export const createRequest = async (
   } catch (err) {
     answer.status = 502;
     answer.body = { code: 502, msg: err instanceof Error ? err.message : String(err) };
-    throw answer;
+    throw new NeteaseRequestError(answer);
   }
 
   // 收集 set-cookie（Node fetch 通过 headers.getSetCookie 暴露原始多值头）
@@ -254,7 +267,7 @@ export const createRequest = async (
   answer.status = answer.status > 100 && answer.status < 600 ? answer.status : 400;
 
   if (answer.status === 200) return answer;
-  throw answer;
+  throw new NeteaseRequestError(answer);
 };
 
 /** 宽松的 boolean 解析：原始 util/index.js 里的 toBoolean */

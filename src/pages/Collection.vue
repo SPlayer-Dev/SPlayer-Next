@@ -3,8 +3,7 @@ import type { TrackSource } from "@shared/types/player";
 import type { Collection, CollectionType } from "@/types/collection";
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import { usePlaylistStore } from "@/stores/playlist";
-import { useLibraryStore } from "@/stores/library";
-import { useStreamingStore } from "@/stores/streaming";
+import { loadCollection as loadCollectionService } from "@/services/collectionLoader";
 import SongList from "@/components/list/SongList.vue";
 import { formatTime } from "@/utils/time";
 import * as player from "@/core/player";
@@ -14,18 +13,21 @@ import IconLucideListChecks from "~icons/lucide/list-checks";
 import IconLucideListMusic from "~icons/lucide/list-music";
 import IconLucideHourglass from "~icons/lucide/hourglass";
 import IconLucideCalendar from "~icons/lucide/calendar";
+import IconLucideUser from "~icons/lucide/user";
 
 const { t } = useI18n();
 const route = useRoute();
 const playlistStore = usePlaylistStore();
-const libraryStore = useLibraryStore();
-const streamingStore = useStreamingStore();
 
 const source = route.params.source as TrackSource;
 const type = route.params.type as CollectionType;
 const id = route.params.id as string;
 
 const collection = shallowRef<Collection | null>(null);
+/** 正在加载（任一来源） */
+const loading = ref(false);
+/** 取消当次加载（路由切换/卸载时 abort） */
+let loadAbort: AbortController | null = null;
 
 /** 是否可编辑 */
 const editable = source === "local" && type === "playlist";
@@ -43,51 +45,33 @@ const handleListScroll = (event: Event) => {
   }
 };
 
-/** 加载数据 */
-const loadCollection = async () => {
+/** 加载数据：派发到 services/collectionLoader，本组件只管 ref + loading + abort */
+const loadCollection = async (): Promise<void> => {
   collapsed.value = false;
-  if (source === "local" && type === "playlist") {
-    collection.value = await playlistStore.get(id);
-  } else if (source === "local" && type === "album") {
-    const albumName = decodeURIComponent(id);
-    collection.value = await libraryStore.getAlbumCollection(albumName);
-  } else if (source === "streaming") {
-    const originalId = decodeURIComponent(id);
-    // 名称兜底
-    const fallbackName = typeof route.query.name === "string" ? route.query.name : originalId;
-    if (type === "album") {
-      const album = streamingStore.albums.find((a) => a.id === originalId);
-      const tracks = await streamingStore.fetchAlbumSongs(originalId);
-      collection.value = {
-        id: originalId,
-        type,
-        source,
-        title: album?.name ?? fallbackName,
-        cover: album?.cover ?? tracks[0]?.cover,
-        creator: album?.artist,
-        tracks,
-        trackCount: tracks.length,
-      };
-    } else if (type === "playlist") {
-      const pl = streamingStore.playlists.find((p) => p.id === originalId);
-      const tracks = await streamingStore.fetchPlaylistSongs(originalId);
-      collection.value = {
-        id: originalId,
-        type,
-        source,
-        title: pl?.name ?? fallbackName,
-        cover: pl?.cover ?? tracks[0]?.cover,
-        description: pl?.description,
-        creator: pl?.owner,
-        tracks,
-        trackCount: tracks.length,
-      };
-    }
+  loadAbort?.abort();
+  const myAbort = new AbortController();
+  loadAbort = myAbort;
+  loading.value = true;
+
+  try {
+    await loadCollectionService(source, type, id, {
+      fallbackName: typeof route.query.name === "string" ? route.query.name : undefined,
+      signal: myAbort.signal,
+      onUpdate: (next) => {
+        if (myAbort.signal.aborted) return;
+        collection.value = next;
+      },
+    });
+  } finally {
+    if (!myAbort.signal.aborted) loading.value = false;
   }
-  // TODO: online / radio
 };
 
 loadCollection();
+
+onBeforeUnmount(() => {
+  loadAbort?.abort();
+});
 
 const typeLabel = computed(() => {
   const map: Record<CollectionType, string> = {
@@ -105,10 +89,16 @@ const totalDuration = computed(() => {
   return total > 0 ? formatTime(total) : "";
 });
 
-/** 歌手文本 */
+/** 歌手文本（仅专辑有 artists 列表时单独成行） */
 const artistText = computed(() => {
-  if (!collection.value?.artists?.length) return collection.value?.creator ?? "";
+  if (!collection.value?.artists?.length) return "";
   return collection.value.artists.map((a) => a.name).join(" / ");
+});
+
+/** 创建者（歌单作者）：合集元信息行内的小 chip */
+const creatorText = computed(() => {
+  if (collection.value?.artists?.length) return "";
+  return collection.value?.creator ?? "";
 });
 
 /** 更新时间文本 */
@@ -234,15 +224,19 @@ const handleMoreMenu = (key: string) => {
                 <div
                   class="flex items-center gap-3 text-sm leading-none text-on-surface-variant/50"
                 >
-                  <span class="flex items-center gap-1">
+                  <span v-if="creatorText" class="flex items-center gap-1 min-w-0">
+                    <IconLucideUser class="shrink-0" />
+                    <span class="truncate">{{ creatorText }}</span>
+                  </span>
+                  <span class="flex items-center gap-1 shrink-0">
                     <IconLucideListMusic class="shrink-0" />
                     {{ t("common.totalSongs", { count: collection.tracks.length }) }}
                   </span>
-                  <span v-if="totalDuration" class="flex items-center gap-1">
+                  <span v-if="totalDuration" class="flex items-center gap-1 shrink-0">
                     <IconLucideHourglass class="shrink-0" />
                     {{ t("collection.totalDuration", { time: totalDuration }) }}
                   </span>
-                  <span v-if="updateTimeText" class="flex items-center gap-1">
+                  <span v-if="updateTimeText" class="flex items-center gap-1 shrink-0">
                     <IconLucideCalendar class="shrink-0" />
                     {{ updateTimeText }}
                   </span>
@@ -296,7 +290,7 @@ const handleMoreMenu = (key: string) => {
       </div>
     </div>
     <Transition name="fade" mode="out-in" :duration="150">
-      <!-- 歌曲列表 -->
+      <!-- 歌曲列表（首批到位即渲染，剩余批次会自动追加） -->
       <div
         v-if="collection && collection.tracks.length > 0"
         :key="collection.id"
@@ -315,6 +309,13 @@ const handleMoreMenu = (key: string) => {
           @scroll="handleListScroll"
           @change="loadCollection"
         />
+      </div>
+      <!-- 加载中 -->
+      <div v-else-if="loading" key="loading" class="flex-1 flex items-center justify-center">
+        <div class="text-center text-on-surface-variant/60">
+          <SLoading class="text-4xl text-primary/70 mb-4 mx-auto block" />
+          <div class="text-sm">{{ t("common.loading") }}</div>
+        </div>
       </div>
       <!-- 空状态 -->
       <div v-else-if="collection" key="empty" class="flex-1 flex items-center justify-center">

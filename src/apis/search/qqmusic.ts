@@ -30,8 +30,7 @@ const songToTrack = (song: QMSong): Track => {
   return {
     id: song.mid || song.id,
     extId: song.mid && song.id !== song.mid ? song.id : undefined,
-    source: "online",
-    platform: "qqmusic",
+    source: "qqmusic",
     title: song.name,
     // QM 的 song.artist 是合并字符串（"A / B"），没单独 id，列表里会自动暗显
     artists: song.artist ? [{ name: song.artist }] : [],

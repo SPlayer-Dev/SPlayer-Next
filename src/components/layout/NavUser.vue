@@ -3,6 +3,9 @@ import { useUserStore } from "@/stores/user";
 import { dialog } from "@/composables/useDialog";
 import { toast } from "@/composables/useToast";
 import vipImg from "@/assets/images/vip.png";
+import IconLucideListMusic from "~icons/lucide/list-music";
+import IconLucideDisc3 from "~icons/lucide/disc-3";
+import IconLucideUserRound from "~icons/lucide/user-round";
 
 const { t } = useI18n();
 const user = useUserStore();
@@ -18,6 +21,30 @@ onMounted(() => {
 });
 
 const isVip = computed(() => !!user.profile?.vipType && user.profile.vipType !== 0);
+
+/** 收藏计数 */
+const stats = computed(() => [
+  {
+    key: "playlist",
+    label: t("collection.playlist"),
+    icon: markRaw(IconLucideListMusic),
+    value:
+      (user.subcount.createdPlaylistCount || 0) + (user.subcount.subPlaylistCount || 0) ||
+      user.playlists.length,
+  },
+  {
+    key: "album",
+    label: t("collection.album"),
+    icon: markRaw(IconLucideDisc3),
+    value: user.subcount.albumCount ?? user.albums.length,
+  },
+  {
+    key: "artist",
+    label: t("artist.label"),
+    icon: markRaw(IconLucideUserRound),
+    value: user.subcount.artistCount ?? user.artists.length,
+  },
+]);
 
 const onTriggerClick = (): void => {
   if (!user.isLoggedIn) loginOpen.value = true;
@@ -90,6 +117,12 @@ const handleLogout = async (): Promise<void> => {
         <span class="text-sm font-semibold text-on-surface truncate max-w-30">
           {{ user.profile?.nickname || t("login.unknownUser") }}
         </span>
+        <span
+          v-if="user.level !== undefined"
+          class="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold leading-none bg-amber-500/15 text-amber-600 dark:text-amber-400 tabular-nums"
+        >
+          Lv.{{ user.level }}
+        </span>
         <img v-if="isVip" :src="vipImg" alt="VIP" class="h-4 shrink-0" />
       </div>
       <span
@@ -98,7 +131,28 @@ const handleLogout = async (): Promise<void> => {
       >
         {{ user.profile.signature }}
       </span>
-      <SButton variant="secondary" size="small" class="mt-1" block @click="handleLogout">
+      <SDivider class="w-full" />
+      <!-- 收藏计数 -->
+      <div class="w-full flex items-stretch justify-around gap-1">
+        <div
+          v-for="item in stats"
+          :key="item.key"
+          :title="item.label"
+          class="group flex flex-1 flex-col items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors duration-200 hover:bg-on-surface/8 active:bg-on-surface/12"
+        >
+          <component
+            :is="item.icon"
+            class="size-4 text-on-surface-variant/70 transition-colors duration-200 group-hover:text-primary"
+          />
+          <span
+            class="text-sm font-semibold text-on-surface tabular-nums leading-none transition-colors duration-200 group-hover:text-primary"
+          >
+            {{ item.value }}
+          </span>
+        </div>
+      </div>
+      <SDivider class="w-full" />
+      <SButton variant="secondary" size="small" block @click="handleLogout">
         <template #icon><IconLucideLogOut /></template>
         {{ t("login.logout") }}
       </SButton>

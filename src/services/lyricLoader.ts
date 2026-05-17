@@ -5,6 +5,7 @@
 import type { Track, TrackDetail } from "@shared/types/player";
 import type { LyricData, LyricFormat, LyricInput } from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
+import { isPlatform } from "@shared/types/platform";
 import { bestExternalIndex, detectFormat } from "@/utils/lyric/parse";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
@@ -52,7 +53,7 @@ const fetchFromPlatform = async (
   platform: Platform,
   track: Track,
 ): Promise<OnlineResult | null> => {
-  const mode = track.platform === platform ? "byId" : "byQuery";
+  const mode = track.source === platform ? "byId" : "byQuery";
   // QM lyric 接口要数字 songID
   const lookupId = platform === "qqmusic" ? (track.extId ?? track.id) : track.id;
   const resp =
@@ -176,8 +177,8 @@ const tryOnlineByPreference = async (
   const preference = settings.lyric.lyricSourcePreference;
   if (preference === "self") {
     // 在线歌曲
-    if (track.source === "online" && track.platform) {
-      return fetchFromPlatform(track.platform, track);
+    if (isPlatform(track.source)) {
+      return fetchFromPlatform(track.source, track);
     }
     return null;
   }
@@ -292,8 +293,8 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
       commit(token, null, null);
       return;
     }
-    // 在线歌曲
-    if (track.source === "online") {
+    // 在线歌曲（任一在线平台）
+    if (isPlatform(track.source)) {
       const online = await tryOnlineByPreference(token, track, false, null);
       if (token !== currentToken) return;
       if (online) await applyOnline(token, track, online, null);
@@ -353,8 +354,8 @@ const refreshPreference = async (): Promise<void> => {
   const media = useMediaStore();
   const track = media.track;
   if (!track || track.source === "streaming") return;
-  // 在线歌曲
-  if (track.source === "online") {
+  // 在线歌曲（任一在线平台）
+  if (isPlatform(track.source)) {
     const online = await tryOnlineByPreference(token, track, false, null);
     if (token !== currentToken) return;
     if (online) await applyOnline(token, track, online, null);

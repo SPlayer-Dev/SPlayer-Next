@@ -98,9 +98,9 @@ const resolveTTMLOverlay = async (
     const cached = getMatchedId(fingerprint, platform);
     // QM mid 放前面（AMLL DB 早期 QM 条目以 mid 为文件名的居多）
     if (platform === "qqmusic") push(cached?.extra?.mid);
-    if (track.platform === platform) push(track.id);
+    if (track.source === platform) push(track.id);
     // QM 在线 Track 默认走 byId
-    if (track.platform === platform) push(track.extId);
+    if (track.source === platform) push(track.extId);
     push(cached?.platformId);
     if (ids.length === 0) return { ok: true, data: null };
     return { ok: true, data: await fetchTTML(platform, ids) };

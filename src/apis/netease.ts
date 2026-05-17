@@ -2,10 +2,10 @@
  * Netease API 渲染端
  *
  * 用 Proxy 把所有接口代理到主进程：`netease.search({keywords})` 实际等于
- * `window.api.apis.call("netease", "search", {keywords})`。
+ * `window.api.apis.call("netease", "search", {keywords})`
  *
- * 调用约定：成功 → 返回 body；失败 → 抛 Error。
- * 想取原始响应（含 HTTP status）用 `neteaseRaw`。
+ * 调用约定：成功 → 返回 body；失败 → 抛 Error
+ * 想取原始响应（含 HTTP status）用 `neteaseRaw`
  */
 
 import type { ApiCallResponse } from "@shared/types/apis";
@@ -30,7 +30,7 @@ export const neteaseRaw = async (
  * @param name 接口名
  * @param params 接口参数
  */
-export const neteaseCall = async <T = unknown>(
+export const neteaseCall = async <T = any>(
   name: string,
   params?: Record<string, unknown>,
 ): Promise<T> => {
@@ -38,7 +38,7 @@ export const neteaseCall = async <T = unknown>(
   return res.body as T;
 };
 
-type NeteaseProxy = Record<string, <T = unknown>(params?: Record<string, unknown>) => Promise<T>>;
+type NeteaseProxy = Record<string, <T = any>(params?: Record<string, unknown>) => Promise<T>>;
 
 /**
  * 任意方法调用：`netease.search(...)` / `netease.song_url_v1(...)`
@@ -46,7 +46,7 @@ type NeteaseProxy = Record<string, <T = unknown>(params?: Record<string, unknown
 export const netease: NeteaseProxy = new Proxy({} as NeteaseProxy, {
   get:
     (_t, name: string) =>
-    <T = unknown>(params?: Record<string, unknown>) =>
+    <T = any>(params?: Record<string, unknown>) =>
       neteaseCall<T>(name, params),
 });
 

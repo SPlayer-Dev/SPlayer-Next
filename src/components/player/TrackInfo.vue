@@ -29,7 +29,7 @@ const currentLyricText = computed(() => {
 const isArtistLinkable = (artist: Artist): boolean => {
   if (!artist.name) return false;
   const source = media.track?.source;
-  if (source === "streaming" || source === "online") return !!artist.id;
+  if (source && source !== "local") return !!artist.id;
   return true;
 };
 </script>

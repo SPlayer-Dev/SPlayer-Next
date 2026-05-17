@@ -1,14 +1,11 @@
-/**
- * 网易云专属工具：原始接口数据 → 应用层模型 的格式化
- */
-
-import type { AudioQuality, Track, TrackFee } from "@shared/types/player";
+import type { Album, Artist, AudioQuality, Playlist, Track, TrackFee } from "@shared/types/player";
+import type { UserSubcount } from "@/types/user";
 import type { NeteaseSong } from "@/types/netease";
 
 /**
- * 网易云 fee → 应用层 TrackFee
- * 网易云 fee：0=免费 1=VIP 4=购买专辑 8=会员高音质（视作 VIP）
- * @param fee - 网易云原始 fee
+ *  fee → 应用层 TrackFee
+ *  fee：0=免费 1=VIP 4=购买专辑 8=会员高音质（视作 VIP）
+ * @param fee - 原始 fee
  */
 const toTrackFee = (fee: number | undefined): TrackFee | undefined => {
   if (fee === 0) return 0;
@@ -18,8 +15,8 @@ const toTrackFee = (fee: number | undefined): TrackFee | undefined => {
 };
 
 /**
- * 给网易云封面 URL 拼尺寸
- * @param url - 网易云封面原始 URL
+ * 给封面 URL 拼尺寸
+ * @param url - 封面原始 URL
  * @param size - 期望像素边长，默认 300
  */
 export const withPicSize = (url: string | undefined, size = 300): string | undefined => {
@@ -29,8 +26,8 @@ export const withPicSize = (url: string | undefined, size = 300): string | undef
 };
 
 /**
- * 根据网易云 song 对象选择最佳音质
- * @param song - 网易云原始 song 对象
+ * 根据 song 对象选择最佳音质
+ * @param song - 原始 song 对象
  * @returns 最佳音质
  */
 const pickQuality = (song: NeteaseSong): AudioQuality | undefined => {
@@ -66,8 +63,8 @@ const pickQuality = (song: NeteaseSong): AudioQuality | undefined => {
 };
 
 /**
- * 网易云 song → 应用层 Track
- * @param song - 网易云原始 song 对象
+ *  song → 应用层 Track
+ * @param song - 原始 song 对象
  */
 export const songToTrack = (song: NeteaseSong): Track => {
   const cover = withPicSize(song.al?.picUrl);
@@ -75,8 +72,7 @@ export const songToTrack = (song: NeteaseSong): Track => {
   const comment = song.alia?.find((s) => s?.trim()) ?? undefined;
   return {
     id: String(song.id),
-    source: "online",
-    platform: "netease",
+    source: "netease",
     title: song.name,
     comment,
     artists: (song.ar ?? []).map((artist) => ({ id: String(artist.id), name: artist.name })),
@@ -90,8 +86,46 @@ export const songToTrack = (song: NeteaseSong): Track => {
 };
 
 /**
- * 网易云 songs 列表 → Track 列表，空/缺省安全
+ *  songs 列表 → Track 列表，空/缺省安全
  * @param songs - 接口返回的 songs 数组
  */
 export const songsToTracks = (songs: NeteaseSong[] | undefined | null): Track[] =>
   songs?.map(songToTrack) ?? [];
+
+/**
+ * 歌单条目 → 应用层 Playlist
+ * 适用 `/user/playlist` 与 `/playlist/detail` 的 playlist 字段
+ */
+export const toPlaylist = (raw: any): Playlist => ({
+  id: String(raw.id),
+  name: raw.name,
+  cover: withPicSize(raw.coverImgUrl),
+  description: raw.description,
+  trackCount: raw.trackCount,
+  owner: raw.creator?.nickname,
+});
+
+/** 收藏专辑（/album/sublist 元素）→ 应用层 Album */
+export const toAlbum = (raw: any): Album => ({
+  id: String(raw.id),
+  name: raw.name,
+  cover: withPicSize(raw.picUrl),
+  artist: raw.artists?.map((a: { name: string }) => a.name).join(" / ") ?? raw.artist?.name,
+  trackCount: raw.size,
+  year: raw.publishTime ? new Date(raw.publishTime).getFullYear() : undefined,
+});
+
+/** 收藏歌手（/artist/sublist 元素）→ 应用层 Artist */
+export const toArtist = (raw: any): Artist => ({
+  id: String(raw.id),
+  name: raw.name,
+  avatar: withPicSize(raw.img1v1Url ?? raw.picUrl),
+  albumCount: raw.albumSize,
+});
+
+/** 订阅计数（/user/subcount）→ 应用层 UserSubcount */
+export const toSubcount = (raw: any): UserSubcount => ({
+  createdPlaylistCount: raw.createdPlaylistCount ?? 0,
+  subPlaylistCount: raw.subPlaylistCount ?? 0,
+  artistCount: raw.artistCount ?? 0,
+});

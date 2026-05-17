@@ -15,3 +15,15 @@ export interface UserProfile {
   province?: number;
   city?: number;
 }
+
+/** 用户订阅计数（/user/subcount） */
+export interface UserSubcount {
+  /** 自建歌单数 */
+  createdPlaylistCount: number;
+  /** 收藏歌单数 */
+  subPlaylistCount: number;
+  /** 收藏专辑数 */
+  albumCount?: number;
+  /** 收藏歌手数 */
+  artistCount: number;
+}

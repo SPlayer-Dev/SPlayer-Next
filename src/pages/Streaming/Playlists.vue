@@ -2,10 +2,10 @@
 import type { CoverItem } from "@/types/artist";
 import type { Playlist } from "@shared/types/player";
 import { useStreamingStore } from "@/stores/streaming";
+import { navigateToPlaylist } from "@/utils/navigate";
 import CoverList from "@/components/list/CoverList.vue";
 
 const { t } = useI18n();
-const router = useRouter();
 const streaming = useStreamingStore();
 const { playlists, loading, isConnected } = storeToRefs(streaming);
 
@@ -33,7 +33,7 @@ const items = computed<CoverItem[]>(() =>
 );
 
 const handleClick = (item: CoverItem): void => {
-  router.push(`/collection/streaming/playlist/${encodeURIComponent(item.id)}`);
+  navigateToPlaylist(item.id, { source: "streaming", name: item.title });
 };
 </script>
 

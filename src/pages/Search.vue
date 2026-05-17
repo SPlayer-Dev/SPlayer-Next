@@ -6,6 +6,7 @@ import { searchSongs, searchAlbums, searchArtists, searchPlaylists } from "@/api
 import SongList from "@/components/list/SongList.vue";
 import CoverList from "@/components/list/CoverList.vue";
 import { useStatusStore } from "@/stores/status";
+import { navigateToAlbum, navigateToPlaylist } from "@/utils/navigate";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -239,8 +240,10 @@ const isEmptyResult = computed(() => {
       <SongList
         v-if="activeTab === 'songs'"
         :items="states.songs.items"
-        source="online"
+        :source="status.searchPlatform"
         :show-size="false"
+        :has-more="states.songs.hasMore"
+        :loading-more="states.songs.loadingMore"
         @reach-bottom="onReachBottom('songs')"
       />
       <CoverList
@@ -249,6 +252,11 @@ const isEmptyResult = computed(() => {
         :padding-x="20"
         :padding-top="8"
         :padding-bottom="20"
+        :has-more="states.albums.hasMore"
+        :loading-more="states.albums.loadingMore"
+        @click="
+          (item) => navigateToAlbum(item.title, { source: status.searchPlatform, albumId: item.id })
+        "
         @reach-bottom="onReachBottom('albums')"
       />
       <CoverList
@@ -258,6 +266,8 @@ const isEmptyResult = computed(() => {
         :padding-x="20"
         :padding-top="8"
         :padding-bottom="20"
+        :has-more="states.artists.hasMore"
+        :loading-more="states.artists.loadingMore"
         @reach-bottom="onReachBottom('artists')"
       />
       <CoverList
@@ -266,6 +276,11 @@ const isEmptyResult = computed(() => {
         :padding-x="20"
         :padding-top="8"
         :padding-bottom="20"
+        :has-more="states.playlists.hasMore"
+        :loading-more="states.playlists.loadingMore"
+        @click="
+          (item) => navigateToPlaylist(item.id, { source: status.searchPlatform, name: item.title })
+        "
         @reach-bottom="onReachBottom('playlists')"
       />
     </div>

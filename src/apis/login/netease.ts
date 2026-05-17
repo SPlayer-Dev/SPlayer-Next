@@ -5,32 +5,12 @@
 import type { UserProfile } from "@/types/user";
 import { netease as neteaseApi } from "@/apis/netease";
 
-interface QrKeyResp {
-  data?: { unikey?: string };
-}
-
-interface QrCheckResp {
-  code?: number;
-  cookie?: string;
-  nickname?: string;
-  avatarUrl?: string;
-  message?: string;
-}
-
-interface LoginStatusBody {
-  data?: {
-    code?: number;
-    account?: { id?: number } | null;
-    profile?: (Partial<UserProfile> & { userId?: number }) | null;
-  };
-}
-
 /**
  * 生成扫码登录二维码 key
  * @returns 二维码 key
  */
 export const qrKey = async (): Promise<string> => {
-  const body = await neteaseApi.login_qr_key<QrKeyResp>({ timestamp: Date.now() });
+  const body = await neteaseApi.login_qr_key({ timestamp: Date.now() });
   const unikey = body?.data?.unikey;
   if (!unikey) throw new Error("qr key missing");
   return unikey;
@@ -52,7 +32,7 @@ export interface QrCheckResult {
  * @returns 扫码状态和结果
  */
 export const qrCheck = async (key: string): Promise<QrCheckResult> => {
-  const body = await neteaseApi.login_qr_check<QrCheckResp>({ key, timestamp: Date.now() });
+  const body = await neteaseApi.login_qr_check({ key, timestamp: Date.now() });
   const code = (body?.code ?? 801) as QrStatusCode;
   return {
     code,
@@ -74,8 +54,8 @@ export const qrContent = (key: string): string => `https://music.163.com/login?c
  * @returns 已登录返回 profile；未登录或 cookie 失效返回 null
  */
 export const fetchLoginStatus = async (): Promise<UserProfile | null> => {
-  const body = await neteaseApi.login_status<LoginStatusBody>();
-  const raw = body?.data?.profile;
+  const body = await neteaseApi.login_status();
+  const raw = body?.data?.profile as (Partial<UserProfile> & { userId?: number }) | undefined;
   if (!raw?.userId) return null;
   return {
     userId: raw.userId,

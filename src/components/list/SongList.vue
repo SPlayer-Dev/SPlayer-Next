@@ -34,14 +34,18 @@ const props = withDefaults(
     showDuration?: boolean;
     /** 显示文件大小 */
     showSize?: boolean;
-    /** 是否启用排序交互（默认关闭） */
+    /** 是否启用排序交互 */
     enableSort?: boolean;
     /** 列表来源 */
     source?: TrackSource;
     /** 集合类型 */
     collectionType?: CollectionType;
-    /** 集合 ID（用于从歌单移除） */
+    /** 集合 ID */
     collectionId?: string;
+    /** 是否还能继续触底加载 */
+    hasMore?: boolean;
+    /** 触底加载中 */
+    loadingMore?: boolean;
   }>(),
   {
     searchQuery: "",
@@ -53,6 +57,8 @@ const props = withDefaults(
     source: "local",
     collectionType: undefined,
     collectionId: undefined,
+    hasMore: false,
+    loadingMore: false,
   },
 );
 
@@ -77,7 +83,7 @@ const textCollator = new Intl.Collator(undefined, {
 const playingId = computed(() => media.track?.id);
 
 /** 非本地源需要真实 id */
-const needsRealId = computed(() => props.source === "streaming" || props.source === "online");
+const needsRealId = computed(() => props.source !== undefined && props.source !== "local");
 
 /** 专辑是否可跳转 */
 const isAlbumLinkable = (item: Track): boolean => {
@@ -238,8 +244,11 @@ defineExpose({
         @reach-bottom="emit('reachBottom')"
       >
         <!-- 搜索无结果 -->
-        <template v-if="searchQuery && sortedItems.length === 0" #empty>
-          <div class="flex flex-col items-center gap-2 text-on-surface-variant/40">
+        <template #empty>
+          <div
+            v-if="searchQuery"
+            class="flex flex-col items-center gap-2 text-on-surface-variant/40"
+          >
             <IconLucideSearchX class="size-8" />
             <span class="text-sm">{{ t("songList.noResults") }}</span>
           </div>
@@ -556,8 +565,15 @@ defineExpose({
         <template #footer>
           <slot name="footer">
             <div
-              v-if="sortedItems.length > 0"
-              class="py-3 text-center text-xs text-on-surface-variant/40"
+              v-if="sortedItems.length > 0 && loadingMore"
+              class="py-3 flex items-center justify-center gap-2 text-sm text-on-surface-variant/50"
+            >
+              <SLoading class="size-3.5 text-primary/70 shrink-0" />
+              <span>{{ t("common.loading") }}</span>
+            </div>
+            <div
+              v-else-if="sortedItems.length > 0 && !hasMore"
+              class="py-3 text-center text-sm text-on-surface-variant/40"
             >
               {{ t("common.noMore") }}
             </div>

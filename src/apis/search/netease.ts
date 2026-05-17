@@ -49,7 +49,7 @@ const call = (
   offset: number,
   limit: number,
 ): Promise<CloudSearchBody> =>
-  neteaseApi.cloudsearch<CloudSearchBody>({
+  neteaseApi.cloudsearch({
     keywords: keyword,
     type: TYPE[type],
     offset,

@@ -1,4 +1,5 @@
-import type { Track } from "@shared/types/player";
+import type { Track, TrackSource } from "@shared/types/player";
+import type { Platform } from "@shared/types/platform";
 import { useStreamingStore } from "@/stores/streaming";
 import { useSettingsStore } from "@/stores/settings";
 import { usePluginsStore } from "@/stores/plugins";
@@ -6,12 +7,19 @@ import { resolveNeteaseUrl } from "@/apis/song/netease";
 import { ErrorCode } from "@shared/types/errors";
 import { handleError } from "@/utils/errors";
 
-/** Track.platform → 插件 source key */
-const PLATFORM_TO_PLUGIN_SOURCE: Record<string, string> = {
+/** 在线平台 source → 插件 source key */
+const PLATFORM_TO_PLUGIN_SOURCE: Record<Platform, string> = {
   netease: "wy",
   qqmusic: "tx",
   kugou: "kg",
 };
+
+/**
+ * 检查给定 source 是否为在线平台
+ * @param source - 要检查的 source
+ */
+const isOnlinePlatform = (source: TrackSource): source is Platform =>
+  source === "netease" || source === "qqmusic" || source === "kugou";
 
 /**
  * 派生缓存键
@@ -22,8 +30,8 @@ const cacheKeyForTrack = (track: Track): string | null => {
   if (track.source === "streaming" && track.serverId && track.originalId) {
     return `s:${track.serverId}:${track.originalId}:`;
   }
-  if (track.source === "online" && track.platform && track.id) {
-    return `o:${track.platform}:${track.id}:`;
+  if (isOnlinePlatform(track.source) && track.id) {
+    return `o:${track.source}:${track.id}:`;
   }
   return null;
 };
@@ -34,8 +42,8 @@ const cacheKeyForTrack = (track: Track): string | null => {
  * @returns 解析出的音频源 URL，如果无法解析则返回 null
  */
 const resolveByPlugin = async (track: Track): Promise<string | null> => {
-  if (!track.platform) return null;
-  const pluginSource = PLATFORM_TO_PLUGIN_SOURCE[track.platform];
+  if (!isOnlinePlatform(track.source)) return null;
+  const pluginSource = PLATFORM_TO_PLUGIN_SOURCE[track.source];
   if (!pluginSource) return null;
   const plugins = usePluginsStore();
   const candidates = plugins.list.filter(
@@ -94,7 +102,7 @@ const resolveByPlugin = async (track: Track): Promise<string | null> => {
  */
 const resolveOnlineUrl = async (track: Track): Promise<string | null> => {
   try {
-    if (track.platform === "netease") {
+    if (track.source === "netease") {
       const url = await resolveNeteaseUrl(track);
       if (url) return url;
     }
@@ -141,8 +149,8 @@ export const resolveTrackSource = async (
       return null;
     }
   }
-  // 在线源
-  if (track.source === "online") {
+  // 在线源（netease / qqmusic / kugou）
+  if (isOnlinePlatform(track.source)) {
     try {
       const url = await resolveOnlineUrl(track);
       if (!url) {
@@ -150,7 +158,7 @@ export const resolveTrackSource = async (
         return null;
       }
       if (cacheEnabled) {
-        void window.api.cache.song.fetch(cacheKey!, "online", url);
+        void window.api.cache.song.fetch(cacheKey!, track.source, url);
       }
       return { source: url, fromCache: false };
     } catch (err) {

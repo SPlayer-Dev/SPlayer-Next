@@ -36,9 +36,10 @@ const lyricSourceOptions = computed<SSelectOption[]>(() => [
 ]);
 
 /** 非本地源需要真实 id 才能跳转 */
-const needsRealId = computed(
-  () => media.track?.source === "streaming" || media.track?.source === "online",
-);
+const needsRealId = computed(() => {
+  const source = media.track?.source;
+  return source !== undefined && source !== "local";
+});
 
 /** 歌手是否可跳转 */
 const isArtistLinkable = (artist: Artist): boolean => {
@@ -71,14 +72,11 @@ const goToAlbum = (): void => {
 
 /** 来源标签 */
 const sourceLabel = computed(() => {
-  switch (media.track?.source) {
-    case "online":
-      return "ONLINE";
-    case "streaming":
-      return "STREAMING";
-    default:
-      return "LOCAL";
-  }
+  const source = media.track?.source;
+  if (!source) return "LOCAL";
+  if (source === "local") return "LOCAL";
+  if (source === "streaming") return "STREAMING";
+  return source.toUpperCase();
 });
 
 /** 是否禁用歌词来源切换 */

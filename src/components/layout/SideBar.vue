@@ -2,6 +2,7 @@
 import type { SMenuItem } from "@/components/ui/SMenu.vue";
 import { useSettingsStore } from "@/stores/settings";
 import { usePlaylistStore } from "@/stores/playlist";
+import { navigateToPlaylist } from "@/utils/navigate";
 import IconLucideHome from "~icons/lucide/home";
 import IconLucideMusic from "~icons/lucide/music";
 import IconLucideUser from "~icons/lucide/user";
@@ -22,7 +23,7 @@ const handleCreate = async () => {
   const playlist = await playlistStore.create(
     t("collection.create", { type: t("collection.playlist") }),
   );
-  router.push(`/collection/local/playlist/${playlist.id}`);
+  navigateToPlaylist(playlist.id);
 };
 
 const menuItems = computed<SMenuItem[]>(() => [
