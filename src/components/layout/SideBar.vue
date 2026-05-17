@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import type { SMenuItem } from "@/components/ui/SMenu.vue";
+import type { SSelectOption } from "@/components/ui/SSelect.vue";
 import { useSettingsStore } from "@/stores/settings";
+import { useStatusStore } from "@/stores/status";
 import { usePlaylistStore } from "@/stores/playlist";
+import { useUserStore } from "@/stores/user";
 import { navigateToPlaylist } from "@/utils/navigate";
 import IconLucideHome from "~icons/lucide/home";
 import IconLucideMusic from "~icons/lucide/music";
@@ -11,20 +14,99 @@ import IconLucideFolder from "~icons/lucide/folder";
 import IconLucideServer from "~icons/lucide/server";
 import IconLucideListMusic from "~icons/lucide/list-music";
 import IconLucidePlus from "~icons/lucide/plus";
+import IconLucideChevronDown from "~icons/lucide/chevron-down";
 import SButton from "@/components/ui/SButton.vue";
+import SPopselect from "@/components/ui/SPopselect.vue";
 
 const { t } = useI18n();
 const router = useRouter();
 const route = useRoute();
 const { appearance, system: systemSettings } = useSettingsStore();
+const status = useStatusStore();
 const playlistStore = usePlaylistStore();
+const userStore = useUserStore();
+
+const sourceOptions = computed<SSelectOption[]>(() => [
+  { value: "local", label: t("collection.localPlaylist") },
+  { value: "online", label: t("collection.onlinePlaylist") },
+]);
 
 const handleCreate = async () => {
+  if (status.myPlaylistSource !== "local") return;
   const playlist = await playlistStore.create(
     t("collection.create", { type: t("collection.playlist") }),
   );
   navigateToPlaylist(playlist.id);
 };
+
+/** 我的歌单分组头部 */
+const renderMyHeader = () =>
+  h("div", { class: "flex items-center justify-between gap-2 pl-3 pr-1 min-h-10" }, [
+    h(
+      SPopselect,
+      {
+        modelValue: status.myPlaylistSource,
+        options: sourceOptions.value,
+        side: "bottom",
+        align: "start",
+        "onUpdate:modelValue": (v) => (status.myPlaylistSource = v as "local" | "online"),
+      },
+      {
+        trigger: () =>
+          h(
+            "span",
+            {
+              class:
+                "inline-flex items-center gap-1 text-sm text-on-surface-variant/70 hover:text-on-surface cursor-pointer leading-none transition-colors duration-200",
+            },
+            [
+              t("collection.my", { type: t("collection.playlist") }),
+              h(IconLucideChevronDown, { class: "size-3.5" }),
+            ],
+          ),
+      },
+    ),
+    h(
+      SButton,
+      { variant: "tertiary", size: "tiny", round: true, onClick: handleCreate },
+      { icon: () => h(IconLucidePlus, { class: "size-3.5" }) },
+    ),
+  ]);
+
+/** 「收藏的歌单」分组头部 */
+const renderSubscribedHeader = () =>
+  h("div", { class: "flex items-center px-3 min-h-10" }, [
+    h(
+      "span",
+      { class: "text-sm text-on-surface-variant/70" },
+      t("collection.subscribed", { type: t("collection.playlist") }),
+    ),
+  ]);
+
+/** 我的歌单 */
+const myPlaylistItems = computed<SMenuItem[]>(() => {
+  if (status.myPlaylistSource === "local") {
+    return playlistStore.playlists.map((pl) => ({
+      key: `/collection/local/playlist/${pl.id}`,
+      label: pl.title,
+      icon: markRaw(IconLucideListMusic),
+    }));
+  }
+  return userStore.createdPlaylists.map((pl) => ({
+    key: `/collection/netease/playlist/${pl.id}`,
+    label: pl.name,
+    icon: markRaw(IconLucideListMusic),
+  }));
+});
+
+/** 收藏的歌单 */
+const subscribedItems = computed<SMenuItem[]>(() =>
+  userStore.subscribedPlaylists.map((pl) => ({
+    key: `/collection/netease/playlist/${pl.id}`,
+    label: pl.name,
+    icon: markRaw(IconLucideListMusic),
+  })),
+);
 
 const menuItems = computed<SMenuItem[]>(() => [
   // 本地音乐分组
@@ -40,30 +122,18 @@ const menuItems = computed<SMenuItem[]>(() => [
         { key: "/streaming", label: t("nav.streaming"), icon: markRaw(IconLucideServer) },
       ] satisfies SMenuItem[])
     : []),
-  // 歌单分组
+  // 我的歌单
   { key: "divider-playlist", type: "divider" },
-  {
-    key: "playlist-group",
-    type: "group",
-    render: () =>
-      h("div", { class: "flex items-center justify-between px-3 py-2" }, [
-        h(
-          "span",
-          { class: "text-sm text-on-surface-variant/70" },
-          t("collection.my", { type: t("collection.playlist") }),
-        ),
-        h(
-          SButton,
-          { variant: "tertiary", size: "tiny", round: true, onClick: handleCreate },
-          { icon: () => h(IconLucidePlus, { class: "size-3.5" }) },
-        ),
-      ]),
-  },
-  ...playlistStore.playlists.map((pl) => ({
-    key: `/collection/local/playlist/${pl.id}`,
-    label: pl.title,
-    icon: markRaw(IconLucideListMusic),
-  })),
+  { key: "my-playlist-group", type: "group", render: renderMyHeader },
+  ...myPlaylistItems.value,
+  // 收藏的歌单
+  ...(status.myPlaylistSource === "online" && subscribedItems.value.length > 0
+    ? ([
+        { key: "divider-subscribed", type: "divider" },
+        { key: "subscribed-group", type: "group", render: renderSubscribedHeader },
+        ...subscribedItems.value,
+      ] satisfies SMenuItem[])
+    : []),
 ]);
 
 const activeKey = computed(() => {

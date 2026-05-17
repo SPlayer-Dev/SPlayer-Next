@@ -58,6 +58,8 @@ export const useStatusStore = defineStore(
     const lyricOffsetMs = ref(0);
     /** 搜索页选中的平台 */
     const searchPlatform = ref<Platform>("netease");
+    /** 侧栏「我的歌单」当前展示来源 */
+    const myPlaylistSource = ref<"local" | "online">("local");
     /** 是否正在播放 */
     const isPlaying = computed(() => state.value === "playing");
     /** 是否暂停 */
@@ -99,13 +101,22 @@ export const useStatusStore = defineStore(
       abLoop,
       lyricOffsetMs,
       searchPlatform,
+      myPlaylistSource,
       currentTrack,
     };
   },
   {
     persist: {
       storage: localStorage,
-      pick: ["playIndex", "repeatMode", "shuffleMode", "volume", "position", "searchPlatform"],
+      pick: [
+        "playIndex",
+        "repeatMode",
+        "shuffleMode",
+        "volume",
+        "position",
+        "searchPlatform",
+        "myPlaylistSource",
+      ],
     },
   },
 );

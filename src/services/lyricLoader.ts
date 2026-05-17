@@ -141,18 +141,25 @@ const isOnlineResultUpgrade = (result: OnlineResult, localFormat: LyricFormat): 
  * TTML 异步升级
  * @param token - 竞态 token
  * @param track - 歌曲信息
- * @param platform - 平台
- * @returns 是否成功
  */
-const tryTTMLOverlay = async (
-  token: number,
-  track: Track,
-  platform: "netease" | "qqmusic",
-): Promise<void> => {
-  const resp = await window.api.lyrics.fetchTTMLOverlay(track, platform);
+const tryTTMLOverlay = async (token: number, track: Track): Promise<void> => {
+  const order = useSettingsStore().lyric.lyricSourceOrder ?? DEFAULT_LYRIC_SOURCE_ORDER;
+  const candidates = order.filter(
+    (p): p is "netease" | "qqmusic" => p === "netease" || p === "qqmusic",
+  );
+  if (candidates.length === 0) return;
+  const responses = await Promise.all(
+    candidates.map((p) => window.api.lyrics.fetchTTMLOverlay(track, p)),
+  );
   if (token !== currentToken) return;
-  if (!resp.ok || !resp.data) return;
-  commit(token, { source: "online", format: "ttml", platform }, { content: resp.data });
+  for (let i = 0; i < candidates.length; i++) {
+    const resp = responses[i];
+    if (resp.ok && resp.data) {
+      const platform = candidates[i];
+      commit(token, { source: "online", format: "ttml", platform }, { content: resp.data });
+      return;
+    }
+  }
 };
 
 /**
@@ -191,23 +198,25 @@ const tryOnlineByPreference = async (
       candidates = order.filter((p) => platformCanUpgrade(p, localFormat, formatOrder));
       if (candidates.length === 0) return null;
     }
-    // smart + 无本地：按音源顺序遍历，挑 lyricFormatOrder 中优先级最高的结果
-    if (!hasLocal && settings.lyric.smartPreferOnline) {
+    // smart：并行拉所有候选，谁先回有内容就先 commit，后到的 rank 更高才替换
+    if (settings.lyric.smartPreferOnline) {
       let best: OnlineResult | null = null;
-      let bestRank = Infinity;
-      for (const platform of candidates) {
-        const result = await fetchFromPlatform(platform, track);
-        if (token !== currentToken) return null;
-        if (!result) continue;
-        const idx = formatOrder.indexOf(result.source.format);
-        const rank = idx === -1 ? Infinity : idx;
-        if (rank < bestRank) {
-          best = result;
-          bestRank = rank;
-          // 已经是最高优先级，后续平台无需再试
-          if (rank === 0) break;
-        }
-      }
+      const localIdx = hasLocal && localFormat ? formatOrder.indexOf(localFormat) : -1;
+      let bestRank = localIdx === -1 ? Infinity : localIdx;
+      await Promise.all(
+        candidates.map(async (platform) => {
+          const result = await fetchFromPlatform(platform, track);
+          if (token !== currentToken || !result) return;
+          const idx = formatOrder.indexOf(result.source.format);
+          const rank = idx === -1 ? Infinity : idx;
+          if (rank < bestRank) {
+            best = result;
+            bestRank = rank;
+            commit(token, result.source, result.input);
+          }
+        }),
+      );
+      if (token !== currentToken) return null;
       return best;
     }
     // 其它：按音源顺序首个有效即返回
@@ -251,16 +260,25 @@ const applyOnline = async (
   online: OnlineResult,
   fallbackLocal: LocalLyric | null,
 ): Promise<void> => {
-  commit(token, online.source, online.input);
-  if (token !== currentToken) return;
-  if (useMediaStore().parsedLyric.length === 0) {
+  const media = useMediaStore();
+  const current = media.activeLyric;
+  // 跳过同源同格式
+  const alreadyCommitted =
+    current?.source === "online" &&
+    current.platform === online.source.platform &&
+    current.format === online.source.format;
+  if (!alreadyCommitted) {
+    commit(token, online.source, online.input);
+    if (token !== currentToken) return;
+  }
+  if (media.parsedLyric.length === 0) {
     if (fallbackLocal) {
       commitLocal(token, fallbackLocal);
       return;
     }
   }
   if (shouldTryTTML(online.source.platform, online.source.format)) {
-    await tryTTMLOverlay(token, track, online.source.platform);
+    await tryTTMLOverlay(token, track);
   }
 };
 

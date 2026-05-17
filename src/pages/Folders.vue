@@ -17,7 +17,7 @@ const { tracks, initialized, folderTree, folderCount } = storeToRefs(libraryStor
 const trackCount = computed(() => tracks.value.filter((tr) => !!tr.path).length);
 
 const expanded = ref<string[]>([]);
-const selectedFolder = ref<FolderNode | null>(null);
+const selectedFolder = shallowRef<FolderNode | null>(null);
 
 // 默认展开/选中只在首次拿到非空树时执行一次，之后用户的折叠/选择不再被覆盖
 let defaultsApplied = false;
@@ -57,7 +57,10 @@ watch(
   { immediate: true },
 );
 
-const selectedTracks = computed<Track[]>(() => selectedFolder.value?.tracks ?? []);
+const selectedTracks = computed<Track[]>(() => {
+  const folder = selectedFolder.value;
+  return folder ? toRaw(folder.tracks) : [];
+});
 
 const handlePlayAll = (): void => {
   if (selectedTracks.value.length === 0) return;

@@ -1,13 +1,15 @@
 /**
- * 格式化毫秒为 m:ss
+ * 格式化毫秒：< 1 小时输出 m:ss，≥ 1 小时输出 h:mm:ss
  * @param ms 毫秒
  * @returns 格式化后的时间
  */
 export const formatTime = (ms: number): string => {
   const totalSec = Math.floor(ms / 1000);
-  const min = Math.floor(totalSec / 60);
-  const sec = totalSec % 60;
-  return `${min}:${sec.toString().padStart(2, "0")}`;
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const pad = (n: number): string => n.toString().padStart(2, "0");
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 };
 
 /**
