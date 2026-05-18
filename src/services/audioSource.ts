@@ -113,15 +113,21 @@ const resolveOnlineUrl = async (track: Track): Promise<string | null> => {
 };
 
 /**
+ * 解析结果
+ * - fromCache 为 true 时表示音源直接命中本地缓存
+ * - cacheRequest 存在时表示尚未缓存，调用方应在合适时机（如播放达到阈值后）触发它
+ */
+export interface ResolvedTrackSource {
+  source: string;
+  fromCache: boolean;
+  cacheRequest?: () => void;
+}
+
+/**
  * 根据 track 信息解析出最终的音频源 URL
  * @param track - 要解析的 track
  */
-export const resolveTrackSource = async (
-  track: Track,
-): Promise<{
-  source: string;
-  fromCache: boolean;
-} | null> => {
+export const resolveTrackSource = async (track: Track): Promise<ResolvedTrackSource | null> => {
   // 本地文件
   if (track.source === "local") {
     return track.path ? { source: track.path, fromCache: false } : null;
@@ -138,12 +144,21 @@ export const resolveTrackSource = async (
     try {
       const store = useStreamingStore();
       const streamUrl = await store.getStreamUrl(track);
+      const result: ResolvedTrackSource = { source: streamUrl, fromCache: false };
       if (cacheEnabled) {
         // 缓存下载用独立 PlaySessionId
-        const cacheUrl = await store.getStreamUrl(track, { playSessionId: crypto.randomUUID() });
-        void window.api.cache.song.fetch(cacheKey!, "streaming", cacheUrl);
+        result.cacheRequest = async () => {
+          try {
+            const cacheUrl = await store.getStreamUrl(track, {
+              playSessionId: crypto.randomUUID(),
+            });
+            void window.api.cache.song.fetch(cacheKey, "streaming", cacheUrl);
+          } catch (err) {
+            console.warn("[cache] streaming getStreamUrl failed", err);
+          }
+        };
       }
-      return { source: streamUrl, fromCache: false };
+      return result;
     } catch (err) {
       handleError(err instanceof Error ? err.message : String(err));
       return null;
@@ -157,10 +172,13 @@ export const resolveTrackSource = async (
         handleError(ErrorCode.URL_RESOLVE_FAILED);
         return null;
       }
+      const result: ResolvedTrackSource = { source: url, fromCache: false };
       if (cacheEnabled) {
-        void window.api.cache.song.fetch(cacheKey!, track.source, url);
+        result.cacheRequest = () => {
+          void window.api.cache.song.fetch(cacheKey!, track.source, url);
+        };
       }
-      return { source: url, fromCache: false };
+      return result;
     } catch (err) {
       handleError(err instanceof Error ? err.message : String(err));
       return null;

@@ -4,6 +4,7 @@ import { useStatusStore } from "@/stores/status";
 import * as playback from "@/services/playback";
 import * as autoClose from "@/services/autoClose";
 import * as abLoop from "@/services/abLoop";
+import * as cacheScheduler from "@/services/cacheScheduler";
 import {
   hasReachedSeekTarget,
   isSeeking,
@@ -55,6 +56,8 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
       useMediaStore().updateLyricIndex(adjusted + status.lyricOffsetMs);
       // AB 循环：到达 B 点 seek 回 A
       abLoop.checkLoop(adjusted);
+      // 推进延时缓存调度
+      cacheScheduler.tick(adjusted);
       break;
     }
     case "fftData":

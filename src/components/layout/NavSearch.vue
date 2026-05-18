@@ -53,7 +53,7 @@ const onPickKeyword = (keyword: string): void => submit(keyword);
 const onRemoveHistory = (keyword: string): void => data.removeSearchHistory(keyword);
 const onClearHistory = (): void => data.clearSearchHistory();
 
-/** 单曲建议点击：取详情后插队播放，关闭弹窗；用户输入的关键词记入历史 */
+/** 单曲建议点击 */
 const onPickSong = async (id: number): Promise<void> => {
   if (trimmedQuery.value) data.addSearchHistory(trimmedQuery.value);
   dialogOpen.value = false;

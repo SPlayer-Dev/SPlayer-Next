@@ -10,6 +10,7 @@ import * as queue from "@/stores/queue";
 import * as playback from "@/services/playback";
 import * as lyricLoader from "@/services/lyricLoader";
 import * as abLoop from "@/services/abLoop";
+import * as cacheScheduler from "@/services/cacheScheduler";
 import { resolveTrackSource } from "@/services/audioSource";
 import { extractColorFromUrl } from "@/utils/color";
 import { handleError, isSkippableError } from "@/utils/errors";
@@ -62,6 +63,8 @@ const resetForLoad = (duration: number): void => {
   playback.setCurrentTime(0, { force: true });
   playback.setDuration(duration);
   playback.setPlaying(false);
+  // 上一首未达到缓存触发阈值的请求丢弃
+  cacheScheduler.cancel();
 };
 
 /**
@@ -151,6 +154,8 @@ const loadTrack = async (track: Track | null): Promise<void> => {
     // 引擎失败且属单曲级错误才跳
     if (!result.ok && result.error && isSkippableError(result.error)) {
       shouldSkip = true;
+    } else if (result.ok && resolved.cacheRequest) {
+      cacheScheduler.schedule(track.id, resolved.cacheRequest);
     }
   }
   if (shouldSkip) await skipOnFailure(myToken, () => trackToken);
@@ -595,6 +600,9 @@ export const initPlayer = async (): Promise<void> => {
       const result = await load(resolved.source, settings.system.player.autoPlay, lastTrack);
       if (result.ok && settings.system.player.rememberLastTrack && lastPosition > 0) {
         await seek(lastPosition);
+      }
+      if (result.ok && resolved.cacheRequest) {
+        cacheScheduler.schedule(lastTrack.id, resolved.cacheRequest);
       }
     } else {
       status.state = "idle";
