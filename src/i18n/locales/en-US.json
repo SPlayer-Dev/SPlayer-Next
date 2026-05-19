@@ -866,6 +866,10 @@
       "label": "Collapse Sidebar",
       "description": "Collapse the sidebar to icon-only mode"
     },
+    "sidebarPlaylistCover": {
+      "label": "Show Playlist Covers",
+      "description": "Show playlist covers instead of default icons in the sidebar"
+    },
     "fontConfig": {
       "label": "Font Settings",
       "description": "Configure fonts for the app, lyrics, and external lyric windows",
@@ -1129,6 +1133,7 @@
     "removeFrom": "Remove from {type}",
     "tracksAdded": "{count} songs added",
     "tracksRemoved": "{count} songs removed",
+    "alreadyInPlaylist": "Already in the playlist",
     "edit": "Edit {type}",
     "subscribe": "Subscribe",
     "unsubscribe": "Unsubscribe",

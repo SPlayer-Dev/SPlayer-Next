@@ -866,6 +866,10 @@
       "label": "折叠侧边栏",
       "description": "将侧边栏折叠为图标模式"
     },
+    "sidebarPlaylistCover": {
+      "label": "歌单显示封面",
+      "description": "侧边栏的歌单项以歌单封面替代默认图标"
+    },
     "fontConfig": {
       "label": "字体配置",
       "description": "统一配置应用、歌词和外部歌词窗口的字体",
@@ -1129,6 +1133,7 @@
     "removeFrom": "从{type}移除",
     "tracksAdded": "已添加 {count} 首歌曲",
     "tracksRemoved": "已移除 {count} 首歌曲",
+    "alreadyInPlaylist": "歌曲已在歌单中",
     "edit": "编辑{type}",
     "subscribe": "收藏",
     "unsubscribe": "取消收藏",

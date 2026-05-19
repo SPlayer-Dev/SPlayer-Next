@@ -134,6 +134,8 @@ export interface AppearanceSettings {
   routeTransition: RouteTransition;
   /** 侧边栏折叠 */
   sidebarCollapsed: boolean;
+  /** 侧边栏歌单项显示封面 */
+  sidebarPlaylistCover: boolean;
   /** 点击关闭按钮的行为 */
   closeAction: "quit" | "hide";
   /** 记忆关闭选择 */

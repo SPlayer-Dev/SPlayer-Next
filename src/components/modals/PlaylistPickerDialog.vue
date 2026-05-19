@@ -34,6 +34,7 @@ const entries = computed<PickerEntry[]>(() => {
     return playlistStore.playlists.map((pl) => ({
       id: pl.id,
       name: pl.title,
+      cover: pl.cover,
       trackCount: pl.trackCount ?? 0,
     }));
   }
@@ -53,6 +54,10 @@ const entries = computed<PickerEntry[]>(() => {
 const createDialogOpen = ref(false);
 const submitting = ref(false);
 
+/**
+ * 分类型添加歌曲
+ * @param playlistId 歌单 ID
+ */
 const handlePick = async (playlistId: string): Promise<void> => {
   if (submitting.value) return;
   submitting.value = true;
@@ -65,11 +70,12 @@ const handlePick = async (playlistId: string): Promise<void> => {
       count = await userStore.addTracksToPlaylist(playlistId, ids);
     }
     if (count > 0) {
-      toast.success(t("liked.toast.added"));
-      emit("update:open", false);
+      toast.success(t("collection.tracksAdded", { count }));
     } else {
-      toast.error(t("liked.toast.failed"));
+      // 全部重复
+      toast.warning(t("collection.alreadyInPlaylist"));
     }
+    emit("update:open", false);
   } catch (err) {
     const message = err instanceof Error && err.message ? err.message : t("liked.toast.failed");
     toast.error(message);

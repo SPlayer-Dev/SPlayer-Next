@@ -64,6 +64,7 @@ declare module 'vue' {
     FullPlayer: typeof import('./src/components/player/FullPlayer/index.vue')['default']
     HotkeyConfig: typeof import('./src/components/settings/custom/HotkeyConfig.vue')['default']
     IconLucideArrowRight: typeof import('~icons/lucide/arrow-right')['default']
+    IconLucideArrowUp: typeof import('~icons/lucide/arrow-up')['default']
     IconLucideArrowUpCircle: typeof import('~icons/lucide/arrow-up-circle')['default']
     IconLucideCheck: typeof import('~icons/lucide/check')['default']
     IconLucideChevronDown: typeof import('~icons/lucide/chevron-down')['default']

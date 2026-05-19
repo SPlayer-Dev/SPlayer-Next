@@ -42,7 +42,6 @@ export const usePlaylistStore = defineStore("playlist", () => {
     }
     return {
       ...meta,
-      cover: tracks.find((t) => t.cover)?.cover,
       tracks,
       trackCount: tracks.length,
     };
@@ -108,6 +107,9 @@ export const usePlaylistStore = defineStore("playlist", () => {
     record.trackIds.unshift(...newIds);
     record.trackCount = record.trackIds.length;
     record.updateTime = Date.now();
+    // 更新封面
+    const candidateCover = tracks.find((track) => track.cover)?.cover;
+    if (candidateCover) record.cover = candidateCover;
     await db.setItem(id, record);
     const idx = playlists.value.findIndex((p) => p.id === id);
     if (idx !== -1) {
@@ -115,6 +117,7 @@ export const usePlaylistStore = defineStore("playlist", () => {
       next[idx] = {
         ...next[idx],
         trackCount: record.trackCount,
+        cover: record.cover,
         updateTime: record.updateTime,
       };
       playlists.value = next;
@@ -130,6 +133,8 @@ export const usePlaylistStore = defineStore("playlist", () => {
     record.trackIds = record.trackIds.filter((tid) => !removeSet.has(tid));
     record.trackCount = record.trackIds.length;
     record.updateTime = Date.now();
+    // 删空时清空封面；其余情况保留旧值（下次 addTracks 才刷新）
+    if (record.trackIds.length === 0) record.cover = undefined;
     await db.setItem(id, record);
     const idx = playlists.value.findIndex((p) => p.id === id);
     if (idx !== -1) {
@@ -137,6 +142,7 @@ export const usePlaylistStore = defineStore("playlist", () => {
       next[idx] = {
         ...next[idx],
         trackCount: record.trackCount,
+        cover: record.cover,
         updateTime: record.updateTime,
       };
       playlists.value = next;

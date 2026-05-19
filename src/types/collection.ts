@@ -16,6 +16,7 @@ export interface PlaylistRecord {
   /** 歌曲 ID 列表 */
   trackIds: string[];
   trackCount?: number;
+  cover?: string;
   createTime?: number;
   updateTime?: number;
 }

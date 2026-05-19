@@ -100,6 +100,7 @@ const myPlaylistItems = computed<SMenuItem[]>(() => {
       key: `/collection/local/playlist/${pl.id}`,
       label: pl.title,
       icon: markRaw(IconLucideListMusic),
+      cover: appearance.sidebarPlaylistCover ? (pl.cover ?? "") : undefined,
     }));
   }
   // 在线模式
@@ -107,6 +108,7 @@ const myPlaylistItems = computed<SMenuItem[]>(() => {
     key: `/collection/netease/playlist/${pl.id}`,
     label: pl.name,
     icon: markRaw(IconLucideListMusic),
+    cover: appearance.sidebarPlaylistCover ? pl.cover : undefined,
   }));
 });
 
@@ -116,6 +118,7 @@ const subscribedItems = computed<SMenuItem[]>(() =>
     key: `/collection/netease/playlist/${pl.id}`,
     label: pl.name,
     icon: markRaw(IconLucideListMusic),
+    cover: appearance.sidebarPlaylistCover ? pl.cover : undefined,
   })),
 );
 
@@ -183,7 +186,11 @@ onMounted(() => {
     <SideBarLogo :collapsed="appearance.sidebarCollapsed" />
     <div
       class="flex-1 min-h-0 pb-3 overflow-y-auto transition-[padding] duration-300"
-      :class="appearance.sidebarCollapsed ? 'px-2' : 'px-3'"
+      :class="
+        appearance.sidebarCollapsed
+          ? 'px-2 [&::-webkit-scrollbar]:hidden'
+          : 'px-3 [scrollbar-gutter:stable]'
+      "
     >
       <SMenu
         :items="menuItems"

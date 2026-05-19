@@ -23,6 +23,7 @@ export const useSettingsStore = defineStore(
       layoutMode: "default",
       routeTransition: "fade",
       sidebarCollapsed: false,
+      sidebarPlaylistCover: false,
       closeAction: "hide",
       rememberCloseChoice: false,
       fontFamily: "",
