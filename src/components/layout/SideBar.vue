@@ -95,12 +95,14 @@ const renderSubscribedHeader = () =>
 
 /** 我的歌单 */
 const myPlaylistItems = computed<SMenuItem[]>(() => {
+  const showCover = appearance.sidebarPlaylistCover;
   if (status.myPlaylistSource === "local") {
     return playlistStore.playlists.map((pl) => ({
       key: `/collection/local/playlist/${pl.id}`,
       label: pl.title,
       icon: markRaw(IconLucideListMusic),
-      cover: appearance.sidebarPlaylistCover ? (pl.cover ?? "") : undefined,
+      cover: pl.cover ?? "",
+      showCover,
     }));
   }
   // 在线模式
@@ -108,19 +110,22 @@ const myPlaylistItems = computed<SMenuItem[]>(() => {
     key: `/collection/netease/playlist/${pl.id}`,
     label: pl.name,
     icon: markRaw(IconLucideListMusic),
-    cover: appearance.sidebarPlaylistCover ? pl.cover : undefined,
+    cover: pl.cover ?? "",
+    showCover,
   }));
 });
 
 /** 收藏的歌单 */
-const subscribedItems = computed<SMenuItem[]>(() =>
-  userStore.subscribedPlaylists.map((pl) => ({
+const subscribedItems = computed<SMenuItem[]>(() => {
+  const showCover = appearance.sidebarPlaylistCover;
+  return userStore.subscribedPlaylists.map((pl) => ({
     key: `/collection/netease/playlist/${pl.id}`,
     label: pl.name,
     icon: markRaw(IconLucideListMusic),
-    cover: appearance.sidebarPlaylistCover ? pl.cover : undefined,
-  })),
-);
+    cover: pl.cover ?? "",
+    showCover,
+  }));
+});
 
 const menuItems = computed<SMenuItem[]>(() => [
   // 本地音乐分组

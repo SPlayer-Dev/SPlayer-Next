@@ -7,7 +7,10 @@ export interface SMenuItem {
   key: string;
   label?: string;
   icon?: Component;
+  /** 封面 URL */
   cover?: string;
+  /** 是否以封面形式展示 */
+  showCover?: boolean;
   disabled?: boolean;
   /** group 类型的自定义渲染内容 */
   render?: () => VNode;
@@ -35,28 +38,22 @@ const sizeClass = computed(() => {
   switch (props.size) {
     case "small":
       return {
-        item: collapsed ? "h-9 text-sm gap-0 justify-center" : "h-9 px-2.5 text-sm gap-2.5",
-        coverItem: collapsed
-          ? "h-10 text-sm gap-0 justify-center"
-          : "h-11 px-2.5 text-sm gap-2.5",
+        item: "h-9 px-2.5 text-sm gap-2.5",
+        coverItem: "h-11 px-2.5 text-sm gap-2.5",
         icon: collapsed ? "size-5" : "size-4.5",
         cover: collapsed ? "size-6" : "size-8",
       };
     case "large":
       return {
-        item: collapsed
-          ? "h-11 text-[15px] gap-0 justify-center"
-          : "h-11 px-3.5 text-[15px] gap-3.5",
-        coverItem: collapsed
-          ? "h-12 text-[15px] gap-0 justify-center"
-          : "h-14 px-3.5 text-[15px] gap-3.5",
+        item: "h-11 px-3.5 text-[15px] gap-3.5",
+        coverItem: collapsed ? "h-14 px-2.5 text-[15px] gap-3.5" : "h-14 px-3.5 text-[15px] gap-3.5",
         icon: collapsed ? "size-6" : "size-5.5",
         cover: collapsed ? "size-7" : "size-10",
       };
     default:
       return {
-        item: collapsed ? "h-10.5 text-sm gap-0 justify-center" : "h-10.5 px-3 text-sm gap-3",
-        coverItem: collapsed ? "h-11 text-sm gap-0 justify-center" : "h-13 px-3 text-sm gap-3",
+        item: "h-10.5 px-3 text-sm gap-3",
+        coverItem: collapsed ? "h-13 px-2.5 text-sm gap-3" : "h-13 px-3 text-sm gap-3",
         icon: collapsed ? "size-5.5" : "size-5",
         cover: collapsed ? "size-7" : "size-9",
       };
@@ -94,7 +91,7 @@ const handleSelect = (item: SMenuItem) => {
         <div
           class="relative flex items-center rounded-lg cursor-pointer select-none overflow-hidden whitespace-nowrap transition-[background-color,color,height,padding] duration-250"
           :class="[
-            item.cover !== undefined ? sizeClass.coverItem : sizeClass.item,
+            item.showCover ? sizeClass.coverItem : sizeClass.item,
             modelValue === item.key
               ? 'bg-primary/10 text-primary'
               : 'text-on-surface/80 hover:bg-on-surface/5',
@@ -103,7 +100,7 @@ const handleSelect = (item: SMenuItem) => {
           @click="handleSelect(item)"
         >
           <SImg
-            v-if="item.cover !== undefined"
+            v-if="item.showCover"
             :src="item.cover"
             :class="[
               sizeClass.cover,
@@ -116,8 +113,8 @@ const handleSelect = (item: SMenuItem) => {
             :class="[sizeClass.icon, 'shrink-0 transition-[width,height] duration-300']"
           />
           <span
-            class="truncate transition-[opacity,width] duration-300"
-            :class="collapsed ? 'opacity-0 w-0' : 'opacity-100'"
+            class="truncate transition-opacity duration-300"
+            :class="collapsed ? 'opacity-0' : 'opacity-100'"
           >
             {{ item.label }}
           </span>
