@@ -61,7 +61,7 @@ const servicesCategory: SettingCategory = {
               key: "externalApiWs",
               type: "switch",
               binding: { store: "settings", path: "system.externalApi.wsEnabled" },
-              defaultValue: true,
+              defaultValue: false,
             },
             {
               key: "externalApiPort",

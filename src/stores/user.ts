@@ -9,13 +9,15 @@ import {
 } from "@/apis/login/netease";
 import {
   fetchLikelist,
-  fetchPlaylist,
   fetchSubcount,
   fetchUserAlbums,
   fetchUserArtists,
   fetchUserLevel,
   fetchUserPlaylists,
   toggleLikeSong,
+} from "@/apis/user/netease";
+import {
+  fetchPlaylist,
   createPlaylist as apiCreatePlaylist,
   deletePlaylist as apiDeletePlaylist,
   updatePlaylistName,
@@ -23,7 +25,8 @@ import {
   addToPlaylist,
   removeFromPlaylist,
   subscribePlaylist,
-} from "@/apis/user/netease";
+} from "@/apis/playlist/netease";
+import { subscribeAlbum } from "@/apis/album/netease";
 
 /** 登录 cookie 保活间隔 */
 const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -361,6 +364,12 @@ export const useUserStore = defineStore(
       await refreshPlaylists();
     };
 
+    /** 收藏 / 取消收藏专辑 */
+    const toggleAlbumSubscribe = async (albumId: string, subscribe: boolean): Promise<void> => {
+      await subscribeAlbum(albumId, subscribe);
+      albums.value = await fetchUserAlbums();
+    };
+
     /** 同步用户内容 */
     const syncContent = (uid: number | undefined): void => {
       if (uid) void loadContent(uid);
@@ -448,6 +457,7 @@ export const useUserStore = defineStore(
       addTracksToPlaylist,
       removeTracksFromPlaylist,
       togglePlaylistSubscribe,
+      toggleAlbumSubscribe,
     };
   },
   {

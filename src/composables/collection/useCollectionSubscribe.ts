@@ -6,8 +6,8 @@ import { toast } from "@/composables/useToast";
 /**
  * 通用收藏 / 取消收藏
  *
- * 当前支持：netease playlist
- * 待接入：netease album / radio
+ * 当前支持：netease playlist / album
+ * 待接入：netease radio
  */
 export const useCollectionSubscribe = (collection: Ref<Collection | null>) => {
   const { t } = useI18n();
@@ -21,6 +21,9 @@ export const useCollectionSubscribe = (collection: Ref<Collection | null>) => {
     if (current.type === "playlist") {
       return userStore.subscribedPlaylists.some((item) => item.id === current.id);
     }
+    if (current.type === "album") {
+      return userStore.albums.some((item) => item.id === current.id);
+    }
     return false;
   });
 
@@ -31,6 +34,7 @@ export const useCollectionSubscribe = (collection: Ref<Collection | null>) => {
     if (current.type === "playlist") {
       return !userStore.createdPlaylists.some((item) => item.id === current.id);
     }
+    if (current.type === "album") return true;
     return false;
   });
 
@@ -43,6 +47,8 @@ export const useCollectionSubscribe = (collection: Ref<Collection | null>) => {
       const next = !isSubscribed.value;
       if (current.type === "playlist") {
         await userStore.togglePlaylistSubscribe(current.id, next);
+      } else if (current.type === "album") {
+        await userStore.toggleAlbumSubscribe(current.id, next);
       }
     } catch (err) {
       const message = err instanceof Error && err.message ? err.message : t("liked.toast.failed");

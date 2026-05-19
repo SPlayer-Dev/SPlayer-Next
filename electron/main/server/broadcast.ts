@@ -38,8 +38,10 @@ export const wsBroadcast = (event: { type: string; data?: unknown }): void => {
   for (const ws of wsClients) {
     try {
       ws.send(payload);
-    } catch {
-      // 单个客户端发送失败不影响其他人
+    } catch (err) {
+      // 发送失败的多半已经断开但 onClose/onError 未触发；主动清理避免反复抛错
+      serverLog.warn("WS 推送失败，移除失效客户端", err);
+      removeWsClient(ws);
     }
   }
 };

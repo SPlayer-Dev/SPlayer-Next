@@ -14,6 +14,8 @@ export const registerCacheScheme = (): void => {
     {
       scheme: SCHEME,
       privileges: {
+        standard: true,
+        corsEnabled: true,
         secure: true,
         supportFetchAPI: true,
         bypassCSP: true,

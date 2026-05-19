@@ -12,7 +12,8 @@ import type { Collection, CollectionType } from "@/types/collection";
 import { usePlaylistStore } from "@/stores/playlist";
 import { useLibraryStore } from "@/stores/library";
 import { useStreamingStore } from "@/stores/streaming";
-import { fetchAlbum, fetchPlaylist } from "@/apis/user/netease";
+import { fetchAlbum } from "@/apis/album/netease";
+import { fetchPlaylist } from "@/apis/playlist/netease";
 
 export interface LoadCollectionOptions {
   /** 名称兜底 */

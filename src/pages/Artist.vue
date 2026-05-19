@@ -3,7 +3,7 @@ import type { TrackSource } from "@shared/types/player";
 import type { ArtistProfile, CoverItem } from "@/types/artist";
 import { useSettingsStore } from "@/stores/settings";
 import { loadArtist as loadArtistService } from "@/services/artistLoader";
-import { fetchArtistSongs } from "@/apis/user/netease";
+import { fetchArtistSongs } from "@/apis/artist/netease";
 import { navigateToAlbum } from "@/utils/navigate";
 import SongList from "@/components/list/SongList.vue";
 import { formatTime } from "@/utils/time";

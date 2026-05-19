@@ -13,7 +13,9 @@ const goHome = (): void => {
 <template>
   <div class="flex items-center justify-center h-16 shrink-0 px-4">
     <div
-      class="inline-flex items-center cursor-pointer transition-transform duration-300 hover:scale-105 active:scale-100"
+      role="link"
+      tabindex="0"
+      class="inline-flex items-center cursor-pointer transform-gpu transition-transform duration-300 hover:scale-105 active:scale-100"
       @click="goHome"
     >
       <SLogo :size="30" class="shrink-0" />

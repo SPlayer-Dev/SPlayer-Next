@@ -70,6 +70,7 @@
   "devDependencies": {
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
     "@electron-toolkit/tsconfig": "^2.0.0",
+    "@electron/rebuild": "^4.0.4",
     "@iconify-json/lucide": "^1.2.101",
     "@iconify-json/material-symbols": "^1.2.73",
     "@napi-rs/cli": "^3.6.1",
@@ -78,7 +79,7 @@
     "@types/sortablejs": "^1.15.9",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-vue": "^6.0.5",
-    "electron": "^39.8.7",
+    "electron": "^41.6.1",
     "electron-builder": "^26.8.1",
     "electron-vite": "^5.0.0",
     "eslint": "^9.39.4",

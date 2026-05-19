@@ -36,15 +36,19 @@ const cacheKeyForTrack = (track: Track): string | null => {
   return null;
 };
 
+/** 在线 URL 解析结果；失败时携带原因，由调用方决定提示 */
+type OnlineResolveResult = { url: string } | { url: null; errorCode: ErrorCode };
+
 /**
  * 根据 track 信息解析出最终的音频源 URL
  * @param track - 要解析的 track
- * @returns 解析出的音频源 URL，如果无法解析则返回 null
+ * @returns 解析结果，失败时带原因码
  */
-const resolveByPlugin = async (track: Track): Promise<string | null> => {
-  if (!isOnlinePlatform(track.source)) return null;
+const resolveByPlugin = async (track: Track): Promise<OnlineResolveResult> => {
+  const fail = (errorCode: ErrorCode): OnlineResolveResult => ({ url: null, errorCode });
+  if (!isOnlinePlatform(track.source)) return fail(ErrorCode.URL_RESOLVE_FAILED);
   const pluginSource = PLATFORM_TO_PLUGIN_SOURCE[track.source];
-  if (!pluginSource) return null;
+  if (!pluginSource) return fail(ErrorCode.URL_RESOLVE_FAILED);
   const plugins = usePluginsStore();
   const candidates = plugins.list.filter(
     (info) =>
@@ -52,10 +56,7 @@ const resolveByPlugin = async (track: Track): Promise<string | null> => {
       info.status.state === "ready" &&
       info.status.sources[pluginSource]?.actions.includes("musicUrl"),
   );
-  if (candidates.length === 0) {
-    handleError(ErrorCode.NO_PLUGIN_AVAILABLE);
-    return null;
-  }
+  if (candidates.length === 0) return fail(ErrorCode.NO_PLUGIN_AVAILABLE);
   // MusicInfoBase 形状；id / songmid / songId 三种别名都给，兼容不同年代脚本
   const totalSec = track.duration > 0 ? Math.round(track.duration / 1000) : 0;
   const interval =
@@ -88,23 +89,23 @@ const resolveByPlugin = async (track: Track): Promise<string | null> => {
         quality: "hq",
         musicInfo,
       });
-      if (res?.url) return res.url;
+      if (res?.url) return { url: res.url };
     } catch (err) {
       console.warn("[plugin] resolveUrl failed", plugin.manifest.id, err);
     }
   }
-  return null;
+  return { url: null, errorCode: ErrorCode.URL_RESOLVE_FAILED };
 };
 
 /**
  * 解析在线音频源 URL
  * @param track - 要解析的 track
  */
-const resolveOnlineUrl = async (track: Track): Promise<string | null> => {
+const resolveOnlineUrl = async (track: Track): Promise<OnlineResolveResult> => {
   try {
     if (track.source === "netease") {
       const url = await resolveNeteaseUrl(track);
-      if (url) return url;
+      if (url) return { url };
     }
   } catch {
     // 官方 API 异常回落插件
@@ -120,7 +121,7 @@ const resolveOnlineUrl = async (track: Track): Promise<string | null> => {
 export interface ResolvedTrackSource {
   source: string;
   fromCache: boolean;
-  cacheRequest?: () => void;
+  cacheRequest?: () => Promise<void>;
 }
 
 /**
@@ -167,15 +168,16 @@ export const resolveTrackSource = async (track: Track): Promise<ResolvedTrackSou
   // 在线源（netease / qqmusic / kugou）
   if (isOnlinePlatform(track.source)) {
     try {
-      const url = await resolveOnlineUrl(track);
-      if (!url) {
-        handleError(ErrorCode.URL_RESOLVE_FAILED);
+      const resolved = await resolveOnlineUrl(track);
+      if (resolved.url === null) {
+        handleError(resolved.errorCode);
         return null;
       }
+      const url = resolved.url;
       const result: ResolvedTrackSource = { source: url, fromCache: false };
       if (cacheEnabled) {
-        result.cacheRequest = () => {
-          void window.api.cache.song.fetch(cacheKey!, track.source, url);
+        result.cacheRequest = async () => {
+          void window.api.cache.song.fetch(cacheKey, track.source, url);
         };
       }
       return result;

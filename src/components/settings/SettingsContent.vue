@@ -84,7 +84,7 @@ onMounted(() => {
       </Transition>
 
       <!-- 底部 -->
-      <div class="shrink-0 mt-4 px-1 flex items-center gap-1">
+      <div class="shrink-0 mt-auto pt-4 px-1 flex items-center gap-1">
         <SButton variant="text" size="tiny" @click="openExternal(REPO_URL)">
           <template #icon><IconLucideGithub /></template>
           {{ REPO_NAME }}

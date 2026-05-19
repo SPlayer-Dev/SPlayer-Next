@@ -20,49 +20,49 @@ const keyOf = (track: Track): string => `${track.source}:${track.id}`;
 export const useHistoryStore = defineStore("history", () => {
   /** 倒序：最近播放在前 */
   const entries = shallowRef<HistoryEntry[]>([]);
+  let loaded = false;
 
-  const readFromDisk = async (): Promise<HistoryEntry[]> => {
-    const cached = await db.getItem<HistoryEntry[]>(HISTORY_KEY).catch(() => null);
-    return Array.isArray(cached) ? cached : [];
+  /** 持久化 */
+  const persist = (): void => {
+    void db.setItem(HISTORY_KEY, toRaw(entries.value)).catch(() => {});
   };
 
-  const apply = async (next: HistoryEntry[]): Promise<void> => {
-    entries.value = next;
-    await db.setItem(HISTORY_KEY, toRaw(next)).catch(() => {});
-  };
-
+  /** 启动时读一次盘，之后内存为真值源 */
   const load = async (): Promise<void> => {
-    entries.value = await readFromDisk();
+    if (loaded) return;
+    loaded = true;
+    const cached = await db.getItem<HistoryEntry[]>(HISTORY_KEY).catch(() => null);
+    if (Array.isArray(cached)) entries.value = cached;
   };
 
   /**
-   * 记录一次播放：每次都以硬盘为真值源，避免内存未 load 时覆盖旧历史
+   * 记录一次播放：同源同 id 去重后置顶
    * @param track 当前播放曲目
    */
-  const record = async (track: Track): Promise<void> => {
+  const record = (track: Track): void => {
     if (!track?.id) return;
     const key = keyOf(track);
-    const list = await readFromDisk();
-    const filtered = list.filter((item) => keyOf(item.track) !== key);
-    const next = [{ track, playedAt: Date.now() }, ...filtered].slice(0, MAX_HISTORY);
-    await apply(next);
+    const filtered = entries.value.filter((item) => keyOf(item.track) !== key);
+    entries.value = [{ track, playedAt: Date.now() }, ...filtered].slice(0, MAX_HISTORY);
+    persist();
   };
 
   /**
    * 移除单条历史
    * @param track 要删除的曲目
    */
-  const remove = async (track: Track): Promise<void> => {
+  const remove = (track: Track): void => {
     const key = keyOf(track);
-    const list = await readFromDisk();
-    const next = list.filter((entry) => keyOf(entry.track) !== key);
-    if (next.length === list.length) return;
-    await apply(next);
+    const next = entries.value.filter((entry) => keyOf(entry.track) !== key);
+    if (next.length === entries.value.length) return;
+    entries.value = next;
+    persist();
   };
 
   /** 清空全部历史 */
-  const clear = async (): Promise<void> => {
-    await apply([]);
+  const clear = (): void => {
+    entries.value = [];
+    persist();
   };
 
   /** 按时间倒序的扁平曲目列表 */

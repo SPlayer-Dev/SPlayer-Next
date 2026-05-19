@@ -36,7 +36,7 @@ const stats = computed(() => [
     key: "album",
     label: t("collection.album"),
     icon: markRaw(IconLucideDisc3),
-    value: user.subcount.albumCount ?? user.albums.length,
+    value: user.albums.length,
   },
   {
     key: "artist",
@@ -113,10 +113,10 @@ const handleLogout = async (): Promise<void> => {
         />
         <IconLucideUserRound v-else class="size-5 text-on-surface-variant" />
       </span>
-      <div class="flex items-center gap-1.5">
-        <span class="text-sm font-semibold text-on-surface truncate max-w-30">
-          {{ user.profile?.nickname || t("login.unknownUser") }}
-        </span>
+      <span class="w-full text-sm font-semibold text-on-surface text-center truncate">
+        {{ user.profile?.nickname || t("login.unknownUser") }}
+      </span>
+      <div v-if="user.level !== undefined || isVip" class="flex items-center gap-1.5">
         <span
           v-if="user.level !== undefined"
           class="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold leading-none bg-amber-500/15 text-amber-600 dark:text-amber-400 tabular-nums"

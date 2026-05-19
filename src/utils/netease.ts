@@ -2,6 +2,23 @@ import type { Album, Artist, AudioQuality, Playlist, Track, TrackFee } from "@sh
 import type { UserSubcount } from "@/types/user";
 import type { NeteaseSong } from "@/types/netease";
 
+interface NeteaseError {
+  code?: number;
+  message?: string;
+  msg?: string;
+}
+
+/**
+ * 校验网易云接口响应：code !== 200 时抛 Error，message 取自 body.message / body.msg
+ */
+export const ensureOk = <T>(body: T): T => {
+  const meta = body as NeteaseError | null | undefined;
+  if (!meta || meta.code !== 200) {
+    throw new Error(meta?.message ?? meta?.msg ?? "");
+  }
+  return body;
+};
+
 /**
  *  fee → 应用层 TrackFee
  *  fee：0=免费 1=VIP 4=购买专辑 8=会员高音质（视作 VIP）

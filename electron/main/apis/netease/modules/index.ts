@@ -66,6 +66,7 @@ import like from "./like";
 
 // 专辑
 import album from "./album";
+import album_sub from "./album_sub";
 
 // 歌手
 import artists from "./artists";
@@ -129,6 +130,7 @@ export const modules: Record<string, NeteaseModule> = {
   like,
 
   album,
+  album_sub,
 
   artists,
   artist_album,

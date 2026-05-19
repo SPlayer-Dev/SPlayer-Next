@@ -6,7 +6,7 @@ import type { TrackSource } from "@shared/types/player";
 import type { ArtistProfile, CoverItem } from "@/types/artist";
 import { useLibraryStore } from "@/stores/library";
 import { useStreamingStore } from "@/stores/streaming";
-import { fetchArtist } from "@/apis/user/netease";
+import { fetchArtist } from "@/apis/artist/netease";
 
 export interface LoadArtistOptions {
   /** 名称兜底（在线源元数据返回前用于占位） */

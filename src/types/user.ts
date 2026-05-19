@@ -22,8 +22,6 @@ export interface UserSubcount {
   createdPlaylistCount: number;
   /** 收藏歌单数 */
   subPlaylistCount: number;
-  /** 收藏专辑数 */
-  albumCount?: number;
   /** 收藏歌手数 */
   artistCount: number;
 }

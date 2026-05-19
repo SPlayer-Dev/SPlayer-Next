@@ -7,9 +7,9 @@ const isExternal = (source: TrackSource): boolean => source !== "local";
 /**
  * 跳转到专辑页
  * 非本地源没拿到真实 albumId 时静默忽略，避免用专辑名当 ID 触发服务器 400 / 路由错位
- * @param albumName - 专辑名称（本地用作聚合 key；非本地用于 query 兜底显示）
- * @param options.source - 来源（local/streaming/online）；默认为 local
- * @param options.albumId - 真实专辑 ID（streaming/online 必填）
+ * @param albumName - 专辑名称
+ * @param options.source - 来源
+ * @param options.albumId - 真实专辑 ID
  */
 export const navigateToAlbum = (
   albumName?: string,
