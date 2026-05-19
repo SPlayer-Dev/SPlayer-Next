@@ -23,6 +23,7 @@ import register_anonimous from "./register_anonimous";
 // 用户
 import user_account from "./user_account";
 import user_cloud from "./user_cloud";
+import user_cloud_del from "./user_cloud_del";
 import user_detail from "./user_detail";
 import user_detail_new from "./user_detail_new";
 import user_followeds from "./user_followeds";
@@ -92,6 +93,7 @@ export const modules: Record<string, NeteaseModule> = {
 
   user_account,
   user_cloud,
+  user_cloud_del,
   user_detail,
   user_detail_new,
   user_followeds,

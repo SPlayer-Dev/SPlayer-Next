@@ -44,6 +44,8 @@ const NON_CACHEABLE: ReadonlySet<string> = new Set([
   "playlist_detail",
   "user_playlist",
   "user_subcount",
+  "user_cloud",
+  "user_cloud_del",
   "album_sub",
 ]);
 

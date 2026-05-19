@@ -27,6 +27,7 @@ import {
   subscribePlaylist,
 } from "@/apis/playlist/netease";
 import { subscribeAlbum } from "@/apis/album/netease";
+import { fetchUserCloud, deleteCloudSongs } from "@/apis/cloud/netease";
 
 /** 登录 cookie 保活间隔 */
 const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -38,10 +39,21 @@ const LIKED_PLAYLIST_CACHE_KEY = "liked-playlist";
 const LIKED_SONG_IDS_CACHE_KEY = "liked-song-ids";
 /** 用户歌单元数据列表 */
 const PLAYLISTS_CACHE_KEY = "playlists";
+/** 云盘曲目缓存 */
+const CLOUD_CACHE_KEY = "cloud-tracks";
 
 interface LikedPlaylistCache {
   playlistId: string;
   tracks: Track[];
+  cachedAt: number;
+}
+
+interface CloudCache {
+  userId: number;
+  tracks: Track[];
+  count: number;
+  size: number;
+  maxSize: number;
   cachedAt: number;
 }
 
@@ -83,6 +95,19 @@ export const useUserStore = defineStore(
     /** 进行中的拉取 */
     let likedPlaylistAbort: AbortController | null = null;
 
+    /** 云盘曲目 */
+    const cloudTracks = shallowRef<Track[]>([]);
+    /** 云盘曲目总数（服务端返回，可能 > tracks.length 在拉取过程中） */
+    const cloudCount = ref(0);
+    /** 已用容量（字节） */
+    const cloudSize = ref(0);
+    /** 总容量（字节） */
+    const cloudMaxSize = ref(0);
+    /** 是否在拉取云盘 */
+    const cloudLoading = ref(false);
+    /** 进行中的云盘拉取 */
+    let cloudAbort: AbortController | null = null;
+
     /** 「我喜欢的音乐」歌单 id */
     const likedPlaylistId = computed<string | null>(() => playlists.value[0]?.id ?? null);
 
@@ -114,6 +139,12 @@ export const useUserStore = defineStore(
       likedPlaylistTracks.value = [];
       likedPlaylistLoading.value = false;
       currentLikedPlaylistId = null;
+      cloudAbort?.abort();
+      cloudTracks.value = [];
+      cloudCount.value = 0;
+      cloudSize.value = 0;
+      cloudMaxSize.value = 0;
+      cloudLoading.value = false;
     };
 
     /** 从缓存填充喜欢歌单 */
@@ -177,6 +208,90 @@ export const useUserStore = defineStore(
       if (force || likedSongIds.value.size !== likedPlaylistTracks.value.length) {
         refreshLikedPlaylist(playlistId);
       }
+    };
+
+    /** 恢复云盘缓存 */
+    const hydrateCloudFromCache = async (userId: number): Promise<void> => {
+      try {
+        const cached = await cacheDb.getItem<CloudCache>(CLOUD_CACHE_KEY);
+        if (!cached || cached.userId !== userId || cached.tracks.length === 0) return;
+        cloudTracks.value = cached.tracks;
+        cloudCount.value = cached.count;
+        cloudSize.value = cached.size;
+        cloudMaxSize.value = cached.maxSize;
+      } catch {
+        console.error("[user] hydrate cloud from cache failed");
+      }
+    };
+
+    /** 把当前云盘状态写回 */
+    const persistCloudCache = (): void => {
+      const userId = profile.value?.userId;
+      if (!userId) return;
+      const payload: CloudCache = {
+        userId,
+        tracks: cloudTracks.value.map((track) => ({ ...track })),
+        count: cloudCount.value,
+        size: cloudSize.value,
+        maxSize: cloudMaxSize.value,
+        cachedAt: Date.now(),
+      };
+      cacheDb.setItem(CLOUD_CACHE_KEY, payload).catch(() => {});
+    };
+
+    /** 分页获取云盘全部曲目 */
+    const refreshCloud = async (): Promise<void> => {
+      cloudAbort?.abort();
+      const controller = new AbortController();
+      cloudAbort = controller;
+      if (cloudTracks.value.length === 0) cloudLoading.value = true;
+      try {
+        const accumulated: Track[] = [];
+        let offset = 0;
+        const limit = 500;
+        while (true) {
+          if (controller.signal.aborted) return;
+          const page = await fetchUserCloud(offset, limit);
+          if (controller.signal.aborted) return;
+          cloudCount.value = page.count;
+          cloudSize.value = page.size;
+          cloudMaxSize.value = page.maxSize;
+          accumulated.push(...page.tracks);
+          cloudTracks.value = [...accumulated];
+          if (!page.hasMore || page.tracks.length < limit) break;
+          offset += page.tracks.length;
+        }
+        if (!controller.signal.aborted) persistCloudCache();
+      } catch (err) {
+        console.warn("[user] cloud load failed:", err);
+      } finally {
+        if (!controller.signal.aborted) cloudLoading.value = false;
+      }
+    };
+
+    /**
+     * 确保云盘曲目已就绪
+     * @param force true 时无论是否有缓存都重新拉取
+     */
+    const ensureCloud = async (force = false): Promise<void> => {
+      const userId = profile.value?.userId;
+      if (!userId) return;
+      if (!force && cloudTracks.value.length > 0) return;
+      if (cloudTracks.value.length === 0) await hydrateCloudFromCache(userId);
+      await refreshCloud();
+    };
+
+    /**
+     * 从云盘删除歌曲
+     * @param trackIds 曲目 id 列表
+     */
+    const removeCloudTracks = async (trackIds: string[]): Promise<void> => {
+      if (trackIds.length === 0) return;
+      await deleteCloudSongs(trackIds);
+      const removeSet = new Set(trackIds);
+      cloudTracks.value = cloudTracks.value.filter((track) => !removeSet.has(track.id));
+      cloudCount.value = Math.max(0, cloudCount.value - trackIds.length);
+      persistCloudCache();
     };
 
     /** 从缓存恢复轻量内容 */
@@ -450,6 +565,15 @@ export const useUserStore = defineStore(
       toggleLike,
       ensureLikedPlaylist,
       clearContent,
+
+      cloudTracks,
+      cloudCount,
+      cloudSize,
+      cloudMaxSize,
+      cloudLoading,
+      ensureCloud,
+      refreshCloud,
+      removeCloudTracks,
 
       createPlaylist,
       deletePlaylist,

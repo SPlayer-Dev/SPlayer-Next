@@ -12,6 +12,7 @@ import IconFolderOpen from "~icons/lucide/folder-open";
 import IconCopy from "~icons/lucide/copy";
 import IconTrash2 from "~icons/lucide/trash-2";
 import IconListMinus from "~icons/lucide/list-minus";
+import IconCloudOff from "~icons/lucide/cloud-off";
 import IconSearch from "~icons/lucide/search";
 import IconMoreHorizontal from "~icons/lucide/more-horizontal";
 
@@ -24,6 +25,8 @@ export interface TrackMenuOptions {
   onRemove?: (track: Track) => void;
   /** 删除文件回调 */
   onDeleteFile?: (track: Track) => void;
+  /** 从云盘删除回调 */
+  onRemoveFromCloud?: (track: Track) => void;
 }
 
 /**
@@ -36,10 +39,12 @@ export const useTrackMenu = (track: Ref<Track | undefined>, options: TrackMenuOp
   const router = useRouter();
   const { copy } = useCopyText();
   const isPlaylist = options.collectionType === "playlist";
+  const isCloudView = options.collectionType === "cloud";
   // 菜单项
   const items = computed<DropdownMenuItem[]>(() => {
     const source = track.value?.source;
     const isLocal = source === "local";
+    const showCloudRemove = isCloudView && track.value?.cloud === true;
     const canAddToPlaylist = source === "local" || source === "netease";
     const isOnline = source !== "local" && source !== "streaming";
     return [
@@ -78,6 +83,13 @@ export const useTrackMenu = (track: Ref<Track | undefined>, options: TrackMenuOp
         icon: markRaw(IconTrash2),
         separator: !isPlaylist,
         show: isLocal,
+      },
+      {
+        key: "removeFromCloud",
+        label: t("cloud.removeAction"),
+        icon: markRaw(IconCloudOff),
+        separator: true,
+        show: showCloudRemove,
       },
       {
         key: "searchSame",
@@ -136,6 +148,9 @@ export const useTrackMenu = (track: Ref<Track | undefined>, options: TrackMenuOp
         break;
       case "deleteFile":
         options.onDeleteFile?.(current);
+        break;
+      case "removeFromCloud":
+        options.onRemoveFromCloud?.(current);
         break;
       case "searchSame":
         router.push({ path: "/search", query: { q: current.title } });

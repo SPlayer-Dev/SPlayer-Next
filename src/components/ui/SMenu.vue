@@ -46,7 +46,9 @@ const sizeClass = computed(() => {
     case "large":
       return {
         item: "h-11 px-3.5 text-[15px] gap-3.5",
-        coverItem: collapsed ? "h-14 px-2.5 text-[15px] gap-3.5" : "h-14 px-3.5 text-[15px] gap-3.5",
+        coverItem: collapsed
+          ? "h-14 px-2.5 text-[15px] gap-3.5"
+          : "h-14 px-3.5 text-[15px] gap-3.5",
         icon: collapsed ? "size-6" : "size-5.5",
         cover: collapsed ? "size-7" : "size-10",
       };

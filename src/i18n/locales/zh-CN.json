@@ -81,6 +81,7 @@
     "liked": "我喜欢的音乐",
     "history": "播放历史",
     "favorites": "我的收藏",
+    "cloud": "我的云盘",
     "streaming": "流媒体",
     "settings": "设置",
     "reload": "热重载",
@@ -303,6 +304,15 @@
       "unsupported": "该来源暂不支持喜欢",
       "failed": "操作失败，请稍后重试"
     }
+  },
+  "cloud": {
+    "title": "我的云盘",
+    "empty": "云盘里还没有歌曲，先去网易云音乐 App 上传一些吧",
+    "needLogin": "登录后才能查看云盘歌曲",
+    "removeAction": "从云盘删除",
+    "removeTitle": "删除云盘歌曲",
+    "removeConfirmOne": "确认从云盘删除「{title}」？此操作不可撤销",
+    "removeConfirm": "确认从云盘删除选中的 {count} 首歌？此操作不可撤销"
   },
   "history": {
     "title": "播放历史",

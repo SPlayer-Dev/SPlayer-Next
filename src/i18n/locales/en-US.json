@@ -81,6 +81,7 @@
     "liked": "Liked Songs",
     "history": "Play History",
     "favorites": "Favorites",
+    "cloud": "My Cloud",
     "streaming": "Streaming",
     "settings": "Settings",
     "reload": "Reload",
@@ -303,6 +304,15 @@
       "unsupported": "This source does not support liking",
       "failed": "Action failed, please try again"
     }
+  },
+  "cloud": {
+    "title": "My Cloud",
+    "empty": "No songs in your cloud yet — upload some via the NetEase Music app",
+    "needLogin": "Sign in to view your cloud library",
+    "removeAction": "Remove from cloud",
+    "removeTitle": "Remove from Cloud",
+    "removeConfirmOne": "Remove \"{title}\" from your cloud? This cannot be undone.",
+    "removeConfirm": "Remove {count} songs from your cloud? This cannot be undone."
   },
   "history": {
     "title": "Play History",

@@ -87,6 +87,7 @@ const typeLabel = computed(() => {
     album: t("collection.album"),
     playlist: t("collection.playlist"),
     radio: t("collection.radio"),
+    cloud: t("cloud.title"),
   };
   return map[type] ?? "";
 });

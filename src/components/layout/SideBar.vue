@@ -16,6 +16,7 @@ import IconLucideListMusic from "~icons/lucide/list-music";
 import IconMaterialSymbolsFavoriteOutline from "~icons/material-symbols/favorite-outline-rounded";
 import IconLucideStar from "~icons/lucide/star";
 import IconLucideHistory from "~icons/lucide/history";
+import IconLucideCloud from "~icons/lucide/cloud";
 import IconLucidePlus from "~icons/lucide/plus";
 import IconLucideChevronDown from "~icons/lucide/chevron-down";
 import SButton from "@/components/ui/SButton.vue";
@@ -137,12 +138,13 @@ const menuItems = computed<SMenuItem[]>(() => [
   // 个人歌曲
   { key: "divider-personal", type: "divider" },
   { key: "/liked", label: t("nav.liked"), icon: markRaw(IconMaterialSymbolsFavoriteOutline) },
+  { key: "/favorites", label: t("nav.favorites"), icon: markRaw(IconLucideStar) },
+  { key: "/cloud", label: t("nav.cloud"), icon: markRaw(IconLucideCloud) },
   ...(systemSettings.streaming.enabled
     ? ([
         { key: "/streaming", label: t("nav.streaming"), icon: markRaw(IconLucideServer) },
       ] satisfies SMenuItem[])
     : []),
-  { key: "/favorites", label: t("nav.favorites"), icon: markRaw(IconLucideStar) },
   { key: "/history", label: t("nav.history"), icon: markRaw(IconLucideHistory) },
   // 我的歌单
   { key: "divider-playlist", type: "divider" },

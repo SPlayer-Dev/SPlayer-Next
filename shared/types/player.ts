@@ -102,6 +102,8 @@ export interface Track {
   quality?: AudioQuality;
   /** 付费等级 */
   fee?: TrackFee;
+  /** 云盘歌曲 */
+  cloud?: boolean;
 }
 
 /** 歌曲详细信息 */

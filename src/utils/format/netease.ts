@@ -100,6 +100,7 @@ export const songToTrack = (song: NeteaseSong): Track => {
     coverOriginal,
     quality: pickQuality(song),
     fee: toTrackFee(song.fee),
+    cloud: song.pc != null ? true : undefined,
   };
 };
 

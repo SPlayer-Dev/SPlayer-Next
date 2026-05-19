@@ -125,4 +125,25 @@ export interface NeteaseSong {
   publishTime?: number;
   /** 歌曲级权限 */
   privilege?: NeteasePrivilege;
+  /** 用户云盘信息 */
+  pc?: NeteasePrivateCloud | null;
+}
+
+/** 用户云盘私有信息 */
+export interface NeteasePrivateCloud {
+  /** 文件名 */
+  fn?: string;
+  md5?: string;
+  /** 比特率 */
+  br?: number;
+  /** 上传时的歌手名 */
+  ar?: string;
+  /** 上传时的专辑名 */
+  alb?: string;
+  /** 歌曲名 */
+  sn?: string;
+  cid?: string;
+  cf?: number;
+  vd?: number;
+  st?: number;
 }
