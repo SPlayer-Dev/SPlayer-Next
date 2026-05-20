@@ -57,7 +57,6 @@ export type LoadOutcome = { ok: true; track: Track | null } | { ok: false; error
  */
 const resetForLoad = (duration: number): void => {
   const status = useStatusStore();
-  status.state = "loading";
   status.trackLoading = true;
   status.position = 0;
   status.duration = duration;
