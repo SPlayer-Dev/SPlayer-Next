@@ -23,6 +23,8 @@ pub enum PlayerEvent {
     StateChanged { state: PlayerState },
     /// 播放结束
     Ended,
+    /// 音源失效（网络中断 / URL 过期）
+    SourceError,
     /// 位置更新（秒）—— 由内部定时器推送
     Position { position: f64, duration: f64 },
     /// FFT 频谱数据推送
@@ -322,7 +324,12 @@ impl InnerPlayer {
 
                 // 检测播放结束：all_consumed 表示 rodio 侧已消费完所有数据
                 if shared.is_all_consumed() {
-                    cb(PlayerEvent::Ended);
+                    // 解码因读取失败中止 → 音源失效事件；否则正常结束
+                    if shared.is_decode_failed() {
+                        cb(PlayerEvent::SourceError);
+                    } else {
+                        cb(PlayerEvent::Ended);
+                    }
                     cb(PlayerEvent::StateChanged {
                         state: PlayerState::Stopped,
                     });

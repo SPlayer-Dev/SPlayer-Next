@@ -24,31 +24,18 @@ const NETEASE_LEVEL: Record<QualityLevel, string> = {
   "hi-res": "hires",
 };
 
-/** 兜底 URL 有效期（秒） */
-const DEFAULT_URL_EXPI_SECONDS = 1200;
-
-/** 网易云 URL 解析结果 */
-export interface NeteaseUrlResult {
-  url: string;
-  /** URL 失效时刻（epoch ms） */
-  expiresAt: number;
-}
-
 /**
  * 解析网易云 Track 的可播放 URL
  * VIP 试听片段 / 无版权 → 返回 null
  * @param track - track.id 为云端 songId
  * @param songLevel - 音质偏好；实际可用级别取决于账号权限
- * @returns 可播放 URL 与失效时刻（接口 expi，通常 1200s）
  */
 export const resolveNeteaseUrl = async (
   track: Track,
   songLevel: QualityLevel,
-): Promise<NeteaseUrlResult | null> => {
+): Promise<string | null> => {
   const body = await neteaseApi.song_url({ id: track.id, level: NETEASE_LEVEL[songLevel] });
   const item = body?.data?.[0];
   if (!item?.url || item.freeTrialInfo) return null;
-  const expi =
-    typeof item.expi === "number" && item.expi > 0 ? item.expi : DEFAULT_URL_EXPI_SECONDS;
-  return { url: item.url, expiresAt: Date.now() + expi * 1000 };
+  return item.url;
 };

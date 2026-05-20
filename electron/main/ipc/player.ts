@@ -79,6 +79,13 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
         setTaskbarProgress(-1);
         break;
       }
+      case "sourceError": {
+        // 音源失效（网络中断 / URL 过期）
+        sendToMain("player:event", { type: "sourceError" });
+        mediaService.setPlayState({ status: "Paused" });
+        setTaskbarProgress(-1);
+        break;
+      }
       case "position": {
         const posMs = toMs(event.position ?? 0);
         const durMs = toMs(event.duration ?? 0);

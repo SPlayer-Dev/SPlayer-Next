@@ -29,6 +29,8 @@ pub struct Shared {
     /// 所有数据已被消费完毕（DecoderSource 返回 None 时设置）
     /// 比 is_done() 更准确：is_done 只表示缓冲区空，all_consumed 表示 rodio 侧已消费完
     all_consumed: AtomicBool,
+    /// 解码线程因读取失败（网络中断 / URL 失效）中止，区别于正常 EOF
+    decode_failed: AtomicBool,
     /// 音量归一化增益因子（线性值，1.0 = 无增益）
     /// 使用 AtomicU32 + f32::to_bits/from_bits 实现原子 f32
     normalization_gain: AtomicU32,
@@ -54,6 +56,7 @@ impl Shared {
             sample_rate,
             channels,
             all_consumed: AtomicBool::new(false),
+            decode_failed: AtomicBool::new(false),
             normalization_gain: AtomicU32::new(1.0_f32.to_bits()),
             normalization_enabled: AtomicBool::new(false),
             interrupt_flag: Mutex::new(None),
@@ -110,6 +113,16 @@ impl Shared {
     /// 检查是否所有数据已被 rodio 消费完毕
     pub fn is_all_consumed(&self) -> bool {
         self.all_consumed.load(Ordering::Acquire)
+    }
+
+    /// 标记解码因读取失败中止（网络中断 / URL 失效）
+    pub fn mark_decode_failed(&self) {
+        self.decode_failed.store(true, Ordering::Release);
+    }
+
+    /// 解码是否因读取失败中止
+    pub fn is_decode_failed(&self) -> bool {
+        self.decode_failed.load(Ordering::Acquire)
     }
 
     /// 基于实际消费采样数的精确播放位置（秒）

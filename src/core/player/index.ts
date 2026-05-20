@@ -20,10 +20,6 @@ import { handleError, isSkippableError } from "@/utils/errors";
 let loadToken = 0;
 /** loadTrack 竞态 token */
 let trackToken = 0;
-/** 当前音源 URL 的失效时刻（epoch ms） */
-let sourceExpiresAt = Number.POSITIVE_INFINITY;
-/** URL 过期提前量 */
-const URL_EXPIRY_MARGIN_MS = 60_000;
 /** 连续加载失败计数，成功时重置 */
 let consecutiveFailures = 0;
 /** 连续失败硬上限 */
@@ -68,7 +64,6 @@ const resetForLoad = (duration: number): void => {
   playback.setCurrentTime(0, { force: true });
   playback.setDuration(duration);
   playback.setPlaying(false);
-  sourceExpiresAt = Number.POSITIVE_INFINITY;
   // 上一首未达到缓存触发阈值的请求丢弃
   cacheScheduler.cancel();
 };
@@ -161,7 +156,6 @@ const loadTrack = async (track: Track | null): Promise<void> => {
     if (!result.ok && result.error && isSkippableError(result.error)) {
       shouldSkip = true;
     } else if (result.ok) {
-      sourceExpiresAt = resolved.expiresAt ?? Number.POSITIVE_INFINITY;
       // 用户主动触发的成功播放记入历史；initPlayer 的恢复路径走 load() 不经此处
       useHistoryStore().record(track);
       if (resolved.cacheRequest) {
@@ -186,14 +180,18 @@ export const reloadCurrentTrack = async (forcePlay?: boolean): Promise<void> => 
   const resumePosition = Math.round(playback.getCurrentTime());
   // 抢占加载令牌，与 loadTrack 互相取消
   const myToken = ++trackToken;
+  // resolveTrackSource 联网解析较慢，先置加载态，让播放键立即给出反馈
+  status.trackLoading = true;
   const resolved = await resolveTrackSource(track);
   if (myToken !== trackToken) return;
   // 解析失败：保留当前播放，不打断
-  if (!resolved) return;
+  if (!resolved) {
+    status.trackLoading = false;
+    return;
+  }
   // 以暂停态加载，seek 回原进度后再决定是否播放，避免从 0 漏音
   const result = await load(resolved.source, false, track);
   if (myToken !== trackToken || !result.ok) return;
-  sourceExpiresAt = resolved.expiresAt ?? Number.POSITIVE_INFINITY;
   if (resumePosition > 0) await seek(resumePosition);
   if (shouldPlay) await play();
   if (resolved.cacheRequest) {
@@ -201,16 +199,34 @@ export const reloadCurrentTrack = async (forcePlay?: boolean): Promise<void> => 
   }
 };
 
-/** 恢复播放 */
-export const play = async (): Promise<void> => {
-  // 在线地址将过期
-  if (
-    useMediaStore().track?.source === "netease" &&
-    Date.now() >= sourceExpiresAt - URL_EXPIRY_MARGIN_MS
-  ) {
-    await reloadCurrentTrack(true);
+/** 同一首歌因源失效连续重载的次数，换歌时归零 */
+let sourceRecoveryCount = 0;
+/** sourceRecoveryCount 对应的 track id */
+let sourceRecoveryTrackId: string | null = null;
+
+/**
+ * 源失效恢复
+ * 重载一次后仍失败则放弃跳曲
+ */
+export const recoverFromSourceFailure = async (): Promise<void> => {
+  const track = useMediaStore().track;
+  if (!track) return;
+  if (sourceRecoveryTrackId !== track.id) {
+    sourceRecoveryTrackId = track.id;
+    sourceRecoveryCount = 0;
+  }
+  // 最多重载一次
+  if (sourceRecoveryCount >= 1) {
+    sourceRecoveryCount = 0;
+    await nextTrack();
     return;
   }
+  sourceRecoveryCount++;
+  await reloadCurrentTrack(true);
+};
+
+/** 恢复播放 */
+export const play = async (): Promise<void> => {
   const status = useStatusStore();
   const prev = status.state;
   status.state = "playing";
@@ -646,7 +662,6 @@ export const initPlayer = async (): Promise<void> => {
     if (resolved) {
       lyricLoader.beginLoad();
       const result = await load(resolved.source, settings.system.player.autoPlay, lastTrack);
-      if (result.ok) sourceExpiresAt = resolved.expiresAt ?? Number.POSITIVE_INFINITY;
       if (result.ok && settings.system.player.rememberLastTrack && lastPosition > 0) {
         await seek(lastPosition);
       }

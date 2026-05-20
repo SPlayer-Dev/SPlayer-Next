@@ -378,18 +378,27 @@ fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
                     return;
                 }
 
-                // 读取下一个数据包
-                match data.input_ctx.packets().next() {
-                    Some((stream, packet)) if stream.index() == data.audio_stream_index => {
-                        consecutive_read_failures = 0;
-                        if data.decoder.send_packet(&packet).is_err() {
-                            return;
+                // 读取下一个数据包；Packet::read 能区分真正的 EOF 与读取失败
+                let mut packet = ffmpeg::codec::packet::Packet::empty();
+                match packet.read(&mut data.input_ctx) {
+                    Ok(()) => {
+                        if packet.stream() == data.audio_stream_index {
+                            consecutive_read_failures = 0;
+                            if data.decoder.send_packet(&packet).is_err() {
+                                return;
+                            }
                         }
+                        // 非音频包：跳过
                     }
-                    None => {
-                        // 未读到数据包：可能是真正的文件结束，也可能是网络中断
+                    Err(ffmpeg::Error::Eof) => {
+                        // 真正的文件结束，刷新解码器
+                        let _ = data.decoder.send_eof();
+                        eof_sent = true;
+                    }
+                    Err(err) => {
+                        // 读取失败：网络中断 / URL 失效
                         consecutive_read_failures += 1;
-
+                        warn!(error = %err, retries = consecutive_read_failures, "音频源读取失败");
                         if consecutive_read_failures <= NETWORK_READ_RETRIES {
                             // 网络流可能恢复，等待后重试
                             std::thread::sleep(std::time::Duration::from_millis(
@@ -397,13 +406,10 @@ fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
                             ));
                             continue;
                         }
-
-                        // 重试耗尽，刷新解码器
+                        // 重试耗尽：标记音源失效，仍走 EOF 流程把已缓冲数据放完
+                        shared.mark_decode_failed();
                         let _ = data.decoder.send_eof();
                         eof_sent = true;
-                    }
-                    _ => {
-                        // 非音频包，跳过
                     }
                 }
             }

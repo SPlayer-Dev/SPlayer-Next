@@ -162,6 +162,7 @@ export type PlayerEvent =
   | { type: "status"; data: PlayerStatus }
   | { type: "position"; data: { position: number; duration: number } }
   | { type: "ended" }
+  | { type: "sourceError" }
   | { type: "play" }
   | { type: "pause" }
   | { type: "next" }
