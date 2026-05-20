@@ -157,7 +157,6 @@ const handleLineClick = (timeMs: number) => {
 };
 
 onMounted(() => {
-  console.log("[LyricPlayer] onMounted");
   if (!containerRef.value) return;
   const { lyricLines: _lyricLines, ...config } = props;
   renderer = new LyricRenderer(containerRef.value, {
@@ -171,7 +170,6 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  console.log("[LyricPlayer] onUnmounted");
   renderer?.dispose();
   renderer = null;
 });

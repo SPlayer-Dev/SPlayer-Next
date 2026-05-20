@@ -33,14 +33,10 @@
   transform-origin: left;
   opacity: var(--lp-inactive-opacity, 0.3);
   contain: content;
-  will-change: transform, filter;
-  backface-visibility: hidden;
   transition: opacity 0.3s ease;
   pointer-events: none;
   --ba: 0.2;
   --da: 0.2;
-  --blur: 0;
-  filter: blur(calc(var(--blur) * 1.5px));
 
   &.active {
     opacity: var(--lp-active-opacity, 1);
@@ -117,7 +113,6 @@
     display: inline-block;
     white-space: pre-wrap;
     vertical-align: bottom;
-    backface-visibility: hidden;
   }
 
   /* 强调单词包裹层（逐字符拆分的容器） */
@@ -125,14 +120,12 @@
     display: inline-block;
     white-space: pre;
     vertical-align: bottom;
-    backface-visibility: hidden;
     /* 为缩放/辉光溢出预留空间，负 margin 抵消布局影响 */
     padding: 1em;
     margin: -1em;
 
     & > span {
       display: inline-block;
-      backface-visibility: hidden;
       padding: 1em;
       margin: -1em;
     }

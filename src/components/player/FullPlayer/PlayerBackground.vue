@@ -112,7 +112,6 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 0;
   background-color: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(100px) saturate(1.2);
 }
 
 /* 模糊模式 */
@@ -128,6 +127,7 @@ onBeforeUnmount(() => {
   height: 100%;
   object-fit: cover;
   transform: scale(1.5);
+  filter: blur(45px) saturate(1.2);
   opacity: 0;
   transition: opacity 0.5s ease-in-out;
 }

@@ -903,7 +903,10 @@ export class LyricRenderer {
         const blurKey = blurCurrent.toFixed(2);
         if (this.cachedBlurKeys[i] !== blurKey) {
           this.cachedBlurKeys[i] = blurKey;
-          this.lineElements[i].style.setProperty("--blur", blurKey);
+          // 仅在确有模糊时挂 filter，归零时移除，避免非模糊行常驻 filter 合成层
+          const lineStyle = this.lineElements[i].style;
+          if (blurCurrent > 0.01) lineStyle.filter = `blur(${(blurCurrent * 1.5).toFixed(2)}px)`;
+          else lineStyle.removeProperty("filter");
         }
       }
     }
@@ -1013,6 +1016,10 @@ export class LyricRenderer {
       }
       // 所有动画完成后触发清理
       anim.onfinish = tryCleanup;
+    }
+    // 已结束或暂停的动画不会再触发 onfinish，主动计入，避免该行动画永不被清理
+    for (const anim of anims) {
+      if (anim.playState === "finished" || anim.playState === "paused") tryCleanup();
     }
   };
 
