@@ -15,9 +15,11 @@ export interface NowPlayingSnapshot {
   source: LyricData;
   position: number;
   playing: boolean;
+  /** 播放速度倍率（0.5 ~ 2.0） */
+  speed: number;
   /** 当前曲目的歌词偏移（ms，正值为歌词提前） */
   lyricOffsetMs: number;
-  /** 发送时刻的主进程时钟（Date.now 毫秒），接收端用于补偿 IPC 延迟 */
+  /** position 真实成立的主进程时钟（Date.now 毫秒），接收端用于补偿其过期时长 */
   sendTimestamp: number;
 }
 
@@ -25,6 +27,8 @@ export interface NowPlayingSnapshot {
 export interface NowPlayingPositionSync {
   position: number;
   playing: boolean;
+  /** 播放速度倍率（0.5 ~ 2.0） */
+  speed: number;
   sendTimestamp: number;
 }
 

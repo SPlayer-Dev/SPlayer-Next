@@ -27,8 +27,12 @@ let currentLyric: LyricLine[] = [];
 let currentSource: LyricData = null;
 /** 最近一次播放位置（毫秒） */
 let lastPosition = 0;
+/** lastPosition 真实成立的墙钟时刻（Date.now 毫秒），用于补偿其过期时长 */
+let lastPositionAt = 0;
 /** 当前是否处于播放态 */
 let playing = false;
+/** 当前播放速度倍率（0.5 ~ 2.0） */
+let playSpeed = 1.0;
 /** 当前曲目对应的歌词偏移（ms，正值为歌词提前） */
 let currentLyricOffsetMs = 0;
 
@@ -75,11 +79,13 @@ export const update = (track: Track | null, lyric: LyricLine[], source: LyricDat
  */
 export const onPosition = (positionMs: number, isPlaying: boolean): void => {
   lastPosition = positionMs;
+  lastPositionAt = Date.now();
   playing = isPlaying;
   emitter.emit("position-sync", {
     position: positionMs,
     playing: isPlaying,
-    sendTimestamp: Date.now(),
+    speed: playSpeed,
+    sendTimestamp: lastPositionAt,
   });
 };
 
@@ -92,7 +98,25 @@ export const onPlayStateChange = (isPlaying: boolean): void => {
   emitter.emit("position-sync", {
     position: lastPosition,
     playing: isPlaying,
+    speed: playSpeed,
+    // 暂停态接收端不补偿延迟，恢复态不能用陈旧时间戳，故取当前时刻
     sendTimestamp: Date.now(),
+  });
+};
+
+/**
+ * 同步播放速度
+ * @param speed - 播放速度倍率（0.5 ~ 2.0）
+ *
+ * 立即广播一帧 position-sync，让窗口当帧换挡，无需等待下一个 5Hz 周期
+ */
+export const onSpeedChange = (speed: number): void => {
+  playSpeed = Number.isFinite(speed) ? speed : 1.0;
+  emitter.emit("position-sync", {
+    position: lastPosition,
+    playing,
+    speed: playSpeed,
+    sendTimestamp: lastPositionAt || Date.now(),
   });
 };
 
@@ -131,8 +155,10 @@ export const snapshot = (): NowPlayingSnapshot => ({
   source: currentSource,
   position: lastPosition,
   playing,
+  speed: playSpeed,
   lyricOffsetMs: currentLyricOffsetMs,
-  sendTimestamp: Date.now(),
+  // 用 position 的成立时刻，接收端据此补偿其过期时长
+  sendTimestamp: lastPositionAt || Date.now(),
 });
 
 /** 清空 */

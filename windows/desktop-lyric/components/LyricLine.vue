@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { LyricLine } from "@shared/types/lyrics";
 import type { DesktopLyricAlign } from "@shared/types/settings";
+import { getWordSweepProgress } from "@shared/utils/lyricSync";
 import { getNowPlayingCurrentMs } from "@windows/shared/composables/useNowPlayingSync";
 
 const props = defineProps<{
@@ -31,13 +32,7 @@ const getWordProgress = (
   word: { startTime: number; endTime: number },
   currentMs: number,
 ): string => {
-  const span = word.endTime - word.startTime;
-  const progress =
-    span <= 0
-      ? currentMs >= word.startTime
-        ? 1
-        : 0
-      : Math.max(0, Math.min(1, (currentMs - word.startTime) / span));
+  const progress = getWordSweepProgress(word, props.line.startTime, currentMs);
   const pct = (progress * 100).toFixed(1);
   const px = progress * 6 - 3;
   const signed = px >= 0 ? `+ ${px.toFixed(2)}px` : `- ${(-px).toFixed(2)}px`;

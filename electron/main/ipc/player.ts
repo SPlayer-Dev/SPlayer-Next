@@ -379,6 +379,7 @@ export const registerPlayerIpc = (): void => {
   ipcMain.handle("player:setSpeed", (_event, speed: number) => {
     try {
       getPlayer().setSpeed(speed);
+      nowPlaying.onSpeedChange(speed);
       return { success: true };
     } catch (error) {
       return fail(ErrorCode.UNKNOWN, error);

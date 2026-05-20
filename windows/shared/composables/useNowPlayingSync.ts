@@ -44,6 +44,8 @@ export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSyn
   let rafId: number | null = null;
   /** 当前曲目歌词偏移（ms，正值为歌词提前） */
   let lyricOffsetMs = 0;
+  /** 当前播放速度倍率，插值时把墙钟时长换算到源时间 */
+  let speed = 1.0;
 
   const resetAnchor = (positionMs: number, sendTimestamp: number): void => {
     const ipcDelay = Math.max(0, Date.now() - sendTimestamp);
@@ -54,15 +56,26 @@ export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSyn
     anchorInitialized = true;
   };
 
+  // 倍速变化：先按旧 speed 把锚点推到当前再换挡，避免视觉跳变
+  const applySpeed = (nextSpeed: number): void => {
+    if (nextSpeed === speed) return;
+    if (anchorInitialized && playing.value) {
+      anchorPos += (performance.now() - anchorPerf) * speed;
+      anchorPerf = performance.now();
+    }
+    speed = nextSpeed;
+  };
+
   // 仅当与 RAF 插值的偏差超过阈值时才重置锚点，避免每次 5Hz 同步都打断动画
-  const applyAnchor = (positionMs: number, sendTimestamp: number): void => {
+  const applyAnchor = (positionMs: number, sendTimestamp: number, nextSpeed: number): void => {
+    applySpeed(nextSpeed);
     if (!anchorInitialized || !playing.value) {
       resetAnchor(positionMs, sendTimestamp);
       return;
     }
     const ipcDelay = Math.max(0, Date.now() - sendTimestamp);
     const candidate = positionMs + ipcDelay;
-    const projected = anchorPos + (performance.now() - anchorPerf);
+    const projected = anchorPos + (performance.now() - anchorPerf) * speed;
     if (Math.abs(candidate - projected) > SYNC_DRIFT_THRESHOLD) {
       resetAnchor(positionMs, sendTimestamp);
     }
@@ -73,13 +86,14 @@ export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSyn
     const mainLines = snap.lyric.filter((line) => !line.isBG);
     lyric.value = clampLastLineEnd(mainLines, snap.track?.duration);
     playing.value = snap.playing;
+    speed = snap.speed;
     lyricOffsetMs = snap.lyricOffsetMs;
     primaryIndex.value = -1;
     resetAnchor(snap.position, snap.sendTimestamp);
   };
 
   const syncOnce = (): void => {
-    const next = playing.value ? anchorPos + (performance.now() - anchorPerf) : anchorPos;
+    const next = playing.value ? anchorPos + (performance.now() - anchorPerf) * speed : anchorPos;
     currentNowPlayingMs = next + lyricOffsetMs;
     const idx = pickIndex(lyric.value, currentNowPlayingMs);
     if (idx !== primaryIndex.value) primaryIndex.value = idx;
@@ -112,7 +126,7 @@ export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSyn
       }),
       window.api.nowPlaying.onPositionSync((data) => {
         playing.value = data.playing;
-        applyAnchor(data.position, data.sendTimestamp);
+        applyAnchor(data.position, data.sendTimestamp, data.speed);
         kickTick();
       }),
       window.api.nowPlaying.onLyricOffsetChange(({ offsetMs }) => {
