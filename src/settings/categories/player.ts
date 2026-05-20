@@ -5,7 +5,8 @@ import IconLucidePlay from "~icons/lucide/play";
 const playerCategory: SettingCategory = {
   id: "player",
   icon: IconLucidePlay,
-  sections: [{
+  sections: [
+    {
       id: "playControl",
       items: [
         {
@@ -115,7 +116,7 @@ const playerCategory: SettingCategory = {
         },
       ],
     },
-    
+
     {
       id: "device",
       items: [
