@@ -1,9 +1,4 @@
 <script setup lang="ts">
-/**
- * Toolbar 里的音质控件（底部播放栏与全屏播放器共用）
- * 网易云歌曲：popselect 切换在线音质偏好并热替换当前歌曲
- * 其余来源：只读标签，展示引擎解码后的实际音质
- */
 import type { SSelectOption } from "@/components/ui/SSelect.vue";
 import type { QualityLevel } from "@/utils/quality";
 import { useMediaStore } from "@/stores/media";
@@ -11,7 +6,7 @@ import { useSettingsStore } from "@/stores/settings";
 import { getQualityLabel } from "@/utils/quality";
 import * as player from "@/core/player";
 
-const props = withDefaults(defineProps<{ cover?: boolean }>(), { cover: false });
+withDefaults(defineProps<{ cover?: boolean }>(), { cover: false });
 
 const { t } = useI18n();
 const media = useMediaStore();
