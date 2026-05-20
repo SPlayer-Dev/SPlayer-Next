@@ -428,6 +428,17 @@
       "label": "Loudness Normalization",
       "description": "Automatically balance volume levels between tracks"
     },
+    "songLevel": {
+      "label": "Online Audio Quality",
+      "description": "Preferred quality for online tracks; the actual level depends on what your account supports",
+      "switchTitle": "Switch Quality",
+      "switchHint": "Subject to your account permissions",
+      "lq": "Standard (LQ)",
+      "sq": "Higher (SQ)",
+      "hq": "Extreme (HQ)",
+      "lossless": "Lossless",
+      "hi-res": "Hi-Res"
+    },
     "outputDevice": {
       "label": "Output Device",
       "description": "Select audio output device",
@@ -879,6 +890,10 @@
     "sidebarPlaylistCover": {
       "label": "Show Playlist Covers",
       "description": "Show playlist covers instead of default icons in the sidebar"
+    },
+    "showQualitySwitch": {
+      "label": "Show Quick Quality Switch",
+      "description": "Show the online audio quality tag in the player bar for quick switching"
     },
     "fontConfig": {
       "label": "Font Settings",

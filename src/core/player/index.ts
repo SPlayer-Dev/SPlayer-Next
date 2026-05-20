@@ -166,6 +166,33 @@ const loadTrack = async (track: Track | null): Promise<void> => {
   if (shouldSkip) await skipOnFailure(myToken, () => trackToken);
 };
 
+/**
+ * 热替换当前播放
+ * 切换在线音质后调用：按新音质重新解析 URL，并从当前进度续播
+ */
+export const reloadCurrentTrack = async (): Promise<void> => {
+  const media = useMediaStore();
+  const track = media.track;
+  if (!track || track.source !== "netease") return;
+  const status = useStatusStore();
+  const wasPlaying = status.isPlaying;
+  const resumePosition = Math.round(playback.getCurrentTime());
+  // 抢占加载令牌，与 loadTrack 互相取消
+  const myToken = ++trackToken;
+  const resolved = await resolveTrackSource(track);
+  if (myToken !== trackToken) return;
+  // 解析失败：保留当前播放，不打断
+  if (!resolved) return;
+  // 以暂停态加载，seek 回原进度后再决定是否播放，避免从 0 漏音
+  const result = await load(resolved.source, false, track);
+  if (myToken !== trackToken || !result.ok) return;
+  if (resumePosition > 0) await seek(resumePosition);
+  if (wasPlaying) await play();
+  if (resolved.cacheRequest) {
+    cacheScheduler.schedule(track.id, resolved.cacheRequest);
+  }
+};
+
 /** 恢复播放 */
 export const play = async (): Promise<void> => {
   const status = useStatusStore();

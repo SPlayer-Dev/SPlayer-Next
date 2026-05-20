@@ -75,6 +75,8 @@ const onMoreMenuSelect = (key: string): void => {
 
 <template>
   <div class="flex items-center gap-1">
+    <!-- 在线音质 -->
+    <QualityControl v-if="settings.appearance.showQualitySwitch" :cover="cover" />
     <SPopover trigger="hover" side="top" :cover="cover" content-class="px-3 pb-2 pt-3">
       <template #trigger>
         <SButton

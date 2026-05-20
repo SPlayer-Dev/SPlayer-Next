@@ -1,6 +1,7 @@
 import type { LyricFormat } from "@shared/types/lyrics";
 import { DEFAULT_LYRIC_FORMAT_ORDER as DEFAULT_LYRIC_FORMAT_ORDER_SHARED } from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
+import type { QualityLevel } from "@/utils/quality";
 
 /** 播放器背景类型 */
 export type PlayerBgType = "blur" | "solid";
@@ -124,6 +125,8 @@ export interface PlayerSettings {
   enableSpectrum: boolean;
   /** 频谱单条宽度（px） */
   spectrumBarWidth: number;
+  /** 在线歌曲音质偏好；实际可用级别取决于账号权限 */
+  songLevel: QualityLevel;
 }
 
 /** 外观设置 */
@@ -136,6 +139,8 @@ export interface AppearanceSettings {
   sidebarCollapsed: boolean;
   /** 侧边栏歌单项显示封面 */
   sidebarPlaylistCover: boolean;
+  /** 播放栏显示快捷音质切换 */
+  showQualitySwitch: boolean;
   /** 点击关闭按钮的行为 */
   closeAction: "quit" | "hide";
   /** 记忆关闭选择 */

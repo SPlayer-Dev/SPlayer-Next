@@ -69,6 +69,7 @@ const handleChange = (val: string): void => {
             : 'bg-surface-bright',
         ]"
       >
+        <slot name="header" />
         <SelectViewport class="p-1 max-h-60">
           <SelectItem
             v-for="opt in options"

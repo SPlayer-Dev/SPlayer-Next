@@ -10,7 +10,7 @@ import { useFavorite } from "@/composables/useFavorite";
 import PlaylistPickerDialog from "@/components/modals/PlaylistPickerDialog.vue";
 import { formatTime } from "@/utils/time";
 import { formatFileSize } from "@/utils/format";
-import { isLosslessQuality, getQualityLevel } from "@/utils/quality";
+import { isLosslessQuality, getQualityLabel } from "@/utils/quality";
 import { navigateToAlbum, navigateToArtist } from "@/utils/navigate";
 import type { SVirtualListExposed } from "@/components/ui/SVirtualList.vue";
 import * as player from "@/core/player";
@@ -558,10 +558,15 @@ defineExpose({
                     :class="playingId === item.id ? 'text-primary/70' : 'text-on-surface-variant'"
                   >
                     <span
-                      v-if="isLosslessQuality(item.quality)"
-                      class="shrink-0 px-1 rounded text-[10px] leading-[18px] font-bold border border-solid text-amber-400 border-amber-400/40"
+                      v-if="item.quality"
+                      class="shrink-0 px-1 rounded text-[10px] leading-[18px] font-bold border border-solid"
+                      :class="
+                        isLosslessQuality(item.quality)
+                          ? 'text-amber-500 border-amber-500/40'
+                          : 'text-on-surface-variant border-on-surface-variant/40'
+                      "
                     >
-                      {{ getQualityLevel(item.quality) === "hi-res" ? "HR" : "SQ" }}
+                      {{ getQualityLabel(item.quality) }}
                     </span>
                     <span
                       v-if="item.fee === 1"

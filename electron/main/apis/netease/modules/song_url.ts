@@ -19,7 +19,6 @@ const song_url: NeteaseModule = (query, request) => {
   const data = {
     ids: `[${String(ids).split(",").join(",")}]`,
     level: query.level ?? "exhigh",
-    encodeType: "aac",
   };
   return request("/api/song/enhance/player/url/v1", data, createOption(query));
 };

@@ -5,7 +5,60 @@ import IconLucidePlay from "~icons/lucide/play";
 const playerCategory: SettingCategory = {
   id: "player",
   icon: IconLucidePlay,
-  sections: [
+  sections: [{
+      id: "playControl",
+      items: [
+        {
+          key: "autoPlay",
+          type: "switch",
+          binding: { store: "settings", path: "system.player.autoPlay" },
+          defaultValue: true,
+        },
+        {
+          key: "rememberLastTrack",
+          type: "switch",
+          binding: { store: "settings", path: "system.player.rememberLastTrack" },
+          defaultValue: false,
+        },
+        {
+          key: "fadeEnabled",
+          type: "switch",
+          binding: { store: "settings", path: "system.player.fadeEnabled" },
+          defaultValue: true,
+          children: [
+            {
+              key: "fadeDuration",
+              type: "slider",
+              binding: { store: "settings", path: "system.player.fadeDuration" },
+              min: 100,
+              max: 600,
+              step: 100,
+              defaultValue: 200,
+              marks: { 100: "100", 200: "200", 600: "600" },
+            },
+          ],
+        },
+        {
+          key: "loudnessNormalization",
+          type: "switch",
+          binding: { store: "settings", path: "system.player.loudnessNormalization" },
+          defaultValue: false,
+        },
+        {
+          key: "songLevel",
+          type: "select",
+          binding: { store: "settings", path: "player.songLevel" },
+          options: [
+            { value: "lq", labelKey: "settings.songLevel.lq" },
+            { value: "sq", labelKey: "settings.songLevel.sq" },
+            { value: "hq", labelKey: "settings.songLevel.hq" },
+            { value: "lossless", labelKey: "settings.songLevel.lossless" },
+            { value: "hi-res", labelKey: "settings.songLevel.hi-res" },
+          ],
+          defaultValue: "hq",
+        },
+      ],
+    },
     {
       id: "playback",
       items: [
@@ -62,47 +115,7 @@ const playerCategory: SettingCategory = {
         },
       ],
     },
-    {
-      id: "playControl",
-      items: [
-        {
-          key: "autoPlay",
-          type: "switch",
-          binding: { store: "settings", path: "system.player.autoPlay" },
-          defaultValue: true,
-        },
-        {
-          key: "rememberLastTrack",
-          type: "switch",
-          binding: { store: "settings", path: "system.player.rememberLastTrack" },
-          defaultValue: false,
-        },
-        {
-          key: "fadeEnabled",
-          type: "switch",
-          binding: { store: "settings", path: "system.player.fadeEnabled" },
-          defaultValue: true,
-          children: [
-            {
-              key: "fadeDuration",
-              type: "slider",
-              binding: { store: "settings", path: "system.player.fadeDuration" },
-              min: 100,
-              max: 600,
-              step: 100,
-              defaultValue: 200,
-              marks: { 100: "100", 200: "200", 600: "600" },
-            },
-          ],
-        },
-        {
-          key: "loudnessNormalization",
-          type: "switch",
-          binding: { store: "settings", path: "system.player.loudnessNormalization" },
-          defaultValue: false,
-        },
-      ],
-    },
+    
     {
       id: "device",
       items: [

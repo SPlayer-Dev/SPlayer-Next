@@ -158,6 +158,7 @@ declare module 'vue' {
     PopoverPortal: typeof import('reka-ui')['PopoverPortal']
     PopoverRoot: typeof import('reka-ui')['PopoverRoot']
     PopoverTrigger: typeof import('reka-ui')['PopoverTrigger']
+    QualityControl: typeof import('./src/components/player/QualityControl.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SAlert: typeof import('./src/components/ui/SAlert.vue')['default']

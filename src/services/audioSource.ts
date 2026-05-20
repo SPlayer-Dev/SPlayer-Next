@@ -1,5 +1,6 @@
 import type { Track, TrackSource } from "@shared/types/player";
 import type { Platform } from "@shared/types/platform";
+import type { QualityLevel } from "@/utils/quality";
 import { useStreamingStore } from "@/stores/streaming";
 import { useSettingsStore } from "@/stores/settings";
 import { usePluginsStore } from "@/stores/plugins";
@@ -23,12 +24,17 @@ const isOnlinePlatform = (source: TrackSource): source is Platform =>
 
 /**
  * 派生缓存键
+ * netease 把音质档位并入键，使不同音质的同一首歌互不覆盖
  * @param track - 要解析的 track
+ * @param songLevel - 在线歌曲音质档位
  * @returns 派生缓存键，如果该 track 不参与歌曲缓存则返回 null
  */
-const cacheKeyForTrack = (track: Track): string | null => {
+const cacheKeyForTrack = (track: Track, songLevel: QualityLevel): string | null => {
   if (track.source === "streaming" && track.serverId && track.originalId) {
     return `s:${track.serverId}:${track.originalId}:`;
+  }
+  if (track.source === "netease" && track.id) {
+    return `o:netease:${track.id}:${songLevel}`;
   }
   if (isOnlinePlatform(track.source) && track.id) {
     return `o:${track.source}:${track.id}:`;
@@ -100,11 +106,15 @@ const resolveByPlugin = async (track: Track): Promise<OnlineResolveResult> => {
 /**
  * 解析在线音频源 URL
  * @param track - 要解析的 track
+ * @param songLevel - 在线歌曲音质档位（仅网易云官方接口生效）
  */
-const resolveOnlineUrl = async (track: Track): Promise<OnlineResolveResult> => {
+const resolveOnlineUrl = async (
+  track: Track,
+  songLevel: QualityLevel,
+): Promise<OnlineResolveResult> => {
   try {
     if (track.source === "netease") {
-      const url = await resolveNeteaseUrl(track);
+      const url = await resolveNeteaseUrl(track, songLevel);
       if (url) return { url };
     }
   } catch {
@@ -134,7 +144,8 @@ export const resolveTrackSource = async (track: Track): Promise<ResolvedTrackSou
     return track.path ? { source: track.path, fromCache: false } : null;
   }
   const settings = useSettingsStore();
-  const cacheKey = cacheKeyForTrack(track);
+  const songLevel = settings.player.songLevel;
+  const cacheKey = cacheKeyForTrack(track, songLevel);
   const cacheEnabled = settings.system.cache?.songCache?.enabled === true && cacheKey !== null;
   if (cacheEnabled) {
     const cached = await window.api.cache.song.lookup(cacheKey!);
@@ -168,7 +179,7 @@ export const resolveTrackSource = async (track: Track): Promise<ResolvedTrackSou
   // 在线源（netease / qqmusic / kugou）
   if (isOnlinePlatform(track.source)) {
     try {
-      const resolved = await resolveOnlineUrl(track);
+      const resolved = await resolveOnlineUrl(track, songLevel);
       if (resolved.url === null) {
         handleError(resolved.errorCode);
         return null;

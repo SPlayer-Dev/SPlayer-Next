@@ -31,6 +31,7 @@ const onSeekDragEnd = (value: number): void => {
         <TrackInfo compact class="flex-1">
           <template #title-trailing>
             <SButton
+              class="-my-1"
               type="primary"
               variant="text"
               circle
@@ -86,6 +87,7 @@ const onSeekDragEnd = (value: number): void => {
       <TrackInfo>
         <template #title-trailing>
           <SButton
+            class="-my-1"
             type="primary"
             variant="text"
             circle

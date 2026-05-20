@@ -63,7 +63,8 @@ const playerBarWrapperClass = computed(() => {
 
 /** 内层播放条样式 */
 const playerBarInnerClass = computed(() => {
-  const base = "pointer-events-auto";
+  // 禁用底部播放栏交互
+  const base = isExpanded.value ? "pointer-events-none" : "pointer-events-auto";
   switch (appearance.layoutMode) {
     case "floating":
       return `${base} mx-auto max-w-4xl glass-panel rounded-full shadow-xl border border-solid border-primary/10`;

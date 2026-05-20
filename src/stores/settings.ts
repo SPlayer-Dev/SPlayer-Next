@@ -24,6 +24,7 @@ export const useSettingsStore = defineStore(
       routeTransition: "fade",
       sidebarCollapsed: false,
       sidebarPlaylistCover: false,
+      showQualitySwitch: false,
       closeAction: "hide",
       rememberCloseChoice: false,
       fontFamily: "",
@@ -38,6 +39,7 @@ export const useSettingsStore = defineStore(
       outputDevice: null,
       enableSpectrum: false,
       spectrumBarWidth: 4,
+      songLevel: "hq",
     });
 
     /** 歌词 */

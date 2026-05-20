@@ -428,6 +428,17 @@
       "label": "音量均衡",
       "description": "自动调节不同歌曲之间的音量差异"
     },
+    "songLevel": {
+      "label": "在线歌曲音质",
+      "description": "在线歌曲的音质偏好，取决于账号实际可用级别",
+      "switchTitle": "音质切换",
+      "switchHint": "以账号具体权限为准",
+      "lq": "标准 (LQ)",
+      "sq": "较高 (SQ)",
+      "hq": "极高 (HQ)",
+      "lossless": "无损 (Lossless)",
+      "hi-res": "高解析度无损 (Hi-Res)"
+    },
     "outputDevice": {
       "label": "输出设备",
       "description": "选择音频输出设备",
@@ -879,6 +890,10 @@
     "sidebarPlaylistCover": {
       "label": "歌单显示封面",
       "description": "侧边栏的歌单项以歌单封面替代默认图标"
+    },
+    "showQualitySwitch": {
+      "label": "显示快捷音质切换",
+      "description": "在播放栏显示在线音质标签，可点击快速切换音质"
     },
     "fontConfig": {
       "label": "字体配置",

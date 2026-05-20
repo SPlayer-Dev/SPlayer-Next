@@ -6,13 +6,22 @@ export type QualityLevel = "hi-res" | "lossless" | "hq" | "sq" | "lq";
 /** 无损编解码器 */
 const LOSSLESS_CODECS = new Set(["flac", "alac", "ape", "wav", "aiff", "wavpack", "tta"]);
 
-/** 等级显示文案 */
+/** 等级短码文案 */
 const QUALITY_LABELS: Record<QualityLevel, string> = {
   "hi-res": "Hi-Res",
   lossless: "Lossless",
   hq: "HQ",
   sq: "SQ",
   lq: "LQ",
+};
+
+/** 等级完整文案 */
+const QUALITY_FULL_LABELS: Record<QualityLevel, string> = {
+  "hi-res": "Hi-Res",
+  lossless: "Lossless",
+  hq: "High Quality",
+  sq: "Standard Quality",
+  lq: "Low Quality",
 };
 
 /**
@@ -34,12 +43,20 @@ export const getQualityLevel = (quality: AudioQuality | undefined): QualityLevel
 };
 
 /**
- * 取音质等级显示文案
- * @param quality - AudioQuality
- * @returns 标签文案（英文）
+ * 取音质等级短码文案
+ * @param quality - AudioQuality；未知时返回空串（避免加载中误显示 LQ）
+ * @returns 短码文案（LQ / SQ / HQ / Lossless / Hi-Res）
  */
 export const getQualityLabel = (quality: AudioQuality | undefined): string =>
-  QUALITY_LABELS[getQualityLevel(quality)];
+  quality ? QUALITY_LABELS[getQualityLevel(quality)] : "";
+
+/**
+ * 取音质等级完整文案
+ * @param quality - AudioQuality；未知时返回空串
+ * @returns 完整文案（Low Quality / Standard Quality / High Quality / Lossless / Hi-Res）
+ */
+export const getQualityFullLabel = (quality: AudioQuality | undefined): string =>
+  quality ? QUALITY_FULL_LABELS[getQualityLevel(quality)] : "";
 
 /** 是否为无损级别（hi-res 或 lossless） */
 export const isLosslessQuality = (quality: AudioQuality | undefined): boolean => {
