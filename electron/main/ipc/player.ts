@@ -151,6 +151,13 @@ export const registerPlayerIpc = (): void => {
       };
       sendToMain("player:event", loadingEvent);
       wsBroadcast(loadingEvent);
+      // 在线封面原图 URL
+      const remoteCover =
+        authoritative && authoritative.source !== "local"
+          ? (authoritative.coverOriginal ?? authoritative.cover)
+          : undefined;
+      const coverUrl =
+        remoteCover && /^https?:\/\//i.test(remoteCover) ? remoteCover : undefined;
       // 写一次 SMTC/托盘/标题
       const applyDisplay = (
         title: string,
@@ -160,7 +167,7 @@ export const registerPlayerIpc = (): void => {
         durationMs: number,
       ): void => {
         const header = artist ? `${title} - ${artist}` : title || appName;
-        mediaService.setMetadata({ title, artist, album, coverData, durationMs });
+        mediaService.setMetadata({ title, artist, album, coverData, coverUrl, durationMs });
         mediaService.setPlayState({ status: autoPlay ? "Playing" : "Paused" });
         getMainWindow()?.setTitle(header);
         setTraySongName(header);
@@ -188,9 +195,8 @@ export const registerPlayerIpc = (): void => {
       const localCover = isRemote ? null : (inst.getCoverRaw() ?? null);
       applyDisplay(displayTitle, displayArtist, displayAlbum, localCover ?? undefined, durationMs);
       // 远端高清封面
-      const remoteCover = isRemote ? (authoritative?.coverOriginal ?? authoritative?.cover) : null;
-      if (remoteCover && /^https?:\/\//i.test(remoteCover)) {
-        void fetchBytes(remoteCover).then((buf) => {
+      if (coverUrl) {
+        void fetchBytes(coverUrl).then((buf) => {
           if (!buf) return;
           if (seq !== loadSeq) return;
           mediaService.setMetadata({
@@ -198,6 +204,7 @@ export const registerPlayerIpc = (): void => {
             artist: displayArtist,
             album: displayAlbum,
             coverData: buf,
+            coverUrl,
             durationMs,
           });
         });
