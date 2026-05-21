@@ -568,6 +568,27 @@ export const insertToQueue = (item: Track, afterIndex?: number): number => {
 };
 
 /**
+ * 批量插入曲目到当前曲目之后，一次性切片落盘，避免逐首插入的卡顿
+ * 跳过队列中已存在的（含当前播放曲目）与传入列表内部的重复
+ * @param items - 要插入的曲目
+ * @returns 实际插入的数量
+ */
+export const insertManyToQueue = (items: readonly Track[]): number => {
+  if (items.length === 0) return 0;
+  const status = useStatusStore();
+  const seen = new Set(queue.queue.value.map((track) => track.id));
+  const fresh: Track[] = [];
+  for (const item of items) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    fresh.push(item);
+  }
+  if (fresh.length === 0) return 0;
+  queue.insertManyToQueue(fresh, status.playIndex + 1);
+  return fresh.length;
+};
+
+/**
  * 插入歌曲到当前位置之后并立即播放
  * 如果是当前正在播放的歌曲则继续播放，不重新加载
  */

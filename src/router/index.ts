@@ -28,6 +28,11 @@ const router = createRouter({
           component: () => import("@/pages/History.vue"),
         },
         {
+          path: "daily",
+          name: "daily",
+          component: () => import("@/pages/Daily.vue"),
+        },
+        {
           path: "favorites",
           name: "favorites",
           component: () => import("@/pages/Favorites.vue"),

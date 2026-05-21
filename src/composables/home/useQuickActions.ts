@@ -11,6 +11,7 @@ import IconRadio from "~icons/lucide/radio";
  */
 export const useQuickActions = () => {
   const { t } = useI18n();
+  const router = useRouter();
   const user = useUserStore();
 
   /** 试试手气 */
@@ -50,7 +51,7 @@ export const useQuickActions = () => {
       icon: IconCalendarDays,
       title: t("home.quickActions.daily.title"),
       desc: t("home.quickActions.daily.desc"),
-      run: noop,
+      run: () => router.push("/daily"),
     },
     {
       icon: IconHeart,

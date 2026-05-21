@@ -72,6 +72,14 @@ export const getRandomTrack = (): Track | null => {
   return row ? rowToTrack(row) : null;
 };
 
+/** 随机取多首曲目 */
+export const getRandomTracks = (limit: number): Track[] => {
+  const rows = getDb()
+    .prepare("SELECT * FROM tracks ORDER BY RANDOM() LIMIT ?")
+    .all(limit) as TrackRow[];
+  return rows.map(rowToTrack);
+};
+
 /** 用于增量扫描比对的文件记录 */
 export interface FileRecord {
   path: string;

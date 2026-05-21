@@ -142,6 +142,7 @@ export {
   getArtistTracks,
   getTracksByIds,
   getRandomTrack,
+  getRandomTracks,
 } from "./queries";
 
 export type { FileRecord, UpsertTrack } from "./queries";

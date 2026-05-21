@@ -142,6 +142,8 @@ const api = {
     getTrackCount: () => ipcRenderer.invoke("library:getTrackCount"),
     // 随机取一首曲目
     getRandomTrack: () => ipcRenderer.invoke("library:getRandomTrack"),
+    // 随机取多首曲目
+    getRandomTracks: (limit: number) => ipcRenderer.invoke("library:getRandomTracks", limit),
     // 获取扫描状态
     isScanning: () => ipcRenderer.invoke("library:isScanning"),
     // 弹出目录选择器，添加扫描目录

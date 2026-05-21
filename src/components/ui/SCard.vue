@@ -10,6 +10,8 @@ export interface SCardProps {
   radius?: "md" | "lg" | "xl";
   /** 鼠标悬浮高亮 */
   hoverable?: boolean;
+  /** 无内边距 */
+  flush?: boolean;
 }
 
 withDefaults(defineProps<SCardProps>(), {
@@ -42,7 +44,7 @@ const structured = computed(() => !!slots.header || !!slots["header-extra"] || !
       radiusClass[radius],
       bordered && 'border border-solid border-primary/20',
       hoverable && 'cursor-pointer hover:shadow-md',
-      !structured && !title && sizePadding[size],
+      !structured && !title && !flush && sizePadding[size],
     ]"
   >
     <!-- 结构化：头部 -->

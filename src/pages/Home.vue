@@ -2,6 +2,7 @@
 import type { Track } from "@shared/types/player";
 import type { CoverItem } from "@/types/artist";
 import { useHomeHeader } from "@/composables/home/useHomeHeader";
+import { useDailyRecommend } from "@/composables/home/useDailyRecommend";
 import { useContinueListening } from "@/composables/home/useContinueListening";
 import { useQuickActions } from "@/composables/home/useQuickActions";
 import * as player from "@/core/player";
@@ -10,7 +11,15 @@ const { t } = useI18n();
 
 /** 头部 */
 const { greetingTitle, greetingSub, headerStats, load: loadHeader } = useHomeHeader();
-/** 快捷入口：内容 + 点击行为 */
+/** 重点推荐 */
+const {
+  hero,
+  loading: heroLoading,
+  playAll: playHero,
+  addToQueue: addHeroToQueue,
+  load: loadHero,
+} = useDailyRecommend();
+/** 快捷入口 */
 const { quickActions } = useQuickActions();
 /** 继续聆听 / 反复聆听 */
 const {
@@ -22,13 +31,14 @@ const {
 
 onMounted(() => {
   void loadHeader();
+  void loadHero();
   void loadContinue();
 });
 
 /** 拼接歌手名 */
 const artistName = (track: Track): string => track.artists.map((artist) => artist.name).join(" / ");
 
-/** 推荐歌单（占位） */
+/** 推荐歌单 */
 const recommendPlaylists: CoverItem[] = Array.from({ length: 6 }, (_, index) => ({
   id: `placeholder-${index}`,
   title: `推荐歌单 ${index + 1}`,
@@ -39,8 +49,8 @@ const recommendPlaylists: CoverItem[] = Array.from({ length: 6 }, (_, index) => 
 
 <template>
   <div class="h-full overflow-y-auto">
-    <div class="mx-auto flex max-w-[1400px] flex-col gap-7 px-6 pt-6 pb-10">
-      <!-- 问候区 -->
+    <div class="mx-auto flex max-w-[1400px] flex-col gap-6 px-6 pt-6 pb-10">
+      <!-- 问候 -->
       <header class="flex items-start justify-between gap-6">
         <div class="min-w-0">
           <h1 class="text-3xl font-bold text-on-surface">{{ greetingTitle }}</h1>
@@ -56,32 +66,33 @@ const recommendPlaylists: CoverItem[] = Array.from({ length: 6 }, (_, index) => 
           </div>
         </div>
       </header>
-      <!-- 每日推荐 Banner -->
-      <section
-        class="relative overflow-hidden rounded-2xl border border-solid border-on-surface/10"
-      >
-        <div
-          class="absolute inset-0 bg-gradient-to-br from-primary/25 via-primary/8 to-on-surface/10"
-        />
-        <div class="relative flex items-center gap-5 p-5">
-          <div class="size-32 shrink-0 rounded-xl bg-on-surface/15" />
-          <div class="min-w-0 flex flex-col gap-2">
-            <STag type="default" round size="small" class="self-start">每日推荐</STag>
-            <h2 class="truncate text-2xl font-bold text-on-surface">万能青年旅店《同名专辑》</h2>
-            <p class="truncate text-sm text-on-surface-variant/70">豆瓣高分专辑 · 共 9 首</p>
-            <div class="mt-1 flex items-center gap-3">
-              <SButton type="primary" round>
+      <!-- Hero -->
+      <SCard v-if="heroLoading || hero" radius="xl" flush class="min-h-40 -mb-3">
+        <div class="flex items-center gap-4 p-4">
+          <!-- 封面 -->
+          <div class="size-32 shrink-0 overflow-hidden rounded-xl">
+            <SImg :src="hero?.cover" :alt="hero?.title" class="size-full" />
+          </div>
+          <!-- 信息 -->
+          <div class="flex min-w-0 flex-1 flex-col gap-1.5">
+            <STag v-if="hero" type="default" round size="small" class="self-start">
+              {{ hero.tag }}
+            </STag>
+            <h2 class="truncate text-xl font-bold text-on-surface">{{ hero?.title }}</h2>
+            <p class="truncate text-sm text-on-surface-variant/70">{{ hero?.subtitle }}</p>
+            <div class="mt-0.5 flex items-center gap-2">
+              <SButton type="primary" round :disabled="heroLoading" @click="playHero">
                 <template #icon><IconLucidePlay /></template>
-                立即播放
+                {{ t("home.hero.play") }}
               </SButton>
-              <SButton variant="secondary" round>
+              <SButton variant="secondary" round :disabled="heroLoading" @click="addHeroToQueue">
                 <template #icon><IconLucidePlus /></template>
-                稍后听
+                {{ t("home.hero.addQueue") }}
               </SButton>
             </div>
           </div>
         </div>
-      </section>
+      </SCard>
       <!-- 快捷入口 -->
       <section class="grid grid-cols-4 gap-3">
         <SCard
@@ -143,7 +154,6 @@ const recommendPlaylists: CoverItem[] = Array.from({ length: 6 }, (_, index) => 
           <span class="text-sm">{{ t("home.continue.empty") }}</span>
         </div>
       </section>
-
       <!-- 推荐歌单 -->
       <section class="flex flex-col gap-3">
         <div class="flex items-center justify-between">

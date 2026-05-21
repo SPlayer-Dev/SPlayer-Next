@@ -70,6 +70,22 @@ export const insertToQueue = (item: Track, index: number): void => {
 };
 
 /**
+ * 在指定位置批量插入曲目，一次性切片与持久化（避免逐首插入的 O(n²) 与多次落盘）
+ * @param items - 要插入的歌曲
+ * @param index - 插入位置（该位置原有元素后移）
+ */
+export const insertManyToQueue = (items: Track[], index: number): void => {
+  if (items.length === 0) return;
+  const list = queue.value;
+  const safeIndex = Math.max(0, Math.min(index, list.length));
+  queue.value = [...list.slice(0, safeIndex), ...items, ...list.slice(safeIndex)];
+  if (originalQueue.value) {
+    originalQueue.value = [...originalQueue.value, ...items];
+  }
+  save();
+};
+
+/**
  * 移除指定位置的歌曲，同时从 originalQueue 中移除同 ID 的歌
  * @param index - 要移除的位置，越界时静默忽略
  */

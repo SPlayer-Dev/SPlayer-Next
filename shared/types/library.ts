@@ -56,6 +56,8 @@ export interface LibraryApi {
   getTrackCount: () => Promise<IpcResponse<number>>;
   /** 随机取一首曲目 */
   getRandomTrack: () => Promise<IpcResponse<Track | null>>;
+  /** 随机取多首曲目 */
+  getRandomTracks: (limit: number) => Promise<IpcResponse<Track[]>>;
   /** 获取扫描状态 */
   isScanning: () => Promise<IpcResponse<boolean>>;
   /** 弹出目录选择器，添加扫描目录 */

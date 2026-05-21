@@ -37,7 +37,7 @@ watch(
 </script>
 
 <template>
-  <div class="relative overflow-hidden">
+  <div class="relative isolate overflow-hidden">
     <!-- 占位图：封面加载完后淡出移除 -->
     <Transition name="fade">
       <img

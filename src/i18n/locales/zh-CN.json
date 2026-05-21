@@ -146,6 +146,27 @@
       "continueTitle": "继续聆听",
       "continueSubtitle": "你最近在听的 {count} 首歌",
       "empty": "还没有播放记录，去听点什么吧"
+    },
+    "hero": {
+      "play": "立即播放",
+      "addQueue": "添加到队列",
+      "empty": "暂无可播放的曲目",
+      "added": "已添加 {count} 首到播放队列",
+      "daily": {
+        "tag": "每日推荐",
+        "title": "从「{song}」听起",
+        "subtitle": "根据你的口味精选 · {count} 首"
+      },
+      "local": {
+        "tag": "本地曲库",
+        "title": "随便听听你的曲库吧~",
+        "subtitle": "从本地曲库随机精选 · {count} 首"
+      },
+      "liked": {
+        "tag": "我的最爱",
+        "title": "听听你喜欢的音乐吧~",
+        "subtitle": "你收藏的全部音乐 · {count} 首"
+      }
     }
   },
   "login": {
@@ -356,6 +377,10 @@
     "clear": "清空历史",
     "clearConfirmTitle": "清空播放历史",
     "clearConfirmContent": "确认清空全部播放历史吗？此操作不可撤销！"
+  },
+  "daily": {
+    "title": "每日推荐",
+    "empty": "暂无每日推荐内容"
   },
   "favorites": {
     "title": "我的收藏",

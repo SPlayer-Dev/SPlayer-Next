@@ -146,6 +146,27 @@
       "continueTitle": "Continue Listening",
       "continueSubtitle": "{count} tracks you recently played",
       "empty": "No play history yet — go listen to something"
+    },
+    "hero": {
+      "play": "Play now",
+      "addQueue": "Add to queue",
+      "empty": "No playable tracks",
+      "added": "Added {count} tracks to the queue",
+      "daily": {
+        "tag": "Daily Mix",
+        "title": "Start with “{song}”",
+        "subtitle": "Picked for your taste · {count} tracks"
+      },
+      "local": {
+        "tag": "Local",
+        "title": "Dive into your library~",
+        "subtitle": "Random picks from your library · {count} tracks"
+      },
+      "liked": {
+        "tag": "Favorites",
+        "title": "Revisit your favorites~",
+        "subtitle": "All your liked music · {count} tracks"
+      }
     }
   },
   "login": {
@@ -356,6 +377,10 @@
     "clear": "Clear history",
     "clearConfirmTitle": "Clear Play History",
     "clearConfirmContent": "Clear all play history? This cannot be undone."
+  },
+  "daily": {
+    "title": "Daily Recommend",
+    "empty": "No daily recommendations available"
   },
   "favorites": {
     "title": "Favorites",
