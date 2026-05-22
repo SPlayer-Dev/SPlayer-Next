@@ -154,6 +154,18 @@
       "subtitle": "Playlists handpicked for your taste",
       "subtitleGuest": "Popular playlists everyone's listening to"
     },
+    "radar": {
+      "title": "Radar",
+      "subtitle": "Keeps recommending music for your taste"
+    },
+    "artists": {
+      "title": "Artists",
+      "subtitle": "Discover artists you may like"
+    },
+    "albums": {
+      "title": "New Releases",
+      "subtitle": "Freshly released albums"
+    },
     "hero": {
       "play": "Play now",
       "addQueue": "Add to queue",

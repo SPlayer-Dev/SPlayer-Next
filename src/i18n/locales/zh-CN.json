@@ -154,6 +154,18 @@
       "subtitle": "为你量身定制的歌单精选",
       "subtitleGuest": "大家都在听的热门歌单"
     },
+    "radar": {
+      "title": "雷达歌单",
+      "subtitle": "持续推荐符合你的音乐口味"
+    },
+    "artists": {
+      "title": "歌手推荐",
+      "subtitle": "发现你可能喜欢的音乐人"
+    },
+    "albums": {
+      "title": "新碟上架",
+      "subtitle": "新鲜出炉的专辑"
+    },
     "hero": {
       "play": "立即播放",
       "addQueue": "添加到队列",

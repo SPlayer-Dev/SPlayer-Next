@@ -40,6 +40,7 @@ const handleClick = (item: CoverItem): void => {
       v-if="artists.length > 0"
       :items="items"
       type="artist"
+      :min-size="120"
       :padding-x="20"
       :padding-top="8"
       :padding-bottom="20"

@@ -53,10 +53,12 @@ import cloud_lyric_get from "./cloud_lyric_get";
 import song_detail from "./song_detail";
 import song_url from "./song_url";
 
-// 每日推荐
+// 每日推荐 / 发现
 import recommend_songs from "./recommend_songs";
 import personalized from "./personalized";
 import recommend_resource from "./recommend_resource";
+import top_artists from "./top_artists";
+import album_new from "./album_new";
 
 // 歌单 / 喜欢
 import playlist_detail from "./playlist_detail";
@@ -128,6 +130,8 @@ export const modules: Record<string, NeteaseModule> = {
   recommend_songs,
   personalized,
   recommend_resource,
+  top_artists,
+  album_new,
 
   playlist_detail,
   playlist_create,

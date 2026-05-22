@@ -118,6 +118,7 @@ const handleClick = (item: CoverItem): void => {
         <CoverList
           :items="currentItems"
           :type="activeTab === 'artist' ? 'artist' : 'default'"
+          :min-size="activeTab === 'artist' ? 120 : 140"
           :padding-x="20"
           :padding-top="8"
           :padding-bottom="20"

@@ -264,6 +264,7 @@ const isEmptyResult = computed(() => {
         v-else-if="activeTab === 'artists'"
         :items="states.artists.items"
         type="artist"
+        :min-size="120"
         :padding-x="20"
         :padding-top="8"
         :padding-bottom="20"
