@@ -15,6 +15,7 @@ const { greetingTitle, greetingSub, headerStats, load: loadHeader } = useHomeHea
 const {
   hero,
   loading: heroLoading,
+  previewTracks: heroPreview,
   playAll: playHero,
   addToQueue: addHeroToQueue,
   load: loadHero,
@@ -23,7 +24,7 @@ const {
 const { quickActions } = useQuickActions();
 /** 继续聆听 / 反复聆听 */
 const {
-  tracks: continueTracks,
+  items: continueItems,
   title: continueTitle,
   subtitle: continueSubtitle,
   load: loadContinue,
@@ -37,6 +38,9 @@ onMounted(() => {
 
 /** 拼接歌手名 */
 const artistName = (track: Track): string => track.artists.map((artist) => artist.name).join(" / ");
+
+/** 序号补零为两位 */
+const trackNo = (index: number): string => String(index + 1).padStart(2, "0");
 
 /** 推荐歌单 */
 const recommendPlaylists: CoverItem[] = Array.from({ length: 6 }, (_, index) => ({
@@ -68,13 +72,13 @@ const recommendPlaylists: CoverItem[] = Array.from({ length: 6 }, (_, index) => 
       </header>
       <!-- Hero -->
       <SCard v-if="heroLoading || hero" radius="xl" flush class="min-h-40 -mb-3">
-        <div class="flex items-center gap-4 p-4">
+        <div class="flex items-stretch gap-4 p-4">
           <!-- 封面 -->
-          <div class="size-32 shrink-0 overflow-hidden rounded-xl">
+          <div class="size-32 shrink-0 self-center overflow-hidden rounded-xl">
             <SImg :src="hero?.cover" :alt="hero?.title" class="size-full" />
           </div>
           <!-- 信息 -->
-          <div class="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div class="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
             <STag v-if="hero" type="default" round size="small" class="self-start">
               {{ hero.tag }}
             </STag>
@@ -91,6 +95,25 @@ const recommendPlaylists: CoverItem[] = Array.from({ length: 6 }, (_, index) => 
               </SButton>
             </div>
           </div>
+          <!-- 队列预览 -->
+          <ul
+            v-if="heroPreview.length > 0"
+            class="w-100 shrink-0 flex-col border-l border-on-surface/8 pl-4 lg:flex"
+          >
+            <li
+              v-for="(track, index) in heroPreview"
+              :key="`${track.source}:${track.id}`"
+              class="flex flex-1 items-center gap-2.5"
+            >
+              <span class="w-5 shrink-0 text-xs tabular-nums text-on-surface-variant/35">
+                {{ trackNo(index) }}
+              </span>
+              <span class="flex-1 truncate text-sm text-on-surface">{{ track.title }}</span>
+              <span class="max-w-24 shrink-0 truncate text-xs text-on-surface-variant/45">
+                {{ artistName(track) }}
+              </span>
+            </li>
+          </ul>
         </div>
       </SCard>
       <!-- 快捷入口 -->
@@ -122,28 +145,38 @@ const recommendPlaylists: CoverItem[] = Array.from({ length: 6 }, (_, index) => 
             {{ continueSubtitle }}
           </p>
         </div>
-        <div v-if="continueTracks.length > 0" class="grid grid-cols-3 gap-3">
+        <div v-if="continueItems.length > 0" class="grid grid-cols-3 gap-3">
           <SCard
-            v-for="track in continueTracks"
-            :key="`${track.source}:${track.id}`"
+            v-for="(item, index) in continueItems"
+            :key="`${item.track.source}:${item.track.id}`"
             radius="xl"
             size="small"
             hoverable
             class="group flex items-center gap-3"
-            @click="player.playNow(track)"
+            @click="player.playNow(item.track)"
           >
+            <span
+              class="w-5 shrink-0 text-center text-sm font-semibold tabular-nums text-on-surface-variant/30"
+            >
+              {{ trackNo(index) }}
+            </span>
             <div class="relative size-12 shrink-0">
-              <SImg :src="track.cover" :alt="track.title" class="size-12 rounded-lg" />
+              <SImg :src="item.track.cover" :alt="item.track.title" class="size-12 rounded-lg" />
               <div
                 class="absolute inset-0 flex items-center justify-center rounded-lg bg-black/45 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
               >
                 <IconLucidePlay class="size-5 text-white" />
               </div>
             </div>
-            <div class="min-w-0">
-              <div class="truncate text-sm text-on-surface">{{ track.title }}</div>
-              <div class="truncate text-xs text-on-surface-variant/50">{{ artistName(track) }}</div>
+            <div class="min-w-0 flex-1">
+              <div class="truncate text-sm text-on-surface">{{ item.track.title }}</div>
+              <div class="truncate text-xs text-on-surface-variant/50">
+                {{ artistName(item.track) }}
+              </div>
             </div>
+            <span class="shrink-0 text-xs tabular-nums text-on-surface-variant/45">
+              {{ t("home.continue.playCount", { count: item.playCount }, item.playCount) }}
+            </span>
           </SCard>
         </div>
         <div

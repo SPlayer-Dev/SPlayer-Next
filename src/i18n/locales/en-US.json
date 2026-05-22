@@ -145,7 +145,8 @@
       "repeatSubtitle": "Your {count} most-played tracks",
       "continueTitle": "Continue Listening",
       "continueSubtitle": "{count} tracks you recently played",
-      "empty": "No play history yet — go listen to something"
+      "empty": "No play history yet — go listen to something",
+      "playCount": "Played {count} time | Played {count} times"
     },
     "hero": {
       "play": "Play now",
@@ -159,7 +160,7 @@
       },
       "local": {
         "tag": "Local",
-        "title": "Dive into your library~",
+        "title": "Randomly landed on “{song}”",
         "subtitle": "Random picks from your library · {count} tracks"
       },
       "liked": {
@@ -380,7 +381,11 @@
   },
   "daily": {
     "title": "Daily Recommend",
-    "empty": "No daily recommendations available"
+    "tagline": "Based on your music taste",
+    "today": "Today",
+    "refresh": "Refresh",
+    "empty": "No daily recommendations available",
+    "needLogin": "Sign in to see daily recommendations"
   },
   "favorites": {
     "title": "Favorites",

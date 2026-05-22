@@ -31,6 +31,9 @@ interface HeroSource {
 /** 本地曲库随机取曲数 */
 const LOCAL_RANDOM_LIMIT = 50;
 
+/** hero 队列预览展示曲目数 */
+const HERO_PREVIEW_COUNT = 4;
+
 /** 随机下标 */
 const randomIndex = (length: number): number => Math.floor(Math.random() * length);
 
@@ -65,6 +68,16 @@ export const useDailyRecommend = () => {
       subtitle: t(`home.hero.${current.kind}.subtitle`, { count: current.tracks.length }),
       cover: featured?.cover,
     };
+  });
+
+  /** hero 队列预览曲目：从代表曲目（封面/标题所示那首）起，截取展示数 */
+  const previewTracks = computed<Track[]>(() => {
+    const current = slide.value;
+    if (!current) return [];
+    return [
+      ...current.tracks.slice(current.featuredIndex),
+      ...current.tracks.slice(0, current.featuredIndex),
+    ].slice(0, HERO_PREVIEW_COUNT);
   });
 
   /** 构建单个来源，失败返回 null */
@@ -118,5 +131,5 @@ export const useDailyRecommend = () => {
     if (added > 0) toast.success(t("home.hero.added", { count: added }));
   };
 
-  return { hero, loading, playAll, addToQueue, load };
+  return { hero, loading, previewTracks, playAll, addToQueue, load };
 };

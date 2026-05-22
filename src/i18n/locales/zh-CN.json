@@ -145,7 +145,8 @@
       "repeatSubtitle": "你最常听的 {count} 首歌",
       "continueTitle": "继续聆听",
       "continueSubtitle": "你最近在听的 {count} 首歌",
-      "empty": "还没有播放记录，去听点什么吧"
+      "empty": "还没有播放记录，去听点什么吧",
+      "playCount": "播放 {count} 次"
     },
     "hero": {
       "play": "立即播放",
@@ -159,7 +160,7 @@
       },
       "local": {
         "tag": "本地曲库",
-        "title": "随便听听你的曲库吧~",
+        "title": "随机翻到了「{song}」",
         "subtitle": "从本地曲库随机精选 · {count} 首"
       },
       "liked": {
@@ -380,7 +381,11 @@
   },
   "daily": {
     "title": "每日推荐",
-    "empty": "暂无每日推荐内容"
+    "tagline": "根据你的音乐口味",
+    "today": "今天",
+    "refresh": "刷新日推",
+    "empty": "暂无每日推荐内容",
+    "needLogin": "登录后查看每日推荐"
   },
   "favorites": {
     "title": "我的收藏",

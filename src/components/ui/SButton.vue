@@ -195,7 +195,9 @@ const variantStyles = {
 
 /** 计算按钮的变体类 */
 const variantClass = computed(() => {
-  const classes: string[] = [variantStyles[props.variant][props.type]];
+  const styles = variantStyles[props.variant];
+  const semanticType = props.type in styles ? props.type : "default";
+  const classes: string[] = [styles[semanticType]];
   if (props.dashed && (props.variant === "outline" || props.variant === "bordered")) {
     classes.push("border-dashed");
   }

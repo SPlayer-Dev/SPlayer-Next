@@ -1,4 +1,4 @@
-import type { Track } from "@shared/types/player";
+import type { TopTrack } from "@shared/types/stats";
 
 /** 区域展示曲目数上限 */
 const MAX_ITEMS = 6;
@@ -15,8 +15,8 @@ const REPEAT_TITLE_THRESHOLD = 2;
 export const useContinueListening = () => {
   const { t } = useI18n();
 
-  // shallowRef：Track 数组不做深度代理，避免入队列后 IDB 持久化报 DataCloneError
-  const tracks = shallowRef<Track[]>([]);
+  // shallowRef：不深度代理 TopTrack 内的 Track，入队列后 IDB 持久化才不报 DataCloneError
+  const items = shallowRef<TopTrack[]>([]);
   /** 是否呈现为「反复聆听」 */
   const isRepeat = ref(false);
 
@@ -27,7 +27,7 @@ export const useContinueListening = () => {
 
   /** 区域副标题，无数据时为空 */
   const subtitle = computed(() => {
-    const count = tracks.value.length;
+    const count = items.value.length;
     if (count === 0) return "";
     return isRepeat.value
       ? t("home.continue.repeatSubtitle", { count })
@@ -38,12 +38,12 @@ export const useContinueListening = () => {
   const load = async (): Promise<void> => {
     try {
       const top = await window.api.stats.getTopTracks(MAX_ITEMS);
-      tracks.value = top.map((item) => item.track);
+      items.value = top;
       isRepeat.value = (top[0]?.playCount ?? 0) >= REPEAT_TITLE_THRESHOLD;
     } catch (error) {
       console.warn("[home] getTopTracks failed:", error);
     }
   };
 
-  return { tracks, title, subtitle, load };
+  return { items, title, subtitle, load };
 };
