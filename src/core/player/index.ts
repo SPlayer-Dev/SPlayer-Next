@@ -8,6 +8,7 @@ import { useStreamingStore } from "@/stores/streaming";
 import { usePluginsStore } from "@/stores/plugins";
 import { useHistoryStore } from "@/stores/history";
 import * as queue from "@/stores/queue";
+import * as fm from "./fm";
 import * as playback from "@/services/playback";
 import * as lyricLoader from "@/services/lyricLoader";
 import * as abLoop from "@/services/abLoop";
@@ -386,8 +387,9 @@ export const playFrom = async (items: readonly Track[], startIndex = 0): Promise
   if (items.length === 0) return;
   const status = useStatusStore();
   const media = useMediaStore();
-  // 退出心动模式
+  // 退出特殊模式
   status.heartMode = false;
+  status.fmMode = false;
   const idx = Math.max(0, Math.min(startIndex, items.length - 1));
   const isSameTrack = media.track?.id === items[idx]?.id;
   queue.setQueue(items);
@@ -414,6 +416,8 @@ export const playHeartMode = async (tracks: readonly Track[]): Promise<void> => 
   status.playIndex = 0;
   status.shuffleMode = "off";
   status.heartMode = true;
+  // 心动 / FM 互斥
+  status.fmMode = false;
   syncPlayMode();
   await loadTrack(status.currentTrack);
 };
@@ -423,9 +427,39 @@ export const exitHeartMode = (): void => {
   useStatusStore().heartMode = false;
 };
 
+/** 进入私人 FM */
+export const playPersonalFm = async (): Promise<boolean> => {
+  const status = useStatusStore();
+  const track = await fm.start();
+  if (!track) return false;
+  status.fmMode = true;
+  // 心动 / FM 互斥
+  status.heartMode = false;
+  await loadTrack(track);
+  return true;
+};
+
+/** 退出私人 FM */
+export const exitPersonalFm = (): void => {
+  useStatusStore().fmMode = false;
+};
+
+/** 私人 FM 减少推荐 */
+export const dislikeFmTrack = async (): Promise<void> => {
+  if (!useStatusStore().fmMode) return;
+  const next = await fm.dislikeCurrent();
+  if (next) await loadTrack(next);
+};
+
 /** 播放下一首，队列末尾时根据循环模式决定行为 */
 export const nextTrack = async (): Promise<void> => {
   const status = useStatusStore();
+  // 私人 FM
+  if (status.fmMode) {
+    const next = await fm.next();
+    if (next) await loadTrack(next);
+    return;
+  }
   if (queue.queueLength.value === 0) return;
   // 到末尾了
   if (status.playIndex >= queue.queueLength.value - 1) {
@@ -462,6 +496,8 @@ export const playAtIndex = async (index: number): Promise<void> => {
     if (!status.isPlaying && useMediaStore().track) play();
     return;
   }
+  // 退出 FM
+  status.fmMode = false;
   status.playIndex = index;
   await loadTrack(status.currentTrack);
 };
@@ -469,6 +505,7 @@ export const playAtIndex = async (index: number): Promise<void> => {
 /** 播放上一首，首位时回绕到末尾 */
 export const prevTrack = async (): Promise<void> => {
   const status = useStatusStore();
+  if (status.fmMode) return;
   if (queue.queueLength.value === 0) return;
   status.playIndex = status.playIndex > 0 ? status.playIndex - 1 : queue.queueLength.value - 1;
   await loadTrack(status.currentTrack);
@@ -624,6 +661,8 @@ export const playNow = async (item: Track): Promise<void> => {
     if (!status.isPlaying) play();
     return;
   }
+  // 退出 FM
+  status.fmMode = false;
   status.playIndex = insertToQueue(item);
   await loadTrack(item);
 };

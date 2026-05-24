@@ -17,15 +17,23 @@ export const fetchDailySongs = async (): Promise<Track[]> => {
  * @param playlistId - 歌单 id（「我喜欢的音乐」）
  * @returns 智能推荐的 Track 列表
  */
-export const fetchHeartModeList = async (
-  seedId: string,
-  playlistId: string,
-): Promise<Track[]> => {
+export const fetchHeartModeList = async (seedId: string, playlistId: string): Promise<Track[]> => {
   const body = await neteaseApi.playmode_intelligence<{ data?: { songInfo: NeteaseSong }[] }>({
     id: seedId,
     pid: playlistId,
   });
   return songsToTracks((body?.data ?? []).map((item) => item.songInfo));
+};
+
+/** 取一批私人 FM 推荐 */
+export const fetchPersonalFm = async (): Promise<Track[]> => {
+  const body = await neteaseApi.personal_fm<{ data?: NeteaseSong[] }>();
+  return songsToTracks(body?.data ?? []);
+};
+
+/** 私人 FM 减少推荐（不喜欢当前曲目，调用 fm_trash 接口影响后续推荐） */
+export const dislikeFmTrack = async (songId: string): Promise<void> => {
+  await neteaseApi.fm_trash({ id: songId });
 };
 
 /** 首页推荐区块展示数 */

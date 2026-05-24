@@ -123,6 +123,7 @@ const onMoreMenuSelect = (key: string): void => {
       <template #icon><IconLucideMicVocal /></template>
     </SButton>
     <SButton
+      v-if="!status.fmMode"
       :type="buttonType"
       variant="ghost"
       circle

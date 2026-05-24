@@ -295,6 +295,13 @@
       "already": "已处于心动模式",
       "failed": "心动模式开启失败，请稍后重试"
     },
+    "fm": {
+      "needLogin": "登录后才能使用私人 FM",
+      "loading": "正在开启私人 FM…",
+      "entered": "已开启私人 FM",
+      "already": "已处于私人 FM",
+      "failed": "私人 FM 开启失败，请稍后重试"
+    },
     "lyricOffset": {
       "title": "歌词偏移",
       "hint": "正值为歌词提前，单位毫秒"

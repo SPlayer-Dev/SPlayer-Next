@@ -1,5 +1,6 @@
 import { useUserStore } from "@/stores/user";
 import { useHeartMode } from "@/composables/useHeartMode";
+import { useFmMode } from "@/composables/useFmMode";
 import { toast } from "@/composables/useToast";
 import * as player from "@/core/player";
 import IconDices from "~icons/lucide/dices";
@@ -15,6 +16,7 @@ export const useQuickActions = () => {
   const router = useRouter();
   const user = useUserStore();
   const { enterHeartMode } = useHeartMode();
+  const { enterFmMode } = useFmMode();
 
   /** 试试手气 */
   const playLucky = useThrottleFn(async (): Promise<void> => {
@@ -41,8 +43,8 @@ export const useQuickActions = () => {
   /** 进入心动模式 */
   const playHeartMode = useThrottleFn(() => enterHeartMode(), 800);
 
-  /** 暂未实现的入口占位 */
-  const noop = (): void => {};
+  /** 进入私人 FM */
+  const playFm = useThrottleFn(() => enterFmMode(), 800);
 
   /** 快捷入口列表 */
   const quickActions = computed(() => [
@@ -68,7 +70,7 @@ export const useQuickActions = () => {
       icon: IconRadio,
       title: t("home.quickActions.fm.title"),
       desc: t("home.quickActions.fm.desc"),
-      run: noop,
+      run: playFm,
     },
   ]);
 

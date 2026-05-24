@@ -295,6 +295,13 @@
       "already": "Already in Heart Mode",
       "failed": "Failed to start Heart Mode, please try again later"
     },
+    "fm": {
+      "needLogin": "Sign in to use Personal FM",
+      "loading": "Starting Personal FM…",
+      "entered": "Personal FM started",
+      "already": "Already in Personal FM",
+      "failed": "Failed to start Personal FM, please try again later"
+    },
     "lyricOffset": {
       "title": "Lyric Offset",
       "hint": "Positive values advance lyrics, in milliseconds"

@@ -36,9 +36,7 @@ export const useHeartMode = () => {
     const liked = user.likedPlaylistTracks;
     const seedTrack =
       seed ??
-      (current?.source === "netease"
-        ? current
-        : liked[Math.floor(Math.random() * liked.length)]);
+      (current?.source === "netease" ? current : liked[Math.floor(Math.random() * liked.length)]);
     if (!playlistId || !seedTrack) {
       toast.warning(t("player.heartMode.noSeed"));
       return;

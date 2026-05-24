@@ -87,16 +87,21 @@ export interface NeteasePrivilege {
 export interface NeteaseSong {
   id: number;
   name: string;
-  /** 别名 */
-  alia?: string[];
   /** 翻译名（中英互译） */
   tns?: string[];
   /** 歌手列表 */
-  ar: NeteaseArtist[];
+  ar?: NeteaseArtist[];
+  artists?: NeteaseArtist[];
   /** 专辑 */
-  al: NeteaseAlbumLite;
-  /** 时长（毫秒） */
-  dt: number;
+  al?: NeteaseAlbumLite;
+  album?: NeteaseAlbumLite;
+  /** 时长，毫秒 */
+  dt?: number;
+  duration?: number;
+  /** 别名 */
+  alia?: string[];
+  /** 别名 */
+  alias?: string[];
   /** 高音质（320k） */
   h?: NeteaseQuality | null;
   /** 中音质（192k） */

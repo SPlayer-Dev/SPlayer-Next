@@ -39,6 +39,8 @@ export const useStatusStore = defineStore(
     const shuffleMode = ref<ShuffleMode>("off");
     /** 心动模式 */
     const heartMode = ref(false);
+    /** 私人 FM 模式 */
+    const fmMode = ref(false);
     /** 播放速度（0.5 ~ 2.0），不持久化 */
     const speed = ref(1.0);
     /** 音调偏移（半音 -12 ~ 12），不持久化 */
@@ -103,6 +105,7 @@ export const useStatusStore = defineStore(
       repeatMode,
       shuffleMode,
       heartMode,
+      fmMode,
       speed,
       pitch,
       pitchSync,

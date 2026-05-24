@@ -85,17 +85,21 @@ const pickQuality = (song: NeteaseSong): AudioQuality | undefined => {
  * @param song - 原始 song 对象
  */
 export const songToTrack = (song: NeteaseSong): Track => {
-  const cover = withPicSize(song.al?.picUrl);
-  const coverOriginal = withPicSize(song.al?.picUrl, 1024);
-  const comment = song.alia?.find((s) => s?.trim()) ?? undefined;
+  // 兼容旧字段
+  const album = song.al ?? song.album;
+  const ar = song.ar ?? song.artists ?? [];
+  const aliasList = song.alia ?? song.alias;
+  const cover = withPicSize(album?.picUrl);
+  const coverOriginal = withPicSize(album?.picUrl, 1024);
+  const comment = aliasList?.find((s) => s?.trim()) ?? undefined;
   return {
     id: String(song.id),
     source: "netease",
     title: song.name,
     comment,
-    artists: (song.ar ?? []).map((artist) => ({ id: String(artist.id), name: artist.name })),
-    album: song.al ? { id: String(song.al.id), name: song.al.name, cover } : undefined,
-    duration: song.dt ?? 0,
+    artists: ar.map((artist) => ({ id: String(artist.id), name: artist.name })),
+    album: album ? { id: String(album.id), name: album.name, cover } : undefined,
+    duration: song.dt ?? song.duration ?? 0,
     cover,
     coverOriginal,
     quality: pickQuality(song),
