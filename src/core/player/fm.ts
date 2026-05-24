@@ -3,7 +3,7 @@
  */
 
 import type { Track } from "@shared/types/player";
-import { fetchPersonalFm, dislikeFmTrack } from "@/apis/recommend/netease";
+import { fetchPersonalFm, submitFmTrash } from "@/apis/recommend/netease";
 
 /** 剩余曲目不足此数时后台续推，FM 单次返回约 3 首 */
 const FM_PREFETCH_AHEAD = 1;
@@ -61,11 +61,16 @@ export const start = async (): Promise<Track | null> => {
 /** 推进到下一首 */
 export const next = (): Promise<Track | null> => advance();
 
-/** 减少推荐 */
-export const dislikeCurrent = async (): Promise<Track | null> => {
+/**
+ * 减少推荐
+ * @param playedSec - 当前曲目已播放秒数，作为算法反馈
+ */
+export const dislikeCurrent = async (playedSec?: number): Promise<Track | null> => {
   const track = current();
   if (!track) return null;
   // API 失败不阻塞推进
-  void dislikeFmTrack(track.id).catch((error) => console.error("[fm] 减少推荐失败:", error));
+  void submitFmTrash(track.id, playedSec).catch((error) =>
+    console.error("[fm] 减少推荐失败:", error),
+  );
   return advance();
 };

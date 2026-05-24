@@ -442,7 +442,8 @@ export const playPersonalFm = async (): Promise<boolean> => {
 /** 私人 FM 减少推荐 */
 export const dislikeFmTrack = async (): Promise<void> => {
   if (!useStatusStore().fmMode) return;
-  const next = await fm.dislikeCurrent();
+  const playedSec = Math.max(0, Math.round(playback.getCurrentTime() / 1000));
+  const next = await fm.dislikeCurrent(playedSec);
   if (next) await loadTrack(next);
 };
 

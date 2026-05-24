@@ -31,9 +31,16 @@ export const fetchPersonalFm = async (): Promise<Track[]> => {
   return songsToTracks(body?.data ?? []);
 };
 
-/** 私人 FM 减少推荐（不喜欢当前曲目，调用 fm_trash 接口影响后续推荐） */
-export const dislikeFmTrack = async (songId: string): Promise<void> => {
-  await neteaseApi.fm_trash({ id: songId });
+/**
+ * 私人 FM 减少推荐
+ * @param songId - 歌曲 id
+ * @param playedSec - 实际播放秒数，作为算法反馈
+ */
+export const submitFmTrash = async (songId: string, playedSec?: number): Promise<void> => {
+  await neteaseApi.fm_trash({
+    id: songId,
+    ...(playedSec !== undefined ? { time: playedSec } : {}),
+  });
 };
 
 /** 首页推荐区块展示数 */
