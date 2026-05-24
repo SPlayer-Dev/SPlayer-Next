@@ -8,16 +8,15 @@ import { fetchPersonalFm, dislikeFmTrack } from "@/apis/recommend/netease";
 /** 剩余曲目不足此数时后台续推，FM 单次返回约 3 首 */
 const FM_PREFETCH_AHEAD = 1;
 
-let list: Track[] = [];
-let index = 0;
+let pool: Track[] = [];
 /** 续推在途 promise，并发复用 */
 let fetchingPromise: Promise<void> | null = null;
 
 /** 当前 FM 曲目；池空返回 null */
-export const current = (): Track | null => list[index] ?? null;
+export const current = (): Track | null => pool[0] ?? null;
 
 /** 池是否非空 */
-export const hasTracks = (): boolean => list.length > index;
+export const hasTracks = (): boolean => pool.length > 0;
 
 /** 拉一批新曲目追加到池末 */
 const fetchMore = (): Promise<void> => {
@@ -25,9 +24,9 @@ const fetchMore = (): Promise<void> => {
   fetchingPromise = (async () => {
     try {
       const more = await fetchPersonalFm();
-      const seen = new Set(list.map((track) => track.id));
+      const seen = new Set(pool.map((track) => track.id));
       const fresh = more.filter((track) => !seen.has(track.id));
-      if (fresh.length > 0) list = [...list, ...fresh];
+      if (fresh.length > 0) pool = [...pool, ...fresh];
     } catch (error) {
       console.error("[fm] 拉取失败:", error);
     } finally {
@@ -39,39 +38,34 @@ const fetchMore = (): Promise<void> => {
 
 /** 剩余曲目临近阈值时后台续推 */
 const maybeFetch = (): void => {
-  if (list.length - index <= FM_PREFETCH_AHEAD) {
-    void fetchMore();
+  if (pool.length <= FM_PREFETCH_AHEAD) void fetchMore();
+};
+
+/** 弹出队头并保证剩余至少一首，无可用曲目返回 null */
+const advance = async (): Promise<Track | null> => {
+  pool = pool.slice(1);
+  maybeFetch();
+  if (pool.length === 0) {
+    await fetchMore();
+    if (pool.length === 0) return null;
   }
+  return current();
 };
 
 /** 进入 FM */
 export const start = async (): Promise<Track | null> => {
-  if (list.length === 0) await fetchMore();
+  if (pool.length === 0) await fetchMore();
   return current();
 };
 
 /** 推进到下一首 */
-export const next = async (): Promise<Track | null> => {
-  index++;
-  maybeFetch();
-  if (index >= list.length) {
-    await fetchMore();
-    if (index >= list.length) return null;
-  }
-  return current();
-};
+export const next = (): Promise<Track | null> => advance();
 
 /** 减少推荐 */
 export const dislikeCurrent = async (): Promise<Track | null> => {
   const track = current();
   if (!track) return null;
   // API 失败不阻塞推进
-  dislikeFmTrack(track.id).catch((error) => console.error("[fm] 减少推荐失败:", error));
-  list = [...list.slice(0, index), ...list.slice(index + 1)];
-  maybeFetch();
-  if (index >= list.length) {
-    await fetchMore();
-    if (index >= list.length) return null;
-  }
-  return current();
+  void dislikeFmTrack(track.id).catch((error) => console.error("[fm] 减少推荐失败:", error));
+  return advance();
 };

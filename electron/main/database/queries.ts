@@ -74,9 +74,11 @@ export const getRandomTrack = (): Track | null => {
 
 /** 随机取多首曲目 */
 export const getRandomTracks = (limit: number): Track[] => {
+  const safe = Math.max(0, Math.min(limit | 0, 500));
+  if (safe === 0) return [];
   const rows = getDb()
     .prepare("SELECT * FROM tracks ORDER BY RANDOM() LIMIT ?")
-    .all(limit) as TrackRow[];
+    .all(safe) as TrackRow[];
   return rows.map(rowToTrack);
 };
 

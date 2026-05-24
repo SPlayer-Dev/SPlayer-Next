@@ -439,11 +439,6 @@ export const playPersonalFm = async (): Promise<boolean> => {
   return true;
 };
 
-/** 退出私人 FM */
-export const exitPersonalFm = (): void => {
-  useStatusStore().fmMode = false;
-};
-
 /** 私人 FM 减少推荐 */
 export const dislikeFmTrack = async (): Promise<void> => {
   if (!useStatusStore().fmMode) return;

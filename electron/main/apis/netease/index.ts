@@ -50,6 +50,7 @@ const NON_CACHEABLE: ReadonlySet<string> = new Set([
   "playmode_intelligence",
   "personal_fm",
   "fm_trash",
+  "recommend_songs",
 ]);
 
 /** 内存缓存 */

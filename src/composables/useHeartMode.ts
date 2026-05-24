@@ -20,7 +20,7 @@ export const useHeartMode = () => {
 
   /**
    * 进入心动模式
-   * @param seed - 指定种子歌曲；缺省时取当前播放的网易云歌曲，再退而取随机红心歌曲
+   * @param seed - 指定种子歌曲；缺省时取当前播放的网易云歌曲，再退而取随机红心歌曲 id
    */
   const enterHeartMode = async (seed?: Track): Promise<void> => {
     if (status.heartMode) {
@@ -33,17 +33,19 @@ export const useHeartMode = () => {
     }
     const playlistId = user.likedPlaylistId;
     const current = media.track;
-    const liked = user.likedPlaylistTracks;
-    const seedTrack =
-      seed ??
-      (current?.source === "netease" ? current : liked[Math.floor(Math.random() * liked.length)]);
-    if (!playlistId || !seedTrack) {
+    const likedIds = [...user.likedSongIds];
+    const seedId =
+      seed?.id ??
+      (current?.source === "netease"
+        ? current.id
+        : likedIds[Math.floor(Math.random() * likedIds.length)]);
+    if (!playlistId || !seedId) {
       toast.warning(t("player.heartMode.noSeed"));
       return;
     }
     const loading = toast.loading(t("player.heartMode.loading"), { duration: 0 });
     try {
-      const tracks = await fetchHeartModeList(seedTrack.id, playlistId);
+      const tracks = await fetchHeartModeList(seedId, playlistId);
       if (tracks.length === 0) {
         toast.warning(t("player.heartMode.failed"));
         return;

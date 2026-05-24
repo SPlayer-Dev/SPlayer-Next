@@ -70,7 +70,8 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
       endedGuard = true;
       try {
         const stopByTimer = autoClose.onTrackEnded();
-        const repeatOne = status.repeatMode === "one";
+        // FM 模式跳过
+        const repeatOne = status.repeatMode === "one" && !status.fmMode;
         // 结算播放统计
         playStats.onTrackEnded(repeatOne && !stopByTimer);
         // 定时关闭"等本曲结束"模式
