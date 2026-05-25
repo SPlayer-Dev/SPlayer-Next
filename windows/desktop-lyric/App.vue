@@ -43,16 +43,36 @@ const { track, lyric, playing, primaryIndex } = useNowPlayingSync({
 const { onRootPointerDown } = useDragWindow(() => config.locked);
 const { isHovered } = useHoverState();
 
-/** 占位行 */
-const placeholder = (key: string, text: string): DisplayItem[] => [
-  {
-    key,
-    index: -1,
-    line: makePlaceholderLine(text),
-    align: config.align === "justify" ? "center" : config.align,
-    isPlaceholder: true,
-  },
-];
+/** 
+ * 占位行
+ * @param key - 唯一键
+ * @param mainText - 主行文本
+ * @param subText - 副行文本（可选）
+ * @returns 显示项数组
+ */
+const placeholder = (key: string, mainText: string, subText?: string): DisplayItem[] => {
+  const align = config.align === "justify" ? "center" : config.align;
+  const items: DisplayItem[] = [
+    {
+      key,
+      index: -1,
+      line: makePlaceholderLine(mainText),
+      align,
+      isPlaceholder: true,
+    },
+  ];
+  if (config.doubleLine && subText) {
+    items.push({
+      key: `${key}-sub`,
+      index: -1,
+      line: makePlaceholderLine(subText),
+      align,
+      isPlaceholder: true,
+      isNext: true,
+    });
+  }
+  return items;
+};
 
 /** 艺术家显示文本 */
 const artistsText = computed<string>(
@@ -63,13 +83,18 @@ const artistsText = computed<string>(
 const displayItems = computed<DisplayItem[]>(() => {
   const lines = lyric.value;
   const cur = track.value;
-  // 如果当前没有曲目，则显示占位行
+  // 无曲目
   if (!cur) return placeholder("ph-idle", "SPlayer Desktop Lyric");
-  if (lines.length === 0) return placeholder("ph-inst", "纯音乐，请欣赏");
+  // 占位歌曲信息
+  const trackKey = cur.id ?? cur.title;
+  const subText = artistsText.value || undefined;
+  if (lines.length === 0) {
+    return placeholder(`ph-meta-${trackKey}`, cur.title, subText);
+  }
   // 获取当前主行索引
   const primary = primaryIndex.value;
   if (primary < 0) {
-    return placeholder(`ph-title-${cur.id ?? cur.title}`, cur.title);
+    return placeholder(`ph-title-${trackKey}`, cur.title, subText);
   }
   // 显示主行
   const items: DisplayItem[] = [

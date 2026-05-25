@@ -375,11 +375,11 @@ onBeforeUnmount(() => {
 }
 .line-enter-from {
   opacity: 0;
-  transform: translateY(12px);
+  transform: translateY(100%);
 }
 .line-leave-to {
   opacity: 0;
-  transform: translateY(-12px);
+  transform: translateY(-100%);
 }
 
 .song-info {

@@ -98,10 +98,16 @@ const resetRenderCache = (): void => {
   lastWordProgress = [];
 };
 
+const needsRaf = (): boolean => props.wordByWord || overflowPx.value > 0;
+
 const renderFrame = (): void => {
+  if (!needsRaf()) {
+    rafId = 0;
+    return;
+  }
   const currentMs = getNowPlayingCurrentMs();
 
-  if (contentRef.value) {
+  if (contentRef.value && overflowPx.value > 0) {
     const transform = getScrollTransform(currentMs);
     if (transform !== lastTransform) {
       lastTransform = transform;
@@ -124,6 +130,19 @@ const renderFrame = (): void => {
   rafId = requestAnimationFrame(renderFrame);
 };
 
+const startRenderLoop = (): void => {
+  if (rafId === 0 && needsRaf()) {
+    rafId = requestAnimationFrame(renderFrame);
+  }
+};
+
+const stopRenderLoop = (): void => {
+  if (rafId !== 0) {
+    cancelAnimationFrame(rafId);
+    rafId = 0;
+  }
+};
+
 // 字号变化兜底
 watch(
   () => props.fontSize,
@@ -132,7 +151,15 @@ watch(
 
 watch(
   () => [props.wordByWord, props.line, overflowPx.value],
-  () => resetRenderCache(),
+  () => {
+    resetRenderCache();
+    if (needsRaf()) {
+      startRenderLoop();
+    } else {
+      stopRenderLoop();
+      if (contentRef.value) contentRef.value.style.transform = "";
+    }
+  },
 );
 
 /** 字号 CSS transition 结束后重测 */
@@ -147,14 +174,11 @@ onMounted(() => {
     resizeObs.observe(containerRef.value);
     containerRef.value.addEventListener("transitionend", onTransitionEnd);
   }
-  renderFrame();
+  startRenderLoop();
 });
 
 onBeforeUnmount(() => {
-  if (rafId !== 0) {
-    cancelAnimationFrame(rafId);
-    rafId = 0;
-  }
+  stopRenderLoop();
   resizeObs?.disconnect();
   resizeObs = null;
   containerRef.value?.removeEventListener("transitionend", onTransitionEnd);
