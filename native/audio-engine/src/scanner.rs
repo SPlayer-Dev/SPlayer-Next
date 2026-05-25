@@ -10,11 +10,11 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Instant, SystemTime};
 
-use ffmpeg_next as ffmpeg;
-use ffmpeg_next::media::Type;
+use ffmpeg_audio::AudioReader;
 use tracing::{debug, info, warn};
 use walkdir::WalkDir;
 
+use crate::decoder;
 use crate::metadata;
 
 /// 支持的音频文件扩展名
@@ -81,38 +81,23 @@ fn is_audio_file(path: &Path) -> bool {
         .is_some_and(|ext| AUDIO_EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()))
 }
 
-/// 使用 FFmpeg 快速读取音频文件元数据（仅读取容器头和 tag，不解码音频数据）
+/// 使用 ffmpeg_audio 打开音频文件并读取元数据
+///
+/// 会顺带初始化解码器和重采样器（一次性开销），扫库速度仍能跑到几百文件/秒
 fn probe_fast(path: &str, cover_cache_dir: Option<&str>) -> Option<ScannedTrack> {
-    let ctx = ffmpeg::format::input(path).ok()?;
+    let file = fs::File::open(path).ok()?;
+    let reader = AudioReader::new(
+        file,
+        decoder::TARGET_SAMPLE_RATE as i32,
+        decoder::TARGET_CHANNELS as i32,
+    )
+    .ok()?;
 
-    // 时长
-    let duration = if ctx.duration() >= 0 {
-        ctx.duration() as f64 / f64::from(ffmpeg::ffi::AV_TIME_BASE)
-    } else {
-        0.0
-    };
+    let duration = reader.duration().map(|d| d.as_secs_f64()).unwrap_or(0.0);
 
-    // 音频流参数（全部从 AVCodecParameters 读取，不初始化解码器）
-    let mut sample_rate = 0u32;
-    let mut channels = 0u32;
-    let mut bits_per_sample = 0u32;
-    let mut bit_rate = 0i64;
-    let mut codec = String::new();
-
-    if let Some(stream) = ctx.streams().best(Type::Audio) {
-        // SAFETY: ctx 和 stream 在此作用域内有效
-        let info = unsafe { metadata::extract_stream_info(&stream, &ctx) };
-        bit_rate = info.bit_rate;
-        bits_per_sample = info.bits_per_sample;
-        sample_rate = info.sample_rate;
-        channels = info.channels;
-
-        codec = stream
-            .parameters()
-            .id()
-            .name()
-            .to_string();
-    }
+    let info = reader.source_info();
+    let stream_info = metadata::extract_stream_info(info);
+    let mut codec = info.codec_name.clone();
 
     // codec 兜底：从扩展名推导
     if codec.is_empty() {
@@ -123,12 +108,11 @@ fn probe_fast(path: &str, cover_cache_dir: Option<&str>) -> Option<ScannedTrack>
             .to_ascii_lowercase();
     }
 
-    // tag 提取（复用 metadata 模块）
-    let tags = metadata::extract_tags(&ctx);
+    let raw_metadata = reader.metadata();
+    let tags = metadata::extract_tags(&raw_metadata);
 
-    // 封面缩略图（复用 metadata 模块，与播放时的封面缓存逻辑一致）
     let cover =
-        cover_cache_dir.and_then(|dir| metadata::extract_cover_thumbnail(&ctx, path, dir));
+        cover_cache_dir.and_then(|dir| metadata::extract_cover_thumbnail(&reader, path, dir));
 
     Some(ScannedTrack {
         path: path.to_string(),
@@ -137,10 +121,10 @@ fn probe_fast(path: &str, cover_cache_dir: Option<&str>) -> Option<ScannedTrack>
         album: tags.album,
         duration,
         codec,
-        sample_rate,
-        bit_rate,
-        channels,
-        bits_per_sample,
+        sample_rate: stream_info.sample_rate,
+        bit_rate: stream_info.bit_rate,
+        channels: stream_info.channels,
+        bits_per_sample: stream_info.bits_per_sample,
         cover,
         file_size: 0, // 由调用方填充
         mtime: 0,

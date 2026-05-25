@@ -20,21 +20,7 @@ pnpm build:native         # Rust only; add `-- --dev` for debug
 
 `SKIP_NATIVE_BUILD=true` skips Rust during dev.
 
-### FFmpeg Setup (first-time native build)
-
-`audio-engine` static-links FFmpeg. Before first `pnpm dev` / `pnpm build:native`, download FFmpeg static libs (with `include` and `lib`) and set:
-
-```bash
-# macOS / Linux
-export FFMPEG_DIR=/path/to/ffmpeg
-export PKG_CONFIG_PATH="$FFMPEG_DIR/lib/pkgconfig"
-```
-
-```powershell
-# Windows
-$env:FFMPEG_DIR="D:\ffmpeg"
-$env:PKG_CONFIG_PATH="$env:FFMPEG_DIR\lib\pkgconfig"
-```
+`audio-engine` static-links FFmpeg via the `ffmpeg_audio` crate (vendor zip + cc-built at compile time). Zero environment dependency — no `FFMPEG_DIR` / `PKG_CONFIG_PATH`, no system FFmpeg required.
 
 ## Architecture
 
@@ -49,7 +35,7 @@ $env:PKG_CONFIG_PATH="$env:FFMPEG_DIR\lib\pkgconfig"
 
 Three `.node` modules in `native/`, built via `scripts/build-native.ts`, lazy-loaded by `electron/main/utils/nativeLoader.ts`. NAPI-RS auto-generates `index.d.ts`, imported via path aliases `@splayer/audio-engine`, `@splayer/media-ctrl`, `@splayer/taskbar-lyric`.
 
-- `audio-engine` — FFmpeg decode + rodio playback + FFT + cover extraction. Pushes events (state/position/ended/outputStalled) via ThreadsafeFunction. Has load_token race protection and `AVIOInterruptCB` for instant stop on blocking IO.
+- `audio-engine` — `ffmpeg_audio` decode (static FFmpeg) + rodio playback + FFT + cover extraction. URLs wrapped as `Read + Seek` via `HttpRangeSource` (ureq + rustls) — TLS handled in Rust, cross-platform with no system deps. Pushes events (state/position/ended/outputStalled) via ThreadsafeFunction. Has load_token race protection and a cancel flag (injected into `HttpRangeSource`) for instant stop on blocking IO.
 - `media-ctrl` — Cross-platform system media controls (Windows SMTC / Linux MPRIS / macOS MPNowPlaying) + Discord RPC.
 - `taskbar-lyric` — Windows taskbar lyric text rendering with RegistryWatcher / UiaWatcher / TrayWatcher.
 
