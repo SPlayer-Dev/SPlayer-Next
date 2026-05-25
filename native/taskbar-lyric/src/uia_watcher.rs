@@ -5,8 +5,9 @@
 
 use std::{
     ptr,
-    sync::{Arc, mpsc},
+    sync::{Mutex, mpsc},
     thread,
+    time::Duration,
 };
 
 use anyhow::{Result, anyhow};
@@ -42,21 +43,28 @@ use crate::utils::find_taskbar_hwnd;
 
 pub type LayoutChangedCallback = Box<dyn Fn() + Send + Sync + 'static>;
 
+/// UIA 事件去抖窗口。任务栏重排/启动时事件瞬间触发几十次，必须聚合避免反复重扫整棵 XAML 树
+const DEBOUNCE_MS: u64 = 150;
+
 #[implement(
     IUIAutomationPropertyChangedEventHandler,
     IUIAutomationStructureChangedEventHandler
 )]
 pub struct TaskbarEventHandler {
-    callback: Arc<LayoutChangedCallback>,
+    pulse: Mutex<mpsc::Sender<()>>,
 }
 
 impl TaskbarEventHandler {
-    pub fn new(callback: Arc<LayoutChangedCallback>) -> Self {
-        Self { callback }
+    pub fn new(pulse: mpsc::Sender<()>) -> Self {
+        Self {
+            pulse: Mutex::new(pulse),
+        }
     }
 
     fn notify(&self) {
-        (self.callback)();
+        if let Ok(tx) = self.pulse.lock() {
+            let _ = tx.send(());
+        }
     }
 }
 
@@ -92,8 +100,23 @@ pub struct UiaWatcher {
 
 impl UiaWatcher {
     pub fn new(callback: LayoutChangedCallback) -> Result<Self> {
-        let (tx, rx) = mpsc::channel::<u32>();
-        let callback_arc = Arc::new(callback);
+        let (tid_tx, tid_rx) = mpsc::channel::<u32>();
+        let (pulse_tx, pulse_rx) = mpsc::channel::<()>();
+
+        // 去抖线程：DEBOUNCE_MS 窗口内的多次 pulse 聚合成一次 callback
+        // 不能在 COM 事件 handler 里直接 sleep——会阻塞 UIA 事件循环
+        thread::spawn(move || {
+            while pulse_rx.recv().is_ok() {
+                loop {
+                    match pulse_rx.recv_timeout(Duration::from_millis(DEBOUNCE_MS)) {
+                        Ok(()) => continue,
+                        Err(mpsc::RecvTimeoutError::Timeout) => break,
+                        Err(mpsc::RecvTimeoutError::Disconnected) => return,
+                    }
+                }
+                callback();
+            }
+        });
 
         thread::spawn(move || unsafe {
             // RPC_E_CHANGED_MODE：调用线程已被其它代码路径初始化为另一种 apartment 模式，
@@ -105,13 +128,13 @@ impl UiaWatcher {
                 } else if hr == RPC_E_CHANGED_MODE {
                     false
                 } else {
-                    let _ = tx.send(GetCurrentThreadId());
+                    let _ = tid_tx.send(GetCurrentThreadId());
                     return;
                 }
             };
 
             let thread_id = GetCurrentThreadId();
-            let _ = tx.send(thread_id);
+            let _ = tid_tx.send(thread_id);
 
             let automation_res: WinResult<IUIAutomation> =
                 CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER);
@@ -120,8 +143,8 @@ impl UiaWatcher {
                 && let Some(hwnd) = find_taskbar_hwnd()
                 && let Ok(root_element) = automation.ElementFromHandle(hwnd)
             {
-                let handler1 = TaskbarEventHandler::new(callback_arc.clone());
-                let handler2 = TaskbarEventHandler::new(callback_arc.clone());
+                let handler1 = TaskbarEventHandler::new(pulse_tx.clone());
+                let handler2 = TaskbarEventHandler::new(pulse_tx);
 
                 let prop_handler: IUIAutomationPropertyChangedEventHandler = handler1.into();
                 let struct_handler: IUIAutomationStructureChangedEventHandler = handler2.into();
@@ -162,7 +185,7 @@ impl UiaWatcher {
             }
         });
 
-        let thread_id = rx.recv().map_err(|e| anyhow!("获取线程 ID 失败: {e}"))?;
+        let thread_id = tid_rx.recv().map_err(|error| anyhow!("获取线程 ID 失败: {error}"))?;
 
         Ok(Self {
             thread_id: Some(thread_id),

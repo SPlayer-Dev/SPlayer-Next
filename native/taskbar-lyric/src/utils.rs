@@ -1,13 +1,18 @@
 use windows::{
     Win32::{
-        Foundation::HWND,
+        Foundation::{CloseHandle, HWND},
+        System::Threading::{
+            OpenProcess, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
+            QueryFullProcessImageNameW,
+        },
         UI::WindowsAndMessaging::{
-            FindWindowW, GetWindowLongPtrW, SetWindowLongPtrW, WINDOW_LONG_PTR_INDEX,
+            FindWindowExW, GetWindowLongPtrW, GetWindowThreadProcessId, SetWindowLongPtrW,
+            WINDOW_LONG_PTR_INDEX,
         },
     },
     core::w,
 };
-use windows_core::PCWSTR;
+use windows_core::{PCWSTR, PWSTR};
 use winreg::{
     RegKey,
     enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE},
@@ -41,11 +46,50 @@ where
         .map_or(default, predicate)
 }
 
+/// 第三方任务栏（StartAllBack/ExplorerPatcher/Start11/YASB/Zebar）也会创建 Shell_TrayWnd
+/// 类窗口；只接受 explorer.exe 创建的那个，避免错误嵌入到第三方任务栏
 pub fn find_taskbar_hwnd() -> Option<HWND> {
     unsafe {
-        let hwnd = FindWindowW(w!("Shell_TrayWnd"), None).unwrap_or_default();
-        if hwnd.0.is_null() { None } else { Some(hwnd) }
+        let mut prev: Option<HWND> = None;
+        loop {
+            let hwnd = FindWindowExW(None, prev, w!("Shell_TrayWnd"), None).ok()?;
+            if hwnd.0.is_null() {
+                return None;
+            }
+            if is_explorer_window(hwnd) {
+                return Some(hwnd);
+            }
+            prev = Some(hwnd);
+        }
     }
+}
+
+unsafe fn is_explorer_window(hwnd: HWND) -> bool {
+    let mut pid: u32 = 0;
+    unsafe { GetWindowThreadProcessId(hwnd, Some(&raw mut pid)) };
+    if pid == 0 {
+        return false;
+    }
+    let Ok(process) = (unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) })
+    else {
+        return false;
+    };
+    let mut buf = [0u16; 260];
+    let mut size: u32 = buf.len() as u32;
+    let query_result = unsafe {
+        QueryFullProcessImageNameW(
+            process,
+            PROCESS_NAME_WIN32,
+            PWSTR(buf.as_mut_ptr()),
+            &raw mut size,
+        )
+    };
+    let _ = unsafe { CloseHandle(process) };
+    if query_result.is_err() || size == 0 {
+        return false;
+    }
+    let path = String::from_utf16_lossy(&buf[..size as usize]);
+    path.to_ascii_lowercase().ends_with("\\explorer.exe")
 }
 
 pub fn get_windows_build_number() -> u32 {

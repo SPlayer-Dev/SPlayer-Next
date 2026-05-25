@@ -3,8 +3,8 @@ use windows::{
         Foundation::{HWND, RECT},
         UI::WindowsAndMessaging::{
             FindWindowExW, GWL_EXSTYLE, GWL_STYLE, GetWindowRect, SetParent, WINDOW_EX_STYLE,
-            WINDOW_STYLE, WS_CAPTION, WS_EX_LAYERED, WS_EX_TOOLWINDOW, WS_MAXIMIZEBOX,
-            WS_MINIMIZEBOX, WS_SYSMENU, WS_THICKFRAME,
+            WINDOW_STYLE, WS_CAPTION, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+            WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_SYSMENU, WS_THICKFRAME,
         },
     },
     core::w,
@@ -77,7 +77,7 @@ impl TaskbarStrategy for Win11Strategy {
 
             modify_window_long(child_wnd, GWL_EXSTYLE, |raw_style| {
                 let ex_style = WINDOW_EX_STYLE(raw_style);
-                (ex_style | WS_EX_LAYERED | WS_EX_TOOLWINDOW).0
+                (ex_style | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE).0
             });
         }
         true

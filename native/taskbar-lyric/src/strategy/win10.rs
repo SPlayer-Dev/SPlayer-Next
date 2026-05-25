@@ -3,8 +3,8 @@ use windows::{
         Foundation::{HWND, RECT},
         UI::WindowsAndMessaging::{
             FindWindowExW, GWL_EXSTYLE, GWL_STYLE, GetWindowRect, MoveWindow, SetParent,
-            WINDOW_EX_STYLE, WINDOW_STYLE, WS_CAPTION, WS_EX_LAYERED, WS_EX_TOOLWINDOW,
-            WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_SYSMENU, WS_THICKFRAME,
+            WINDOW_EX_STYLE, WINDOW_STYLE, WS_CAPTION, WS_EX_LAYERED, WS_EX_NOACTIVATE,
+            WS_EX_TOOLWINDOW, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_SYSMENU, WS_THICKFRAME,
         },
     },
     core::{PCWSTR, w},
@@ -102,7 +102,7 @@ impl TaskbarStrategy for LegacyStrategy {
 
             modify_window_long(child_wnd, GWL_EXSTYLE, |raw_style| {
                 let ex_style = WINDOW_EX_STYLE(raw_style);
-                (ex_style | WS_EX_LAYERED | WS_EX_TOOLWINDOW).0
+                (ex_style | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE).0
             });
         }
         true
@@ -129,30 +129,38 @@ impl TaskbarStrategy for LegacyStrategy {
 
             let (bx, by, bw, bh) = if is_vertical {
                 let offset_y = rc_tasklist.top - rc_rebar.top;
-                let mut new_tasklist_h = rebar_h - offset_y - params.lyric_width - GAP;
+                let new_tasklist_h = rebar_h - offset_y - params.lyric_width - GAP;
                 if new_tasklist_h < 0 {
-                    new_tasklist_h = 0;
+                    // 空间不够时恢复 tasklist 原高度并返回 0 高——不能强压按钮区，会挤成一条线
+                    let _ =
+                        MoveWindow(self.h_tasklist, 0, offset_y, rebar_w, rebar_h - offset_y, true);
+                    (0, 0, 0, 0)
+                } else {
+                    let _ = MoveWindow(self.h_tasklist, 0, offset_y, rebar_w, new_tasklist_h, true);
+                    (
+                        rc_rebar.left - rc_taskbar.left,
+                        (rc_rebar.top - rc_taskbar.top) + offset_y + new_tasklist_h + GAP,
+                        rebar_w,
+                        params.lyric_width,
+                    )
                 }
-                let _ = MoveWindow(self.h_tasklist, 0, offset_y, rebar_w, new_tasklist_h, true);
-                (
-                    rc_rebar.left - rc_taskbar.left,
-                    (rc_rebar.top - rc_taskbar.top) + offset_y + new_tasklist_h + GAP,
-                    rebar_w,
-                    params.lyric_width,
-                )
             } else {
                 let offset_x = rc_tasklist.left - rc_rebar.left;
-                let mut new_tasklist_w = rebar_w - offset_x - params.lyric_width - GAP;
+                let new_tasklist_w = rebar_w - offset_x - params.lyric_width - GAP;
                 if new_tasklist_w < 0 {
-                    new_tasklist_w = 0;
+                    let _ =
+                        MoveWindow(self.h_tasklist, offset_x, 0, rebar_w - offset_x, rebar_h, true);
+                    (0, 0, 0, 0)
+                } else {
+                    let _ =
+                        MoveWindow(self.h_tasklist, offset_x, 0, new_tasklist_w, rebar_h, true);
+                    (
+                        (rc_rebar.left - rc_taskbar.left) + offset_x + new_tasklist_w + GAP,
+                        rc_rebar.top - rc_taskbar.top,
+                        params.lyric_width,
+                        rebar_h,
+                    )
                 }
-                let _ = MoveWindow(self.h_tasklist, offset_x, 0, new_tasklist_w, rebar_h, true);
-                (
-                    (rc_rebar.left - rc_taskbar.left) + offset_x + new_tasklist_w + GAP,
-                    rc_rebar.top - rc_taskbar.top,
-                    params.lyric_width,
-                    rebar_h,
-                )
             };
 
             trace!("Win10 布局计算完成");

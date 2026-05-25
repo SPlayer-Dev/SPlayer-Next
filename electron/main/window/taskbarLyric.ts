@@ -58,6 +58,12 @@ const resolveLyricWidth = (): number => {
 const INITIAL_WIDTH = 3000;
 const INITIAL_HEIGHT = 200;
 
+/**
+ * 可显示的最小宽度（DIP）。任务栏挤满 / 居中且两侧仅余几十像素时，强行塞会变成挤压的几个字符
+ * 视觉很糟，直接隐藏窗口；空间回升后再 show
+ */
+const MIN_LYRIC_WIDTH_DIP = 120;
+
 /** 获取任务栏歌词窗口实例（未创建或已销毁时返回 null） */
 export const getTaskbarLyricWindow = (): BrowserWindow | null =>
   taskbarLyricWindow && !taskbarLyricWindow.isDestroyed() ? taskbarLyricWindow : null;
@@ -87,22 +93,39 @@ const pickSpace = (layout: JsTaskbarLayout): PickedSpace | null => {
 /** 首次 applyLayout 成功后才 show 窗口——避免初始 3000x200 大窗口闪现 */
 let firstLayoutDone = false;
 
-/** Rust 布局回调：把物理像素空间转为 DIP 并 setBounds，首次应用时 show 窗口 */
+/** 空间不足时安静隐藏窗口，避免残留旧位置的歌词残影 */
+const hideIfVisible = (win: BrowserWindow): void => {
+  if (win.isVisible()) win.hide();
+};
+
+/** Rust 布局回调：把物理像素空间转为 DIP，<阈值则隐藏，≥阈值则 setBounds 并 show */
 const applyLayout = (layout: JsTaskbarLayout): void => {
   const win = getTaskbarLyricWindow();
   if (!win) return;
 
   const picked = pickSpace(layout);
-  if (!picked) return;
+  if (!picked) {
+    hideIfVisible(win);
+    return;
+  }
   const { rect, anchor } = picked;
-  if (rect.width <= 0 || rect.height <= 0) return;
+  if (rect.width <= 0 || rect.height <= 0) {
+    hideIfVisible(win);
+    return;
+  }
 
-  // Rust 返回物理像素，setBounds 用逻辑像素（DIP），需按屏幕 scaleFactor 转换
+  // Rust 返回物理像素，setBounds 用 DIP，需按 scaleFactor 转换
+  // 副屏暂未支持：Rust 端只找主屏 Shell_TrayWnd，歌词窗口永远在主屏，主屏 scaleFactor 即所需
   const dpi = screen.getPrimaryDisplay().scaleFactor;
   const availX = Math.round(rect.x / dpi);
   const availY = Math.round(rect.y / dpi);
   const availWidth = Math.round(rect.width / dpi);
   const availHeight = Math.round(rect.height / dpi);
+
+  if (availWidth < MIN_LYRIC_WIDTH_DIP) {
+    hideIfVisible(win);
+    return;
+  }
 
   const autoMaxWidth = store.get("taskbarLyric.autoMaxWidth") ?? true;
   const maxWidth = store.get("taskbarLyric.maxWidth") ?? 400;
@@ -113,7 +136,9 @@ const applyLayout = (layout: JsTaskbarLayout): void => {
 
   if (!firstLayoutDone) {
     firstLayoutDone = true;
-    win.show();
+    win.showInactive();
+  } else if (!win.isVisible()) {
+    win.showInactive();
   }
 
   win.webContents.send("taskbarLyric:layout", {

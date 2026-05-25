@@ -61,7 +61,10 @@ export const update = (track: Track | null, lyric: LyricLine[], source: LyricDat
   currentLyric = lyric;
   currentSource = source;
   if (trackChanged) {
-    // 切歌：加载新曲目的偏移并立即广播
+    // 重置播放进度
+    lastPosition = 0;
+    lastPositionAt = Date.now();
+    // 加载新曲目的偏移并立即广播
     currentLyricOffsetMs = readOffset(track?.id);
     emitter.emit("track-change", { track });
     emitter.emit("lyric-offset-change", {
