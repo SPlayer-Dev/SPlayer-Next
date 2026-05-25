@@ -30,13 +30,6 @@ struct FftWorkBuffers {
     output: Vec<f32>,
 }
 
-// SAFETY: FftAnalyzer 需要手动实现 Send+Sync，因为 fft_plan 字段类型为
-// Arc<dyn Fft<f32>>，trait object 默认不含 Send+Sync bound。
-// 实际上 rustfft::FftPlanner 返回的所有实现都是线程安全的，
-// 且 FftAnalyzer 的其余字段（Mutex<Vec>, Mutex<FftWorkBuffers>, u32）均为 Send+Sync。
-unsafe impl Send for FftAnalyzer {}
-unsafe impl Sync for FftAnalyzer {}
-
 impl FftAnalyzer {
     pub fn new(sample_rate: u32) -> Self {
         let mut planner = FftPlanner::<f32>::new();

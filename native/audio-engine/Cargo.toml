@@ -9,12 +9,8 @@ crate-type = ["cdylib"]
 [dependencies]
 napi = { version = "3.8", features = ["napi9", "serde-json", "tokio_rt"] }
 napi-derive = "3.5"
-ffmpeg-next = { version = "8", default-features = false, features = [
-  "codec",
-  "format",
-  "software-resampling",
-  "static",
-] }
+ffmpeg_audio = { git = "https://github.com/SPlayer-Dev/ffmpeg-audio", branch = "feat/duration-api", default-features = false }
+ureq = { version = "2", default-features = false, features = ["tls"] }
 rodio = { version = "0.20", default-features = false }
 cpal = "0.15"
 parking_lot = "0.12"
@@ -39,6 +35,9 @@ tokio = { version = "1", features = ["rt"] }
 
 [build-dependencies]
 napi-build = "2.3"
+
+[dev-dependencies]
+httpmock = "0.7"
 
 [lints]
 workspace = true

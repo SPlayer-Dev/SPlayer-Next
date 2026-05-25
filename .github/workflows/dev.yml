@@ -21,8 +21,6 @@ on:
 
 env:
   NODE_VERSION: 22.x
-  BUILDER_REPO: apoint123/ffmpeg-builder
-  FFMPEG_VERSION_TAG: "8.0.1"
 
 jobs:
   build:
@@ -76,57 +74,13 @@ jobs:
         with:
           workspaces: "native/audio-engine -> target\nnative/media-ctrl -> target"
 
-      # 下载预编译的 FFmpeg 静态库 (Windows)
-      - name: 下载预编译的 FFmpeg 库 (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          $packageName = "ffmpeg-${{ env.FFMPEG_VERSION_TAG }}-${{ matrix.artifact_name_suffix }}.${{ matrix.package_extension }}"
-          $downloadUrl = "https://github.com/${{ env.BUILDER_REPO }}/releases/latest/download/$packageName"
-          Write-Host "Downloading $packageName from $downloadUrl ..."
-          Invoke-WebRequest -Uri $downloadUrl -OutFile $packageName
-
-          mkdir -p vendor/ffmpeg
-          Expand-Archive -Path $packageName -DestinationPath vendor/ffmpeg_temp -Force
-          Move-Item -Path vendor/ffmpeg_temp/include -Destination vendor/ffmpeg/include
-          Move-Item -Path vendor/ffmpeg_temp/lib -Destination vendor/ffmpeg/lib
-          Remove-Item -Recurse -Force vendor/ffmpeg_temp
-          Remove-Item $packageName
-
-          echo "FFMPEG_DIR=${{ github.workspace }}/vendor/ffmpeg" >> $env:GITHUB_ENV
-        shell: powershell
-
-      # 下载预编译的 FFmpeg 静态库 (macOS/Linux)
-      - name: 下载预编译的 FFmpeg 库 (macOS/Linux)
-        if: runner.os != 'Windows'
-        run: |
-          PACKAGE_NAME="ffmpeg-${{ env.FFMPEG_VERSION_TAG }}-${{ matrix.artifact_name_suffix }}.${{ matrix.package_extension }}"
-          DOWNLOAD_URL="https://github.com/${{ env.BUILDER_REPO }}/releases/latest/download/${PACKAGE_NAME}"
-          echo "Downloading $PACKAGE_NAME from $DOWNLOAD_URL ..."
-          curl -f -sL $DOWNLOAD_URL -o $PACKAGE_NAME
-
-          mkdir -p vendor/ffmpeg
-          tar -xzf $PACKAGE_NAME -C vendor/ffmpeg
-          rm $PACKAGE_NAME
-
-          echo "FFMPEG_DIR=${{ github.workspace }}/vendor/ffmpeg" >> $GITHUB_ENV
-        shell: bash
-
-      # 设置 FFmpeg 环境变量
-      - name: 设置 FFmpeg 环境变量
-        run: |
-          echo "PKG_CONFIG_PATH=${{ github.workspace }}/vendor/ffmpeg/lib/pkgconfig" >> $GITHUB_ENV
-          if [[ "$RUNNER_OS" != "Windows" ]]; then
-            echo "CFLAGS=-I${{ github.workspace }}/vendor/ffmpeg/include" >> $GITHUB_ENV
-          fi
-        shell: bash
-
       # Linux: 安装系统构建/打包依赖
       - name: 安装系统依赖 (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libdbus-1-dev pkg-config clang nasm \
+            libasound2-dev libdbus-1-dev pkg-config clang \
             rpm libarchive-tools
 
       # 清理旧构建产物

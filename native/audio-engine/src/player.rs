@@ -203,7 +203,7 @@ impl InnerPlayer {
             sink: None,
             shared: None,
             decoder_thread: None,
-            fft: Arc::new(FftAnalyzer::new(decoder::FFT_SAMPLE_RATE)),
+            fft: Arc::new(FftAnalyzer::new(decoder::TARGET_SAMPLE_RATE)),
             audio_sample_rate: 0,
             audio_channels: 0,
             audio_duration: 0.0,
