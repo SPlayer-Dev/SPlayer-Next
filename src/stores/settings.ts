@@ -33,6 +33,7 @@ export const useSettingsStore = defineStore(
     /** 播放器 */
     const player = reactive<PlayerSettings>({
       playerBgType: "blur",
+      coverLayout: "default",
       autoCenterCover: true,
       followCoverColor: true,
       autoImmersive: true,

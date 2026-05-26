@@ -914,6 +914,12 @@
       "blur": "Blur",
       "solid": "Solid"
     },
+    "coverLayout": {
+      "label": "Cover Layout",
+      "description": "Cover presentation in the full-screen player",
+      "default": "Default",
+      "fullscreen": "Fullscreen"
+    },
     "themeMode": {
       "label": "Theme Mode",
       "description": "Application color theme",

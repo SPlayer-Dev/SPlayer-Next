@@ -74,6 +74,16 @@ const playerCategory: SettingCategory = {
           defaultValue: "blur",
         },
         {
+          key: "coverLayout",
+          type: "select",
+          binding: { store: "settings", path: "player.coverLayout" },
+          options: [
+            { value: "default", labelKey: "settings.coverLayout.default" },
+            { value: "fullscreen", labelKey: "settings.coverLayout.fullscreen" },
+          ],
+          defaultValue: "default",
+        },
+        {
           key: "autoCenterCover",
           type: "switch",
           binding: { store: "settings", path: "player.autoCenterCover" },

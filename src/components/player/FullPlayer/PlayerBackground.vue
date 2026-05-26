@@ -2,11 +2,13 @@
 import { useSettingsStore } from "@/stores/settings";
 import { useThemeStore } from "@/stores/theme";
 import { useMediaStore } from "@/stores/media";
+import { useStatusStore } from "@/stores/status";
 import DEFAULT_COVER from "@/assets/images/song.jpg";
 
 const media = useMediaStore();
 const settings = useSettingsStore();
 const theme = useThemeStore();
+const status = useStatusStore();
 
 const bgType = computed(() => settings.player.playerBgType);
 
@@ -31,8 +33,9 @@ let preloadImg: HTMLImageElement | null = null;
 let switchToken = 0;
 
 watch(
-  () => media.track?.coverOriginal || media.track?.cover,
-  (newCover) => {
+  [() => media.track?.coverOriginal || media.track?.cover, () => status.isExpanded],
+  ([newCover, expanded]) => {
+    if (!expanded) return;
     const token = ++switchToken;
 
     if (preloadImg) {
@@ -41,7 +44,9 @@ watch(
       preloadImg.src = "";
       preloadImg = null;
     }
-
+    const targetCover = newCover || DEFAULT_COVER;
+    // 相同不切换
+    if (blurLayers[currentLayerIndex].src === targetCover) return;
     const nextIndex = currentLayerIndex === 0 ? 1 : 0;
     const switchLayer = (src: string) => {
       if (token !== switchToken) return;
@@ -57,9 +62,6 @@ watch(
         });
       });
     };
-
-    const targetCover = newCover || DEFAULT_COVER;
-
     const img = new Image();
     preloadImg = img;
     img.onload = () => switchLayer(targetCover);

@@ -914,6 +914,12 @@
       "blur": "模糊",
       "solid": "纯色"
     },
+    "coverLayout": {
+      "label": "封面布局",
+      "description": "全屏播放器封面的呈现方式",
+      "default": "默认",
+      "fullscreen": "全屏封面"
+    },
     "themeMode": {
       "label": "主题模式",
       "description": "应用的颜色主题",

@@ -5,6 +5,7 @@ import type { QualityLevel } from "@/utils/quality";
 
 /** 播放器背景类型 */
 export type PlayerBgType = "blur" | "solid";
+export type CoverLayout = "default" | "fullscreen";
 
 /**
  * 歌词来源偏好
@@ -113,6 +114,8 @@ export interface LyricSettings {
 export interface PlayerSettings {
   /** 播放器背景类型 */
   playerBgType: PlayerBgType;
+  /** 全屏播放器封面布局 */
+  coverLayout: CoverLayout;
   /** 无歌词时自动居中封面并隐藏歌词区域 */
   autoCenterCover: boolean;
   /** 颜色是否跟随封面 */
