@@ -93,17 +93,6 @@ export const startScan = (dirs: string[], incremental = true): void => {
           libraryLog.info(`扫描完成: ${event.scanned}/${event.total} 个文件`);
           break;
         }
-        case "error": {
-          scanning = false;
-          broadcast("library:scanProgress", {
-            phase: "error",
-            total: event.total,
-            scanned: event.scanned,
-            error: event.error,
-          });
-          libraryLog.error(`扫描出错: ${event.error}`);
-          break;
-        }
       }
     },
     getCoverCacheDir(),

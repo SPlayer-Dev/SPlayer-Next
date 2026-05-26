@@ -102,7 +102,7 @@ const isFocused = ref(false);
       class="flex-1 min-w-0 h-full px-1 bg-transparent outline-none border-none shadow-none text-center disabled:cursor-not-allowed"
       :class="
         cover
-          ? 'text-cover placeholder:text-cover/40 selection:bg-cover/35 selection:text-cover'
+          ? 'text-cover placeholder:text-cover/40 !selection:bg-cover/35 !selection:text-cover'
           : 'text-on-surface placeholder:text-on-surface-variant/40'
       "
       @focus="

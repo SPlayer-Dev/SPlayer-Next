@@ -17,8 +17,8 @@ import type { Track } from "@shared/types/player";
 import { prefetchTTML } from "./ttml";
 import { pickBestCandidate, type LyricCandidate } from "./utils";
 
-/** yrc 优先，其次 lrc */
-const pickFormatted = (
+/** 主歌词：yrc 优先，其次 lrc */
+const pickMain = (
   yrc?: string,
   lrc?: string,
 ): { content: string; format: "yrc" | "lrc" } | undefined => {
@@ -26,6 +26,20 @@ const pickFormatted = (
   if (yrcContent) return { content: yrcContent, format: "yrc" };
   const lrcContent = lrc?.trim();
   if (lrcContent) return { content: lrcContent, format: "lrc" };
+  return undefined;
+};
+
+/**
+ * 翻译 / 罗马音：`ytlrc` / `yromalrc` 时间戳更贴 YRC 行边界，优先选用
+ */
+const pickSub = (
+  yPaired?: string,
+  plain?: string,
+): { content: string; format: "lrc" } | undefined => {
+  const preferred = yPaired?.trim();
+  if (preferred) return { content: preferred, format: "lrc" };
+  const fallback = plain?.trim();
+  if (fallback) return { content: fallback, format: "lrc" };
   return undefined;
 };
 
@@ -38,16 +52,21 @@ export const getByPlatformId = async (id: string): Promise<LyricMatchResult | nu
   prefetchTTML("netease", [id]);
   // 缓存命中直接返回
   const cached = getCachedLyric("netease", id);
-  if (cached) return cached;
+  if (cached) {
+    // 纠正旧版本格式
+    if (cached.translationFormat === "yrc") cached.translationFormat = "lrc";
+    if (cached.romajiFormat === "yrc") cached.romajiFormat = "lrc";
+    return cached;
+  }
   try {
     const { status, body } = await callNetease("lyric_new", { id });
     if (status !== 200 || body.code !== 200) return null;
     // 主歌词：yrc > lrc
-    const main = pickFormatted(body.yrc?.lyric, body.lrc?.lyric);
+    const main = pickMain(body.yrc?.lyric, body.lrc?.lyric);
     if (!main) return null;
     // 翻译 / 罗马音
-    const trans = pickFormatted(body.ytlrc?.lyric, body.tlyric?.lyric);
-    const roma = pickFormatted(body.yromalrc?.lyric, body.romalrc?.lyric);
+    const trans = pickSub(body.ytlrc?.lyric, body.tlyric?.lyric);
+    const roma = pickSub(body.yromalrc?.lyric, body.romalrc?.lyric);
     const result: LyricMatchResult = {
       platform: "netease",
       format: main.format,
