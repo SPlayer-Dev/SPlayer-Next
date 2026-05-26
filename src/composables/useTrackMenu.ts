@@ -19,6 +19,8 @@ import IconMoreHorizontal from "~icons/lucide/more-horizontal";
 export interface TrackMenuOptions {
   /** 集合类型 */
   collectionType?: CollectionType;
+  /** 隐藏播放相关菜单项 */
+  hidePlayActions?: boolean;
   /** 添加到歌单 */
   onAddToPlaylist?: (track: Track) => void;
   /** 从集合移除回调 */
@@ -34,12 +36,16 @@ export interface TrackMenuOptions {
  * @param track - 当前操作的歌曲
  * @param options - 配置项
  */
-export const useTrackMenu = (track: Ref<Track | undefined>, options: TrackMenuOptions = {}) => {
+export const useTrackMenu = (
+  track: Ref<Track | null | undefined>,
+  options: TrackMenuOptions = {},
+) => {
   const { t } = useI18n();
   const router = useRouter();
   const { copy } = useCopyText();
   const isPlaylist = options.collectionType === "playlist";
   const isCloudView = options.collectionType === "cloud";
+  const showPlay = !options.hidePlayActions;
   // 菜单项
   const items = computed<DropdownMenuItem[]>(() => {
     const source = track.value?.source;
@@ -48,13 +54,18 @@ export const useTrackMenu = (track: Ref<Track | undefined>, options: TrackMenuOp
     const canAddToPlaylist = source === "local" || source === "netease";
     const isOnline = source !== "local" && source !== "streaming";
     return [
-      { key: "play", label: t("songList.context.play"), icon: markRaw(IconPlay) },
-      { key: "playNext", label: t("songList.context.playNext"), icon: markRaw(IconListEnd) },
+      { key: "play", label: t("songList.context.play"), icon: markRaw(IconPlay), show: showPlay },
+      {
+        key: "playNext",
+        label: t("songList.context.playNext"),
+        icon: markRaw(IconListEnd),
+        show: showPlay,
+      },
       {
         key: "addToPlaylist",
         label: t("collection.addTo", { type: t("collection.playlist") }),
         icon: markRaw(IconListPlus),
-        separator: true,
+        separator: showPlay,
         show: canAddToPlaylist,
       },
       {

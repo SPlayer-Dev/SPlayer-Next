@@ -525,6 +525,7 @@
       "description": "Preferred quality for online tracks; the actual level depends on what your account supports",
       "switchTitle": "Switch Quality",
       "switchHint": "Subject to your account permissions",
+      "unsupportedHint": "Quality switching is not supported for this track",
       "lq": "Standard (LQ)",
       "sq": "Higher (SQ)",
       "hq": "Extreme (HQ)",

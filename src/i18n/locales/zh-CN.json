@@ -525,6 +525,7 @@
       "description": "在线歌曲的音质偏好，取决于账号实际可用级别",
       "switchTitle": "音质切换",
       "switchHint": "以账号具体权限为准",
+      "unsupportedHint": "当前歌曲不支持调节音质",
       "lq": "标准 (LQ)",
       "sq": "较高 (SQ)",
       "hq": "极高 (HQ)",

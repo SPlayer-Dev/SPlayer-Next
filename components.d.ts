@@ -108,6 +108,8 @@ declare module 'vue' {
     IconLucideMicVocal: typeof import('~icons/lucide/mic-vocal')['default']
     IconLucideMinimize: typeof import('~icons/lucide/minimize')['default']
     IconLucideMinus: typeof import('~icons/lucide/minus')['default']
+    IconLucideMoreHorizontal: typeof import('~icons/lucide/more-horizontal')['default']
+    IconLucideMoreVertical: typeof import('~icons/lucide/more-vertical')['default']
     IconLucideMusic: typeof import('~icons/lucide/music')['default']
     IconLucidePause: typeof import('~icons/lucide/pause')['default']
     IconLucidePlay: typeof import('~icons/lucide/play')['default']

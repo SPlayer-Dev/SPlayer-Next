@@ -61,6 +61,7 @@ const handleChange = (val: string): void => {
         :side="side"
         :align="align"
         :side-offset="sideOffset"
+        :collision-padding="12"
         :style="{ minWidth: `${minWidth}px` }"
         :class="[
           'z-400 rounded-lg shadow-lg text-sm data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out',

@@ -84,6 +84,7 @@ const menuItemClass = computed(() =>
         :align="align"
         :side-offset="sideOffset"
         :avoid-collisions="true"
+        :collision-padding="12"
         :class="contentClass"
       >
         <template v-for="item in visibleItems" :key="item.key">
@@ -99,6 +100,7 @@ const menuItemClass = computed(() =>
               <DropdownMenuSubContent
                 :side-offset="4"
                 :avoid-collisions="true"
+                :collision-padding="12"
                 :class="[contentClass, 'max-h-60 overflow-y-auto']"
               >
                 <template v-for="child in item.children" :key="child.key">

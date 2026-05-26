@@ -52,10 +52,10 @@ const isArtistLinkable = (artist: Artist): boolean => {
         />
       </div>
     </div>
-    <!-- 歌曲信息：仅文本切歌时滑动 -->
+    <!-- 歌曲信息 -->
     <Transition name="slide-left" mode="out-in">
       <div v-if="media.track" :key="media.track.id" class="min-w-0 flex-1">
-        <div class="flex items-center gap-1.5 min-w-0">
+        <div class="flex items-center gap-1 min-w-0">
           <SMarquee
             fit
             class="min-w-0"

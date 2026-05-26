@@ -13,7 +13,7 @@ const media = useMediaStore();
 const settings = useSettingsStore();
 
 /** 是否支持切换在线音质 */
-const isNetease = computed(() => media.track?.source === "netease");
+const canSwitchQuality = computed(() => media.track?.source === "netease" && !media.track?.cloud);
 
 /** 实际播放音质 */
 const qualityLabel = computed(() => getQualityLabel(media.detail?.quality));
@@ -39,7 +39,7 @@ const onQualityChange = (value: string | number | boolean): void => {
 
 <template>
   <SPopselect
-    v-if="isNetease && media.detail?.quality"
+    v-if="canSwitchQuality && media.detail?.quality"
     :model-value="settings.player.songLevel"
     :options="qualityOptions"
     side="top"
@@ -76,15 +76,21 @@ const onQualityChange = (value: string | number | boolean): void => {
       </span>
     </template>
   </SPopselect>
-  <span
+  <STooltip
     v-else-if="media.detail?.quality"
-    :class="[
-      chipBase,
-      cover
-        ? 'border-cover/25 text-cover/55'
-        : 'border-on-surface-variant/25 text-on-surface-variant/80',
-    ]"
+    :content="t('settings.songLevel.unsupportedHint')"
+    :side-offset="16"
+    side="top"
   >
-    {{ qualityLabel }}
-  </span>
+    <span
+      :class="[
+        chipBase,
+        cover
+          ? 'border-cover/25 text-cover/55'
+          : 'border-on-surface-variant/25 text-on-surface-variant/80',
+      ]"
+    >
+      {{ qualityLabel }}
+    </span>
+  </STooltip>
 </template>

@@ -62,6 +62,7 @@ const handleChange = (val: string) => {
       <SelectContent
         position="popper"
         :side-offset="4"
+        :collision-padding="12"
         class="z-400 max-h-60 w-[var(--reka-select-trigger-width)] overflow-hidden rounded-xl bg-surface-bright shadow-lg data-[state=open]:animate-select-in data-[state=closed]:animate-select-out"
       >
         <SelectViewport class="p-1">

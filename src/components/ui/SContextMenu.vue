@@ -46,6 +46,7 @@ const menuItemClass =
       <ContextMenuContent
         :align-offset="alignOffset"
         :avoid-collisions="true"
+        :collision-padding="12"
         :class="contentClass"
       >
         <slot name="header" />
@@ -63,6 +64,7 @@ const menuItemClass =
               <ContextMenuSubContent
                 :side-offset="4"
                 :avoid-collisions="true"
+                :collision-padding="12"
                 :class="[contentClass, 'max-h-60 overflow-y-auto']"
               >
                 <template v-for="child in item.children" :key="child.key">

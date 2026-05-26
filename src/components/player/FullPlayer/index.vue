@@ -1,16 +1,20 @@
 <script setup lang="ts">
+import type { Track } from "@shared/types/player";
+import type { ContentScope } from "@/types/collection";
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
 import { usePlaybackTime } from "@/composables/usePlaybackTime";
 import { useFavorite } from "@/composables/useFavorite";
 import Lyrics from "@/components/player/Lyrics/index.vue";
+import PlaylistPickerDialog from "@/components/modals/PlaylistPickerDialog.vue";
 import { useWindowControls } from "@/composables/useWindowControls";
 import { useSettingsDialog } from "@/settings/useSettingsDialog";
 import * as player from "@/core/player";
 import { formatTime, formatSignedSec } from "@/utils/time";
 import IconFavorite from "~icons/material-symbols/favorite-rounded";
 import IconFavoriteOutline from "~icons/material-symbols/favorite-outline-rounded";
+import IconLucideListPlus from "~icons/lucide/list-plus";
 
 const { t } = useI18n();
 const status = useStatusStore();
@@ -170,10 +174,10 @@ const lyricActionsClass = computed(() => {
   return "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto";
 });
 
-/** 当前曲目偏移（读 mirror，写走主进程 IPC） */
+/** 当前曲目偏移 */
 const songOffset = computed(() => status.lyricOffsetMs);
 
-/** 写入偏移；trackId 不存在时静默忽略 */
+/** 写入偏移 */
 const writeOffset = (offsetMs: number): void => {
   const id = media.track?.id;
   if (!id) return;
@@ -192,6 +196,19 @@ const advanceLyric = (): void => writeOffset(songOffset.value + LYRIC_OFFSET_STE
 const delayLyric = (): void => writeOffset(songOffset.value - LYRIC_OFFSET_STEP);
 /** 重置歌词偏移 */
 const resetLyricOffset = (): void => writeOffset(0);
+
+/** 添加到歌单 */
+const pickerOpen = ref(false);
+const pickerTracks = shallowRef<Track[]>([]);
+const pickerMode = ref<ContentScope>("local");
+
+const openPicker = (): void => {
+  const track = media.track;
+  if (!track) return;
+  pickerTracks.value = [track];
+  pickerMode.value = track.source === "netease" ? "online" : "local";
+  pickerOpen.value = true;
+};
 
 /** 切换歌词展示 */
 const toggleLyric = (): void => {
@@ -440,6 +457,16 @@ const toggleLyric = (): void => {
                 <IconFavoriteOutline v-else />
               </template>
             </SButton>
+            <SButton
+              v-if="media.track?.source === 'local' || media.track?.source === 'netease'"
+              type="cover"
+              variant="ghost"
+              size="large"
+              circle
+              @click="openPicker"
+            >
+              <template #icon><IconLucideListPlus /></template>
+            </SButton>
           </div>
           <div class="shrink-0 flex flex-col items-center gap-1 w-[clamp(360px,35%,480px)]">
             <div class="flex items-center gap-3">
@@ -534,6 +561,7 @@ const toggleLyric = (): void => {
         </div>
       </div>
     </Transition>
+    <PlaylistPickerDialog v-model:open="pickerOpen" :mode="pickerMode" :tracks="pickerTracks" />
   </Teleport>
 </template>
 

@@ -44,6 +44,7 @@ withDefaults(
           :align="align"
           :side-offset="sideOffset"
           :avoid-collisions="true"
+          :collision-padding="12"
           class="z-300 px-3 py-2 rounded-lg bg-surface-bright shadow-lg text-sm text-on-surface data-[state=delayed-open]:animate-popover-in data-[state=closed]:animate-popover-out"
         >
           {{ content }}

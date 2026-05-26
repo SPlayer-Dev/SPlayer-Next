@@ -134,6 +134,7 @@ const bridgeClasses = computed(() =>
         :align="align"
         :side-offset="sideOffset"
         :avoid-collisions="true"
+        :collision-padding="12"
         :class="[
           'z-300 rounded-xl shadow-lg p-3 text-sm data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out',
           cover
