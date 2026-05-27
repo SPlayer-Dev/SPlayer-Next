@@ -17,6 +17,8 @@ import { resolveTrackSource } from "@/services/audioSource";
 import { installPlayStats } from "./stats";
 import { extractColorFromUrl } from "@/utils/color";
 import { handleError, isSkippableError } from "@/utils/errors";
+import { toast } from "@/composables/useToast";
+import i18n from "@/i18n";
 
 /** 引擎 load 竞态 token */
 let loadToken = 0;
@@ -529,8 +531,11 @@ const syncPlayMode = (): void => {
  * @param mode - off（不循环）、list（列表循环）、one（单曲循环）
  */
 export const setRepeatMode = (mode: RepeatMode): void => {
-  useStatusStore().repeatMode = mode;
+  const status = useStatusStore();
+  if (status.repeatMode === mode) return;
+  status.repeatMode = mode;
   syncPlayMode();
+  toast.info(i18n.global.t(`player.repeatMode.${mode}`));
 };
 
 /** 循环切换循环模式：list → one → off → list */
@@ -571,6 +576,7 @@ export const setShuffleMode = (mode: ShuffleMode): void => {
     }
   }
   syncPlayMode();
+  toast.info(i18n.global.t(`player.shuffleMode.${mode}`));
 };
 
 /**

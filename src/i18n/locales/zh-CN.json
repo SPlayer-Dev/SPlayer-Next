@@ -305,6 +305,15 @@
     "lyricOffset": {
       "title": "歌词偏移",
       "hint": "正值为歌词提前，单位毫秒"
+    },
+    "repeatMode": {
+      "list": "列表循环",
+      "one": "单曲循环",
+      "off": "关闭循环"
+    },
+    "shuffleMode": {
+      "on": "随机播放",
+      "off": "顺序播放"
     }
   },
   "songList": {

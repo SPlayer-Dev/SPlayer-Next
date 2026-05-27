@@ -119,7 +119,7 @@ const playerBarInnerClass = computed(() => {
   </Transition>
 
   <!-- Toast -->
-  <SToast :max="5" />
+  <SToast :max="1" />
   <!-- Dialog -->
   <SDialogProvider />
   <!-- 全屏播放器 -->

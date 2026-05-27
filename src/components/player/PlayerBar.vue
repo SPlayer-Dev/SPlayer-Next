@@ -10,7 +10,7 @@ import * as player from "@/core/player";
 import { formatTime } from "@/utils/time";
 import IconFavorite from "~icons/material-symbols/favorite-rounded";
 import IconFavoriteOutline from "~icons/material-symbols/favorite-outline-rounded";
-import IconLucideMoreVertical from "~icons/lucide/more-vertical";
+import IconLucideMoreHorizontal from "~icons/lucide/more-horizontal";
 
 const status = useStatusStore();
 const settings = useSettingsStore();
@@ -50,33 +50,42 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
       <div class="flex items-center gap-2 min-w-0">
         <TrackInfo compact class="flex-1">
           <template #title-trailing>
-            <SButton
-              class="-my-1"
-              type="primary"
-              variant="text"
-              circle
-              :size="24"
-              :icon-size="16"
-              @click="fav.toggle(media.track)"
-            >
-              <template #icon>
-                <IconFavorite v-if="fav.isLiked(media.track)" />
-                <IconFavoriteOutline v-else />
-              </template>
-            </SButton>
-            <SDropdownMenu
-              v-if="media.track"
-              :items="menuItems"
-              side="top"
-              align="start"
-              @select="onMenuSelect"
-            >
-              <template #trigger>
-                <SButton class="-my-1" variant="text" circle :size="24" :icon-size="16">
-                  <template #icon><IconLucideMoreVertical /></template>
-                </SButton>
-              </template>
-            </SDropdownMenu>
+            <div class="flex items-center shrink-0">
+              <SButton
+                class="-my-1"
+                type="primary"
+                variant="text"
+                circle
+                :size="24"
+                :icon-size="16"
+                @click="fav.toggle(media.track)"
+              >
+                <template #icon>
+                  <IconFavorite v-if="fav.isLiked(media.track)" />
+                  <IconFavoriteOutline v-else />
+                </template>
+              </SButton>
+              <SDropdownMenu
+                v-if="media.track"
+                :items="menuItems"
+                side="top"
+                align="start"
+                @select="onMenuSelect"
+              >
+                <template #trigger>
+                  <SButton
+                    class="-my-1"
+                    type="primary"
+                    variant="text"
+                    circle
+                    :size="24"
+                    :icon-size="16"
+                  >
+                    <template #icon><IconLucideMoreHorizontal /></template>
+                  </SButton>
+                </template>
+              </SDropdownMenu>
+            </div>
           </template>
         </TrackInfo>
         <span class="text-xs text-on-surface-variant/70 tabular-nums shrink-0">
@@ -119,33 +128,42 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
     <div class="grid grid-cols-[1fr_auto_1fr] items-center h-full px-3 gap-3">
       <TrackInfo>
         <template #title-trailing>
-          <SButton
-            class="-my-1"
-            type="primary"
-            variant="text"
-            circle
-            :size="28"
-            :icon-size="18"
-            @click="fav.toggle(media.track)"
-          >
-            <template #icon>
-              <IconFavorite v-if="fav.isLiked(media.track)" />
-              <IconFavoriteOutline v-else />
-            </template>
-          </SButton>
-          <SDropdownMenu
-            v-if="media.track"
-            :items="menuItems"
-            side="top"
-            align="start"
-            @select="onMenuSelect"
-          >
-            <template #trigger>
-              <SButton class="-my-1" variant="text" circle :size="28" :icon-size="18">
-                <template #icon><IconLucideMoreVertical /></template>
-              </SButton>
-            </template>
-          </SDropdownMenu>
+          <div class="flex items-center shrink-0">
+            <SButton
+              class="-my-1"
+              type="primary"
+              variant="text"
+              circle
+              :size="28"
+              :icon-size="18"
+              @click="fav.toggle(media.track)"
+            >
+              <template #icon>
+                <IconFavorite v-if="fav.isLiked(media.track)" />
+                <IconFavoriteOutline v-else />
+              </template>
+            </SButton>
+            <SDropdownMenu
+              v-if="media.track"
+              :items="menuItems"
+              side="top"
+              align="start"
+              @select="onMenuSelect"
+            >
+              <template #trigger>
+                <SButton
+                  class="-my-1"
+                  type="primary"
+                  variant="text"
+                  circle
+                  :size="28"
+                  :icon-size="18"
+                >
+                  <template #icon><IconLucideMoreHorizontal /></template>
+                </SButton>
+              </template>
+            </SDropdownMenu>
+          </div>
         </template>
       </TrackInfo>
       <PlayerControls class="mx-15" />

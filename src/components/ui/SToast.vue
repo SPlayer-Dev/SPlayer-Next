@@ -7,6 +7,7 @@ setMaxToasts(props.max);
 
 const { toasts, remove } = useToast();
 
+/** 图标色 */
 const iconStyles: Record<ToastType, string> = {
   default: "text-on-surface-variant",
   loading: "text-on-surface-variant",
@@ -14,6 +15,16 @@ const iconStyles: Record<ToastType, string> = {
   success: "text-green-600",
   warning: "text-amber-500",
   error: "text-red-500",
+};
+
+const onBeforeLeave = (el: Element): void => {
+  const htmlEl = el as HTMLElement;
+  const rect = htmlEl.getBoundingClientRect();
+  htmlEl.style.position = "fixed";
+  htmlEl.style.top = `${rect.top}px`;
+  htmlEl.style.left = `${rect.left}px`;
+  htmlEl.style.width = `${rect.width}px`;
+  htmlEl.style.margin = "0";
 };
 </script>
 
@@ -23,46 +34,52 @@ const iconStyles: Record<ToastType, string> = {
       class="fixed bottom-24 inset-x-0 z-999 flex flex-col items-center gap-2 pointer-events-none"
     >
       <TransitionGroup
-        enter-active-class="transition-all duration-300 ease-out"
-        leave-active-class="transition-all duration-200 ease-in absolute"
-        enter-from-class="translate-y-1 opacity-0 scale-95"
-        leave-to-class="-translate-y-1 opacity-0 scale-95"
-        move-class="transition-all duration-300 ease-out"
+        enter-active-class="transition-[opacity,transform] duration-250 ease-[cubic-bezier(0.4,0,0.2,1)]"
+        leave-active-class="transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.4,0,1,1)]"
+        enter-from-class="scale-95 opacity-0"
+        leave-to-class="scale-95 opacity-0"
+        move-class="transition-transform duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
+        @before-leave="onBeforeLeave"
       >
         <div
           v-for="item in toasts"
           :key="item.id"
-          class="pointer-events-auto border border-solid border-outline-variant/30 rounded-lg px-3.5 py-2.5 flex items-center gap-2.5 text-sm bg-surface-bright text-on-surface shadow-lg whitespace-nowrap backdrop-blur-sm"
+          class="pointer-events-auto border border-solid border-outline-variant/30 rounded-lg px-3.5 py-2.5 flex items-center gap-2.5 text-sm bg-surface-bright text-on-surface shadow-lg whitespace-nowrap will-change-transform"
         >
-          <!-- 自定义图标 -->
+          <!-- 图标 -->
           <template v-if="item.icon !== false">
             <component
               :is="item.icon"
               v-if="item.icon"
-              class="size-4 shrink-0"
+              class="size-5 shrink-0"
               :class="iconStyles[item.type]"
             />
             <template v-else>
-              <SLoading v-if="item.type === 'loading'" class="size-4 shrink-0" />
-              <IconLucideMessageCircle
+              <SLoading v-if="item.type === 'loading'" class="size-5 shrink-0" />
+              <IconMaterialSymbolsChatBubbleRounded
                 v-else-if="item.type === 'default'"
-                class="size-4 shrink-0 text-on-surface-variant"
+                class="size-5 shrink-0"
+                :class="iconStyles.default"
               />
-              <IconLucideInfo
+              <IconMaterialSymbolsInfoRounded
                 v-else-if="item.type === 'info'"
-                class="size-4 shrink-0 text-blue-500"
+                class="size-5 shrink-0"
+                :class="iconStyles.info"
               />
-              <IconLucideCircleCheck
+              <IconMaterialSymbolsCheckCircleRounded
                 v-else-if="item.type === 'success'"
-                class="size-4 shrink-0 text-green-600"
+                class="size-5 shrink-0"
+                :class="iconStyles.success"
               />
-              <IconLucideTriangleAlert
+              <IconMaterialSymbolsWarningRounded
                 v-else-if="item.type === 'warning'"
-                class="size-4 shrink-0 text-amber-500"
+                class="size-5 shrink-0"
+                :class="iconStyles.warning"
               />
-              <IconLucideCircleX
+              <IconMaterialSymbolsCancelRounded
                 v-else-if="item.type === 'error'"
-                class="size-4 shrink-0 text-red-500"
+                class="size-5 shrink-0"
+                :class="iconStyles.error"
               />
             </template>
           </template>

@@ -305,6 +305,15 @@
     "lyricOffset": {
       "title": "Lyric Offset",
       "hint": "Positive values advance lyrics, in milliseconds"
+    },
+    "repeatMode": {
+      "list": "Repeat all",
+      "one": "Repeat one",
+      "off": "Repeat off"
+    },
+    "shuffleMode": {
+      "on": "Shuffle on",
+      "off": "Shuffle off"
     }
   },
   "songList": {

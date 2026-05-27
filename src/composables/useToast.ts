@@ -32,13 +32,13 @@ let maxToasts = 5;
 /** 全局 toast 队列 */
 const toasts = shallowReactive<ToastItem[]>([]);
 
-/** 定时器映射，记录每个 toast 的关闭定时器 */
+/** 定时器映射 */
 const timers = new Map<number, ReturnType<typeof setTimeout>>();
 
 /** 下一个 toast ID */
 let nextId = 0;
 
-/** 移除 toast */
+/** 移除指定 id 的 toast */
 const remove = (id: number): void => {
   const timer = timers.get(id);
   if (timer) {
@@ -49,10 +49,15 @@ const remove = (id: number): void => {
   if (idx !== -1) toasts.splice(idx, 1);
 };
 
-/** 添加 toast */
+/**
+ * 添加 toast
+ * @param type toast 类型
+ * @param message toast 消息
+ * @param options toast 选项
+ * @returns toast 实例
+ */
 const push = (type: ToastType, message: string, options?: ToastOptions): ToastInstance => {
-  const defaults = { duration: 3000, closable: false };
-  const { duration = defaults.duration, closable = defaults.closable, icon } = options ?? {};
+  const { duration = 3000, closable = false, icon } = options ?? {};
   while (toasts.length >= maxToasts) {
     remove(toasts[0].id);
   }
@@ -67,7 +72,7 @@ const push = (type: ToastType, message: string, options?: ToastOptions): ToastIn
   return { id, close: () => remove(id) };
 };
 
-/** 全局 toast */
+/** 全局 toast API */
 export const toast = {
   show: (message: string, options?: ToastOptions) => push("default", message, options),
   info: (message: string, options?: ToastOptions) => push("info", message, options),
