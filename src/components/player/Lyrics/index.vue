@@ -90,6 +90,8 @@ const props = withDefaults(
     showTranslation?: boolean;
     /** 是否显示音译歌词 @default true */
     showRomanization?: boolean;
+    /** 挂载时的初始播放时间（毫秒）@default 0 */
+    initialTime?: number;
   }>(),
   {
     playing: false,
@@ -108,6 +110,7 @@ const props = withDefaults(
     enableEmphasizeEffect: DEFAULTS.enableEmphasizeEffect,
     showTranslation: true,
     showRomanization: true,
+    initialTime: 0,
   },
 );
 
@@ -158,12 +161,15 @@ const handleLineClick = (timeMs: number) => {
 
 onMounted(() => {
   if (!containerRef.value) return;
-  const { lyricLines: _lyricLines, ...config } = props;
+  const { lyricLines: _lyricLines, initialTime: _initialTime, ...config } = props;
   renderer = new LyricRenderer(containerRef.value, {
     ...config,
     springConfig: props.springConfig ?? {},
     onLineClick: handleLineClick,
   });
+  if (props.initialTime > 0) {
+    renderer.setCurrentTime(props.initialTime);
+  }
   if (props.lyricLines.length > 0) {
     renderer.setLyrics(props.lyricLines);
   }

@@ -5,6 +5,7 @@ import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
 import { usePlaybackTime } from "@/composables/usePlaybackTime";
+import { getCurrentTime } from "@/services/playback";
 import { useFavorite } from "@/composables/useFavorite";
 import Lyrics from "@/components/player/Lyrics/index.vue";
 import PlaylistPickerDialog from "@/components/modals/PlaylistPickerDialog.vue";
@@ -44,18 +45,23 @@ const { start: startTick, stop: stopTick } = usePlaybackTime((currentMs) => {
 
 /** 歌词组件是否已挂载 */
 const lyricMounted = ref(false);
+/** 初始播放时间 */
+const initialLyricTimeMs = ref(0);
 
-/** 展开前：非首次直接恢复渲染 */
+/** 展开前 */
 const onBeforeEnter = () => {
   if (lyricMounted.value) {
+    // 先推一次当前时间
+    lyricRef.value?.setCurrentTime(getCurrentTime() + status.lyricOffsetMs);
     lyricRef.value?.resume();
     startTick();
   }
 };
 
-/** 展开动画结束后：首次挂载歌词组件 */
+/** 展开后 */
 const onAfterEnter = () => {
   if (!lyricMounted.value) {
+    initialLyricTimeMs.value = getCurrentTime() + status.lyricOffsetMs;
     lyricMounted.value = true;
     nextTick(() => {
       lyricRef.value?.resume();
@@ -319,6 +325,7 @@ const toggleLyric = (): void => {
                 v-if="lyricMounted && hasLyric"
                 ref="lyricRef"
                 :lyric-lines="media.parsedLyric"
+                :initial-time="initialLyricTimeMs"
                 :playing="isPlaying"
                 :align-position="settings.lyric.alignPosition"
                 :word-fade-width="settings.lyric.wordFadeWidth"

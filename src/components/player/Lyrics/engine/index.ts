@@ -226,6 +226,9 @@ export class LyricRenderer {
   freeze = () => {
     cancelAnimationFrame(this.animationFrameId);
     this.animationFrameId = 0;
+    // 断开 observer
+    this.containerResizeObserver.disconnect();
+    this.sentinelResizeObserver.disconnect();
     // Web Animations 走自己的时间线，不随 rAF 暂停而停止；冻结期间也要 pause
     for (const anims of this.activeAnimations.values()) {
       for (const anim of anims) anim.pause();
@@ -235,6 +238,10 @@ export class LyricRenderer {
   /** 恢复渲染 */
   resume = () => {
     if (this.animationFrameId !== 0) return;
+    this.containerResizeObserver.observe(this.container);
+    if (this.sentinelElement) {
+      this.sentinelResizeObserver.observe(this.sentinelElement);
+    }
     this.lastFrameTimestamp = 0;
     this.needsFullSync = true;
     // 恢复时按当前播放时间重新对齐动画 currentTime 后再 play
@@ -280,9 +287,9 @@ export class LyricRenderer {
    * @param lines - 歌词行数组
    */
   setLyrics = (lines: LyricLine[]) => {
+    const seekTime = this.pendingPlayTime >= 0 ? this.pendingPlayTime : 0;
     this.cancelAllActiveAnimations();
     for (const element of this.lineElements) element.remove();
-
     // 重置状态
     this.lines = lines;
     this.activeLineIndex = -1;
@@ -410,8 +417,8 @@ export class LyricRenderer {
     // 重置帧时间戳，避免渲染器空闲后首帧 deltaTime 过大导致弹簧瞬移
     this.lastFrameTimestamp = 0;
 
-    // 初始布局 + 入场动画（从 time=0 开始）
-    this.handleSeek(0);
+    // 初始布局 + 入场动画
+    this.handleSeek(seekTime);
     this.calculateLayout(true);
     this.playEntranceAnimation(this.containerHeight * 0.6);
     this.needsFullSync = true;
