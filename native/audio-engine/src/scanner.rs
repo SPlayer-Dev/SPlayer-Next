@@ -14,7 +14,6 @@ use ffmpeg_audio::AudioReader;
 use tracing::{debug, info, warn};
 use walkdir::WalkDir;
 
-use crate::decoder;
 use crate::metadata;
 
 /// 支持的音频文件扩展名
@@ -76,15 +75,10 @@ fn is_audio_file(path: &Path) -> bool {
 
 /// 使用 ffmpeg_audio 打开音频文件并读取元数据
 ///
-/// 会顺带初始化解码器和重采样器（一次性开销），扫库速度仍能跑到几百文件/秒
+/// 新 API 下 AudioReader 不再要求重采样参数，扫库每文件省一次 SwrContext 分配
 fn probe_fast(path: &str, cover_cache_dir: Option<&str>) -> Option<ScannedTrack> {
     let file = fs::File::open(path).ok()?;
-    let reader = AudioReader::new(
-        file,
-        decoder::TARGET_SAMPLE_RATE as i32,
-        decoder::TARGET_CHANNELS as i32,
-    )
-    .ok()?;
+    let reader = AudioReader::new(file).ok()?;
 
     let duration = reader.duration().map(|d| d.as_secs_f64()).unwrap_or(0.0);
 

@@ -5,7 +5,7 @@ use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use ffmpeg_audio::{AudioError, AudioReader};
+use ffmpeg_audio::{AudioError, AudioReader, ResampleOptions, Resampler};
 use tracing::debug;
 
 use crate::http_source;
@@ -18,8 +18,14 @@ pub const TARGET_SAMPLE_RATE: u32 = 48000;
 pub const TARGET_CHANNELS: u16 = 2;
 
 /// 解码会话所需的资源（跨 seek 复用，避免重建 ffmpeg_audio 上下文）
+///
+/// 1-to-N 分发：同一帧零拷贝喂给两个重采样器
+/// - player_resampler: 48k stereo f32，给 rodio 播放
+/// - fft_resampler:    48k mono   f32，给 FFT 频谱分析
 pub struct DecoderData {
     reader: AudioReader,
+    player_resampler: Resampler,
+    fft_resampler: Resampler,
     /// 中断标志：仅网络源持有；本地 File 不会长时间阻塞，没必要绑
     /// 通过 shared.bind_interrupt 注入，外部 stop() 触发后 HttpRangeSource::read 会返回 Interrupted
     interrupt_flag: Option<Arc<AtomicBool>>,
@@ -27,10 +33,19 @@ pub struct DecoderData {
 
 impl DecoderData {
     /// 在已有 reader 上 seek，失败时调用方应回退到完整 load
+    ///
+    /// seek 后两个重采样器要 flush 掉残留样本，否则播放/FFT 会带上上一段尾巴
     pub fn seek(&mut self, position_secs: f64) -> bool {
-        self.reader
+        if self
+            .reader
             .seek(Duration::from_secs_f64(position_secs))
-            .is_ok()
+            .is_err()
+        {
+            return false;
+        }
+        let _ = self.player_resampler.flush();
+        let _ = self.fft_resampler.flush();
+        true
     }
 
     /// 清除中断标志：seek 路径在 join 旧解码线程后调用一次，避免 stop 信号导致 seek 自爆
@@ -46,7 +61,7 @@ impl DecoderData {
     }
 }
 
-// SAFETY: AudioReader 内部持有 ffmpeg C 指针，仅被解码线程独占使用，spawn 时 move 进线程
+// SAFETY: AudioReader/Resampler 内部持有 ffmpeg C 指针，仅被解码线程独占使用，spawn 时 move 进线程
 unsafe impl Send for DecoderData {}
 
 /// 启动解码线程，返回音频元数据和线程句柄
@@ -58,7 +73,7 @@ pub fn start_decode(
     shared: Arc<Shared>,
     cover_cache_dir: Option<&str>,
 ) -> Result<(AudioMetadata, JoinHandle<DecoderData>)> {
-    let (reader, interrupt_flag) = open_source(source)?;
+    let (reader, player_resampler, fft_resampler, interrupt_flag) = open_source(source)?;
     if let Some(ref flag) = interrupt_flag {
         shared.bind_interrupt(Arc::clone(flag));
     }
@@ -102,6 +117,8 @@ pub fn start_decode(
 
     let data = DecoderData {
         reader,
+        player_resampler,
+        fft_resampler,
         interrupt_flag,
     };
 
@@ -134,22 +151,45 @@ pub fn resume_decode(data: DecoderData, shared: Arc<Shared>) -> JoinHandle<Decod
 }
 
 /// 根据 source 协议打开音频：http(s) 走 HttpRangeSource + 拿 cancel flag，其他走本地 File
-fn open_source(source: &str) -> Result<(AudioReader, Option<Arc<AtomicBool>>)> {
-    if http_source::is_network_source(source) {
+///
+/// 返回 (reader, 播放重采样器, FFT 重采样器, cancel 标志)
+fn open_source(
+    source: &str,
+) -> Result<(AudioReader, Resampler, Resampler, Option<Arc<AtomicBool>>)> {
+    let (reader, cancel) = if http_source::is_network_source(source) {
         let http = http_source::HttpRangeSource::new(source)?;
         let cancel = http.cancel_handle();
-        let reader = AudioReader::new(http, TARGET_SAMPLE_RATE as i32, TARGET_CHANNELS as i32)
-            .with_context(|| format!("打开网络音频失败: {source}"))?;
-        Ok((reader, Some(cancel)))
+        let reader =
+            AudioReader::new(http).with_context(|| format!("打开网络音频失败: {source}"))?;
+        (reader, Some(cancel))
     } else {
         let file = File::open(source).with_context(|| format!("打开本地文件失败: {source}"))?;
-        let reader = AudioReader::new(file, TARGET_SAMPLE_RATE as i32, TARGET_CHANNELS as i32)
-            .with_context(|| format!("打开本地音频失败: {source}"))?;
-        Ok((reader, None))
-    }
+        let reader =
+            AudioReader::new(file).with_context(|| format!("打开本地音频失败: {source}"))?;
+        (reader, None)
+    };
+
+    let player_opts = ResampleOptions::new()
+        .sample_rate(TARGET_SAMPLE_RATE as i32)
+        .channels(i32::from(TARGET_CHANNELS))
+        .format::<f32>();
+    let player_resampler = reader
+        .build_resampler(player_opts)
+        .with_context(|| "构建播放重采样器失败")?;
+
+    // FFT 用 mono：让 ffmpeg 做正经下混，比之前 chunks_exact(2).map(|c| c[0]) 抽左声道更合理
+    let fft_opts = ResampleOptions::new()
+        .sample_rate(TARGET_SAMPLE_RATE as i32)
+        .channels(1)
+        .format::<f32>();
+    let fft_resampler = reader
+        .build_resampler(fft_opts)
+        .with_context(|| "构建 FFT 重采样器失败")?;
+
+    Ok((reader, player_resampler, fft_resampler, cancel))
 }
 
-/// 核心解码循环：从 reader 拉交错 stereo f32，按 chunk 推入 shared
+/// 核心解码循环：每帧解码一次，零拷贝分发到播放 + FFT 两个重采样器
 fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
     // 响度归一化：有 ReplayGain 标签时用固定增益，否则用实时分析
     let has_replay_gain = (shared.normalization_gain() - 1.0).abs() > f32::EPSILON;
@@ -167,9 +207,66 @@ fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
             return;
         }
 
-        let samples = match data.reader.receive_frame() {
-            Ok(Some(s)) => s.to_vec(),
-            Ok(None) | Err(AudioError::Eof) => return,
+        match data.reader.receive_frame() {
+            Ok(Some(frame)) => {
+                // 1-to-N：同一帧顺序喂两个重采样器
+                if data
+                    .player_resampler
+                    .process::<f32>(Some(&frame))
+                    .is_err()
+                {
+                    debug!("player resampler 处理失败，结束解码");
+                    if !had_success {
+                        shared.mark_decode_failed();
+                    }
+                    return;
+                }
+                let mut player_samples = data.player_resampler.output_as::<f32>().to_vec();
+
+                if data.fft_resampler.process::<f32>(Some(&frame)).is_err() {
+                    debug!("fft resampler 处理失败，结束解码");
+                    return;
+                }
+                let fft_samples = data.fft_resampler.output_as::<f32>().to_vec();
+
+                // 重采样可能还在攒样本，本轮没出数据就跳过
+                if player_samples.is_empty() && fft_samples.is_empty() {
+                    continue;
+                }
+                had_success = true;
+
+                if shared.is_normalization_enabled() && !player_samples.is_empty() {
+                    let gain = if has_replay_gain {
+                        shared.normalization_gain()
+                    } else {
+                        loudness.process(&player_samples)
+                    };
+                    if (gain - 1.0).abs() > f32::EPSILON {
+                        for s in &mut player_samples {
+                            *s *= gain;
+                        }
+                    }
+                }
+
+                shared.push(AudioChunk {
+                    player_samples,
+                    fft_samples,
+                });
+            }
+            Ok(None) | Err(AudioError::Eof) => {
+                // EOF flush：把两个重采样器内部残留挤出来，否则最后几十毫秒丢
+                let _ = data.player_resampler.process::<f32>(None);
+                let _ = data.fft_resampler.process::<f32>(None);
+                let player_samples = data.player_resampler.output_as::<f32>().to_vec();
+                let fft_samples = data.fft_resampler.output_as::<f32>().to_vec();
+                if !player_samples.is_empty() || !fft_samples.is_empty() {
+                    shared.push(AudioChunk {
+                        player_samples,
+                        fft_samples,
+                    });
+                }
+                return;
+            }
             Err(e) => {
                 debug!(error = %e, had_success, "解码线程结束");
                 if !had_success {
@@ -177,34 +274,6 @@ fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
                 }
                 return;
             }
-        };
-
-        if samples.is_empty() {
-            continue;
         }
-        had_success = true;
-
-        let mut player_samples = samples;
-
-        // FFT 取左声道（48k mono），fft.rs 直接用 TARGET_SAMPLE_RATE 不再单独重采样
-        let fft_samples: Vec<f32> = player_samples.chunks_exact(2).map(|c| c[0]).collect();
-
-        if shared.is_normalization_enabled() {
-            let gain = if has_replay_gain {
-                shared.normalization_gain()
-            } else {
-                loudness.process(&player_samples)
-            };
-            if (gain - 1.0).abs() > f32::EPSILON {
-                for s in &mut player_samples {
-                    *s *= gain;
-                }
-            }
-        }
-
-        shared.push(AudioChunk {
-            player_samples,
-            fft_samples,
-        });
     }
 }

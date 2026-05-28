@@ -912,7 +912,7 @@ dependencies = [
 [[package]]
 name = "ffmpeg_audio"
 version = "0.1.0"
-source = "git+https://github.com/SPlayer-Dev/ffmpeg-audio?tag=v0.1.0#9cfb1a6fecef0fa242535f678b8d593da0ea3610"
+source = "git+https://github.com/SPlayer-Dev/ffmpeg-audio?tag=v0.2.0#3a5c7ae32597d8624b695ec6772c1ba2d5202a50"
 dependencies = [
  "ffmpeg_audio_sys",
  "libc",
@@ -922,7 +922,7 @@ dependencies = [
 [[package]]
 name = "ffmpeg_audio_sys"
 version = "0.1.0"
-source = "git+https://github.com/SPlayer-Dev/ffmpeg-audio?tag=v0.1.0#9cfb1a6fecef0fa242535f678b8d593da0ea3610"
+source = "git+https://github.com/SPlayer-Dev/ffmpeg-audio?tag=v0.2.0#3a5c7ae32597d8624b695ec6772c1ba2d5202a50"
 dependencies = [
  "bindgen 0.72.1",
  "cc",
