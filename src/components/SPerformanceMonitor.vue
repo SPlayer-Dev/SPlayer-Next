@@ -82,7 +82,7 @@ const draw = (): void => {
   const min = m.min === Infinity ? 0 : m.min;
   const max = m.max || 1;
   const range = max - min || 1;
-  ctx.fillStyle = "rgba(255,255,255,0.85)";
+  ctx.fillStyle = getComputedStyle(canvas.value).color;
   const step = w / HISTORY_SIZE;
   for (let index = 0; index < m.history.length; index++) {
     const value = m.history[index];
@@ -179,14 +179,14 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="fixed z-9999 px-2 py-1.5 rounded-lg select-none bg-black/60 text-white backdrop-blur-md shadow-lg flex flex-col gap-1 app-no-drag"
+    class="fixed z-9999 px-2 py-1.5 rounded-lg select-none bg-surface-bright text-on-surface border border-solid border-outline-variant/30 shadow-lg flex flex-col gap-1 app-no-drag"
     :class="dragging ? 'cursor-grabbing' : 'cursor-grab'"
     :style="
       pos
         ? { top: `${pos.y}px`, left: `${pos.x}px`, right: 'auto' }
         : { top: '5rem', right: '1rem' }
     "
-    :title="`Drag to move · click to switch · ${rangeText}`"
+    :title="`click to switch · ${rangeText}`"
     @pointerdown="onPointerDown"
     @pointermove="onPointerMove"
     @pointerup="onPointerUp"
@@ -195,6 +195,6 @@ onBeforeUnmount(() => {
       <span class="text-sm font-semibold tabular-nums">{{ display }}</span>
       <span class="text-[10px] tracking-wider opacity-50">{{ label }}</span>
     </div>
-    <canvas ref="canvas" :width="74" :height="22" class="block" />
+    <canvas ref="canvas" :width="74" :height="22" class="block text-on-surface/85" />
   </div>
 </template>

@@ -501,7 +501,8 @@
       "songCache": "歌曲缓存",
       "cache": "缓存",
       "database": "数据库",
-      "backupReset": "备份与重置"
+      "backupReset": "备份与重置",
+      "debug": "调试"
     },
     "language": {
       "label": "界面语言",
@@ -1057,7 +1058,7 @@
     },
     "showPerformanceMonitor": {
       "label": "性能监视器",
-      "description": "悬浮显示 FPS / 帧时间 / 内存占用，点击切换指标，拖动可调整位置"
+      "description": "悬浮显示 FPS / 帧时间 / 内存占用，点击切换指标"
     },
     "taskbarProgress": {
       "label": "任务栏播放进度",

@@ -501,7 +501,8 @@
       "songCache": "Song Cache",
       "cache": "Caches",
       "database": "Database",
-      "backupReset": "Backup & Reset"
+      "backupReset": "Backup & Reset",
+      "debug": "Debug"
     },
     "language": {
       "label": "Language",
@@ -1057,7 +1058,7 @@
     },
     "showPerformanceMonitor": {
       "label": "Performance Monitor",
-      "description": "Floating widget showing FPS / frame time / memory. Click to switch, drag to move"
+      "description": "Floating widget showing FPS / frame time / memory. Click to switch"
     },
     "taskbarProgress": {
       "label": "Taskbar Progress",

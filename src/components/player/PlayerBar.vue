@@ -28,15 +28,14 @@ const onSeekDragEnd = (value: number): void => {
 /** 添加到歌单 */
 const pickerOpen = ref(false);
 const pickerTracks = shallowRef<Track[]>([]);
-const pickerMode = computed<ContentScope>(() =>
-  media.track?.source === "netease" ? "online" : "local",
-);
+const pickerMode = ref<ContentScope>("local");
 
 /** 歌曲菜单 */
 const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(media, "track"), {
   hidePlayActions: true,
   onAddToPlaylist: (track) => {
     pickerTracks.value = [track];
+    pickerMode.value = track.source === "netease" ? "online" : "local";
     pickerOpen.value = true;
   },
 });
