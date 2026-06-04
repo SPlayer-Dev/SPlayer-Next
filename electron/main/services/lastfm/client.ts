@@ -29,6 +29,8 @@ export const getAuthUrl = (token: string): string =>
 
 /**
  * 生成 api_sig：除 format 外按字母序拼 key+value，末尾接 secret 后取 md5
+ * 注意：MD5 是 Last.fm 签名协议的强制要求（服务端同样以 md5 校验），并非用于
+ * 加密/防篡改的安全用途，无法替换为更强算法，否则所有请求会被 Last.fm 拒绝。
  * @param params - 待签名参数（不含 api_sig / format）
  * @returns 32 位十六进制签名
  */

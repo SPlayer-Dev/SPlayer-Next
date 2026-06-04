@@ -119,8 +119,10 @@ export const connect = async (): Promise<LastfmConnectResult> => {
         credentials.save(result.name, result.key);
         lastfmLog.info(`已连接 Last.fm: ${result.name}`);
         return { connected: true, username: result.name };
-      } catch {
-        // 用户尚未授权，继续等待
+      } catch (err) {
+        // error 14 = 用户尚未授权
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes("Last.fm 14")) lastfmLog.warn("getSession 轮询出错:", err);
       }
     }
     return { connected: false, reason: "timeout" };

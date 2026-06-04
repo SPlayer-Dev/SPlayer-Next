@@ -36,7 +36,7 @@ export const useFavorite = () => {
     if (!settings.system.lastfm.enabled || !settings.system.lastfm.loveSync) return;
     const artist = track.artists?.[0]?.name ?? "";
     if (!artist || !track.title) return;
-    window.api.lastfm.love(artist, track.title, loved);
+    void window.api.lastfm.love(artist, track.title, loved).catch(() => {});
   };
 
   /**

@@ -43,7 +43,7 @@ const handleConnect = async (): Promise<void> => {
 
 /** 取消授权轮询 */
 const handleCancel = (): void => {
-  window.api.lastfm.cancelConnect();
+  void window.api.lastfm.cancelConnect().catch(() => {});
 };
 
 /** 断开连接 */

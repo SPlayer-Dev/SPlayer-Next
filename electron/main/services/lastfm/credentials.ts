@@ -23,6 +23,7 @@ interface PersistedCredentials {
 const encrypt = (plain: string): string => {
   if (!plain) return "";
   if (!safeStorage.isEncryptionAvailable()) {
+    lastfmLog.warn("safeStorage 不可用，sessionKey 将以 base64 明文落盘");
     return Buffer.from(plain, "utf-8").toString("base64");
   }
   return safeStorage.encryptString(plain).toString("base64");
