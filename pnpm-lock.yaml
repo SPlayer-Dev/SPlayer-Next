@@ -16,7 +16,7 @@ importers:
         version: 4.0.0(electron@41.6.1)
       '@hono/node-server':
         specifier: ^2.0.2
-        version: 2.0.2(hono@4.12.18)
+        version: 2.0.2(hono@4.12.21)
       '@material/material-color-utilities':
         specifier: ^0.4.0
         version: 0.4.0
@@ -45,8 +45,8 @@ importers:
         specifier: ^2.0.2
         version: 2.0.2
       hono:
-        specifier: ^4.12.18
-        version: 4.12.18
+        specifier: ^4.12.21
+        version: 4.12.21
       localforage:
         specifier: ^1.10.0
         version: 1.10.0
@@ -2687,7 +2687,7 @@ packages:
 
   glob@7.2.3:
     resolution: {integrity: sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q==}
-    deprecated: Glob versions prior to v9 are no longer supported
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
 
   global-agent@3.0.0:
     resolution: {integrity: sha512-PT6XReJ+D07JvGoxQMkT6qji/jVNfX/h364XHZOWeRzy64sSFr+xJ5OX7LI3b4MPQzdL4H8Y8M0xzPpsVMwA8Q==}
@@ -2739,8 +2739,8 @@ packages:
     resolution: {integrity: sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ==}
     engines: {node: '>= 0.4'}
 
-  hono@4.12.18:
-    resolution: {integrity: sha512-RWzP96k/yv0PQfyXnWjs6zot20TqfpfsNXhOnev8d1InAxubW93L11/oNUc3tQqn2G0bSdAOBpX+2uDFHV7kdQ==}
+  hono@4.12.21:
+    resolution: {integrity: sha512-uV63apnb0kyPtAUwoWgaGh9HyIFcv8lgmzPZSiTBQAFOFGIzka5EZ1dZocmGnn0XdX0+XTqJ6Tqv7selMuGLRQ==}
     engines: {node: '>=16.9.0'}
 
   hookable@5.5.3:
@@ -4410,9 +4410,9 @@ snapshots:
       - '@vue/composition-api'
       - vue
 
-  '@hono/node-server@2.0.2(hono@4.12.18)':
+  '@hono/node-server@2.0.2(hono@4.12.21)':
     dependencies:
-      hono: 4.12.18
+      hono: 4.12.21
 
   '@humanfs/core@0.19.1': {}
 
@@ -6526,7 +6526,7 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
-  hono@4.12.18: {}
+  hono@4.12.21: {}
 
   hookable@5.5.3: {}
 
