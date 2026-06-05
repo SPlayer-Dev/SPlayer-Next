@@ -179,6 +179,11 @@ export const useLibraryStore = defineStore("library", () => {
   const removeScanDir = async (dir: string): Promise<void> => {
     await window.api.library.removeScanDir(dir);
     scanDirs.value = scanDirs.value.filter((d) => d !== dir);
+    // 移除目录取消正在进行的扫描
+    if (scanning.value) {
+      scanning.value = false;
+      scanProgress.value = null;
+    }
     const res = await window.api.library.getTracks();
     if (res.success && res.data) {
       tracks.value = res.data;

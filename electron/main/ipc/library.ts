@@ -168,6 +168,8 @@ export const registerLibraryIpc = (): void => {
       }
       dirs.splice(idx, 1);
       store.set("library.scanDirs", dirs);
+      // 正在扫描时必须先取消
+      if (isScanning()) cancelScan();
       deleteTracksByDir(dir);
       libraryLog.info(`移除扫描目录: ${dir}`);
       return { success: true };

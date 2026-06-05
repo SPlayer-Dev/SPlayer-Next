@@ -84,9 +84,9 @@ onMounted(async () => {
   if (!initialized.value) {
     await libraryStore.load();
   }
-  // 有目录且有曲目时自动增量扫描
-  if (scanDirs.value.length > 0 && tracks.value.length > 0) {
-    libraryStore.startScan(true);
+  // 有目录即扫描：尚无曲目时全量，已有曲目时增量
+  if (scanDirs.value.length > 0) {
+    libraryStore.startScan(tracks.value.length > 0);
   }
 });
 

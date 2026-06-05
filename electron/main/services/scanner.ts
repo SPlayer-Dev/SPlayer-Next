@@ -46,6 +46,8 @@ export const startScan = (dirs: string[], incremental = true): void => {
     (event: JsScanEvent) => {
       switch (event.eventType) {
         case "progress": {
+          // 已取消则丢弃滞后批次，避免写回已删除目录的曲目
+          if (!scanning) break;
           // 批量写入数据库
           if (event.tracks && event.tracks.length > 0) {
             const upserts: UpsertTrack[] = event.tracks.map((t) => {
