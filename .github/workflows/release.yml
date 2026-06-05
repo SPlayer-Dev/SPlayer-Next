@@ -1,4 +1,5 @@
-# 打 tag（v*）触发发版构建并发布到 GitHub 草稿 Release
+# tag（v*）触发
+# 各架构原生 runner 构建 → 合并清单 → 创建 GitHub 草稿 Release
 name: Release
 
 on:
@@ -13,26 +14,38 @@ permissions:
 env:
   NODE_VERSION: 22.x
 
+# 同一个 tag 的发布串行执行，避免并发上传资源产生竞态
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  # 各平台/架构在对应的原生 runner 上独立构建
   build:
-    name: Build on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    name: Build on ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            name: windows
-            build_cmd: pnpm build:win -- --x64 --publish always
-          - os: macos-latest
-            name: macOS-arm64
-            build_cmd: pnpm build:mac -- --arm64 --publish always
-          - os: macos-latest
-            name: macOS-x64
-            build_cmd: pnpm build:mac -- --x64 --publish always
-          - os: ubuntu-latest
-            name: linux
-            build_cmd: pnpm build:linux -- --x64 --publish always
+          - name: Windows x64
+            runner: windows-latest
+            target: windows-x64
+          - name: Windows arm64
+            runner: windows-11-arm
+            target: windows-arm64
+          - name: macOS x64
+            runner: macos-15-intel
+            target: macos-x64
+          - name: macOS arm64
+            runner: macos-latest
+            target: macos-arm64
+          - name: Linux x64
+            runner: ubuntu-latest
+            target: linux-x64
+          - name: Linux arm64
+            runner: ubuntu-24.04-arm
+            target: linux-arm64
     steps:
       - name: Check out git repository
         uses: actions/checkout@v5
@@ -53,7 +66,7 @@ jobs:
         with:
           workspaces: "native/audio-engine -> target\nnative/media-ctrl -> target"
 
-      # 校验 tag 与 package.json 版本一致（仅 tag 触发时）
+      # 校验 tag 与 package.json 版本一致
       - name: Verify tag matches version
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
@@ -93,9 +106,104 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      # 构建并发布到 GitHub 草稿 Release（含 latest*.yml + blockmap 差量元数据）
-      - name: Build & publish ${{ matrix.name }}
-        run: ${{ matrix.build_cmd }}
+      # 仅构建本机架构
+      - name: Build ${{ matrix.name }}
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: |
+          case "${{ matrix.target }}" in
+            windows-x64)
+              pnpm build:win -- --x64 --publish never
+              ;;
+            windows-arm64)
+              pnpm build:win -- --arm64 --publish never
+              ;;
+            macos-x64)
+              pnpm build:mac -- --x64 --publish never
+              ;;
+            macos-arm64)
+              pnpm build:mac -- --arm64 --publish never
+              ;;
+            linux-x64)
+              pnpm build:linux -- --x64 --publish never
+              ;;
+            linux-arm64)
+              pnpm build:linux -- --arm64 --publish never
+              ;;
+            *)
+              echo "Unsupported target: ${{ matrix.target }}"
+              exit 1
+              ;;
+          esac
+
+      # 修复 Linux arm64 自动更新清单命名
+      # electron-builder 单独构建 arm64 时仍命名为 latest-linux.yml，会与 x64 撞名，
+      # 显式重命名为 latest-linux-arm64.yml（electron-updater 在 arm64 上据此查找）
+      - name: Rename Linux arm64 update manifest
+        if: matrix.target == 'linux-arm64'
+        shell: bash
+        run: |
+          if [ -f dist/latest-linux.yml ]; then
+            mv dist/latest-linux.yml dist/latest-linux-arm64.yml
+            echo "Renamed latest-linux.yml -> latest-linux-arm64.yml"
+          else
+            echo "dist/latest-linux.yml not found, skipping"
+          fi
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: SPlayer-Next-${{ matrix.name }}
+          path: dist/*.*
+
+  # 合并多架构更新清单并创建 GitHub 草稿 Release
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      # 整理待发布资源
+      - name: Prepare release assets
+        shell: bash
+        run: |
+          npm install --no-save --prefix "$RUNNER_TEMP/jsyaml" js-yaml@4.1.0
+          NODE_PATH="$RUNNER_TEMP/jsyaml/node_modules" \
+            node .github/scripts/prepare-release-assets.cjs artifacts release-assets
+          echo "待发布资源："
+          ls -1 release-assets
+
+      # 用官方 gh CLI 确定性创建草稿 Release
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          # 重跑场景：若同名 release 已存在则先删除，避免脏状态（保留 tag）
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes
+          fi
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG" \
+            --generate-notes \
+            --verify-tag \
+            --draft \
+            release-assets/*

@@ -51,12 +51,7 @@ const config: Configuration = {
     icon: "public/icons/logo.ico",
     artifactName: "${productName}-${version}-${arch}.${ext}",
     forceCodeSigning: false,
-    target: [
-      {
-        target: "nsis",
-        arch: ["x64"],
-      },
-    ],
+    target: ["nsis"],
   },
   nsis: {
     oneClick: false,
@@ -92,16 +87,7 @@ const config: Configuration = {
       NSDownloadsFolderUsageDescription:
         "Application requests access to the user's Downloads folder.",
     },
-    target: [
-      {
-        target: "dmg",
-        arch: ["x64", "arm64"],
-      },
-      {
-        target: "zip",
-        arch: ["x64", "arm64"],
-      },
-    ],
+    target: ["dmg", "zip"],
   },
   dmg: {
     artifactName: "${productName}-${version}-${arch}.${ext}",
@@ -112,24 +98,7 @@ const config: Configuration = {
     artifactName: "${name}-${version}-${arch}.${ext}",
     maintainer: "imsyy.top",
     category: "Audio;Music;AudioVideo;",
-    target: [
-      {
-        target: "AppImage",
-        arch: ["x64", "arm64"],
-      },
-      {
-        target: "deb",
-        arch: ["x64", "arm64"],
-      },
-      {
-        target: "rpm",
-        arch: ["x64", "arm64"],
-      },
-      {
-        target: "tar.gz",
-        arch: ["x64", "arm64"],
-      },
-    ],
+    target: ["AppImage", "deb", "rpm", "tar.gz"],
   },
   appImage: {
     artifactName: "${name}-${version}-${arch}.${ext}",
