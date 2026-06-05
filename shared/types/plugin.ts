@@ -47,7 +47,7 @@ export interface PluginManifest {
   hash: string;
   /** 安装时间戳（ms） */
   installedAt: number;
-  /** 脚本相对 `{userData}/plugins/scripts/` 的文件名 */
+  /** 脚本相对 `{userData}/app-data/plugins/scripts/` 的文件名 */
   fileName: string;
 }
 

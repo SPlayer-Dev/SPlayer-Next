@@ -1,7 +1,7 @@
 /**
  * 插件注册表
  *
- * - 扫描 `{userData}/plugins/scripts/` 下的 .js 文件
+ * - 扫描 `{userData}/app-data/plugins/scripts/` 下的 .js 文件
  * - 维护 `Map<id, PluginRuntime>`（manifest + 运行时状态 + sandbox）
  * - 提供 install / uninstall / setEnabled / 启停
  * - 订阅 sandbox 事件，处理 hostCall、crash、重启
@@ -10,7 +10,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { EventEmitter } from "node:events";
-import { app } from "electron";
 import { writeFileSync as atomicWriteSync } from "atomically";
 import type {
   PluginAction,
@@ -23,12 +22,13 @@ import { PluginErrorCodes, RESTART_MAX_ATTEMPTS } from "@shared/defaults/plugin-
 import { store } from "@main/store";
 import { getLocale } from "@main/utils/i18n";
 import { coreLog } from "@main/utils/logger";
+import { pluginsDir } from "@main/utils/paths";
 import { Sandbox } from "./sandbox";
 import { loadScript } from "./loader";
 import { dispatchHostCall } from "./host";
 import { pluginStorageDrop } from "./storage";
 
-const pluginsRoot = (): string => path.join(app.getPath("userData"), "plugins");
+const pluginsRoot = (): string => pluginsDir;
 const scriptsDir = (): string => path.join(pluginsRoot(), "scripts");
 const manifestFile = (): string => path.join(pluginsRoot(), "manifest.json");
 

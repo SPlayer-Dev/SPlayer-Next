@@ -1,12 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
-import { app } from "electron";
 import Database from "better-sqlite3";
 import { libraryLog } from "@main/utils/logger";
+import { databaseDir } from "@main/utils/paths";
 import { migrate } from "./migration";
 
 /** 数据库文件路径 */
-const dbDir = path.join(app.getPath("userData"), "Database");
+const dbDir = databaseDir;
 const dbPath = path.join(dbDir, "library.db");
 
 let db: Database.Database | null = null;

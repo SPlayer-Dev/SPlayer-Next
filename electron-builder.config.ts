@@ -2,7 +2,7 @@ import type { Configuration } from "electron-builder";
 
 const config: Configuration = {
   appId: "com.imsyy.splayer-next",
-  productName: "SPlayer Next",
+  productName: "SPlayer-Next",
   copyright: "Copyright © imsyy 2025",
   directories: { buildResources: "public" },
   // afterPack: "./scripts/after-pack.ts",
@@ -59,8 +59,8 @@ const config: Configuration = {
     installerIcon: "public/icons/favicon.ico",
     uninstallerIcon: "public/icons/favicon.ico",
     artifactName: "${productName}-${version}-${arch}-setup.${ext}",
-    shortcutName: "${productName}",
-    uninstallDisplayName: "${productName}",
+    shortcutName: "SPlayer Next",
+    uninstallDisplayName: "SPlayer Next",
     createDesktopShortcut: "always",
     allowElevation: true,
     allowToChangeInstallationDirectory: true,

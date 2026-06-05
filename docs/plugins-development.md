@@ -193,7 +193,7 @@ splayer.log.warn(...args);
 splayer.log.error(...args);
 ```
 
-转发到宿主主日志系统，并落盘到 `{userData}/plugins/logs/{id}.log`。`console.*` 也会自动转发到同样的通道。
+转发到宿主主日志系统，并落盘到 `{userData}/app-data/plugins/logs/{id}.log`。`console.*` 也会自动转发到同样的通道。
 
 ### 私有 KV 存储
 
@@ -204,7 +204,7 @@ splayer.storage.remove(key: string): Promise<void>;
 splayer.storage.keys(): Promise<string[]>;
 ```
 
-每个插件一个独立命名空间，落盘到 `{userData}/plugins/data/{id}.json`。卸载插件会自动清除。
+每个插件一个独立命名空间，落盘到 `{userData}/app-data/plugins/data/{id}.json`。卸载插件会自动清除。
 
 ### 用户设置
 
@@ -313,7 +313,7 @@ splayer.on("musicUrl", async (req) => {
    });
    ```
 
-2. 查看 `{userData}/plugins/logs/{id}.log` 拿插件的运行日志
+2. 查看 `{userData}/app-data/plugins/logs/{id}.log` 拿插件的运行日志
 
 3. 修改脚本 → 重新导入一次（id 会因为源码 sha1 变化而变化，旧版本会自动被替换）
 

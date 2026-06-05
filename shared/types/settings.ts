@@ -247,7 +247,7 @@ export interface SongCacheSettings {
 
 /** 缓存配置 */
 export interface CacheSettings {
-  /** 自定义缓存目录；null 使用默认 {userData}/app-cache */
+  /** 自定义缓存目录；null 使用默认 {userData}/app-data/cache */
   dir: string | null;
   /** 歌曲文件级缓存 */
   songCache: SongCacheSettings;

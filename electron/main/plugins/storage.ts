@@ -1,18 +1,17 @@
 /**
  * 每插件隔离的 KV 存储
  *
- * 落盘：`{userData}/plugins/data/{pluginId}.json`
+ * 落盘：`{userData}/app-data/plugins/data/{pluginId}.json`
  * 原子写（atomically）防撕裂；内存缓存避免频繁读。
  */
 
 import fs from "node:fs";
 import path from "node:path";
-import { app } from "electron";
 import { writeFileSync as atomicWriteSync } from "atomically";
+import { pluginsDir } from "@main/utils/paths";
 
 /** 所有插件数据的根目录 */
-export const getPluginsDataDir = (): string =>
-  path.join(app.getPath("userData"), "plugins", "data");
+export const getPluginsDataDir = (): string => path.join(pluginsDir, "data");
 
 const caches = new Map<string, Record<string, unknown>>();
 

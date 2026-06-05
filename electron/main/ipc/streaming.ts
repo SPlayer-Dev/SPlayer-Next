@@ -4,12 +4,13 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { app, ipcMain, safeStorage } from "electron";
+import { ipcMain, safeStorage } from "electron";
 import { writeFileSync as atomicWriteSync } from "atomically";
 import { streamingLog } from "@main/utils/logger";
+import { configDir } from "@main/utils/paths";
 import type { StreamingServerConfig } from "@shared/types/streaming";
 
-const STORAGE_FILE = path.join(app.getPath("userData"), "streaming.json");
+const STORAGE_FILE = path.join(configDir, "streaming.json");
 
 /** 持久化形态：密码加密、accessToken/userId 不持久化（每次会话重新登录） */
 interface PersistedServer extends Omit<

@@ -1,11 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
-import { app, safeStorage } from "electron";
+import { safeStorage } from "electron";
 import { writeFileSync as atomicWriteSync } from "atomically";
 import { lastfmLog } from "@main/utils/logger";
+import { configDir } from "@main/utils/paths";
 
 /** 凭证文件 */
-const STORAGE_FILE = path.join(app.getPath("userData"), "lastfm.json");
+const STORAGE_FILE = path.join(configDir, "lastfm.json");
 
 /** 解密后的凭证 */
 export interface LastfmCredentials {

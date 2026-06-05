@@ -7,9 +7,10 @@ import type { SystemConfig } from "@shared/types/settings";
 import type { ConfigPath, PathValue } from "./types";
 import { deepMerge, getByPath, setByPath } from "./utils";
 import { migrations } from "./migrations";
+import { configDir } from "@main/utils/paths";
 
 /** 配置文件路径 */
-const configPath = path.join(app.getPath("userData"), "settings.json");
+const configPath = path.join(configDir, "settings.json");
 /** 配置版本键名 */
 const META_KEY = "__configVersion";
 

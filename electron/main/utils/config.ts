@@ -2,6 +2,7 @@ import { is } from "@electron-toolkit/utils";
 import { app } from "electron";
 import path from "node:path";
 import { store } from "@main/store";
+import { defaultCacheDir } from "./paths";
 
 /**
  * 是否为开发环境
@@ -25,8 +26,8 @@ export const appVersion = app.getVersion();
 /** 应用名称 */
 export const appName = app.getName();
 
-/** 默认缓存根目录（区别于 Electron 内置的 Cache/Code Cache） */
-export const defaultAppCacheDir = path.join(app.getPath("userData"), "app-cache");
+/** 默认缓存根目录（统一放在 app-data/cache，区别于 Electron 内置的 Cache/Code Cache） */
+export const defaultAppCacheDir = defaultCacheDir;
 
 /** 当前生效的缓存根目录：用户在设置中可选自定义路径，未配置时回退默认 */
 export const getAppCacheDir = (): string => store.get("cache.dir") || defaultAppCacheDir;

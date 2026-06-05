@@ -1,6 +1,6 @@
 {
   "name": "splayer-next",
-  "productName": "SPlayer Next",
+  "productName": "SPlayer-Next",
   "version": "1.0.0",
   "description": "A modern cross-platform music player built with Electron, Vue 3, and TypeScript",
   "type": "module",

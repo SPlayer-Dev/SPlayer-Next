@@ -65,7 +65,7 @@ Server protocol clients live in renderer (`src/services/streaming/`): subsonic /
 - `services/streaming/transform.ts` — Server response → unified `Track / Album / Artist / Playlist`. Trusts server's artist field; no client-side splitting.
 - `services/streaming/session.ts` — Jellyfin/Emby `/Sessions/Playing` heartbeat + PlaySessionId state machine; called from `core/player.ts`.
 - `stores/streaming.ts` — Server list, active state, connection, browse cache (IndexedDB via localforage `streaming-cache`). `fetchSongs` returns first batch then keeps fetching in background.
-- Credentials — main process `electron/main/ipc/streaming.ts` encrypts via Electron `safeStorage` to `{userData}/streaming.json`. `accessToken / userId` not persisted; re-acquired on connect.
+- Credentials — main process `electron/main/ipc/streaming.ts` encrypts via Electron `safeStorage` to `{userData}/app-data/config/streaming.json`. `accessToken / userId` not persisted; re-acquired on connect.
 
 ### Lyric Windows
 
@@ -93,23 +93,28 @@ Declarative — defined in `src/settings/schema.ts`, types in `src/types/setting
 ### Data Storage
 
 ```
-{userData}/
-├── settings.json          # Main config (electron/main/store/)
-├── streaming.json         # Streaming credentials (safeStorage encrypted)
-├── app-cache/covers/      # Cover thumbnails (cover:// protocol)
-├── Database/library.db    # Music library (better-sqlite3, WAL)
-└── logs/
+{userData}/app-data/        # 统一数据目录（与 Chromium 的 Cache/ 等隔开，便携版整体迁移此目录）
+├── config/
+│   ├── settings.json       # Main config (electron/main/store/)
+│   ├── streaming.json      # Streaming credentials (safeStorage encrypted)
+│   └── lastfm.json         # Last.fm credentials (safeStorage encrypted)
+├── database/library.db     # Music library (better-sqlite3, WAL)
+├── cache/                  # covers/ (cover:// protocol) + artists/ backgrounds/ songs/
+├── logs/                   # App logs + native/
+└── plugins/                # scripts/ data/ logs/
+
+# 全部路径集中定义于 electron/main/utils/paths.ts，改一处即可整体迁移
 ```
 
 Renderer IndexedDB (localforage): `splayer/library`, `splayer/queue`, `splayer/playlists`, `splayer/streaming-cache`.
 
 ### Cover Image
 
-Rust extracts 300x300 JPEG thumbnail to `{userData}/app-cache/covers/` during decode; renderer reads via `cover://{filename}` protocol. Original via `getCoverRaw()` for SMTC, never cached. Streaming covers use remote URLs directly (browser cache).
+Rust extracts 300x300 JPEG thumbnail to `{userData}/app-data/cache/covers/` during decode; renderer reads via `cover://{filename}` protocol. Original via `getCoverRaw()` for SMTC, never cached. Streaming covers use remote URLs directly (browser cache).
 
 ### Config Store (Main)
 
-`electron/main/store/` is custom (not electron-store). Reads/writes `{userData}/settings.json`, merges with defaults from `shared/defaults/settings.ts`. Supports dot-path access (`store.get("system.taskbarProgress")`), atomic writes, schema migrations.
+`electron/main/store/` is custom (not electron-store). Reads/writes `{userData}/app-data/config/settings.json` (path via `electron/main/utils/paths.ts`), merges with defaults from `shared/defaults/settings.ts`. Supports dot-path access (`store.get("system.taskbarProgress")`), atomic writes, schema migrations.
 
 ### i18n
 

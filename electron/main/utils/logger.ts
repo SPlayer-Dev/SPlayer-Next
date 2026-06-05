@@ -1,14 +1,14 @@
 import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from "node:fs";
 import path from "node:path";
-import { app } from "electron";
 import log from "electron-log";
 import { isDev } from "./config";
+import { logsDir as logsBaseDir } from "./paths";
 
 /** 日志根目录：开发模式放 dev 子目录，生产模式直接放 logs/ */
-export const logsDir = isDev ? path.join(app.getPath("logs"), "dev") : app.getPath("logs");
+export const logsDir = isDev ? path.join(logsBaseDir, "dev") : logsBaseDir;
 
 /** 原生模块日志目录 */
-export const nativeLogsDir = path.join(app.getPath("userData"), "logs", "native");
+export const nativeLogsDir = path.join(logsBaseDir, "native");
 
 /**
  * 自动清理超过指定天数的旧日志文件
