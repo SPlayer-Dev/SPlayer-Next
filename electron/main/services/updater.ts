@@ -20,6 +20,9 @@ const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 /** 本次检查是否由用户手动触发 */
 let manualCheck = false;
 
+/** 是否有检查正在进行 */
+let checking = false;
+
 let intervalTimer: ReturnType<typeof setInterval> | null = null;
 
 const emit = (event: UpdateEvent): void => sendToMain("update:event", event);
@@ -52,15 +55,25 @@ const toMeta = (info: UpdateInfo): UpdateMeta => ({
 
 const bindEvents = (): void => {
   autoUpdater.on("checking-for-update", () => emit({ type: "checking" }));
-  autoUpdater.on("update-available", (info) =>
-    emit({ type: "available", meta: toMeta(info), manual: manualCheck, canInstall: canSelfInstall }),
-  );
-  autoUpdater.on("update-not-available", () => emit({ type: "notAvailable", manual: manualCheck }));
+  autoUpdater.on("update-available", (info) => {
+    checking = false;
+    emit({
+      type: "available",
+      meta: toMeta(info),
+      manual: manualCheck,
+      canInstall: canSelfInstall,
+    });
+  });
+  autoUpdater.on("update-not-available", () => {
+    checking = false;
+    emit({ type: "notAvailable", manual: manualCheck });
+  });
   autoUpdater.on("download-progress", (progress) =>
     emit({ type: "progress", percent: Math.round(progress.percent) }),
   );
   autoUpdater.on("update-downloaded", (info) => emit({ type: "downloaded", meta: toMeta(info) }));
   autoUpdater.on("error", (error) => {
+    checking = false;
     updaterLog.error("更新出错", error);
     emit({ type: "error", message: error?.message ?? String(error), manual: manualCheck });
   });
@@ -71,10 +84,16 @@ const bindEvents = (): void => {
  * @param manual 是否由用户手动触发
  */
 const runCheck = (manual: boolean): void => {
+  if (checking) {
+    if (manual) manualCheck = true;
+    return;
+  }
+  checking = true;
   manualCheck = manual;
   autoUpdater.checkForUpdates().catch((error) => {
+    checking = false;
     updaterLog.error("检查更新失败", error);
-    emit({ type: "error", message: error?.message ?? String(error), manual });
+    emit({ type: "error", message: error?.message ?? String(error), manual: manualCheck });
   });
 };
 

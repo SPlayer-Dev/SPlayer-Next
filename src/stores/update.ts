@@ -54,7 +54,8 @@ export const useUpdateStore = defineStore("update", () => {
   };
 
   // 订阅主进程推送的更新事件
-  window.api.update.onEvent(handleEvent);
+  const unsubscribe = window.api.update.onEvent(handleEvent);
+  onScopeDispose(unsubscribe);
   // 触发启动检查
   void window.api.update.check(false);
 
