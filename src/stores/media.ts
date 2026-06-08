@@ -3,6 +3,7 @@ import type { LyricData, LyricFormat, LyricInput, LyricLine } from "@shared/type
 import { findLyricIndex } from "@shared/utils/lyric";
 import { watchLyricPreference } from "@/services/lyricLoader";
 import { parseLyric } from "@/utils/lyric/parse";
+import { extractLyricAuthor } from "@/utils/lyric/author";
 import { applyLyricExclude } from "@/utils/lyric/lyricStripper";
 
 export const useMediaStore = defineStore("media", () => {
@@ -31,6 +32,9 @@ export const useMediaStore = defineStore("media", () => {
 
   /** 当前歌词解析结果 */
   const parsedLyric = shallowRef<LyricLine[]>([]);
+
+  /** 当前歌词文件制作者 */
+  const lyricAuthor = ref<string | null>(null);
 
   /** 同步当前歌词源到主进程 */
   const syncToMain = (): void => {
@@ -79,6 +83,7 @@ export const useMediaStore = defineStore("media", () => {
     activeLyric.value = null;
     lyricContent.value = null;
     parsedLyric.value = [];
+    lyricAuthor.value = null;
     lyricIndex.value = -1;
     lyricLoading.value = true;
     syncToMain();
@@ -105,6 +110,8 @@ export const useMediaStore = defineStore("media", () => {
     activeLyric.value = hasContent ? source : null;
     lyricContent.value = hasContent ? input : null;
     parsedLyric.value = nextLines;
+    lyricAuthor.value =
+      hasContent && source && input ? extractLyricAuthor(input.content, source.format) : null;
     lyricIndex.value = -1;
     lyricLoading.value = false;
     syncToMain();
@@ -125,6 +132,7 @@ export const useMediaStore = defineStore("media", () => {
     activeLyric.value = null;
     lyricContent.value = null;
     parsedLyric.value = [];
+    lyricAuthor.value = null;
     lyricLoading.value = false;
     lyricIndex.value = -1;
     syncToMain();
@@ -137,6 +145,7 @@ export const useMediaStore = defineStore("media", () => {
     lyricContent,
     lyricFormat,
     parsedLyric,
+    lyricAuthor,
     lyricLoading,
     lyricIndex,
     setTrack,

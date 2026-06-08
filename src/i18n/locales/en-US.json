@@ -397,6 +397,7 @@
       "title": "Lyric Offset",
       "hint": "Positive values advance lyrics, in milliseconds"
     },
+    "lyricCredit": "Lyrics by",
     "repeatMode": {
       "list": "Repeat all",
       "one": "Repeat one",

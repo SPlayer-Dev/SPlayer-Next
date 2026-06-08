@@ -1,13 +1,3 @@
-/**
- * LyricRenderer — 高性能歌词渲染引擎
- *
- * - 零框架依赖，纯 TypeScript + 直接 DOM 操作
- * - 单 rAF 循环驱动弹簧、透明度、间奏等所有动画
- * - CSS 变量 --t 驱动逐字掩码，每帧仅写 1 个变量到激活行
- * - 视口裁剪：屏幕外元素跳过 DOM 写入
- * - 懒创建动画：仅激活行持有 Animation 对象
- */
-
 import { Spring, type SpringParams } from "./spring";
 import type { LyricLine } from "@shared/types/lyrics";
 import { setMin } from "../utils/math";
@@ -52,6 +42,8 @@ export class LyricRenderer {
   private activeAnimations = new Map<number, Animation[]>();
   /** 标记是否为静态行（≤1 个单词，无逐字动画） */
   private isStaticLine: boolean[] = [];
+  /** 标记背景人声行是否应置于主行上方 */
+  private isBgAbove: boolean[] = [];
 
   /** 当前主激活行索引（多行激活时取最小） */
   private activeLineIndex = -1;
@@ -178,6 +170,13 @@ export class LyricRenderer {
   /** 哨兵行元素 */
   private sentinelElement: HTMLDivElement | null = null;
 
+  /** bottom-line 容器 */
+  private bottomLineEl!: HTMLDivElement;
+  /** bottom-line 的 Y 轴位置弹簧 */
+  private bottomLineSpring = new Spring(2000);
+  /** bottom-line transform 缓存 */
+  private cachedBottomTransform = "";
+
   /**
    * @param container - 外层容器元素
    * @param config - 可选的初始配置
@@ -195,6 +194,10 @@ export class LyricRenderer {
     container.appendChild(this.innerElement);
     // 创建间奏圆点
     [this.dotsContainer, this.dotElements] = createInterludeDots(this.innerElement);
+    // 创建 bottom-line 容器
+    this.bottomLineEl = document.createElement("div");
+    this.bottomLineEl.className = "lp-line lp-credit";
+    this.innerElement.appendChild(this.bottomLineEl);
     if (config) this.applyConfig(config);
     // 缓存容器尺寸
     this.containerWidth = container.clientWidth;
@@ -279,7 +282,7 @@ export class LyricRenderer {
     this.container.removeEventListener("mouseleave", this.handleMouseLeave);
     document.removeEventListener("visibilitychange", this.handleVisibilityChange);
     this.innerElement.remove();
-    this.container.classList.remove("lp-root");
+    this.container.classList.remove("lp-root", "lp-has-duet");
   };
 
   /**
@@ -297,11 +300,19 @@ export class LyricRenderer {
     this.lastProcessedTime = -1;
     this.userScrollOffset = 0;
     this.interludeState.isActive = false;
+    // 含对唱行时启用左右分栏布局
+    this.container.classList.toggle(
+      "lp-has-duet",
+      lines.some((line) => line.isDuet),
+    );
 
     const lineCount = lines.length;
 
     // 初始化弹簧（位置弹簧初始在屏幕外，缩放弹簧初始 97%）
     const offScreen = Math.max(this.containerHeight * 2, 2000);
+    // bottom-line 重置到屏外，由 calculateLayout 重新定位到末行下方
+    this.bottomLineSpring.setPosition(offScreen);
+    this.cachedBottomTransform = "";
     this.positionSprings = new Array(lineCount);
     this.scaleSprings = new Array(lineCount);
     for (let i = 0; i < lineCount; i++) {
@@ -339,9 +350,20 @@ export class LyricRenderer {
     this.wordMeasurements = new Array(lineCount);
     this.lineAnimTargets = new Array(lineCount);
     this.isStaticLine = new Array(lineCount);
+    this.isBgAbove = new Array(lineCount).fill(false);
 
     // 是否视为逐字
     const hasMultiWordLine = lines.some((line) => line.words.length > 1);
+
+    // 背景人声行：首词早于主行则置于主行上方
+    for (let i = 1; i < lineCount; i++) {
+      const bg = lines[i];
+      const main = lines[i - 1];
+      if (!bg.isBG || main.isBG) continue;
+      const bgStart = bg.words[0]?.startTime ?? bg.startTime;
+      const mainStart = main.words[0]?.startTime ?? main.startTime;
+      this.isBgAbove[i] = bgStart < mainStart;
+    }
 
     const fragment = document.createDocumentFragment();
     for (let i = 0; i < lineCount; i++) {
@@ -606,8 +628,6 @@ export class LyricRenderer {
     }
 
     if (this.activeLineSet.size > 0) this.activeLineIndex = setMin(this.activeLineSet);
-
-    this.measureLineHeights();
     this.calculateLayout(false);
     return true;
   };
@@ -652,7 +672,6 @@ export class LyricRenderer {
       this.activeLineIndex = futureIdx === -1 ? lines.length : futureIdx;
     }
 
-    this.measureLineHeights();
     this.calculateLayout(false, true);
   };
 
@@ -690,11 +709,18 @@ export class LyricRenderer {
     }
     position -= heightAccum;
     position += viewHeight * this.alignPosition - (this.lineHeights[targetIdx] || 40) / 2;
+    // 激活主行带置顶背景行时，主行会被背景行下推，整体上移以保持主行居中
+    if (this.isBgAbove[targetIdx + 1] && this.activeLineSet.has(targetIdx + 1)) {
+      position -= this.lineHeights[targetIdx + 1] || 40;
+    }
 
     // 级联延迟：越远离激活行的行延迟越小，产生波浪效果
     let cascadeDelay = 0;
     let baseDelay = syncImmediate || noCascade ? 0 : 50;
     let dotsInserted = false;
+    // 置顶背景行延后到下一轮迭代摆放，记录其槽位
+    let pendingBgIdx = -1;
+    let pendingBgY = 0;
 
     for (let i = 0; i < lineCount; i++) {
       const posSpring = this.positionSprings[i];
@@ -715,25 +741,47 @@ export class LyricRenderer {
 
       const isActive = this.activeLineSet.has(i);
       const targetScale = !isActive && this.isPlaying ? (line.isBG ? 75 : 97) : 100;
-
       const collapsedBG = line.isBG && this.isPlaying && !isActive;
 
+      // 默认顺排；置顶背景行排到主行上方
+      let lineY = position;
+      let advance = collapsedBG ? 0 : this.lineHeights[i] || 40;
+      if (i === pendingBgIdx) {
+        // 置顶背景行：用主行处预留的上方槽位，自身不再推进布局
+        lineY = pendingBgY;
+        advance = 0;
+        pendingBgIdx = -1;
+      } else if (this.isBgAbove[i + 1]) {
+        // 主行带置顶背景行：背景行在上、主行在下
+        const bgIdx = i + 1;
+        const bgH = this.lineHeights[bgIdx] || 40;
+        const bgSpace = this.isPlaying && !this.activeLineSet.has(bgIdx) ? 0 : bgH;
+        lineY = position + bgSpace;
+        pendingBgY = lineY - bgH;
+        pendingBgIdx = bgIdx;
+        advance = bgSpace + (this.lineHeights[i] || 40);
+      }
+
       if (syncImmediate) {
-        posSpring.setPosition(position);
+        posSpring.setPosition(lineY);
         scaleSpring.setPosition(targetScale);
       } else {
-        posSpring.setTargetPosition(position, cascadeDelay);
+        posSpring.setTargetPosition(lineY, cascadeDelay);
         scaleSpring.setTargetPosition(targetScale, cascadeDelay);
       }
 
-      // 非激活 BG 行不占位
-      if (!collapsedBG) position += this.lineHeights[i] || 40;
+      position += advance;
 
       if (position >= 0 && !this.isUserScrolling) {
         if (!line.isBG) cascadeDelay += baseDelay;
         if (i >= targetIdx) baseDelay /= 1.05;
       }
     }
+
+    // bottom-line（歌词制作者等）紧随末行下方
+    const bottomY = position + dotsGap;
+    if (syncImmediate) this.bottomLineSpring.setPosition(bottomY);
+    else this.bottomLineSpring.setTargetPosition(bottomY, cascadeDelay);
   };
 
   /**
@@ -805,6 +853,19 @@ export class LyricRenderer {
       if (this.cachedTransforms[i] !== transformStr) {
         this.cachedTransforms[i] = transformStr;
         this.lineElements[i].style.transform = transformStr;
+      }
+    }
+
+    // bottom-line 随弹簧平滑移动；无内容或屏外时跳过
+    this.bottomLineSpring.update(deltaTime);
+    if (this.bottomLineEl.childElementCount > 0) {
+      const bottomY = this.bottomLineSpring.getCurrentPosition();
+      if (isFullSync || (bottomY >= -500 && bottomY <= viewHeight + 500)) {
+        const bottomTransform = `translateY(${bottomY.toFixed(1)}px)`;
+        if (this.cachedBottomTransform !== bottomTransform) {
+          this.cachedBottomTransform = bottomTransform;
+          this.bottomLineEl.style.transform = bottomTransform;
+        }
       }
     }
 
@@ -1075,7 +1136,6 @@ export class LyricRenderer {
     this.scrollResetTimerId = window.setTimeout(() => {
       this.isUserScrolling = false;
       this.userScrollOffset = 0;
-      this.measureLineHeights();
       this.calculateLayout(false);
     }, this.scrollResetDelay);
   };
@@ -1102,7 +1162,6 @@ export class LyricRenderer {
     this.scrollResetTimerId = window.setTimeout(() => {
       this.isUserScrolling = false;
       this.userScrollOffset = 0;
-      this.measureLineHeights();
       this.calculateLayout(false);
     }, this.scrollResetDelay);
   };
@@ -1118,7 +1177,6 @@ export class LyricRenderer {
       clearTimeout(this.scrollResetTimerId);
       this.isUserScrolling = false;
       this.userScrollOffset = 0;
-      this.measureLineHeights();
       this.calculateLayout(false, true);
     }
   };
@@ -1157,6 +1215,9 @@ export class LyricRenderer {
     this.needsFullSync = true;
   };
 
+  /** 取 bottom-line 容器 */
+  getBottomLineElement = (): HTMLElement => this.bottomLineEl;
+
   /** 页面可见性变化：不可见时跳过渲染，恢复时全量同步 */
   private handleVisibilityChange = () => {
     this.isPageVisible = !document.hidden;
@@ -1177,6 +1238,7 @@ export class LyricRenderer {
   private applySpringParams = () => {
     const config = this.springParams;
     for (const spring of this.positionSprings) spring.updateParams(config);
+    this.bottomLineSpring.updateParams(config);
     for (const spring of this.scaleSprings)
       spring.updateParams({ mass: 2, damping: 25, stiffness: 100 });
   };

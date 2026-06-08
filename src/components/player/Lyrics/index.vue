@@ -122,6 +122,7 @@ interface Emits {
 const emit = defineEmits<Emits>();
 
 const containerRef = ref<HTMLElement>();
+const bottomLineEl = ref<HTMLElement>();
 let renderer: LyricRenderer | null = null;
 /** 冻结状态标志 */
 let isFrozen = false;
@@ -173,6 +174,7 @@ onMounted(() => {
   if (props.lyricLines.length > 0) {
     renderer.setLyrics(props.lyricLines);
   }
+  bottomLineEl.value = renderer.getBottomLineElement();
 });
 
 onUnmounted(() => {
@@ -296,5 +298,9 @@ watch(
 </script>
 
 <template>
-  <div ref="containerRef" />
+  <div ref="containerRef">
+    <Teleport v-if="bottomLineEl" :to="bottomLineEl">
+      <slot name="bottom" />
+    </Teleport>
+  </div>
 </template>
