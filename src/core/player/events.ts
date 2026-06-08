@@ -1,6 +1,7 @@
 import type { PlayerEvent } from "@shared/types/player";
 import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
+import { useSettingsStore } from "@/stores/settings";
 import * as playback from "@/services/playback";
 import * as autoClose from "@/services/autoClose";
 import * as abLoop from "@/services/abLoop";
@@ -110,8 +111,17 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
     case "setRepeat":
       setRepeatMode(event.data.mode);
       break;
-    case "deviceChanged":
+    case "deviceChanged": {
       refreshDevices();
+      const settings = useSettingsStore();
+      if (
+        settings.player.pauseOnDeviceSwitch &&
+        settings.player.outputDevice === null &&
+        status.state === "playing"
+      ) {
+        await pause();
+      }
       break;
+    }
   }
 };

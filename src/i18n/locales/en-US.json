@@ -639,6 +639,10 @@
       "description": "Select audio output device",
       "default": "System Default"
     },
+    "pauseOnDeviceSwitch": {
+      "label": "Pause on Device Switch",
+      "description": "Pause playback when switching the output device, e.g. when a Bluetooth device disconnects"
+    },
     "enableSpectrum": {
       "label": "Enable Spectrum",
       "description": "Real-time spectrum analysis adds some CPU load — consider disabling on lower-power devices"

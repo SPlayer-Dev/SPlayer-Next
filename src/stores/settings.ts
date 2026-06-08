@@ -40,6 +40,7 @@ export const useSettingsStore = defineStore(
       followCoverColor: true,
       autoImmersive: true,
       outputDevice: null,
+      pauseOnDeviceSwitch: false,
       enableSpectrum: false,
       spectrumBarWidth: 4,
       songLevel: "hq",

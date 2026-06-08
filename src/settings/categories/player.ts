@@ -44,6 +44,7 @@ const playerCategory: SettingCategory = {
           type: "switch",
           binding: { store: "settings", path: "system.player.loudnessNormalization" },
           defaultValue: false,
+          tag: { text: "Beta" },
         },
         {
           key: "songLevel",
@@ -105,6 +106,7 @@ const playerCategory: SettingCategory = {
     },
     {
       id: "musicSpectrum",
+      tag: { text: "Beta" },
       items: [
         {
           key: "enableSpectrum",
@@ -134,6 +136,12 @@ const playerCategory: SettingCategory = {
           key: "outputDevice",
           type: "custom",
           component: DeviceSelector,
+        },
+        {
+          key: "pauseOnDeviceSwitch",
+          type: "switch",
+          binding: { store: "settings", path: "player.pauseOnDeviceSwitch" },
+          defaultValue: false,
         },
       ],
     },

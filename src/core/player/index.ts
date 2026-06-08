@@ -377,7 +377,11 @@ export const refreshDevices = async (): Promise<void> => {
  */
 export const switchDevice = async (deviceName: string | null): Promise<void> => {
   const result = await window.api.player.setOutputDevice(deviceName);
-  if (result.success) useSettingsStore().player.outputDevice = deviceName;
+  if (!result.success) return;
+  const settings = useSettingsStore();
+  settings.player.outputDevice = deviceName;
+  // 是否暂停播放
+  if (settings.player.pauseOnDeviceSwitch && useStatusStore().state === "playing") await pause();
 };
 
 /**

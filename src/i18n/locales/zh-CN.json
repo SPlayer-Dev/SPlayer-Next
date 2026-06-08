@@ -627,6 +627,10 @@
       "description": "选择音频输出设备",
       "default": "系统默认"
     },
+    "pauseOnDeviceSwitch": {
+      "label": "切换时暂停播放",
+      "description": "切换输出设备时暂停播放，例如蓝牙设备的断联"
+    },
     "enableSpectrum": {
       "label": "启用音乐频谱",
       "description": "实时频谱分析会持续占用一定的 CPU，性能敏感设备建议关闭"
