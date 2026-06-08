@@ -47,7 +47,12 @@ const lineStyle = computed(() => ({
 
 /** 缩放原点 */
 const blockStyle = computed(() => ({
-  "--dl-origin": props.align === "left" ? "0%" : props.align === "right" ? "100%" : "50%",
+  "--dl-origin":
+    props.align === "left"
+      ? "var(--dl-pad)"
+      : props.align === "right"
+        ? "calc(100% - var(--dl-pad))"
+        : "50%",
 }));
 
 /**
@@ -216,12 +221,13 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .dl-line-block {
+  --dl-pad: 24px;
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   width: 100%;
-  padding: 0 24px;
+  padding: 0 var(--dl-pad);
   box-sizing: border-box;
   transform: translate3d(0, var(--dl-y, 0px), 0) scale(var(--dl-scale, 1));
   transform-origin: var(--dl-origin, 50%) center;

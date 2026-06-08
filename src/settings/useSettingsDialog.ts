@@ -1,4 +1,5 @@
 import { settingsSchema } from "@/settings/schema";
+import { useStatusStore } from "@/stores/status";
 
 const open = ref(false);
 const initialCategory = ref(settingsSchema[0].id);
@@ -13,9 +14,13 @@ export const useSettingsDialog = () => ({
   initialCategory,
   initialHighlight,
 
-  /** 打开设置弹窗，可指定初始分类和高亮项 */
+  /**
+   * 打开设置弹窗
+   * @param category - 本次定向到的分类
+   * @param highlight - 需高亮定位的设置项 key
+   */
   show: (category?: string, highlight?: string) => {
-    if (category) initialCategory.value = category;
+    initialCategory.value = category ?? (useStatusStore().settingsCategory || settingsSchema[0].id);
     initialHighlight.value = highlight;
     open.value = true;
   },
@@ -23,5 +28,10 @@ export const useSettingsDialog = () => ({
   /** 关闭设置弹窗 */
   hide: () => {
     open.value = false;
+  },
+
+  /** 记忆用户手动选择的大分类 */
+  rememberCategory: (category: string) => {
+    useStatusStore().settingsCategory = category;
   },
 });

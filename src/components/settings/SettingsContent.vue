@@ -5,7 +5,7 @@ import { useSettingsStore } from "@/stores/settings";
 import { openExternal } from "@/utils/url";
 import { REPO_URL, REPO_NAME, APP_VERSION } from "@/utils/config";
 
-const { initialCategory, initialHighlight } = useSettingsDialog();
+const { initialCategory, initialHighlight, rememberCategory } = useSettingsDialog();
 
 // 同步后端配置
 useSettingsStore().syncSystem();
@@ -32,6 +32,7 @@ const sectionStartIndices = computed(() => {
 const onCategorySelect = (id: string) => {
   activeId.value = id;
   highlightKey.value = undefined;
+  rememberCategory(id);
   nextTick(() => scrollRef.value?.scrollTo({ top: 0 }));
 };
 

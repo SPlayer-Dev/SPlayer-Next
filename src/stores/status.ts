@@ -71,6 +71,8 @@ export const useStatusStore = defineStore(
     const myPlaylistSource = ref<ContentScope>("local");
     /** 「我喜欢的音乐」页当前 tab */
     const likedPageTab = ref<ContentScope>("local");
+    /** 设置弹窗上次手动选择的大分类 */
+    const settingsCategory = ref("");
     /** 是否正在播放 */
     const isPlaying = computed(() => state.value === "playing");
     /** 是否暂停 */
@@ -118,6 +120,7 @@ export const useStatusStore = defineStore(
       searchPlatform,
       myPlaylistSource,
       likedPageTab,
+      settingsCategory,
       currentTrack,
     };
   },
@@ -134,6 +137,7 @@ export const useStatusStore = defineStore(
         "searchPlatform",
         "myPlaylistSource",
         "likedPageTab",
+        "settingsCategory",
       ],
     },
   },
