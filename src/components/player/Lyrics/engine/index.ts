@@ -95,6 +95,8 @@ export class LyricRenderer {
     x: 0,
     y: 0,
     alignRight: false,
+    anchorIndex: 0,
+    anchorOffset: 0,
   };
   /** 间奏渲染缓存 */
   private interludeCache: InterludeCache = {
@@ -736,6 +738,9 @@ export class LyricRenderer {
         this.interludeState.x = isDuet ? viewWidth - this.dotsContainerWidth : 0;
         this.interludeState.y = position;
         this.interludeState.alignRight = isDuet;
+        // 锚定到下一歌词行
+        this.interludeState.anchorIndex = i;
+        this.interludeState.anchorOffset = -(this.dotsContainerHeight + dotsGap);
         position += this.dotsContainerHeight + dotsGap;
       }
 
@@ -799,6 +804,10 @@ export class LyricRenderer {
       scaleSpring.setPosition(targetScale * 0.9);
       scaleSpring.setTargetPosition(targetScale, i * 40);
     }
+    // bottom-line 入场
+    const bottomTarget = this.bottomLineSpring.getCurrentPosition();
+    this.bottomLineSpring.setPosition(bottomTarget + offset);
+    this.bottomLineSpring.setTargetPosition(bottomTarget, this.positionSprings.length * 40);
   };
 
   /**
@@ -982,6 +991,14 @@ export class LyricRenderer {
       }
     }
 
+    // 间奏圆点 Y 跟随锚定行弹簧
+    if (this.interludeState.isActive) {
+      const anchorSpring = this.positionSprings[this.interludeState.anchorIndex];
+      if (anchorSpring) {
+        this.interludeState.y =
+          anchorSpring.getCurrentPosition() + this.interludeState.anchorOffset;
+      }
+    }
     // 间奏圆点呼吸动画
     renderInterludeDots(
       playTime,
