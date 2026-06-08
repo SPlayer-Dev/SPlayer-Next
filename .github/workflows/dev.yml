@@ -59,7 +59,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -113,7 +113,7 @@ jobs:
       # 上传构建产物 (Windows)
       - name: Upload Windows Setup
         if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: SPlayer-Next-Windows-setup-${{ matrix.arch }}
           path: dist/*-setup.exe
@@ -121,14 +121,14 @@ jobs:
       # 上传构建产物 (macOS)
       - name: Upload macOS DMG
         if: runner.os == 'macOS'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: SPlayer-Next-macOS-dmg-${{ matrix.arch }}
           path: dist/*.dmg
 
       - name: Upload macOS Zip
         if: runner.os == 'macOS'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: SPlayer-Next-macOS-zip-${{ matrix.arch }}
           path: dist/*.zip
@@ -136,28 +136,28 @@ jobs:
       # 上传构建产物 (Linux)
       - name: Upload Linux AppImage
         if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: SPlayer-Next-Linux-appimage-${{ matrix.arch }}
           path: dist/*.AppImage
 
       - name: Upload Linux DEB
         if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: SPlayer-Next-Linux-deb-${{ matrix.arch }}
           path: dist/*.deb
 
       - name: Upload Linux RPM
         if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: SPlayer-Next-Linux-rpm-${{ matrix.arch }}
           path: dist/*.rpm
 
       - name: Upload Linux Tar
         if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: SPlayer-Next-Linux-tar-${{ matrix.arch }}
           path: dist/*.tar.gz

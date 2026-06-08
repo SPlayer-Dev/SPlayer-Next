@@ -90,11 +90,7 @@ const runCheck = (manual: boolean): void => {
   }
   checking = true;
   manualCheck = manual;
-  autoUpdater.checkForUpdates().catch((error) => {
-    checking = false;
-    updaterLog.error("检查更新失败", error);
-    emit({ type: "error", message: error?.message ?? String(error), manual: manualCheck });
-  });
+  autoUpdater.checkForUpdates().catch();
 };
 
 /**

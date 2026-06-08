@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "A modern cross-platform music player built with Electron, Vue 3, and TypeScript",
   "type": "module",
-  "packageManager": "pnpm@10.33.0",
+  "packageManager": "pnpm@11.5.2",
   "main": "./out/main/index.js",
   "author": {
     "name": "imsyy",
@@ -37,7 +37,7 @@
     "start": "electron-vite preview",
     "dev": "pnpm build:native -- --dev && tsx scripts/dev.ts",
     "build": "rimraf dist && pnpm build:native && pnpm typecheck && electron-vite build",
-    "postinstall": "electron-builder install-app-deps",
+    "postinstall": "electron-rebuild -f -w better-sqlite3",
     "build:unpack": "pnpm build && electron-builder --dir --config electron-builder.config.ts",
     "build:win": "pnpm build && tsx scripts/gen-license.ts && electron-builder --config electron-builder.config.ts --win",
     "build:mac": "pnpm build && electron-builder --config electron-builder.config.ts --mac",
@@ -98,14 +98,5 @@
     "vue": "^3.5.32",
     "vue-eslint-parser": "^10.4.0",
     "vue-tsc": "^3.2.6"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "better-sqlite3",
-      "electron",
-      "electron-winstaller",
-      "esbuild",
-      "vue-demi"
-    ]
   }
 }

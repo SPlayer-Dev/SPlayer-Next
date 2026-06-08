@@ -15,7 +15,7 @@ jobs:
       # 自动欢迎
       - name: Welcome Comment
         if: github.event_name == 'issues' && github.event.action == 'opened'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const login = context.payload.issue.user.login;
@@ -35,7 +35,7 @@ jobs:
       # 自动关闭（wontfix / duplicate）
       - name: Auto Close
         if: github.event.action == 'labeled' && contains(fromJSON('["wontfix", "duplicate"]'), github.event.label.name)
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const labelName = context.payload.label.name;
@@ -62,7 +62,7 @@ jobs:
       # question 标签回复
       - name: Auto Reply
         if: github.event.action == 'labeled' && github.event.label.name == 'question'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const login = context.payload.issue.user.login;
@@ -84,7 +84,7 @@ jobs:
       # 已确认 bug（移除 question 标签并回复）
       - name: Auto Confirm BUG
         if: github.event.action == 'labeled' && github.event.label.name == 'bug'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const login = context.payload.issue.user.login;
@@ -116,7 +116,7 @@ jobs:
       # invalid（无法复现或信息不足）
       - name: Auto Unreproducible
         if: github.event.action == 'labeled' && github.event.label.name == 'invalid'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const login = context.payload.issue.user.login;
@@ -145,7 +145,7 @@ jobs:
       # resolved（已修复并自动关闭）
       - name: Auto Resolved
         if: github.event.action == 'labeled' && github.event.label.name == 'resolved'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const login = context.payload.issue.user.login;
