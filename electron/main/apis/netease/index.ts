@@ -33,6 +33,7 @@ const SESSION_MUTATING: ReadonlySet<string> = new Set([
 
 /** 不采用缓存的实时接口 */
 const NON_CACHEABLE: ReadonlySet<string> = new Set([
+  "song_url",
   "like",
   "playlist_create",
   "playlist_delete",
