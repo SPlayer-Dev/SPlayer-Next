@@ -386,6 +386,21 @@
       "hint": "正值为歌词提前，单位毫秒"
     },
     "lyricCredit": "歌词制作",
+    "copyLyric": {
+      "title": "复制歌词",
+      "contentLabel": "要复制的内容",
+      "translation": "翻译",
+      "romaji": "音译",
+      "emptyLine": "空行",
+      "songName": "歌名",
+      "artist": "歌手",
+      "selectAll": "全选",
+      "deselectAll": "全不选",
+      "invert": "反选",
+      "selected": "已选 {n} 行",
+      "copy": "复制",
+      "empty": "没有可复制的内容"
+    },
     "repeatMode": {
       "list": "列表循环",
       "one": "单曲循环",
