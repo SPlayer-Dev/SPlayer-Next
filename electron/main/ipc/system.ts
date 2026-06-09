@@ -1,4 +1,7 @@
 import { app, ipcMain, shell } from "electron";
+import { writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { getFonts } from "font-list";
 import type { LocaleCode } from "@shared/types/settings";
 import { setLocale } from "@main/utils/i18n";
@@ -72,5 +75,24 @@ export const registerSystemIpc = (): void => {
     }
     const buf = await fetchBytes(url);
     return { success: true, data: buf };
+  });
+
+  // 保存图片到下载目录
+  ipcMain.handle("system:saveImage", async (_event, data: ArrayBuffer, fileName: string) => {
+    try {
+      const dir = app.getPath("downloads");
+      const dot = fileName.lastIndexOf(".");
+      const base = dot > 0 ? fileName.slice(0, dot) : fileName;
+      const ext = dot > 0 ? fileName.slice(dot) : "";
+      let target = join(dir, fileName);
+      for (let i = 2; existsSync(target); i++) {
+        target = join(dir, `${base} (${i})${ext}`);
+      }
+      await writeFile(target, Buffer.from(data));
+      return { success: true, path: target };
+    } catch (error) {
+      systemLog.error("[system] saveImage failed", error);
+      return { success: false, error: String(error) };
+    }
   });
 };

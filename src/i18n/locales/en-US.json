@@ -411,6 +411,10 @@
       "invert": "Invert",
       "selected": "{n} selected",
       "copy": "Copy",
+      "exportImage": "Export image",
+      "saved": "Saved to Downloads",
+      "exportLimit": "Export up to {n} lines",
+      "exportFailed": "Failed to export image",
       "empty": "Nothing to copy"
     },
     "repeatMode": {
