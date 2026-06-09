@@ -231,6 +231,10 @@ export const recoverFromSourceFailure = async (): Promise<void> => {
 /** 恢复播放 */
 export const play = async (): Promise<void> => {
   const status = useStatusStore();
+  if (status.state === "stopped" && status.currentTrack) {
+    await loadTrack(status.currentTrack);
+    return;
+  }
   const prev = status.state;
   status.state = "playing";
   playback.setPlaying(true);
@@ -453,8 +457,11 @@ export const dislikeFmTrack = async (): Promise<void> => {
   if (next) await loadTrack(next);
 };
 
-/** 播放下一首，队列末尾时根据循环模式决定行为 */
-export const nextTrack = async (): Promise<void> => {
+/**
+ * 播放下一首
+ * @param manual - 用户手动点下一曲
+ */
+export const nextTrack = async (manual = false): Promise<void> => {
   const status = useStatusStore();
   // 私人 FM
   if (status.fmMode) {
@@ -465,8 +472,8 @@ export const nextTrack = async (): Promise<void> => {
   if (queue.queueLength.value === 0) return;
   // 到末尾了
   if (status.playIndex >= queue.queueLength.value - 1) {
-    // 列表循环 / 单曲循环：回到首位继续播放
-    if (status.repeatMode === "list" || status.repeatMode === "one") {
+    // 列表循环 / 单曲循环，或用户手动点下一曲
+    if (status.repeatMode === "list" || status.repeatMode === "one" || manual) {
       if (status.shuffleMode === "on" && queue.queueLength.value > 1) {
         // 重新洗牌产生新顺序，当前歌在 index 0，从 1 开始避免重复
         queue.shuffleQueue(status.playIndex);

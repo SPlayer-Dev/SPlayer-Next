@@ -75,7 +75,7 @@ const hasTrack = computed(() => !!media.track);
       ripple
       :size="compact ? 34 : 38"
       :disabled="!hasTrack"
-      @click="player.nextTrack()"
+      @click="player.nextTrack(true)"
     >
       <template #icon><IconLucideSkipForward /></template>
     </SButton>

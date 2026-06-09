@@ -448,7 +448,7 @@ const toggleLyric = (): void => {
                 variant="ghost"
                 circle
                 :disabled="!hasTrack"
-                @click="player.nextTrack()"
+                @click="player.nextTrack(true)"
               >
                 <template #icon><IconLucideSkipForward /></template>
               </SButton>

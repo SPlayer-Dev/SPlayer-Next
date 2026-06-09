@@ -100,7 +100,7 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
       await pause();
       break;
     case "next":
-      await nextTrack();
+      await nextTrack(true);
       break;
     case "prev":
       await prevTrack();
