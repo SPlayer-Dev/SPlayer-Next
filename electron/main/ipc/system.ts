@@ -1,4 +1,7 @@
 import { app, ipcMain, shell } from "electron";
+import { writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { join, basename } from "node:path";
 import { getFonts } from "font-list";
 import type { LocaleCode } from "@shared/types/settings";
 import { setLocale } from "@main/utils/i18n";
@@ -72,5 +75,31 @@ export const registerSystemIpc = (): void => {
     }
     const buf = await fetchBytes(url);
     return { success: true, data: buf };
+  });
+
+  // 保存图片到下载目录
+  ipcMain.handle("system:saveImage", async (_event, data: ArrayBuffer, fileName: string) => {
+    try {
+      // 只取末段并清洗非法字符
+      const safeName = basename(fileName)
+        .replace(/[\\/:*?"<>|]/g, " ")
+        .trim();
+      if (!safeName || safeName === "." || safeName === "..") {
+        return { success: false, error: "invalid file name" };
+      }
+      const dir = app.getPath("downloads");
+      const dot = safeName.lastIndexOf(".");
+      const base = dot > 0 ? safeName.slice(0, dot) : safeName;
+      const ext = dot > 0 ? safeName.slice(dot) : "";
+      let target = join(dir, safeName);
+      for (let seq = 2; existsSync(target); seq++) {
+        target = join(dir, `${base} (${seq})${ext}`);
+      }
+      await writeFile(target, Buffer.from(data));
+      return { success: true, path: target };
+    } catch (error) {
+      systemLog.error("[system] saveImage failed", error);
+      return { success: false, error: String(error) };
+    }
   });
 };

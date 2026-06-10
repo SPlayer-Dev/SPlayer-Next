@@ -61,6 +61,10 @@ export interface InterludeState {
   y: number;
   /** 圆点是否靠右对齐（对唱行前的间奏） */
   alignRight: boolean;
+  /** 圆点锚定的下一歌词行索引 */
+  anchorIndex: number;
+  /** 圆点相对锚定行的 Y 偏移 */
+  anchorOffset: number;
 }
 
 /** 间奏圆点渲染器的样式缓存 */

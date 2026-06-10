@@ -36,6 +36,10 @@ declare global {
         ) => () => void;
         listFonts: () => Promise<string[]>;
         fetchRemoteBytes: (url: string) => Promise<IpcResponse<Buffer | null>>;
+        saveImage: (
+          data: ArrayBuffer,
+          fileName: string,
+        ) => Promise<{ success: boolean; path?: string; error?: string }>;
         relaunch: () => Promise<void>;
       };
       library: LibraryApi;

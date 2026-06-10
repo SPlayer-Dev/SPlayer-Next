@@ -76,7 +76,7 @@
   &::before {
     content: "";
     position: absolute;
-    inset: -0.15em -0.4em;
+    inset: -0.05em -0.4em -0.25em;
     border-radius: 8px;
     background-color: var(
       --lp-hover-bg,
@@ -98,6 +98,34 @@
 
 .lp-line.duet .lp-content {
   margin-left: auto;
+}
+
+/* ---- 对唱左右分栏 ---- */
+
+.lp-has-duet {
+  --lp-duet-indent: 15%;
+}
+
+.lp-has-duet .lp-line:not(.bg):not(.duet) {
+  padding-inline-end: var(--lp-duet-indent);
+}
+
+.lp-has-duet .lp-line.duet:not(.bg) {
+  padding-inline-start: var(--lp-duet-indent);
+}
+
+@media (max-width: 600px) {
+  .lp-has-duet {
+    --lp-duet-indent: 8%;
+  }
+}
+
+.lp-credit {
+  opacity: var(--lp-credit-opacity, 0.3);
+}
+
+.lp-credit:empty {
+  display: none;
 }
 
 /* ---- 主文本 ---- */

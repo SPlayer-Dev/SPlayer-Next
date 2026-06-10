@@ -11,6 +11,7 @@ import PlaylistPickerDialog from "@/components/modals/PlaylistPickerDialog.vue";
 import { useWindowControls } from "@/composables/useWindowControls";
 import * as player from "@/core/player";
 import { formatTime } from "@/utils/time";
+import { openExternal } from "@/utils/url";
 import IconFavorite from "~icons/material-symbols/favorite-rounded";
 import IconFavoriteOutline from "~icons/material-symbols/favorite-outline-rounded";
 import IconLucideListPlus from "~icons/lucide/list-plus";
@@ -46,6 +47,11 @@ const { start: startTick, stop: stopTick } = usePlaybackTime((currentMs) => {
 const lyricMounted = ref(false);
 /** 初始播放时间 */
 const initialLyricTimeMs = ref(0);
+
+/** 歌词制作者 GitHub 主页（点击跳转） */
+const authorGitHubUrl = computed(() =>
+  media.lyricAuthor ? `https://github.com/${media.lyricAuthor}` : "",
+);
 
 /** 展开前 */
 const onBeforeEnter = () => {
@@ -333,7 +339,19 @@ const toggleLyric = (): void => {
                 :show-translation="settings.lyric.showTranslation"
                 :show-romanization="settings.lyric.showRomanization"
                 @seek="player.seek($event)"
-              />
+              >
+                <template #bottom>
+                  <div v-if="media.lyricAuthor" class="lyric-credit-line">
+                    {{ $t("player.lyricCredit") }}
+                    <span
+                      class="lp-content lyric-credit"
+                      @click.stop="openExternal(authorGitHubUrl)"
+                    >
+                      {{ "@" + media.lyricAuthor }}
+                    </span>
+                  </div>
+                </template>
+              </Lyrics>
               <div
                 v-else-if="lyricMounted"
                 class="w-full h-full flex items-center justify-center text-cover/30"
@@ -537,5 +555,13 @@ const toggleLyric = (): void => {
     rgba(0, 0, 0, 0.04) 85%,
     rgba(0, 0, 0, 0) 100%
   );
+}
+
+.lyric-credit-line {
+  font-size: max(0.5em, 10px);
+}
+
+.lyric-credit {
+  margin-left: 0.5em;
 }
 </style>

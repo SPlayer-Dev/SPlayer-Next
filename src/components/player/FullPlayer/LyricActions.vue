@@ -22,6 +22,12 @@ const offsetPopoverOpen = ref(false);
 
 const hasTrack = computed(() => !!media.track);
 
+/** 当前是否有可复制的歌词 */
+const hasLyric = computed(() => media.parsedLyric.length > 0);
+
+/** 复制歌词弹窗是否打开 */
+const copyDialogOpen = ref(false);
+
 /** 当前曲目偏移（ms） */
 const songOffset = computed(() => status.lyricOffsetMs);
 
@@ -54,6 +60,17 @@ const resetLyricOffset = (): void => writeOffset(0);
           : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
     "
   >
+    <SButton
+      type="cover"
+      variant="ghost"
+      circle
+      :size="40"
+      :disabled="!hasLyric"
+      @click="copyDialogOpen = true"
+    >
+      <template #icon><IconLucideCopy /></template>
+    </SButton>
+    <div class="h-px w-6 bg-cover/25 my-1" />
     <SButton
       type="cover"
       variant="ghost"
@@ -114,5 +131,6 @@ const resetLyricOffset = (): void => writeOffset(0);
     <SButton type="cover" variant="ghost" circle :size="40" @click="settingsDialog.show('lyric')">
       <template #icon><IconLucideSettings2 /></template>
     </SButton>
+    <CopyLyricsDialog v-model:open="copyDialogOpen" />
   </div>
 </template>

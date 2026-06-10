@@ -397,6 +397,26 @@
       "title": "Lyric Offset",
       "hint": "Positive values advance lyrics, in milliseconds"
     },
+    "lyricCredit": "Lyrics by",
+    "copyLyric": {
+      "title": "Copy Lyrics",
+      "contentLabel": "Content to copy",
+      "translation": "Translation",
+      "romaji": "Romaji",
+      "emptyLine": "Blank line",
+      "songName": "Title",
+      "artist": "Artist",
+      "selectAll": "Select all",
+      "deselectAll": "Deselect all",
+      "invert": "Invert",
+      "selected": "{n} selected",
+      "copy": "Copy",
+      "exportImage": "Export image",
+      "saved": "Saved to Downloads",
+      "fileSuffix": "Lyrics",
+      "exportFailed": "Failed to export image",
+      "empty": "Nothing to copy"
+    },
     "repeatMode": {
       "list": "Repeat all",
       "one": "Repeat one",
