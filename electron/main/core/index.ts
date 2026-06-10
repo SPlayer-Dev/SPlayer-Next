@@ -1,6 +1,12 @@
 import { app, BrowserWindow } from "electron";
 import { electronApp, optimizer } from "@electron-toolkit/utils";
-import { createMainWindow, restoreLyricWindows } from "@main/window";
+import {
+  createMainWindow,
+  restoreLyricWindows,
+  getMainWindow,
+  focusMainWindow,
+} from "@main/window";
+import { isMac } from "@main/utils/config";
 import { registerIpcHandlers } from "@main/ipc";
 import { init as initMedia, shutdown as shutdownMedia } from "@main/services/media";
 import { init as initLastfm } from "@main/services/lastfm";
@@ -81,8 +87,12 @@ export const initApp = (): void => {
     void startServer();
     // 初始化自动更新
     initUpdater();
-    // macOS 特例：激活应用时如果没有窗口则创建新窗口
     app.on("activate", () => {
+      if (isMac) {
+        if (getMainWindow()) focusMainWindow();
+        else createMainWindow();
+        return;
+      }
       if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
     });
     coreLog.info("应用初始化完成");

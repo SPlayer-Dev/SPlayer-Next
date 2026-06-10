@@ -99,6 +99,7 @@ const config: Configuration = {
     maintainer: "imsyy.top",
     category: "Audio;Music;AudioVideo;",
     target: ["AppImage", "deb", "rpm", "tar.gz"],
+    syncDesktopName: true,
   },
   appImage: {
     artifactName: "${name}-${version}-${arch}.${ext}",
