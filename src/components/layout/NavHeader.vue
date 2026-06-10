@@ -79,14 +79,18 @@ const onMenuSelect = (key: string): void => {
         <template #icon><IconLucideChevronRight /></template>
       </SButton>
       <NavSearch />
-      <div v-if="update.hasUpdate" class="app-no-drag relative">
-        <SButton variant="tertiary" circle :size="40" :icon-size="20" @click="update.openDialog()">
-          <template #icon><IconLucideDownload /></template>
-        </SButton>
-        <span
-          class="absolute top-1.5 right-1.5 size-2 rounded-full bg-red-500 pointer-events-none"
-        />
-      </div>
+      <SButton
+        v-if="update.hasUpdate"
+        class="app-no-drag"
+        variant="tertiary"
+        circle
+        :size="40"
+        :icon-size="20"
+        :title="t('update.dialogTitle')"
+        @click="update.openDialog()"
+      >
+        <template #icon><IconLucideCircleArrowUp /></template>
+      </SButton>
     </div>
     <!-- 中间 -->
     <div class="flex-1 h-full" />

@@ -32,15 +32,13 @@ const releaseDateText = computed(() => {
   >
     <div class="flex flex-col gap-4">
       <!-- 版本 + 元信息 -->
-      <div v-if="update.meta" class="flex flex-col gap-2">
-        <div class="flex items-center gap-2 text-sm">
-          <span class="text-on-surface-variant/70">v{{ APP_VERSION }}</span>
-          <IconLucideArrowRight class="text-on-surface-variant/50" />
-          <span class="text-primary font-semibold tabular-nums">v{{ update.meta.version }}</span>
-        </div>
+      <div v-if="update.meta" class="flex items-center gap-2 text-sm">
+        <STag type="default" size="small">v{{ APP_VERSION }}</STag>
+        <IconLucideArrowRight class="size-4 text-on-surface-variant/50" />
+        <STag type="primary" size="small">v{{ update.meta.version }}</STag>
         <div
           v-if="releaseDateText || update.meta.size > 0"
-          class="flex items-center gap-4 text-xs text-on-surface-variant/60"
+          class="ml-auto flex items-center gap-3 text-xs text-on-surface-variant/60"
         >
           <span v-if="releaseDateText" class="flex items-center gap-1">
             <IconLucideCalendar class="size-3.5" />
@@ -52,21 +50,20 @@ const releaseDateText = computed(() => {
           </span>
         </div>
       </div>
-
-      <!-- release notes -->
-      <!-- eslint-disable vue/no-v-html -->
       <div
         v-if="notesHtml"
-        class="markdown-body max-h-80 overflow-y-auto rounded-xl bg-on-surface/4 border border-solid border-primary/10 px-4 py-3"
-        v-html="notesHtml"
-      />
-      <!-- eslint-enable vue/no-v-html -->
+        class="overflow-hidden rounded-xl border border-solid border-primary/10 bg-on-surface/4"
+      >
+        <!-- eslint-disable vue/no-v-html -->
+        <div class="markdown-body max-h-80 overflow-y-auto px-4 py-3" v-html="notesHtml" />
+        <!-- eslint-enable vue/no-v-html -->
+      </div>
     </div>
 
     <template #footer="{ close }">
+      <SButton variant="secondary" @click="close">{{ t("update.later") }}</SButton>
       <SButton
-        v-if="!update.canInstall"
-        type="primary"
+        variant="secondary"
         @click="
           update.openDownloadPage();
           close();
@@ -74,15 +71,17 @@ const releaseDateText = computed(() => {
       >
         {{ t("update.goDownload") }}
       </SButton>
-      <SButton v-else-if="update.phase === 'downloaded'" type="primary" @click="update.install()">
-        {{ t("update.installNow") }}
-      </SButton>
-      <SButton v-else-if="update.phase === 'downloading'" type="primary" disabled>
-        {{ t("update.downloading") }} {{ update.percent }}%
-      </SButton>
-      <SButton v-else type="primary" @click="update.download()">
-        {{ t("update.download") }}
-      </SButton>
+      <template v-if="update.canInstall">
+        <SButton v-if="update.phase === 'downloaded'" type="primary" @click="update.install()">
+          {{ t("update.installNow") }}
+        </SButton>
+        <SButton v-else-if="update.phase === 'downloading'" type="primary" disabled>
+          {{ t("update.downloading") }} {{ update.percent }}%
+        </SButton>
+        <SButton v-else type="primary" @click="update.download()">
+          {{ t("update.download") }}
+        </SButton>
+      </template>
     </template>
   </SDialog>
 </template>

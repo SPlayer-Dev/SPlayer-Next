@@ -1,6 +1,7 @@
 {
   "update": {
     "dialogTitle": "发现新版本",
+    "later": "稍后",
     "download": "下载",
     "downloading": "下载中",
     "installNow": "立即重启安装",

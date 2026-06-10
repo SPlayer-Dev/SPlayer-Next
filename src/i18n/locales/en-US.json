@@ -1,6 +1,7 @@
 {
   "update": {
     "dialogTitle": "New Version Available",
+    "later": "Later",
     "download": "Download",
     "downloading": "Downloading",
     "installNow": "Restart & Install",

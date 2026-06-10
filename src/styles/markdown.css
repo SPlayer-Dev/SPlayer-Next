@@ -1,8 +1,7 @@
-/* Markdown 渲染内容（v-html）统一排版：协议页、更新日志等共用 */
 .markdown-body {
   line-height: 1.7;
   font-size: 13px;
-  color: rgb(var(--s-on-surface-variant) / 0.85);
+  color: rgb(var(--s-on-surface) / 0.85);
 }
 .markdown-body h1 {
   margin: 0 0 0.75em;
