@@ -21,8 +21,8 @@ export declare class AudioPlayer {
    * 持锁阶段都是纯内存操作，主线程其它同步 NAPI 调用最多等几微秒，不会被 IO 卡住
    */
   load(source: string, autoPlay?: boolean): Promise<JsMusicMetadata>
-  /** 恢复播放。如果已停止或播放结束，自动从头重新加载。 */
-  play(): void
+  /** 恢复播放。如果已停止或播放结束，自动从头重新加载 */
+  play(): Promise<void>
   /** 暂停播放 */
   pause(): void
   /** 停止播放并释放资源 */

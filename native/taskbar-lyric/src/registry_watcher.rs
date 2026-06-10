@@ -91,6 +91,13 @@ impl RegistryWatcher {
     }
 }
 
+/// JS 侧不调 stop 直接 GC 时兜底，否则监听线程永久阻塞在 WaitForMultipleObjects 并钉住 TSFN
+impl Drop for RegistryWatcher {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
 fn registry_watch_loop(stop_event_wrapper: &Arc<EventHandle>, tsfn: &VoidTsfn, sub_key: &str) {
     let stop_event = stop_event_wrapper.0;
     let mut h_key = HKEY::default();

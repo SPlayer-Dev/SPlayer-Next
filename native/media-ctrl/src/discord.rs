@@ -81,6 +81,8 @@ struct Worker {
     last_end_ts: Option<i64>,
     show_paused: bool,
     display_mode: DiscordDisplayMode,
+    /// 元数据/状态/配置变更后置位，保证无时长曲目（电台/流）也至少发送一次 activity
+    dirty: bool,
 }
 
 impl Default for Worker {
@@ -93,6 +95,7 @@ impl Default for Worker {
             last_end_ts: None,
             show_paused: false,
             display_mode: DiscordDisplayMode::Name,
+            dirty: false,
         }
     }
 }
@@ -114,6 +117,7 @@ impl Worker {
                     self.display_mode = m;
                 }
                 self.last_end_ts = None;
+                self.dirty = true;
             }
             Msg::Metadata(m) => {
                 match self.data.as_mut() {
@@ -121,6 +125,7 @@ impl Worker {
                     None => self.data = Some(ActivityData::from_meta(m)),
                 }
                 self.last_end_ts = None;
+                self.dirty = true;
             }
             Msg::PlayState(p) => {
                 if let Some(d) = &mut self.data {
@@ -128,6 +133,7 @@ impl Worker {
                         self.last_end_ts = None;
                     }
                     d.status = p.status;
+                    self.dirty = true;
                 }
             }
             Msg::Timeline(t) => {
@@ -194,6 +200,7 @@ impl Worker {
                 client,
                 data,
                 &mut self.last_end_ts,
+                &mut self.dirty,
                 self.show_paused,
                 self.display_mode,
             ) {
@@ -206,6 +213,7 @@ impl Worker {
         client: &mut DiscordIpcClient,
         data: &ActivityData,
         last_end: &mut Option<i64>,
+        dirty: &mut bool,
         show_paused: bool,
         display_mode: DiscordDisplayMode,
     ) -> bool {
@@ -274,7 +282,9 @@ impl Worker {
                     *last_end = Some(e);
                     should_send = true;
                 } else {
-                    should_send = last_end.is_some();
+                    // 无时长曲目（电台/流）没有时间戳可比对，靠 dirty 标志保证
+                    // 元数据变更后至少发送一次，否则会一直残留上一首的信息
+                    should_send = *dirty;
                 }
             }
         }
@@ -284,6 +294,7 @@ impl Worker {
                 debug!(error = %e, "Discord set_activity 失败，断开重连");
                 return false;
             }
+            *dirty = false;
         }
         true
     }

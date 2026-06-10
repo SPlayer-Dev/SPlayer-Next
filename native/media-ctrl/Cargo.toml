@@ -30,7 +30,7 @@ napi-build = "2.3"
 # Windows
 [target.'cfg(target_os = "windows")'.dependencies.windows]
 version = "0.62"
-features = ["Media_Playback", "Storage_Streams"]
+features = ["Media_Playback", "Storage_Streams", "Win32_System_Com"]
 
 # Linux
 [target.'cfg(target_os = "linux")'.dependencies]

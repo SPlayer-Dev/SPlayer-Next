@@ -110,8 +110,18 @@ impl Shared {
     }
 
     /// 标记所有数据已被消费完毕（DecoderSource 迭代结束时调用）
+    /// stop 引发的迭代结束不算播放完成，否则 position timer 在停止窗口期
+    /// 会把切歌/停止误报成 Ended，导致前端队列跳两首
     pub fn mark_all_consumed(&self) {
+        if self.is_stopping.load(Ordering::Acquire) {
+            return;
+        }
         self.all_consumed.store(true, Ordering::Release);
+    }
+
+    /// 是否已收到停止信号
+    pub fn is_stopping(&self) -> bool {
+        self.is_stopping.load(Ordering::Acquire)
     }
 
     /// 检查是否所有数据已被 rodio 消费完毕

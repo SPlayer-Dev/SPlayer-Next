@@ -283,6 +283,7 @@ dependencies = [
  "ffmpeg_audio",
  "httpmock",
  "image",
+ "libc",
  "napi",
  "napi-build",
  "napi-derive",

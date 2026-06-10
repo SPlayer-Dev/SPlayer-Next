@@ -170,6 +170,8 @@ pub fn scan_directories(
     let walk_start = Instant::now();
     let mut audio_files: Vec<(String, u64, u64, u64)> = Vec::new();
     let mut scanned_paths: Vec<String> = Vec::new();
+    // 本轮不可达的目录（NAS 掉线 / 移动硬盘未挂载），其下已有记录不得报告为已删除
+    let mut unavailable_dirs: Vec<&str> = Vec::new();
 
     for dir in dirs {
         if cancel.load(Ordering::Relaxed) {
@@ -179,6 +181,7 @@ pub fn scan_directories(
         let dir_path = Path::new(dir);
         if !dir_path.is_dir() {
             warn!("跳过无效目录: {dir}");
+            unavailable_dirs.push(dir.as_str());
             continue;
         }
         for entry in WalkDir::new(dir).follow_links(true).into_iter().flatten() {
@@ -255,11 +258,17 @@ pub fn scan_directories(
     }
 
     // 计算已删除的文件（在 existing 中但不在 scanned_paths 中）
+    // 不可达目录下的记录排除在外：目录只是暂时离线，报告删除会导致一次扫描清空曲库
     let scanned_set: std::collections::HashSet<&str> =
         scanned_paths.iter().map(String::as_str).collect();
     let removed_paths: Vec<String> = existing
         .keys()
         .filter(|path| !scanned_set.contains(**path))
+        .filter(|path| {
+            !unavailable_dirs
+                .iter()
+                .any(|dir| Path::new(**path).starts_with(dir))
+        })
         .map(|&path| path.to_string())
         .collect();
 

@@ -18,6 +18,9 @@ use tracing::{debug, warn};
 
 const USER_AGENT: &str = "SPlayer-Next/1.0";
 const PROBE_TIMEOUT_SECS: u64 = 10;
+/// 重连阶段的 connect 超时：cancel flag 能打断 read 但打断不了 ureq 的 connect，
+/// 复用 10s 的 probe 超时会让网络抖动时的同步 stop() 被卡住最长 10s
+const RECONNECT_CONNECT_TIMEOUT_SECS: u64 = 2;
 const SOCKET_READ_TIMEOUT_SECS: u64 = 2;
 const MAX_RECONNECT_ATTEMPTS: u32 = 3;
 const RETRY_BACKOFF_BASE_MS: u64 = 200;
@@ -121,6 +124,16 @@ pub struct HttpRangeSource {
     config: Config,
 }
 
+/// 按指定 connect 超时构建 agent；read/write 超时统一取自 config
+fn build_agent(connect_timeout: Duration, config: &Config) -> ureq::Agent {
+    ureq::AgentBuilder::new()
+        .user_agent(USER_AGENT)
+        .timeout_connect(connect_timeout)
+        .timeout_read(config.socket_read_timeout)
+        .timeout_write(config.socket_read_timeout)
+        .build()
+}
+
 impl HttpRangeSource {
     pub fn new(url: impl Into<String>) -> Result<Self> {
         Self::new_with_config(url, Config::default())
@@ -128,14 +141,10 @@ impl HttpRangeSource {
 
     pub(crate) fn new_with_config(url: impl Into<String>, config: Config) -> Result<Self> {
         let url = url.into();
-        let agent = ureq::AgentBuilder::new()
-            .user_agent(USER_AGENT)
-            .timeout_connect(config.probe_timeout)
-            .timeout_read(config.socket_read_timeout)
-            .timeout_write(config.socket_read_timeout)
-            .build();
+        // 初始探测允许更长的 connect 超时
+        let probe_agent = build_agent(config.probe_timeout, &config);
 
-        let resp = agent
+        let resp = probe_agent
             .get(&url)
             .set("Range", "bytes=0-")
             .call()
@@ -163,6 +172,9 @@ impl HttpRangeSource {
             }
             s => return Err(anyhow!("初始 GET 意外状态: {s}")),
         };
+
+        // 后续重连专用 agent：connect 超时缩短，保证 stop() 不被 connect 阶段长时间卡住
+        let agent = build_agent(Duration::from_secs(RECONNECT_CONNECT_TIMEOUT_SECS), &config);
 
         Ok(Self {
             url,
@@ -297,11 +309,23 @@ impl Read for HttpRangeSource {
                     if self.pos >= self.total_size {
                         return Ok(0);
                     }
+                    // 同样计入重连次数并退避：服务端持续返回合法但空 body 的响应
+                    //（如文件被替换变短）时，不计数会变成全速重连死循环
+                    if attempts >= max {
+                        return Err(io::Error::new(
+                            io::ErrorKind::UnexpectedEof,
+                            "提前 EOF 且重连次数耗尽",
+                        ));
+                    }
+                    attempts += 1;
+                    let wait = self.backoff_delay(attempts);
                     debug!(
                         pos = self.pos,
                         total = self.total_size,
-                        "stream 早 EOF，重连"
+                        attempts,
+                        "stream 早 EOF，退避重连"
                     );
+                    self.sleep_with_cancel(wait)?;
                     continue;
                 }
                 Ok(n) => {
@@ -336,14 +360,14 @@ impl Seek for HttpRangeSource {
                 if o >= 0 {
                     self.total_size.saturating_add(o as u64)
                 } else {
-                    self.total_size.saturating_sub((-o) as u64)
+                    self.total_size.saturating_sub(o.unsigned_abs())
                 }
             }
             SeekFrom::Current(o) => {
                 if o >= 0 {
                     self.pos.saturating_add(o as u64)
                 } else {
-                    self.pos.saturating_sub((-o) as u64)
+                    self.pos.saturating_sub(o.unsigned_abs())
                 }
             }
         };
