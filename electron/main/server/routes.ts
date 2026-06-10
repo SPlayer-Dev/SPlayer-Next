@@ -38,8 +38,8 @@ export const buildRoutes = (): Hono => {
   // 当前播放完整快照
   api.get("/now-playing", (c) => c.json(nowPlaying.snapshot()));
 
-  api.post("/play", (c) => {
-    getPlayer().play();
+  api.post("/play", async (c) => {
+    await getPlayer().play();
     return c.json({ ok: true });
   });
 

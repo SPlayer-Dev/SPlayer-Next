@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { extname } from "node:path";
 import { app, ipcMain, powerMonitor } from "electron";
 import { sendToMain } from "@main/utils/broadcast";
 import { wsBroadcast } from "@main/server/broadcast";
@@ -247,6 +248,11 @@ export const registerPlayerIpc = (): void => {
       return { success: true, data };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
+      // 被更新的 load/stop 取代是正常竞态结果，不能按源类型误判为网络/解码错误
+      //（那两类是可跳曲错误，会让用户的停止操作变成自动跳下一曲）
+      if (msg.includes("已被更新的 load 取代")) {
+        return fail(ErrorCode.LOAD_SUPERSEDED);
+      }
       const isDeviceError = /output device|NoDevice|DeviceNotAvailable/i.test(msg);
       const isNetwork = source.startsWith("http://") || source.startsWith("https://");
       const code = isDeviceError
@@ -263,9 +269,9 @@ export const registerPlayerIpc = (): void => {
   });
 
   // 恢复播放
-  ipcMain.handle("player:play", () => {
+  ipcMain.handle("player:play", async () => {
     try {
-      getPlayer().play();
+      await getPlayer().play();
       return { success: true };
     } catch (error) {
       return fail(ErrorCode.DEVICE_NOT_FOUND, error);
@@ -451,8 +457,24 @@ export const registerPlayerIpc = (): void => {
   });
 
   // 按需读取外部歌词文件内容
+  // 后缀白名单：该通道只服务歌词文件，防止被当成任意文件读取接口
+  // 必须与引擎扫描列表一致（native/audio-engine/src/metadata.rs 的 LYRIC_EXTENSIONS）
+  const LYRIC_FILE_EXTS = new Set([
+    ".ttml",
+    ".lys",
+    ".qrc",
+    ".krc",
+    ".yrc",
+    ".lrc",
+    ".ass",
+    ".srt",
+  ]);
   ipcMain.handle("player:readLyricFile", async (_event, filePath: string) => {
     try {
+      const ext = extname(filePath).toLowerCase();
+      if (!LYRIC_FILE_EXTS.has(ext)) {
+        return fail(ErrorCode.UNKNOWN, new Error(`不支持的歌词文件类型: ${ext}`));
+      }
       const content = await readFile(filePath, "utf-8");
       return { success: true, data: content };
     } catch (error) {
@@ -528,7 +550,7 @@ export const registerPlayerIpc = (): void => {
       const inst = getPlayer();
       switch (event.type) {
         case "Play":
-          inst.play();
+          void inst.play().catch(() => {});
           break;
         case "Pause":
           inst.pause();

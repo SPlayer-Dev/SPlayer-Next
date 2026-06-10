@@ -22,6 +22,10 @@ export const getByPath = (obj: unknown, dotPath: string): unknown => {
  */
 export const setByPath = (obj: unknown, dotPath: string, value: unknown): void => {
   const keys = dotPath.split(".");
+  // 拒绝原型链键，防止 "a.__proto__.x" 形式的路径污染 Object.prototype
+  if (keys.some((key) => key === "__proto__" || key === "constructor" || key === "prototype")) {
+    return;
+  }
   let cur = obj as Record<string, unknown>;
   for (let i = 0; i < keys.length - 1; i++) {
     const key = keys[i];

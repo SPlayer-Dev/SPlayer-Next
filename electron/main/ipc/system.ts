@@ -67,13 +67,13 @@ export const registerSystemIpc = (): void => {
     app.exit(0);
   });
 
-  // 把任意 http(s) URL 拉成字节回渲染层
-  // 用于 canvas 取色等需要绕过跨域 tainted 的场景；不限流媒体
+  // 把封面图 URL 拉成字节回渲染层
+  // 用于 canvas 取色等需要绕过跨域 tainted 的场景；限定 image/* 响应
   ipcMain.handle("system:fetchRemoteBytes", async (_event, url: string) => {
     if (typeof url !== "string" || !/^https?:\/\//i.test(url)) {
       return { success: false, error: "无效的 URL" };
     }
-    const buf = await fetchBytes(url);
+    const buf = await fetchBytes(url, { requireImage: true });
     return { success: true, data: buf };
   });
 
