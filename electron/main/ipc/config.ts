@@ -81,6 +81,8 @@ const applyConfigChange = (keyPath: string, value: unknown): void => {
     case "taskbarLyric.position":
     case "taskbarLyric.autoMaxWidth":
     case "taskbarLyric.maxWidth":
+    case "taskbarLyric.leftMargin":
+    case "taskbarLyric.rightMargin":
       if (isWin) applyTaskbarLyricLayout();
       break;
   }

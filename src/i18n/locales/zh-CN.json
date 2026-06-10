@@ -996,6 +996,14 @@
       "label": "最大宽度",
       "description": "超出可用空间时仍以可用空间为准，避免挤占"
     },
+    "taskbarLyricLeftMargin": {
+      "label": "左边距",
+      "description": "歌词与可用空间左侧的间距，用于避开任务栏上的其他组件"
+    },
+    "taskbarLyricRightMargin": {
+      "label": "右边距",
+      "description": "歌词与可用空间右侧的间距，用于避开任务栏上的其他组件"
+    },
     "taskbarLyricColorMode": {
       "label": "配色模式",
       "description": "任务栏歌词的文字与背景配色",
@@ -1221,6 +1229,10 @@
       "label": "启用 WebSocket",
       "description": "外部应用可订阅播放事件并发送控制指令"
     },
+    "externalApiAllowLan": {
+      "label": "允许局域网访问",
+      "description": "开启后局域网内的其他设备可通过本机 IP 访问，关闭时仅本机可访问"
+    },
     "externalApiPort": {
       "label": "监听端口",
       "description": "外部 API 服务监听的端口（1024–65535）"
@@ -1231,11 +1243,13 @@
     },
     "externalApi": {
       "restart": "重启服务",
-      "restartHint": "修改端口后需重启服务",
+      "restartHint": "修改端口或局域网访问开关后需重启服务",
       "restarted": "服务已重启",
       "portInUse": "端口 {port} 已被占用，请换一个",
       "pendingChange": "待重启",
-      "pendingChangeHint": "配置端口 {configured}，当前监听 {running}"
+      "pendingChangeHint": "配置已变更，重启服务后生效",
+      "endpoint": "服务地址",
+      "stopped": "服务未运行"
     },
     "closeAction": {
       "label": "关闭按钮行为",
