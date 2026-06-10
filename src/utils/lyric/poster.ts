@@ -1,12 +1,15 @@
 import type { Track } from "@shared/types/player";
+import { hexToRgb } from "@/utils/color";
 
 /** 海报中的一行歌词 */
 export interface LyricPosterLine {
   text: string;
-  /** 翻译，存在即绘制 */
+  /** 翻译 */
   translation?: string;
-  /** 音译，存在即绘制 */
+  /** 音译 */
   romaji?: string;
+  /** 对唱行 */
+  duet?: boolean;
 }
 
 export interface LyricPosterOptions {
@@ -19,7 +22,6 @@ export interface LyricPosterOptions {
 const SCALE = 3;
 const MAX_CANVAS_PX = 16000;
 const WIDTH = 720;
-const RADIUS = 36;
 const PAD_X = 56;
 const PAD_TOP = 64;
 const PAD_BOTTOM = 30;
@@ -56,7 +58,7 @@ const blobToDataUrl = (blob: Blob): Promise<string> =>
     reader.readAsDataURL(blob);
   });
 
-/** 把当前曲目封面解析为 dataURL，供 canvas 同源使用（绕开跨域污染） */
+/** 把当前曲目封面解析为 dataURL */
 const resolveCoverDataUrl = async (track: Track): Promise<string | null> => {
   // 本地：主进程返回解码后的原图 dataURL
   if (track.source === "local") {
@@ -162,7 +164,7 @@ export const createLyricPoster = async (options: LyricPosterOptions): Promise<Bl
     const translation = line.translation ? wrapText(ctx, line.translation, CONTENT_WIDTH) : [];
     ctx.font = ROMAJI_FONT;
     const romaji = line.romaji ? wrapText(ctx, line.romaji, CONTENT_WIDTH) : [];
-    return { main, translation, romaji };
+    return { main, translation, romaji, duet: !!line.duet };
   });
 
   let lyricsHeight = 0;
@@ -182,21 +184,18 @@ export const createLyricPoster = async (options: LyricPosterOptions): Promise<Bl
   canvas.height = totalHeight * scale;
   ctx.scale(scale, scale);
 
-  // 圆角裁剪
-  ctx.beginPath();
-  ctx.roundRect(0, 0, WIDTH, totalHeight, RADIUS);
-  ctx.clip();
+  // 底色铺满
+  const baseRgb = hexToRgb(fallbackColor || "#14141c");
+  const baseSolid = `rgb(${baseRgb})`;
+  ctx.fillStyle = baseSolid;
+  ctx.fillRect(0, 0, WIDTH, totalHeight);
 
-  // 背景
   if (coverImg) {
     const margin = 80;
-    ctx.filter = "blur(45px) saturate(1.2)";
+    ctx.filter = "blur(70px) saturate(1.2)";
     drawCovered(ctx, coverImg, -margin, -margin, WIDTH + margin * 2, totalHeight + margin * 2);
     ctx.filter = "none";
     ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-    ctx.fillRect(0, 0, WIDTH, totalHeight);
-  } else {
-    ctx.fillStyle = fallbackColor || "#14141c";
     ctx.fillRect(0, 0, WIDTH, totalHeight);
   }
 
@@ -223,10 +222,13 @@ export const createLyricPoster = async (options: LyricPosterOptions): Promise<Bl
   let y = PAD_TOP + THUMB + HEADER_GAP;
   layout.forEach((block, index) => {
     if (index > 0) y += BLOCK_GAP;
+    // 对唱行右对齐，其余左对齐
+    const textX = block.duet ? WIDTH - PAD_X : PAD_X;
+    ctx.textAlign = block.duet ? "right" : "left";
     ctx.fillStyle = "#ffffff";
     ctx.font = LYRIC_FONT;
     for (const text of block.main) {
-      ctx.fillText(text, PAD_X, y);
+      ctx.fillText(text, textX, y);
       y += LYRIC_LH;
     }
     if (block.translation.length) {
@@ -234,7 +236,7 @@ export const createLyricPoster = async (options: LyricPosterOptions): Promise<Bl
       ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
       ctx.font = TRANS_FONT;
       for (const text of block.translation) {
-        ctx.fillText(text, PAD_X, y);
+        ctx.fillText(text, textX, y);
         y += TRANS_LH;
       }
     }
@@ -243,7 +245,7 @@ export const createLyricPoster = async (options: LyricPosterOptions): Promise<Bl
       ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
       ctx.font = ROMAJI_FONT;
       for (const text of block.romaji) {
-        ctx.fillText(text, PAD_X, y);
+        ctx.fillText(text, textX, y);
         y += ROMAJI_LH;
       }
     }

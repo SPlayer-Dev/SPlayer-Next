@@ -401,7 +401,7 @@
       "copy": "复制",
       "exportImage": "导出图片",
       "saved": "已保存到下载文件夹",
-      "exportLimit": "最多导出 {n} 行歌词",
+      "fileSuffix": "歌词分享",
       "exportFailed": "导出图片失败",
       "empty": "没有可复制的内容"
     },

@@ -25,12 +25,15 @@ const selectedLines = ref<number[]>([]);
 
 /** 展示用歌词行 */
 const displayLyrics = computed(() =>
-  media.parsedLyric.map((line, index) => ({
-    index,
-    text: line.words.map((word) => word.word).join(""),
-    translation: line.translatedLyric || "",
-    romaji: line.romanLyric || line.words.map((word) => word.romanWord ?? "").join(""),
-  })),
+  media.parsedLyric
+    .filter((line) => !line.isBG)
+    .map((line, index) => ({
+      index,
+      text: line.words.map((word) => word.word).join(""),
+      translation: line.translatedLyric || "",
+      romaji: line.romanLyric || line.words.map((word) => word.romanWord ?? "").join(""),
+      duet: line.isDuet,
+    })),
 );
 
 const showTranslation = computed(() => selectedFilters.value.includes("translation"));
@@ -104,9 +107,6 @@ const handleCopy = async (): Promise<void> => {
   await copy(content);
 };
 
-/** 单次最多导出的歌词行数，避免海报过长影响性能与观感 */
-const MAX_EXPORT_LINES = 30;
-
 /** 导出中，防重复点击 */
 const exporting = ref(false);
 
@@ -114,10 +114,6 @@ const exporting = ref(false);
 const handleExport = async (): Promise<void> => {
   const track = media.track;
   if (exporting.value || !track || !selectedLines.value.length) return;
-  if (selectedLines.value.length > MAX_EXPORT_LINES) {
-    toast.warning(t("player.copyLyric.exportLimit", { n: MAX_EXPORT_LINES }));
-    return;
-  }
   exporting.value = true;
   try {
     const blob = await createLyricPoster({
@@ -128,11 +124,13 @@ const handleExport = async (): Promise<void> => {
           text: line.text,
           translation: showTranslation.value && line.translation ? line.translation : undefined,
           romaji: showRomaji.value && line.romaji ? line.romaji : undefined,
+          duet: line.duet,
         })),
       fallbackColor: theme.coverColor,
     });
     const artist = track.artists.map((item) => item.name).join(", ");
-    const fileName = `${track.title} - ${artist} - 歌词分享.png`.replace(/[\\/:*?"<>|]/g, " ");
+    const suffixName = t("player.copyLyric.fileSuffix");
+    const fileName = `${track.title} - ${artist} - ${suffixName}.png`.replace(/[\\/:*?"<>|]/g, " ");
     const res = await window.api.system.saveImage(await blob.arrayBuffer(), fileName);
     if (res.success && res.path) toast.success(t("player.copyLyric.saved"));
     else if (!res.success) toast.error(t("player.copyLyric.exportFailed"));

@@ -413,7 +413,7 @@
       "copy": "Copy",
       "exportImage": "Export image",
       "saved": "Saved to Downloads",
-      "exportLimit": "Export up to {n} lines",
+      "fileSuffix": "Lyrics",
       "exportFailed": "Failed to export image",
       "empty": "Nothing to copy"
     },
