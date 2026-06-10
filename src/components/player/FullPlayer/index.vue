@@ -86,6 +86,13 @@ const hasTrack = computed(() => !!media.track);
 /** 当前曲目是否有可显示的歌词 */
 const hasLyric = computed(() => media.parsedLyric.length > 0 || media.lyricLoading);
 
+// 重新挂载时，刷新初始时间
+watch(hasLyric, (value) => {
+  if (value && lyricMounted.value) {
+    initialLyricTimeMs.value = getCurrentTime() + status.lyricOffsetMs;
+  }
+});
+
 /** 全屏 */
 const { isFullscreen, toggleFullscreen } = useWindowControls();
 

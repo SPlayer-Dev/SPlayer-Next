@@ -176,10 +176,12 @@ const visibleItems = computed(() => {
 const measureItemHeights = (): void => {
   if (props.itemFixed || !itemRefs.value.length || props.items.length === 0) return;
   let hasChanges = false;
-  itemRefs.value.forEach((element, visibleIdx) => {
+  itemRefs.value.forEach((element) => {
     if (!element) return;
-    const actualIndex = actualStartIndex.value + visibleIdx;
-    if (actualIndex < 0 || actualIndex >= props.items.length) return;
+    // 用 data-index 取真实索引
+    const actualIndex = Number(element.dataset.index);
+    if (!Number.isInteger(actualIndex) || actualIndex < 0 || actualIndex >= props.items.length)
+      return;
     const height = element.getBoundingClientRect().height;
     if (height > 0 && Math.abs(height - itemHeights.value[actualIndex]) > 0.5) {
       itemHeights.value[actualIndex] = height;

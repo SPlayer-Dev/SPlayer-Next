@@ -3,10 +3,11 @@ import { toast } from "@/composables/useToast";
 import { dialog } from "@/composables/useDialog";
 import i18n from "@/i18n";
 
-/** 静默错误码（用户主动取消等，不需要提示） */
+/** 静默错误码（用户主动取消、正常竞态结果等，不需要提示） */
 const SILENT_ERRORS = new Set<string>([
   ErrorCode.FILE_NOT_SELECTED,
   ErrorCode.SCAN_DIR_NOT_SELECTED,
+  ErrorCode.LOAD_SUPERSEDED,
 ]);
 
 /** 可通过跳曲解决的错误（单曲级别，非全局性） */
