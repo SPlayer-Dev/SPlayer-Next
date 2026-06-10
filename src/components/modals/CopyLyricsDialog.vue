@@ -69,9 +69,11 @@ watch(
 
 /** 勾选 / 取消某一行 */
 const toggleLine = (index: number, checked: boolean): void => {
-  selectedLines.value = checked
-    ? [...selectedLines.value, index]
-    : selectedLines.value.filter((item) => item !== index);
+  if (!checked) {
+    selectedLines.value = selectedLines.value.filter((item) => item !== index);
+  } else if (!selectedLines.value.includes(index)) {
+    selectedLines.value = [...selectedLines.value, index];
+  }
 };
 
 const toggleSelectAll = (): void => {
