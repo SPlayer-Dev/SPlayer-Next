@@ -93,6 +93,14 @@ watch(hasLyric, (value) => {
   }
 });
 
+// 歌词变化时先推送精确时间
+watch(
+  () => media.parsedLyric,
+  () => {
+    lyricRef.value?.setCurrentTime(getCurrentTime() + status.lyricOffsetMs);
+  },
+);
+
 /** 全屏 */
 const { isFullscreen, toggleFullscreen } = useWindowControls();
 

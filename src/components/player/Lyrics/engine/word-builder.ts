@@ -284,13 +284,9 @@ export const measureAndApplyWordMasks = (
         ? `clamp(${startPos}px,calc(${startPos}px + (var(--t,${lineStart}) - ${adjustedStart}) * ${speed}px),${endPos}px) 0px,left top`
         : `${startPos}px 0px,left top`;
       const style = measurement.element.style;
-      style.setProperty("-webkit-mask-image", maskImage);
       style.setProperty("mask-image", maskImage);
-      style.setProperty("-webkit-mask-size", maskSize);
       style.setProperty("mask-size", maskSize);
-      style.setProperty("-webkit-mask-repeat", "no-repeat");
       style.setProperty("mask-repeat", "no-repeat");
-      style.setProperty("-webkit-mask-position", maskPosition);
       style.setProperty("mask-position", maskPosition);
     }
   }

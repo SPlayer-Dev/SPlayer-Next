@@ -3,6 +3,7 @@ import type { LyricLine } from "@shared/types/lyrics";
 import { LyricRenderer } from "./engine";
 import type { SpringParams } from "./engine/spring";
 import { DEFAULTS } from "./engine/constants";
+import { applyScrollPreroll } from "./utils/scroll-preroll";
 import "./renderer.css";
 
 const props = withDefaults(
@@ -172,7 +173,7 @@ onMounted(() => {
     renderer.setCurrentTime(props.initialTime);
   }
   if (props.lyricLines.length > 0) {
-    renderer.setLyrics(props.lyricLines);
+    renderer.setLyrics(applyScrollPreroll(props.lyricLines));
   }
   bottomLineEl.value = renderer.getBottomLineElement();
 });
@@ -182,12 +183,13 @@ onUnmounted(() => {
   renderer = null;
 });
 
-/** 重建歌词 DOM */
+/** 重建歌词 DOM（应用滚动预滚后的克隆数据） */
 const rebuildLyrics = (): void => {
+  const prepared = applyScrollPreroll(props.lyricLines);
   if (isFrozen) {
-    pendingLyrics = props.lyricLines;
+    pendingLyrics = prepared;
   } else {
-    renderer?.setLyrics(props.lyricLines);
+    renderer?.setLyrics(prepared);
   }
 };
 

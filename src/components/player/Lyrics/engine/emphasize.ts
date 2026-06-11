@@ -7,29 +7,20 @@
  */
 
 import type { LyricWord } from "@shared/types/lyrics";
-
-// ---- 常量 ----
+import { isCJK } from "../utils/split-words";
 
 const FRAME_COUNT = 32;
 const EMP_MID = 0.5;
 
-// ---- 缓动函数（简化的贝塞尔曲线替代） ----
-
-/** 简单的 ease-in 曲线 */
-const easeIn = (x: number): number => x * x * (3 - 2 * x);
-/** 简单的 ease-out 曲线 */
-const easeOut = (x: number): number => x * x * (3 - 2 * x);
+/** smoothstep 曲线 */
+const smoothstep = (x: number): number => x * x * (3 - 2 * x);
 
 const normalize = (min: number, max: number, x: number) =>
   Math.min(1, Math.max(0, (x - min) / (max - min)));
 
+/** 0→峰→0 的对称强调曲线 */
 const empEasing = (x: number): number =>
-  x < EMP_MID ? easeIn(normalize(0, EMP_MID, x)) : 1 - easeOut(normalize(EMP_MID, 1, x));
-
-// ---- CJK 检测 ----
-
-const CJK_RE = /^[\p{Unified_Ideograph}\u0800-\u9FFC]+$/u;
-const isCJK = (s: string): boolean => CJK_RE.test(s);
+  x < EMP_MID ? smoothstep(normalize(0, EMP_MID, x)) : 1 - smoothstep(normalize(EMP_MID, 1, x));
 
 // ---- matrix3d 工具 ----
 
@@ -67,12 +58,6 @@ export const shouldChunkEmphasize = (chunk: LyricWord[]): boolean => {
   }
   return false;
 };
-
-/** 存储一行的所有动画 */
-export interface LineAnimations {
-  /** 所有 Web Animation 实例 */
-  animations: Animation[];
-}
 
 /**
  * 为单个单词 span 创建基础上浮动画（所有单词通用）
