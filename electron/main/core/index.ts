@@ -23,17 +23,8 @@ import { coreLog, initLogger } from "@main/utils/logger";
  * 配置 Chromium 启动参数以优化内存占用
  */
 const configureMemoryOptimizations = (): void => {
-  // 限制 JS 堆内存上限
-  app.commandLine.appendSwitch("js-flags", "--max-old-space-size=256");
-  // 限制 GPU 进程使用的共享内存
-  app.commandLine.appendSwitch("gpu-rasterization-msaa-sample-count", "0");
-  // 禁用不需要的 Chromium 功能
-  app.commandLine.appendSwitch(
-    "disable-features",
-    ["MediaRouter", "TranslateUI", "SpareRendererForSitePerProcess"].join(","),
-  );
-  // 减少渲染进程内存分配器保留
-  app.commandLine.appendSwitch("renderer-process-limit", "1");
+  // 禁止预热备用渲染进程
+  app.commandLine.appendSwitch("disable-features", "SpareRendererForSitePerProcess");
 };
 
 /**

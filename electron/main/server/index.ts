@@ -55,6 +55,11 @@ export const startServer = (): Promise<ExternalApiStatus> => {
       resolve(getServerStatus());
       return;
     }
+    // 功能关闭时不监听端口
+    if (!store.get("externalApi.enabled")) {
+      resolve(getServerStatus());
+      return;
+    }
 
     const port = store.get("externalApi.port");
     // 默认仅本机可访问；服务自身无鉴权，开放局域网需用户显式开启

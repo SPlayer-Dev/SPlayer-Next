@@ -27,6 +27,7 @@ import {
 } from "@main/window";
 import { broadcast } from "@main/utils/broadcast";
 import { isWin } from "@main/utils/config";
+import { startServer, stopServer } from "@main/server";
 
 /** 配置写入后的副作用 */
 const applyConfigChange = (keyPath: string, value: unknown): void => {
@@ -59,6 +60,9 @@ const applyConfigChange = (keyPath: string, value: unknown): void => {
       break;
     case "system.taskbarProgress":
       if (!value) setTaskbarProgress(-1);
+      break;
+    case "externalApi.enabled":
+      void (value ? startServer() : stopServer());
       break;
     case "system.uiZoom":
       applyMainWindowZoom();
