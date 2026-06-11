@@ -44,15 +44,19 @@ const durationFar = (leftMs?: number, rightMs?: number, tolMs = 20000): boolean 
   return Math.abs(leftMs - rightMs) > tolMs;
 };
 
+/** 子串命中时短串占长串的最低长度比，过低视为巧合 */
+const NAME_CONTAIN_MIN_RATIO = 0.34;
+
 /**
  * 从候选列表里挑出最匹配 track 的那一个
  *
  * 硬性条件（不满足直接跳过）
- *  - name 必须全等或双向 includes
+ *  - name 全等，或双向 includes 且短串占长串比例 ≥ NAME_CONTAIN_MIN_RATIO
  *  - 双方都给了 duration 时，差距不能超过 20s
+ *  - name 仅子串命中（非全等）时，必须有 artist 交集佐证；name 全等则不要求（保留翻唱）
  *
  * 打分规则（分数越高越优先）
- *  - name 全等：+10；name 双向 includes：+4
+ *  - name 全等：+10；name 子串命中：+4
  *  - artist 全等：+5；artist 双向 includes：+2
  *  - album 全等（且 track 有 album）：+2
  *  - duration 接近（±5s）：+3
@@ -74,16 +78,24 @@ export const pickBestCandidate = <E>(
     const candArtist = normalize(candidate.artist);
     const candAlbum = normalize(candidate.album);
 
-    let score = 0;
-    if (candName === trackName) score += 10;
-    else if (bothContains(candName, trackName)) score += 4;
-    else continue;
+    const nameExact = candName.length > 0 && candName === trackName;
+    if (!nameExact) {
+      if (!bothContains(candName, trackName)) continue;
+      const longer = Math.max(candName.length, trackName.length);
+      const shorter = Math.min(candName.length, trackName.length);
+      if (shorter / longer < NAME_CONTAIN_MIN_RATIO) continue;
+    }
 
     if (durationFar(candidate.duration, trackDuration)) continue;
 
-    if (candArtist === trackArtist) score += 5;
-    else if (bothContains(candArtist, trackArtist)) score += 2;
+    const artistExact = trackArtist.length > 0 && candArtist === trackArtist;
+    const artistContains = !artistExact && bothContains(candArtist, trackArtist);
+    // 置信度地板：name 仅子串命中时 artist 必须有交集，否则视为巧合 substring 丢弃
+    if (!nameExact && !artistExact && !artistContains) continue;
 
+    let score = nameExact ? 10 : 4;
+    if (artistExact) score += 5;
+    else if (artistContains) score += 2;
     if (trackAlbum && candAlbum === trackAlbum) score += 2;
     if (durationClose(candidate.duration, trackDuration)) score += 3;
 
