@@ -10,8 +10,23 @@ import {
   SPRING_PRESETS,
 } from "@/types/settings";
 import type { SystemConfig, LocaleCode } from "@shared/types/settings";
+import { ALL_PLATFORMS } from "@shared/types/platform";
 import { defaultSystemConfig } from "@shared/defaults/settings";
 import { setByPath } from "@shared/utils/path";
+
+/**
+ * 对账有序集合：保留存档中仍有效的项（顺序不变），
+ * 末尾补上完整集合里缺失的新项，剔除已失效的项
+ * 用于平台/格式偏好——新增平台或格式时无需用户手动重置即可生效
+ * @param stored - 存档顺序
+ * @param all - 当前完整集合
+ * @returns 对账后的顺序
+ */
+const reconcileOrder = <T>(stored: T[], all: readonly T[]): T[] => {
+  const known = stored.filter((item) => all.includes(item));
+  const missing = all.filter((item) => !known.includes(item));
+  return [...known, ...missing];
+};
 
 export const useSettingsStore = defineStore(
   "settings",
@@ -213,6 +228,11 @@ export const useSettingsStore = defineStore(
     persist: {
       storage: localStorage,
       omit: ["system"],
+      afterHydrate: ({ store }) => {
+        const { lyric } = store as unknown as { lyric: LyricSettings };
+        lyric.lyricSourceOrder = reconcileOrder(lyric.lyricSourceOrder, ALL_PLATFORMS);
+        lyric.lyricFormatOrder = reconcileOrder(lyric.lyricFormatOrder, DEFAULT_LYRIC_FORMAT_ORDER);
+      },
     },
   },
 );

@@ -1,6 +1,7 @@
 import type { LyricFormat } from "@shared/types/lyrics";
 import { DEFAULT_LYRIC_FORMAT_ORDER as DEFAULT_LYRIC_FORMAT_ORDER_SHARED } from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
+import { ALL_PLATFORMS } from "@shared/types/platform";
 import type { QualityLevel } from "@/utils/quality";
 
 /** 播放器背景类型 */
@@ -10,10 +11,10 @@ export type CoverLayout = "default" | "fullscreen";
 /**
  * 歌词来源偏好
  * - auto：智能选择（按打分结果）
- * - qqmusic / kugou / netease：优先该平台
+ * - Platform（netease / qqmusic / kugou…）：优先该平台
  * - self：跟随歌曲自身来源平台
  */
-export type LyricSourcePreference = "auto" | "qqmusic" | "kugou" | "netease" | "self";
+export type LyricSourcePreference = Platform | "auto" | "self";
 
 /** 布局模式 */
 export type LayoutMode = "default" | "sidebar-full" | "floating";
@@ -51,9 +52,9 @@ export type LyricSourceOrder = Platform[];
 export type LyricFormatOrder = LyricFormat[];
 
 /** 默认音源顺序 */
-export const DEFAULT_LYRIC_SOURCE_ORDER: LyricSourceOrder = ["netease", "qqmusic", "kugou"];
+export const DEFAULT_LYRIC_SOURCE_ORDER: LyricSourceOrder = [...ALL_PLATFORMS];
 
-/** 默认格式优先级（来自 shared/types/lyrics 的单一来源） */
+/** 默认格式优先级 */
 export const DEFAULT_LYRIC_FORMAT_ORDER: LyricFormatOrder = [...DEFAULT_LYRIC_FORMAT_ORDER_SHARED];
 
 /** 歌词设置 */
