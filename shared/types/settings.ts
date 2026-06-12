@@ -53,7 +53,7 @@ export interface PlayerSettings {
   loudnessNormalization: boolean;
   /** 均衡器配置 */
   equalizer: EqualizerSettings;
-  /** 按 Track.id 记忆的歌词偏移（ms，正值为歌词提前）；为 0 时不写入 */
+  /** 按 `{Track.id}|{歌词源}` 记忆的歌词偏移（ms，正值为歌词提前）；为 0 时不写入 */
   lyricOffsets: Record<string, number>;
 }
 

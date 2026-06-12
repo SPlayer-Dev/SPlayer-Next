@@ -40,14 +40,30 @@ let currentLyricOffsetMs = 0;
 const emitter = new EventEmitter<NowPlayingEvents>();
 
 /**
- * 从存储中读取指定曲目的偏移
+ * 偏移存储 key：按（曲目, 歌词源）区分，各来源时间轴独立，在线歌词按平台再分
  * @param trackId - 曲目 ID
+ * @param source - 歌词源，null（歌词未加载）时退化为裸 trackId
+ */
+const offsetKey = (trackId: string, source: LyricData): string => {
+  if (!source) return trackId;
+  const src =
+    source.source === "online" && source.platform ? `online:${source.platform}` : source.source;
+  return `${trackId}|${src}`;
+};
+
+/**
+ * 从存储中读取指定曲目当前歌词源的偏移
+ * @param trackId - 曲目 ID
+ * @param source - 歌词源
  * @returns 偏移值（毫秒），缺省视为 0
  */
-const readOffset = (trackId: string | null | undefined): number => {
+const readOffset = (trackId: string | null | undefined, source: LyricData): number => {
   if (!trackId) return 0;
-  return store.get("player.lyricOffsets")?.[trackId] ?? 0;
+  return store.get("player.lyricOffsets")?.[offsetKey(trackId, source)] ?? 0;
 };
+
+/** 当前生效偏移对应的存储 key，用于检测曲目/歌词源变化 */
+let currentOffsetKey = "";
 
 /**
  * 同步当前播放状态
@@ -64,9 +80,13 @@ export const update = (track: Track | null, lyric: LyricLine[], source: LyricDat
     // 重置播放进度
     lastPosition = 0;
     lastPositionAt = Date.now();
-    // 加载新曲目的偏移并立即广播
-    currentLyricOffsetMs = readOffset(track?.id);
     emitter.emit("track-change", { track });
+  }
+  // 曲目或歌词源任一变化都重读偏移并广播
+  const key = track?.id ? offsetKey(track.id, source) : "";
+  if (trackChanged || key !== currentOffsetKey) {
+    currentOffsetKey = key;
+    currentLyricOffsetMs = readOffset(track?.id, source);
     emitter.emit("lyric-offset-change", {
       trackId: track?.id ?? null,
       offsetMs: currentLyricOffsetMs,
@@ -131,7 +151,7 @@ const LYRIC_OFFSET_LIMIT_MS = 60_000;
 
 /**
  * 写入指定曲目的歌词偏移；0 视为清除
- * 同时持久化到 store，并在影响当前曲目时广播
+ * 偏移跟随当前歌词源，持久化到 store 并在影响当前曲目时广播
  * @param trackId - 目标 Track.id
  * @param offsetMs - 偏移值（毫秒），自动 clamp 到 ±60s
  */
@@ -140,9 +160,10 @@ export const setLyricOffset = (trackId: string, offsetMs: number): void => {
   // IPC 进来可能是 NaN/Infinity，会污染所有下游时间叠加计算，统一视为清除
   const normalized = Number.isFinite(offsetMs) ? Math.trunc(offsetMs) : 0;
   const value = Math.max(-LYRIC_OFFSET_LIMIT_MS, Math.min(LYRIC_OFFSET_LIMIT_MS, normalized));
+  const key = offsetKey(trackId, currentSource);
   const map = { ...(store.get("player.lyricOffsets") ?? {}) };
-  if (value === 0) delete map[trackId];
-  else map[trackId] = value;
+  if (value === 0) delete map[key];
+  else map[key] = value;
   store.set("player.lyricOffsets", map);
   // 影响当前曲目则更新运行时缓存并广播
   if (currentTrack && currentTrack.id === trackId) {
@@ -170,6 +191,7 @@ export const clear = (): void => {
   currentLyric = [];
   currentSource = null;
   currentLyricOffsetMs = 0;
+  currentOffsetKey = "";
   emitter.emit("lyric-change", snapshot());
   emitter.emit("lyric-offset-change", { trackId: null, offsetMs: 0 });
 };
