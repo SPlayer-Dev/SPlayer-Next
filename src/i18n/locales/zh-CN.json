@@ -400,6 +400,7 @@
       "invert": "反选",
       "selected": "已选 {n} 行",
       "copy": "复制",
+      "copyRaw": "复制原文",
       "exportImage": "导出图片",
       "saved": "已保存到下载文件夹",
       "fileSuffix": "歌词分享",

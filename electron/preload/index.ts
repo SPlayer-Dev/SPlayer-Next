@@ -117,9 +117,9 @@ const api = {
     listFonts: () => ipcRenderer.invoke("system:listFonts"),
     // 拉远端字节回渲染层
     fetchRemoteBytes: (url: string) => ipcRenderer.invoke("system:fetchRemoteBytes", url),
-    // 保存图片到本地
-    saveImage: (data: ArrayBuffer, defaultName: string) =>
-      ipcRenderer.invoke("system:saveImage", data, defaultName),
+    // 保存文件到下载目录
+    saveFile: (data: ArrayBuffer, defaultName: string) =>
+      ipcRenderer.invoke("system:saveFile", data, defaultName),
     // 重启应用
     relaunch: () => ipcRenderer.invoke("system:relaunch"),
   },

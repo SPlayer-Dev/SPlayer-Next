@@ -412,6 +412,7 @@
       "invert": "Invert",
       "selected": "{n} selected",
       "copy": "Copy",
+      "copyRaw": "Copy original",
       "exportImage": "Export image",
       "saved": "Saved to Downloads",
       "fileSuffix": "Lyrics",

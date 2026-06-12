@@ -81,6 +81,7 @@ declare module 'vue' {
     IconLucideDatabase: typeof import('~icons/lucide/database')['default']
     IconLucideDisc: typeof import('~icons/lucide/disc')['default']
     IconLucideDisc3: typeof import('~icons/lucide/disc3')['default']
+    IconLucideDownload: typeof import('~icons/lucide/download')['default']
     IconLucideEllipsis: typeof import('~icons/lucide/ellipsis')['default']
     IconLucideExternalLink: typeof import('~icons/lucide/external-link')['default']
     IconLucideFlame: typeof import('~icons/lucide/flame')['default']

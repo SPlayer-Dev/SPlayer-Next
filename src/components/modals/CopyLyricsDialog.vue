@@ -109,6 +109,12 @@ const handleCopy = async (): Promise<void> => {
   await copy(content);
 };
 
+/** 复制歌词原文 */
+const handleCopyRaw = async (): Promise<void> => {
+  const content = media.lyricContent?.content;
+  if (content) await copy(content);
+};
+
 /** 导出中，防重复点击 */
 const exporting = ref(false);
 
@@ -133,7 +139,7 @@ const handleExport = async (): Promise<void> => {
     const artist = track.artists.map((item) => item.name).join(", ");
     const suffixName = t("player.copyLyric.fileSuffix");
     const fileName = `${track.title} - ${artist} - ${suffixName}.png`.replace(/[\\/:*?"<>|]/g, " ");
-    const res = await window.api.system.saveImage(await blob.arrayBuffer(), fileName);
+    const res = await window.api.system.saveFile(await blob.arrayBuffer(), fileName);
     if (res.success && res.path) toast.success(t("player.copyLyric.saved"));
     else if (!res.success) toast.error(t("player.copyLyric.exportFailed"));
   } catch {
@@ -178,13 +184,24 @@ const handleExport = async (): Promise<void> => {
           {{ suffix }}
         </span>
         <span class="text-xs text-on-surface/50">{{ t("player.copyLyric.contentLabel") }}</span>
-        <SCheckboxGroup v-model:value="selectedFilters" size="small">
-          <SCheckbox value="translation" :label="t('player.copyLyric.translation')" />
-          <SCheckbox value="romaji" :label="t('player.copyLyric.romaji')" />
-          <SCheckbox value="emptyLine" :label="t('player.copyLyric.emptyLine')" />
-          <SCheckbox value="songName" :label="t('player.copyLyric.songName')" />
-          <SCheckbox value="artist" :label="t('player.copyLyric.artist')" />
-        </SCheckboxGroup>
+        <div class="flex items-center gap-2">
+          <SCheckboxGroup v-model:value="selectedFilters" size="small">
+            <SCheckbox value="translation" :label="t('player.copyLyric.translation')" />
+            <SCheckbox value="romaji" :label="t('player.copyLyric.romaji')" />
+            <SCheckbox value="emptyLine" :label="t('player.copyLyric.emptyLine')" />
+            <SCheckbox value="songName" :label="t('player.copyLyric.songName')" />
+            <SCheckbox value="artist" :label="t('player.copyLyric.artist')" />
+          </SCheckboxGroup>
+          <SButton
+            variant="secondary"
+            size="tiny"
+            class="ml-auto shrink-0"
+            :disabled="!media.lyricContent"
+            @click="handleCopyRaw"
+          >
+            {{ t("player.copyLyric.copyRaw") }}
+          </SButton>
+        </div>
       </div>
     </div>
 

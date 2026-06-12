@@ -77,8 +77,8 @@ export const registerSystemIpc = (): void => {
     return { success: true, data: buf };
   });
 
-  // 保存图片到下载目录
-  ipcMain.handle("system:saveImage", async (_event, data: ArrayBuffer, fileName: string) => {
+  // 保存文件到下载目录
+  ipcMain.handle("system:saveFile", async (_event, data: ArrayBuffer, fileName: string) => {
     try {
       // 只取末段并清洗非法字符
       const safeName = basename(fileName)
@@ -98,7 +98,7 @@ export const registerSystemIpc = (): void => {
       await writeFile(target, Buffer.from(data));
       return { success: true, path: target };
     } catch (error) {
-      systemLog.error("[system] saveImage failed", error);
+      systemLog.error("[system] saveFile failed", error);
       return { success: false, error: String(error) };
     }
   });
