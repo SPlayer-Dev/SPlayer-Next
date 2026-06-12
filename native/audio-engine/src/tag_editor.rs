@@ -155,7 +155,7 @@ fn apply_to_file(path: &Path, request: &TagWriteRequest) -> Result<()> {
             tag.remove_key(ItemKey::RecordingDate);
         }
         Some(year) => {
-            // ID3v2.4 的 TYER 已废弃，统一写 RecordingDate（TDRC / DATE / ©day）
+            tag.remove_key(ItemKey::Year);
             tag.insert_text(ItemKey::RecordingDate, year.to_string());
         }
     }
@@ -337,6 +337,32 @@ mod tests {
         assert_eq!(tags.genre, None);
         assert_eq!(tags.lyrics, None);
         assert_eq!(tags.year, None);
+    }
+
+    #[test]
+    fn writing_year_replaces_legacy_year_key() {
+        let path = temp_wav("legacy-year.wav");
+        let init = TagWriteRequest {
+            path: path.to_string_lossy().into_owned(),
+            title: Some("x".into()),
+            ..Default::default()
+        };
+        write_tags(&init).unwrap();
+
+        // 模拟原文件带旧 Year 标签（如 ID3v2.3 TYER）
+        let mut tagged = open_tagged(&path).unwrap();
+        let tag_type = editing_tag_type(tagged.file_type());
+        let tag = tagged.tag_mut(tag_type).unwrap();
+        tag.insert_text(ItemKey::Year, "1990".into());
+        tagged.save_to_path(&path, WriteOptions::default()).unwrap();
+
+        let update = TagWriteRequest {
+            path: init.path.clone(),
+            year: Some(2025),
+            ..Default::default()
+        };
+        write_tags(&update).unwrap();
+        assert_eq!(read_tags(&init.path).unwrap().year, Some(2025));
     }
 
     #[test]
