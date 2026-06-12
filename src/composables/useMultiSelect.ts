@@ -116,7 +116,10 @@ export const useMultiSelect = (items: Ref<Track[]>, options: MultiSelectOptions)
     try {
       if (pendingDeleteAction.value === "file") {
         const paths = tracks.map((t) => t.path).filter((p): p is string => !!p);
-        if (paths.length > 0) await libraryStore.deleteTracks(paths);
+        if (paths.length > 0) {
+          await libraryStore.deleteTracks(paths);
+          await player.purgeDeletedTracks(ids);
+        }
       } else if (pendingDeleteAction.value === "cloud") {
         await userStore.removeCloudTracks(ids);
       } else if (options.collectionId.value) {
