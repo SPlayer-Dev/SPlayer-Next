@@ -10,10 +10,10 @@ export type CoverLayout = "default" | "fullscreen";
 /**
  * 歌词来源偏好
  * - auto：智能选择（按打分结果）
- * - qqmusic / kugou / netease：优先该平台
+ * - qqmusic / kugou / netease / qishui：优先该平台
  * - self：跟随歌曲自身来源平台
  */
-export type LyricSourcePreference = "auto" | "qqmusic" | "kugou" | "netease" | "self";
+export type LyricSourcePreference = "auto" | "qqmusic" | "kugou" | "netease" | "qishui" | "self";
 
 /** 布局模式 */
 export type LayoutMode = "default" | "sidebar-full" | "floating";
@@ -51,7 +51,7 @@ export type LyricSourceOrder = Platform[];
 export type LyricFormatOrder = LyricFormat[];
 
 /** 默认音源顺序 */
-export const DEFAULT_LYRIC_SOURCE_ORDER: LyricSourceOrder = ["netease", "qqmusic", "kugou"];
+export const DEFAULT_LYRIC_SOURCE_ORDER: LyricSourceOrder = ["netease", "qqmusic", "kugou", "qishui"];
 
 /** 默认格式优先级（来自 shared/types/lyrics 的单一来源） */
 export const DEFAULT_LYRIC_FORMAT_ORDER: LyricFormatOrder = [...DEFAULT_LYRIC_FORMAT_ORDER_SHARED];

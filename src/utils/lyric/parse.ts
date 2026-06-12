@@ -4,6 +4,7 @@ import { parseLRC } from "./parseLRC";
 import { parseQRC } from "./parseQRC";
 import { parseYRC } from "./parseYRC";
 import { parseKRC } from "./parseKRC";
+import { parseQishui } from "./parseQishui";
 import { parseTTML } from "./parseTTML";
 import { parseLyS } from "./parseLyS";
 import { parseSRT } from "./parseSRT";
@@ -51,6 +52,8 @@ export const detectFormat = (text: string): LyricFormat => {
     if (/LyricContent="|<QrcInfos|<Lyric_/.test(text)) return "qrc";
     if (trimmed.startsWith("<tt") || /<tt\s/i.test(text)) return "ttml";
   }
+  // 汽水：[起始,时长]<起始,时长,0> 尖括号逐字
+  if (/\[\d+,\d+\]<\d+,\d+,\d+>/.test(text)) return "qishui";
   // YRC：[起始,时长](起始,时长,0)
   if (/\[\d+,\d+\]\(\d+,\d+,\d+\)/.test(text)) return "yrc";
   // QRC 纯文本：[起始,时长]文字(起始,时长)
@@ -77,6 +80,8 @@ const parseContent = (text: string, format: LyricFormat): LyricLine[] => {
       return parseKRC(text);
     case "yrc":
       return parseYRC(text);
+    case "qishui":
+      return parseQishui(text);
     case "lrc":
       return parseLRC(text);
     case "lys":

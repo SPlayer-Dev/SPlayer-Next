@@ -22,6 +22,7 @@ const lyricCategory: SettingCategory = {
             { value: "qqmusic", labelKey: "settings.lyricSourcePreference.qqmusic" },
             { value: "kugou", labelKey: "settings.lyricSourcePreference.kugou" },
             { value: "netease", labelKey: "settings.lyricSourcePreference.netease" },
+            { value: "qishui", labelKey: "settings.lyricSourcePreference.qishui" },
             { value: "self", labelKey: "settings.lyricSourcePreference.self" },
           ],
           defaultValue: "auto",

@@ -32,6 +32,7 @@ const lyricSourceOptions = computed<SSelectOption[]>(() => [
   { value: "qqmusic", label: t("settings.lyricSourcePreference.qqmusic") },
   { value: "kugou", label: t("settings.lyricSourcePreference.kugou") },
   { value: "netease", label: t("settings.lyricSourcePreference.netease") },
+  { value: "qishui", label: t("settings.lyricSourcePreference.qishui") },
   { value: "self", label: t("settings.lyricSourcePreference.self") },
 ]);
 

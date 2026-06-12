@@ -2,7 +2,7 @@ import type { Platform } from "./platform";
 import type { Track } from "./player";
 
 /** 歌词格式 */
-export type LyricFormat = "ttml" | "lys" | "yrc" | "qrc" | "krc" | "lrc" | "srt" | "ass";
+export type LyricFormat = "ttml" | "lys" | "yrc" | "qrc" | "krc" | "qishui" | "lrc" | "srt" | "ass";
 
 /** 默认格式优先级（高到低）；本地外挂选择、TTML 升级判定共用 */
 export const DEFAULT_LYRIC_FORMAT_ORDER: readonly LyricFormat[] = [
@@ -11,6 +11,7 @@ export const DEFAULT_LYRIC_FORMAT_ORDER: readonly LyricFormat[] = [
   "qrc",
   "krc",
   "yrc",
+  "qishui",
   "lrc",
   "ass",
   "srt",

@@ -13,6 +13,7 @@ const PLATFORM_TO_PLUGIN_SOURCE: Record<Platform, string> = {
   netease: "wy",
   qqmusic: "tx",
   kugou: "kg",
+  qishui: "", // 汽水仅作歌词源，不参与播放插件解析，此项不会被索引
 };
 
 /**

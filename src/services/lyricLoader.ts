@@ -100,6 +100,7 @@ const PLATFORM_MAIN_FORMATS: Record<Platform, LyricFormat[]> = {
   netease: ["yrc", "lrc"],
   qqmusic: ["qrc", "lrc"],
   kugou: ["krc", "lrc"],
+  qishui: ["qishui", "lrc"],
 };
 
 /**

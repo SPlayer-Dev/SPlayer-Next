@@ -1,14 +1,15 @@
 /** 平台类型 */
-export type Platform = "netease" | "qqmusic" | "kugou";
+export type Platform = "netease" | "qqmusic" | "kugou" | "qishui";
 
 /** 平台简写 */
 export const PLATFORM_SHORT_NAME: Record<Platform, string> = {
   netease: "NCM",
   qqmusic: "QM",
   kugou: "KG",
+  qishui: "QS",
 };
 
-/** 全部平台 */
+/** 全部「可搜索/可播放」平台（汽水仅作歌词源，不进此列，故不出现在搜索 tab） */
 export const ALL_PLATFORMS: Platform[] = ["netease", "qqmusic", "kugou"];
 
 const PLATFORM_SET = new Set<string>(ALL_PLATFORMS);

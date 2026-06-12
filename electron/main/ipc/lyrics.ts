@@ -12,6 +12,7 @@ import { ipcMain } from "electron";
 import * as netease from "@main/apis/common/lyric/netease";
 import * as qqmusic from "@main/apis/common/lyric/qqmusic";
 import * as kugou from "@main/apis/common/lyric/kugou";
+import * as qishui from "@main/apis/common/lyric/qishui";
 import { fetchTTML } from "@main/apis/common/lyric/ttml";
 import { buildFingerprint, getMatchedId } from "@main/database/lyricMatchCache";
 import { coreLog } from "@main/utils/logger";
@@ -52,6 +53,8 @@ const resolveById = async (platform: Platform, id: string): Promise<LyricMatchRe
         return { ok: true, data: await qqmusic.getByPlatformId(id) };
       case "kugou":
         return { ok: true, data: await kugou.getByPlatformId(id) };
+      case "qishui":
+        return { ok: true, data: await qishui.getByPlatformId(id) };
       default:
         return { ok: false, error: `unsupported platform: ${platform}` };
     }
@@ -71,6 +74,8 @@ const resolveByQuery = async (platform: Platform, track: Track): Promise<LyricMa
         return { ok: true, data: await qqmusic.getByQuery(track) };
       case "kugou":
         return { ok: true, data: await kugou.getByQuery(track) };
+      case "qishui":
+        return { ok: true, data: await qishui.getByQuery(track) };
       default:
         return { ok: false, error: `unsupported platform: ${platform}` };
     }
