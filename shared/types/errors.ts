@@ -34,6 +34,12 @@ export enum ErrorCode {
   /** 未找到支持该平台的插件 */
   NO_PLUGIN_AVAILABLE = "NO_PLUGIN_AVAILABLE",
 
+  // 标签编辑相关
+  /** 读取文件标签失败 */
+  TAG_READ_FAILED = "TAG_READ_FAILED",
+  /** 写入文件标签失败 */
+  TAG_WRITE_FAILED = "TAG_WRITE_FAILED",
+
   // 扫描相关
   /** 未配置扫描目录 */
   SCAN_NO_DIRS = "SCAN_NO_DIRS",

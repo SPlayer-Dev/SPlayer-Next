@@ -76,7 +76,7 @@ fn is_audio_file(path: &Path) -> bool {
 /// 使用 ffmpeg_audio 打开音频文件并读取元数据
 ///
 /// 新 API 下 AudioReader 不再要求重采样参数，扫库每文件省一次 SwrContext 分配
-fn probe_fast(path: &str, cover_cache_dir: Option<&str>) -> Option<ScannedTrack> {
+pub(crate) fn probe_fast(path: &str, cover_cache_dir: Option<&str>) -> Option<ScannedTrack> {
     let file = fs::File::open(path).ok()?;
     let reader = AudioReader::new(file).ok()?;
 
@@ -122,7 +122,7 @@ fn probe_fast(path: &str, cover_cache_dir: Option<&str>) -> Option<ScannedTrack>
 /// 获取文件时间与大小：
 /// - mtime: 修改时间（Unix ms）
 /// - ctime: 创建时间（Unix ms，若不可用回退为 mtime）
-fn file_stat(path: &Path) -> Option<(u64, u64, u64)> {
+pub(crate) fn file_stat(path: &Path) -> Option<(u64, u64, u64)> {
     let meta = fs::metadata(path).ok()?;
     let mtime = meta
         .modified()

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { JsScanEvent } from "@splayer/audio-engine";
+import type { JsScanEvent, JsScannedTrack } from "@splayer/audio-engine";
 import { getEngine } from "./engine";
 import {
   upsertTracks,
@@ -15,6 +15,31 @@ import { getCoverCacheDir } from "@main/utils/config";
 import { libraryLog } from "@main/utils/logger";
 
 let scanning = false;
+
+/**
+ * Rust 扫描/探测结果 → 数据库 Upsert 记录
+ * id 由文件路径哈希生成，标签编辑回灌与扫描共用此规则
+ */
+export const scannedToUpsert = (track: JsScannedTrack): UpsertTrack => {
+  const id = createHash("sha256").update(track.path).digest("hex").slice(0, 16);
+  return {
+    id,
+    path: track.path,
+    title: track.title || track.path.split(/[/\\]/).pop() || track.path,
+    artists: parseArtists(track.artist ?? ""),
+    album: parseAlbum(track.album ?? ""),
+    duration: toMs(track.duration),
+    cover: toCacheUrl(track.cover),
+    codec: track.codec,
+    sampleRate: track.sampleRate,
+    bitRate: track.bitRate,
+    channels: track.channels,
+    bitsPerSample: track.bitsPerSample,
+    fileSize: track.fileSize,
+    mtime: track.mtime,
+    ctime: track.ctime,
+  };
+};
 
 /** 是否正在扫描 */
 export const isScanning = (): boolean => scanning;
@@ -50,27 +75,7 @@ export const startScan = (dirs: string[], incremental = true): void => {
           if (!scanning) break;
           // 批量写入数据库
           if (event.tracks && event.tracks.length > 0) {
-            const upserts: UpsertTrack[] = event.tracks.map((t) => {
-              const id = createHash("sha256").update(t.path).digest("hex").slice(0, 16);
-              return {
-                id,
-                path: t.path,
-                title: t.title || t.path.split(/[/\\]/).pop() || t.path,
-                artists: parseArtists(t.artist ?? ""),
-                album: parseAlbum(t.album ?? ""),
-                duration: toMs(t.duration),
-                cover: toCacheUrl(t.cover),
-                codec: t.codec,
-                sampleRate: t.sampleRate,
-                bitRate: t.bitRate,
-                channels: t.channels,
-                bitsPerSample: t.bitsPerSample,
-                fileSize: t.fileSize,
-                mtime: t.mtime,
-                ctime: t.ctime,
-              };
-            });
-            upsertTracks(upserts);
+            upsertTracks(event.tracks.map(scannedToUpsert));
           }
           broadcast("library:scanProgress", {
             phase: "scanning",

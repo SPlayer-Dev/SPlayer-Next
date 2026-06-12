@@ -213,11 +213,7 @@ fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
         match data.reader.receive_frame() {
             Ok(Some(frame)) => {
                 // 1-to-N：同一帧顺序喂两个重采样器
-                if data
-                    .player_resampler
-                    .process::<f32>(Some(&frame))
-                    .is_err()
-                {
+                if data.player_resampler.process::<f32>(Some(&frame)).is_err() {
                     debug!("player resampler 处理失败，结束解码");
                     if !had_success {
                         shared.mark_decode_failed();

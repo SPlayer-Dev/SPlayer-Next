@@ -244,6 +244,18 @@ export const useLibraryStore = defineStore("library", () => {
     return { deleted: 0, failed: paths.length };
   };
 
+  /**
+   * 按 id 替换曲目数据并回写缓存（标签编辑后调用）
+   * @param updates 更新后的 Track 列表
+   */
+  const applyTrackUpdates = (updates: Track[]): void => {
+    if (updates.length === 0) return;
+    const byId = new Map(updates.map((item) => [item.id, item]));
+    if (!tracks.value.some((item) => byId.has(item.id))) return;
+    tracks.value = tracks.value.map((item) => byId.get(item.id) ?? item);
+    cacheTracks(tracks.value);
+  };
+
   /** 文件夹树：按磁盘路径聚合，详见 utils/folderTree */
   const folderTree = computed(() => buildFolderTree(tracks.value, scanDirs.value));
 
@@ -342,6 +354,7 @@ export const useLibraryStore = defineStore("library", () => {
     subscribeScanProgress,
     unsubscribeScanProgress,
     deleteTracks,
+    applyTrackUpdates,
     getArtistAvatar,
     setArtistAvatar,
     loadArtistAvatars,

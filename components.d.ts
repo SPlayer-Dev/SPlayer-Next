@@ -239,6 +239,7 @@ declare module 'vue' {
     SVirtualList: typeof import('./src/components/ui/SVirtualList.vue')['default']
     SwitchRoot: typeof import('reka-ui')['SwitchRoot']
     SwitchThumb: typeof import('reka-ui')['SwitchThumb']
+    TagEditorDialog: typeof import('./src/components/modals/TagEditorDialog.vue')['default']
     Toolbar: typeof import('./src/components/player/Toolbar.vue')['default']
     TrackInfo: typeof import('./src/components/player/TrackInfo.vue')['default']
     UiZoomDialog: typeof import('./src/components/modals/UiZoomDialog.vue')['default']

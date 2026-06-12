@@ -444,6 +444,7 @@
       "playNext": "下一首播放",
       "showInExplorer": "打开文件位置",
       "copyPath": "复制文件路径",
+      "editTags": "编辑元数据",
       "deleteFile": "删除文件",
       "searchSame": "同名搜索",
       "more": "更多操作",
@@ -1467,6 +1468,29 @@
     "SCAN_DIR_EXISTS": "该目录已存在",
     "SCAN_DIR_NOT_FOUND": "目录不存在",
     "SCAN_DIR_NOT_SELECTED": "未选择目录",
+    "TAG_READ_FAILED": "读取标签失败",
+    "TAG_WRITE_FAILED": "写入标签失败",
     "UNKNOWN": "操作失败"
+  },
+  "tagEditor": {
+    "title": "编辑元数据",
+    "replaceCover": "替换封面",
+    "onlineMatch": "自动匹配标签",
+    "matchHint": "不想手动填写标签？",
+    "noMatches": "未找到匹配结果",
+    "lyricsPlaceholder": "纯文本歌词，原样写入文件标签",
+    "saveSuccess": "元数据已保存",
+    "saveFailed": "保存失败",
+    "fields": {
+      "title": "标题",
+      "artist": "艺术家",
+      "album": "专辑",
+      "albumArtist": "专辑艺术家",
+      "year": "年份",
+      "genre": "流派",
+      "trackNumber": "音轨号",
+      "discNumber": "碟号",
+      "lyrics": "内嵌歌词"
+    }
   }
 }

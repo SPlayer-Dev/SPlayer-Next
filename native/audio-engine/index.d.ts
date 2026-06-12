@@ -225,9 +225,68 @@ export interface JsScannedTrack {
 }
 
 /**
+ * 单文件标签写入请求。字段为 undefined/null 表示不修改；
+ * 文本传空串、数字传 0 表示清除该标签项
+ */
+export interface JsTagWriteRequest {
+  path: string
+  title?: string
+  artist?: string
+  album?: string
+  albumArtist?: string
+  year?: number
+  genre?: string
+  trackNumber?: number
+  discNumber?: number
+  lyrics?: string
+  /** 新封面图片数据（jpg/png），undefined 表示保留现有封面 */
+  cover?: Buffer
+}
+
+/** 单文件写入结果 */
+export interface JsTagWriteResult {
+  path: string
+  success: boolean
+  error?: string
+  /** 写入成功后重新探测的元数据 */
+  track?: JsScannedTrack
+}
+
+/** 可编辑标签（读取结果） */
+export interface JsTrackTags {
+  title?: string
+  artist?: string
+  album?: string
+  albumArtist?: string
+  year?: number
+  genre?: string
+  trackNumber?: number
+  discNumber?: number
+  /** 内嵌歌词纯文本 */
+  lyrics?: string
+  /** 是否有内嵌封面 */
+  hasCover: boolean
+}
+
+/**
+ * 把任意图片字节缩成 JPEG 缩略图（用于选图预览）
+ * 渲染层只拿小缩略图，避免整图解码成位图占用大量内存
+ */
+export declare function makeImageThumbnail(data: Buffer, maxSize: number): Promise<Buffer>
+
+/** 读取文件的可编辑标签（异步，阻塞 IO 在 tokio 阻塞线程执行） */
+export declare function readTrackTags(path: string): Promise<JsTrackTags>
+
+/**
  * 批量扫描目录，通过回调推送进度和结果
  *
  * 在后台线程中执行，不阻塞 Node.js 事件循环。
  * 每处理约 20 个文件回调一次 progress 事件，完成后回调 done 事件。
  */
 export declare function scanDirs(dirs: Array<string>, callback: (event: JsScanEvent) => void, coverCacheDir?: string | undefined | null, incrementalData?: Array<FileRecord> | undefined | null): void
+
+/**
+ * 批量写入标签（异步），逐项返回结果，单项失败不中断整批。
+ * 替换封面时会作废旧缩略图缓存，写后按扫描同等规则重新生成
+ */
+export declare function writeTrackTags(requests: Array<JsTagWriteRequest>, coverCacheDir?: string | undefined | null): Promise<Array<JsTagWriteResult>>

@@ -1,6 +1,7 @@
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use std::io::Cursor;
 use std::path::Path;
 
 use ffmpeg_audio::{AudioReader, SourceAudioInfo};
@@ -99,19 +100,21 @@ pub fn db_to_linear(db: f32) -> f32 {
     10.0_f32.powf(db / 20.0)
 }
 
+/// 计算源文件对应的封面缩略图缓存路径（按源路径哈希命名）
+pub fn cover_thumb_path(source: &str, cache_dir: &str) -> std::path::PathBuf {
+    let mut hasher = DefaultHasher::new();
+    source.hash(&mut hasher);
+    let hash = hasher.finish();
+    Path::new(cache_dir).join(format!("cover_{hash:016x}_thumb.jpg"))
+}
+
 /// 从 reader 中提取封面缩略图，写入缓存目录，返回缩略图路径
 pub fn extract_cover_thumbnail(
     reader: &AudioReader,
     source: &str,
     cache_dir: &str,
 ) -> Option<String> {
-    let cache_dir = Path::new(cache_dir);
-
-    let mut hasher = DefaultHasher::new();
-    source.hash(&mut hasher);
-    let hash = hasher.finish();
-
-    let thumb_file = cache_dir.join(format!("cover_{hash:016x}_thumb.jpg"));
+    let thumb_file = cover_thumb_path(source, cache_dir);
 
     if thumb_file.exists() {
         return Some(thumb_file.to_string_lossy().into_owned());
@@ -131,6 +134,16 @@ pub fn extract_cover_thumbnail(
 /// 拿原始封面字节（供 SMTC / 全屏播放器使用，不缓存）
 pub fn read_attached_pic(reader: &AudioReader) -> Option<Vec<u8>> {
     reader.cover().map(|c| c.data)
+}
+
+/// 将任意图片字节缩放为 JPEG 缩略图字节（内存内，不落盘）。
+/// 用于选图预览：原生层缩好再交给渲染层，避免渲染层把整图解码成位图占内存
+pub fn make_thumbnail_jpeg(data: &[u8], max_size: u32) -> anyhow::Result<Vec<u8>> {
+    let img = image::load_from_memory(data)?;
+    let thumb = img.thumbnail(max_size, max_size);
+    let mut out = Vec::new();
+    thumb.write_to(&mut Cursor::new(&mut out), image::ImageFormat::Jpeg)?;
+    Ok(out)
 }
 
 /// 将原始图片数据缩放为 JPEG 缩略图

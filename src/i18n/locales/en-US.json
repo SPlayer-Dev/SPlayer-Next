@@ -456,6 +456,7 @@
       "playNext": "Play Next",
       "showInExplorer": "Open Location",
       "copyPath": "Copy File Path",
+      "editTags": "Edit Metadata",
       "deleteFile": "Delete File",
       "searchSame": "Search by Name",
       "more": "More",
@@ -1479,6 +1480,29 @@
     "SCAN_DIR_EXISTS": "Directory already exists",
     "SCAN_DIR_NOT_FOUND": "Directory not found",
     "SCAN_DIR_NOT_SELECTED": "No directory selected",
+    "TAG_READ_FAILED": "Failed to read tags",
+    "TAG_WRITE_FAILED": "Failed to write tags",
     "UNKNOWN": "Operation failed"
+  },
+  "tagEditor": {
+    "title": "Edit Metadata",
+    "replaceCover": "Replace Cover",
+    "onlineMatch": "Auto Match Tags",
+    "matchHint": "Don't want to fill tags manually?",
+    "noMatches": "No matches found",
+    "lyricsPlaceholder": "Plain text lyrics, written to the file tag as-is",
+    "saveSuccess": "Metadata saved",
+    "saveFailed": "Save failed",
+    "fields": {
+      "title": "Title",
+      "artist": "Artist",
+      "album": "Album",
+      "albumArtist": "Album Artist",
+      "year": "Year",
+      "genre": "Genre",
+      "trackNumber": "Track No.",
+      "discNumber": "Disc No.",
+      "lyrics": "Embedded Lyrics"
+    }
   }
 }

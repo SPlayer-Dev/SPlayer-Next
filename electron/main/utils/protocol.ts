@@ -27,7 +27,9 @@ export const registerCacheScheme = (): void => {
 
 /** cache:// 协议的处理函数 */
 const cacheHandler = (request: Request): Response | Promise<Response> => {
-  const relativePath = decodeURIComponent(request.url.slice(`${SCHEME}://`.length));
+  // 剥离查询串：?v=xxx 仅用于封面替换后的缓存失效，不参与路径解析
+  const withoutQuery = request.url.split("?")[0];
+  const relativePath = decodeURIComponent(withoutQuery.slice(`${SCHEME}://`.length));
   const root = getAppCacheDir();
   const resolved = path.resolve(root, relativePath);
   // 防 cache://../ 逃逸：解析后的绝对路径必须仍在缓存根目录内
