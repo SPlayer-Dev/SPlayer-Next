@@ -5,7 +5,7 @@ use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use ffmpeg_audio::{AudioError, AudioReader, ResampleOptions, Resampler};
+use ffmpeg_audio::{sys, AudioError, AudioReader, ResampleOptions, Resampler};
 use tracing::debug;
 
 use crate::http_source;
@@ -16,6 +16,9 @@ use crate::shared::{AudioChunk, AudioMetadata, Shared};
 /// 播放输出目标格式（重采样后送入 rodio）
 pub const TARGET_SAMPLE_RATE: u32 = 48000;
 pub const TARGET_CHANNELS: u16 = 2;
+
+/// 自定义 IO 源（HttpRangeSource / File）读取失败时，ffmpeg_audio 的 read 回调统一映射为此错误码
+const AVERROR_EIO: i32 = sys::averror(libc::EIO);
 
 /// 解码会话所需的资源（跨 seek 复用，避免重建 ffmpeg_audio 上下文）
 ///
@@ -197,8 +200,8 @@ fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
     loudness.set_has_replay_gain(has_replay_gain);
 
     // 容忍尾部坏帧（FLAC ID3v1 尾巴 / 封面 chunk / VBR 末帧），避免整首歌被标记 SourceError。
-    // 已成功解出过音频后再出错只是结束音频流，没必要走重载与跳曲；ffmpeg_audio crate 后续若
-    // 在 demuxer 层加 retry-once 可以撤掉这个兜底
+    // 该容忍只适用于数据层错误；IO 层错误（网络中断 / URL 过期）无论何时发生都必须上报，
+    // 否则中途网络死亡会被当成正常播完，前端误跳下一曲而不是重新解析播放地址
     let mut had_success = false;
 
     loop {
@@ -268,10 +271,22 @@ fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
                 return;
             }
             Err(e) => {
-                debug!(error = %e, had_success, "解码线程结束");
-                if !had_success {
+                // stop/切歌触发的中断（interrupt flag / HttpRangeSource cancel）不是源故障
+                if shared.is_stopping() {
+                    debug!(error = %e, "解码线程因停止信号退出");
+                    return;
+                }
+                // HttpRangeSource 内部重试耗尽后以 io::Error 浮出，经 ffmpeg_audio 的
+                // read 回调映射为 AVERROR(EIO)
+                let io_failure = match &e {
+                    AudioError::Io(_) => true,
+                    AudioError::FFmpeg(code, _) => *code == AVERROR_EIO,
+                    _ => false,
+                };
+                if io_failure || !had_success {
                     shared.mark_decode_failed();
                 }
+                debug!(error = %e, had_success, io_failure, "解码线程异常结束");
                 return;
             }
         }

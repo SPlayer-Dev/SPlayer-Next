@@ -77,6 +77,8 @@ export const defaultSystemConfig: SystemConfig = {
     position: "auto",
     autoMaxWidth: true,
     maxWidth: 400,
+    leftMargin: 0,
+    rightMargin: 0,
     colorMode: "taskbar",
     doubleLine: true,
     showTranslation: true,
@@ -111,6 +113,7 @@ export const defaultSystemConfig: SystemConfig = {
   externalApi: {
     enabled: false,
     wsEnabled: false,
+    allowLan: false,
     port: 14558,
   },
   update: {

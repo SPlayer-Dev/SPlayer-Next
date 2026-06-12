@@ -22,6 +22,8 @@ use windows::{
     core::{PCWSTR, w},
 };
 
+use crate::utils::ensure_thread_message_queue;
+
 pub type TaskbarCreatedCallback = Box<dyn Fn() + Send + Sync + 'static>;
 
 static GLOBAL_CALLBACK: LazyLock<Mutex<Option<Arc<TaskbarCreatedCallback>>>> =
@@ -54,19 +56,22 @@ unsafe extern "system" fn window_proc(
 
 pub struct TaskbarCreatedWatcher {
     thread_id: Option<u32>,
+    /// 本实例注册的回调，stop 时用 ptr_eq 比对，避免误清后建实例的全局回调
+    callback: Arc<TaskbarCreatedCallback>,
 }
 
 impl TaskbarCreatedWatcher {
     pub fn new(callback: TaskbarCreatedCallback) -> Result<Self> {
         let callback_arc = Arc::new(callback);
         if let Ok(mut guard) = GLOBAL_CALLBACK.lock() {
-            *guard = Some(callback_arc);
+            *guard = Some(Arc::clone(&callback_arc));
         }
 
         let (tx, rx) = std::sync::mpsc::channel::<u32>();
 
         thread::spawn(move || unsafe {
             let tid = GetCurrentThreadId();
+            ensure_thread_message_queue();
             let _ = tx.send(tid);
 
             let hinstance = GetModuleHandleW(None).unwrap_or_default();
@@ -125,6 +130,7 @@ impl TaskbarCreatedWatcher {
 
         Ok(Self {
             thread_id: Some(thread_id),
+            callback: callback_arc,
         })
     }
 
@@ -134,7 +140,11 @@ impl TaskbarCreatedWatcher {
                 let _ = PostThreadMessageW(tid, WM_QUIT, WPARAM(0), LPARAM(0));
             }
             self.thread_id = None;
-            if let Ok(mut guard) = GLOBAL_CALLBACK.lock() {
+            if let Ok(mut guard) = GLOBAL_CALLBACK.lock()
+                && guard
+                    .as_ref()
+                    .is_some_and(|cur| Arc::ptr_eq(cur, &self.callback))
+            {
                 *guard = None;
             }
         }

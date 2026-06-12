@@ -15,8 +15,6 @@ export const useStatusStore = defineStore(
     const duration = ref(0);
     /** 音量 */
     const volume = ref(1);
-    /** FFT 数据 */
-    const fftData = shallowRef<number[]>([]);
     /** 当前音源 */
     const currentSource = ref<string | null>(null);
     /** 输出设备 */
@@ -93,7 +91,6 @@ export const useStatusStore = defineStore(
       position,
       duration,
       volume,
-      fftData,
       currentSource,
       isPlaying,
       isPaused,

@@ -175,6 +175,10 @@ export interface TaskbarLyricSettings {
   autoMaxWidth: boolean;
   /** 最大宽度（逻辑像素）；仅在 autoMaxWidth 关闭时生效；超出可用空间时仍以可用空间为准 */
   maxWidth: number;
+  /** 左边距（逻辑像素），从可用空间左侧扣除 */
+  leftMargin: number;
+  /** 右边距（逻辑像素），从可用空间右侧扣除 */
+  rightMargin: number;
   /** 配色模式 */
   colorMode: TaskbarLyricColorMode;
   /** 双行显示（歌词 + 翻译 / 下一行） */
@@ -209,6 +213,8 @@ export interface ExternalApiSettings {
   enabled: boolean;
   /** WebSocket 子开关 */
   wsEnabled: boolean;
+  /** 允许局域网访问；关闭时仅监听 127.0.0.1 */
+  allowLan: boolean;
   /** 监听端口 */
   port: number;
 }
@@ -217,6 +223,10 @@ export interface ExternalApiSettings {
 export interface ExternalApiStatus {
   /** 是否正在监听 */
   listening: boolean;
+  /** 实际生效的局域网开关（监听时绑定的模式，与配置项比对判断是否待重启） */
+  allowLan: boolean;
+  /** 展示用主机地址：仅本机时为 127.0.0.1，开放局域网时为本机局域网 IP */
+  host: string | null;
   /** 实际监听端口 */
   port: number | null;
   /** 上次启动失败的错误 */

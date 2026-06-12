@@ -21,6 +21,12 @@ interface SessionCache {
 let session: SessionCache = { expireAt: 0 };
 let initPromise: Promise<void> | null = null;
 
+/** 重试次数与退避 */
+const MAX_RETRY = 2;
+const RETRY_BACKOFF = 300;
+
+const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
 interface FcgResponse {
   code?: number;
   request?: { code?: number; data?: unknown };
@@ -96,14 +102,24 @@ export const qmRequest = async <T = unknown>(
   };
 
   const body = { comm, request: { module, method, param } };
-  const data = await postRaw(body);
 
-  const outerCode = data.code ?? 0;
-  const innerCode = data.request?.code ?? 0;
-  if (outerCode !== 0 || innerCode !== 0) {
-    throw new Error(`QM API 错误: outer=${outerCode} inner=${innerCode}`);
+  // QM 后端偶发瞬时错误
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= MAX_RETRY; attempt++) {
+    try {
+      const data = await postRaw(body);
+      const outerCode = data.code ?? 0;
+      const innerCode = data.request?.code ?? 0;
+      if (outerCode !== 0 || innerCode !== 0) {
+        throw new Error(`QM API 错误: outer=${outerCode} inner=${innerCode}`);
+      }
+      return data.request?.data as T;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < MAX_RETRY) await delay(RETRY_BACKOFF);
+    }
   }
-  return data.request?.data as T;
+  throw lastErr;
 };
 
 /** 调试用：取当前 session 快照 */

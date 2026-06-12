@@ -311,6 +311,14 @@ impl SystemMediaControls for MacosImpl {
                 .map_err(|e| anyhow::anyhow!("锁中毒: {e:?}"))?;
             *guard = Some(callback);
         }
+        // 重复注册（preload HMR）时先卸掉旧 target，否则每个媒体键事件会成倍派发
+        if let Ok(mut tokens) = self.target_tokens.lock() {
+            for (cmd, token) in tokens.drain(..) {
+                unsafe {
+                    cmd.removeTarget(Some(&token));
+                }
+            }
+        }
         self.setup_listeners();
         Ok(())
     }

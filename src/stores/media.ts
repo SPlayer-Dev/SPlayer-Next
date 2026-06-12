@@ -5,6 +5,7 @@ import { watchLyricPreference } from "@/services/lyricLoader";
 import { parseLyric } from "@/utils/lyric/parse";
 import { extractLyricAuthor } from "@/utils/lyric/author";
 import { applyLyricExclude } from "@/utils/lyric/lyricStripper";
+import { normalizeLyricLines } from "@/utils/lyric/normalize";
 
 export const useMediaStore = defineStore("media", () => {
   watchLyricPreference();
@@ -100,6 +101,7 @@ export const useMediaStore = defineStore("media", () => {
       try {
         const lines = parseLyric(input, source.format);
         nextLines = applyLyricExclude(lines, track.value);
+        normalizeLyricLines(nextLines);
       } catch (e) {
         console.error("[media] parse lyric failed:", e);
         nextLines = [];

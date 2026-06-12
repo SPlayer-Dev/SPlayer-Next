@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useStatusStore } from "@/stores/status";
 import { useSettingsStore } from "@/stores/settings";
+import { getFftFrame } from "@/services/playback";
 
 interface Props {
   /** 是否处于活跃状态 */
@@ -67,7 +68,7 @@ const draw = (): void => {
   if (!ctx) return;
 
   // 检测新帧推送
-  const data = status.fftData;
+  const data = getFftFrame();
   if (data !== lastRef) {
     lastRef = data;
     prev.set(curr);

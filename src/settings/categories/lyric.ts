@@ -1,10 +1,21 @@
 import type { SettingCategory } from "@/types/settings-schema";
+import { ALL_PLATFORMS } from "@shared/types/platform";
 import { useSettingsStore } from "@/stores/settings";
 import AmllDbServerConfig from "@/components/settings/custom/AmllDbServerConfig.vue";
 import LyricSourceOrderConfig from "@/components/settings/custom/LyricSourceOrderConfig.vue";
 import LyricFormatOrderConfig from "@/components/settings/custom/LyricFormatOrderConfig.vue";
 import ExcludeLyricsConfig from "@/components/settings/custom/ExcludeLyricsConfig.vue";
 import IconLucideMic2 from "~icons/lucide/mic-2";
+
+/** 来源偏好选项：auto + 全部平台（来自平台总表）+ self */
+const lyricSourcePreferenceOptions = [
+  { value: "auto", labelKey: "settings.lyricSourcePreference.auto" },
+  ...ALL_PLATFORMS.map((platform) => ({
+    value: platform,
+    labelKey: `settings.lyricSourcePreference.${platform}`,
+  })),
+  { value: "self", labelKey: "settings.lyricSourcePreference.self" },
+];
 
 const lyricCategory: SettingCategory = {
   id: "lyric",
@@ -17,13 +28,7 @@ const lyricCategory: SettingCategory = {
           key: "lyricSourcePreference",
           type: "select",
           binding: { store: "settings", path: "lyric.lyricSourcePreference" },
-          options: [
-            { value: "auto", labelKey: "settings.lyricSourcePreference.auto" },
-            { value: "qqmusic", labelKey: "settings.lyricSourcePreference.qqmusic" },
-            { value: "kugou", labelKey: "settings.lyricSourcePreference.kugou" },
-            { value: "netease", labelKey: "settings.lyricSourcePreference.netease" },
-            { value: "self", labelKey: "settings.lyricSourcePreference.self" },
-          ],
+          options: lyricSourcePreferenceOptions,
           defaultValue: "auto",
           childrenCondition: () => useSettingsStore().lyric.lyricSourcePreference === "auto",
           children: [

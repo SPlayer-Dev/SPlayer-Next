@@ -18,7 +18,8 @@ import { coreLog } from "@main/utils/logger";
 /** 从 URL 拉取脚本源码，带大小与超时限制 */
 const fetchScriptFromUrl = async (url: string): Promise<string> => {
   const parsed = new URL(url);
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+  const isLoopback = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+  if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && isLoopback)) {
     throw new Error(`protocol not allowed: ${parsed.protocol}`);
   }
   const resp = await net.fetch(url, {

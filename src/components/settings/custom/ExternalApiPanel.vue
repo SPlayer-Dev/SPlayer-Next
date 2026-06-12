@@ -8,15 +8,29 @@ defineOptions({ inheritAttrs: false });
 const { t } = useI18n();
 const settings = useSettingsStore();
 
-const status = ref<ExternalApiStatus>({ listening: false, port: null, error: null });
+const status = ref<ExternalApiStatus>({
+  listening: false,
+  allowLan: false,
+  host: null,
+  port: null,
+  error: null,
+});
 const restarting = ref(false);
 
-/** 配置端口跟实际监听端口不一致 */
-const pendingRestart = computed(
-  () =>
-    status.value.listening &&
-    status.value.port !== null &&
-    status.value.port !== settings.system.externalApi.port,
+/** 配置（端口 / 局域网开关）跟实际监听状态不一致 */
+const pendingRestart = computed(() => {
+  if (!status.value.listening) return false;
+  const portChanged =
+    status.value.port !== null && status.value.port !== settings.system.externalApi.port;
+  const lanChanged = status.value.allowLan !== settings.system.externalApi.allowLan;
+  return portChanged || lanChanged;
+});
+
+/** 当前服务地址（仅监听中可用） */
+const endpoint = computed(() =>
+  status.value.listening && status.value.host && status.value.port !== null
+    ? `http://${status.value.host}:${status.value.port}`
+    : null,
 );
 
 const restart = async (): Promise<void> => {
@@ -52,13 +66,22 @@ onMounted(async () => {
           {{ t("settings.externalApi.pendingChange") }}
         </STag>
       </div>
+      <div class="text-sm mt-1 flex items-center gap-1.5">
+        <span
+          class="inline-block size-2 shrink-0 rounded-full"
+          :class="status.listening ? 'bg-green-500' : 'bg-red-500'"
+        />
+        <span v-if="endpoint" class="text-on-surface-variant break-all">
+          {{ t("settings.externalApi.endpoint") }}: {{ endpoint }}
+        </span>
+        <span v-else class="text-on-surface-variant/70">
+          {{ status.error?.message ?? t("settings.externalApi.stopped") }}
+        </span>
+      </div>
       <div class="text-sm text-on-surface-variant/70 mt-0.5">
         {{
           pendingRestart
-            ? t("settings.externalApi.pendingChangeHint", {
-                configured: settings.system.externalApi.port,
-                running: status.port,
-              })
+            ? t("settings.externalApi.pendingChangeHint")
             : t("settings.externalApi.restartHint")
         }}
       </div>

@@ -448,26 +448,37 @@ export const useStreamingStore = defineStore("streaming", () => {
    * @param seq - 启动时绑定的 songsFetchSeq
    */
   const fetchRemainingSongs = async (serverId: string | null, seq: number): Promise<void> => {
-    while (
-      seq === songsFetchSeq &&
-      activeServerId.value === serverId &&
-      connectionStatus.value.connected &&
-      songs.value.length % SONGS_PAGE_SIZE === 0
-    ) {
-      try {
-        const offset = songs.value.length;
-        const next = await withActive((cfg) =>
-          client.listSongs(cfg, { offset, limit: SONGS_PAGE_SIZE }),
-        );
-        if (seq !== songsFetchSeq || activeServerId.value !== serverId) return;
-        if (next.length === 0) return;
-        songs.value = [...songs.value, ...next];
-        persistCache();
-        if (next.length < SONGS_PAGE_SIZE) return;
-      } catch (err) {
-        console.error("[streaming] fetchRemainingSongs failed:", err);
-        return;
+    // 每 4 批落盘一次而非每批：每次落盘都对四个完整数组克隆 + 序列化，逐批落
+    // 是 O(n²) 写放大；完全不落则进程中途退出会丢掉本轮全部进度
+    const PERSIST_EVERY_BATCHES = 4;
+    let batchesSincePersist = 0;
+    try {
+      while (
+        seq === songsFetchSeq &&
+        activeServerId.value === serverId &&
+        connectionStatus.value.connected &&
+        songs.value.length % SONGS_PAGE_SIZE === 0
+      ) {
+        try {
+          const offset = songs.value.length;
+          const next = await withActive((cfg) =>
+            client.listSongs(cfg, { offset, limit: SONGS_PAGE_SIZE }),
+          );
+          if (seq !== songsFetchSeq || activeServerId.value !== serverId) return;
+          if (next.length === 0) return;
+          songs.value = [...songs.value, ...next];
+          if (next.length < SONGS_PAGE_SIZE) return;
+          if (++batchesSincePersist >= PERSIST_EVERY_BATCHES) {
+            batchesSincePersist = 0;
+            persistCache();
+          }
+        } catch (err) {
+          console.error("[streaming] fetchRemainingSongs failed:", err);
+          return;
+        }
       }
+    } finally {
+      if (seq === songsFetchSeq && activeServerId.value === serverId) persistCache();
     }
   };
 

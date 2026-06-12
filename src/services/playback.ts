@@ -108,6 +108,17 @@ export const setSpeed = (value: number): void => {
   speed = value;
 };
 
+/** 最新 FFT 频谱帧 */
+let fftFrame: number[] = [];
+
+/** 主进程推送 FFT 数据时调用 */
+export const setFftFrame = (data: number[]): void => {
+  fftFrame = data;
+};
+
+/** RAF 循环读取最新频谱帧 */
+export const getFftFrame = (): readonly number[] => fftFrame;
+
 /** 重置位置/时长/播放标志 */
 export const reset = (): void => {
   currentTimeMs = 0;

@@ -3,6 +3,7 @@ import type { LyricLine } from "@shared/types/lyrics";
 import { LyricRenderer } from "./engine";
 import type { SpringParams } from "./engine/spring";
 import { DEFAULTS } from "./engine/constants";
+import { applyScrollPreroll } from "./utils/scroll-preroll";
 import "./renderer.css";
 
 const props = withDefaults(
@@ -172,7 +173,7 @@ onMounted(() => {
     renderer.setCurrentTime(props.initialTime);
   }
   if (props.lyricLines.length > 0) {
-    renderer.setLyrics(props.lyricLines);
+    renderer.setLyrics(applyScrollPreroll(props.lyricLines));
   }
   bottomLineEl.value = renderer.getBottomLineElement();
 });
@@ -182,17 +183,17 @@ onUnmounted(() => {
   renderer = null;
 });
 
-watch(
-  () => props.lyricLines,
-  (lines) => {
-    if (isFrozen) {
-      // 冻结时缓冲，避免在 display:none 下测量尺寸
-      pendingLyrics = lines;
-    } else {
-      renderer?.setLyrics(lines);
-    }
-  },
-);
+/** 重建歌词 DOM（应用滚动预滚后的克隆数据） */
+const rebuildLyrics = (): void => {
+  const prepared = applyScrollPreroll(props.lyricLines);
+  if (isFrozen) {
+    pendingLyrics = prepared;
+  } else {
+    renderer?.setLyrics(prepared);
+  }
+};
+
+watch(() => props.lyricLines, rebuildLyrics);
 
 watch(
   () => props.playing,
@@ -267,7 +268,7 @@ watch(
   () => props.enableFloatAnimation,
   (v) => {
     renderer?.setConfig({ enableFloatAnimation: v });
-    renderer?.setLyrics(props.lyricLines);
+    rebuildLyrics();
   },
 );
 
@@ -275,7 +276,7 @@ watch(
   () => props.enableEmphasizeEffect,
   (v) => {
     renderer?.setConfig({ enableEmphasizeEffect: v });
-    renderer?.setLyrics(props.lyricLines);
+    rebuildLyrics();
   },
 );
 
@@ -284,7 +285,7 @@ watch(
   () => props.showTranslation,
   (v) => {
     renderer?.setConfig({ showTranslation: v });
-    renderer?.setLyrics(props.lyricLines);
+    rebuildLyrics();
   },
 );
 
@@ -292,7 +293,7 @@ watch(
   () => props.showRomanization,
   (v) => {
     renderer?.setConfig({ showRomanization: v });
-    renderer?.setLyrics(props.lyricLines);
+    rebuildLyrics();
   },
 );
 </script>

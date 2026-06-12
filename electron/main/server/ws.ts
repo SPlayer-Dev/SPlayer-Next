@@ -33,7 +33,7 @@ const dispatchCommand = async (ws: WSContext, msg: ClientMessage): Promise<void>
   try {
     switch (msg.op) {
       case "play":
-        getPlayer().play();
+        await getPlayer().play();
         return ack(ws, msg.op);
       case "pause":
         getPlayer().pause();

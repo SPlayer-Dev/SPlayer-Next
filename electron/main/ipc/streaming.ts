@@ -53,6 +53,7 @@ const writePersisted = (data: PersistedState): void => {
 const encryptPassword = (plain: string): string => {
   if (!plain) return "";
   if (!safeStorage.isEncryptionAvailable()) {
+    streamingLog.warn("系统安全存储不可用（缺少 keyring），流媒体密码将以 base64 形式明文落盘");
     return Buffer.from(plain, "utf-8").toString("base64");
   }
   return safeStorage.encryptString(plain).toString("base64");

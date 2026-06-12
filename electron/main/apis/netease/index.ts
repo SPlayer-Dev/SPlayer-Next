@@ -114,7 +114,8 @@ export const callNetease = async (
   name: string,
   params: Record<string, unknown> = {},
 ): Promise<{ status: number; body: any }> => {
-  const fn = modules[name];
+  // hasOwn 守卫
+  const fn = Object.hasOwn(modules, name) ? modules[name] : undefined;
   if (!fn) throw new Error(`unknown netease api: ${name}`);
 
   const session = loadSession();

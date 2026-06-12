@@ -117,9 +117,12 @@ const applyLayout = (layout: JsTaskbarLayout): void => {
   // Rust 返回物理像素，setBounds 用 DIP，需按 scaleFactor 转换
   // 副屏暂未支持：Rust 端只找主屏 Shell_TrayWnd，歌词窗口永远在主屏，主屏 scaleFactor 即所需
   const dpi = screen.getPrimaryDisplay().scaleFactor;
-  const availX = Math.round(rect.x / dpi);
+  // 用户自定义左右边距（DIP）：从可用空间两侧扣除
+  const leftMargin = store.get("taskbarLyric.leftMargin") ?? 0;
+  const rightMargin = store.get("taskbarLyric.rightMargin") ?? 0;
+  const availX = Math.round(rect.x / dpi) + leftMargin;
   const availY = Math.round(rect.y / dpi);
-  const availWidth = Math.round(rect.width / dpi);
+  const availWidth = Math.round(rect.width / dpi) - leftMargin - rightMargin;
   const availHeight = Math.round(rect.height / dpi);
 
   if (availWidth < MIN_LYRIC_WIDTH_DIP) {

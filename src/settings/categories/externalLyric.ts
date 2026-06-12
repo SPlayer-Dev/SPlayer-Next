@@ -265,6 +265,22 @@ const taskbarLyricSection: SettingSection = {
       ],
     },
     {
+      key: "taskbarLyricLeftMargin",
+      type: "number",
+      binding: { store: "settings", path: "system.taskbarLyric.leftMargin" },
+      min: 0,
+      max: 500,
+      defaultValue: 0,
+    },
+    {
+      key: "taskbarLyricRightMargin",
+      type: "number",
+      binding: { store: "settings", path: "system.taskbarLyric.rightMargin" },
+      min: 0,
+      max: 500,
+      defaultValue: 0,
+    },
+    {
       key: "taskbarLyricColorMode",
       type: "select",
       binding: { store: "settings", path: "system.taskbarLyric.colorMode" },

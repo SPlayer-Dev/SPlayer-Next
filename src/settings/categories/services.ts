@@ -103,6 +103,12 @@ const servicesCategory: SettingCategory = {
               defaultValue: false,
             },
             {
+              key: "externalApiAllowLan",
+              type: "switch",
+              binding: { store: "settings", path: "system.externalApi.allowLan" },
+              defaultValue: false,
+            },
+            {
               key: "externalApiPort",
               type: "number",
               binding: { store: "settings", path: "system.externalApi.port" },

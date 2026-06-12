@@ -9,8 +9,8 @@ use windows::{
             },
         },
         UI::WindowsAndMessaging::{
-            FindWindowExW, GetWindowLongPtrW, GetWindowThreadProcessId, SetWindowLongPtrW,
-            WINDOW_LONG_PTR_INDEX,
+            FindWindowExW, GetWindowLongPtrW, GetWindowThreadProcessId, MSG, PM_NOREMOVE,
+            PeekMessageW, SetWindowLongPtrW, WINDOW_LONG_PTR_INDEX, WM_USER,
         },
     },
     core::w,
@@ -28,6 +28,16 @@ pub const REG_KEY_ADVANCED: &str =
 
 pub const REG_KEY_PERSONALIZE: &str =
     "Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
+
+/// 强制创建当前线程的消息队列（Win32 的队列要到首次调用消息 API 才存在）。
+/// watcher 线程必须在透出 tid 前调用：否则 stop() 的 PostThreadMessageW 在队列
+/// 存在前会失败，WM_QUIT 丢失导致线程连同钩子/窗口永久泄漏
+pub fn ensure_thread_message_queue() {
+    let mut msg = MSG::default();
+    unsafe {
+        let _ = PeekMessageW(&raw mut msg, None, WM_USER, WM_USER, PM_NOREMOVE);
+    }
+}
 
 pub unsafe fn modify_window_long(
     hwnd: HWND,
@@ -108,7 +118,7 @@ pub fn read_system_uses_light_theme() -> bool {
     RegKey::predef(HKEY_CURRENT_USER)
         .open_subkey(REG_KEY_PERSONALIZE)
         .and_then(|key| key.get_value::<u32, _>("SystemUsesLightTheme"))
-        .map_or(false, |v| v != 0)
+        .is_ok_and(|v| v != 0)
 }
 
 /// COM MTA 初始化的 RAII 守卫。

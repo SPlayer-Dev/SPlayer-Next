@@ -177,7 +177,7 @@ const loadTrack = async (track: Track | null): Promise<void> => {
 export const reloadCurrentTrack = async (forcePlay?: boolean): Promise<void> => {
   const media = useMediaStore();
   const track = media.track;
-  if (!track || track.source !== "netease") return;
+  if (!track || track.source === "local") return;
   const status = useStatusStore();
   const shouldPlay = forcePlay ?? status.isPlaying;
   const resumePosition = Math.round(playback.getCurrentTime());
@@ -214,6 +214,11 @@ let sourceRecoveryTrackId: string | null = null;
 export const recoverFromSourceFailure = async (): Promise<void> => {
   const track = useMediaStore().track;
   if (!track) return;
+  // 本地文件源失效（文件被删/磁盘错误）没有重载意义，直接跳曲
+  if (track.source === "local") {
+    await nextTrack();
+    return;
+  }
   if (sourceRecoveryTrackId !== track.id) {
     sourceRecoveryTrackId = track.id;
     sourceRecoveryCount = 0;
@@ -311,6 +316,9 @@ export const isSeeking = (): boolean => seekTarget !== null;
  */
 export const seek = async (posMs: number): Promise<void> => {
   const status = useStatusStore();
+  // 歌曲加载中 seek 无意义：引擎此刻没有可 seek 的解码线程，
+  // 且 seekTarget 残留会让加载完成后的 position 推送被持续丢弃
+  if (status.trackLoading) return;
   // 先冻结插值，再写入位置
   playback.setSeeking(true);
   status.position = posMs;

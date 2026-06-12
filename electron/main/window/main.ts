@@ -104,16 +104,22 @@ export const createMainWindow = (): BrowserWindow => {
   mainWindow.on("leave-full-screen", () => {
     broadcast("window:fullscreenChange", false);
   });
+  // 外链协议白名单
+  const openExternalSafe = (url: string): void => {
+    if (/^https?:$/i.test(new URL(url).protocol)) {
+      void shell.openExternal(url);
+    }
+  };
   // 设置窗口打开处理程序
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url);
+    openExternalSafe(details.url);
     return { action: "deny" };
   });
   // 拦截外站顶层导航（如 v-html 内的外链），交系统浏览器打开，防止主窗口被导航走
   mainWindow.webContents.on("will-navigate", (event, url) => {
     if (isInternalNavigation(url)) return;
     event.preventDefault();
-    shell.openExternal(url);
+    openExternalSafe(url);
   });
 
   // 首启引导路径

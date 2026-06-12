@@ -60,7 +60,8 @@ export const clearQQMusicCache = (): void => {
  * @param params 业务参数；不想命中缓存可传 `timestamp: Date.now()`
  */
 export const callQQMusic = async (name: string, params: QMParams = {}): Promise<any> => {
-  const fn = modules[name];
+  // hasOwn 守卫
+  const fn = Object.hasOwn(modules, name) ? modules[name] : undefined;
   if (!fn) throw new Error(`unknown qm api: ${name}`);
 
   const key = `${name}|${hashParams(params)}`;

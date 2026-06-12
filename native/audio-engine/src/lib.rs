@@ -42,6 +42,10 @@ enum SeekOutcome {
 /// 全局扫描取消标志
 static SCAN_CANCEL: Mutex<Option<Arc<AtomicBool>>> = Mutex::new(None);
 
+/// load 被更新的 load/stop 取代时的错误文案
+/// 主进程 IPC 按此文案识别并映射为 LOAD_SUPERSEDED（正常竞态，前端静默），改动需同步
+const LOAD_SUPERSEDED_REASON: &str = "load 已被更新的 load 取代";
+
 /// anyhow::Error → napi::Error 统一转换。
 ///
 /// 经 `AudioEngineError::classify` 启发式分类，错误消息附带 `[CODE]` 前缀，
@@ -292,7 +296,7 @@ impl AudioPlayer {
 
         match returned_meta {
             Some(meta) => Ok(Self::meta_to_js(meta)),
-            None => Err(Error::from_reason("load 已被更新的 load 取代")),
+            None => Err(Error::from_reason(LOAD_SUPERSEDED_REASON)),
         }
     }
 
@@ -323,10 +327,19 @@ impl AudioPlayer {
         }
     }
 
-    /// 恢复播放。如果已停止或播放结束，自动从头重新加载。
+    /// 恢复播放。如果已停止或播放结束，自动从头重新加载
     #[napi]
-    pub fn play(&self) -> Result<()> {
-        self.inner.lock().play().into_napi()
+    pub async fn play(&self) -> Result<()> {
+        let revival_source = self.inner.lock().play().into_napi()?;
+        if let Some(source) = revival_source {
+            if let Err(e) = self.load(source, Some(true)).await {
+                // 复活加载被更新的 load/stop 取代不是错误：已有更新的操作接管播放
+                if e.reason != LOAD_SUPERSEDED_REASON {
+                    return Err(e);
+                }
+            }
+        }
+        Ok(())
     }
 
     /// 暂停播放
@@ -356,6 +369,12 @@ impl AudioPlayer {
             let mut player = self.inner.lock();
             player.take_for_async_seek()
         };
+        // 无解码线程：空闲 / 已停止 / 正在异步加载（句柄被 load 取走）。
+        // 此时 seek 无意义，且绝不能走回退重载——current_source 仍指向旧曲，
+        // 重载会顶掉在途的新歌加载、复活旧曲
+        let Some(take) = take else {
+            return Ok(());
+        };
 
         let SeekTake {
             old_threads,
@@ -363,6 +382,7 @@ impl AudioPlayer {
             normalization_gain,
             current_source,
             was_playing,
+            token,
         } = take;
 
         let outcome: SeekOutcome = tokio::task::spawn_blocking(move || {
@@ -390,9 +410,18 @@ impl AudioPlayer {
         match outcome {
             SeekOutcome::Resumed { shared, handle } => {
                 let mut player = self.inner.lock();
-                player.commit_seeked(position, shared, handle).into_napi()
+                let committed = player.commit_seeked(token, position, shared, handle).into_napi()?;
+                if !committed {
+                    info!(position, "seek 已被更新的 load/seek/stop 取代，丢弃结果");
+                }
+                Ok(())
             }
             SeekOutcome::Fallback => {
+                // seek 期间已被新的 load/stop 取代时不再回退重载，避免复活旧源
+                if !self.inner.lock().is_load_token_current(token) {
+                    info!(position, "seek 失败且已被取代，跳过回退重载");
+                    return Ok(());
+                }
                 if let Some(src) = current_source {
                     self.load(src, Some(was_playing)).await?;
                     Ok(())

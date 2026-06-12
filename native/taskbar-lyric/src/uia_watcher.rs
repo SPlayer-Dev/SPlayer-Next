@@ -4,7 +4,6 @@
 #![allow(clippy::inline_always)]
 
 use std::{
-    ptr,
     sync::{Mutex, mpsc},
     thread,
     time::Duration,
@@ -17,16 +16,13 @@ use windows::{
         System::{
             Com::{CLSCTX_INPROC_SERVER, CoCreateInstance, SAFEARRAY},
             Threading::GetCurrentThreadId,
-            Variant::VARIANT,
         },
         UI::{
             Accessibility::{
                 CUIAutomation, IUIAutomation, IUIAutomationElement,
-                IUIAutomationPropertyChangedEventHandler,
-                IUIAutomationPropertyChangedEventHandler_Impl,
                 IUIAutomationStructureChangedEventHandler,
                 IUIAutomationStructureChangedEventHandler_Impl, StructureChangeType,
-                TreeScope_Descendants, UIA_BoundingRectanglePropertyId, UIA_PROPERTY_ID,
+                TreeScope_Descendants,
             },
             WindowsAndMessaging::{
                 DispatchMessageW, GetMessageW, MSG, PostThreadMessageW, TranslateMessage, WM_QUIT,
@@ -36,17 +32,21 @@ use windows::{
     core::{Ref, Result as WinResult, implement},
 };
 
-use crate::utils::{ComApartmentGuard, find_taskbar_hwnd};
+use crate::utils::{ComApartmentGuard, ensure_thread_message_queue, find_taskbar_hwnd};
 
 pub type LayoutChangedCallback = Box<dyn Fn() + Send + Sync + 'static>;
 
 /// UIA 事件去抖窗口。任务栏重排/启动时事件瞬间触发几十次，必须聚合避免反复重扫整棵 XAML 树
 const DEBOUNCE_MS: u64 = 150;
 
-#[implement(
-    IUIAutomationPropertyChangedEventHandler,
-    IUIAutomationStructureChangedEventHandler
-)]
+// 注意：不要注册 PropertyChangedEventHandler（BoundingRectangle 等）。
+// windows-rs 0.62 的 #[implement] 为该接口生成的 shim 把按值传入的 VARIANT 当作
+// owned 值在返回时 drop（VariantClear），而按 COM 约定调用方 UIA 也会释放同一份；
+// BoundingRectangle 的值是含 SAFEARRAY 的 VARIANT，每个事件都双重释放，
+// 数个事件内必现堆损坏崩溃（0xC0000374）。纯位置变化由 TrayWatcher 的
+// WinEventHook（EVENT_OBJECT_LOCATIONCHANGE）兜底，这里只依赖结构变化事件
+//（其 runtime_id 参数是指针传递，不经历 shim 的 owned drop，安全）。
+#[implement(IUIAutomationStructureChangedEventHandler)]
 pub struct TaskbarEventHandler {
     pulse: Mutex<mpsc::Sender<()>>,
 }
@@ -62,20 +62,6 @@ impl TaskbarEventHandler {
         if let Ok(tx) = self.pulse.lock() {
             let _ = tx.send(());
         }
-    }
-}
-
-impl IUIAutomationPropertyChangedEventHandler_Impl for TaskbarEventHandler_Impl {
-    fn HandlePropertyChangedEvent(
-        &self,
-        _sender: Ref<'_, IUIAutomationElement>,
-        property_id: UIA_PROPERTY_ID,
-        _new_value: &VARIANT,
-    ) -> WinResult<()> {
-        if property_id == UIA_BoundingRectanglePropertyId {
-            self.notify();
-        }
-        Ok(())
     }
 }
 
@@ -123,6 +109,8 @@ impl UiaWatcher {
             };
 
             let thread_id = GetCurrentThreadId();
+            // 下方 UIA 注册可耗时数百 ms，必须先建队列再透出 tid
+            ensure_thread_message_queue();
             let _ = tid_tx.send(thread_id);
 
             let automation_res: WinResult<IUIAutomation> =
@@ -132,19 +120,8 @@ impl UiaWatcher {
                 && let Some(hwnd) = find_taskbar_hwnd()
                 && let Ok(root_element) = automation.ElementFromHandle(hwnd)
             {
-                let handler1 = TaskbarEventHandler::new(pulse_tx.clone());
-                let handler2 = TaskbarEventHandler::new(pulse_tx);
-
-                let prop_handler: IUIAutomationPropertyChangedEventHandler = handler1.into();
-                let struct_handler: IUIAutomationStructureChangedEventHandler = handler2.into();
-
-                let _ = automation.AddPropertyChangedEventHandler(
-                    &root_element,
-                    TreeScope_Descendants,
-                    None,
-                    &prop_handler,
-                    ptr::null(),
-                );
+                let struct_handler: IUIAutomationStructureChangedEventHandler =
+                    TaskbarEventHandler::new(pulse_tx).into();
 
                 let _ = automation.AddStructureChangedEventHandler(
                     &root_element,
@@ -153,7 +130,7 @@ impl UiaWatcher {
                     &struct_handler,
                 );
 
-                Some((prop_handler, struct_handler))
+                Some(struct_handler)
             } else {
                 None
             };

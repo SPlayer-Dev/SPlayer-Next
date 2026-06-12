@@ -64,7 +64,7 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
       break;
     }
     case "fftData":
-      status.fftData = event.data;
+      playback.setFftFrame(event.data);
       break;
     case "ended": {
       if (endedGuard) return;

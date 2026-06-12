@@ -1008,6 +1008,14 @@
       "label": "Max Width",
       "description": "Capped by available space to avoid squeezing"
     },
+    "taskbarLyricLeftMargin": {
+      "label": "Left Margin",
+      "description": "Gap between the lyric and the left edge of available space, to avoid other taskbar widgets"
+    },
+    "taskbarLyricRightMargin": {
+      "label": "Right Margin",
+      "description": "Gap between the lyric and the right edge of available space, to avoid other taskbar widgets"
+    },
     "taskbarLyricColorMode": {
       "label": "Color Mode",
       "description": "Text and background color scheme of the taskbar lyric",
@@ -1233,6 +1241,10 @@
       "label": "Enable WebSocket",
       "description": "External apps can subscribe to events and send commands"
     },
+    "externalApiAllowLan": {
+      "label": "Allow LAN access",
+      "description": "Other devices on your network can reach the API via this device's IP; when off, only this device can connect"
+    },
     "externalApiPort": {
       "label": "Listen port",
       "description": "TCP port for the external API (1024–65535)"
@@ -1243,11 +1255,13 @@
     },
     "externalApi": {
       "restart": "Restart server",
-      "restartHint": "Restart required after changing port",
+      "restartHint": "Restart required after changing the port or LAN access",
       "restarted": "Server restarted",
       "portInUse": "Port {port} is already in use, pick another",
       "pendingChange": "Pending restart",
-      "pendingChangeHint": "Configured {configured}, running {running}"
+      "pendingChangeHint": "Settings changed, restart the server to apply",
+      "endpoint": "Address",
+      "stopped": "Server not running"
     },
     "closeAction": {
       "label": "Close Button Action",

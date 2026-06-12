@@ -24,8 +24,17 @@ use crate::model::{
 
 const HNS_PER_MS: f64 = 10_000.0;
 
-static TOKIO_RT: LazyLock<Runtime> =
-    LazyLock::new(|| Runtime::new().expect("创建 Tokio 运行时失败"));
+static TOKIO_RT: LazyLock<Runtime> = LazyLock::new(|| {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        // WinRT 调用要求线程已加入 COM apartment。不显式初始化时只是隐式蹭进程 MTA
+        //（Electron 进程恰好有），这里显式保证 MTA 存在，worker 线程合法加入
+        .on_thread_start(|| unsafe {
+            let _ = windows::Win32::System::Com::CoIncrementMTAUsage();
+        })
+        .build()
+        .expect("创建 Tokio 运行时失败")
+});
 
 struct SmtcTokens {
     button_pressed: i64,

@@ -24,7 +24,7 @@ const getDefaultOptions = (): BrowserWindowConstructorOptions => ({
     enableWebSQL: false,
     // 开启后台节流
     backgroundThrottling: true,
-    // code cache
+    // V8 编译代码缓存
     v8CacheOptions: "code",
   },
 });

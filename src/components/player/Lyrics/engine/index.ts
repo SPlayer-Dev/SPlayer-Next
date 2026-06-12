@@ -3,11 +3,12 @@ import type { LyricLine } from "@shared/types/lyrics";
 import { setMin } from "../utils/math";
 import { DEFAULTS } from "./constants";
 import {
-  buildWordSpans,
   measureAndApplyWordMasks,
   type WordMeasurement,
   type WordAnimTarget,
 } from "./word-builder";
+import { buildLineElements } from "./line-builder";
+import { LineAnimationController } from "./line-animations";
 import {
   createInterludeDots,
   detectInterlude,
@@ -15,7 +16,6 @@ import {
   type InterludeState,
   type InterludeCache,
 } from "./interlude";
-import { createFloatAnimation, createEmphasizeAnimations } from "./emphasize";
 
 export type { RendererConfig } from "./constants";
 import type { RendererConfig } from "./constants";
@@ -38,10 +38,10 @@ export class LyricRenderer {
   private wordMeasurements: WordMeasurement[][] = [];
   /** 每行的动画目标描述（懒创建动画的依据） */
   private lineAnimTargets: WordAnimTarget[][] = [];
-  /** 当前持有动画的行（行索引 → Animation[]），停用时保留，重新激活时替换 */
-  private activeAnimations = new Map<number, Animation[]>();
-  /** 标记是否为静态行（≤1 个单词，无逐字动画） */
-  private isStaticLine: boolean[] = [];
+  /** 行级 Web Animations 生命周期管理 */
+  private lineAnimations = new LineAnimationController((lineIndex) =>
+    this.activeLineSet.has(lineIndex),
+  );
   /** 标记背景人声行是否应置于主行上方 */
   private isBgAbove: boolean[] = [];
 
@@ -116,6 +116,10 @@ export class LyricRenderer {
   private isPageVisible = true;
   /** 是否需要强制全量同步（跳过视口裁剪） */
   private needsFullSync = false;
+  /** 长时间隐藏/冻结恢复后，下一次检测到时间跳变时瞬移布局而非弹簧过渡 */
+  private snapNextSeek = false;
+  /** 页面隐藏期间缓冲的歌词数据，恢复可见时一次性应用 */
+  private pendingHiddenLyrics: LyricLine[] | null = null;
   /** 外部推送的待消费播放时间 */
   private pendingPlayTime = -1;
 
@@ -234,10 +238,9 @@ export class LyricRenderer {
     // 断开 observer
     this.containerResizeObserver.disconnect();
     this.sentinelResizeObserver.disconnect();
-    // Web Animations 走自己的时间线，不随 rAF 暂停而停止；冻结期间也要 pause
-    for (const anims of this.activeAnimations.values()) {
-      for (const anim of anims) anim.pause();
-    }
+    // 停用中的行动画一旦被 pause 就不会再触发 onfinish 清理，直接取消，避免 fill 状态永久残留
+    this.lineAnimations.cleanupInactive();
+    this.lineAnimations.pauseAll();
   };
 
   /** 恢复渲染 */
@@ -249,21 +252,11 @@ export class LyricRenderer {
     }
     this.lastFrameTimestamp = 0;
     this.needsFullSync = true;
+    // 冻结期间播放进度可能大幅前进，恢复后的首次时间推送若检测到跳变则瞬移布局
+    this.snapNextSeek = true;
     // 恢复时按当前播放时间重新对齐动画 currentTime 后再 play
     if (this.isPlaying) {
-      for (const [lineIdx, anims] of this.activeAnimations) {
-        const line = this.lines[lineIdx];
-        if (!line) continue;
-        const relativeTime = Math.max(0, this.lastProcessedTime - line.startTime);
-        for (const anim of anims) {
-          const timing = anim.effect?.getComputedTiming();
-          const endTime = ((timing?.delay as number) || 0) + ((timing?.duration as number) || 0);
-          if (anim.playbackRate >= 0 && relativeTime < endTime) {
-            anim.currentTime = relativeTime;
-            anim.play();
-          }
-        }
-      }
+      this.lineAnimations.realignActive(this.lines, this.lastProcessedTime);
     }
     this.animationFrameId = requestAnimationFrame(this.onAnimationFrame);
   };
@@ -272,7 +265,7 @@ export class LyricRenderer {
   dispose = () => {
     cancelAnimationFrame(this.animationFrameId);
     clearTimeout(this.scrollResetTimerId);
-    this.cancelAllActiveAnimations();
+    this.lineAnimations.cancelAll();
     this.containerResizeObserver.disconnect();
     this.sentinelResizeObserver.disconnect();
     this.container.removeEventListener("wheel", this.handleWheel);
@@ -292,8 +285,13 @@ export class LyricRenderer {
    * @param lines - 歌词行数组
    */
   setLyrics = (lines: LyricLine[]) => {
+    // 页面隐藏期间无渲染机会，逐次重建 DOM 纯属浪费；缓冲到恢复可见时一次性应用
+    if (!this.isPageVisible) {
+      this.pendingHiddenLyrics = lines;
+      return;
+    }
     const seekTime = this.pendingPlayTime >= 0 ? this.pendingPlayTime : 0;
-    this.cancelAllActiveAnimations();
+    this.lineAnimations.cancelAll();
     for (const element of this.lineElements) element.remove();
     // 重置状态
     this.lines = lines;
@@ -348,81 +346,16 @@ export class LyricRenderer {
     this.entranceComplete = false;
 
     // 构建 DOM
-    this.lineElements = new Array(lineCount);
-    this.wordMeasurements = new Array(lineCount);
-    this.lineAnimTargets = new Array(lineCount);
-    this.isStaticLine = new Array(lineCount);
-    this.isBgAbove = new Array(lineCount).fill(false);
-
-    // 是否视为逐字
-    const hasMultiWordLine = lines.some((line) => line.words.length > 1);
-
-    // 背景人声行：首词早于主行则置于主行上方
-    for (let i = 1; i < lineCount; i++) {
-      const bg = lines[i];
-      const main = lines[i - 1];
-      if (!bg.isBG || main.isBG) continue;
-      const bgStart = bg.words[0]?.startTime ?? bg.startTime;
-      const mainStart = main.words[0]?.startTime ?? main.startTime;
-      this.isBgAbove[i] = bgStart < mainStart;
-    }
-
-    const fragment = document.createDocumentFragment();
-    for (let i = 0; i < lineCount; i++) {
-      const line = lines[i];
-      const lineEl = document.createElement("div");
-      lineEl.className = "lp-line" + (line.isDuet ? " duet" : "") + (line.isBG ? " bg" : "");
-      const mainDiv = document.createElement("div");
-      mainDiv.className = "lp-main";
-
-      // 行歌词是否静态
-      const isStatic = line.words.length === 0 || (line.words.length === 1 && !hasMultiWordLine);
-      this.isStaticLine[i] = isStatic;
-
-      if (isStatic) {
-        mainDiv.appendChild(document.createTextNode(line.words.map((w) => w.word).join("")));
-        // 给静态行也加统一 mask，让 --ba 对其生效，与逐字行透明度一致
-        mainDiv.style.setProperty(
-          "-webkit-mask-image",
-          "linear-gradient(rgba(0,0,0,var(--ba)),rgba(0,0,0,var(--ba)))",
-        );
-        mainDiv.style.setProperty(
-          "mask-image",
-          "linear-gradient(rgba(0,0,0,var(--ba)),rgba(0,0,0,var(--ba)))",
-        );
-        this.wordMeasurements[i] = [];
-        this.lineAnimTargets[i] = [];
-      } else {
-        // 构建单词 span + 动画目标描述
-        const result = buildWordSpans(line.words, mainDiv, this.enableEmphasizeEffect);
-        this.wordMeasurements[i] = result.measurements;
-        this.lineAnimTargets[i] = result.animTargets;
-      }
-
-      // 内容包裹层
-      const contentDiv = document.createElement("div");
-      contentDiv.className = "lp-content";
-      contentDiv.appendChild(mainDiv);
-
-      if (this.showTranslation && line.translatedLyric) {
-        const subDiv = document.createElement("div");
-        subDiv.className = "lp-sub";
-        subDiv.textContent = line.translatedLyric;
-        contentDiv.appendChild(subDiv);
-      }
-      if (this.showRomanization && line.romanLyric) {
-        const subDiv = document.createElement("div");
-        subDiv.className = "lp-sub";
-        subDiv.textContent = line.romanLyric;
-        contentDiv.appendChild(subDiv);
-      }
-
-      lineEl.appendChild(contentDiv);
-      this.lineElements[i] = lineEl;
-      fragment.appendChild(lineEl);
-    }
-
-    this.innerElement.appendChild(fragment);
+    const built = buildLineElements(lines, {
+      enableEmphasizeEffect: this.enableEmphasizeEffect,
+      showTranslation: this.showTranslation,
+      showRomanization: this.showRomanization,
+    });
+    this.lineElements = built.lineElements;
+    this.wordMeasurements = built.wordMeasurements;
+    this.lineAnimTargets = built.lineAnimTargets;
+    this.isBgAbove = built.isBgAbove;
+    this.innerElement.appendChild(built.fragment);
 
     // 哨兵观察器：监听第一行尺寸变化以检测字体/样式变化
     this.sentinelResizeObserver.disconnect();
@@ -468,23 +401,8 @@ export class LyricRenderer {
     this.isPlaying = playing;
 
     // 暂停/恢复所有激活行的动画
-    for (const lineIdx of this.activeLineSet) {
-      const anims = this.activeAnimations.get(lineIdx);
-      if (!anims?.length) continue;
-      if (playing) {
-        const relativeTime = Math.max(0, this.lastProcessedTime - this.lines[lineIdx].startTime);
-        for (const anim of anims) {
-          const timing = anim.effect?.getComputedTiming();
-          const endTime = ((timing?.delay as number) || 0) + ((timing?.duration as number) || 0);
-          if (anim.playbackRate >= 0 && relativeTime < endTime) {
-            anim.currentTime = relativeTime;
-            anim.play();
-          }
-        }
-      } else {
-        for (const anim of anims) anim.pause();
-      }
-    }
+    if (playing) this.lineAnimations.realignActive(this.lines, this.lastProcessedTime);
+    else this.lineAnimations.pauseActive();
 
     this.calculateLayout(false);
     this.needsFullSync = true;
@@ -566,9 +484,13 @@ export class LyricRenderer {
     this.lastProcessedTime = currentTime;
 
     if (isFirst || isSeeked) {
-      this.handleSeek(currentTime);
+      const snap = this.snapNextSeek;
+      this.snapNextSeek = false;
+      this.handleSeek(currentTime, snap);
       return true;
     }
+    // 恢复后的首次推送未发生跳变
+    this.snapNextSeek = false;
 
     const lines = this.lines;
     const activated: number[] = [];
@@ -621,12 +543,12 @@ export class LyricRenderer {
     for (const lineIdx of deactivated) {
       this.activeLineSet.delete(lineIdx);
       this.lineElements[lineIdx]?.classList.remove("active");
-      this.deactivateLineAnimations(lineIdx);
+      this.lineAnimations.deactivate(lineIdx);
     }
     for (const lineIdx of activated) {
       this.activeLineSet.add(lineIdx);
       this.lineElements[lineIdx]?.classList.add("active");
-      this.createAndPlayLineAnimations(lineIdx, currentTime);
+      this.activateLineAnimations(lineIdx, currentTime);
     }
 
     if (this.activeLineSet.size > 0) this.activeLineIndex = setMin(this.activeLineSet);
@@ -637,8 +559,9 @@ export class LyricRenderer {
   /**
    * 处理 seek
    * @param targetTime - 跳转目标时间（毫秒）
+   * @param snap - true 时布局与透明度直接瞬移到目标状态（用于隐藏/冻结恢复）
    */
-  private handleSeek = (targetTime: number) => {
+  private handleSeek = (targetTime: number, snap = false) => {
     this.userScrollOffset = 0;
     this.isUserScrolling = false;
     clearTimeout(this.scrollResetTimerId);
@@ -646,7 +569,7 @@ export class LyricRenderer {
     // 停用所有当前激活行
     for (const lineIdx of this.activeLineSet) {
       this.lineElements[lineIdx]?.classList.remove("active");
-      this.deactivateLineAnimations(lineIdx);
+      this.lineAnimations.deactivate(lineIdx);
     }
     this.activeLineSet.clear();
 
@@ -657,11 +580,11 @@ export class LyricRenderer {
       if (lines[i].startTime <= targetTime && lines[i].endTime > targetTime) {
         this.activeLineSet.add(i);
         this.lineElements[i]?.classList.add("active");
-        this.createAndPlayLineAnimations(i, targetTime);
+        this.activateLineAnimations(i, targetTime);
         if (lines[i + 1]?.isBG) {
           this.activeLineSet.add(i + 1);
           this.lineElements[i + 1]?.classList.add("active");
-          this.createAndPlayLineAnimations(i + 1, targetTime);
+          this.activateLineAnimations(i + 1, targetTime);
         }
       }
     }
@@ -674,7 +597,44 @@ export class LyricRenderer {
       this.activeLineIndex = futureIdx === -1 ? lines.length : futureIdx;
     }
 
-    this.calculateLayout(false, true);
+    this.calculateLayout(snap, true);
+    if (snap) this.snapVisualState();
+  };
+
+  /**
+   * 将所有行的透明度 / pass 直接同步到目标值
+   *
+   * 视口裁剪会让屏外行的插值冻结在旧值（如长期保持激活态的高亮），
+   * 隐藏/冻结恢复后的瞬移布局可能把这些行直接带回视口，需一次性对齐
+   */
+  private snapVisualState = () => {
+    const doPass = this.hidePassedLines && this.isPlaying;
+    const activeIdx = this.activeLineIndex;
+    for (let i = 0; i < this.lines.length; i++) {
+      const lineEl = this.lineElements[i];
+      if (!lineEl) continue;
+      const isActive = this.activeLineSet.has(i);
+      const isPassed = doPass && (this.lines[i].isBG ? i - 1 < activeIdx : i < activeIdx);
+      const bright = isPassed ? 0.0001 : isActive ? 1.0 : this.inactiveAlpha;
+      const dark = isPassed ? 0.0001 : this.enableWordHighlight ? this.inactiveAlpha : bright;
+      this.alphaValues[i * 2] = bright;
+      this.alphaValues[i * 2 + 1] = dark;
+      const brightStr = bright.toFixed(3);
+      const darkStr = dark.toFixed(3);
+      const alphaKey = brightStr + darkStr;
+      if (this.cachedAlphaKeys[i] !== alphaKey) {
+        this.cachedAlphaKeys[i] = alphaKey;
+        lineEl.style.setProperty("--ba", brightStr);
+        lineEl.style.setProperty("--da", darkStr);
+      }
+      const pass = isPassed ? 0.0001 : 1;
+      this.passValues[i] = pass;
+      const passKey = pass.toFixed(3);
+      if (this.cachedPassKeys[i] !== passKey) {
+        this.cachedPassKeys[i] = passKey;
+        lineEl.style.setProperty("--pass", passKey);
+      }
+    }
   };
 
   /**
@@ -703,10 +663,11 @@ export class LyricRenderer {
     }
 
     // 计算激活行之前的累计高度，确定起始位置
+    // 跳过条件须与下方 collapsedBG 一致：非激活背景行不占空间
     let position = -this.userScrollOffset;
     let heightAccum = 0;
     for (let i = 0; i < targetIdx; i++) {
-      if (lines[i]?.isBG && this.isPlaying && !this.activeLineSet.has(i)) continue;
+      if (lines[i]?.isBG && !this.activeLineSet.has(i)) continue;
       heightAccum += this.lineHeights[i] || 40;
     }
     position -= heightAccum;
@@ -746,7 +707,9 @@ export class LyricRenderer {
 
       const isActive = this.activeLineSet.has(i);
       const targetScale = !isActive && this.isPlaying ? (line.isBG ? 75 : 97) : 100;
-      const collapsedBG = line.isBG && this.isPlaying && !isActive;
+      // 非激活背景行始终折叠：其文字本就不可见（CSS 仅 .active 显示），
+      // 若与播放状态挂钩，暂停时会被看不见的行撑出空隙
+      const collapsedBG = line.isBG && !isActive;
 
       // 默认顺排；置顶背景行排到主行上方
       let lineY = position;
@@ -760,7 +723,7 @@ export class LyricRenderer {
         // 主行带置顶背景行：背景行在上、主行在下
         const bgIdx = i + 1;
         const bgH = this.lineHeights[bgIdx] || 40;
-        const bgSpace = this.isPlaying && !this.activeLineSet.has(bgIdx) ? 0 : bgH;
+        const bgSpace = this.activeLineSet.has(bgIdx) ? bgH : 0;
         lineY = position + bgSpace;
         pendingBgY = lineY - bgH;
         pendingBgIdx = bgIdx;
@@ -1015,115 +978,18 @@ export class LyricRenderer {
    * @param lineIndex - 行索引
    * @param currentTime - 当前播放时间（毫秒）
    */
-  private createAndPlayLineAnimations = (lineIndex: number, currentTime: number) => {
-    // 清理该行旧动画（上一次停用时保留的）
-    const oldAnims = this.activeAnimations.get(lineIndex);
-    if (oldAnims)
-      for (const anim of oldAnims) {
-        anim.onfinish = null;
-        anim.cancel();
-      }
-
-    const targets = this.lineAnimTargets[lineIndex];
-    if (!targets?.length || (!this.enableFloatAnimation && !this.enableEmphasizeEffect)) return;
-
-    const line = this.lines[lineIndex];
-    const relativeTime = Math.max(0, currentTime - line.startTime);
-    const anims: Animation[] = [];
-
-    for (const target of targets) {
-      // 基础上浮动画
-      if (this.enableFloatAnimation) {
-        anims.push(
-          createFloatAnimation(
-            target.element,
-            target.word.startTime - line.startTime,
-            target.word.endTime - target.word.startTime,
-            line.isBG,
-          ),
-        );
-      }
-      // 强调动画（缩放 + 辉光 + 正弦浮动）
-      if (this.enableEmphasizeEffect && target.isEmphasize && target.charElements.length > 0) {
-        anims.push(
-          ...createEmphasizeAnimations(
-            target.charElements,
-            target.word.endTime - target.word.startTime,
-            target.word.startTime - line.startTime,
-            target.isLastWord,
-            line.isBG,
-          ),
-        );
-      }
-    }
-
-    // 设置 currentTime 并根据播放状态决定 play/pause
-    for (const anim of anims) {
-      anim.currentTime = relativeTime;
-      anim.playbackRate = 1;
-      const computedTiming = anim.effect?.getComputedTiming();
-      const animEndTime =
-        ((computedTiming?.delay as number) || 0) + ((computedTiming?.duration as number) || 0);
-      if (this.isPlaying && relativeTime < animEndTime) anim.play();
-      else anim.pause();
-    }
-
-    this.activeAnimations.set(lineIndex, anims);
-  };
-
-  /**
-   * 停用行动画：
-   * - float 反向播放实现平滑回落
-   * - glow/scale 保持当前状态，随行透明度自然淡出
-   * - 动画完成后自动清理，避免累积
-   * @param lineIndex - 行索引
-   */
-  private deactivateLineAnimations = (lineIndex: number) => {
-    const anims = this.activeAnimations.get(lineIndex);
-    if (!anims) return;
-
-    // 统计未完成的动画数量，全部完成后自动清理
-    let pendingCount = anims.length;
-    const tryCleanup = () => {
-      if (--pendingCount > 0) return;
-      // 所有动画均已完成，若该行仍非激活则清理
-      if (!this.activeLineSet.has(lineIndex)) {
-        const currentAnims = this.activeAnimations.get(lineIndex);
-        if (currentAnims === anims) {
-          for (const anim of anims) anim.cancel();
-          this.activeAnimations.delete(lineIndex);
-        }
-      }
-    };
-
-    for (const anim of anims) {
-      // 基础 float 反向播放回落，glow/emphasize-float 缓动曲线 0→峰→0 会自然回零
-      if (anim.id === "float-word") {
-        anim.playbackRate = -1;
-        anim.play();
-      }
-      // 所有动画完成后触发清理
-      anim.onfinish = tryCleanup;
-    }
-    // 已结束或暂停的动画不会再触发 onfinish，主动计入，避免该行动画永不被清理
-    for (const anim of anims) {
-      if (anim.playState === "finished" || anim.playState === "paused") tryCleanup();
-    }
-  };
-
-  /** 清理所有非激活行的残留动画，释放合成资源 */
-  private cleanupInactiveAnimations = () => {
-    for (const [lineIdx, anims] of this.activeAnimations) {
-      if (this.activeLineSet.has(lineIdx)) continue;
-      for (const anim of anims) anim.cancel();
-      this.activeAnimations.delete(lineIdx);
-    }
-  };
-
-  /** 取消所有行的动画并清空映射 */
-  private cancelAllActiveAnimations = () => {
-    for (const [, anims] of this.activeAnimations) for (const anim of anims) anim.cancel();
-    this.activeAnimations.clear();
+  private activateLineAnimations = (lineIndex: number, currentTime: number) => {
+    this.lineAnimations.activate(
+      lineIndex,
+      this.lines[lineIndex],
+      this.lineAnimTargets[lineIndex],
+      currentTime,
+      {
+        playing: this.isPlaying,
+        float: this.enableFloatAnimation,
+        emphasize: this.enableEmphasizeEffect,
+      },
+    );
   };
 
   /**
@@ -1145,7 +1011,7 @@ export class LyricRenderer {
    */
   private applyUserScroll = (deltaY: number) => {
     // 首次进入滚动时清理残留动画，减少合成开销
-    if (!this.isUserScrolling) this.cleanupInactiveAnimations();
+    if (!this.isUserScrolling) this.lineAnimations.cleanupInactive();
     this.userScrollOffset += deltaY;
     this.isUserScrolling = true;
     this.calculateLayout(false);
@@ -1235,20 +1101,26 @@ export class LyricRenderer {
   /** 取 bottom-line 容器 */
   getBottomLineElement = (): HTMLElement => this.bottomLineEl;
 
-  /** 页面可见性变化：不可见时跳过渲染，恢复时全量同步 */
+  /** 页面可见性变化：不可见时跳过渲染，恢复时清理残留动画并等待新的时间推送重新对齐 */
   private handleVisibilityChange = () => {
     this.isPageVisible = !document.hidden;
-    if (this.isPageVisible) {
-      this.lastFrameTimestamp = 0;
-      this.measureLineHeights();
-      // 兜底布局
-      if (this.pendingPlayTime >= 0) {
-        this.handleSeek(this.pendingPlayTime);
-      } else {
-        this.calculateLayout(true);
-      }
-      this.needsFullSync = true;
+    if (!this.isPageVisible) return;
+    if (this.animationFrameId === 0) return;
+    this.lastFrameTimestamp = 0;
+    // 隐藏期间缓冲的歌词此刻应用，内部完成测量、布局与动画清理
+    if (this.pendingHiddenLyrics) {
+      const pendingLines = this.pendingHiddenLyrics;
+      this.pendingHiddenLyrics = null;
+      this.setLyrics(pendingLines);
+      this.snapNextSeek = true;
+      return;
     }
+    this.lineAnimations.cleanupInactive();
+    this.measureLineHeights();
+    if (this.entranceComplete) this.calculateLayout(true);
+    // 检测到跳变则瞬移布局，避免旧歌词行残留
+    this.snapNextSeek = true;
+    this.needsFullSync = true;
   };
 
   /** 将当前弹簧参数应用到所有弹簧实例 */

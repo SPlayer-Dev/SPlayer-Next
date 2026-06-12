@@ -77,7 +77,7 @@ export const useUserStore = defineStore(
     /** 全部歌单 */
     const playlists = shallowRef<Playlist[]>([]);
     /** 红心歌曲 id 集合 */
-    const likedSongIds = ref<Set<string>>(new Set());
+    const likedSongIds = shallowRef<Set<string>>(new Set());
     /** 收藏专辑 */
     const albums = shallowRef<Album[]>([]);
     /** 收藏歌手 */

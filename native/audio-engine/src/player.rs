@@ -52,7 +52,9 @@ fn fade_volume(sink: &Sink, from: f32, to: f32, duration_ms: u64, cancel: &Atomi
         }
         let progress = step as f32 / FADE_STEPS as f32;
         sink.set_volume(from + (to - from) * progress);
-        thread::sleep(step_duration);
+        // 分片可取消：渐变时长用户可配，长渐变的整步 sleep 会让 cancel_fade 的
+        // 同步 join 卡住最长一个步长
+        sleep_unless_stopped(cancel, step_duration);
     }
 }
 
@@ -158,6 +160,8 @@ pub struct SeekTake {
     pub current_source: Option<String>,
     /// seek 前是否在播放（fallback 到 load 时保留状态）
     pub was_playing: bool,
+    /// 本次 seek 的 token，commit_seeked 时比对最新值，不一致说明已被新 load/seek/stop 取代
+    pub token: u64,
 }
 
 /// 编译期保证 `InnerPlayer: Send`：cpal::Stream（!Send）已通过 AudioOutput 隔离到专用线程，
@@ -167,13 +171,17 @@ const _: fn() = || {
     assert_send::<InnerPlayer>();
 };
 
-/// 等待线程退出，最多等 timeout_ms 毫秒，超时则放弃
-fn join_with_timeout(handle: JoinHandle<()>, timeout_ms: u64) {
-    // 利用 thread::park_timeout 无法实现 join timeout，
-    // 但由于我们的线程 sleep 间隔短（50ms/200ms），设 flag 后很快退出，
-    // 这里直接 join 等待即可。极端情况下最多等一个 sleep 周期。
-    let _ = handle.join();
-    let _ = timeout_ms; // 保留参数，未来可用 park/condvar 优化
+/// 分片 sleep：每 10ms 检查一次停止标志
+/// 让 stop_*_timer 的同步 join（pause/stop 都在 NAPI 主线程调用）在 ~10ms 内返回，
+/// 而不是阻塞整个推送周期（200ms）
+fn sleep_unless_stopped(flag: &AtomicBool, total: Duration) {
+    const SLICE: Duration = Duration::from_millis(10);
+    let mut remaining = total;
+    while !flag.load(Ordering::Relaxed) && !remaining.is_zero() {
+        let step = remaining.min(SLICE);
+        thread::sleep(step);
+        remaining -= step;
+    }
 }
 
 impl InnerPlayer {
@@ -261,7 +269,7 @@ impl InnerPlayer {
             flag.store(true, Ordering::Relaxed);
         }
         if let Some(handle) = self.fade_handle.take() {
-            join_with_timeout(handle, 50);
+            let _ = handle.join();
         }
     }
 
@@ -319,8 +327,12 @@ impl InnerPlayer {
 
                 // 检测播放结束：all_consumed 表示 rodio 侧已消费完所有数据
                 if shared.is_all_consumed() {
-                    // 解码因读取失败中止 → 音源失效事件；否则正常结束
-                    if shared.is_decode_failed() {
+                    // 解码因读取失败中止且距末尾尚远 → 音源失效，前端重新解析地址续播；
+                    // 距末尾 3s 内的失败按正常结束处理——Content-Length 偏大的转码源
+                    // 在曲尾必然提前 EOF，整曲重载只会带来一轮无意义抖动。
+                    // duration 未知（直播流等）时无"末尾"概念，失败一律上报
+                    let mid_stream = duration <= 0.0 || duration - position > 3.0;
+                    if shared.is_decode_failed() && mid_stream {
                         cb(PlayerEvent::SourceError);
                     } else {
                         cb(PlayerEvent::Ended);
@@ -344,7 +356,7 @@ impl InnerPlayer {
                 }
                 last_consumed = consumed;
 
-                thread::sleep(Duration::from_millis(200));
+                sleep_unless_stopped(&stop_flag, Duration::from_millis(200));
             }
         });
         self.position_timer_handle = Some(handle);
@@ -356,7 +368,7 @@ impl InnerPlayer {
             flag.store(true, Ordering::Relaxed);
         }
         if let Some(handle) = self.position_timer_handle.take() {
-            join_with_timeout(handle, 300);
+            let _ = handle.join();
         }
     }
 
@@ -380,7 +392,7 @@ impl InnerPlayer {
                     let data = fft.analyze();
                     cb(PlayerEvent::FftData { data });
                 }
-                thread::sleep(Duration::from_millis(50));
+                sleep_unless_stopped(&stop_flag, Duration::from_millis(50));
             }
         });
         self.fft_timer_handle = Some(handle);
@@ -392,7 +404,7 @@ impl InnerPlayer {
             flag.store(true, Ordering::Relaxed);
         }
         if let Some(handle) = self.fft_timer_handle.take() {
-            join_with_timeout(handle, 100);
+            let _ = handle.join();
         }
     }
 
@@ -439,9 +451,9 @@ impl InnerPlayer {
                         self.seek(prev_position)?;
                     }
                     self.set_volume(prev_volume);
-                    // 恢复到原来的播放/暂停状态
+                    // 恢复到原来的播放/暂停状态；此时必为 Paused 态，play 不会返回复活源
                     if prev_state == PlayerState::Playing {
-                        self.play()?;
+                        let _ = self.play()?;
                     }
                 } else {
                     self.state = PlayerState::Idle;
@@ -518,8 +530,22 @@ impl InnerPlayer {
         (old_threads, token)
     }
 
+    /// token 是否仍是最新值（seek 失败回退到 load 前校验，避免复活已被取代的旧源）
+    pub fn is_load_token_current(&self, token: u64) -> bool {
+        token == self.load_token.load(Ordering::Acquire)
+    }
+
     /// 给 lib.rs async seek 用：原子发出停止信号 + take 所有旧线程 handle（不 join）
-    pub fn take_for_async_seek(&mut self) -> SeekTake {
+    ///
+    /// 返回 None 表示当前没有解码线程（空闲 / 已停止 / 正在异步加载被 load 取走），
+    /// 此时不做任何副作用——尤其不能 bump token，否则会误杀在途的 load
+    pub fn take_for_async_seek(&mut self) -> Option<SeekTake> {
+        self.decoder_thread.as_ref()?;
+
+        // 与 load 共用同一 token 序列：commit_seeked 时比对，防止 seek 期间发生的
+        // load/stop 完成后被本次 seek 的 commit 覆盖（旧曲复活 + 新解码线程泄漏）
+        let token = self.load_token.fetch_add(1, Ordering::AcqRel) + 1;
+
         if let Some(flag) = self.fade_cancel.take() {
             flag.store(true, Ordering::Relaxed);
         }
@@ -554,22 +580,34 @@ impl InnerPlayer {
 
         self.fft.reset();
 
-        SeekTake {
+        Some(SeekTake {
             old_threads,
             normalization_enabled: norm_enabled,
             normalization_gain: norm_gain,
             current_source: self.current_source.clone(),
             was_playing: self.state == PlayerState::Playing,
-        }
+            token,
+        })
     }
 
     /// seek 三段式的最后一段：主线程持锁，attach 新 sink + 新解码线程
+    ///
+    /// 返回 false 表示本次 seek 已被更新的 load/seek/stop 取代，结果被丢弃
     pub fn commit_seeked(
         &mut self,
+        token: u64,
         position_secs: f64,
         shared: Arc<Shared>,
         handle: JoinHandle<decoder::DecoderData>,
-    ) -> Result<()> {
+    ) -> Result<bool> {
+        // 抢占检查：与 commit_loaded 同款，不一致则丢弃本次 seek 结果
+        if token != self.load_token.load(Ordering::Acquire) {
+            shared.stop();
+            // 解码线程读到 stop 信号后自行退出，故意不 join 避免阻塞主线程持锁阶段
+            drop(handle);
+            return Ok(false);
+        }
+
         let sink = {
             let output = self.ensure_output()?;
             Arc::new(Sink::try_new(output.handle()).context("Failed to create audio sink")?)
@@ -613,7 +651,7 @@ impl InnerPlayer {
             self.start_fft_timer();
         }
 
-        Ok(())
+        Ok(true)
     }
 
     /// load 的下半部分：lib.rs async load 在 IO 完成后由主线程持锁调用
@@ -755,9 +793,11 @@ impl InnerPlayer {
         Ok(metadata)
     }
 
-    /// 恢复播放。如果已停止、播放结束或空闲，自动从头重新加载。
-    pub fn play(&mut self) -> Result<()> {
+    /// 恢复播放。Paused 时渐入恢复；Stopped/Idle/已播完时返回 Some(source)，
+    /// 由 lib.rs 走 async load 复活——网络源的打开可达数秒，不能在锁内同步执行
+    pub fn play(&mut self) -> Result<Option<String>> {
         // 如果当前在"播放"状态但实际已结束，先标记为停止
+        // 此时解码线程已自然退出，stop_internal 的 join 立即返回，不会阻塞
         if self.state == PlayerState::Playing && self.is_finished() {
             self.stop_internal();
             self.state = PlayerState::Stopped;
@@ -765,9 +805,12 @@ impl InnerPlayer {
 
         match self.state {
             // 已经在播放且未结束，忽略
-            PlayerState::Playing => {}
+            PlayerState::Playing => Ok(None),
             // 暂停状态：渐入恢复
             PlayerState::Paused => {
+                // 先取消未完成的渐出：否则其完成回调可能在 sink.play() 之后执行
+                // sink.pause()，导致状态 Playing 但实际无声
+                self.cancel_fade();
                 if let Some(ref sink) = self.sink {
                     sink.set_volume(0.0);
                     sink.play();
@@ -782,15 +825,11 @@ impl InnerPlayer {
 
                 // 非阻塞渐入
                 self.start_fade(0.0, self.target_volume, None);
+                Ok(None)
             }
-            // 停止/空闲/播放结束：从头重新加载
-            PlayerState::Stopped | PlayerState::Idle => {
-                if let Some(source) = self.current_source.clone() {
-                    self.load(&source, true)?;
-                }
-            }
+            // 停止/空闲/播放结束：交给调用方异步从头重新加载
+            PlayerState::Stopped | PlayerState::Idle => Ok(self.current_source.clone()),
         }
-        Ok(())
     }
 
     /// 暂停播放（非阻塞渐出，渐出完成后 sink.pause）
@@ -829,6 +868,8 @@ impl InnerPlayer {
     /// 显式停止：清掉 current_source，避免后续 play() 在 Stopped 态下用残留源复活上一首
     /// （`stop_internal` 是内部过渡用，不清；load() 会立即用新源覆盖）
     pub fn stop(&mut self) {
+        // 使在途的 async load/seek 在 commit 时被拒绝，防止 stop 后被复活
+        self.load_token.fetch_add(1, Ordering::AcqRel);
         self.stop_internal();
         self.current_source = None;
         self.state = PlayerState::Stopped;

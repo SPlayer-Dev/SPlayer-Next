@@ -16,7 +16,7 @@ use windows::Win32::{
     },
 };
 
-use crate::utils::find_taskbar_hwnd;
+use crate::utils::{ensure_thread_message_queue, find_taskbar_hwnd};
 
 pub type TrayChangedCallback = Box<dyn Fn() + Send + Sync + 'static>;
 
@@ -53,6 +53,8 @@ unsafe extern "system" fn win_event_proc(
 
 pub struct TrayWatcher {
     thread_id: Option<u32>,
+    /// 本实例注册的回调，stop 时用 ptr_eq 比对，避免误清后建实例的全局回调
+    callback: Arc<TrayChangedCallback>,
 }
 
 impl TrayWatcher {
@@ -60,13 +62,14 @@ impl TrayWatcher {
         let callback_arc = Arc::new(callback);
 
         if let Ok(mut guard) = GLOBAL_CALLBACK.lock() {
-            *guard = Some(callback_arc);
+            *guard = Some(Arc::clone(&callback_arc));
         }
 
         let (tx, rx) = std::sync::mpsc::channel();
 
         thread::spawn(move || unsafe {
             let current_tid = GetCurrentThreadId();
+            ensure_thread_message_queue();
             let _ = tx.send(current_tid);
 
             let mut pid = 0;
@@ -99,6 +102,7 @@ impl TrayWatcher {
 
         Ok(Self {
             thread_id: Some(thread_id),
+            callback: callback_arc,
         })
     }
 
@@ -108,7 +112,11 @@ impl TrayWatcher {
                 let _ = PostThreadMessageW(tid, WM_QUIT, WPARAM(0), LPARAM(0));
             }
             self.thread_id = None;
-            if let Ok(mut guard) = GLOBAL_CALLBACK.lock() {
+            if let Ok(mut guard) = GLOBAL_CALLBACK.lock()
+                && guard
+                    .as_ref()
+                    .is_some_and(|cur| Arc::ptr_eq(cur, &self.callback))
+            {
                 *guard = None;
             }
         }

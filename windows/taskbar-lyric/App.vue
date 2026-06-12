@@ -14,6 +14,8 @@ const config = reactive<TaskbarLyricSettings>({
   position: "auto",
   autoMaxWidth: true,
   maxWidth: 400,
+  leftMargin: 0,
+  rightMargin: 0,
   colorMode: "taskbar",
   doubleLine: true,
   showTranslation: true,
