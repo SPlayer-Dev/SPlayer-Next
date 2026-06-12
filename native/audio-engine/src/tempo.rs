@@ -31,7 +31,7 @@ pub(crate) struct StretchProcessor {
 impl StretchProcessor {
     /// 构造一个默认 1.0× / 0 半音 / sync=ON 的处理器，初始即 bypass
     pub(crate) fn new(channels: u16, sample_rate: u32) -> Self {
-        let stretch = Stretch::preset_cheaper(channels as u32, sample_rate);
+        let stretch = Stretch::preset_default(channels as u32, sample_rate);
         Self {
             stretch,
             channels,
