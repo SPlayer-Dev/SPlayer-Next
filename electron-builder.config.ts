@@ -1,7 +1,7 @@
 import type { Configuration } from "electron-builder";
 
 const config: Configuration = {
-  appId: "com.imsyy.splayer-next",
+  appId: "top.imsyy.splayer-next",
   productName: "SPlayer-Next",
   copyright: "Copyright © imsyy 2025",
   directories: { buildResources: "public" },
@@ -55,7 +55,7 @@ const config: Configuration = {
   },
   nsis: {
     oneClick: false,
-    guid: "com.imsyy.splayer-next",
+    guid: "top.imsyy.splayer-next",
     installerIcon: "public/icons/favicon.ico",
     uninstallerIcon: "public/icons/favicon.ico",
     artifactName: "${productName}-${version}-${arch}-setup.${ext}",
