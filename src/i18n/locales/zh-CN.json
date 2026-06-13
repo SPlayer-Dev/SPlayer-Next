@@ -78,6 +78,7 @@
     "confirm": "确认",
     "cancel": "取消",
     "close": "关闭",
+    "configure": "配置",
     "save": "保存",
     "reset": "重置",
     "search": "搜索",
@@ -580,6 +581,7 @@
       "playback": "播放器",
       "playControl": "播放控制",
       "lyricContent": "歌词内容",
+      "lyricTTML": "TTML 歌词",
       "lyricExclude": "歌词排除",
       "lyricGeneral": "内容样式",
       "lyricDisplay": "显示效果",
@@ -602,7 +604,6 @@
       "systemConfig": "系统配置",
       "pluginsList": "已安装插件",
       "streaming": "流媒体管理",
-      "localFiles": "本地文件",
       "songCache": "歌曲缓存",
       "cache": "缓存",
       "database": "数据库",
@@ -674,13 +675,11 @@
     "lyricSourceOrder": {
       "label": "音源排序",
       "description": "自定义音源优先级",
-      "button": "配置",
       "hint": "「智能选择」时按此顺序依次尝试匹配，未命中则跳到下一个"
     },
     "lyricFormatOrder": {
       "label": "歌词格式优先级",
       "description": "自定义歌词格式优先级",
-      "button": "配置",
       "hint": "存在多个可用格式时按此顺序选择，例如本地多个外挂歌词、在线 TTML 升级等场景"
     },
     "smartPreferOnline": {
@@ -694,7 +693,6 @@
     "amllDbServer": {
       "label": "AMLL TTML DB 地址",
       "description": "请确保地址正确，否则将导致歌词获取失败",
-      "button": "配置",
       "placeholder": "请输入 AMLL TTML DB 地址",
       "warning": "如果你不清楚这里是做什么的，请不要修改",
       "hint": "请确保地址正确，并且包含指定的占位符",
@@ -1123,7 +1121,6 @@
     "fontConfig": {
       "label": "字体配置",
       "description": "统一配置应用、歌词和外部歌词窗口的字体",
-      "button": "配置",
       "title": "字体配置",
       "loading": "正在加载系统字体",
       "placeholder": "输入字体名称",
@@ -1344,8 +1341,15 @@
       "description": "导入、启用或卸载扩展脚本"
     },
     "enableLocalTTMLOverride": {
-      "label": "本地 TTML 覆盖",
-      "description": "当本地存在 .ttml 歌词文件时，优先使用本地内容覆盖在线歌词"
+      "label": "启用本地 TTML 歌词库",
+      "description": "从指定目录按歌曲元信息匹配 .ttml，命中后优先于在线歌词"
+    },
+    "localLyricRepoDir": {
+      "label": "歌词库目录",
+      "description": "选择一个存放 TTML 歌词的目录，软件会按元信息在其中查找",
+      "choose": "选择目录",
+      "clear": "清除",
+      "unset": "未设置目录"
     },
     "fileCacheManager": {
       "label": "缓存管理",

@@ -32,7 +32,7 @@ const handleConfirm = () => {
 
 <template>
   <SButton type="primary" variant="secondary" size="small" @click="open = true">
-    {{ t("settings.amllDbServer.button") }}
+    {{ t("common.configure") }}
   </SButton>
   <SDialog v-model:open="open" :title="t('settings.amllDbServer.label')" width="500px">
     <div class="flex flex-col gap-3 text-sm">

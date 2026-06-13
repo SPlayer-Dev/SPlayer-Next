@@ -9,18 +9,6 @@ const localCacheCategory: SettingCategory = {
   icon: IconLucideHardDrive,
   sections: [
     {
-      id: "localFiles",
-      items: [
-        {
-          key: "enableLocalTTMLOverride",
-          type: "switch",
-          binding: { store: "settings", path: "system.localLyric.enableLocalTTMLOverride" },
-          defaultValue: false,
-          tag: { text: "Beta" },
-        },
-      ],
-    },
-    {
       id: "songCache",
       items: [
         {
