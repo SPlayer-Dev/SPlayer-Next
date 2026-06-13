@@ -36,16 +36,18 @@ const clear = () => emit("update:modelValue", "");
     width="480px"
   >
     <div class="flex flex-col gap-2">
-      <div
-        v-if="modelValue"
-        class="flex items-center gap-3 rounded-lg bg-on-surface/4 px-3 py-2"
-      >
+      <div v-if="modelValue" class="flex items-center gap-3 rounded-lg bg-on-surface/4 px-3 py-2">
         <IconLucideFolder class="size-4 shrink-0 text-on-surface-variant" />
         <div class="min-w-0 flex-1">
           <div class="truncate text-sm text-on-surface">{{ folderName(modelValue) }}</div>
           <div class="truncate text-xs text-on-surface-variant/60">{{ modelValue }}</div>
         </div>
-        <SButton variant="ghost" size="small" :title="t('settings.localLyricRepoDir.clear')" @click="clear">
+        <SButton
+          variant="ghost"
+          size="small"
+          :title="t('settings.localLyricRepoDir.clear')"
+          @click="clear"
+        >
           <template #icon><IconLucideTrash2 /></template>
         </SButton>
       </div>

@@ -290,7 +290,10 @@ const applyOnline = async (
  */
 const tryLocalRepo = async (token: number, track: Track): Promise<boolean> => {
   const settings = useSettingsStore();
-  if (!settings.system.localLyric?.enableLocalTTMLOverride || !settings.system.localLyric?.repoDir) {
+  if (
+    !settings.system.localLyric?.enableLocalTTMLOverride ||
+    !settings.system.localLyric?.repoDir
+  ) {
     return false;
   }
   const resp = await window.api.lyrics.matchLocalTTML(track);

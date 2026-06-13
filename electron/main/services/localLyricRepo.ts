@@ -34,7 +34,8 @@ let cache: IndexCache | null = null;
 let building: Promise<RepoIndex | null> | null = null;
 
 /** 归一化「标题|首艺术家」匹配键 */
-const nameKey = (title: string, artist: string): string => `${normalize(title)}|${normalize(artist)}`;
+const nameKey = (title: string, artist: string): string =>
+  `${normalize(title)}|${normalize(artist)}`;
 
 /** 从 TTML 文本头部提取 AMLL 元信息 */
 const extractMeta = (

@@ -121,14 +121,17 @@ export const registerLyricsIpc = (): void => {
   ipcMain.handle("lyrics:fetchTTMLOverlay", (_evt, track: Track, platform: "netease" | "qqmusic") =>
     dedup(`ttml:${platform}:${track.id}`, () => resolveTTMLOverlay(track, platform)),
   );
-  ipcMain.handle("lyrics:matchLocalTTML", async (_evt, track: Track): Promise<LyricTTMLResponse> => {
-    try {
-      return { ok: true, data: await matchLocalTTML(track) };
-    } catch (err) {
-      coreLog.warn(`[lyrics] matchLocalTTML(${track.title}) failed:`, err);
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
-    }
-  });
+  ipcMain.handle(
+    "lyrics:matchLocalTTML",
+    async (_evt, track: Track): Promise<LyricTTMLResponse> => {
+      try {
+        return { ok: true, data: await matchLocalTTML(track) };
+      } catch (err) {
+        coreLog.warn(`[lyrics] matchLocalTTML(${track.title}) failed:`, err);
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+  );
   ipcMain.handle("lyrics:pickLyricRepoDir", async (): Promise<string | null> => {
     const result = await dialog.showOpenDialog({
       title: "选择本地 TTML 歌词库目录",
