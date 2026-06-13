@@ -53,7 +53,7 @@ export interface PlayerSettings {
   loudnessNormalization: boolean;
   /** 均衡器配置 */
   equalizer: EqualizerSettings;
-  /** 按 Track.id 记忆的歌词偏移（ms，正值为歌词提前）；为 0 时不写入 */
+  /** 按 `{Track.id}|{歌词源}` 记忆的歌词偏移（ms，正值为歌词提前）；为 0 时不写入 */
   lyricOffsets: Record<string, number>;
 }
 
@@ -243,8 +243,10 @@ export interface OnlineLyricSettings {
 
 /** 本地歌词配置 */
 export interface LocalLyricSettings {
-  /** 启用本地 TTML 覆盖：扫描到同目录的 .ttml 时优先于在线源 */
+  /** 启用本地 TTML 歌词库：从指定目录按元信息匹配 .ttml，命中优先于在线源 */
   enableLocalTTMLOverride: boolean;
+  /** 本地 TTML 歌词库目录 */
+  repoDir: string;
 }
 
 /** 歌曲缓存配置 */

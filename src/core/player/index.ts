@@ -1,4 +1,5 @@
 import type { Track } from "@shared/types/player";
+import type { TagEditRequest, TagWriteOutcome } from "@shared/types/tagEditor";
 import { handleEvent } from "./events";
 import type { RepeatMode, ShuffleMode } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
@@ -7,6 +8,7 @@ import { useStatusStore } from "@/stores/status";
 import { useStreamingStore } from "@/stores/streaming";
 import { usePluginsStore } from "@/stores/plugins";
 import { useHistoryStore } from "@/stores/history";
+import { useLibraryStore } from "@/stores/library";
 import * as queue from "@/stores/queue";
 import * as fm from "./fm";
 import * as playback from "@/services/playback";
@@ -423,6 +425,68 @@ export const playFrom = async (items: readonly Track[], startIndex = 0): Promise
   }
 };
 
+/** 标签写入后恢复当前曲：暂停态加载 → seek 回原进度 → 视情况恢复播放 */
+const resumeAfterTagWrite = async (
+  track: Track,
+  resumeMs: number,
+  wasPlaying: boolean,
+): Promise<void> => {
+  if (!track.path) return;
+  const myToken = ++trackToken;
+  useMediaStore().setTrack(track);
+  lyricLoader.beginLoad();
+  const result = await load(track.path, false, track);
+  if (myToken !== trackToken || !result.ok) return;
+  if (resumeMs > 0) await seek(resumeMs);
+  if (wasPlaying) await play();
+};
+
+/**
+ * 写入本地文件标签并同步各处缓存。
+ * 目标包含当前播放曲时：记录进度 → 停止释放文件句柄 → 写入 → 重载并恢复进度
+ * @param edits - 标签编辑请求（按文件路径）
+ * @returns 逐项写入结果；IPC 层失败时返回 null
+ */
+export const saveTrackTags = async (edits: TagEditRequest[]): Promise<TagWriteOutcome[] | null> => {
+  if (edits.length === 0) return [];
+  const media = useMediaStore();
+  const status = useStatusStore();
+  const current = media.track;
+  const currentPath = current?.source === "local" ? current.path : undefined;
+  const touchesCurrent = !!currentPath && edits.some((edit) => edit.path === currentPath);
+
+  let resumeMs = 0;
+  let wasPlaying = false;
+  if (touchesCurrent) {
+    resumeMs = Math.round(playback.getCurrentTime());
+    wasPlaying = status.isPlaying;
+    // Windows 下引擎持有文件句柄，必须先停止才能写入
+    await window.api.player.stop();
+  }
+
+  const result = await window.api.library.writeTags(edits);
+  if (!result.success || !result.data) {
+    if (result.error) handleError(result.error);
+    // 写入失败也要恢复被停掉的当前曲
+    if (touchesCurrent && current) await resumeAfterTagWrite(current, resumeMs, wasPlaying);
+    return null;
+  }
+
+  const updated = result.data
+    .filter((outcome) => outcome.success && outcome.track)
+    .map((outcome) => outcome.track!);
+  if (updated.length > 0) {
+    useLibraryStore().applyTrackUpdates(updated);
+    queue.updateQueueTracks(updated);
+  }
+
+  if (touchesCurrent && current) {
+    const newTrack = updated.find((track) => track.path === currentPath) ?? current;
+    await resumeAfterTagWrite(newTrack, resumeMs, wasPlaying);
+  }
+  return result.data;
+};
+
 /**
  * 进入心动模式：用智能推荐列表替换队列并从头播放
  * @param tracks - 网易云智能推荐曲目
@@ -620,6 +684,24 @@ export const removeFromQueue = async (index: number): Promise<void> => {
     // 索引越界则回到首位
     if (status.playIndex >= queue.queueLength.value) status.playIndex = 0;
     await loadTrack(status.currentTrack);
+  }
+};
+
+/**
+ * 文件删除后同步队列：移除被删曲目，当前播放曲被删则切下一首（队列空则停止）
+ * @param ids - 被删除的 Track id 列表
+ */
+export const purgeDeletedTracks = async (ids: readonly string[]): Promise<void> => {
+  const currentId = useMediaStore().track?.id;
+  // 先移除非当前曲：若先删当前曲，自动切到的下一首可能也在删除列表里，造成连环重载
+  for (const id of ids) {
+    if (id === currentId) continue;
+    const index = queue.findTrackIndex(id);
+    if (index !== -1) await removeFromQueue(index);
+  }
+  if (currentId && ids.includes(currentId)) {
+    const index = queue.findTrackIndex(currentId);
+    if (index !== -1) await removeFromQueue(index);
   }
 };
 

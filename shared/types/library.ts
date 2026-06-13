@@ -1,4 +1,5 @@
 import type { IpcResponse, Track } from "./player";
+import type { TrackTags, TagEditRequest, TagWriteOutcome } from "./tagEditor";
 
 /** 专辑聚合项 */
 export interface AlbumSummary {
@@ -68,6 +69,12 @@ export interface LibraryApi {
   getScanDirs: () => Promise<IpcResponse<string[]>>;
   /** 删除曲目文件并从数据库移除 */
   deleteTracks: (paths: string[]) => Promise<IpcResponse<{ deleted: number; failed: number }>>;
+  /** 读取本地文件的可编辑标签 */
+  readTags: (path: string) => Promise<IpcResponse<TrackTags>>;
+  /** 批量写入文件标签 */
+  writeTags: (edits: TagEditRequest[]) => Promise<IpcResponse<TagWriteOutcome[]>>;
+  /** 弹出文件选择器，选择封面图片（返回路径与预览 dataUrl） */
+  pickCoverImage: () => Promise<IpcResponse<{ path: string; dataUrl: string }>>;
   /** 获取本地歌手头像 */
   fetchArtistAvatar: (artistName: string) => Promise<IpcResponse<string | null>>;
   /** 批量预取歌手头像 */

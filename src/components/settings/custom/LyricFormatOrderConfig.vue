@@ -37,7 +37,7 @@ const handleReset = () => {
 
 <template>
   <SButton type="primary" variant="secondary" size="small" @click="open = true">
-    {{ t("settings.lyricFormatOrder.button") }}
+    {{ t("common.configure") }}
   </SButton>
   <SDialog
     v-model:open="open"

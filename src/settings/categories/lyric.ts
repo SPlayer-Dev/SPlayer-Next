@@ -2,6 +2,7 @@ import type { SettingCategory } from "@/types/settings-schema";
 import { ALL_PLATFORMS } from "@shared/types/platform";
 import { useSettingsStore } from "@/stores/settings";
 import AmllDbServerConfig from "@/components/settings/custom/AmllDbServerConfig.vue";
+import LocalLyricRepoConfig from "@/components/settings/custom/LocalLyricRepoConfig.vue";
 import LyricSourceOrderConfig from "@/components/settings/custom/LyricSourceOrderConfig.vue";
 import LyricFormatOrderConfig from "@/components/settings/custom/LyricFormatOrderConfig.vue";
 import ExcludeLyricsConfig from "@/components/settings/custom/ExcludeLyricsConfig.vue";
@@ -50,6 +51,11 @@ const lyricCategory: SettingCategory = {
           type: "custom",
           component: LyricFormatOrderConfig,
         },
+      ],
+    },
+    {
+      id: "lyricTTML",
+      items: [
         {
           key: "enableOnlineTTMLLyric",
           type: "switch",
@@ -62,6 +68,21 @@ const lyricCategory: SettingCategory = {
               type: "custom",
               component: AmllDbServerConfig,
               binding: { store: "settings", path: "system.lyric.amllDbServer" },
+            },
+          ],
+        },
+        {
+          key: "enableLocalTTMLOverride",
+          type: "switch",
+          binding: { store: "settings", path: "system.localLyric.enableLocalTTMLOverride" },
+          defaultValue: false,
+          tag: { text: "Beta" },
+          children: [
+            {
+              key: "localLyricRepoDir",
+              type: "custom",
+              component: LocalLyricRepoConfig,
+              binding: { store: "settings", path: "system.localLyric.repoDir" },
             },
           ],
         },

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 export interface SCardProps {
-  /** 卡片标题（可被 #header 插槽覆盖） */
+  /** 卡片标题 */
   title?: string;
+  /** 背景变体 */
+  variant?: "default" | "primary";
   /** 是否显示边框 */
   bordered?: boolean;
   /** 内边距尺寸 */
@@ -15,10 +17,17 @@ export interface SCardProps {
 }
 
 withDefaults(defineProps<SCardProps>(), {
+  variant: "default",
   bordered: true,
   size: "medium",
   radius: "lg",
 });
+
+/** 变体到背景 / 边框样式的映射 */
+const variantClass: Record<NonNullable<SCardProps["variant"]>, { bg: string; border: string }> = {
+  default: { bg: "bg-surface-panel", border: "border-primary/20" },
+  primary: { bg: "bg-primary/5", border: "border-primary/25" },
+};
 
 const sizePadding: Record<NonNullable<SCardProps["size"]>, string> = {
   small: "px-3 py-2",
@@ -39,10 +48,11 @@ const structured = computed(() => !!slots.header || !!slots["header-extra"] || !
 
 <template>
   <div
-    class="bg-surface-panel transition-shadow duration-200"
+    class="transition-shadow duration-200"
     :class="[
+      variantClass[variant].bg,
       radiusClass[radius],
-      bordered && 'border border-solid border-primary/20',
+      bordered && ['border border-solid', variantClass[variant].border],
       hoverable && 'cursor-pointer hover:shadow-md',
       !structured && !title && !flush && sizePadding[size],
     ]"

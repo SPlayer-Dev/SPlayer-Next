@@ -9,7 +9,6 @@ import { useMultiSelect } from "@/composables/useMultiSelect";
 import { useFavorite } from "@/composables/useFavorite";
 import { usePlaylistPicker } from "@/composables/usePlaylistPicker";
 import { PLAYER_BAR_GAP } from "@/composables/useFloatingPlayerBar";
-import PlaylistPickerDialog from "@/components/modals/PlaylistPickerDialog.vue";
 import { formatTime } from "@/utils/time";
 import { formatFileSize } from "@/utils/format";
 import { isLosslessQuality, getQualityLabel } from "@/utils/quality";
@@ -233,6 +232,10 @@ const {
   openPicker,
 } = usePlaylistPicker();
 
+/** 标签编辑弹窗 */
+const tagEditorOpen = ref(false);
+const tagEditorTrack = shallowRef<Track | null>(null);
+
 /** 右键菜单 */
 const contextTrack = shallowRef<Track | undefined>();
 const { items: contextMenuItems, handleSelect: onContextMenu } = useTrackMenu(contextTrack, {
@@ -242,6 +245,10 @@ const { items: contextMenuItems, handleSelect: onContextMenu } = useTrackMenu(co
   onRemove: (track) => batch.requestDelete([track], "remove"),
   onDeleteFile: (track) => batch.requestDelete([track], "file"),
   onRemoveFromCloud: (track) => batch.requestDelete([track], "cloud"),
+  onEditTags: (track) => {
+    tagEditorTrack.value = track;
+    tagEditorOpen.value = true;
+  },
 });
 
 const emit = defineEmits<{
@@ -724,5 +731,7 @@ defineExpose({
     </SDialog>
     <!-- 添加到歌单 -->
     <PlaylistPickerDialog v-model:open="pickerOpen" :mode="pickerMode" :tracks="pickerTracks" />
+    <!-- 编辑元数据 -->
+    <TagEditorDialog v-model:open="tagEditorOpen" :track="tagEditorTrack" />
   </div>
 </template>

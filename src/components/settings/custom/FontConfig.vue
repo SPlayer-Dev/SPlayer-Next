@@ -153,7 +153,7 @@ const handleSave = async (): Promise<void> => {
 
 <template>
   <SButton type="primary" variant="secondary" size="small" @click="open = true">
-    {{ t("settings.fontConfig.button") }}
+    {{ t("common.configure") }}
   </SButton>
   <SDialog
     v-model:open="open"

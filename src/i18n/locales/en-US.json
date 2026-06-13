@@ -90,6 +90,7 @@
     "confirm": "Confirm",
     "cancel": "Cancel",
     "close": "Close",
+    "configure": "Configure",
     "save": "Save",
     "reset": "Reset",
     "search": "Search",
@@ -412,6 +413,7 @@
       "invert": "Invert",
       "selected": "{n} selected",
       "copy": "Copy",
+      "copyRaw": "Copy original",
       "exportImage": "Export image",
       "saved": "Saved to Downloads",
       "fileSuffix": "Lyrics",
@@ -456,6 +458,7 @@
       "playNext": "Play Next",
       "showInExplorer": "Open Location",
       "copyPath": "Copy File Path",
+      "editTags": "Edit Metadata",
       "deleteFile": "Delete File",
       "searchSame": "Search by Name",
       "more": "More",
@@ -590,6 +593,7 @@
       "playback": "Player",
       "playControl": "Playback Control",
       "lyricContent": "Lyric Content",
+      "lyricTTML": "TTML Lyrics",
       "lyricExclude": "Metadata Stripping",
       "lyricGeneral": "Content & Style",
       "lyricDisplay": "Display Effects",
@@ -612,7 +616,6 @@
       "systemConfig": "System",
       "pluginsList": "Installed Plugins",
       "streaming": "Streaming",
-      "localFiles": "Local Files",
       "songCache": "Song Cache",
       "cache": "Caches",
       "database": "Database",
@@ -684,13 +687,11 @@
     "lyricSourceOrder": {
       "label": "Source Order",
       "description": "Customize source priority",
-      "button": "Configure",
       "hint": "When using auto mode, sources are tried top-down; falls through to the next on miss"
     },
     "lyricFormatOrder": {
       "label": "Lyric Format Priority",
       "description": "Customize lyric format priority",
-      "button": "Configure",
       "hint": "Picks the highest-ranked when multiple formats are available — e.g. multiple external lyric files, or TTML upgrade"
     },
     "smartPreferOnline": {
@@ -704,7 +705,6 @@
     "amllDbServer": {
       "label": "AMLL TTML DB Server",
       "description": "Make sure the URL is correct, otherwise lyric fetch will fail",
-      "button": "Configure",
       "placeholder": "Enter AMLL TTML DB URL",
       "warning": "If you do not know what this does, please leave it as default",
       "hint": "URL must be valid and contain the required placeholders",
@@ -1133,7 +1133,6 @@
     "fontConfig": {
       "label": "Font Settings",
       "description": "Configure fonts for the app, lyrics, and external lyric windows",
-      "button": "Configure",
       "title": "Font Settings",
       "loading": "Loading system fonts",
       "placeholder": "Enter a font name",
@@ -1354,8 +1353,15 @@
       "description": "Import, enable, or uninstall extension scripts"
     },
     "enableLocalTTMLOverride": {
-      "label": "Local TTML Override",
-      "description": "Prefer a local .ttml file (when available) over online lyrics"
+      "label": "Enable Local TTML Library",
+      "description": "Match .ttml in a chosen folder by song metadata; takes priority over online lyrics when found"
+    },
+    "localLyricRepoDir": {
+      "label": "Library Folder",
+      "description": "Choose a folder containing TTML lyrics; the app searches it by metadata",
+      "choose": "Choose",
+      "clear": "Clear",
+      "unset": "Not set"
     },
     "fileCacheManager": {
       "label": "Cache Manager",
@@ -1479,6 +1485,29 @@
     "SCAN_DIR_EXISTS": "Directory already exists",
     "SCAN_DIR_NOT_FOUND": "Directory not found",
     "SCAN_DIR_NOT_SELECTED": "No directory selected",
+    "TAG_READ_FAILED": "Failed to read tags",
+    "TAG_WRITE_FAILED": "Failed to write tags",
     "UNKNOWN": "Operation failed"
+  },
+  "tagEditor": {
+    "title": "Edit Metadata",
+    "replaceCover": "Replace Cover",
+    "onlineMatch": "Auto Match Tags",
+    "matchHint": "Don't want to fill tags manually?",
+    "noMatches": "No matches found",
+    "lyricsPlaceholder": "Plain text lyrics, written to the file tag as-is",
+    "saveSuccess": "Metadata saved",
+    "saveFailed": "Save failed",
+    "fields": {
+      "title": "Title",
+      "artist": "Artist",
+      "album": "Album",
+      "albumArtist": "Album Artist",
+      "year": "Year",
+      "genre": "Genre",
+      "trackNumber": "Track No.",
+      "discNumber": "Disc No.",
+      "lyrics": "Embedded Lyrics"
+    }
   }
 }

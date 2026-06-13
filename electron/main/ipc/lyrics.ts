@@ -8,11 +8,12 @@
  * 同 key 的并发请求会被 dedup：连按多次切歌只发一次网络。
  */
 
-import { ipcMain } from "electron";
+import { ipcMain, dialog } from "electron";
 import * as netease from "@main/apis/common/lyric/netease";
 import * as qqmusic from "@main/apis/common/lyric/qqmusic";
 import * as kugou from "@main/apis/common/lyric/kugou";
 import { fetchTTML } from "@main/apis/common/lyric/ttml";
+import { matchLocalTTML } from "@main/services/localLyricRepo";
 import { buildFingerprint, getMatchedId } from "@main/database/lyricMatchCache";
 import { coreLog } from "@main/utils/logger";
 import type { LyricMatchResponse, LyricTTMLResponse } from "@shared/types/lyrics";
@@ -120,4 +121,23 @@ export const registerLyricsIpc = (): void => {
   ipcMain.handle("lyrics:fetchTTMLOverlay", (_evt, track: Track, platform: "netease" | "qqmusic") =>
     dedup(`ttml:${platform}:${track.id}`, () => resolveTTMLOverlay(track, platform)),
   );
+  ipcMain.handle(
+    "lyrics:matchLocalTTML",
+    async (_evt, track: Track): Promise<LyricTTMLResponse> => {
+      try {
+        return { ok: true, data: await matchLocalTTML(track) };
+      } catch (err) {
+        coreLog.warn(`[lyrics] matchLocalTTML(${track.title}) failed:`, err);
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+  );
+  ipcMain.handle("lyrics:pickLyricRepoDir", async (): Promise<string | null> => {
+    const result = await dialog.showOpenDialog({
+      title: "选择本地 TTML 歌词库目录",
+      properties: ["openDirectory"],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return result.filePaths[0];
+  });
 };

@@ -86,6 +86,24 @@ export const insertManyToQueue = (items: Track[], index: number): void => {
 };
 
 /**
+ * 按 id 替换队列中的曲目数据（标签编辑后同步显示）
+ * @param updates - 更新后的 Track 列表
+ */
+export const updateQueueTracks = (updates: readonly Track[]): void => {
+  if (updates.length === 0) return;
+  const byId = new Map(updates.map((item) => [item.id, item]));
+  const touched =
+    queue.value.some((item) => byId.has(item.id)) ||
+    (originalQueue.value?.some((item) => byId.has(item.id)) ?? false);
+  if (!touched) return;
+  queue.value = queue.value.map((item) => byId.get(item.id) ?? item);
+  if (originalQueue.value) {
+    originalQueue.value = originalQueue.value.map((item) => byId.get(item.id) ?? item);
+  }
+  save();
+};
+
+/**
  * 移除指定位置的歌曲，同时从 originalQueue 中移除同 ID 的歌
  * @param index - 要移除的位置，越界时静默忽略
  */

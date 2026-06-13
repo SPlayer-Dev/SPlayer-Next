@@ -9,6 +9,7 @@ import IconPlay from "~icons/lucide/play";
 import IconListEnd from "~icons/lucide/list-end";
 import IconListPlus from "~icons/lucide/list-plus";
 import IconFolderOpen from "~icons/lucide/folder-open";
+import IconSquarePen from "~icons/lucide/square-pen";
 import IconCopy from "~icons/lucide/copy";
 import IconTrash2 from "~icons/lucide/trash-2";
 import IconListMinus from "~icons/lucide/list-minus";
@@ -29,6 +30,8 @@ export interface TrackMenuOptions {
   onRemove?: (track: Track) => void;
   /** 删除文件回调 */
   onDeleteFile?: (track: Track) => void;
+  /** 编辑元数据回调 */
+  onEditTags?: (track: Track) => void;
   /** 从云盘删除回调 */
   onRemoveFromCloud?: (track: Track) => void;
 }
@@ -83,6 +86,12 @@ export const useTrackMenu = (
         label: t("songList.context.copyPath"),
         icon: markRaw(IconCopy),
         show: isLocal,
+      },
+      {
+        key: "editTags",
+        label: t("songList.context.editTags"),
+        icon: markRaw(IconSquarePen),
+        show: isLocal && !!options.onEditTags,
       },
       {
         key: "removeFromCollection",
@@ -162,6 +171,9 @@ export const useTrackMenu = (
         break;
       case "deleteFile":
         options.onDeleteFile?.(current);
+        break;
+      case "editTags":
+        options.onEditTags?.(current);
         break;
       case "removeFromCloud":
         options.onRemoveFromCloud?.(current);

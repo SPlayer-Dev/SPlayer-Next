@@ -6,6 +6,7 @@ import type { HotkeyActionId, HotkeyBinding, HotkeyConflict } from "@shared/type
 import type { LoadOptions, TrackSource } from "@shared/types/player";
 import type { StreamingServerConfig } from "@shared/types/streaming";
 import type { PlayEventInput, FavoriteEventInput } from "@shared/types/stats";
+import type { TagEditRequest } from "@shared/types/tagEditor";
 import type { UpdateEvent } from "@shared/types/update";
 
 /** 订阅主进程推送的事件 */
@@ -116,9 +117,9 @@ const api = {
     listFonts: () => ipcRenderer.invoke("system:listFonts"),
     // 拉远端字节回渲染层
     fetchRemoteBytes: (url: string) => ipcRenderer.invoke("system:fetchRemoteBytes", url),
-    // 保存图片到本地
-    saveImage: (data: ArrayBuffer, defaultName: string) =>
-      ipcRenderer.invoke("system:saveImage", data, defaultName),
+    // 保存文件到下载目录
+    saveFile: (data: ArrayBuffer, defaultName: string) =>
+      ipcRenderer.invoke("system:saveFile", data, defaultName),
     // 重启应用
     relaunch: () => ipcRenderer.invoke("system:relaunch"),
   },
@@ -158,6 +159,12 @@ const api = {
     getScanDirs: () => ipcRenderer.invoke("library:getScanDirs"),
     // 删除曲目文件并从数据库移除
     deleteTracks: (paths: string[]) => ipcRenderer.invoke("library:deleteTracks", paths),
+    // 读取本地文件的可编辑标签
+    readTags: (path: string) => ipcRenderer.invoke("library:readTags", path),
+    // 批量写入文件标签
+    writeTags: (edits: TagEditRequest[]) => ipcRenderer.invoke("library:writeTags", edits),
+    // 弹出文件选择器，选择封面图片
+    pickCoverImage: () => ipcRenderer.invoke("library:pickCoverImage"),
     // 获取歌手头像
     fetchArtistAvatar: (artistName: string) =>
       ipcRenderer.invoke("library:fetchArtistAvatar", artistName),
@@ -308,6 +315,10 @@ const api = {
     // 获取 AMLL TTML DB 的 TTML
     fetchTTMLOverlay: (track: unknown, platform: string) =>
       ipcRenderer.invoke("lyrics:fetchTTMLOverlay", track, platform),
+    // 在本地 TTML 歌词库目录中按元信息匹配
+    matchLocalTTML: (track: unknown) => ipcRenderer.invoke("lyrics:matchLocalTTML", track),
+    // 选择本地 TTML 歌词库目录
+    pickLyricRepoDir: () => ipcRenderer.invoke("lyrics:pickLyricRepoDir"),
   },
   nowPlaying: {
     // 渲染进程同步当前播放状态到主进程

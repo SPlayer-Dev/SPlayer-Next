@@ -282,6 +282,31 @@ const applyOnline = async (
   }
 };
 
+/**
+ * 本地 TTML 歌词库匹配：命中即以最高优先级提交，调用方据此跳过在线请求
+ * @param token - 竞态 token
+ * @param track - 歌曲信息
+ * @returns 是否命中
+ */
+const tryLocalRepo = async (token: number, track: Track): Promise<boolean> => {
+  const settings = useSettingsStore();
+  if (
+    !settings.system.localLyric?.enableLocalTTMLOverride ||
+    !settings.system.localLyric?.repoDir
+  ) {
+    return false;
+  }
+  const resp = await window.api.lyrics.matchLocalTTML(track);
+  if (token !== currentToken) return false;
+  if (resp.ok && resp.data) {
+    commit(token, { source: "external", format: "ttml" }, { content: resp.data });
+    if (token !== currentToken) return false;
+    // 解析后为空（TTML 损坏）视为未命中，回落在线
+    if (useMediaStore().parsedLyric.length > 0) return true;
+  }
+  return false;
+};
+
 /** 开启新一轮加载周期 */
 export const beginLoad = (): number => {
   currentToken++;
@@ -311,6 +336,9 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
       commit(token, null, null);
       return;
     }
+    // 本地 TTML 歌词库最高优先
+    if (await tryLocalRepo(token, track)) return;
+    if (token !== currentToken) return;
     // 在线歌曲（任一在线平台）
     if (isPlatform(track.source)) {
       const online = await tryOnlineByPreference(token, track, false, null);
@@ -371,7 +399,11 @@ const refreshPreference = async (): Promise<void> => {
   const token = currentToken;
   const media = useMediaStore();
   const track = media.track;
-  if (!track || track.source === "streaming") return;
+  if (!track) return;
+  // 本地 TTML 歌词库最高优先
+  if (await tryLocalRepo(token, track)) return;
+  if (token !== currentToken) return;
+  if (track.source === "streaming") return;
   // 在线歌曲（任一在线平台）
   if (isPlatform(track.source)) {
     const online = await tryOnlineByPreference(token, track, false, null);
@@ -407,6 +439,8 @@ export const watchLyricPreference = (): void => {
       settings.lyric.lyricSourcePreference,
       settings.lyric.smartPreferOnline,
       settings.system.lyric.enableOnlineTTMLLyric,
+      settings.system.localLyric.enableLocalTTMLOverride,
+      settings.system.localLyric.repoDir,
     ],
     () => {
       refreshPreference();
