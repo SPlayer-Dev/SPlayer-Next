@@ -28,7 +28,7 @@ export const registerNowPlayingIpc = (): void => {
     broadcast("nowPlaying:lyric-change", snap);
     wsBroadcast({ type: "lyric", data: { source: snap.source, lyric: snap.lyric } });
   });
-  nowPlaying.onPositionSync((data) => broadcast("nowPlaying:position-sync", data));
+  nowPlaying.onPositionSync((data) => broadcast("nowPlaying:position-sync", data, true));
   nowPlaying.onLyricOffsetChange((data) => {
     broadcast("nowPlaying:lyric-offset-change", data);
     wsBroadcast({ type: "lyricOffset", data });

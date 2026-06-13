@@ -92,7 +92,7 @@ export const load = async (source: string, autoPlay = true, meta?: Track): Promi
   const isOnline = meta?.source !== "local";
   if (isOnline) {
     void lyricLoader.loadForTrack(null);
-    extractColorFromUrl(meta?.coverOriginal ?? meta?.cover ?? null);
+    extractColorFromUrl(meta?.cover ?? meta?.coverOriginal ?? null);
   }
   try {
     const result = await window.api.player.load(source, { autoPlay, meta });

@@ -23,7 +23,7 @@ const coverColor = computed(() => {
 });
 
 // 模糊模式：双缓冲层，切歌时交叉淡入淡出
-const initialCover = media.track?.coverOriginal || media.track?.cover || DEFAULT_COVER;
+const initialCover = media.track?.cover || media.track?.coverOriginal || DEFAULT_COVER;
 const blurLayers = reactive([
   { src: initialCover, active: true },
   { src: "", active: false },
@@ -33,14 +33,12 @@ let preloadImg: HTMLImageElement | null = null;
 let switchToken = 0;
 
 watch(
-  [() => media.track?.coverOriginal || media.track?.cover, () => status.isExpanded],
+  [() => media.track?.cover || media.track?.coverOriginal, () => status.isExpanded],
   ([newCover, expanded]) => {
     if (!expanded) return;
     const token = ++switchToken;
 
     if (preloadImg) {
-      preloadImg.onload = null;
-      preloadImg.onerror = null;
       preloadImg.src = "";
       preloadImg = null;
     }
@@ -64,16 +62,18 @@ watch(
     };
     const img = new Image();
     preloadImg = img;
-    img.onload = () => switchLayer(targetCover);
-    img.onerror = () => switchLayer(DEFAULT_COVER);
     img.src = targetCover;
+    // 保证位图解码完成，避免淡入首帧在主线程同步解码
+    img
+      .decode()
+      .then(() => switchLayer(targetCover))
+      .catch(() => switchLayer(DEFAULT_COVER));
   },
 );
 
 onBeforeUnmount(() => {
+  switchToken++;
   if (preloadImg) {
-    preloadImg.onload = null;
-    preloadImg.onerror = null;
     preloadImg.src = "";
     preloadImg = null;
   }
@@ -90,6 +90,7 @@ onBeforeUnmount(() => {
       :key="index"
       :src="layer.src"
       :class="['bg-img', { active: layer.active }]"
+      decoding="async"
       alt=""
     />
   </div>

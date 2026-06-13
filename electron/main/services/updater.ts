@@ -90,7 +90,7 @@ const runCheck = (manual: boolean): void => {
   }
   checking = true;
   manualCheck = manual;
-  autoUpdater.checkForUpdates().catch();
+  autoUpdater.checkForUpdates().catch(() => {});
 };
 
 /**
