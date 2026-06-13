@@ -256,7 +256,7 @@ async fn run_mpris_loop(mut rx: UnboundedReceiver<MprisCommand>) -> Result<()> {
         .maximum_rate(2.0)
         .playback_status(MprisPlaybackStatus::Stopped)
         .identity("SPlayer-Next")
-        .desktop_entry("com.imsyy.splayer-next")
+        .desktop_entry("top.imsyy.splayer_next")
         .build()
         .await
         .map_err(|e| anyhow::anyhow!("MPRIS 初始化失败: {e}"))?;

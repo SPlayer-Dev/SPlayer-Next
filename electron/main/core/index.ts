@@ -81,7 +81,7 @@ export const initApp = (): void => {
   registerCacheScheme();
   // 其他初始化
   app.whenReady().then(() => {
-    electronApp.setAppUserModelId("com.imsyy.splayer-next");
+    electronApp.setAppUserModelId("top.imsyy.splayer-next");
     // 注册 cache:// 协议处理
     handleCacheProtocol();
     app.on("browser-window-created", (_, window) => {
