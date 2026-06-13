@@ -125,6 +125,10 @@ export class LyricRenderer {
 
   /** transform 缓存 */
   private cachedTransforms: string[] = [];
+  /** 每行是否已挂 will-change */
+  private lineWillChange: boolean[] = [];
+  /** bottom-line 是否已挂 will-change */
+  private bottomWillChange = false;
   /** 透明度缓存 */
   private cachedAlphaKeys: string[] = [];
   /** 模糊缓存 */
@@ -337,6 +341,7 @@ export class LyricRenderer {
     // 初始化缓存数组
     this.lineHeights = new Float64Array(lineCount);
     this.cachedTransforms = new Array(lineCount).fill("");
+    this.lineWillChange = new Array(lineCount).fill(false);
     this.cachedAlphaKeys = new Array(lineCount).fill("");
     this.cachedBlurKeys = new Array(lineCount).fill("");
     this.blurValues = new Float64Array(lineCount);
@@ -818,8 +823,14 @@ export class LyricRenderer {
       scaleSpring.update(deltaTime);
 
       const yPos = posSpring.getCurrentPosition();
+      const inView = yPos >= -500 && yPos <= viewHeight + 500;
+      // 合成层按需提升：仅视口附近的行挂 will-change
+      if (this.lineWillChange[i] !== inView) {
+        this.lineWillChange[i] = inView;
+        this.lineElements[i].style.willChange = inView ? "transform, filter" : "";
+      }
       // 视口裁剪：屏幕外行跳过 transform 写入
-      if (!isFullSync && (yPos < -500 || yPos > viewHeight + 500)) continue;
+      if (!isFullSync && !inView) continue;
       const scale = scaleSpring.getCurrentPosition() / 100;
       const transformStr = `translateY(${yPos.toFixed(1)}px) scale(${scale.toFixed(4)})`;
       if (this.cachedTransforms[i] !== transformStr) {
@@ -832,7 +843,12 @@ export class LyricRenderer {
     this.bottomLineSpring.update(deltaTime);
     if (this.bottomLineEl.childElementCount > 0) {
       const bottomY = this.bottomLineSpring.getCurrentPosition();
-      if (isFullSync || (bottomY >= -500 && bottomY <= viewHeight + 500)) {
+      const bottomInView = bottomY >= -500 && bottomY <= viewHeight + 500;
+      if (this.bottomWillChange !== bottomInView) {
+        this.bottomWillChange = bottomInView;
+        this.bottomLineEl.style.willChange = bottomInView ? "transform, filter" : "";
+      }
+      if (isFullSync || bottomInView) {
         const bottomTransform = `translateY(${bottomY.toFixed(1)}px)`;
         if (this.cachedBottomTransform !== bottomTransform) {
           this.cachedBottomTransform = bottomTransform;

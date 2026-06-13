@@ -51,6 +51,13 @@ const viewAuthCache = new Map<string, URLSearchParams>();
 const viewAuthKey = (cfg: StreamingServerConfig): string =>
   `${cfg.id}:${md5(cfg.password).slice(0, 8)}`;
 
+/** 失效指定服务器的视图鉴权缓存 */
+export const invalidateViewAuth = (serverId: string): void => {
+  for (const key of viewAuthCache.keys()) {
+    if (key.startsWith(`${serverId}:`)) viewAuthCache.delete(key);
+  }
+};
+
 /**
  * 视图用 builder：稳定 salt+token，整会话复用
  * cover URL 等"被 <img> 反复加载"的场景必须用这个，否则每次列表刷新都生成新 URL，
@@ -60,6 +67,7 @@ const buildViewAuth: SubsonicAuthBuilder = (cfg) => {
   const key = viewAuthKey(cfg);
   let params = viewAuthCache.get(key);
   if (!params) {
+    invalidateViewAuth(cfg.id);
     const salt = newSalt();
     params = new URLSearchParams({
       u: cfg.username,
@@ -73,13 +81,6 @@ const buildViewAuth: SubsonicAuthBuilder = (cfg) => {
   }
   // 返回拷贝，调用方 set("id", ...) 不污染缓存
   return new URLSearchParams(params);
-};
-
-/** 失效指定服务器的视图鉴权缓存（密码改变 / 服务器移除时调用） */
-export const invalidateViewAuth = (serverId: string): void => {
-  for (const key of viewAuthCache.keys()) {
-    if (key.startsWith(`${serverId}:`)) viewAuthCache.delete(key);
-  }
 };
 
 /**

@@ -5,6 +5,9 @@ import {
   restoreLyricWindows,
   getMainWindow,
   focusMainWindow,
+  getDesktopLyricWindow,
+  getDynamicIslandWindow,
+  getTaskbarLyricWindow,
 } from "@main/window";
 import { isMac } from "@main/utils/config";
 import { registerIpcHandlers } from "@main/ipc";
@@ -25,6 +28,33 @@ import { coreLog, initLogger } from "@main/utils/logger";
 const configureMemoryOptimizations = (): void => {
   // 禁止预热备用渲染进程
   app.commandLine.appendSwitch("disable-features", "SpareRendererForSitePerProcess");
+};
+
+/** 内存指标采样间隔 */
+const MEMORY_LOG_INTERVAL_MS = 10 * 60 * 1000;
+/** 启动后首次采样延迟，避开启动期波动 */
+const MEMORY_LOG_FIRST_DELAY_MS = 60 * 1000;
+
+/** 记录各进程内存工作集，用于量化内存表现与防劣化对比 */
+const logProcessMemory = (): void => {
+  // pid → 窗口名，让 Tab 进程能区分主窗口与各歌词窗口
+  const windowPids = new Map<number, string>();
+  const namedWindows: Array<[string, Electron.BrowserWindow | null]> = [
+    ["main", getMainWindow()],
+    ["desktop-lyric", getDesktopLyricWindow()],
+    ["dynamic-island", getDynamicIslandWindow()],
+    ["taskbar-lyric", getTaskbarLyricWindow()],
+  ];
+  for (const [name, win] of namedWindows) {
+    if (win && !win.isDestroyed()) windowPids.set(win.webContents.getOSProcessId(), name);
+  }
+  const parts = app.getAppMetrics().map((metric) => {
+    const mb = Math.round(metric.memory.workingSetSize / 1024);
+    const detail = windowPids.get(metric.pid) ?? metric.serviceName;
+    const label = detail ? `${metric.type}(${detail})` : metric.type;
+    return `${label} ${mb}MB`;
+  });
+  coreLog.info(`内存占用: ${parts.join(" | ")}`);
 };
 
 /**
@@ -78,6 +108,9 @@ export const initApp = (): void => {
     void startServer();
     // 初始化自动更新
     initUpdater();
+    // 周期记录各进程内存
+    setTimeout(logProcessMemory, MEMORY_LOG_FIRST_DELAY_MS);
+    setInterval(logProcessMemory, MEMORY_LOG_INTERVAL_MS);
     app.on("activate", () => {
       if (isMac) {
         if (getMainWindow()) focusMainWindow();

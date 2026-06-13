@@ -97,7 +97,8 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
           type: "position",
           data: { position: posMs, duration: durMs },
         };
-        sendToMain("player:event", positionEvent);
+        // 主窗口隐藏时跳过高频推送
+        if (getMainWindow()?.isVisible()) sendToMain("player:event", positionEvent);
         wsBroadcast(positionEvent);
         mediaService.setTimeline({ currentMs: posMs, totalMs: durMs });
         nowPlaying.onPosition(posMs, true);
@@ -107,7 +108,7 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
       }
       case "fftData": {
         const fftEvent = { type: "fftData", data: event.fftData ?? [] };
-        sendToMain("player:event", fftEvent);
+        if (getMainWindow()?.isVisible()) sendToMain("player:event", fftEvent);
         wsBroadcast(fftEvent);
         break;
       }
