@@ -88,6 +88,8 @@ export const useSettingsStore = defineStore(
       enableExcludeLyrics: true,
       excludeLyricsUserKeywords: [],
       excludeLyricsUserRegexes: [],
+      engine: "physics",
+      useAMSpring: true,
     });
 
     /** 系统配置 - 传递主进程 */

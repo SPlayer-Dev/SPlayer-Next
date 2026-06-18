@@ -109,6 +109,10 @@ export interface LyricSettings {
   excludeLyricsUserKeywords: string[];
   /** 用户自定义正则 */
   excludeLyricsUserRegexes: string[];
+  /** 歌词引擎类型 */
+  engine: "physics" | "amll";
+  /** AM 歌词是否启用物理回弹与缩放 */
+  useAMSpring: boolean;
 }
 
 /** 播放器设置 */

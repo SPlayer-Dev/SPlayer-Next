@@ -156,8 +156,7 @@ watchEffect(() => {
     playerRef.value.setHidePassedLines(props.hidePassedLines);
     playerRef.value.setEnableBlur(props.enableBlur);
     
-    // 外部高级设置项读取与同步
-    const useSpring = (settings.player as any).useAMSpring ?? true;
+    const useSpring = settings.lyric.useAMSpring;
     playerRef.value.setEnableSpring(useSpring);
     playerRef.value.setEnableScale(useSpring);
   }

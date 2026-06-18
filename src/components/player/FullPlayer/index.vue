@@ -9,6 +9,7 @@ import { useFavorite } from "@/composables/useFavorite";
 import { useDownload, buildDownloadQualityItems } from "@/composables/useDownload";
 import { usePlaylistPicker } from "@/composables/usePlaylistPicker";
 import Lyrics from "@/components/player/Lyrics/index.vue";
+import AMLLLyrics from "@/components/player/Lyrics/AMLLLyrics.vue";
 import PlaylistPickerDialog from "@/components/modals/PlaylistPickerDialog.vue";
 import { useWindowControls } from "@/composables/useWindowControls";
 import * as player from "@/core/player";
@@ -39,7 +40,7 @@ const {
 } = storeToRefs(status);
 
 /** 歌词组件引用 */
-const lyricRef = ref<InstanceType<typeof Lyrics>>();
+const lyricRef = ref<InstanceType<typeof Lyrics> | InstanceType<typeof AMLLLyrics>>();
 
 /** 精确播放时间（毫秒）；offset 直接读 status mirror（主进程权威源） */
 const { start: startTick, stop: stopTick } = usePlaybackTime((currentMs) => {
@@ -119,6 +120,20 @@ watch(
   () => media.parsedLyric,
   () => {
     lyricRef.value?.setCurrentTime(getCurrentTime() + status.lyricOffsetMs);
+  },
+);
+
+// 切换歌词引擎时，重新计算初始并推送时间
+watch(
+  () => settings.lyric.engine,
+  () => {
+    initialLyricTimeMs.value = getCurrentTime() + status.lyricOffsetMs;
+    nextTick(() => {
+      lyricRef.value?.setCurrentTime(getCurrentTime() + status.lyricOffsetMs);
+      if (isPlaying.value) {
+        lyricRef.value?.resume();
+      }
+    });
   },
 );
 
@@ -357,8 +372,22 @@ const toggleLyric = (): void => {
                 fontFamily: settings.lyric.fontFamily || undefined,
               }"
             >
+              <AMLLLyrics
+                v-if="lyricMounted && hasLyric && settings.lyric.engine === 'amll'"
+                ref="lyricRef"
+                :lyric-lines="media.parsedLyric"
+                :initial-time="initialLyricTimeMs"
+                :playing="isPlaying"
+                :align-position="settings.lyric.alignPosition"
+                :word-fade-width="settings.lyric.wordFadeWidth"
+                :hide-passed-lines="settings.lyric.hidePassedLines"
+                :enable-blur="settings.lyric.enableBlur"
+                :show-translation="settings.lyric.showTranslation"
+                :show-romanization="settings.lyric.showRomanization"
+                @seek="player.seek($event)"
+              />
               <Lyrics
-                v-if="lyricMounted && hasLyric"
+                v-else-if="lyricMounted && hasLyric"
                 ref="lyricRef"
                 :lyric-lines="media.parsedLyric"
                 :initial-time="initialLyricTimeMs"
