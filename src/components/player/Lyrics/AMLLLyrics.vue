@@ -23,6 +23,10 @@ const props = withDefaults(
     showTranslation?: boolean;
     /** 是否显示音译歌词 */
     showRomanization?: boolean;
+    /** 是否显示逐行音译 */
+    showLineRomanization?: boolean;
+    /** 是否显示逐词音译 */
+    showWordRomanization?: boolean;
     /** 挂载时的初始播放时间（毫秒） */
     initialTime?: number;
   }>(),
@@ -34,6 +38,8 @@ const props = withDefaults(
     enableBlur: false,
     showTranslation: true,
     showRomanization: true,
+    showLineRomanization: true,
+    showWordRomanization: true,
     initialTime: 0,
   },
 );
@@ -61,12 +67,12 @@ const processedLyrics = computed(() => {
     const newLine = {
       ...line,
       translatedLyric: props.showTranslation ? line.translatedLyric : "",
-      romanLyric: props.showRomanization ? line.romanLyric : "",
+      romanLyric: props.showLineRomanization ? line.romanLyric : "",
     };
     if (line.words) {
       newLine.words = line.words.map((w) => {
         const newWord = { ...w };
-        if (!props.showRomanization) {
+        if (!props.showWordRomanization) {
           delete newWord.romanWord;
         }
         return newWord;

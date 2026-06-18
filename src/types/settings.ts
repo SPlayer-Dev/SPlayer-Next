@@ -79,6 +79,10 @@ export interface LyricSettings {
   showTranslation: boolean;
   /** 是否显示音译歌词 */
   showRomanization: boolean;
+  /** AMLL 是否显示逐行音译 */
+  amllShowLineRomanization: boolean;
+  /** AMLL 是否显示逐词音译 */
+  amllShowWordRomanization: boolean;
   /** 逐字高亮效果 */
   enableWordHighlight: boolean;
   /** 逐字上浮动画 */

@@ -73,6 +73,8 @@ export const useSettingsStore = defineStore(
       fontFamily: "",
       showTranslation: true,
       showRomanization: true,
+      amllShowLineRomanization: true,
+      amllShowWordRomanization: true,
       enableWordHighlight: true,
       enableFloatAnimation: false,
       enableEmphasizeEffect: false,

@@ -922,6 +922,14 @@
       "label": "Show Romanization",
       "description": "Display romanized lyrics"
     },
+    "amllShowLineRomanization": {
+      "label": "Show Line Romanization",
+      "description": "Display romanized lyrics for each line"
+    },
+    "amllShowWordRomanization": {
+      "label": "Show Word Romanization",
+      "description": "Display romanized lyrics for each word in word-by-word lyrics"
+    },
     "enableWordHighlight": {
       "label": "Word Highlight",
       "description": "Show word-by-word lyric highlight progress"

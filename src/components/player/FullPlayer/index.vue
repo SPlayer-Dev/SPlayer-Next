@@ -383,7 +383,8 @@ const toggleLyric = (): void => {
                 :hide-passed-lines="settings.lyric.hidePassedLines"
                 :enable-blur="settings.lyric.enableBlur"
                 :show-translation="settings.lyric.showTranslation"
-                :show-romanization="settings.lyric.showRomanization"
+                :show-line-romanization="settings.lyric.amllShowLineRomanization"
+                :show-word-romanization="settings.lyric.amllShowWordRomanization"
                 @seek="player.seek($event)"
               />
               <Lyrics

@@ -910,6 +910,14 @@
       "label": "显示音译",
       "description": "显示歌词的音译文本"
     },
+    "amllShowLineRomanization": {
+      "label": "显示逐行音译",
+      "description": "显示歌词行的音译文本"
+    },
+    "amllShowWordRomanization": {
+      "label": "显示逐词音译",
+      "description": "在逐字歌词中，显示每个字词的音译文本"
+    },
     "enableWordHighlight": {
       "label": "逐字高亮",
       "description": "逐字显示歌词高亮进度"
