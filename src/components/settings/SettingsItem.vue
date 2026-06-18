@@ -19,6 +19,7 @@ const selectOptions = computed(() =>
 );
 
 const isChildrenActive = computed(() => {
+  if (props.item.type === "title") return true;
   if (props.item.childrenCondition) return props.item.childrenCondition();
   return model.value === true;
 });
@@ -39,6 +40,14 @@ const descriptionText = computed(() =>
       class="transition-all duration-300"
       :class="highlighted ? 'animate-highlight-pulse' : ''"
     />
+    <!-- title：二级标题 -->
+    <div
+      v-else-if="item.type === 'title'"
+      class="text-sm font-semibold text-on-surface-variant/80 mt-4 mb-2 first:mt-1 px-1 flex items-center gap-2"
+    >
+      <span class="w-1 h-3 rounded-full bg-primary/60" />
+      <span>{{ t(`settings.${item.key}.label`) }}</span>
+    </div>
     <div
       v-else
       class="flex items-center justify-between gap-4 rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3.5 transition-all duration-300"
@@ -126,7 +135,10 @@ const descriptionText = computed(() =>
     <div
       v-if="item.children?.length && (!item.hideChildren || isChildrenActive)"
       class="mt-2.5 flex flex-col gap-2.5 transition-opacity duration-200"
-      :class="isChildrenActive ? '' : 'opacity-50 pointer-events-none'"
+      :class="[
+        isChildrenActive ? '' : 'opacity-50 pointer-events-none',
+        item.indentChildren !== false ? 'pl-4 border-l border-solid border-outline-variant/15 ml-3.5' : ''
+      ]"
     >
       <SettingsItem v-for="child in item.children" :key="child.key" :item="child" />
     </div>

@@ -636,6 +636,7 @@
       "lyricDisplay": "显示效果",
       "lyricSpring": "弹簧动画",
       "lyricLayout": "布局与透明度",
+      "amllLyricSpring": "物理回弹与缩放",
       "desktopLyric": "桌面歌词",
       "dynamicIsland": "灵动岛歌词",
       "taskbarLyric": "任务栏歌词",
@@ -836,8 +837,14 @@
       "amll": "AMLL"
     },
     "useAMSpring": {
-      "label": "物理回弹与缩放",
-      "description": "为 Apple Music 风格歌词行启用物理弹性回弹与焦点行缩放效果"
+      "label": "弹簧动画调试开关",
+      "description": "为 applemusic-like-lyrics 启用物理弹性回弹与焦点行缩放效果"
+    },
+    "amllVerticalSpringHeader": {
+      "label": "垂直位移弹簧参数"
+    },
+    "amllScaleSpringHeader": {
+      "label": "缩放弹簧参数"
     },
     "amllVerticalSpringMass": {
       "label": "垂直回弹质量",

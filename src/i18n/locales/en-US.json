@@ -648,6 +648,7 @@
       "lyricDisplay": "Display Effects",
       "lyricSpring": "Spring Animation",
       "lyricLayout": "Layout & Opacity",
+      "amllLyricSpring": "Physics Spring & Scale",
       "desktopLyric": "Desktop Lyric",
       "dynamicIsland": "Dynamic Island Lyric",
       "taskbarLyric": "Taskbar Lyric",
@@ -848,8 +849,14 @@
       "amll": "AMLL"
     },
     "useAMSpring": {
-      "label": "Physics Spring & Scale",
+      "label": "Spring Animation Debug Switch",
       "description": "Enable spring bounce and active line scaling effects for applemusic-like-lyrics"
+    },
+    "amllVerticalSpringHeader": {
+      "label": "Vertical Translation Spring Parameters"
+    },
+    "amllScaleSpringHeader": {
+      "label": "Scale Spring Parameters"
     },
     "amllVerticalSpringMass": {
       "label": "Vertical Spring Mass",
