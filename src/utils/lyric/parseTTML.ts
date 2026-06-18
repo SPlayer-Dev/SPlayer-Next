@@ -424,3 +424,77 @@ export const parseTTML = (text: string, preferredLang = ""): LyricLine[] => {
 
   return lines;
 };
+
+/**
+ * 清洗 TTML 中不需要的翻译，过滤非首选语言节点，避免上游解析器混淆
+ * @param ttmlContent 原始 TTML 内容
+ * @param preferredLang 偏好的语言（如 zh-CN）
+ * @returns 清洗后的 TTML 内容
+ */
+export const cleanTTMLTranslations = (ttmlContent: string, preferredLang = ""): string => {
+  /**
+   * 统计 TTML 中的语言
+   */
+  const langCounter = (ttml_text: string) => {
+    const langRegex = /(?<=<(span|translation)[^<>]+)xml:lang="([^"]+)"/g;
+    const matches = ttml_text.matchAll(langRegex);
+    const langSet = new Set<string>();
+    for (const match of matches) {
+      if (match[2]) langSet.add(match[2]);
+    }
+    return Array.from(langSet);
+  };
+
+  /**
+   * 过滤语言并选择最佳匹配
+   */
+  const langFilter = (langs: string[]): string | null => {
+    if (langs.length <= 1) return null;
+
+    const langMatcher = (target: string) => {
+      return langs.find((lang) => {
+        try {
+          return new Intl.Locale(lang).maximize().script === target;
+        } catch {
+          return false;
+        }
+      });
+    };
+
+    // 优先匹配用户的偏好语言
+    if (preferredLang) {
+      const preferred = preferredLang.toLowerCase().replace(/_/g, "-");
+      const matched = langs.find((lang) => lang.toLowerCase().replace(/_/g, "-") === preferred);
+      if (matched) return matched;
+
+      const prefBase = preferred.split("-")[0];
+      const matchedBase = langs.find((lang) => lang.toLowerCase().replace(/_/g, "-").split("-")[0] === prefBase);
+      if (matchedBase) return matchedBase;
+    }
+
+    // 备选的中文脚本匹配优先级
+    const hans_matched = langMatcher("Hans");
+    if (hans_matched) return hans_matched;
+    const hant_matched = langMatcher("Hant");
+    if (hant_matched) return hant_matched;
+    const major = langs.find((key) => key.startsWith("zh"));
+    if (major) return major;
+    return langs[0];
+  };
+
+  /**
+   * 替换清洗标签
+   */
+  const ttmlCleaner = (ttml_text: string, major_lang: string | null): string => {
+    if (major_lang === null) return ttml_text;
+    const replacer = (match: string, lang: string) => (lang === major_lang ? match : "");
+    const translationRegex = /<translation[^>]+xml:lang="([^"]+)"[^>]*>[\s\S]*?<\/translation>/g;
+    const spanRegex = /<span[^>]+xml:lang="([^" ]+)"[^>]*>[\s\S]*?<\/span>/g;
+    return ttml_text.replace(translationRegex, replacer).replace(spanRegex, replacer);
+  };
+
+  const context_lang = langCounter(ttmlContent);
+  const major = langFilter(context_lang);
+  const cleaned_ttml = ttmlCleaner(ttmlContent, major);
+  return cleaned_ttml.replace(/\n\s*/g, "");
+};
