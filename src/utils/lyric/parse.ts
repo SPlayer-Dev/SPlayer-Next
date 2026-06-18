@@ -4,7 +4,8 @@ import { parseLRC } from "./parseLRC";
 import { parseQRC } from "./parseQRC";
 import { parseYRC } from "./parseYRC";
 import { parseKRC } from "./parseKRC";
-import { parseTTML } from "./parseTTML";
+import { parseTTML, cleanTTMLTranslations } from "./parseTTML";
+import { parseTTML as parseAMLLTtml, parseYrc as parseAMLLYrc } from "@applemusic-like-lyrics/lyric";
 import { parseLyS } from "./parseLyS";
 import { parseSRT } from "./parseSRT";
 import { parseASS } from "./parseASS";
@@ -70,14 +71,26 @@ export const detectFormat = (text: string): LyricFormat => {
  */
 const parseContent = (text: string, format: LyricFormat, preferredLang = ""): LyricLine[] => {
   switch (format) {
-    case "ttml":
-      return parseTTML(text, preferredLang);
+    case "ttml": {
+      const cleaned = cleanTTMLTranslations(text, preferredLang);
+      try {
+        return parseAMLLTtml(cleaned).lines || [];
+      } catch (err) {
+        console.error("AMLL TTML parse failed, fallback to local parseTTML:", err);
+        return parseTTML(text, preferredLang);
+      }
+    }
     case "qrc":
       return parseQRC(text);
     case "krc":
       return parseKRC(text);
     case "yrc":
-      return parseYRC(text);
+      try {
+        return parseAMLLYrc(text) || [];
+      } catch (err) {
+        console.error("AMLL YRC parse failed, fallback to local parseYRC:", err);
+        return parseYRC(text);
+      }
     case "lrc":
       return parseLRC(text);
     case "lys":
