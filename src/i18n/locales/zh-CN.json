@@ -607,6 +607,7 @@
       "general": "常规设置",
       "player": "播放设置",
       "lyric": "歌词设置",
+      "fullScreenLyric": "全屏歌词",
       "externalLyric": "外部歌词",
       "appearance": "外观设置",
       "hotkeys": "快捷键配置",
@@ -627,6 +628,7 @@
       "language": "语言",
       "playback": "播放器",
       "playControl": "播放控制",
+      "lyricEngine": "歌词引擎",
       "lyricContent": "歌词内容",
       "lyricTTML": "TTML 歌词",
       "lyricExclude": "歌词排除",
@@ -824,6 +826,18 @@
         "togglePlaylist": "展开 / 收起播放列表",
         "openSearch": "打开搜索"
       }
+    },
+    "engine": {
+      "label": "歌词渲染引擎",
+      "description": "选择用于歌词渲染与滚动的动效引擎"
+    },
+    "lyricEngine": {
+      "physics": "默认",
+      "amll": "AMLL"
+    },
+    "useAMSpring": {
+      "label": "物理回弹与缩放",
+      "description": "为 Apple Music 风格歌词行启用物理弹性回弹与焦点行缩放效果"
     },
     "autoCenterCover": {
       "label": "自动居中封面",

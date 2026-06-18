@@ -619,6 +619,7 @@
       "general": "General",
       "player": "Player",
       "lyric": "Lyrics",
+      "fullScreenLyric": "Full-screen Lyrics",
       "externalLyric": "External Lyrics",
       "appearance": "Appearance",
       "hotkeys": "Hotkey Settings",
@@ -639,6 +640,7 @@
       "language": "Language",
       "playback": "Player",
       "playControl": "Playback Control",
+      "lyricEngine": "Lyric Engine",
       "lyricContent": "Lyric Content",
       "lyricTTML": "TTML Lyrics",
       "lyricExclude": "Metadata Stripping",
@@ -836,6 +838,18 @@
         "togglePlaylist": "Show / hide playlist",
         "openSearch": "Open search"
       }
+    },
+    "engine": {
+      "label": "Lyric Engine",
+      "description": "Choose the engine type used for lyric rendering and scrolling"
+    },
+    "lyricEngine": {
+      "physics": "Default",
+      "amll": "AMLL"
+    },
+    "useAMSpring": {
+      "label": "Physics Spring & Scale",
+      "description": "Enable spring bounce and active line scaling effects for applemusic-like-lyrics"
     },
     "autoCenterCover": {
       "label": "Auto Center Cover",

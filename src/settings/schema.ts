@@ -3,6 +3,7 @@ import generalCategory from "./categories/general";
 import appearanceCategory from "./categories/appearance";
 import playerCategory from "./categories/player";
 import lyricCategory from "./categories/lyric";
+import fullScreenLyricCategory from "./categories/fullScreenLyric";
 import externalLyricCategory from "./categories/externalLyric";
 import hotkeysCategory from "./categories/hotkeys";
 import servicesCategory from "./categories/services";
@@ -18,6 +19,7 @@ export const settingsSchema: SettingCategory[] = [
   appearanceCategory,
   playerCategory,
   lyricCategory,
+  fullScreenLyricCategory,
   externalLyricCategory,
   hotkeysCategory,
   servicesCategory,

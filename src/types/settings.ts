@@ -5,7 +5,7 @@ import { ALL_PLATFORMS } from "@shared/types/platform";
 import type { QualityLevel } from "@/utils/quality";
 
 /** 播放器背景类型 */
-export type PlayerBgType = "blur" | "solid";
+export type PlayerBgType = "blur" | "solid" | "animation";
 export type CoverLayout = "default" | "fullscreen";
 
 /**
