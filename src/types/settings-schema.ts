@@ -51,6 +51,8 @@ export interface SettingItem {
   hideDescription?: boolean;
   /** 条件禁用 */
   disabled?: () => boolean;
+  /** 条件隐藏 */
+  visible?: () => boolean;
   /** button 类型的点击回调 */
   action?: () => void;
   /** custom 类型的组件 */

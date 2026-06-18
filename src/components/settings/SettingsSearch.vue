@@ -29,6 +29,7 @@ const results = computed<SearchResult[]>(() => {
   for (const cat of settingsSchema) {
     for (const sec of cat.sections ?? []) {
       for (const item of sec.items) {
+        if (item.visible && !item.visible()) continue;
         const label = t(`settings.${item.key}.label`);
         const desc = item.hideDescription ? "" : t(`settings.${item.key}.description`);
         const kw = item.keywords?.map((k) => t(k)).join(" ") ?? "";
