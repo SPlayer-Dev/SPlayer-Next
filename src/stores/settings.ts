@@ -90,6 +90,14 @@ export const useSettingsStore = defineStore(
       excludeLyricsUserRegexes: [],
       engine: "physics",
       useAMSpring: true,
+      amllVerticalSpringMass: 1,
+      amllVerticalSpringDamping: 15,
+      amllVerticalSpringStiffness: 100,
+      amllVerticalSpringSoft: false,
+      amllScaleSpringMass: 1,
+      amllScaleSpringDamping: 20,
+      amllScaleSpringStiffness: 100,
+      amllScaleSpringSoft: false,
     });
 
     /** 系统配置 - 传递主进程 */
