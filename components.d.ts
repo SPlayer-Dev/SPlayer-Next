@@ -14,6 +14,7 @@ declare module 'vue' {
     AbLoopDialog: typeof import('./src/components/modals/AbLoopDialog.vue')['default']
     AboutSettings: typeof import('./src/components/settings/custom/AboutSettings.vue')['default']
     AmllDbServerConfig: typeof import('./src/components/settings/custom/AmllDbServerConfig.vue')['default']
+    AMLLLyrics: typeof import('./src/components/player/Lyrics/AMLLLyrics.vue')['default']
     AppBackground: typeof import('./src/components/AppBackground.vue')['default']
     AutoCloseDialog: typeof import('./src/components/modals/AutoCloseDialog.vue')['default']
     BackgroundImagePicker: typeof import('./src/components/settings/custom/BackgroundImagePicker.vue')['default']
