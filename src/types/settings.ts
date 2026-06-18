@@ -113,6 +113,16 @@ export interface LyricSettings {
   engine: "physics" | "amll";
   /** AM 歌词是否启用物理回弹与缩放 */
   useAMSpring: boolean;
+  /** AMLL 垂直位移弹簧参数 */
+  amllVerticalSpringMass: number;
+  amllVerticalSpringDamping: number;
+  amllVerticalSpringStiffness: number;
+  amllVerticalSpringSoft: boolean;
+  /** AMLL 缩放弹簧参数 */
+  amllScaleSpringMass: number;
+  amllScaleSpringDamping: number;
+  amllScaleSpringStiffness: number;
+  amllScaleSpringSoft: boolean;
 }
 
 /** 播放器设置 */
