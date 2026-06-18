@@ -137,7 +137,9 @@ const descriptionText = computed(() =>
       class="mt-2.5 flex flex-col gap-2.5 transition-opacity duration-200"
       :class="[
         isChildrenActive ? '' : 'opacity-50 pointer-events-none',
-        item.indentChildren !== false ? 'pl-4 border-l border-solid border-outline-variant/15 ml-3.5' : ''
+        item.indentChildren !== false
+          ? 'pl-4 border-l border-solid border-outline-variant/15 ml-3.5'
+          : '',
       ]"
     >
       <SettingsItem v-for="child in item.children" :key="child.key" :item="child" />

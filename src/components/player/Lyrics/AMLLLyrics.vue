@@ -89,7 +89,7 @@ onMounted(() => {
   if (wrapperRef.value) {
     // 创建 AMLL Core 歌词播放器实例
     playerRef.value = new CoreLyricPlayer();
-    
+
     // 挂载到容器中
     const el = playerRef.value.getElement();
     el.style.width = "100%";
@@ -155,7 +155,7 @@ watchEffect(() => {
     playerRef.value.setWordFadeWidth(props.wordFadeWidth);
     playerRef.value.setHidePassedLines(props.hidePassedLines);
     playerRef.value.setEnableBlur(props.enableBlur);
-    
+
     const useSpring = settings.lyric.useAMSpring;
     playerRef.value.setEnableSpring(useSpring);
     playerRef.value.setEnableScale(useSpring);

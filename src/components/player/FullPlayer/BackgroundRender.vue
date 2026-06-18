@@ -118,7 +118,7 @@ onMounted(() => {
   if (wrapperRef.value) {
     // 初始化 AMLL 底层渲染器
     bgRenderRef.value = CoreBackgroundRender.new(props.renderer);
-    
+
     // 设置 Canvas 自适应容器并附着 DOM
     const el = bgRenderRef.value.getElement();
     el.style.width = "100%";
@@ -212,11 +212,7 @@ defineExpose({
 </script>
 
 <template>
-  <div
-    ref="wrapperRef"
-    class="background-render-wrapper"
-    aria-hidden="true"
-  />
+  <div ref="wrapperRef" class="background-render-wrapper" aria-hidden="true" />
 </template>
 
 <style scoped>

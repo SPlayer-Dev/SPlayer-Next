@@ -468,7 +468,9 @@ export const cleanTTMLTranslations = (ttmlContent: string, preferredLang = ""): 
       if (matched) return matched;
 
       const prefBase = preferred.split("-")[0];
-      const matchedBase = langs.find((lang) => lang.toLowerCase().replace(/_/g, "-").split("-")[0] === prefBase);
+      const matchedBase = langs.find(
+        (lang) => lang.toLowerCase().replace(/_/g, "-").split("-")[0] === prefBase,
+      );
       if (matchedBase) return matchedBase;
     }
 

@@ -5,7 +5,10 @@ import { parseQRC } from "./parseQRC";
 import { parseYRC } from "./parseYRC";
 import { parseKRC } from "./parseKRC";
 import { parseTTML, cleanTTMLTranslations } from "./parseTTML";
-import { parseTTML as parseAMLLTtml, parseYrc as parseAMLLYrc } from "@applemusic-like-lyrics/lyric";
+import {
+  parseTTML as parseAMLLTtml,
+  parseYrc as parseAMLLYrc,
+} from "@applemusic-like-lyrics/lyric";
 import { parseLyS } from "./parseLyS";
 import { parseSRT } from "./parseSRT";
 import { parseASS } from "./parseASS";
