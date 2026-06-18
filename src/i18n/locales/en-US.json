@@ -851,6 +851,38 @@
       "label": "Physics Spring & Scale",
       "description": "Enable spring bounce and active line scaling effects for applemusic-like-lyrics"
     },
+    "amllVerticalSpringMass": {
+      "label": "Vertical Spring Mass",
+      "description": "Mass of the vertical scrolling physics spring. Larger mass increases spring inertia."
+    },
+    "amllVerticalSpringDamping": {
+      "label": "Vertical Spring Damping",
+      "description": "Damping of the vertical scrolling physics spring. Larger damping reduces oscillation and settles faster."
+    },
+    "amllVerticalSpringStiffness": {
+      "label": "Vertical Spring Stiffness",
+      "description": "Stiffness of the vertical scrolling physics spring. Larger stiffness pulls harder and bounces quicker."
+    },
+    "amllVerticalSpringSoft": {
+      "label": "Vertical Soft Spring",
+      "description": "Forces the vertical scrolling to use a softer spring profile."
+    },
+    "amllScaleSpringMass": {
+      "label": "Scale Spring Mass",
+      "description": "Mass of the active line scale animation. Larger mass increases scale bounce inertia."
+    },
+    "amllScaleSpringDamping": {
+      "label": "Scale Spring Damping",
+      "description": "Damping of the active line scale animation. Larger damping reduces scale jitter and settles faster."
+    },
+    "amllScaleSpringStiffness": {
+      "label": "Scale Spring Stiffness",
+      "description": "Stiffness of the active line scale animation. Larger stiffness responds and scales quicker."
+    },
+    "amllScaleSpringSoft": {
+      "label": "Scale Soft Spring",
+      "description": "Forces the active line scale animation to use a softer spring profile."
+    },
     "autoCenterCover": {
       "label": "Auto Center Cover",
       "description": "Center cover and hide lyric area when no lyrics available"

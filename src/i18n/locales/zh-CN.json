@@ -839,6 +839,38 @@
       "label": "物理回弹与缩放",
       "description": "为 Apple Music 风格歌词行启用物理弹性回弹与焦点行缩放效果"
     },
+    "amllVerticalSpringMass": {
+      "label": "垂直回弹质量",
+      "description": "垂直弹性滚动的惯性质量。质量越大，回弹惯性越大"
+    },
+    "amllVerticalSpringDamping": {
+      "label": "垂直回弹阻尼",
+      "description": "垂直弹性滚动的阻尼阻力。阻力越大，回弹振幅越小且越快静止"
+    },
+    "amllVerticalSpringStiffness": {
+      "label": "垂直回弹刚度",
+      "description": "垂直弹性滚动的弹簧刚度。刚度越大，拉力越强，回弹速度越快"
+    },
+    "amllVerticalSpringSoft": {
+      "label": "垂直强制软弹簧",
+      "description": "启用后将强制使用较软的垂直滚动弹簧动效"
+    },
+    "amllScaleSpringMass": {
+      "label": "缩放回弹质量",
+      "description": "焦点行缩放动画的质量。值越大，缩放回弹的惯性越大"
+    },
+    "amllScaleSpringDamping": {
+      "label": "缩放回弹阻尼",
+      "description": "焦点行缩放动画的阻尼阻力。值越大，缩放震荡越少且越快静止"
+    },
+    "amllScaleSpringStiffness": {
+      "label": "缩放回弹刚度",
+      "description": "焦点行缩放动画的弹簧刚度。值越大，缩放回弹越迅速"
+    },
+    "amllScaleSpringSoft": {
+      "label": "缩放强制软弹簧",
+      "description": "启用后将强制使用较软的焦点行缩放弹簧动效"
+    },
     "autoCenterCover": {
       "label": "自动居中封面",
       "description": "无歌词时自动居中封面并隐藏歌词区域"
