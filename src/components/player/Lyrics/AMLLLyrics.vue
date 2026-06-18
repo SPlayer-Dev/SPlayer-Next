@@ -159,6 +159,19 @@ watchEffect(() => {
     const useSpring = settings.lyric.useAMSpring;
     playerRef.value.setEnableSpring(useSpring);
     playerRef.value.setEnableScale(useSpring);
+
+    playerRef.value.setLinePosYSpringParams({
+      mass: settings.lyric.amllVerticalSpringMass,
+      damping: settings.lyric.amllVerticalSpringDamping,
+      stiffness: settings.lyric.amllVerticalSpringStiffness,
+      soft: settings.lyric.amllVerticalSpringSoft,
+    });
+    playerRef.value.setLineScaleSpringParams({
+      mass: settings.lyric.amllScaleSpringMass,
+      damping: settings.lyric.amllScaleSpringDamping,
+      stiffness: settings.lyric.amllScaleSpringStiffness,
+      soft: settings.lyric.amllScaleSpringSoft,
+    });
   }
 });
 
@@ -221,6 +234,7 @@ defineExpose({
 }
 
 :deep(.amll-lyric-player) {
+  --amll-lp-font-size: 1em;
   width: 100%;
   height: 100%;
   padding-left: 10%;
