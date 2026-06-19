@@ -41,4 +41,3 @@ export const extractLyricAuthors = (content: string, format: LyricFormat): strin
 export const extractLyricAuthor = (content: string, format: LyricFormat): string | null => {
   return extractLyricAuthors(content, format)[0] || null;
 };
-

@@ -54,11 +54,6 @@ const lyricMounted = ref(false);
 /** 初始播放时间 */
 const initialLyricTimeMs = ref(0);
 
-/** 歌词制作者 GitHub 主页（点击跳转） */
-const authorGitHubUrl = computed(() =>
-  media.lyricAuthor ? `https://github.com/${media.lyricAuthor}` : "",
-);
-
 /** 展开前 */
 const onBeforeEnter = () => {
   if (lyricMounted.value) {
@@ -407,14 +402,17 @@ const toggleLyric = (): void => {
                 @seek="player.seek($event)"
               >
                 <template #bottom>
-                  <div v-if="media.lyricAuthor" class="lyric-credit-line">
+                  <div v-if="media.lyricAuthors.length > 0" class="lyric-credit-line">
                     {{ $t("player.lyricCredit") }}
-                    <span
-                      class="lp-content lyric-credit"
-                      @click.stop="openExternal(authorGitHubUrl)"
-                    >
-                      {{ "@" + media.lyricAuthor }}
-                    </span>
+                    <template v-for="(author, idx) in media.lyricAuthors" :key="author">
+                      <span v-if="idx > 0" class="mx-1">,</span>
+                      <span
+                        class="lp-content lyric-credit"
+                        @click.stop="openExternal(`https://github.com/${author}`)"
+                      >
+                        {{ "@" + author }}
+                      </span>
+                    </template>
                   </div>
                 </template>
               </Lyrics>
