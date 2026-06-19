@@ -381,7 +381,22 @@ const toggleLyric = (): void => {
                 :show-line-romanization="settings.lyric.amllShowLineRomanization"
                 :show-word-romanization="settings.lyric.amllShowWordRomanization"
                 @seek="player.seek($event)"
-              />
+              >
+                <template #bottom>
+                  <div v-if="media.lyricAuthors.length > 0" class="lyric-credit-line">
+                    <span class="lyric-credit-prefix">{{ $t("player.lyricCredit") }}</span>
+                    <template v-for="(author, idx) in media.lyricAuthors" :key="author">
+                      <span v-if="idx > 0" class="mx-1">,</span>
+                      <span
+                        class="lp-content lyric-credit"
+                        @click.stop="openExternal(`https://github.com/${author}`)"
+                      >
+                        {{ "@" + author }}
+                      </span>
+                    </template>
+                  </div>
+                </template>
+              </AMLLLyrics>
               <Lyrics
                 v-else-if="lyricMounted && hasLyric"
                 ref="lyricRef"
@@ -403,7 +418,7 @@ const toggleLyric = (): void => {
               >
                 <template #bottom>
                   <div v-if="media.lyricAuthors.length > 0" class="lyric-credit-line">
-                    {{ $t("player.lyricCredit") }}
+                    <span class="lyric-credit-prefix">{{ $t("player.lyricCredit") }}</span>
                     <template v-for="(author, idx) in media.lyricAuthors" :key="author">
                       <span v-if="idx > 0" class="mx-1">,</span>
                       <span
@@ -637,6 +652,12 @@ const toggleLyric = (): void => {
 
 .lyric-credit-line {
   font-size: max(0.5em, 10px);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  text-align: left;
+  width: 100%;
 }
 
 .lyric-credit {

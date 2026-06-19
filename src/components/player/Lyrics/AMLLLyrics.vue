@@ -4,6 +4,7 @@ import type { LyricLine } from "@shared/types/lyrics";
 import { LyricPlayer as CoreLyricPlayer } from "@applemusic-like-lyrics/core";
 import { useSettingsStore } from "@/stores/settings";
 import "@applemusic-like-lyrics/core/style.css";
+import "./renderer.css";
 
 const props = withDefaults(
   defineProps<{
@@ -54,6 +55,7 @@ const emit = defineEmits<Emits>();
 const settings = useSettingsStore();
 const wrapperRef = ref<HTMLDivElement | null>(null);
 const playerRef = ref<CoreLyricPlayer>();
+const bottomLineEl = ref<HTMLElement>();
 
 // 是否被父组件冻结
 let isFrozen = false;
@@ -102,6 +104,13 @@ onMounted(() => {
     el.style.height = "100%";
     wrapperRef.value.appendChild(el);
 
+    // 获取底栏 DOM 节点
+    const bottomEl = playerRef.value.getBottomLineElement();
+    if (bottomEl) {
+      bottomEl.classList.add("lp-line", "lp-credit");
+    }
+    bottomLineEl.value = bottomEl;
+
     // 绑定行点击事件
     playerRef.value.addEventListener("line-click", handleLineClick);
 
@@ -120,6 +129,7 @@ onUnmounted(() => {
     playerRef.value.removeEventListener("line-click", handleLineClick);
     playerRef.value.dispose();
     playerRef.value = undefined;
+    bottomLineEl.value = undefined;
   }
 });
 
@@ -228,6 +238,9 @@ defineExpose({
 
 <template>
   <div ref="wrapperRef" class="amll-lyrics-container" />
+  <Teleport v-if="bottomLineEl" :to="bottomLineEl">
+    <slot name="bottom" />
+  </Teleport>
 </template>
 
 <style scoped>
@@ -252,6 +265,52 @@ defineExpose({
   :deep(.amll-lyric-player) {
     padding-left: 20px;
     padding-right: 20px;
+  }
+}
+
+/* 强制让 AMLL 底栏容器与默认组件的样式与对齐保持完全一致 */
+:deep(.lp-line.lp-credit) {
+  position: absolute !important;
+  left: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  padding-left: var(--lyric-line-padding-x, 1em) !important; /* 对齐 lyricMainLine 的起始位置 */
+  padding-right: var(--lyric-line-padding-x, 1em) !important; /* 对齐 lyricMainLine 的结束位置 */
+  text-align: left !important;
+  margin: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  font-size: inherit !important; /* 继承外部字号，配合子级 0.5em 达成与默认组件一致的比例 */
+  line-height: 1.4 !important;
+  pointer-events: auto !important; /* 启用交互并阻止点击穿透到下方的普通歌词行上 */
+  z-index: 10 !important; /* 提升层级，防止被普通歌词行（尤其是最后一行）遮挡和阻断点击 */
+  background: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+  contain: none !important; /* 移除 AMLL .lyricLine 默认的 contain: layout style paint 裁剪限制，防止悬停背景被切边 */
+  overflow: visible !important;
+}
+
+:deep(.lp-line.lp-credit:hover),
+:deep(.lp-line.lp-credit:active),
+:deep([class*="bottomLine"]),
+:deep([class*="bottomLine"]:hover),
+:deep([class*="bottomLine"]:active) {
+  background: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+
+@media (max-width: 990px) {
+  :deep(.lp-line.lp-credit) {
+    padding-left: var(--lyric-line-padding-x, 1em) !important;
+    padding-right: var(--lyric-line-padding-x, 1em) !important;
   }
 }
 </style>

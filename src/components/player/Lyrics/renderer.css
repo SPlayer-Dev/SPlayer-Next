@@ -120,6 +120,22 @@
 
 .lp-credit {
   opacity: var(--lp-credit-opacity, 0.3);
+  pointer-events: auto !important; /* 启用交互并阻止点击穿透到下方的普通歌词行上 */
+  z-index: 10 !important; /* 提升层级，防止被普通歌词行（尤其是最后一行）遮挡和阻断点击 */
+  background: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+
+.lp-credit:hover,
+.lp-credit:active {
+  background: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
 }
 
 .lp-credit:empty {
