@@ -31,15 +31,13 @@ const lyricCategory: SettingCategory = {
           binding: { store: "settings", path: "lyric.lyricSourcePreference" },
           options: lyricSourcePreferenceOptions,
           defaultValue: "auto",
-          childrenCondition: () => useSettingsStore().lyric.lyricSourcePreference === "auto",
-          children: [
-            {
-              key: "smartPreferOnline",
-              type: "switch",
-              binding: { store: "settings", path: "lyric.smartPreferOnline" },
-              defaultValue: false,
-            },
-          ],
+        },
+        {
+          key: "smartPreferOnline",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.smartPreferOnline" },
+          defaultValue: false,
+          visible: () => useSettingsStore().lyric.lyricSourcePreference === "auto",
         },
         {
           key: "lyricSourceOrder",
@@ -62,14 +60,13 @@ const lyricCategory: SettingCategory = {
           binding: { store: "settings", path: "system.lyric.enableOnlineTTMLLyric" },
           defaultValue: false,
           tag: { text: "Beta" },
-          children: [
-            {
-              key: "amllDbServer",
-              type: "custom",
-              component: AmllDbServerConfig,
-              binding: { store: "settings", path: "system.lyric.amllDbServer" },
-            },
-          ],
+        },
+        {
+          key: "amllDbServer",
+          type: "custom",
+          component: AmllDbServerConfig,
+          binding: { store: "settings", path: "system.lyric.amllDbServer" },
+          visible: () => useSettingsStore().system.lyric.enableOnlineTTMLLyric,
         },
         {
           key: "enableLocalTTMLOverride",
@@ -77,14 +74,13 @@ const lyricCategory: SettingCategory = {
           binding: { store: "settings", path: "system.localLyric.enableLocalTTMLOverride" },
           defaultValue: false,
           tag: { text: "Beta" },
-          children: [
-            {
-              key: "localLyricRepoDir",
-              type: "custom",
-              component: LocalLyricRepoConfig,
-              binding: { store: "settings", path: "system.localLyric.repoDir" },
-            },
-          ],
+        },
+        {
+          key: "localLyricRepoDir",
+          type: "custom",
+          component: LocalLyricRepoConfig,
+          binding: { store: "settings", path: "system.localLyric.repoDir" },
+          visible: () => useSettingsStore().system.localLyric.enableLocalTTMLOverride,
         },
       ],
     },
@@ -96,13 +92,12 @@ const lyricCategory: SettingCategory = {
           type: "switch",
           binding: { store: "settings", path: "lyric.enableExcludeLyrics" },
           defaultValue: true,
-          children: [
-            {
-              key: "excludeLyricsRules",
-              type: "custom",
-              component: ExcludeLyricsConfig,
-            },
-          ],
+        },
+        {
+          key: "excludeLyricsRules",
+          type: "custom",
+          component: ExcludeLyricsConfig,
+          visible: () => useSettingsStore().lyric.enableExcludeLyrics,
         },
       ],
     },

@@ -135,42 +135,45 @@ const fullScreenLyricCategory: SettingCategory = {
           ],
           defaultValue: "default",
           visible: () => useSettingsStore().lyric.engine === "physics",
-          indentChildren: false,
-          childrenCondition: () =>
-            useSettingsStore().lyric.engine !== "amll" &&
+        },
+        {
+          key: "springMass",
+          type: "slider",
+          binding: { store: "settings", path: "lyric.springMass" },
+          min: 0.1,
+          max: 5,
+          step: 0.1,
+          defaultValue: 0.9,
+          marks: { 0.1: "0.1", 0.9: "0.9", 5: "5" },
+          visible: () =>
+            useSettingsStore().lyric.engine === "physics" &&
             useSettingsStore().lyric.springPreset === "custom",
-          children: [
-            {
-              key: "springMass",
-              type: "slider",
-              binding: { store: "settings", path: "lyric.springMass" },
-              min: 0.1,
-              max: 5,
-              step: 0.1,
-              defaultValue: 0.9,
-              marks: { 0.1: "0.1", 0.9: "0.9", 5: "5" },
-            },
-            {
-              key: "springDamping",
-              type: "slider",
-              binding: { store: "settings", path: "lyric.springDamping" },
-              min: 1,
-              max: 50,
-              step: 0.5,
-              defaultValue: 15,
-              marks: { 1: "1", 15: "15", 50: "50" },
-            },
-            {
-              key: "springStiffness",
-              type: "slider",
-              binding: { store: "settings", path: "lyric.springStiffness" },
-              min: 10,
-              max: 300,
-              step: 5,
-              defaultValue: 90,
-              marks: { 10: "10", 90: "90", 300: "300" },
-            },
-          ],
+        },
+        {
+          key: "springDamping",
+          type: "slider",
+          binding: { store: "settings", path: "lyric.springDamping" },
+          min: 1,
+          max: 50,
+          step: 0.5,
+          defaultValue: 15,
+          marks: { 1: "1", 15: "15", 50: "50" },
+          visible: () =>
+            useSettingsStore().lyric.engine === "physics" &&
+            useSettingsStore().lyric.springPreset === "custom",
+        },
+        {
+          key: "springStiffness",
+          type: "slider",
+          binding: { store: "settings", path: "lyric.springStiffness" },
+          min: 10,
+          max: 300,
+          step: 5,
+          defaultValue: 90,
+          marks: { 10: "10", 90: "90", 300: "300" },
+          visible: () =>
+            useSettingsStore().lyric.engine === "physics" &&
+            useSettingsStore().lyric.springPreset === "custom",
         },
       ],
     },

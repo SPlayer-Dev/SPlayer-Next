@@ -1,4 +1,5 @@
 import type { SettingCategory } from "@/types/settings-schema";
+import { useSettingsStore } from "@/stores/settings";
 import DeviceSelector from "@/components/settings/custom/DeviceSelector.vue";
 import IconLucidePlay from "~icons/lucide/play";
 
@@ -26,18 +27,17 @@ const playerCategory: SettingCategory = {
           type: "switch",
           binding: { store: "settings", path: "system.player.fadeEnabled" },
           defaultValue: true,
-          children: [
-            {
-              key: "fadeDuration",
-              type: "slider",
-              binding: { store: "settings", path: "system.player.fadeDuration" },
-              min: 100,
-              max: 600,
-              step: 100,
-              defaultValue: 200,
-              marks: { 100: "100", 200: "200", 600: "600" },
-            },
-          ],
+        },
+        {
+          key: "fadeDuration",
+          type: "slider",
+          binding: { store: "settings", path: "system.player.fadeDuration" },
+          min: 100,
+          max: 600,
+          step: 100,
+          defaultValue: 200,
+          marks: { 100: "100", 200: "200", 600: "600" },
+          visible: () => useSettingsStore().system.player.fadeEnabled,
         },
         {
           key: "loudnessNormalization",
@@ -113,18 +113,17 @@ const playerCategory: SettingCategory = {
           type: "switch",
           binding: { store: "settings", path: "player.enableSpectrum" },
           defaultValue: false,
-          children: [
-            {
-              key: "spectrumBarWidth",
-              type: "slider",
-              binding: { store: "settings", path: "player.spectrumBarWidth" },
-              min: 1,
-              max: 12,
-              step: 1,
-              defaultValue: 4,
-              marks: { 1: "1", 4: "4", 8: "8", 12: "12" },
-            },
-          ],
+        },
+        {
+          key: "spectrumBarWidth",
+          type: "slider",
+          binding: { store: "settings", path: "player.spectrumBarWidth" },
+          min: 1,
+          max: 12,
+          step: 1,
+          defaultValue: 4,
+          marks: { 1: "1", 4: "4", 8: "8", 12: "12" },
+          visible: () => useSettingsStore().player.enableSpectrum,
         },
       ],
     },

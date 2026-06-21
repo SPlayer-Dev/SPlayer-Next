@@ -93,14 +93,13 @@ const desktopLyricSection: SettingSection = {
       type: "switch",
       binding: { store: "settings", path: "system.desktopLyric.backgroundMask" },
       defaultValue: false,
-      children: [
-        {
-          key: "desktopLyricBackgroundMaskColor",
-          type: "color",
-          binding: { store: "settings", path: "system.desktopLyric.backgroundMaskColor" },
-          defaultValue: "rgba(0, 0, 0, 0.3)",
-        },
-      ],
+    },
+    {
+      key: "desktopLyricBackgroundMaskColor",
+      type: "color",
+      binding: { store: "settings", path: "system.desktopLyric.backgroundMaskColor" },
+      defaultValue: "rgba(0, 0, 0, 0.3)",
+      visible: () => useSettingsStore().system.desktopLyric.backgroundMask,
     },
     {
       key: "desktopLyricAlwaysShowSongInfo",
@@ -250,19 +249,17 @@ const taskbarLyricSection: SettingSection = {
       type: "switch",
       binding: { store: "settings", path: "system.taskbarLyric.autoMaxWidth" },
       defaultValue: true,
-      childrenCondition: () => useSettingsStore().system.taskbarLyric.autoMaxWidth === false,
-      children: [
-        {
-          key: "taskbarLyricMaxWidth",
-          type: "slider",
-          binding: { store: "settings", path: "system.taskbarLyric.maxWidth" },
-          min: 200,
-          max: 800,
-          step: 20,
-          defaultValue: 400,
-          marks: { 200: "200", 400: "400", 800: "800" },
-        },
-      ],
+    },
+    {
+      key: "taskbarLyricMaxWidth",
+      type: "slider",
+      binding: { store: "settings", path: "system.taskbarLyric.maxWidth" },
+      min: 200,
+      max: 800,
+      step: 20,
+      defaultValue: 400,
+      marks: { 200: "200", 400: "400", 800: "800" },
+      visible: () => useSettingsStore().system.taskbarLyric.autoMaxWidth === false,
     },
     {
       key: "taskbarLyricLeftMargin",
