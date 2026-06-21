@@ -228,6 +228,7 @@ const fullScreenLyricCategory: SettingCategory = {
             {
               key: "amllVerticalSpringHeader",
               type: "title",
+              indentChildren: false,
               children: [
                 {
                   key: "amllVerticalSpringMass",
@@ -270,6 +271,7 @@ const fullScreenLyricCategory: SettingCategory = {
             {
               key: "amllScaleSpringHeader",
               type: "title",
+              indentChildren: false,
               children: [
                 {
                   key: "amllScaleSpringMass",
