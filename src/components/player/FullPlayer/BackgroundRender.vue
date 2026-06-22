@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { ref, shallowRef, watch, onMounted, onBeforeUnmount, onUnmounted } from "vue";
-import { useRafFn } from "@vueuse/core";
 import {
   type AbstractBaseRenderer,
   type BaseRenderer,
@@ -8,6 +6,7 @@ import {
   MeshGradientRenderer,
 } from "@applemusic-like-lyrics/core";
 import { getFftFrame } from "@/services/playback";
+import { acquireFft, releaseFft } from "@/services/fftCapture";
 
 export interface BackgroundRenderProps {
   /** 专辑封面资源 URL */
@@ -22,6 +21,8 @@ export interface BackgroundRenderProps {
   fps?: number;
   /** 渲染缩放比例，默认为 0.5 */
   renderScale?: number;
+  /** 是否随低频节拍脉动（默认 false，关闭则不采集 FFT） */
+  enableBeat?: boolean;
   /** 渲染器类，默认为 MeshGradientRenderer */
   renderer?: new (...args: ConstructorParameters<typeof BaseRenderer>) => BaseRenderer;
 }
@@ -32,6 +33,7 @@ const props = withDefaults(defineProps<BackgroundRenderProps>(), {
   hasLyric: true,
   fps: 30,
   renderScale: 0.5,
+  enableBeat: false,
   renderer: () => MeshGradientRenderer,
 });
 
@@ -72,7 +74,7 @@ const updateLowFreqVolume = () => {
   const data = getFftFrame();
   if (!data || data.length === 0) return;
 
-  // 提取低频部分 (前 4 个 bin，约 0 - 150Hz)
+  // 提取低频部分（前 4 段，对数映射下约 80 - 90Hz，即低音鼓/贝斯基频区）
   const lowBins = data.slice(0, 4);
   const sum = lowBins.reduce((acc, val) => acc + val, 0);
   const avg = sum / lowBins.length;
@@ -89,17 +91,20 @@ const updateLowFreqVolume = () => {
   bgRenderRef.value?.setLowFreqVolume(smoothedVolume);
 };
 
-// 使用 VueUse 提供的 useRafFn 帧刷新函数，避免内存占用并配合 playing 状态自动暂停
 const { resume: resumeFftLoop, pause: pauseFftLoop } = useRafFn(updateLowFreqVolume, {
   immediate: false,
 });
+
+// 本地持有标记，保证 acquire / release 严格配对
+let fftAcquired = false;
 
 /**
  * 开始捕获 FFT 频谱数据
  */
 const startFftCapture = () => {
-  if (window.api?.player?.setFftEnabled) {
-    window.api.player.setFftEnabled(true);
+  if (!fftAcquired) {
+    acquireFft();
+    fftAcquired = true;
   }
   resumeFftLoop();
 };
@@ -109,53 +114,52 @@ const startFftCapture = () => {
  */
 const stopFftCapture = () => {
   pauseFftLoop();
-  if (window.api?.player?.setFftEnabled) {
-    window.api.player.setFftEnabled(false);
+  if (fftAcquired) {
+    releaseFft();
+    fftAcquired = false;
+  }
+};
+
+/**
+ * 按播放状态与跳动开关同步 FFT 采集：仅在播放中且开启跳动时采集，
+ * 否则停止采集并把低频音量复位为 1.0（不脉动）
+ */
+const syncFftCapture = () => {
+  if (props.playing && props.enableBeat) {
+    startFftCapture();
+  } else {
+    stopFftCapture();
+    smoothedVolume = 0;
+    bgRenderRef.value?.setLowFreqVolume(1.0);
   }
 };
 
 onMounted(() => {
-  if (wrapperRef.value) {
-    // 初始化 AMLL 底层渲染器
-    bgRenderRef.value = CoreBackgroundRender.new(props.renderer);
+  if (!wrapperRef.value) return;
 
-    // 设置 Canvas 自适应容器并附着 DOM
-    const el = bgRenderRef.value.getElement();
-    el.style.width = "100%";
-    el.style.height = "100%";
-    el.style.display = "block";
-    wrapperRef.value.appendChild(el);
+  // 初始化 AMLL 底层渲染器
+  bgRenderRef.value = CoreBackgroundRender.new(props.renderer);
 
-    updateRendererState();
+  // 设置 Canvas 自适应容器并附着 DOM
+  const el = bgRenderRef.value.getElement();
+  el.style.width = "100%";
+  el.style.height = "100%";
+  el.style.display = "block";
+  wrapperRef.value.appendChild(el);
 
-    if (props.playing) {
-      startFftCapture();
-    }
-  }
+  updateRendererState();
+  syncFftCapture();
 });
-
-let disposeTimer: ReturnType<typeof setTimeout> | null = null;
 
 onBeforeUnmount(() => {
   stopFftCapture();
 
   const renderer = bgRenderRef.value;
   if (renderer) {
+    // 同步释放底层 Canvas 与 WebGL 上下文，避免上下文泄漏
     renderer.pause();
+    renderer.dispose();
     bgRenderRef.value = undefined;
-
-    // 延迟 500ms 销毁底层 Canvas 与 WebGL 上下文，以配合过渡动画，避免发生闪烁和内存泄漏
-    disposeTimer = setTimeout(() => {
-      renderer.dispose();
-      disposeTimer = null;
-    }, 500);
-  }
-});
-
-onUnmounted(() => {
-  if (disposeTimer) {
-    clearTimeout(disposeTimer);
-    disposeTimer = null;
   }
 });
 
@@ -173,14 +177,22 @@ watch(
   () => props.playing,
   (isPlaying) => {
     if (bgRenderRef.value) {
-      if (isPlaying) {
-        bgRenderRef.value.resume();
-        startFftCapture();
-      } else {
-        bgRenderRef.value.pause();
-        stopFftCapture();
-      }
+      if (isPlaying) bgRenderRef.value.resume();
+      else bgRenderRef.value.pause();
     }
+    syncFftCapture();
+  },
+);
+
+watch(
+  () => props.enableBeat,
+  () => syncFftCapture(),
+);
+
+watch(
+  () => props.fps,
+  (val) => {
+    bgRenderRef.value?.setFPS(val);
   },
 );
 

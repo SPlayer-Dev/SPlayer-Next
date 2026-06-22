@@ -133,6 +133,16 @@ export interface LyricSettings {
 export interface PlayerSettings {
   /** 播放器背景类型 */
   playerBgType: PlayerBgType;
+  /** 流体背景帧率（fps） */
+  playerBgFps: number;
+  /** 流体背景流动速度 */
+  playerBgFlowSpeed: number;
+  /** 流体背景渲染缩放 */
+  playerBgRenderScale: number;
+  /** 暂停播放时冻结流体背景 */
+  playerBgFreezeOnPause: boolean;
+  /** 流体背景随低频节拍脉动 */
+  playerBgBeat: boolean;
   /** 全屏播放器封面布局 */
   coverLayout: CoverLayout;
   /** 无歌词时自动居中封面并隐藏歌词区域 */

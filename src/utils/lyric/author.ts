@@ -31,13 +31,3 @@ export const extractLyricAuthors = (content: string, format: LyricFormat): strin
   }
   return [];
 };
-
-/**
- * 从歌词原始内容中提取首个「歌词文件制作者」
- * @param content - 歌词原始文本
- * @param format - 歌词格式
- * @returns 首个作者名称或 null
- */
-export const extractLyricAuthor = (content: string, format: LyricFormat): string | null => {
-  return extractLyricAuthors(content, format)[0] || null;
-};

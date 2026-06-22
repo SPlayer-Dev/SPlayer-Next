@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref, computed, watch, watchEffect, onMounted, onUnmounted } from "vue";
 import type { LyricLine } from "@shared/types/lyrics";
 import { LyricPlayer as CoreLyricPlayer } from "@applemusic-like-lyrics/core";
 import { useSettingsStore } from "@/stores/settings";
@@ -22,8 +21,6 @@ const props = withDefaults(
     enableBlur?: boolean;
     /** 是否显示翻译歌词 */
     showTranslation?: boolean;
-    /** 是否显示音译歌词 */
-    showRomanization?: boolean;
     /** 是否显示逐行音译 */
     showLineRomanization?: boolean;
     /** 是否显示逐词音译 */
@@ -38,7 +35,6 @@ const props = withDefaults(
     hidePassedLines: false,
     enableBlur: false,
     showTranslation: true,
-    showRomanization: true,
     showLineRomanization: true,
     showWordRomanization: true,
     initialTime: 0,
@@ -58,7 +54,7 @@ const playerRef = ref<CoreLyricPlayer>();
 const bottomLineEl = ref<HTMLElement>();
 
 // 是否被父组件冻结
-let isFrozen = false;
+const isFrozen = ref(false);
 // 冻结期间缓存的待应用歌词
 let pendingLyrics: LyricLine[] | null = null;
 
@@ -72,8 +68,8 @@ const processedLyrics = computed(() => {
       romanLyric: props.showLineRomanization ? line.romanLyric : "",
     };
     if (line.words) {
-      newLine.words = line.words.map((w) => {
-        const newWord = { ...w };
+      newLine.words = line.words.map((word) => {
+        const newWord = { ...word };
         if (!props.showWordRomanization) {
           delete newWord.romanWord;
         }
@@ -86,45 +82,66 @@ const processedLyrics = computed(() => {
 
 // 行点击事件回调
 const handleLineClick = (e: Event) => {
-  const amllEvent = e as any;
+  const amllEvent = e as Event & { line?: { getLine: () => { startTime?: number } } };
   const lineData = amllEvent.line?.getLine();
   if (lineData && typeof lineData.startTime === "number") {
     emit("seek", lineData.startTime);
   }
 };
 
-onMounted(() => {
-  if (wrapperRef.value) {
-    // 创建 AMLL Core 歌词播放器实例
-    playerRef.value = new CoreLyricPlayer();
+const { resume: resumeRaf, pause: pauseRaf } = useRafFn(
+  ({ delta }) => {
+    playerRef.value?.update(delta);
+  },
+  { immediate: false },
+);
 
-    // 挂载到容器中
-    const el = playerRef.value.getElement();
-    el.style.width = "100%";
-    el.style.height = "100%";
-    wrapperRef.value.appendChild(el);
-
-    // 获取底栏 DOM 节点
-    const bottomEl = playerRef.value.getBottomLineElement();
-    if (bottomEl) {
-      bottomEl.classList.add("lp-line", "lp-credit");
-    }
-    bottomLineEl.value = bottomEl;
-
-    // 绑定行点击事件
-    playerRef.value.addEventListener("line-click", handleLineClick);
-
-    // 应用初始状态
-    if (props.initialTime > 0) {
-      playerRef.value.setCurrentTime(props.initialTime);
-    }
-    if (processedLyrics.value.length > 0) {
-      playerRef.value.setLyricLines(processedLyrics.value);
-    }
+// 页面隐藏时停止渲染循环
+const handleVisibility = () => {
+  if (document.hidden) {
+    pauseRaf();
+    playerRef.value?.pause();
+  } else if (props.playing && !isFrozen.value) {
+    playerRef.value?.resume();
+    resumeRaf();
   }
+};
+
+onMounted(() => {
+  if (!wrapperRef.value) return;
+  // 创建 AMLL Core 歌词播放器实例
+  playerRef.value = new CoreLyricPlayer();
+
+  // 挂载到容器中
+  const el = playerRef.value.getElement();
+  el.style.width = "100%";
+  el.style.height = "100%";
+  wrapperRef.value.appendChild(el);
+
+  // 获取底栏 DOM 节点
+  const bottomEl = playerRef.value.getBottomLineElement();
+  if (bottomEl) {
+    bottomEl.classList.add("lp-line", "lp-credit");
+    bottomLineEl.value = bottomEl;
+  }
+
+  // 绑定行点击事件
+  playerRef.value.addEventListener("line-click", handleLineClick);
+
+  // 应用初始状态
+  if (props.initialTime > 0) {
+    playerRef.value.setCurrentTime(props.initialTime);
+  }
+  if (processedLyrics.value.length > 0) {
+    playerRef.value.setLyricLines(processedLyrics.value);
+  }
+
+  document.addEventListener("visibilitychange", handleVisibility);
 });
 
 onUnmounted(() => {
+  document.removeEventListener("visibilitychange", handleVisibility);
+  pauseRaf();
   if (playerRef.value) {
     playerRef.value.removeEventListener("line-click", handleLineClick);
     playerRef.value.dispose();
@@ -133,33 +150,16 @@ onUnmounted(() => {
   }
 });
 
-// 驱动逐帧渲染动画的核心 loop
-watchEffect((onCleanup) => {
-  if (props.playing && !isFrozen) {
-    let canceled = false;
-    let lastTime = performance.now();
-    const onFrame = (time: number) => {
-      if (canceled) return;
-      const deltaTime = time - lastTime;
-      lastTime = time;
-      playerRef.value?.update(deltaTime);
-      requestAnimationFrame(onFrame);
-    };
-    requestAnimationFrame(onFrame);
-    onCleanup(() => {
-      canceled = true;
-    });
-  }
-});
-
-// 监听播放/暂停状态
+// 播放/暂停/冻结状态变化时同步渲染循环与 Core 内部时钟
 watchEffect(() => {
-  if (playerRef.value) {
-    if (props.playing && !isFrozen) {
-      playerRef.value.resume();
-    } else {
-      playerRef.value.pause();
-    }
+  const player = playerRef.value;
+  if (!player) return;
+  if (props.playing && !isFrozen.value && !document.hidden) {
+    player.resume();
+    resumeRaf();
+  } else {
+    pauseRaf();
+    player.pause();
   }
 });
 
@@ -192,40 +192,32 @@ watchEffect(() => {
 });
 
 // 监听处理完的歌词数据变动
-watch(
-  processedLyrics,
-  (newLyrics) => {
-    if (!playerRef.value) return;
-    if (isFrozen) {
-      pendingLyrics = newLyrics;
-    } else {
-      playerRef.value.setLyricLines(newLyrics);
-    }
-  },
-  { deep: true },
-);
+watch(processedLyrics, (newLyrics) => {
+  if (!playerRef.value) return;
+  if (isFrozen.value) {
+    pendingLyrics = newLyrics;
+  } else {
+    playerRef.value.setLyricLines(newLyrics);
+  }
+});
 
 // 主播放器事件驱动的时间同步接口
 const setCurrentTime = (time: number) => {
   playerRef.value?.setCurrentTime(time);
 };
 
-// 隐藏界面或休眠时调用，冻结动画以优化 CPU 占用率
+// 隐藏界面或休眠时调用
 const freeze = () => {
-  isFrozen = true;
-  playerRef.value?.pause();
+  isFrozen.value = true;
 };
 
 // 恢复播放和滚动测量
 const resume = () => {
-  isFrozen = false;
   if (pendingLyrics) {
     playerRef.value?.setLyricLines(pendingLyrics);
     pendingLyrics = null;
   }
-  if (props.playing) {
-    playerRef.value?.resume();
-  }
+  isFrozen.value = false;
 };
 
 defineExpose({

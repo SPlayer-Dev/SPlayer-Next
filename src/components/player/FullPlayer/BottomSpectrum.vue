@@ -2,6 +2,7 @@
 import { useStatusStore } from "@/stores/status";
 import { useSettingsStore } from "@/stores/settings";
 import { getFftFrame } from "@/services/playback";
+import { acquireFft, releaseFft } from "@/services/fftCapture";
 
 interface Props {
   /** 是否处于活跃状态 */
@@ -128,14 +129,23 @@ const draw = (): void => {
 
 const { resume, pause } = useRafFn(draw, { immediate: false });
 
+// 本地持有标记，保证 acquire / release 严格配对
+let fftAcquired = false;
+
 const startCapture = (): void => {
-  window.api.player.setFftEnabled(true);
+  if (!fftAcquired) {
+    acquireFft();
+    fftAcquired = true;
+  }
   resume();
 };
 
 const stopCapture = (): void => {
   pause();
-  window.api.player.setFftEnabled(false);
+  if (fftAcquired) {
+    releaseFft();
+    fftAcquired = false;
+  }
 };
 
 // 暂停时停止 FFT 推送 + RAF 重绘

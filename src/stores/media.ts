@@ -4,7 +4,7 @@ import { findLyricIndex } from "@shared/utils/lyric";
 import { useSettingsStore } from "@/stores/settings";
 import { watchLyricPreference } from "@/services/lyricLoader";
 import { parseLyric } from "@/utils/lyric/parse";
-import { extractLyricAuthor, extractLyricAuthors } from "@/utils/lyric/author";
+import { extractLyricAuthors } from "@/utils/lyric/author";
 import { applyLyricExclude } from "@/utils/lyric/lyricStripper";
 import { normalizeLyricLines } from "@/utils/lyric/normalize";
 
@@ -34,9 +34,6 @@ export const useMediaStore = defineStore("media", () => {
 
   /** 当前歌词解析结果 */
   const parsedLyric = shallowRef<LyricLine[]>([]);
-
-  /** 当前歌词文件制作者 */
-  const lyricAuthor = ref<string | null>(null);
 
   /** 当前歌词文件制作者列表 */
   const lyricAuthors = ref<string[]>([]);
@@ -88,7 +85,6 @@ export const useMediaStore = defineStore("media", () => {
     activeLyric.value = null;
     lyricContent.value = null;
     parsedLyric.value = [];
-    lyricAuthor.value = null;
     lyricAuthors.value = [];
     lyricIndex.value = -1;
     lyricLoading.value = true;
@@ -117,8 +113,6 @@ export const useMediaStore = defineStore("media", () => {
     activeLyric.value = hasContent ? source : null;
     lyricContent.value = hasContent ? input : null;
     parsedLyric.value = nextLines;
-    lyricAuthor.value =
-      hasContent && source && input ? extractLyricAuthor(input.content, source.format) : null;
     lyricAuthors.value =
       hasContent && source && input ? extractLyricAuthors(input.content, source.format) : [];
     lyricIndex.value = -1;
@@ -141,7 +135,6 @@ export const useMediaStore = defineStore("media", () => {
     activeLyric.value = null;
     lyricContent.value = null;
     parsedLyric.value = [];
-    lyricAuthor.value = null;
     lyricAuthors.value = [];
     lyricLoading.value = false;
     lyricIndex.value = -1;
@@ -155,7 +148,6 @@ export const useMediaStore = defineStore("media", () => {
     lyricContent,
     lyricFormat,
     parsedLyric,
-    lyricAuthor,
     lyricAuthors,
     lyricLoading,
     lyricIndex,

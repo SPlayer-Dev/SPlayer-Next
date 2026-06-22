@@ -50,6 +50,11 @@ export const useSettingsStore = defineStore(
     /** 播放器 */
     const player = reactive<PlayerSettings>({
       playerBgType: "blur",
+      playerBgFps: 30,
+      playerBgFlowSpeed: 4,
+      playerBgRenderScale: 0.5,
+      playerBgFreezeOnPause: false,
+      playerBgBeat: false,
       coverLayout: "default",
       autoCenterCover: true,
       followCoverColor: true,

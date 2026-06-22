@@ -1147,7 +1147,28 @@
       "label": "播放器背景",
       "description": "全屏播放器的背景类型",
       "blur": "模糊",
-      "solid": "纯色"
+      "solid": "纯色",
+      "animation": "流体"
+    },
+    "playerBgFlowSpeed": {
+      "label": "流动速度",
+      "description": "流体背景的动画流动速度"
+    },
+    "playerBgRenderScale": {
+      "label": "渲染缩放",
+      "description": "适当提高可减少分界线锯齿、画面更细腻，但会增加显卡压力"
+    },
+    "playerBgFps": {
+      "label": "动画帧率",
+      "description": "流体背景的渲染帧率，越高越流畅但更耗性能"
+    },
+    "playerBgFreezeOnPause": {
+      "label": "暂停时冻结",
+      "description": "暂停播放时同时停止流体背景动画"
+    },
+    "playerBgBeat": {
+      "label": "背景跳动",
+      "description": "使流体背景随音乐低频节拍产生脉动效果"
     },
     "coverLayout": {
       "label": "封面布局",

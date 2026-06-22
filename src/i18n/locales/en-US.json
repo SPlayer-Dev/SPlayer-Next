@@ -1159,7 +1159,28 @@
       "label": "Player Background",
       "description": "Background type of the full-screen player",
       "blur": "Blur",
-      "solid": "Solid"
+      "solid": "Solid",
+      "animation": "Fluid"
+    },
+    "playerBgFlowSpeed": {
+      "label": "Flow Speed",
+      "description": "Animation flow speed of the fluid background"
+    },
+    "playerBgRenderScale": {
+      "label": "Render Scale",
+      "description": "Higher values reduce edge aliasing for a smoother look, but increase GPU load"
+    },
+    "playerBgFps": {
+      "label": "Frame Rate",
+      "description": "Render frame rate of the fluid background; higher is smoother but heavier"
+    },
+    "playerBgFreezeOnPause": {
+      "label": "Freeze When Paused",
+      "description": "Stop the fluid background animation while playback is paused"
+    },
+    "playerBgBeat": {
+      "label": "Beat Pulse",
+      "description": "Make the fluid background pulse with the low-frequency beat of the music"
     },
     "coverLayout": {
       "label": "Cover Layout",
