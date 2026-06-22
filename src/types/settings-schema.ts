@@ -8,8 +8,7 @@ export type SettingWidgetType =
   | "color"
   | "button"
   | "custom"
-  | "number"
-  | "title";
+  | "number";
 
 /** 选择项 */
 export interface SettingOption {
@@ -68,8 +67,6 @@ export interface SettingItem {
   childrenCondition?: () => boolean;
   /** 是否完全隐藏子项 */
   hideChildren?: boolean;
-  /** 是否对子项进行左侧边线和缩进（默认 true） */
-  indentChildren?: boolean;
   /** 标题旁的徽标 */
   tag?: SettingTag;
 }

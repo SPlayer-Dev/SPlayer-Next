@@ -607,7 +607,6 @@
       "general": "常规设置",
       "player": "播放设置",
       "lyric": "歌词设置",
-      "fullScreenLyric": "全屏歌词",
       "externalLyric": "外部歌词",
       "appearance": "外观设置",
       "hotkeys": "快捷键配置",
@@ -628,7 +627,6 @@
       "language": "语言",
       "playback": "播放器",
       "playControl": "播放控制",
-      "lyricEngine": "歌词引擎",
       "lyricContent": "歌词内容",
       "lyricTTML": "TTML 歌词",
       "lyricExclude": "歌词排除",
@@ -636,7 +634,6 @@
       "lyricDisplay": "显示效果",
       "lyricSpring": "弹簧动画",
       "lyricLayout": "布局与透明度",
-      "amllLyricSpring": "物理回弹与缩放",
       "desktopLyric": "桌面歌词",
       "dynamicIsland": "灵动岛歌词",
       "taskbarLyric": "任务栏歌词",
@@ -839,12 +836,6 @@
     "useAMSpring": {
       "label": "弹簧动画调试开关",
       "description": "为 applemusic-like-lyrics 启用物理弹性回弹与焦点行缩放效果"
-    },
-    "amllVerticalSpringHeader": {
-      "label": "垂直位移弹簧参数"
-    },
-    "amllScaleSpringHeader": {
-      "label": "缩放弹簧参数"
     },
     "amllVerticalSpringMass": {
       "label": "垂直回弹质量",

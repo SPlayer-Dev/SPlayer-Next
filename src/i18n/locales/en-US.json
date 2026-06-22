@@ -619,7 +619,6 @@
       "general": "General",
       "player": "Player",
       "lyric": "Lyrics",
-      "fullScreenLyric": "Full-screen Lyrics",
       "externalLyric": "External Lyrics",
       "appearance": "Appearance",
       "hotkeys": "Hotkey Settings",
@@ -640,7 +639,6 @@
       "language": "Language",
       "playback": "Player",
       "playControl": "Playback Control",
-      "lyricEngine": "Lyric Engine",
       "lyricContent": "Lyric Content",
       "lyricTTML": "TTML Lyrics",
       "lyricExclude": "Metadata Stripping",
@@ -648,7 +646,6 @@
       "lyricDisplay": "Display Effects",
       "lyricSpring": "Spring Animation",
       "lyricLayout": "Layout & Opacity",
-      "amllLyricSpring": "Physics Spring & Scale",
       "desktopLyric": "Desktop Lyric",
       "dynamicIsland": "Dynamic Island Lyric",
       "taskbarLyric": "Taskbar Lyric",
@@ -851,12 +848,6 @@
     "useAMSpring": {
       "label": "Spring Animation Debug Switch",
       "description": "Enable spring bounce and active line scaling effects for applemusic-like-lyrics"
-    },
-    "amllVerticalSpringHeader": {
-      "label": "Vertical Translation Spring Parameters"
-    },
-    "amllScaleSpringHeader": {
-      "label": "Scale Spring Parameters"
     },
     "amllVerticalSpringMass": {
       "label": "Vertical Spring Mass",
