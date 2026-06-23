@@ -121,6 +121,12 @@ const lyricCategory: SettingCategory = {
             { value: "amll", labelKey: "settings.lyricEngine.amll" },
           ],
           defaultValue: "physics",
+          confirm: {
+            when: (next) => next === "amll",
+            titleKey: "settings.confirm.highResourceTitle",
+            contentKey: "settings.confirm.highResourceContent",
+            type: "warning",
+          },
         },
         {
           key: "adaptiveFontSize",

@@ -845,6 +845,10 @@
       "physics": "Default",
       "amll": "AMLL"
     },
+    "confirm": {
+      "highResourceTitle": "Resource-Intensive Feature",
+      "highResourceContent": "Enabling it may noticeably increase memory and CPU usage, and could cause stuttering on lower-end devices. Enable it anyway?"
+    },
     "useAMSpring": {
       "label": "Spring Animation Debug Switch",
       "description": "Enable spring bounce and active line scaling effects for applemusic-like-lyrics"

@@ -78,6 +78,12 @@ const playerCategory: SettingCategory = {
             { value: "animation", labelKey: "settings.playerBgType.animation" },
           ],
           defaultValue: "blur",
+          confirm: {
+            when: (next) => next === "animation",
+            titleKey: "settings.confirm.highResourceTitle",
+            contentKey: "settings.confirm.highResourceContent",
+            type: "warning",
+          },
           childrenCondition: isAnimationBg,
           hideChildren: true,
           children: [

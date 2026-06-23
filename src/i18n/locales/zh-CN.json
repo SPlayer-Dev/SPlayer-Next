@@ -833,6 +833,10 @@
       "physics": "默认",
       "amll": "AMLL"
     },
+    "confirm": {
+      "highResourceTitle": "高占用功能",
+      "highResourceContent": "开启后可能明显增加内存与 CPU 占用，低配设备上或出现卡顿。确定开启吗？"
+    },
     "useAMSpring": {
       "label": "弹簧动画调试开关",
       "description": "为 applemusic-like-lyrics 启用物理弹性回弹与焦点行缩放效果"
