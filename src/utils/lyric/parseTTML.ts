@@ -145,8 +145,13 @@ const collectTranslations = (
       if (node.nodeType === Node.TEXT_NODE) {
         main += node.textContent ?? "";
       } else if (node.nodeType === Node.ELEMENT_NODE) {
-        const role = getAttr(node as Element, "role");
-        if (role === "x-bg") bg += node.textContent ?? "";
+        const childEl = node as Element;
+        // x-bg 为背景行翻译；其余 span（含逐字翻译）文本并入主翻译
+        if (getAttr(childEl, "role") === "x-bg") {
+          bg += childEl.textContent ?? "";
+        } else {
+          main += childEl.textContent ?? "";
+        }
       }
     }
 
