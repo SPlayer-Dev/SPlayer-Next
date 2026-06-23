@@ -50,17 +50,22 @@ const getWordText = (el: Element): string => {
 };
 
 /**
- * 查找 TTML 中的主 agent ID（第一个 type="person" 的 agent）
+ * 收集所有演唱者 agent：建立 id→type 映射，并取第一个 type="person" 的 agent 作为主唱
  * @param doc XML 文档
+ * @returns 主唱 agent id 与 id→type 映射
  */
-const findMainAgent = (doc: Document): string => {
+const collectAgents = (doc: Document): { mainAgent: string; agentTypes: Map<string, string> } => {
+  const agentTypes = new Map<string, string>();
+  let mainAgent = "";
   for (const el of Array.from(doc.querySelectorAll("*"))) {
-    if (el.localName === "agent" && el.getAttribute("type") === "person") {
-      const id = el.getAttribute("xml:id") || getAttr(el, "id");
-      if (id) return id;
-    }
+    if (el.localName !== "agent") continue;
+    const id = el.getAttribute("xml:id") || getAttr(el, "id");
+    if (!id) continue;
+    const type = el.getAttribute("type") || "";
+    agentTypes.set(id, type);
+    if (!mainAgent && type === "person") mainAgent = id;
   }
-  return "v1";
+  return { mainAgent: mainAgent || "v1", agentTypes };
 };
 
 /**
@@ -249,6 +254,51 @@ const collectTransliterations = (doc: Document): TransliterationMaps => {
 };
 
 /**
+ * 逐词音译对齐：先按起始时间 ±2ms 容差快配，失败再用时间区间交并比（IoU≥10%）兜底
+ * @param words 带时间戳的逐字单词（命中时原地写入 romanWord）
+ * @param romanWords 逐词罗马音候选（按时间升序）
+ */
+const alignRomanWords = (words: LyricWord[], romanWords: RomanWord[]): void => {
+  if (words.length === 0 || romanWords.length === 0) return;
+  const FAST_TRACK_TOLERANCE_MS = 2;
+  const MIN_IOU = 0.1;
+  let searchStart = 0;
+  for (const word of words) {
+    let bestIou = 0;
+    let bestIdx = -1;
+    let fastMatched = false;
+    for (let idx = searchStart; idx < romanWords.length; idx++) {
+      const roman = romanWords[idx];
+      // 快通道：起始时间足够接近直接命中
+      if (Math.abs(word.startTime - roman.startTime) <= FAST_TRACK_TOLERANCE_MS) {
+        word.romanWord = roman.text;
+        searchStart = idx + 1;
+        fastMatched = true;
+        break;
+      }
+      // 计算时间区间交并比，记录重叠最大者
+      const overlapStart = Math.max(word.startTime, roman.startTime);
+      const intersection = Math.max(0, Math.min(word.endTime, roman.endTime) - overlapStart);
+      if (intersection > 0) {
+        const unionStart = Math.min(word.startTime, roman.startTime);
+        const union = Math.max(1, Math.max(word.endTime, roman.endTime) - unionStart);
+        const iou = intersection / union;
+        if (iou > bestIou) {
+          bestIou = iou;
+          bestIdx = idx;
+        }
+      }
+      // 候选起始已越过本词结束，后续不再可能重叠
+      if (roman.startTime >= word.endTime) break;
+    }
+    if (!fastMatched && bestIdx !== -1 && bestIou >= MIN_IOU) {
+      word.romanWord = romanWords[bestIdx].text;
+      searchStart = bestIdx + 1;
+    }
+  }
+};
+
+/**
  * 解析 TTML 歌词文本
  * @param text TTML XML 文本内容
  * @param preferredLang 偏好翻译语言标签
@@ -261,7 +311,7 @@ export const parseTTML = (text: string, preferredLang = ""): LyricLine[] => {
     throw new Error("Invalid TTML XML");
   }
 
-  const mainAgent = findMainAgent(doc);
+  const { mainAgent, agentTypes } = collectAgents(doc);
   const translations = collectTranslations(doc, preferredLang);
   const transliterations = collectTransliterations(doc);
   const lines: LyricLine[] = [];
@@ -277,13 +327,17 @@ export const parseTTML = (text: string, preferredLang = ""): LyricLine[] => {
   ): void => {
     const begin = getAttr(el, "begin");
     const end = getAttr(el, "end");
+    const lineAgent = getAttr(el, "agent");
 
     const line: LyricLine = {
       words: [],
       translatedLyric: "",
       romanLyric: "",
       isBG,
-      isDuet: isBG ? isDuet : !!getAttr(el, "agent") && getAttr(el, "agent") !== mainAgent,
+      // 合唱（type="group"）行居中、不算对唱，仅非主唱的个人 agent 才右对齐
+      isDuet: isBG
+        ? isDuet
+        : !!lineAgent && lineAgent !== mainAgent && agentTypes.get(lineAgent) !== "group",
       startTime: begin ? parseTTMLTime(begin) : 0,
       endTime: end ? parseTTMLTime(end) : 0,
     };
@@ -297,11 +351,13 @@ export const parseTTML = (text: string, preferredLang = ""): LyricLine[] => {
       if (lineRoman) line.romanLyric = isBG ? lineRoman.bg : lineRoman.main;
     }
 
-    // 逐词罗马音候选，按起止时间精确匹配后逐个消耗
+    // 逐词罗马音候选，循环结束后与逐字 span 统一做时间对齐
     const romanWordData = itunesKey ? transliterations.words.get(itunesKey) : undefined;
     const availableRomanWords = romanWordData
       ? [...(isBG ? romanWordData.bg : romanWordData.main)]
       : [];
+    // 本行带时间戳的逐字 span，用于与逐词罗马音对齐
+    const timedWords: LyricWord[] = [];
 
     let bgCount = 0;
     let lastWasTimedSpan = false;
@@ -356,22 +412,16 @@ export const parseTTML = (text: string, preferredLang = ""): LyricLine[] => {
               startTime: parseTTMLTime(wb),
               endTime: parseTTMLTime(we),
             };
-            if (availableRomanWords.length > 0) {
-              const matchIdx = availableRomanWords.findIndex(
-                (roman) =>
-                  roman.startTime === lyricWord.startTime && roman.endTime === lyricWord.endTime,
-              );
-              if (matchIdx !== -1) {
-                lyricWord.romanWord = availableRomanWords[matchIdx].text;
-                availableRomanWords.splice(matchIdx, 1);
-              }
-            }
             line.words.push(lyricWord);
+            timedWords.push(lyricWord);
             lastWasTimedSpan = true;
           }
         }
       }
     }
+
+    // 逐词罗马音与逐字 span 做时间对齐
+    alignRomanWords(timedWords, availableRomanWords);
 
     // 行内多语言翻译按偏好语言挑选
     if (!line.translatedLyric) {
@@ -423,80 +473,4 @@ export const parseTTML = (text: string, preferredLang = ""): LyricLine[] => {
   }
 
   return lines;
-};
-
-/**
- * 清洗 TTML 中不需要的翻译，过滤非首选语言节点，避免上游解析器混淆
- * @param ttmlContent 原始 TTML 内容
- * @param preferredLang 偏好的语言（如 zh-CN）
- * @returns 清洗后的 TTML 内容
- */
-export const cleanTTMLTranslations = (ttmlContent: string, preferredLang = ""): string => {
-  /**
-   * 统计 TTML 中的语言
-   */
-  const langCounter = (ttml_text: string) => {
-    const langRegex = /(?<=<(span|translation)[^<>]+)xml:lang="([^"]+)"/g;
-    const matches = ttml_text.matchAll(langRegex);
-    const langSet = new Set<string>();
-    for (const match of matches) {
-      if (match[2]) langSet.add(match[2]);
-    }
-    return Array.from(langSet);
-  };
-
-  /**
-   * 过滤语言并选择最佳匹配
-   */
-  const langFilter = (langs: string[]): string | null => {
-    if (langs.length <= 1) return null;
-
-    const langMatcher = (target: string) => {
-      return langs.find((lang) => {
-        try {
-          return new Intl.Locale(lang).maximize().script === target;
-        } catch {
-          return false;
-        }
-      });
-    };
-
-    // 优先匹配用户的偏好语言
-    if (preferredLang) {
-      const preferred = preferredLang.toLowerCase().replace(/_/g, "-");
-      const matched = langs.find((lang) => lang.toLowerCase().replace(/_/g, "-") === preferred);
-      if (matched) return matched;
-
-      const prefBase = preferred.split("-")[0];
-      const matchedBase = langs.find(
-        (lang) => lang.toLowerCase().replace(/_/g, "-").split("-")[0] === prefBase,
-      );
-      if (matchedBase) return matchedBase;
-    }
-
-    // 备选的中文脚本匹配优先级
-    const hans_matched = langMatcher("Hans");
-    if (hans_matched) return hans_matched;
-    const hant_matched = langMatcher("Hant");
-    if (hant_matched) return hant_matched;
-    const major = langs.find((key) => key.startsWith("zh"));
-    if (major) return major;
-    return langs[0];
-  };
-
-  /**
-   * 替换清洗标签
-   */
-  const ttmlCleaner = (ttml_text: string, major_lang: string | null): string => {
-    if (major_lang === null) return ttml_text;
-    const replacer = (match: string, lang: string) => (lang === major_lang ? match : "");
-    const translationRegex = /<translation[^>]+xml:lang="([^"]+)"[^>]*>[\s\S]*?<\/translation>/g;
-    const spanRegex = /<span[^>]+xml:lang="([^" ]+)"[^>]*>[\s\S]*?<\/span>/g;
-    return ttml_text.replace(translationRegex, replacer).replace(spanRegex, replacer);
-  };
-
-  const context_lang = langCounter(ttmlContent);
-  const major = langFilter(context_lang);
-  const cleaned_ttml = ttmlCleaner(ttmlContent, major);
-  return cleaned_ttml.replace(/\n\s*/g, "");
 };

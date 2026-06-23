@@ -11,9 +11,6 @@ importers:
       '@applemusic-like-lyrics/core':
         specifier: ^0.5.1
         version: 0.5.1(@pixi/app@7.4.3(@pixi/core@7.4.3)(@pixi/display@7.4.3(@pixi/core@7.4.3)))(@pixi/core@7.4.3)(@pixi/display@7.4.3(@pixi/core@7.4.3))(@pixi/filter-blur@7.4.3(@pixi/core@7.4.3))(@pixi/filter-bulge-pinch@5.1.1(@pixi/core@7.4.3))(@pixi/filter-color-matrix@7.4.3(@pixi/core@7.4.3))(@pixi/sprite@7.4.3(@pixi/core@7.4.3)(@pixi/display@7.4.3(@pixi/core@7.4.3)))
-      '@applemusic-like-lyrics/lyric':
-        specifier: ^1.0.1
-        version: 1.0.1
       '@electron-toolkit/preload':
         specifier: ^3.0.2
         version: 3.0.2(electron@41.6.1)
@@ -211,12 +208,6 @@ packages:
       '@pixi/filter-bulge-pinch': '*'
       '@pixi/filter-color-matrix': '*'
       '@pixi/sprite': '*'
-
-  '@applemusic-like-lyrics/lyric@1.0.1':
-    resolution: {integrity: sha512-b4/9MUTdp9AuW59JTBpOxb8P+4SF8NjaoZYpLD/nkVHSM/4kfbnYpo9HldSMOjRLwlKVv8bTF6Vr9K3OLHL85Q==}
-
-  '@applemusic-like-lyrics/ttml@1.0.1':
-    resolution: {integrity: sha512-xhLajMI9Jm+Etv99GbK5Fx8wqa5m9wnS3kCqOTBUy9imjsah2PrV1XyCc6LBssPhEFcQt2SrFNQlwT6GZwpY7A==}
 
   '@babel/code-frame@7.29.0':
     resolution: {integrity: sha512-9NhCeYjq9+3uxgdtp20LSiJXJvN0FeCtNGpJxuMFZ1Kv3cWUNb6DOhJwUvcVCzKGR66cw4njwM6hrJLqgOwbcw==}
@@ -3511,9 +3502,6 @@ packages:
   package-manager-detector@1.6.0:
     resolution: {integrity: sha512-61A5ThoTiDG/C8s8UMZwSorAGwMJ0ERVGj2OjoW5pAalsNOg15+iQiPzrLJ4jhZ1HJzmC2PIHT2oEiH3R5fzNA==}
 
-  pako@2.1.0:
-    resolution: {integrity: sha512-w+eufiZ1WuJYgPXbV/PO3NCMEc3xqylkKHzp8bxp1uW4qaSNQUkwmLLEc3kKsfz8lpV1F8Ht3U1Cm+9Srog2ug==}
-
   parent-module@1.0.1:
     resolution: {integrity: sha512-GQ2EWRpQV8/o+Aw8YqtfZZPfNRWZYkbidE9k5rpl/hC3vtHHBfGm2Ifi6qWV+coDGkrUKZAxE3Lot5kcsRlh+g==}
     engines: {node: '>=6'}
@@ -4562,13 +4550,6 @@ snapshots:
       bezier-easing: 3.0.0
       deep-freeze: 0.0.1
       gl-matrix: 4.0.0-beta.2
-
-  '@applemusic-like-lyrics/lyric@1.0.1':
-    dependencies:
-      '@applemusic-like-lyrics/ttml': 1.0.1
-      pako: 2.1.0
-
-  '@applemusic-like-lyrics/ttml@1.0.1': {}
 
   '@babel/code-frame@7.29.0':
     dependencies:
@@ -7865,8 +7846,6 @@ snapshots:
   package-json-from-dist@1.0.1: {}
 
   package-manager-detector@1.6.0: {}
-
-  pako@2.1.0: {}
 
   parent-module@1.0.1:
     dependencies:
