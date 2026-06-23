@@ -104,10 +104,7 @@ onBeforeUnmount(() => {
   </div>
 
   <!-- 流体背景 -->
-  <div
-    v-else-if="bgType === 'animation'"
-    class="absolute inset-0 overflow-hidden -z-1"
-  >
+  <div v-else-if="bgType === 'animation'" class="absolute inset-0 overflow-hidden -z-1">
     <BackgroundRender
       :album="media.track?.cover || DEFAULT_COVER"
       :playing="bgPlaying"
