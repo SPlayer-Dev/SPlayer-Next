@@ -246,6 +246,7 @@ defineExpose({
 
 :deep(.amll-lyric-player) {
   --amll-lp-font-size: 1em;
+  --amll-lp-color: var(--lp-color, #fff);
   width: 100%;
   height: 100%;
   padding-left: 10%;
