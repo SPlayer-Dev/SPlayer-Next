@@ -196,22 +196,30 @@ export const clear = (): void => {
   emitter.emit("lyric-offset-change", { trackId: null, offsetMs: 0 });
 };
 
-/** 订阅歌曲切换 */
-export const onTrackChange = (listener: (data: { track: Track | null }) => void): void => {
+/** 订阅歌曲切换，返回取消订阅函数 */
+export const onTrackChange = (
+  listener: (data: { track: Track | null }) => void,
+): (() => void) => {
   emitter.on("track-change", listener);
+  return () => emitter.off("track-change", listener);
 };
 
-/** 订阅歌词内容变化 */
-export const onLyricChange = (listener: (snap: NowPlayingSnapshot) => void): void => {
+/** 订阅歌词内容变化，返回取消订阅函数 */
+export const onLyricChange = (listener: (snap: NowPlayingSnapshot) => void): (() => void) => {
   emitter.on("lyric-change", listener);
+  return () => emitter.off("lyric-change", listener);
 };
 
-/** 订阅播放位置锚点 */
-export const onPositionSync = (listener: (data: NowPlayingPositionSync) => void): void => {
+/** 订阅播放位置锚点，返回取消订阅函数 */
+export const onPositionSync = (listener: (data: NowPlayingPositionSync) => void): (() => void) => {
   emitter.on("position-sync", listener);
+  return () => emitter.off("position-sync", listener);
 };
 
-/** 订阅当前曲目歌词偏移变化 */
-export const onLyricOffsetChange = (listener: (data: NowPlayingLyricOffsetSync) => void): void => {
+/** 订阅当前曲目歌词偏移变化，返回取消订阅函数 */
+export const onLyricOffsetChange = (
+  listener: (data: NowPlayingLyricOffsetSync) => void,
+): (() => void) => {
   emitter.on("lyric-offset-change", listener);
+  return () => emitter.off("lyric-offset-change", listener);
 };

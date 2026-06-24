@@ -222,6 +222,18 @@ export interface ExternalApiSettings {
   port: number;
 }
 
+/** ClassIsland 联动（LyricsIsland 协议）配置 */
+export interface LyricsIslandSettings {
+  /** 总开关 */
+  enabled: boolean;
+  /** 目标端口（协议固定 50063，提供配置以防特殊场景） */
+  port: number;
+  /** 次级歌词优先显示翻译 */
+  showTranslation: boolean;
+  /** 无翻译时显示下一行原文 */
+  showNextLine: boolean;
+}
+
 /** 外部 API 服务运行时状态 */
 export interface ExternalApiStatus {
   /** 是否正在监听 */
@@ -377,6 +389,8 @@ export interface SystemConfig {
   lastfm: LastfmSettings;
   /** 外部 API 服务（HTTP + WS） */
   externalApi: ExternalApiSettings;
+  /** ClassIsland 联动（LyricsIsland 协议） */
+  lyricsIsland: LyricsIslandSettings;
   /** 应用更新配置 */
   update: AppUpdateSettings;
   /** 系统配置 */

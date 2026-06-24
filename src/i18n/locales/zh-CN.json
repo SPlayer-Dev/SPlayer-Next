@@ -667,6 +667,7 @@
       "discord": "Discord RPC",
       "lastfm": "Last.fm",
       "externalApi": "外部 API",
+      "lyricsIsland": "ClassIsland 联动",
       "systemConfig": "系统配置",
       "pluginsList": "已安装插件",
       "streaming": "流媒体管理",
@@ -1417,6 +1418,22 @@
     "externalApiPanel": {
       "label": "",
       "description": ""
+    },
+    "lyricsIslandEnabled": {
+      "label": "启用 ClassIsland 联动",
+      "description": "将当前歌词推送到 ClassIsland 主界面显示（需安装 ExtraIsland 插件）"
+    },
+    "lyricsIslandPort": {
+      "label": "端口",
+      "description": "ClassIsland 监听端口（默认 50063，一般无需修改）"
+    },
+    "lyricsIslandShowTranslation": {
+      "label": "显示翻译",
+      "description": "次级歌词优先显示翻译歌词"
+    },
+    "lyricsIslandShowNextLine": {
+      "label": "显示下一行",
+      "description": "无翻译时显示下一行原文"
     },
     "externalApi": {
       "restart": "重启服务",

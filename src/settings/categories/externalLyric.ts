@@ -341,6 +341,41 @@ const taskbarLyricSection: SettingSection = {
   ],
 };
 
+const lyricsIslandSection: SettingSection = {
+  id: "lyricsIsland",
+  tag: { text: "Beta" },
+  items: [
+    {
+      key: "lyricsIslandEnabled",
+      type: "switch",
+      binding: { store: "settings", path: "system.lyricsIsland.enabled" },
+      defaultValue: false,
+      children: [
+        {
+          key: "lyricsIslandPort",
+          type: "number",
+          binding: { store: "settings", path: "system.lyricsIsland.port" },
+          min: 1024,
+          max: 65535,
+          defaultValue: 50063,
+        },
+        {
+          key: "lyricsIslandShowTranslation",
+          type: "switch",
+          binding: { store: "settings", path: "system.lyricsIsland.showTranslation" },
+          defaultValue: true,
+        },
+        {
+          key: "lyricsIslandShowNextLine",
+          type: "switch",
+          binding: { store: "settings", path: "system.lyricsIsland.showNextLine" },
+          defaultValue: true,
+        },
+      ],
+    },
+  ],
+};
+
 const externalLyricCategory: SettingCategory = {
   id: "externalLyric",
   icon: IconLucideMonitor,
@@ -349,6 +384,7 @@ const externalLyricCategory: SettingCategory = {
     dynamicIslandSection,
     // taskbarLyric 仅 Windows 可用
     ...(navigator.platform.startsWith("Win") ? [taskbarLyricSection] : []),
+    lyricsIslandSection,
   ],
 };
 

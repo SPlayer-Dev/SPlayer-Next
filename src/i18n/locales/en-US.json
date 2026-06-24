@@ -679,6 +679,7 @@
       "discord": "Discord RPC",
       "lastfm": "Last.fm",
       "externalApi": "External API",
+      "lyricsIsland": "ClassIsland",
       "systemConfig": "System",
       "pluginsList": "Installed Plugins",
       "streaming": "Streaming",
@@ -1429,6 +1430,22 @@
     "externalApiPanel": {
       "label": "",
       "description": ""
+    },
+    "lyricsIslandEnabled": {
+      "label": "Enable ClassIsland integration",
+      "description": "Push current lyrics to ClassIsland home screen (requires ExtraIsland plugin)"
+    },
+    "lyricsIslandPort": {
+      "label": "Port",
+      "description": "ClassIsland listen port (default 50063, usually no need to change)"
+    },
+    "lyricsIslandShowTranslation": {
+      "label": "Show translation",
+      "description": "Prefer translated lyrics for the secondary line"
+    },
+    "lyricsIslandShowNextLine": {
+      "label": "Show next line",
+      "description": "Show next line original lyrics when no translation available"
     },
     "externalApi": {
       "restart": "Restart server",

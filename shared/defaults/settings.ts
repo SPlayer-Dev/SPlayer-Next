@@ -133,6 +133,12 @@ export const defaultSystemConfig: SystemConfig = {
     allowLan: false,
     port: 14558,
   },
+  lyricsIsland: {
+    enabled: false,
+    port: 50063,
+    showTranslation: true,
+    showNextLine: true,
+  },
   update: {
     autoCheck: true,
   },
