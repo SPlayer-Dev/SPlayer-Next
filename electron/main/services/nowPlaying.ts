@@ -197,9 +197,7 @@ export const clear = (): void => {
 };
 
 /** 订阅歌曲切换，返回取消订阅函数 */
-export const onTrackChange = (
-  listener: (data: { track: Track | null }) => void,
-): (() => void) => {
+export const onTrackChange = (listener: (data: { track: Track | null }) => void): (() => void) => {
   emitter.on("track-change", listener);
   return () => emitter.off("track-change", listener);
 };

@@ -20,7 +20,10 @@ import { init as initDownload } from "@main/services/downloadManager";
 import { pluginRegistry } from "@main/plugins/registry";
 import { registerCacheScheme, handleCacheProtocol } from "@main/utils/protocol";
 import { startServer, stopServer } from "@main/server";
-import { init as initLyricsIsland, dispose as disposeLyricsIsland } from "@main/services/lyricsIsland";
+import {
+  init as initLyricsIsland,
+  dispose as disposeLyricsIsland,
+} from "@main/services/lyricsIsland";
 import { initUpdater, disposeUpdater } from "@main/services/updater";
 import { coreLog, initLogger } from "@main/utils/logger";
 import {
