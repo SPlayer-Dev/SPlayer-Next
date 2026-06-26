@@ -2,7 +2,7 @@
 import type { LyricLine } from "@shared/types/lyrics";
 import { LyricRenderer } from "./engine";
 import type { SpringParams } from "./engine/spring";
-import { DEFAULTS } from "./engine/constants";
+import { DEFAULTS, type LayoutMode } from "./engine/constants";
 import { applyScrollPreroll } from "./utils/scroll-preroll";
 import "./renderer.css";
 
@@ -93,6 +93,28 @@ const props = withDefaults(
     showRomanization?: boolean;
     /** 挂载时的初始播放时间（毫秒）@default 0 */
     initialTime?: number;
+    /** 布局模式（default 垂直堆叠 / fan 扇形展开）@default "default" */
+    layoutMode?: LayoutMode;
+    /** 扇形最大角度（度，正值向右展开）@default 60 */
+    fanAngle?: number;
+    /** 扇形旋转半径系数 @default 1.0 */
+    fanRadiusFactor?: number;
+    /** 扇形模式单侧可见行数 @default 7 */
+    fanMaxVisibleLines?: number;
+    /** 扇形模式固定行高（px）@default 96 */
+    fanLineHeight?: number;
+    /** 扇形模式最远行缩放 @default 0.78 */
+    fanMinScale?: number;
+    /** 扇形模式最远行透明度 @default 0 */
+    fanMinOpacity?: number;
+    /** 扇形模式最远行模糊（px）@default 7 */
+    fanMaxBlur?: number;
+    /** 扇形模式是否启用底框背景 @default true */
+    fanEnableBackground?: boolean;
+    /** 扇形模式是否启用长音节光辉 @default true */
+    fanEnableGlow?: boolean;
+    /** 鼠标滚轮方向 @default "reverse" */
+    lyricScrollDirection?: "natural" | "reverse";
   }>(),
   {
     playing: false,
@@ -112,6 +134,17 @@ const props = withDefaults(
     showTranslation: true,
     showRomanization: true,
     initialTime: 0,
+    layoutMode: DEFAULTS.layoutMode,
+    fanAngle: DEFAULTS.fanAngle,
+    fanRadiusFactor: DEFAULTS.fanRadiusFactor,
+    fanMaxVisibleLines: DEFAULTS.fanMaxVisibleLines,
+    fanLineHeight: DEFAULTS.fanLineHeight,
+    fanMinScale: DEFAULTS.fanMinScale,
+    fanMinOpacity: DEFAULTS.fanMinOpacity,
+    fanMaxBlur: DEFAULTS.fanMaxBlur,
+    fanEnableBackground: DEFAULTS.fanEnableBackground,
+    fanEnableGlow: DEFAULTS.fanEnableGlow,
+    lyricScrollDirection: "reverse",
   },
 );
 
@@ -295,6 +328,62 @@ watch(
     renderer?.setConfig({ showRomanization: v });
     rebuildLyrics();
   },
+);
+
+// 扇形布局相关配置同步
+watch(
+  () => props.layoutMode,
+  (v) => renderer?.setConfig({ layoutMode: v }),
+);
+
+watch(
+  () => props.fanAngle,
+  (v) => renderer?.setConfig({ fanAngle: v }),
+);
+
+watch(
+  () => props.fanRadiusFactor,
+  (v) => renderer?.setConfig({ fanRadiusFactor: v }),
+);
+
+watch(
+  () => props.fanMaxVisibleLines,
+  (v) => renderer?.setConfig({ fanMaxVisibleLines: v }),
+);
+
+watch(
+  () => props.fanLineHeight,
+  (v) => renderer?.setConfig({ fanLineHeight: v }),
+);
+
+watch(
+  () => props.fanMinScale,
+  (v) => renderer?.setConfig({ fanMinScale: v }),
+);
+
+watch(
+  () => props.fanMinOpacity,
+  (v) => renderer?.setConfig({ fanMinOpacity: v }),
+);
+
+watch(
+  () => props.fanMaxBlur,
+  (v) => renderer?.setConfig({ fanMaxBlur: v }),
+);
+
+watch(
+  () => props.fanEnableBackground,
+  (v) => renderer?.setConfig({ fanEnableBackground: v }),
+);
+
+watch(
+  () => props.fanEnableGlow,
+  (v) => renderer?.setConfig({ fanEnableGlow: v }),
+);
+
+watch(
+  () => props.lyricScrollDirection,
+  (v) => renderer?.setConfig({ lyricScrollDirection: v }),
 );
 </script>
 

@@ -91,6 +91,8 @@ export interface DynamicIslandApi {
   resize: (width: number) => void;
   /** 渲染端上报目标高度 */
   setHeight: (height: number) => void;
+  /** 渲染端一次上报宽高，主进程一次 setBounds（替代分开的 resize + setHeight，避免 IPC 顺序不确定） */
+  setBounds: (width: number, height: number) => void;
   /** 查询当前吸附模式（HMR 后主进程不会主动重发，需主动拉取） */
   getMode: () => Promise<"snapped" | "floating">;
   /** 订阅吸附模式变化 */

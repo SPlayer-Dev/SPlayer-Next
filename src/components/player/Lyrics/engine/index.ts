@@ -8,6 +8,7 @@ import {
   type WordAnimTarget,
 } from "./word-builder";
 import { buildLineElements } from "./line-builder";
+import { synthesizeWordsIfNeeded } from "./synthesize";
 import { LineAnimationController } from "./line-animations";
 import {
   createInterludeDots,
@@ -18,7 +19,7 @@ import {
 } from "./interlude";
 
 export type { RendererConfig } from "./constants";
-import type { RendererConfig } from "./constants";
+import type { RendererConfig, LayoutMode } from "./constants";
 
 export class LyricRenderer {
   /** 外层容器 */
@@ -59,6 +60,8 @@ export class LyricRenderer {
 
   /** 每行的高度缓存（offsetHeight） */
   private lineHeights: Float64Array = new Float64Array(0);
+  /** 扇形滚动模式下每行 Y 位置缓存（按底框高度 + gap 累加） */
+  private fanScrollLineY: Float64Array = new Float64Array(0);
   /** 容器宽度 */
   private containerWidth = 0;
   /** 容器高度 */
@@ -172,6 +175,40 @@ export class LyricRenderer {
   private showTranslation = DEFAULTS.showTranslation;
   /** 是否显示音译歌词 */
   private showRomanization = DEFAULTS.showRomanization;
+
+  /** 布局模式（default 垂直堆叠 / fan 扇形展开） */
+  private layoutMode: LayoutMode = DEFAULTS.layoutMode;
+  /** 扇形最大角度（度） */
+  private fanAngle = DEFAULTS.fanAngle;
+  /** 扇形旋转半径系数 */
+  private fanRadiusFactor = DEFAULTS.fanRadiusFactor;
+  /** 扇形模式单侧可见行数 */
+  private fanMaxVisibleLines = DEFAULTS.fanMaxVisibleLines;
+  /** 扇形模式固定行高 */
+  private fanLineHeight = DEFAULTS.fanLineHeight;
+  /** 扇形模式最远行缩放 */
+  private fanMinScale = DEFAULTS.fanMinScale;
+  /** 扇形模式最远行透明度 */
+  private fanMinOpacity = DEFAULTS.fanMinOpacity;
+  /** 扇形模式最远行模糊 */
+  private fanMaxBlur = DEFAULTS.fanMaxBlur;
+  /** 扇形模式是否启用底框背景 */
+  private fanEnableBackground = DEFAULTS.fanEnableBackground;
+  /** 扇形模式是否启用长音节光辉 */
+  private fanEnableGlow = DEFAULTS.fanEnableGlow;
+  /** 鼠标滚轮方向：natural=内容随手势同向，reverse=内容随手势反向 */
+  private lyricScrollDirection: "natural" | "reverse" = "reverse";
+
+  /** 扇形模式每行的目标旋转角度（度） */
+  private fanTargetAngles: Float64Array = new Float64Array(0);
+  /** 扇形模式每行的当前旋转角度（插值后） */
+  private fanCurrentAngles: Float64Array = new Float64Array(0);
+  /** 扇形模式每行的目标横向位移（px） */
+  private fanTargetDx: Float64Array = new Float64Array(0);
+  /** 扇形模式每行的当前横向位移（px） */
+  private fanCurrentDx: Float64Array = new Float64Array(0);
+  /** 扇形模式每行是否在视口内（基于行索引距离） */
+  private fanInView: boolean[] = [];
 
   /** 容器尺寸变化观察器 */
   private containerResizeObserver: ResizeObserver;
@@ -297,8 +334,10 @@ export class LyricRenderer {
     const seekTime = this.pendingPlayTime >= 0 ? this.pendingPlayTime : 0;
     this.lineAnimations.cancelAll();
     for (const element of this.lineElements) element.remove();
+    // 为 LRC 等行级格式合成逐字 timing，让静态行也有扫字效果
+    const renderedLines = synthesizeWordsIfNeeded(lines);
     // 重置状态
-    this.lines = lines;
+    this.lines = renderedLines;
     this.activeLineIndex = -1;
     this.activeLineSet.clear();
     this.lastProcessedTime = -1;
@@ -307,10 +346,10 @@ export class LyricRenderer {
     // 含对唱行时启用左右分栏布局
     this.container.classList.toggle(
       "lp-has-duet",
-      lines.some((line) => line.isDuet),
+      renderedLines.some((line) => line.isDuet),
     );
 
-    const lineCount = lines.length;
+    const lineCount = renderedLines.length;
 
     // 初始化弹簧（位置弹簧初始在屏幕外，缩放弹簧初始 97%）
     const offScreen = Math.max(this.containerHeight * 2, 2000);
@@ -323,7 +362,7 @@ export class LyricRenderer {
       this.positionSprings[i] = new Spring(offScreen);
       const scaleSpring = new Spring(97);
       scaleSpring.updateParams(
-        lines[i].isBG
+        renderedLines[i].isBG
           ? { mass: 1, damping: 20, stiffness: 50 }
           : { mass: 2, damping: 25, stiffness: 100 },
       );
@@ -340,6 +379,7 @@ export class LyricRenderer {
 
     // 初始化缓存数组
     this.lineHeights = new Float64Array(lineCount);
+    this.fanScrollLineY = new Float64Array(lineCount);
     this.cachedTransforms = new Array(lineCount).fill("");
     this.lineWillChange = new Array(lineCount).fill(false);
     this.cachedAlphaKeys = new Array(lineCount).fill("");
@@ -347,11 +387,26 @@ export class LyricRenderer {
     this.blurValues = new Float64Array(lineCount);
     this.passValues = new Float64Array(lineCount).fill(1);
     this.cachedPassKeys = new Array(lineCount).fill("");
+    // 扇形模式缓存初始化
+    this.fanTargetAngles = new Float64Array(lineCount);
+    this.fanCurrentAngles = new Float64Array(lineCount);
+    this.fanTargetDx = new Float64Array(lineCount);
+    this.fanCurrentDx = new Float64Array(lineCount);
+    this.fanInView = new Array(lineCount).fill(false);
+    this.container.classList.toggle("lp-fan-mode", this.layoutMode === "fan");
+    this.container.classList.toggle(
+      "lp-fan-bg",
+      this.layoutMode === "fan" && this.fanEnableBackground,
+    );
+    this.container.classList.toggle(
+      "lp-fan-glow",
+      this.layoutMode === "fan" && this.fanEnableGlow,
+    );
 
     this.entranceComplete = false;
 
     // 构建 DOM
-    const built = buildLineElements(lines, {
+    const built = buildLineElements(renderedLines, {
       enableEmphasizeEffect: this.enableEmphasizeEffect,
       showTranslation: this.showTranslation,
       showRomanization: this.showRomanization,
@@ -460,6 +515,39 @@ export class LyricRenderer {
       this.enableEmphasizeEffect = config.enableEmphasizeEffect;
     if (config.showTranslation != null) this.showTranslation = config.showTranslation;
     if (config.showRomanization != null) this.showRomanization = config.showRomanization;
+    if (config.layoutMode != null && config.layoutMode !== this.layoutMode) {
+      this.layoutMode = config.layoutMode;
+      this.container.classList.toggle("lp-fan-mode", this.layoutMode === "fan");
+      layoutDirty = true;
+    }
+    if (config.fanAngle != null) this.fanAngle = config.fanAngle;
+    if (config.fanRadiusFactor != null) this.fanRadiusFactor = config.fanRadiusFactor;
+    if (config.fanMaxVisibleLines != null) this.fanMaxVisibleLines = config.fanMaxVisibleLines;
+    if (config.fanLineHeight != null) this.fanLineHeight = config.fanLineHeight;
+    if (config.fanMinScale != null) this.fanMinScale = config.fanMinScale;
+    if (config.fanMinOpacity != null) this.fanMinOpacity = config.fanMinOpacity;
+    if (config.fanMaxBlur != null) this.fanMaxBlur = config.fanMaxBlur;
+    if (config.fanEnableBackground != null)
+      this.fanEnableBackground = config.fanEnableBackground;
+    if (config.fanEnableGlow != null) this.fanEnableGlow = config.fanEnableGlow;
+    if (config.lyricScrollDirection != null)
+      this.lyricScrollDirection = config.lyricScrollDirection;
+
+    // 扇形底框/光辉 class 依赖 layoutMode + 开关，配置变更后立即同步
+    if (
+      config.layoutMode != null ||
+      config.fanEnableBackground != null ||
+      config.fanEnableGlow != null
+    ) {
+      this.container.classList.toggle(
+        "lp-fan-bg",
+        this.layoutMode === "fan" && this.fanEnableBackground,
+      );
+      this.container.classList.toggle(
+        "lp-fan-glow",
+        this.layoutMode === "fan" && this.fanEnableGlow,
+      );
+    }
 
     if (layoutDirty && this.lineElements.length > 0) {
       this.measureLineHeights();
@@ -643,11 +731,126 @@ export class LyricRenderer {
   };
 
   /**
+   * 扇形布局计算
+   * 共线旋转：行按 fanLineHeight 垂直堆叠，旋转附加位移
+   * 距离因子驱动 angle/scale/opacity/blur
+   * 滚动模式：角度归零、缩放统一 0.85，Y 位置按每行底框高度 + gap 累加
+   * @param syncImmediate - true 瞬移到目标位置，false 弹簧动画过渡
+   */
+  private calculateFanLayout = (syncImmediate: boolean) => {
+    const viewHeight = this.containerHeight;
+    const viewWidth = this.containerWidth;
+    const targetIdx = this.activeLineIndex;
+    const lines = this.lines;
+    const lineCount = this.positionSprings.length;
+    if (lineCount === 0) return;
+
+    // 扇形几何参数
+    const sign = this.fanAngle < 0 ? -1 : 1;
+    const R = Math.min(viewWidth, viewHeight) * 0.5 * this.fanRadiusFactor;
+    const fanAnchorX = viewWidth / 2 - sign * R;
+    const maxDist = this.fanMaxVisibleLines;
+    const centerY = viewHeight / 2;
+    const centerX = viewWidth / 2;
+    const isScrolling = this.isUserScrolling;
+    const scrollScale = isScrolling ? 0.85 : 1;
+    const sOffset = isScrolling ? this.userScrollOffset : 0;
+
+    // 扇形模式不显示间奏圆点，强制关闭状态
+    this.interludeState.isActive = false;
+
+    // 滚动模式：按每行底框高度 + gap 累加 Y 位置，避免长歌词行重叠
+    // 当前行居中，向上/向下按各自 offsetHeight * scrollScale + 5px 间隔累加
+    const SCROLL_GAP_PX = 5;
+    if (isScrolling && this.fanScrollLineY.length < lineCount) {
+      this.fanScrollLineY = new Float64Array(lineCount);
+    }
+    if (isScrolling) {
+      this.fanScrollLineY[targetIdx] = centerY + sOffset;
+      for (let i = targetIdx + 1; i < lineCount; i++) {
+        const prevH = (this.lineHeights[i - 1] || 40) * scrollScale;
+        this.fanScrollLineY[i] = this.fanScrollLineY[i - 1] + prevH + SCROLL_GAP_PX;
+      }
+      for (let i = targetIdx - 1; i >= 0; i--) {
+        const currH = (this.lineHeights[i] || 40) * scrollScale;
+        this.fanScrollLineY[i] = this.fanScrollLineY[i + 1] - currH - SCROLL_GAP_PX;
+      }
+    }
+
+    for (let i = 0; i < lineCount; i++) {
+      const posSpring = this.positionSprings[i];
+      const scaleSpring = this.scaleSprings[i];
+      const line = lines[i];
+      if (!line) continue;
+
+      const distance = i - targetIdx;
+      const absDist = Math.min(maxDist, Math.abs(distance));
+      const distanceFactor = Math.min(1, absDist / maxDist);
+      const dirSign = distance === 0 ? 0 : distance > 0 ? 1 : -1;
+
+      // 扇形角度：滚动时归零（变竖型），非滚动时按距离因子分布
+      // 参照 BetterLyrics LyricsAnimator.cs:209-212 AngleTransition.Start(0)
+      const angleDeg = isScrolling ? 0 : this.fanAngle * distanceFactor * dirSign;
+      const angleRad = (angleDeg * Math.PI) / 180;
+      const cos = Math.cos(angleRad);
+      const sin = Math.sin(angleRad);
+
+      // 行 Y 位置：滚动模式用累加的底框高度，非滚动用固定 fanLineHeight
+      const lineY = isScrolling
+        ? this.fanScrollLineY[i]
+        : centerY + distance * this.fanLineHeight;
+
+      // 共线旋转的横向补偿
+      const angleRatio = Math.abs(angleRad) / (Math.PI / 2);
+      const compensationX = -sign * angleRatio * (R / 2);
+      const translatedX = centerX + compensationX;
+      const dx = translatedX - fanAnchorX;
+      const rotatedX = fanAnchorX + dx * cos;
+      const rotatedY = lineY + dx * sin;
+      const finalDx = rotatedX - centerX;
+      const finalDy = rotatedY - centerY;
+
+      // 缩放：扇形模式基于距离因子，滚动时统一为 scrollScale（避免一长一短）
+      const distanceScale = 1 - (1 - this.fanMinScale) * distanceFactor;
+      const targetScale = (isScrolling ? scrollScale : distanceScale) * 100;
+
+      // 写入弹簧目标
+      if (syncImmediate) {
+        posSpring.setPosition(finalDy);
+        scaleSpring.setPosition(targetScale);
+        this.fanCurrentAngles[i] = angleDeg;
+        this.fanTargetAngles[i] = angleDeg;
+        this.fanCurrentDx[i] = finalDx;
+        this.fanTargetDx[i] = finalDx;
+      } else {
+        posSpring.setTargetPosition(finalDy);
+        scaleSpring.setTargetPosition(targetScale);
+        this.fanTargetAngles[i] = angleDeg;
+        this.fanTargetDx[i] = finalDx;
+      }
+
+      // 视口裁剪：基于行索引距离
+      this.fanInView[i] = Math.abs(distance) <= maxDist + 1 || isScrolling;
+    }
+
+    // bottom-line 在扇形模式隐藏（移到屏外）
+    const offScreen = Math.max(viewHeight * 2, 2000);
+    if (syncImmediate) this.bottomLineSpring.setPosition(offScreen);
+    else this.bottomLineSpring.setTargetPosition(offScreen);
+  };
+
+  /**
    * 计算所有行的目标位置和缩放
    * @param syncImmediate - true 瞬移到目标位置，false 弹簧动画过渡
    * @param noCascade - true 跳过级联延迟，所有行同步运动（用于 seek）
    */
   private calculateLayout = (syncImmediate: boolean, noCascade = false) => {
+    // 扇形模式走独立布局
+    if (this.layoutMode === "fan") {
+      this.calculateFanLayout(syncImmediate);
+      return;
+    }
+
     const viewHeight = this.containerHeight;
     const viewWidth = this.containerWidth;
     const currentTime = this.lastProcessedTime;
@@ -815,6 +1018,9 @@ export class LyricRenderer {
     const viewHeight = this.containerHeight;
     const isFullSync = this.needsFullSync;
     this.needsFullSync = false;
+    const isFanMode = this.layoutMode === "fan";
+    // 扇形模式 angle/dx 线性插值速率（提高到 22，让行切换更跳跃、有跃动感）
+    const fanLerpRate = 1 - Math.exp(-22 * (deltaTime || 16) / 1000);
 
     for (let i = 0; i < lineCount; i++) {
       const posSpring = this.positionSprings[i];
@@ -823,7 +1029,8 @@ export class LyricRenderer {
       scaleSpring.update(deltaTime);
 
       const yPos = posSpring.getCurrentPosition();
-      const inView = yPos >= -500 && yPos <= viewHeight + 500;
+      // 视口裁剪：扇形模式基于行索引距离，默认模式基于 Y 坐标
+      const inView = isFanMode ? this.fanInView[i] : yPos >= -500 && yPos <= viewHeight + 500;
       // 合成层按需提升：仅视口附近的行挂 will-change
       if (this.lineWillChange[i] !== inView) {
         this.lineWillChange[i] = inView;
@@ -832,7 +1039,20 @@ export class LyricRenderer {
       // 视口裁剪：屏幕外行跳过 transform 写入
       if (!isFullSync && !inView) continue;
       const scale = scaleSpring.getCurrentPosition() / 100;
-      const transformStr = `translateY(${yPos.toFixed(1)}px) scale(${scale.toFixed(4)})`;
+
+      let transformStr: string;
+      if (isFanMode) {
+        // 扇形模式：插值 angle/dx，拼接 translate + rotate + scale
+        const targetAngle = this.fanTargetAngles[i];
+        const targetDx = this.fanTargetDx[i];
+        this.fanCurrentAngles[i] += (targetAngle - this.fanCurrentAngles[i]) * fanLerpRate;
+        this.fanCurrentDx[i] += (targetDx - this.fanCurrentDx[i]) * fanLerpRate;
+        const dx = this.fanCurrentDx[i].toFixed(1);
+        const angle = this.fanCurrentAngles[i].toFixed(2);
+        transformStr = `translate(calc(-50% + ${dx}px), calc(-50% + ${yPos.toFixed(1)}px)) rotate(${angle}deg) scale(${scale.toFixed(4)})`;
+      } else {
+        transformStr = `translateY(${yPos.toFixed(1)}px) scale(${scale.toFixed(4)})`;
+      }
       if (this.cachedTransforms[i] !== transformStr) {
         this.cachedTransforms[i] = transformStr;
         this.lineElements[i].style.transform = transformStr;
@@ -875,22 +1095,42 @@ export class LyricRenderer {
     const releaseFactor = 1 - Math.exp(-this.alphaReleaseSpeed * frameDeltaSec);
     const blurFactor = 1 - Math.exp(-12 * frameDeltaSec);
     const halfInactive = this.inactiveAlpha * 0.5;
-    const doPass = this.hidePassedLines && this.isPlaying;
-    const doBlur = this.enableBlur;
-    const blurSuppressed = this.isUserScrolling || this.isHovering;
+    // 扇形模式不隐藏已播放行（共线展开已表达时间感），且 blur 由距离驱动
+    const doPass = !isFanMode && this.hidePassedLines && this.isPlaying;
+    const doBlur = isFanMode || this.enableBlur;
+    const blurSuppressed = isFanMode ? false : this.isUserScrolling || this.isHovering;
     const activeIdx = this.activeLineIndex;
+    const fanMaxVisible = this.fanMaxVisibleLines;
 
     for (let i = 0; i < lineCount; i++) {
-      const yPos = this.positionSprings[i].getCurrentPosition();
-      if (!isFullSync && (yPos < -500 || yPos > viewHeight + 500)) continue;
+      // 扇形模式视口裁剪基于行索引距离，默认模式基于 Y 坐标
+      if (isFanMode) {
+        if (!isFullSync && !this.fanInView[i]) continue;
+      } else {
+        const yPos = this.positionSprings[i].getCurrentPosition();
+        if (!isFullSync && (yPos < -500 || yPos > viewHeight + 500)) continue;
+      }
 
       const isActive = this.activeLineSet.has(i);
       const isPassed =
         doPass && !this.isUserScrolling && (this.lines[i].isBG ? i - 1 < activeIdx : i < activeIdx);
 
+      // 扇形模式：距激活行越远透明度越低，由 fanMinOpacity 控制最远行
+      // 滚动时取消距离衰减，所有行统一全亮（参照 BetterLyrics LyricsAnimator.cs:384-410）
+      let targetBright: number;
+      if (isFanMode) {
+        if (isActive || this.isUserScrolling) {
+          targetBright = 1.0;
+        } else {
+          const fanDist = Math.abs(i - activeIdx);
+          const fanDistFactor = Math.min(1, fanDist / fanMaxVisible);
+          targetBright = 1 - (1 - this.fanMinOpacity) * fanDistFactor;
+        }
+      } else {
+        targetBright = isPassed ? 0.0001 : isActive ? 1.0 : this.inactiveAlpha;
+      }
       // alpha：亮色（--ba）和暗色（--da）分别插值
       const alphaIdx = i * 2;
-      const targetBright = isPassed ? 0.0001 : isActive ? 1.0 : this.inactiveAlpha;
       let brightValue = this.alphaValues[alphaIdx];
       if (Math.abs(targetBright - brightValue) < 0.001) {
         brightValue = targetBright;
@@ -952,7 +1192,15 @@ export class LyricRenderer {
       // blur：逐行模糊，距激活行越远越模糊
       if (doBlur || this.blurValues[i] > 0.01) {
         let targetBlur = 0;
-        if (doBlur && !blurSuppressed && !isActive) {
+        if (isFanMode) {
+          // 扇形模式：滚动时模糊归零（参照 BetterLyrics BlurAmountTransition.Start(0)）
+          // 非滚动时由 fanMaxBlur 和距离因子驱动
+          if (!isActive && !this.isUserScrolling) {
+            const fanDist = Math.abs(i - activeIdx);
+            const fanDistFactor = Math.min(1, fanDist / fanMaxVisible);
+            targetBlur = this.fanMaxBlur * fanDistFactor;
+          }
+        } else if (doBlur && !blurSuppressed && !isActive) {
           targetBlur = Math.min(4, 1 + Math.abs(i - Math.max(activeIdx, 0)));
         }
         let blurCurrent = this.blurValues[i];
@@ -1041,7 +1289,11 @@ export class LyricRenderer {
 
   private handleWheel = (event: WheelEvent) => {
     event.preventDefault();
-    this.applyUserScroll(event.deltaY);
+    // reverse（Windows 习惯）：向下滚 → 内容向上移 → 露出下方内容，需反向 deltaY
+    // natural（Mac 习惯）：直接使用 deltaY，内容随手势同向移动
+    const deltaY =
+      this.lyricScrollDirection === "reverse" ? -event.deltaY : event.deltaY;
+    this.applyUserScroll(deltaY);
   };
 
   private handleTouchStart = (event: TouchEvent) => {

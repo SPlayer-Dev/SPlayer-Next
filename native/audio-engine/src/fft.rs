@@ -7,8 +7,10 @@ const FFT_SIZE: usize = 2048;
 /// 输出频段数
 const OUTPUT_BINS: usize = 128;
 /// 分析频率范围
+/// 下限 80Hz 避开直流与低频噪声；上限 16000Hz 覆盖音乐高频泛音
+/// 此前为 2000Hz，导致前端按 80~12000Hz 映射时高频段永远为 0
 const MIN_FREQ: f32 = 80.0;
-const MAX_FREQ: f32 = 2000.0;
+const MAX_FREQ: f32 = 16000.0;
 /// 环形缓冲区最大样本数
 const MAX_BUFFER_SIZE: usize = 8192;
 

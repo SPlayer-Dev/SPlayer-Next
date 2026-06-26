@@ -116,6 +116,18 @@ const api = {
     // 主窗口监听"打开设置"事件
     onOpenSettings: (callback: (payload: { category?: string; highlight?: string }) => void) =>
       subscribe<{ category?: string; highlight?: string }>("system:openSettings", callback),
+    // 显示主窗口并展开到播放界面（任务栏歌词封面点击）
+    openPlayingView: () => ipcRenderer.invoke("system:openPlayingView"),
+    // 主窗口监听"展开播放界面"事件
+    onOpenPlayingView: (callback: () => void) => subscribe("system:openPlayingView", callback),
+    // 主窗口监听"收起播放界面"事件（任务栏封面 toggle 场景 1 触发）
+    onCollapsePlayingView: (callback: () => void) =>
+      subscribe("system:collapsePlayingView", callback),
+    // 同步播放界面展开状态到主进程（用于任务栏封面 toggle 判定）
+    setPlayingViewExpanded: (expanded: boolean) =>
+      ipcRenderer.invoke("system:setPlayingViewExpanded", expanded),
+    // 重置任务栏封面 toggle 状态（渲染端手动收起播放界面时调用）
+    resetPlayingViewToggle: () => ipcRenderer.invoke("system:resetPlayingViewToggle"),
     // 获取系统已安装字体
     listFonts: () => ipcRenderer.invoke("system:listFonts"),
     // 拉远端字节回渲染层
@@ -253,6 +265,9 @@ const api = {
     resize: (width: number) => ipcRenderer.send("dynamicIsland:resize", width),
     // 渲染端上报目标高度
     setHeight: (height: number) => ipcRenderer.send("dynamicIsland:setHeight", height),
+    // 渲染端一次上报宽高，主进程一次 setBounds（替代分开的 resize + setHeight）
+    setBounds: (width: number, height: number) =>
+      ipcRenderer.send("dynamicIsland:setBounds", width, height),
     // 查询当前吸附模式
     getMode: () => ipcRenderer.invoke("dynamicIsland:getMode"),
     // 订阅吸附模式变化：snapped（顶部居中）/ floating（自由位置）
@@ -383,6 +398,9 @@ const api = {
     // 订阅当前曲目歌词偏移变化
     onLyricOffsetChange: (callback: (data: unknown) => void) =>
       subscribe("nowPlaying:lyric-offset-change", callback),
+    // 订阅 FFT 频谱数据（仅可见窗口接收，~20Hz）
+    onFftSync: (callback: (data: number[]) => void) =>
+      subscribe<number[]>("nowPlaying:fft-sync", callback),
   },
   theme: {
     // 弹出文件选择框

@@ -7,8 +7,11 @@ import IconSkipForward from "~icons/lucide/skip-forward";
 import IconPlay from "~icons/lucide/play";
 import IconPause from "~icons/lucide/pause";
 import TaskbarLyricLine from "./components/TaskbarLyricLine.vue";
+import TaskbarSpectrum from "./components/TaskbarSpectrum.vue";
 import { pickPrimaryIndex } from "@shared/utils/lyricSync";
 import { useNowPlayingSync } from "@windows/shared/composables/useNowPlayingSync";
+import { useTaskbarSpectrum } from "@windows/shared/composables/useTaskbarSpectrum";
+import { isPureMusic } from "@windows/shared/utils/pureMusicDetect";
 
 const config = reactive<TaskbarLyricSettings>({
   position: "auto",
@@ -23,6 +26,10 @@ const config = reactive<TaskbarLyricSettings>({
   wordByWord: true,
   fontSize: 14,
   fontFamily: "",
+  showSpectrum: true,
+  spectrumSensitivity: 1.0,
+  spectrumSmoothing: 0.3,
+  spectrumHoverBarCount: 7,
 });
 
 const anchor = ref<"left" | "right">("left");
@@ -32,7 +39,23 @@ const isHovered = ref(false);
 const { track, lyric, primaryIndex, playing } = useNowPlayingSync({
   pickIndex: pickPrimaryIndex,
   logTag: "taskbar-lyric",
+  fftEnabled: config.showSpectrum,
 });
+
+/** 频谱数据处理 */
+const { bars } = useTaskbarSpectrum({
+  sensitivity: () => config.spectrumSensitivity,
+  smoothing: () => config.spectrumSmoothing,
+});
+
+/** 是否为纯音乐 */
+const pureMusic = computed(() => isPureMusic(lyric.value));
+
+/** 是否显示频谱（纯音乐时替换歌词） */
+const showSpectrum = computed(
+  () => config.showSpectrum && pureMusic.value,
+);
+
 
 const currentLine = computed<LyricLine | null>(() => {
   const idx = primaryIndex.value;
@@ -110,6 +133,10 @@ const handleTogglePlay = (): void => window.api.player.dispatch(playing.value ? 
 const handleFocusMain = (): void => {
   window.api.system.focusMainWindow().catch(() => {});
 };
+/** 点击封面：打开主界面并展开到播放界面 */
+const handleCoverClick = (): void => {
+  window.api.system.openPlayingView().catch(() => {});
+};
 
 const unsubscribers: Array<() => void> = [];
 
@@ -121,19 +148,34 @@ onMounted(async () => {
     console.error("[taskbar-lyric] load config failed", error);
   }
 
+  // 订阅 FFT 推送：主进程维护引用计数，任一窗口订阅即保持推送
+  // 这样主窗口 BottomSpectrum 卸载后任务栏频谱仍能继续工作
+  if (config.showSpectrum) {
+    window.api.player.setFftEnabled(true).catch(() => {});
+  }
+
   unsubscribers.push(
     window.api.taskbarLyric.onLayout((data) => {
       anchor.value = data.anchor;
       taskbarIsLight.value = data.isLight;
     }),
     window.api.taskbarLyric.onConfigChange((next) => {
+      const prevShowSpectrum = config.showSpectrum;
       Object.assign(config, next);
+      // 频谱开关变化时同步 FFT 订阅
+      if (config.showSpectrum !== prevShowSpectrum) {
+        window.api.player.setFftEnabled(config.showSpectrum).catch(() => {});
+      }
     }),
   );
 });
 
 onBeforeUnmount(() => {
   for (const off of unsubscribers) off();
+  // 取消 FFT 订阅（引用计数 -1）
+  if (config.showSpectrum) {
+    window.api.player.setFftEnabled(false).catch(() => {});
+  }
 });
 </script>
 
@@ -149,7 +191,7 @@ onBeforeUnmount(() => {
       @mouseleave="isHovered = false"
       @dblclick="handleFocusMain"
     >
-      <div v-if="config.showCover" class="cover-wrapper">
+      <div v-if="config.showCover" class="cover-wrapper" @click.stop="handleCoverClick" @dblclick.stop>
         <img
           class="cover"
           :src="track?.cover || DEFAULT_COVER"
@@ -175,18 +217,20 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- 文本区 -->
-      <div class="lyric-area">
+      <div class="lyric-area" :class="{ 'spectrum-mode': showSpectrum }">
         <!-- 歌词层 -->
-        <TransitionGroup tag="div" name="line" class="lyric-column">
-          <div v-for="item in items" :key="item.key" class="lyric-line" :data-role="item.role">
-            <TaskbarLyricLine
-              :line="item.line"
-              :text="item.text"
-              :word-by-word="config.wordByWord && !!item.line"
-              :anchor="anchor"
-            />
-          </div>
-        </TransitionGroup>
+        <div class="lyrics-layer">
+          <TransitionGroup tag="div" name="line" class="lyric-column">
+            <div v-for="item in items" :key="item.key" class="lyric-line" :data-role="item.role">
+              <TaskbarLyricLine
+                :line="item.line"
+                :text="item.text"
+                :word-by-word="config.wordByWord && !!item.line"
+                :anchor="anchor"
+              />
+            </div>
+          </TransitionGroup>
+        </div>
         <!-- 歌曲信息 -->
         <div class="song-info">
           <div class="song-title">{{ titleText }}</div>
@@ -194,6 +238,12 @@ onBeforeUnmount(() => {
             {{ artistsText }}
           </div>
         </div>
+        <!-- 频谱层 -->
+        <TaskbarSpectrum
+          :bars="bars"
+          :hovered="isHovered"
+          :hover-bar-count="config.spectrumHoverBarCount"
+        />
       </div>
     </div>
   </div>
@@ -249,6 +299,12 @@ onBeforeUnmount(() => {
   aspect-ratio: 1 / 1;
   padding: 4px;
   overflow: hidden;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: transform 0.15s ease;
+}
+.cover-wrapper:hover {
+  transform: scale(1.06);
 }
 .cover {
   width: 100%;
@@ -325,21 +381,51 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
+.lyrics-layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.lyric-area:not(.spectrum-mode) .lyrics-layer {
+  opacity: 1;
+  transform: translateY(0);
+}
+.lyric-area.spectrum-mode .lyrics-layer {
+  opacity: 0;
+  transform: translateY(-2px);
+  pointer-events: none;
+}
+.lyric-area.spectrum-mode .spectrum-layer {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .lyric-column {
   position: absolute;
   inset: 0;
   display: flex;
   flex-direction: column;
   justify-content: space-evenly;
-  opacity: 1;
-  transition: opacity 0.18s ease;
 }
 .container[data-align="right"] .lyric-column {
   align-items: flex-end;
 }
-.container.is-hovered .lyric-column {
+.container.is-hovered .lyrics-layer {
   opacity: 0;
   pointer-events: none;
+}
+/* hover + 纯音乐：歌曲信息左侧，频谱右侧，避免挤一块 */
+.container.is-hovered .lyric-area.spectrum-mode .spectrum-layer {
+  opacity: 1;
+  inset: 0 4px 0 50%;
+  align-items: center;
+  padding-bottom: 0;
+}
+.container.is-hovered .lyric-area.spectrum-mode .song-info {
+  inset: 0 50% 0 0;
+  justify-content: center;
 }
 
 .lyric-line {
@@ -393,7 +479,7 @@ onBeforeUnmount(() => {
   justify-content: space-evenly;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.18s ease;
+  transition: opacity 0.18s ease, bottom 0.3s ease;
 }
 .container[data-align="right"] .song-info {
   align-items: flex-end;

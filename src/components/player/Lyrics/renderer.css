@@ -30,15 +30,15 @@
   font-size: inherit;
   font-weight: inherit;
   transform-origin: left;
-  opacity: var(--lp-inactive-opacity, 0.3);
+  /* opacity 统一为 1，透明度由 --ba / --da mask 控制，保证歌词清晰锐利 */
+  opacity: 1;
   contain: content;
-  transition: opacity 0.3s ease;
   pointer-events: none;
-  --ba: 0.2;
-  --da: 0.2;
+  --ba: 0.3;
+  --da: 0.3;
 
   &.active {
-    opacity: var(--lp-active-opacity, 1);
+    opacity: 1;
   }
 
   &.duet {
@@ -69,6 +69,9 @@
   position: relative;
   width: fit-content;
   max-width: 100%;
+  /* 创建独立 stacking context，让 ::after/::before 的 z-index 相对于自身，
+     避免 z-index:-1 的底框被 FullPlayer 不透明背景覆盖 */
+  isolation: isolate;
 
   /* 悬停背景层 */
   &::before {
@@ -81,7 +84,7 @@
       color-mix(in srgb, var(--lp-color, #fff) 14%, transparent)
     );
     opacity: 0;
-    z-index: -1;
+    z-index: 0;
     transform: scale(1.05);
     transition:
       transform 0.35s ease,
@@ -130,6 +133,7 @@
 
 .lp-main {
   position: relative;
+  z-index: 1;
   max-width: 100%;
   word-break: normal;
   overflow-wrap: break-word;
@@ -162,6 +166,8 @@
 /* ---- 副文本（翻译/音译） ---- */
 
 .lp-sub {
+  position: relative;
+  z-index: 1;
   font-size: var(--lp-sub-font-size, max(0.5em, 10px));
   line-height: var(--lp-sub-line-height, 1.5em);
   opacity: calc(var(--pass, 1) * var(--lp-sub-opacity, 0.3));
@@ -206,4 +212,64 @@
       transform: scale(0.95);
     }
   }
+}
+
+/* ---- 扇形布局模式 ---- */
+
+.lp-fan-mode .lp-line {
+  /* 引擎用 translate(calc(-50% + dx), calc(-50% + yPos)) 居中后偏移 */
+  left: 50%;
+  top: 50%;
+  transform-origin: center center;
+  /* 扇形模式行宽限制，避免长行超出视口 */
+  max-width: 80%;
+  text-align: center;
+}
+
+.lp-fan-mode .lp-line.duet {
+  text-align: center;
+  transform-origin: center center;
+}
+
+.lp-fan-mode .lp-content {
+  margin: 0 auto;
+}
+
+/* 扇形底框背景（::after 避免与悬停 ::before 冲突）
+ * 默认不显示，仅 hover 时显示；active 行 hover 时底框更深 */
+.lp-fan-bg .lp-content::after {
+  content: "";
+  position: absolute;
+  inset: -0.2em -0.6em;
+  border-radius: 0.4em;
+  background: color-mix(in srgb, var(--lp-color, #fff) 14%, transparent);
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 0.3s ease,
+    background 0.3s ease;
+}
+
+.lp-fan-bg .lp-line.active .lp-content::after {
+  background: color-mix(in srgb, var(--lp-color, #fff) 22%, transparent);
+}
+
+/* 扇形模式禁用 ::before 的 hover 背景，避免与底框冲突 */
+.lp-fan-mode .lp-line:not(.bg) .lp-content:hover::before {
+  opacity: 0;
+}
+
+/* hover 时显示底框 */
+@media (hover: hover) and (pointer: fine) {
+  .lp-fan-mode .lp-line:not(.bg) .lp-content:hover::after {
+    opacity: 1;
+  }
+}
+
+/* 扇形模式长音节光辉（基于 .lp-emp-wrapper 字符级 span，仅激活行） */
+.lp-fan-glow .lp-line.active .lp-emp-wrapper > span {
+  text-shadow:
+    0 0 0.2em color-mix(in srgb, var(--lp-color, #fff) 60%, transparent),
+    0 0 0.4em color-mix(in srgb, var(--lp-color, #fff) 40%, transparent);
 }

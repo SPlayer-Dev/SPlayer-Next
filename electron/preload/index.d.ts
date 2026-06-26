@@ -37,6 +37,11 @@ declare global {
         onOpenSettings: (
           callback: (payload: { category?: string; highlight?: string }) => void,
         ) => () => void;
+        openPlayingView: () => Promise<void>;
+        onOpenPlayingView: (callback: () => void) => () => void;
+        onCollapsePlayingView: (callback: () => void) => () => void;
+        setPlayingViewExpanded: (expanded: boolean) => Promise<void>;
+        resetPlayingViewToggle: () => Promise<void>;
         listFonts: () => Promise<string[]>;
         fetchRemoteBytes: (url: string) => Promise<IpcResponse<Buffer | null>>;
         saveFile: (

@@ -1,21 +1,53 @@
+# Dependencies
 node_modules
+
+# Build outputs
 dist
 out
 build
-.DS_Store
-.eslintcache
-.claude
-.agents
-docs/superpowers
-docs/.vitepress/cache
-docs/.vitepress/dist
-skills-lock.json
-*.log*
-.vscode/settings.json
-.idea
-
-# Rust build artifacts
 **/target
 native/*/*.node
 # native/*/index.d.ts
+
+# Docs build
+docs/.vitepress/cache
+docs/.vitepress/dist
+docs/superpowers
+
+# System files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.vscode/settings.json
+.idea
+
+# AI coding tools
+.claude
+.agents
+.trae/
+.cursor/
+.kiro/
+.codex/
+.opencode/
+.copilot/
+.qoder/
+.windsurf/
+
+# Cache
+.eslintcache
+
+# Logs
+*.log*
+
+# Temporary / backup files
+*.tmp
+*.swp
+*.bak
+*.old
+
+# Project specific
+skills-lock.json
 package-lock.json
+参考项目/

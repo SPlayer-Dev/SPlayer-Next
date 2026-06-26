@@ -76,6 +76,15 @@ const stopRenderLoop = (): void => {
   }
 };
 
+/* 窗口隐藏时暂停 RAF，恢复时重启 */
+const handleVisibilityChange = (): void => {
+  if (document.hidden) {
+    stopRenderLoop();
+  } else {
+    startRenderLoop();
+  }
+};
+
 watch(
   () => props.wordByWord,
   (enabled) => {
@@ -86,8 +95,15 @@ watch(
 );
 watch(() => props.line, resetRenderCache);
 
-onMounted(startRenderLoop);
-onBeforeUnmount(stopRenderLoop);
+onMounted(() => {
+  startRenderLoop();
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("visibilitychange", handleVisibilityChange);
+  stopRenderLoop();
+});
 </script>
 
 <template>

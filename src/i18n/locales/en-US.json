@@ -872,6 +872,20 @@
       "label": "Font Weight",
       "description": "Lyric text weight"
     },
+    "fontFamily": {
+      "label": "Lyric Font Family",
+      "description": "Lyric text font, defaults to Arial for crisp rendering",
+      "Arial": "Arial",
+      "Helvetica": "Helvetica",
+      "system-ui": "System UI",
+      "Microsoft YaHei": "Microsoft YaHei",
+      "PingFang SC": "PingFang SC",
+      "Source Han Sans SC": "Source Han Sans SC",
+      "Noto Sans SC": "Noto Sans SC",
+      "Segoe UI": "Segoe UI",
+      "Roboto": "Roboto",
+      "SF Pro Display": "SF Pro Display"
+    },
     "followCoverColor": {
       "label": "Follow Cover Color",
       "description": "Lyric color follows the current cover art"
@@ -879,6 +893,78 @@
     "autoImmersive": {
       "label": "Auto Immersive Mode",
       "description": "Hide top/bottom bars and the cursor when the mouse is idle or leaves the window"
+    },
+    "enableFluidBackground": {
+      "label": "Fluid Background",
+      "description": "Generate dynamic flowing background based on cover colors"
+    },
+    "enableSnowBackground": {
+      "label": "Snow Layer",
+      "description": "Overlay falling snow particles on the background"
+    },
+    "enableFogBackground": {
+      "label": "Fog Layer",
+      "description": "Overlay flowing fog effect on the background"
+    },
+    "enableRaindropBackground": {
+      "label": "Raindrop Layer",
+      "description": "Overlay slanted raindrops falling on the background"
+    },
+    "enableParallaxTilt": {
+      "label": "Cover Parallax Tilt",
+      "description": "Cover tilts slightly following mouse movement for a 3D parallax effect"
+    },
+    "enableCoverBreathing": {
+      "label": "Cover Breathing Effect",
+      "description": "Cover gently pulses with a scaling animation while playing"
+    },
+    "enableFanLyrics": {
+      "label": "Fan Lyrics",
+      "description": "Arrange lyric lines in a fan arc, active line at center"
+    },
+    "fanLyricsAngle": {
+      "label": "Fan Angle",
+      "description": "Rotation angle per line (degrees); positive anchor outside left, negative outside right"
+    },
+    "fanLyricsMaxLines": {
+      "label": "Visible Lines Per Side",
+      "description": "Lyric lines shown above and below the active line"
+    },
+    "fanLyricsLineHeight": {
+      "label": "Line Height",
+      "description": "Line spacing of fan lyrics (px)"
+    },
+    "fanLyricsMinScale": {
+      "label": "Min Scale",
+      "description": "Scale of the farthest lyric line"
+    },
+    "fanLyricsMinOpacity": {
+      "label": "Min Opacity",
+      "description": "Opacity of the farthest lyric line"
+    },
+    "fanLyricsMaxBlur": {
+      "label": "Max Blur",
+      "description": "Blur radius of the farthest lyric line (px)"
+    },
+    "fanLyricsEnableBackground": {
+      "label": "Line Background",
+      "description": "Add a translucent rounded background to each lyric line"
+    },
+    "fanLyricsEnableGlow": {
+      "label": "Long Syllable Glow",
+      "description": "Add glow to syllables longer than 1s; nearby characters also get a slight halo"
+    },
+    "spectrumSensitivity": {
+      "label": "Spectrum Sensitivity",
+      "description": "Higher value makes bars fluctuate more visibly"
+    },
+    "spectrumMaxHeight": {
+      "label": "Spectrum Max Height",
+      "description": "Maximum bar height ratio"
+    },
+    "spectrumSmoothing": {
+      "label": "Spectrum Smoothing",
+      "description": "Higher value makes bars fluctuate more smoothly"
     },
     "showTranslation": {
       "label": "Show Translation",
@@ -942,6 +1028,12 @@
     "inactiveAlpha": {
       "label": "Inactive Opacity",
       "description": "Base opacity for non-active lines"
+    },
+    "lyricScrollDirection": {
+      "label": "Scroll Direction",
+      "description": "Lyric movement direction on wheel scroll, defaults by OS convention (Mac=natural, Windows=reverse)",
+      "natural": "Natural (Mac: scroll down to reveal upper content)",
+      "reverse": "Reverse (Windows: scroll down to reveal lower content)"
     },
     "desktopLyricEnabled": {
       "label": "Enable Desktop Lyric",
@@ -1064,12 +1156,44 @@
       "description": "Expand the island from the physical MacBook notch"
     },
     "dynamicIslandSnapCentered": {
-      "label": "Center When Snapped",
-      "description": "When off, snapping to the top keeps the dragged horizontal position"
+      "label": "Horizontal Center",
+      "description": "When on, the window stays horizontally centered; when off, you can set a custom horizontal offset"
+    },
+    "dynamicIslandHorizontalOffset": {
+      "label": "Horizontal Offset",
+      "description": "Horizontal offset from screen center (px); positive = right, negative = left"
     },
     "dynamicIslandNonOcclusive": {
       "label": "Non-Occlusive Mode",
       "description": "Click-through window; hide on hover"
+    },
+    "dynamicIslandShowSpectrum": {
+      "label": "Show Spectrum",
+      "description": "Display audio spectrum visualization in the dynamic island"
+    },
+    "dynamicIslandSpectrumStyle": {
+      "label": "Spectrum Style",
+      "description": "Visual style of spectrum bars"
+    },
+    "dynamicIslandEnableExpandedView": {
+      "label": "Enable Expanded View",
+      "description": "Click the island to expand with full playback controls and spectrum"
+    },
+    "dynamicIslandExpandedTimeout": {
+      "label": "Auto Collapse Timeout",
+      "description": "Seconds before the expanded view automatically collapses"
+    },
+    "dynamicIslandBackgroundStyle": {
+      "label": "Background Style",
+      "description": "Background rendering style of the dynamic island",
+      "solid": "Solid",
+      "glass": "Glass",
+      "mica": "Mica",
+      "dynamic": "Dynamic Cover"
+    },
+    "dynamicIslandEnableCoverFlip": {
+      "label": "Cover Flip Animation",
+      "description": "3D flip transition effect when switching songs"
     },
     "taskbarLyricEnabled": {
       "label": "Enable Taskbar Lyric",
@@ -1125,6 +1249,22 @@
     "taskbarLyricWordByWord": {
       "label": "Word by Word",
       "description": "Render highlight progress per word"
+    },
+    "taskbarLyricShowSpectrum": {
+      "label": "Show Spectrum",
+      "description": "Display audio spectrum in the taskbar for pure music"
+    },
+    "taskbarLyricSpectrumSensitivity": {
+      "label": "Spectrum Sensitivity",
+      "description": "Higher value makes bars fluctuate more visibly"
+    },
+    "taskbarLyricSpectrumSmoothing": {
+      "label": "Spectrum Smoothing",
+      "description": "Higher value makes bars fluctuate more smoothly"
+    },
+    "taskbarLyricSpectrumHoverBarCount": {
+      "label": "Hover Bar Count",
+      "description": "Number of spectrum bars shown on hover; 0 disables collapse"
     },
     "playerBgType": {
       "label": "Player Background",

@@ -59,6 +59,24 @@ export const useSettingsStore = defineStore(
       enableSpectrum: false,
       spectrumBarWidth: 4,
       songLevel: "hq",
+      enableFluidBackground: true,
+      enableParallaxTilt: true,
+      enableCoverBreathing: true,
+      enableFanLyrics: false,
+      fanLyricsAngle: 60,
+      fanLyricsMaxLines: 7,
+      fanLyricsLineHeight: 96,
+      fanLyricsMinScale: 0.78,
+      fanLyricsMinOpacity: 0,
+      fanLyricsMaxBlur: 7,
+      fanLyricsEnableBackground: true,
+      fanLyricsEnableGlow: true,
+      spectrumSensitivity: 1.0,
+      spectrumMaxHeight: 1.0,
+      spectrumSmoothing: 0.5,
+      enableSnowBackground: false,
+      enableFogBackground: false,
+      enableRaindropBackground: false,
     });
 
     /** 歌词 */
@@ -70,7 +88,7 @@ export const useSettingsStore = defineStore(
       adaptiveFontSize: true,
       fontSize: 48,
       fontWeight: 700,
-      fontFamily: "",
+      fontFamily: "Arial",
       showTranslation: true,
       showRomanization: true,
       enableWordHighlight: true,
@@ -84,10 +102,12 @@ export const useSettingsStore = defineStore(
       springStiffness: 90,
       alignPosition: 0.35,
       wordFadeWidth: 0.5,
-      inactiveAlpha: 0.2,
+      inactiveAlpha: 0.3,
       enableExcludeLyrics: true,
       excludeLyricsUserKeywords: [],
       excludeLyricsUserRegexes: [],
+      // 滚动方向默认按系统习惯：Mac=natural，Windows/Linux=reverse
+      lyricScrollDirection: navigator.platform.toLowerCase().includes("mac") ? "natural" : "reverse",
     });
 
     /** 系统配置 - 传递主进程 */

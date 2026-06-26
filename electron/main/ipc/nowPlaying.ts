@@ -33,4 +33,8 @@ export const registerNowPlayingIpc = (): void => {
     broadcast("nowPlaying:lyric-offset-change", data);
     wsBroadcast({ type: "lyricOffset", data });
   });
+  // FFT 频谱数据高频推送，仅广播给可见窗口
+  nowPlaying.onFftData((data) => {
+    broadcast("nowPlaying:fft-sync", data, true);
+  });
 };

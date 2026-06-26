@@ -4,8 +4,14 @@ import type { LyricLine } from "@shared/types/lyrics";
 import { DYNAMIC_ISLAND_BASE_HEIGHT } from "@shared/defaults/settings";
 import DEFAULT_COVER from "@/assets/images/song.jpg";
 import IslandLyricLine from "./components/IslandLyricLine.vue";
+import CoverFlip from "./components/CoverFlip.vue";
+import GlassBackground from "./components/GlassBackground.vue";
+import ExpandedView from "./components/ExpandedView.vue";
 import { pickAdvanceOnEndIndex } from "@shared/utils/lyricSync";
-import { useNowPlayingSync } from "@windows/shared/composables/useNowPlayingSync";
+import { useNowPlayingSync, getNowPlayingCurrentMs } from "@windows/shared/composables/useNowPlayingSync";
+import { isPureMusic } from "@windows/shared/utils/pureMusicDetect";
+import { useExpandedView } from "./composables/useExpandedView";
+import { useSpring } from "./composables/useSpring";
 import { useDragWindow } from "./composables/useDragWindow";
 import { isMac } from "@/utils/config";
 
@@ -19,10 +25,17 @@ const config = reactive<DynamicIslandSettings>({
   backgroundColor: "rgba(0, 0, 0, 1)",
   alwaysOnTop: true,
   snapCentered: true,
+  horizontalOffset: 0,
   notchFusion: false,
   nonOcclusive: false,
   doubleLine: false,
   showTranslation: false,
+  showSpectrum: true,
+  spectrumStyle: "gradient",
+  enableExpandedView: true,
+  expandedTimeout: 8,
+  backgroundStyle: "solid",
+  enableCoverFlip: true,
 });
 
 const NOTCH_WIDTH = 181;
@@ -30,8 +43,8 @@ const NOTCH_HEIGHT = 29;
 const NOTCH_TOP_FILL = 3;
 const SHAPE_SIDE_OVERHANG = 5;
 const MIN_SHAPE_WIDTH = NOTCH_WIDTH + SHAPE_SIDE_OVERHANG * 2;
-const MAX_WINDOW_WIDTH = 620;
-const MAX_WINDOW_WIDTH_RATIO = 0.55;
+const MAX_WINDOW_WIDTH = 480;
+const MAX_WINDOW_WIDTH_RATIO = 0.35;
 const MIN_LYRIC_SCALE = 0.78;
 
 /* 悬停隐藏：非遮挡模式下仅在鼠标悬停时透明 */
@@ -53,11 +66,119 @@ const shapeBottomRadius = computed(() => Math.max(14, Math.round(coverRadius.val
 const subFontSize = computed(() => Math.max(11, Math.round(fontSize.value * 0.65)));
 const subRowHeight = computed(() => Math.round(subFontSize.value * 1.2));
 
-const { track, lyric, primaryIndex } = useNowPlayingSync({
+/* 展开视图尺寸：固定 600×180，不随 mini 宽度或 scale 变化
+ * 用户明确要求展开固定 600px，与 mini 模式解耦 */
+const EXPANDED_WIDTH = 600;
+const EXPANDED_HEIGHT = 180;
+
+const { track, lyric, primaryIndex, playing } = useNowPlayingSync({
   pickIndex: pickAdvanceOnEndIndex,
   logTag: "dynamic-island",
+  fftEnabled: true,
 });
-const { onRootPointerDown } = useDragWindow();
+
+/* 展开/收起状态 */
+const { currentView, expand, collapse, resetTimer } = useExpandedView(8);
+const isExpanded = computed(() => currentView.value === "expanded");
+
+/* Spring 驱动的展开进度 0~1，用于平滑动画（参数对齐 WinIsland：stiffness=0.12, damping=0.68） */
+const expansionSpring = useSpring({ stiffness: 0.12, damping: 0.68, initial: 0 });
+const expansionProgress = expansionSpring.value;
+
+/* 展开/收起时缓存 mini 模式基准宽高，作为动画插值起点 */
+let animBaseWidth = 0;
+let animBaseHeight = 0;
+
+/* 上次发送给主进程的窗口宽度，用于动画起点与实际窗口同步
+ * 避免 rawLyricWidth 刚变化但 IPC 未完成时 animBaseWidth 与实际窗口宽度不一致导致首帧偏移 */
+const lastSentWidth = ref(Math.max(MIN_SHAPE_WIDTH, window.innerWidth || MIN_SHAPE_WIDTH));
+
+watch(isExpanded, (expanded) => {
+  /* 动画开始前用 lastSentWidth（实际窗口宽度）作为起点，避免与主进程不同步 */
+  animBaseWidth = lastSentWidth.value;
+  animBaseHeight = miniHeight.value;
+  expansionSpring.setTarget(expanded ? 1 : 0);
+});
+
+/* mini 模式高度（非展开） */
+const miniHeight = computed(
+  () => contentHeight.value + (notchFusionEnabled.value ? NOTCH_HEIGHT + NOTCH_TOP_FILL : 0),
+);
+
+/* Spring 进度裁剪到 [0,1]
+ * stiffness=0.12/damping=0.68 会有约 9% 过冲（峰值 1.089），导致 windowHeight/animatedWidth
+ * 超过 EXPANDED 目标后回弹，主进程 clampWidth 还会裁剪到 640，视觉上窗口"弹"一下 */
+const progress = computed(() => Math.max(0, Math.min(1, expansionProgress.value)));
+
+/* 窗口高度：Spring 插值（裁剪后） */
+const windowHeight = computed(() => {
+  const p = progress.value;
+  if (p <= 0.001) return miniHeight.value;
+  if (p >= 0.999) return EXPANDED_HEIGHT;
+  return Math.round(animBaseHeight + (EXPANDED_HEIGHT - animBaseHeight) * p);
+});
+
+/* 窗口宽度：Spring 插值（裁剪后）
+ * progress=0 时返回 lastSentWidth（实际窗口宽度），避免与主进程不同步导致首帧偏移 */
+const animatedWidth = computed(() => {
+  const p = progress.value;
+  if (p <= 0.001) return lastSentWidth.value;
+  if (p >= 0.999) return EXPANDED_WIDTH;
+  return Math.round(animBaseWidth + (EXPANDED_WIDTH - animBaseWidth) * p);
+});
+
+/* alpha 交叉：mini 可见到 p=0.7，expanded 从 p=0.2 开始到 p=0.7 完成
+ * 重叠区 [0.2, 0.7] 内 mini 从 0.71→0、expanded 从 0→1，避免中间"空"的视觉 */
+const miniAlpha = computed(() => Math.max(0, 1 - progress.value / 0.7));
+const expandedAlpha = computed(() =>
+  Math.max(0, Math.min(1, (progress.value - 0.2) / 0.5)),
+);
+
+/* 播放位置/时长（用于展开视图进度条） */
+const position = ref(0);
+const duration = computed(() => track.value?.duration ?? 0);
+
+/* 播放控制 */
+const handleSeek = (ms: number): void => {
+  // 立即更新本地位置，避免等待 250ms 推送造成的视觉滞后
+  position.value = ms;
+  window.api.player.seek(ms);
+  resetTimer();
+};
+const handlePrev = (): void => {
+  window.api.player.dispatch("prev");
+  resetTimer();
+};
+const handleNext = (): void => {
+  window.api.player.dispatch("next");
+  resetTimer();
+};
+const handleTogglePlay = (): void => {
+  /* 直接调用 IPC，避免 dispatch 绕圈（渲染→主→渲染→主）增加延迟与竞态 */
+  void window.api.player[playing.value ? "pause" : "play"]();
+  resetTimer();
+};
+
+/* Mini 模式点击展开 */
+const handleMiniClick = (): void => {
+  if (config.enableExpandedView && !isExpanded.value) {
+    // 立即同步播放位置，避免展开瞬间进度条停留在旧值
+    position.value = getNowPlayingCurrentMs();
+    expand(config.expandedTimeout);
+  }
+};
+
+/* 窗口失焦时自动收起展开视图（点击非灵动岛位置触发） */
+const handleWindowBlur = (): void => {
+  if (isExpanded.value) collapse();
+};
+
+/* 窗口拖拽：非展开、非刘海融合、非穿透模式下允许 */
+const { onContentPointerDown } = useDragWindow({
+  enabled: () =>
+    !isExpanded.value && !notchFusionEnabled.value && !config.nonOcclusive,
+  onClick: handleMiniClick,
+});
 
 /* 窗口模式 */
 const mode = ref<"snapped" | "floating">("snapped");
@@ -86,7 +207,23 @@ const currentLine = computed<LyricLine | null>(() => {
   return lyric.value[idx] ?? null;
 });
 
-/* 备用文本 */
+/* 纯音乐检测：
+ * 1. 完全无歌词
+ * 2. 所有行 words 为空
+ * 3. 网易云返回"纯音乐，请欣赏"等标记（过滤信息行后只剩 1 行且含"纯音乐"）
+ * mini 模式显示歌曲名（fallback），expanded 模式歌词区改为频谱 */
+const isInstrumental = computed<boolean>(() => {
+  if (!track.value) return false;
+  const lines = lyric.value;
+  if (!lines || lines.length === 0) return true;
+  const allEmpty = lines.every(
+    (line) => !line.words || line.words.every((w) => !w.word || w.word.trim() === ""),
+  );
+  if (allEmpty) return true;
+  return isPureMusic(lines);
+});
+
+/* 备用文本：纯音乐或无当前行时显示歌曲名 */
 const fallbackText = computed<string>(() => {
   const t = track.value;
   if (!t) return "SPlayer";
@@ -109,14 +246,9 @@ const contentHeight = computed(
   () => mainRowHeight.value + (showSubLine.value ? subRowHeight.value : 0),
 );
 
-/* 窗口高度 */
-const windowHeight = computed(
-  () => contentHeight.value + (notchFusionEnabled.value ? NOTCH_HEIGHT + NOTCH_TOP_FILL : 0),
-);
-
 // 回弹 easing cubic-bezier(0.34, 1.56, 0.64, 1) 峰值约 1.10
-// 15% 留安全余量避免文本被裁
-const BOUNCE_OVERSHOOT = 0.15;
+// 12% 留安全余量避免文本被裁
+const BOUNCE_OVERSHOOT = 0.12;
 
 /* 歌词宽度 */
 const rawLyricWidth = ref(measureTextWidth(displayFallback.value));
@@ -125,6 +257,8 @@ const lyricOpacity = ref(1);
 
 /* 是否正在收缩 */
 const shrinking = ref(false);
+/* 是否正在展开（淡入阶段，用于 Y 位移） */
+const expanding = ref(false);
 /* 窗口阶段 */
 let phase: "idle" | "shrinking" | "expanding" = "idle";
 
@@ -142,10 +276,11 @@ const computeSubText = (idx: number, line: LyricLine | null): string => {
   return next ? lineText(next) : "";
 };
 
-/* 计算目标宽度 */
+/* 计算目标宽度：纯音乐时用歌曲名宽度，非纯音乐用歌词宽度 */
 const measureTarget = (): number => {
+  /* 纯音乐时测量 fallback 文本宽度，不测歌词行 */
   const line = currentLine.value;
-  const mainText = line ? lineText(line) : fallbackText.value;
+  const mainText = line && !isInstrumental.value ? lineText(line) : fallbackText.value;
   const mainPx = Math.max(1, measureTextWidth(mainText));
   const subText = computeSubText(primaryIndex.value, line);
   const subPx = subText ? measureTextWidth(subText, subFontSize.value) : 0;
@@ -163,17 +298,20 @@ const shapeExtraWidth = computed(() => (notchFusionEnabled.value ? SHAPE_SIDE_OV
 
 const maxLyricSlotWidth = computed(() => {
   const windowLimit = getRendererWindowLimit();
-  const currentWindowWidth = Math.max(MIN_SHAPE_WIDTH, viewportWidth.value);
-  return Math.max(
-    1,
-    Math.min(windowLimit, currentWindowWidth) - fixedContentWidth.value - shapeExtraWidth.value,
-  );
+  if (notchFusionEnabled.value) {
+    // 刘海融合：窗口宽度固定为刘海宽，slot 受当前窗口宽约束
+    const currentWindowWidth = Math.max(MIN_SHAPE_WIDTH, viewportWidth.value);
+    return Math.max(
+      1,
+      Math.min(windowLimit, currentWindowWidth) - fixedContentWidth.value - shapeExtraWidth.value,
+    );
+  }
+  // 浮动/普通模式：窗口可grow到 windowLimit，slot 按 max 计算，超出则截断显示省略号
+  return Math.max(1, windowLimit - fixedContentWidth.value - shapeExtraWidth.value);
 });
 
 const getLyricSlotWidth = (lyricPx: number): number =>
-  notchFusionEnabled.value
-    ? Math.min(Math.max(1, Math.round(lyricPx)), maxLyricSlotWidth.value)
-    : Math.max(1, Math.round(lyricPx));
+  Math.min(Math.max(1, Math.round(lyricPx)), maxLyricSlotWidth.value);
 
 /* 计算窗口宽度 */
 const computeWindowWidth = (lyricPx: number): number => {
@@ -186,7 +324,11 @@ const computeWindowWidth = (lyricPx: number): number => {
 
 /* 调整窗口宽度 */
 const resizeWindow = (lyricPx: number): void => {
+  /* 展开动画期间不调整宽度，由 animatedWidth watcher 统一管理 */
+  if (progress.value > 0.001) return;
   const targetWidth = computeWindowWidth(lyricPx);
+  /* 记录上次发送给主进程的宽度，作为动画起点 */
+  lastSentWidth.value = targetWidth;
   if (!notchFusionEnabled.value) {
     if (pendingWindowShrinkTimer !== null) {
       window.clearTimeout(pendingWindowShrinkTimer);
@@ -254,44 +396,54 @@ const applyImmediate = (): void => {
   displaySubText.value = computeSubText(primaryIndex.value, currentLine.value);
   const targetPx = measureTarget();
   shrinking.value = false;
+  expanding.value = false;
   lyricOpacity.value = 1;
   applyMeasuredWidth(targetPx);
-  phase = "expanding";
+  /* 无渐变动画，直接回到 idle，避免阻塞后续 config/dimension watch */
+  phase = "idle";
 };
 
-/* 开始交换动画 */
+/* 开始交换动画：opacity 淡出 + Y 上移 → 更新内容 → opacity 淡入 + Y 从下方回中 */
+let swapTimer: number | null = null;
+const SWAP_FADE_MS = 200;
+
 const startSwapAnimation = (): void => {
   phase = "shrinking";
   shrinking.value = true;
-  lyricWidth.value = 0;
+  expanding.value = false;
   lyricOpacity.value = 0;
-};
-
-/* 歌词过渡结束 */
-const onLyricTransitionEnd = (event: TransitionEvent): void => {
-  if (event.propertyName !== "width") return;
-  if (phase === "shrinking") {
+  if (swapTimer !== null) window.clearTimeout(swapTimer);
+  swapTimer = window.setTimeout(() => {
+    if (phase !== "shrinking") return;
+    /* 更新内容 */
     displayLine.value = currentLine.value;
     displayFallback.value = fallbackText.value;
     displayIndex.value = primaryIndex.value;
     displaySubText.value = computeSubText(primaryIndex.value, currentLine.value);
     const targetPx = measureTarget();
     rawLyricWidth.value = targetPx;
+    /* shrinking 期间无 width transition，先瞬间更新宽度和窗口 */
+    lyricWidth.value = getLyricSlotWidth(targetPx);
     resizeWindow(targetPx);
-    /* 双 rAF 先让 class 切换使 transition 规则换到展开，下一帧再设新宽度才能正确触发过渡 */
+    /* 切换到 expanding：加 is-expanding 让 translateY 瞬间跳到下方（无 transition） */
+    shrinking.value = false;
+    expanding.value = true;
+    /* 双 rAF：确保 is-expanding（translateY(3px)）已 paint，再移除触发 transition 回 0 */
     requestAnimationFrame(() => {
       if (phase !== "shrinking") return;
-      shrinking.value = false;
       requestAnimationFrame(() => {
         if (phase !== "shrinking") return;
         phase = "expanding";
+        expanding.value = false;
         lyricOpacity.value = 1;
-        lyricWidth.value = getLyricSlotWidth(targetPx);
+        /* 淡入完成后回到 idle */
+        if (swapTimer !== null) window.clearTimeout(swapTimer);
+        swapTimer = window.setTimeout(() => {
+          if (phase === "expanding") phase = "idle";
+        }, SWAP_FADE_MS);
       });
     });
-  } else if (phase === "expanding") {
-    phase = "idle";
-  }
+  }, SWAP_FADE_MS);
 };
 
 /* 开关切换后立即重算副行 + 同步窗口宽度，不走 swap 动画 */
@@ -315,6 +467,13 @@ watch(notchFusionEnabled, () => {
   applyMeasuredWidth(targetPx);
 });
 
+/* 纯音乐状态变化：从歌词切换到频谱或反之，重新测量宽度 */
+watch(isInstrumental, () => {
+  if (phase !== "idle") return;
+  const targetPx = measureTarget();
+  applyMeasuredWidth(targetPx);
+});
+
 /* 歌词变化 */
 watch([currentLine, fallbackText], () => {
   const newLine = currentLine.value;
@@ -326,6 +485,11 @@ watch([currentLine, fallbackText], () => {
   if (phase === "shrinking") return;
   // 首次 paint 尚未完成或 lyricWidth 已经为 0 → 跳过 shrink 直接展开
   if (!hasPainted || lyricWidth.value === 0) {
+    applyImmediate();
+    return;
+  }
+  // 展开/收起动画进行中：mini 歌词不可见，swap 动画无意义且会叠加导致视觉混乱
+  if (progress.value > 0.001 && progress.value < 0.999) {
     applyImmediate();
     return;
   }
@@ -344,18 +508,20 @@ const lyricLayoutWidth = computed(() =>
 );
 
 const displayMainText = computed(() =>
-  displayLine.value ? lineText(displayLine.value) : displayFallback.value,
+  displayLine.value && !isInstrumental.value
+    ? lineText(displayLine.value)
+    : displayFallback.value,
 );
 
 const fittedMainText = computed(() =>
-  notchFusionEnabled.value
-    ? truncateTextToWidth(displayMainText.value, lyricLayoutWidth.value, fontSize.value)
-    : displayMainText.value,
+  truncateTextToWidth(displayMainText.value, lyricLayoutWidth.value, fontSize.value),
 );
 
 const mainTextTruncated = computed(() => fittedMainText.value !== displayMainText.value);
 
 const fittedDisplayLine = computed<LyricLine | null>(() => {
+  /* 纯音乐时不显示歌词行，强制走 fallback（歌曲名） */
+  if (isInstrumental.value) return null;
   const line = displayLine.value;
   if (!line || !mainTextTruncated.value) return line;
   return {
@@ -371,17 +537,19 @@ const fittedDisplayLine = computed<LyricLine | null>(() => {
 });
 
 const fittedSubText = computed(() =>
-  notchFusionEnabled.value
-    ? truncateTextToWidth(displaySubText.value, lyricLayoutWidth.value, subFontSize.value)
-    : displaySubText.value,
+  truncateTextToWidth(displaySubText.value, lyricLayoutWidth.value, subFontSize.value),
 );
 
-const shapeWidth = computed(() =>
-  Math.max(
+const shapeWidth = computed(() => {
+  /* 展开动画期间跟随 animatedWidth，保证 SVG 形状与窗口同步 */
+  if (progress.value > 0.001) {
+    return Math.max(MIN_SHAPE_WIDTH, Math.round(animatedWidth.value));
+  }
+  return Math.max(
     MIN_SHAPE_WIDTH,
     Math.round(notchFusionEnabled.value ? animatedShapeWidth.value : viewportWidth.value),
-  ),
-);
+  );
+});
 const shapeHeight = computed(() => Math.max(windowHeight.value, Math.round(viewportHeight.value)));
 
 const notchPath = computed(() => {
@@ -449,20 +617,36 @@ let unsubConfig: (() => void) | null = null;
 let unsubMode: (() => void) | null = null;
 let unsubCursor: (() => void) | null = null;
 let pendingWindowShrinkTimer: number | null = null;
+let positionIntervalId: number | null = null;
 
-/* 窗口高度变化 */
+/* 窗口目标尺寸：合并宽高，单个 watcher 单次 IPC
+ * 展开动画期间（progress > 0.001）由 Spring 驱动宽高，用 setBounds 一次上报
+ * mini 模式下 width 由 resizeWindow 处理，height 仍需单独上报（contentHeight 变化时） */
+const windowBounds = computed(() => ({
+  width: animatedWidth.value,
+  height: windowHeight.value,
+  expanded: progress.value > 0.001,
+}));
+
 watch(
-  windowHeight,
-  (h) => {
-    window.api.dynamicIsland.setHeight(h);
+  windowBounds,
+  ({ width, height, expanded }) => {
+    if (expanded) {
+      window.api.dynamicIsland.setBounds(width, height);
+    } else {
+      window.api.dynamicIsland.setHeight(height);
+    }
   },
-  /* flush: "post" 让同一批响应式变化合并后只发一次 IPC */
-  { flush: "post" },
+  /* flush: "sync" 让 IPC 在 progress 变化的同一帧立即发出，
+   * 避免 flush: "post" 等待 DOM 更新造成的末帧延迟（动画收尾卡顿） */
+  { flush: "sync" },
 );
 
 onMounted(async () => {
   syncViewportSize();
   window.addEventListener("resize", syncViewportSize);
+  // 窗口失焦时自动收起（点击非灵动岛位置触发）
+  window.addEventListener("blur", handleWindowBlur);
   // 初始窗口宽度匹配 fallback 文本宽度，避免启动时窗口偏心
   resizeWindow(rawLyricWidth.value);
   // 确保初始 width 被浏览器 paint
@@ -482,9 +666,19 @@ onMounted(async () => {
   } catch (error) {
     console.error("[dynamic-island] load state failed", error);
   }
-  unsubConfig = window.api.dynamicIsland.onConfigChange((next) =>
-    Object.assign(config, next as DynamicIslandSettings),
-  );
+  // 订阅 FFT 推送：主进程维护引用计数，任一窗口订阅即保持推送
+  // 与 taskbar-lyric 共享同一计数器，互不影响
+  if (config.showSpectrum) {
+    window.api.player.setFftEnabled(true).catch(() => {});
+  }
+  unsubConfig = window.api.dynamicIsland.onConfigChange((next) => {
+    const prevShowSpectrum = config.showSpectrum;
+    Object.assign(config, next as DynamicIslandSettings);
+    // 频谱开关变化时同步 FFT 订阅
+    if (config.showSpectrum !== prevShowSpectrum) {
+      window.api.player.setFftEnabled(config.showSpectrum).catch(() => {});
+    }
+  });
   unsubMode = window.api.dynamicIsland.onModeChange((next) => {
     mode.value = next;
   });
@@ -492,13 +686,32 @@ onMounted(async () => {
   unsubCursor = window.api.dynamicIsland.onCursorInside((inside) => {
     hovering.value = inside;
   });
+  // 展开视图进度条更新
+  positionIntervalId = window.setInterval(() => {
+    if (isExpanded.value) {
+      position.value = getNowPlayingCurrentMs();
+    }
+  }, 250);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener("resize", syncViewportSize);
+  window.removeEventListener("blur", handleWindowBlur);
   if (pendingWindowShrinkTimer !== null) {
     window.clearTimeout(pendingWindowShrinkTimer);
     pendingWindowShrinkTimer = null;
+  }
+  if (swapTimer !== null) {
+    window.clearTimeout(swapTimer);
+    swapTimer = null;
+  }
+  if (positionIntervalId !== null) {
+    window.clearInterval(positionIntervalId);
+    positionIntervalId = null;
+  }
+  // 取消 FFT 订阅（引用计数 -1）
+  if (config.showSpectrum) {
+    window.api.player.setFftEnabled(false).catch(() => {});
   }
   unsubConfig?.();
   unsubConfig = null;
@@ -517,10 +730,11 @@ onBeforeUnmount(() => {
       {
         'is-hidden': config.nonOcclusive && hovering,
         'is-notch-fusion': notchFusionEnabled,
+        'is-expanded': isExpanded,
+        'has-custom-bg': config.backgroundStyle !== 'solid',
       },
     ]"
     :style="rootStyle"
-    @pointerdown="onRootPointerDown"
   >
     <svg
       v-if="notchFusionEnabled"
@@ -531,9 +745,28 @@ onBeforeUnmount(() => {
     >
       <path :d="notchPath" fill="var(--di-bg)" />
     </svg>
-    <div class="content">
+    <!-- 毛玻璃背景 -->
+    <GlassBackground
+      v-if="config.backgroundStyle !== 'solid'"
+      :background-style="config.backgroundStyle"
+      :cover-src="track?.cover || ''"
+    />
+    <!-- Mini 模式内容 -->
+    <div
+      class="content"
+      :style="{ opacity: Math.max(0, miniAlpha) }"
+      @pointerdown="onContentPointerDown"
+    >
       <div class="cover">
+        <CoverFlip
+          v-if="config.enableCoverFlip"
+          :src="track?.cover || DEFAULT_COVER"
+          :size="coverSize"
+          :radius="coverRadius"
+          :default-src="DEFAULT_COVER"
+        />
         <img
+          v-else
           :src="track?.cover || DEFAULT_COVER"
           alt="cover"
           draggable="false"
@@ -543,9 +776,8 @@ onBeforeUnmount(() => {
       </div>
       <div
         class="lyric"
-        :class="{ 'is-shrinking': shrinking }"
+        :class="{ 'is-shrinking': shrinking, 'is-expanding': expanding }"
         :style="{ width: `${lyricWidth}px`, opacity: lyricOpacity }"
-        @transitionend="onLyricTransitionEnd"
       >
         <div
           class="lyric-scale"
@@ -573,6 +805,29 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </div>
+    <!-- 展开视图：动画期间保持挂载，由 expandedAlpha 控制透明度 -->
+    <ExpandedView
+      v-if="config.enableExpandedView && (isExpanded || progress > 0.001)"
+      :track="track"
+      :playing="playing"
+      :position="position"
+      :duration="duration"
+      :config="config"
+      :current-line="currentLine"
+      :is-instrumental="isInstrumental"
+      :style="{ opacity: expandedAlpha }"
+      @seek="handleSeek"
+      @prev="handlePrev"
+      @next="handleNext"
+      @toggle-play="handleTogglePlay"
+      @interact="resetTimer"
+    />
+    <!-- 点击空白区域收起：动画期间保持挂载 -->
+    <div
+      v-if="isExpanded || progress > 0.001"
+      class="collapse-overlay"
+      @click.stop="collapse"
+    />
   </div>
 </template>
 
@@ -582,7 +837,6 @@ onBeforeUnmount(() => {
   height: 100%;
   overflow: hidden;
   box-sizing: border-box;
-  cursor: move;
   color: var(--di-played);
   transition:
     border-radius 0.3s cubic-bezier(0.22, 0.61, 0.36, 1),
@@ -592,12 +846,22 @@ onBeforeUnmount(() => {
 .root.is-hidden {
   opacity: 0;
 }
+.root.is-expanded:not(.is-notch-fusion) {
+  width: 100%;
+  background: var(--di-bg);
+}
+.root.is-expanded:not(.is-notch-fusion).has-custom-bg {
+  background: transparent;
+}
 .root.is-notch-fusion {
   width: 100%;
 }
 .root:not(.is-notch-fusion) {
   width: fit-content;
   background: var(--di-bg);
+}
+.root:not(.is-notch-fusion).has-custom-bg {
+  background: transparent;
 }
 .root.is-snapped {
   border-radius: 0 0 var(--di-snap-radius) var(--di-snap-radius);
@@ -609,6 +873,10 @@ onBeforeUnmount(() => {
 .root.is-floating {
   background: var(--di-bg);
   border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.root.is-floating.has-custom-bg {
+  background: transparent;
 }
 .notch-shape {
   position: absolute;
@@ -669,14 +937,23 @@ onBeforeUnmount(() => {
   justify-content: center;
   overflow: hidden;
   white-space: nowrap;
+  transform: translateY(0);
   transition:
     width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-    opacity 0.25s ease-out;
+    opacity 0.2s ease-out,
+    transform 0.2s ease-out;
 }
+/* 淡出阶段：向上滑出 + opacity 0 */
 .lyric.is-shrinking {
+  transform: translateY(-3px);
   transition:
-    width 0.25s ease-in,
-    opacity 0.25s ease-in;
+    opacity 0.2s ease-in,
+    transform 0.2s ease-in;
+}
+/* 淡入起点：瞬间跳到下方（无 transition），随后移除 class 触发 transition 回 0 */
+.lyric.is-expanding {
+  transform: translateY(3px);
+  transition: none;
 }
 .lyric-scale {
   flex: 0 0 auto;
@@ -711,5 +988,25 @@ onBeforeUnmount(() => {
   opacity: 0.65;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.root.is-expanded {
+  cursor: default;
+}
+.root.is-expanded.is-snapped {
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.root.is-expanded.is-floating {
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.collapse-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  cursor: default;
+}
+.root.is-expanded .content {
+  pointer-events: none;
 }
 </style>

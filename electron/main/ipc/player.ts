@@ -115,6 +115,8 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
         const fftEvent = { type: "fftData", data: event.fftData ?? [] };
         if (getMainWindow()?.isVisible()) sendToMain("player:event", fftEvent);
         wsBroadcast(fftEvent);
+        // 转发给 nowPlaying 服务，供歌词窗口订阅
+        nowPlaying.onFftEvent(event.fftData ?? []);
         break;
       }
       case "outputStalled": {
@@ -135,6 +137,9 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
 
 /** 每次 player:load 自增 */
 let loadSeq = 0;
+
+/** FFT 推送订阅者计数：多窗口共享，任一窗口订阅即保持推送 */
+let fftSubscribers = 0;
 
 /** 播放器相关 IPC */
 export const registerPlayerIpc = (): void => {
@@ -449,9 +454,15 @@ export const registerPlayerIpc = (): void => {
   });
 
   // 启用/禁用 FFT 频谱推送（前端组件挂载时启用，卸载时禁用）
+  // 引用计数：多窗口（主窗口 BottomSpectrum + 任务栏歌词 + 灵动岛）可同时订阅
+  // 任一窗口开启即保持推送，所有窗口关闭后才停止
   ipcMain.handle("player:setFftEnabled", (_event, enabled: boolean) => {
     try {
-      getPlayer().setFftEnabled(enabled);
+      fftSubscribers += enabled ? 1 : -1;
+      if (fftSubscribers < 0) fftSubscribers = 0;
+      const shouldEnable = fftSubscribers > 0;
+      getPlayer().setFftEnabled(shouldEnable);
+      playerLog.info(`setFftEnabled(${enabled}) → subscribers=${fftSubscribers}, enabled=${shouldEnable}`);
       return { success: true };
     } catch (error) {
       return fail(ErrorCode.UNKNOWN, error);

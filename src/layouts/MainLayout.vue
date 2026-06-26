@@ -16,6 +16,29 @@ const showPlayerBar = computed(() => !!useMediaStore().track);
 const { isExpanded } = storeToRefs(status);
 const { appearance } = settings;
 
+/** 监听主进程"展开播放界面"事件（任务栏歌词封面点击触发） */
+const unsubscribeOpenPlayingView = window.api.system.onOpenPlayingView(() => {
+  isExpanded.value = true;
+});
+
+/** 监听主进程"收起播放界面"事件（任务栏封面 toggle：已展开 → 收起） */
+const unsubscribeCollapsePlayingView = window.api.system.onCollapsePlayingView(() => {
+  isExpanded.value = false;
+});
+
+/**
+ * 同步播放界面展开状态到主进程
+ * 主进程据此判断任务栏封面 toggle：已展开 → 收起；未展开 → 展开/恢复
+ */
+watch(isExpanded, (expanded) => {
+  window.api.system.setPlayingViewExpanded(expanded).catch(() => {});
+});
+
+onBeforeUnmount(() => {
+  unsubscribeOpenPlayingView();
+  unsubscribeCollapsePlayingView();
+});
+
 /** 路由切换动效 */
 const routeTransitionName = computed(() => {
   const transition = appearance.routeTransition;

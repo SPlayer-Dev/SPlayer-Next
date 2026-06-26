@@ -29,12 +29,12 @@ const NOTCH_TOP_OFFSET = 0;
 const NOTCH_TOP_FILL = 3;
 /** 高度安全边界：渲染端上报值受这里 clamp，避免极端值导致窗口异常 */
 const MIN_HEIGHT = 14;
-/** 高度上限：覆盖 200% 缩放主行（80px）+ 后续双行副行余量，留足安全空间 */
-const MAX_HEIGHT = 200;
-/** 宽度上限：允许从真实刘海向两侧扩展，但避免长歌词撑成横条 */
-const MAX_WIDTH = 620;
+/** 高度上限：覆盖展开视图（200*scale）+ 余量，留足安全空间 */
+const MAX_HEIGHT = 460;
+/** 宽度上限：允许展开视图固定 600px，留余量 */
+const MAX_WIDTH = 640;
 /** 宽度相对屏幕上限 */
-const MAX_WIDTH_RATIO = 0.55;
+const MAX_WIDTH_RATIO = 0.35;
 /** 吸附判定阈值：拖拽释放时距顶部小于此值则重新吸附 */
 const SNAP_THRESHOLD = 8;
 /** 初始宽度（渲染端上报实际宽度前的占位） */
@@ -126,7 +126,10 @@ const getCurrentDisplay = (): Electron.Display => {
 };
 
 /**
- * 计算吸附位置：默认贴工作区顶部；刘海融合时贴屏幕顶边并强制居中
+ * 计算吸附位置
+ * - 刘海融合：贴屏幕顶边并强制居中
+ * - 非刘海融合：saved.x 为 null 时居中（首次启动或中线吸附后），否则用 saved.x 作为中心点
+ *   snapCentered 仅控制拖拽释放时是否启用中线吸附，不强制居中
  * @param display - 当前窗口所在显示器
  * @returns 吸附后的左上角坐标
  */
@@ -134,17 +137,15 @@ const computeSnappedPos = (
   display: Electron.Display = getCurrentDisplay(),
 ): { x: number; y: number } => {
   if (!isNotchFusionEnabled()) {
-    const config = store.get("dynamicIsland");
     const saved = store.get("windowStates.dynamicIsland");
     const wa = display.workArea;
-    if (config.snapCentered || saved.x === null) {
+    if (saved.x === null) {
       return {
         x: wa.x + Math.round((wa.width - cachedSize.width) / 2),
         y: wa.y,
       };
     }
-    const savedX = saved.x;
-    const leftFromCenter = savedX - Math.round(cachedSize.width / 2);
+    const leftFromCenter = saved.x - Math.round(cachedSize.width / 2);
     return {
       x: Math.max(wa.x, Math.min(wa.x + wa.width - cachedSize.width, leftFromCenter)),
       y: wa.y,
@@ -232,49 +233,45 @@ export const applyDynamicIslandNonOcclusive = (enabled: boolean): void => {
 };
 
 /**
- * 切换"吸附是否居中"配置后，立即重新对齐窗口
- * - 切到居中：清掉 saved.x，重新居中到当前屏
- * - 切到非居中：把当前位置写入 saved，方便下次启动恢复
+ * 切换"居中"配置后立即重算位置
+ * - snapCentered=true：清掉 saved.x，窗口居中
+ * - snapCentered=false：按 horizontalOffset 计算中心点
+ * @param snapCentered - 是否居中
  */
 export const applyDynamicIslandSnapCentered = (snapCentered: boolean): void => {
   const win = getDynamicIslandWindow();
   if (!win) return;
   const saved = store.get("windowStates.dynamicIsland");
-  if (saved.mode !== "snapped") return;
-
-  if (isNotchFusionEnabled()) {
-    store.set("windowStates.dynamicIsland", {
-      ...saved,
-      mode: "snapped",
-      x: null,
-      y: null,
-    });
-    const pos = computeSnappedPos();
-    win.setBounds({ x: pos.x, y: pos.y, width: cachedSize.width, height: cachedSize.height });
-    return;
-  }
-
   if (snapCentered) {
-    store.set("windowStates.dynamicIsland", {
-      ...saved,
-      mode: "snapped",
-      x: null,
-      y: null,
-    });
-  } else if (saved.x === null) {
-    const bounds = win.getBounds();
-    const display = screen.getDisplayNearestPoint({
-      x: bounds.x + Math.round(bounds.width / 2),
-      y: bounds.y + Math.round(bounds.height / 2),
-    });
-    // 存中心点 x，与拖拽吸附保持同一语义
-    store.set("windowStates.dynamicIsland", {
-      ...saved,
-      mode: "snapped",
-      x: bounds.x + Math.round(bounds.width / 2),
-      y: display.workArea.y,
-    });
+    store.set("windowStates.dynamicIsland", { ...saved, x: null });
+  } else {
+    const config = store.get("dynamicIsland");
+    const offset = config?.horizontalOffset ?? 0;
+    if (offset !== 0) {
+      const display = getCurrentDisplay();
+      const wa = display.workArea;
+      const centerX = wa.x + Math.round(wa.width / 2);
+      store.set("windowStates.dynamicIsland", { ...saved, x: centerX + offset });
+    }
   }
+  const pos = computeSnappedPos();
+  win.setBounds({ x: pos.x, y: pos.y, width: cachedSize.width, height: cachedSize.height });
+};
+
+/**
+ * 应用水平偏移：仅 snapCentered=false 时生效
+ * @param offset - 像素偏移，正值右移，负值左移
+ */
+export const applyDynamicIslandHorizontalOffset = (offset: number): void => {
+  const win = getDynamicIslandWindow();
+  if (!win) return;
+  const config = store.get("dynamicIsland");
+  if (config?.snapCentered) return;
+  const display = getCurrentDisplay();
+  const wa = display.workArea;
+  const centerX = wa.x + Math.round(wa.width / 2);
+  const saved = store.get("windowStates.dynamicIsland");
+  store.set("windowStates.dynamicIsland", { ...saved, x: centerX + offset });
   const pos = computeSnappedPos();
   win.setBounds({ x: pos.x, y: pos.y, width: cachedSize.width, height: cachedSize.height });
 };
@@ -305,19 +302,20 @@ export const applyDynamicIslandNotchFusion = (enabled: boolean): void => {
  * 应用窗口高度：渲染端上报"基准高度 × 缩放（× 行数）"算出的最终高度
  * 主进程仅做安全 clamp，不再硬编码具体值
  * 吸附态走 computeSnappedPos 贴合真实刘海；浮动态保持当前 x/y
+ * 宽度用 bounds.width（实际值），避免 cachedSize 与实际不同步导致宽度跳变
  */
 export const applyDynamicIslandHeight = (height: number): void => {
   const win = getDynamicIslandWindow();
   if (!win) return;
+  const bounds = win.getBounds();
   const h = clampHeight(height);
   cachedSize.height = h;
   const saved = store.get("windowStates.dynamicIsland");
   if (saved.mode === "snapped") {
     const pos = computeSnappedPos();
-    win.setBounds({ x: pos.x, y: pos.y, width: cachedSize.width, height: h });
+    win.setBounds({ x: pos.x, y: pos.y, width: bounds.width, height: h });
   } else {
-    const bounds = win.getBounds();
-    win.setBounds({ x: bounds.x, y: bounds.y, width: cachedSize.width, height: h });
+    win.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: h });
   }
 };
 
@@ -325,6 +323,7 @@ export const applyDynamicIslandHeight = (height: number): void => {
  * 应用窗口宽度：渲染端上报目标宽度后立即 resize
  * snapped 模式重算 x 居中；floating 模式保持中心点不变
  * 上限按当前屏 bounds 裁剪，避免长歌词撑出屏幕
+ * 中心点基于 bounds.width（实际值），避免 cachedSize 与实际不同步导致偏移
  */
 export const applyDynamicIslandWidth = (width: number): void => {
   const win = getDynamicIslandWindow();
@@ -335,30 +334,63 @@ export const applyDynamicIslandWidth = (width: number): void => {
     y: bounds.y + Math.round(bounds.height / 2),
   });
   const newWidth = clampWidth(width, display);
-  const oldWidth = cachedSize.width;
   cachedSize.width = newWidth;
   const saved = store.get("windowStates.dynamicIsland");
   if (saved.mode === "snapped") {
     const pos = computeSnappedPos(display);
-    win.setBounds({ x: pos.x, y: pos.y, width: newWidth, height: cachedSize.height });
+    win.setBounds({ x: pos.x, y: pos.y, width: newWidth, height: bounds.height });
   } else {
-    // 保持中心点不变
-    const centerX = bounds.x + Math.round(oldWidth / 2);
+    // 保持中心点不变：基于实际 bounds.width 计算
+    const centerX = bounds.x + Math.round(bounds.width / 2);
     const newX = centerX - Math.round(newWidth / 2);
-    win.setBounds({ x: newX, y: bounds.y, width: newWidth, height: cachedSize.height });
+    win.setBounds({ x: newX, y: bounds.y, width: newWidth, height: bounds.height });
+  }
+};
+
+/**
+ * 应用窗口宽高（同步）：渲染端一次上报宽高，主进程一次 setBounds
+ * 替代分开调用 applyDynamicIslandWidth + applyDynamicIslandHeight
+ * 避免两个独立 IPC 顺序不确定导致 cachedSize.width 与 setBounds 不同步、窗口闪烁
+ * 吸附态走 computeSnappedPos 贴合真实刘海；浮动态保持中心点不变
+ * 中心点基于 bounds.width（实际窗口宽度）而非 cachedSize.width，避免缓存与实际不同步导致偏移
+ */
+export const applyDynamicIslandBounds = (width: number, height: number): void => {
+  const win = getDynamicIslandWindow();
+  if (!win) return;
+  const bounds = win.getBounds();
+  const display = screen.getDisplayNearestPoint({
+    x: bounds.x + Math.round(bounds.width / 2),
+    y: bounds.y + Math.round(bounds.height / 2),
+  });
+  const newWidth = clampWidth(width, display);
+  const h = clampHeight(height);
+  cachedSize.width = newWidth;
+  cachedSize.height = h;
+  const saved = store.get("windowStates.dynamicIsland");
+  if (saved.mode === "snapped") {
+    const pos = computeSnappedPos(display);
+    win.setBounds({ x: pos.x, y: pos.y, width: newWidth, height: h });
+  } else {
+    // 保持中心点不变：基于实际 bounds.width 计算，避免 cachedSize 与实际不同步导致偏移
+    const centerX = bounds.x + Math.round(bounds.width / 2);
+    const newX = centerX - Math.round(newWidth / 2);
+    win.setBounds({ x: newX, y: bounds.y, width: newWidth, height: h });
   }
 };
 
 /**
  * 移动窗口到指定位置
- * 尺寸始终用权威 cachedSize 写回；拖拽过程保持自由移动
- * 仅约束 y 不上下越界，x 允许超出屏幕（迁移到副屏或半隐都可）
+ * 尺寸始终用权威 cachedSize 写回
+ * snapCentered=true：强制 X 固定屏幕中线，只允许 Y 轴移动
+ * snapCentered=false：自由移动，仅约束 y 不上下越界，x 允许超出屏幕
  * 过程中根据距顶部距离实时广播视觉 mode，让圆角随拖拽平滑切换
  */
 export const moveDynamicIslandWindow = (x: number, y: number): void => {
   const win = getDynamicIslandWindow();
   if (!win) return;
-  const tx = Math.round(x);
+  const config = store.get("dynamicIsland");
+  const lockCenterX = !!config?.snapCentered && !isNotchFusionEnabled();
+  let tx = Math.round(x);
   let ty = Math.round(y);
   // 用窗口中心点找最近显示器，避免越界后 getDisplayMatching 选错屏
   const display = screen.getDisplayNearestPoint({
@@ -366,6 +398,10 @@ export const moveDynamicIslandWindow = (x: number, y: number): void => {
     y: ty + Math.round(cachedSize.height / 2),
   });
   const wa = display.workArea;
+  if (lockCenterX) {
+    // 居中模式：X 强制为屏幕中线，拖拽只改变 Y
+    tx = wa.x + Math.round((wa.width - cachedSize.width) / 2);
+  }
   const snapY = isNotchFusionEnabled() ? display.bounds.y + NOTCH_TOP_OFFSET : wa.y;
   ty = Math.max(snapY, Math.min(wa.y + wa.height - cachedSize.height, ty));
   win.setBounds({ x: tx, y: ty, width: cachedSize.width, height: cachedSize.height });
@@ -385,8 +421,9 @@ const broadcastMode = (mode: "snapped" | "floating"): void => {
 
 /**
  * 拖拽结束时判定吸附
- * 落点 y 距离顶部 < SNAP_THRESHOLD 则吸附
- * 否则记录 floating + 当前坐标
+ * - 垂直：落点 y 距离顶部 < SNAP_THRESHOLD 则吸附到顶部
+ * - 水平：snapCentered=true 始终吸附居中（X 固定中线）
+ *   snapCentered=false 保持拖拽到的水平位置（存中心点 x，让后续宽度变化围绕中心点对称伸缩）
  */
 export const saveDynamicIslandState = (): void => {
   const win = getDynamicIslandWindow();
@@ -401,7 +438,8 @@ export const saveDynamicIslandState = (): void => {
   const snapY = isNotchFusionEnabled() ? display.bounds.y + NOTCH_TOP_OFFSET : wa.y;
   if (b.y - snapY <= SNAP_THRESHOLD) {
     const config = store.get("dynamicIsland");
-    if (isNotchFusionEnabled() || config.snapCentered) {
+    if (isNotchFusionEnabled()) {
+      // 刘海融合：强制居中
       const pos = computeSnappedPos(display);
       win.setBounds({ x: pos.x, y: pos.y, width: cachedSize.width, height: cachedSize.height });
       store.set("windowStates.dynamicIsland", {
@@ -410,10 +448,20 @@ export const saveDynamicIslandState = (): void => {
         x: null,
         y: null,
       });
+    } else if (config?.snapCentered) {
+      // 居中模式：始终吸附中线，清掉 saved.x
+      store.set("windowStates.dynamicIsland", {
+        ...store.get("windowStates.dynamicIsland"),
+        mode: "snapped",
+        x: null,
+        y: null,
+      });
+      const pos = computeSnappedPos(display);
+      win.setBounds({ x: pos.x, y: pos.y, width: cachedSize.width, height: cachedSize.height });
     } else {
-      // 保留拖到的水平位置；存中心点而非左上角，让后续宽度变化围绕中心点对称伸缩
+      // 自由模式：保持拖拽到的水平位置；存中心点而非左上角，让后续宽度变化围绕中心点对称伸缩
       const clampedLeftX = Math.max(wa.x, Math.min(wa.x + wa.width - cachedSize.width, b.x));
-      const centerX = clampedLeftX + Math.round(cachedSize.width / 2);
+      const newCenterX = clampedLeftX + Math.round(cachedSize.width / 2);
       win.setBounds({
         x: clampedLeftX,
         y: wa.y,
@@ -423,18 +471,31 @@ export const saveDynamicIslandState = (): void => {
       store.set("windowStates.dynamicIsland", {
         ...store.get("windowStates.dynamicIsland"),
         mode: "snapped",
-        x: centerX,
+        x: newCenterX,
         y: wa.y,
       });
     }
     broadcastMode("snapped");
   } else {
-    store.set("windowStates.dynamicIsland", {
-      ...store.get("windowStates.dynamicIsland"),
-      mode: "floating",
-      x: b.x,
-      y: b.y,
-    });
+    const config = store.get("dynamicIsland");
+    if (config?.snapCentered && !isNotchFusionEnabled()) {
+      // 居中模式 floating：X 仍然固定中线，只保存 Y
+      const centerX = wa.x + Math.round((wa.width - cachedSize.width) / 2);
+      win.setBounds({ x: centerX, y: b.y, width: cachedSize.width, height: cachedSize.height });
+      store.set("windowStates.dynamicIsland", {
+        ...store.get("windowStates.dynamicIsland"),
+        mode: "floating",
+        x: null,
+        y: b.y,
+      });
+    } else {
+      store.set("windowStates.dynamicIsland", {
+        ...store.get("windowStates.dynamicIsland"),
+        mode: "floating",
+        x: b.x,
+        y: b.y,
+      });
+    }
     broadcastMode("floating");
   }
 };

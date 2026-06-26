@@ -12,11 +12,18 @@ let currentNowPlayingMs = 0;
 
 export const getNowPlayingCurrentMs = (): number => currentNowPlayingMs;
 
+/** 提供给频谱绘制的非响应式 FFT 帧 */
+let currentFftFrame: number[] = [];
+
+export const getNowPlayingFftFrame = (): number[] => currentFftFrame;
+
 export interface NowPlayingSyncOptions {
   /** 选择当前主行索引的算法 */
   pickIndex: (lyric: LyricLine[], time: number) => number;
   /** 日志 / 错误前缀 */
   logTag: string;
+  /** 是否订阅 FFT 频谱数据（按需开启，避免不使用频谱的窗口浪费 IPC 带宽） */
+  fftEnabled?: boolean;
 }
 
 export interface NowPlayingSync {
@@ -31,7 +38,7 @@ export interface NowPlayingSync {
  * 拉取 / 订阅快照、维护播放锚点、RAF 高频更新 currentMs 与 primaryIndex
  */
 export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSync => {
-  const { pickIndex, logTag } = options;
+  const { pickIndex, logTag, fftEnabled = false } = options;
 
   const track = shallowRef<Track | null>(null);
   const lyric = shallowRef<LyricLine[]>([]);
@@ -135,6 +142,15 @@ export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSyn
         syncOnce();
       }),
     );
+
+    // 按需订阅 FFT 频谱数据
+    if (fftEnabled) {
+      unsubscribers.push(
+        window.api.nowPlaying.onFftSync((data) => {
+          currentFftFrame = data;
+        }),
+      );
+    }
 
     kickTick();
   });

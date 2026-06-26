@@ -14,6 +14,19 @@ import { logsDir } from "@main/utils/paths";
 import { consumePendingOrpheusUrl } from "@main/services/orpheus";
 
 /**
+ * 任务栏封面点击 toggle 状态
+ * 记录呼出前的窗口状态，再次点击时恢复（最小化/后台）
+ * 渲染端手动收起播放界面时通过 resetPlayingViewToggle 重置
+ */
+let taskbarPrevState: "minimized" | "unfocused" | null = null;
+
+/**
+ * 主窗口播放界面是否展开（渲染端同步过来）
+ * 用于任务栏封面 toggle：已展开且窗口聚焦 → 再次点击收起
+ */
+let playingViewExpanded = false;
+
+/**
  * 注册系统相关的 IPC 事件
  */
 export const registerSystemIpc = (): void => {
@@ -54,6 +67,58 @@ export const registerSystemIpc = (): void => {
   ipcMain.handle("system:openSettings", (_event, category?: string, highlight?: string) => {
     focusMainWindow();
     getMainWindow()?.webContents.send("system:openSettings", { category, highlight });
+  });
+
+  // 显示主窗口并展开到播放界面（任务栏歌词封面点击）
+  // toggle 逻辑：播放界面展开时，最小化/隐藏/未聚焦仅恢复窗口，已聚焦才收起；
+  // 已收起且有 prevState 且聚焦时恢复原状态；首次呼出记录状态并展开
+  ipcMain.handle("system:openPlayingView", () => {
+    const win = getMainWindow();
+    if (!win) return;
+
+    // 播放界面已展开：最小化/隐藏/未聚焦时恢复窗口，已聚焦时收起
+    if (playingViewExpanded) {
+      if (win.isMinimized() || !win.isVisible()) {
+        focusMainWindow();
+        return;
+      }
+      if (!win.isFocused()) {
+        focusMainWindow();
+        return;
+      }
+      win.webContents.send("system:collapsePlayingView");
+      return;
+    }
+
+    // 有 prevState 且窗口聚焦 → 恢复原状态
+    if (taskbarPrevState !== null && win.isFocused()) {
+      win.minimize();
+      taskbarPrevState = null;
+      return;
+    }
+
+    // 首次呼出 → 记录原状态
+    taskbarPrevState = win.isMinimized()
+      ? "minimized"
+      : win.isVisible() && !win.isFocused()
+        ? "unfocused"
+        : null;
+
+    focusMainWindow();
+    win.webContents.send("system:openPlayingView");
+  });
+
+  // 渲染端同步播放界面展开状态（isExpanded 变化时调用）
+  // 同时在收起时清掉 taskbarPrevState，避免下次点击误触发恢复
+  ipcMain.handle("system:setPlayingViewExpanded", (_event, expanded: boolean) => {
+    playingViewExpanded = expanded;
+    if (!expanded) taskbarPrevState = null;
+  });
+
+  // 渲染端手动收起播放界面时重置 toggle 状态（保留向后兼容，等价于 setPlayingViewExpanded(false)）
+  ipcMain.handle("system:resetPlayingViewToggle", () => {
+    playingViewExpanded = false;
+    taskbarPrevState = null;
   });
 
   // 获取系统已安装字体

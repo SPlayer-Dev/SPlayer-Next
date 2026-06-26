@@ -9,6 +9,7 @@ import { useFavorite } from "@/composables/useFavorite";
 import { useDownload, buildDownloadQualityItems } from "@/composables/useDownload";
 import { usePlaylistPicker } from "@/composables/usePlaylistPicker";
 import Lyrics from "@/components/player/Lyrics/index.vue";
+
 import PlaylistPickerDialog from "@/components/modals/PlaylistPickerDialog.vue";
 import { useWindowControls } from "@/composables/useWindowControls";
 import * as player from "@/core/player";
@@ -18,11 +19,28 @@ import IconFavorite from "~icons/material-symbols/favorite-rounded";
 import IconFavoriteOutline from "~icons/material-symbols/favorite-outline-rounded";
 import IconLucideListPlus from "~icons/lucide/list-plus";
 import IconLucideDownload from "~icons/lucide/download";
+import FluidBackground from "./FluidBackground.vue";
+import SnowBackground from "./SnowBackground.vue";
+import FogBackground from "./FogBackground.vue";
+import RaindropBackground from "./RaindropBackground.vue";
+import { usePaletteExtractor } from "@/composables/usePaletteExtractor";
 
 const status = useStatusStore();
 const media = useMediaStore();
 const settings = useSettingsStore();
 const fav = useFavorite();
+
+/** 封面调色板提取 */
+const { dominant, palette, extract: extractPalette, reset: resetPalette } = usePaletteExtractor();
+
+watch(
+  () => media.track?.cover,
+  (coverUrl) => {
+    if (coverUrl) extractPalette(coverUrl);
+    else resetPalette();
+  },
+  { immediate: true },
+);
 const { enqueue: enqueueDownload } = useDownload();
 const { t } = useI18n();
 const {
@@ -106,6 +124,9 @@ const onDownloadSelect = (key: string): void => {
 
 /** 当前曲目是否有可显示的歌词 */
 const hasLyric = computed(() => media.parsedLyric.length > 0 || media.lyricLoading);
+
+/** 是否启用扇形歌词 */
+const enableFanLyrics = computed(() => settings.player.enableFanLyrics);
 
 // 重新挂载时，刷新初始时间
 watch(hasLyric, (value) => {
@@ -254,6 +275,14 @@ const toggleLyric = (): void => {
       >
         <!-- 背景 -->
         <PlayerBackground />
+        <!-- 流体背景 -->
+        <FluidBackground v-if="settings.player.enableFluidBackground" :dominant-color="dominant" :palette="palette" />
+        <!-- 雪花背景层 -->
+        <SnowBackground v-if="settings.player.enableSnowBackground" :palette="palette" />
+        <!-- 雾气背景层 -->
+        <FogBackground v-if="settings.player.enableFogBackground" :dominant-color="dominant" />
+        <!-- 雨滴背景层 -->
+        <RaindropBackground v-if="settings.player.enableRaindropBackground" :dominant-color="dominant" />
         <!-- 全屏封面 -->
         <div v-if="fullscreenCover" class="absolute inset-y-0 left-0 w-[60%]">
           <PlayerCover fullscreen />
@@ -316,7 +345,9 @@ const toggleLyric = (): void => {
             <div class="relative w-[clamp(200px,85%,50vh)] -translate-y-[11vh]">
               <Transition name="scale-switch" mode="out-in">
                 <div :key="media.track?.id">
-                  <PlayerCover />
+                  <div class="relative">
+                    <PlayerCover />
+                  </div>
                   <!-- 歌曲信息 -->
                   <div class="absolute top-full left-0 w-full pt-6">
                     <PlayerData align="left" />
@@ -374,6 +405,16 @@ const toggleLyric = (): void => {
                 :enable-emphasize-effect="settings.lyric.enableEmphasizeEffect"
                 :show-translation="settings.lyric.showTranslation"
                 :show-romanization="settings.lyric.showRomanization"
+                :layout-mode="enableFanLyrics ? 'fan' : 'default'"
+                :fan-angle="settings.player.fanLyricsAngle"
+                :fan-max-visible-lines="settings.player.fanLyricsMaxLines"
+                :fan-line-height="settings.player.fanLyricsLineHeight"
+                :fan-min-scale="settings.player.fanLyricsMinScale"
+                :fan-min-opacity="settings.player.fanLyricsMinOpacity"
+                :fan-max-blur="settings.player.fanLyricsMaxBlur"
+                :fan-enable-background="settings.player.fanLyricsEnableBackground"
+                :fan-enable-glow="settings.player.fanLyricsEnableGlow"
+                :lyric-scroll-direction="settings.lyric.lyricScrollDirection"
                 @seek="player.seek($event)"
               >
                 <template #bottom>
@@ -566,7 +607,6 @@ const toggleLyric = (): void => {
 
 <style scoped>
 .lyric-area {
-  filter: drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.2));
   mask: linear-gradient(
     180deg,
     hsla(0, 0%, 100%, 0) 0,

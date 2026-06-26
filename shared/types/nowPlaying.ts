@@ -40,6 +40,9 @@ export interface NowPlayingLyricOffsetSync {
   offsetMs: number;
 }
 
+/** 主进程 → 窗口：FFT 频谱数据（128 bin，值域 0.0 ~ 1.0） */
+export type NowPlayingFftSync = number[];
+
 /** NowPlaying API */
 export interface NowPlayingApi {
   /** 同步当前播放状态到主进程 */
@@ -56,4 +59,6 @@ export interface NowPlayingApi {
   onPositionSync: (callback: (data: NowPlayingPositionSync) => void) => () => void;
   /** 订阅当前曲目歌词偏移变化 */
   onLyricOffsetChange: (callback: (data: NowPlayingLyricOffsetSync) => void) => () => void;
+  /** 订阅 FFT 频谱数据（仅可见窗口接收，~20Hz） */
+  onFftSync: (callback: (data: number[]) => void) => () => void;
 }

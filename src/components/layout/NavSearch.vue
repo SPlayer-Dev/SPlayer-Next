@@ -199,6 +199,13 @@ onMounted(() => {
                 class="min-w-0 flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-on-surface/5 transition-colors duration-200"
                 @click="onPickSuggest('song', song.id, song.name)"
               >
+                <SImg
+                  v-if="song.cover"
+                  :src="song.cover"
+                  class="size-9 shrink-0 rounded-md object-cover"
+                  decoding="async"
+                />
+                <IconLucideMusic v-else class="size-4 shrink-0 text-on-surface-variant/40" />
                 <div class="flex-1 min-w-0 flex flex-col leading-tight">
                   <span class="truncate text-sm text-on-surface">{{ song.name }}</span>
                   <span v-if="song.artist" class="truncate text-xs text-on-surface-variant">
@@ -219,6 +226,13 @@ onMounted(() => {
                 class="min-w-0 flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-on-surface/5 transition-colors duration-200"
                 @click="onPickSuggest('artist', artist.id, artist.name)"
               >
+                <SImg
+                  v-if="artist.cover"
+                  :src="artist.cover"
+                  class="size-9 shrink-0 rounded-full object-cover"
+                  decoding="async"
+                />
+                <IconLucideUser v-else class="size-4 shrink-0 text-on-surface-variant/40" />
                 <span class="flex-1 truncate text-sm text-on-surface">{{ artist.name }}</span>
               </div>
             </div>
@@ -233,6 +247,13 @@ onMounted(() => {
                 class="min-w-0 flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-on-surface/5 transition-colors duration-200"
                 @click="onPickSuggest('album', album.id, album.name)"
               >
+                <SImg
+                  v-if="album.cover"
+                  :src="album.cover"
+                  class="size-9 shrink-0 rounded-md object-cover"
+                  decoding="async"
+                />
+                <IconLucideDisc v-else class="size-4 shrink-0 text-on-surface-variant/40" />
                 <div class="flex-1 min-w-0 flex flex-col leading-tight">
                   <span class="truncate text-sm text-on-surface">{{ album.name }}</span>
                   <span v-if="album.subtitle" class="truncate text-xs text-on-surface-variant">
@@ -252,7 +273,19 @@ onMounted(() => {
                 class="min-w-0 flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-on-surface/5 transition-colors duration-200"
                 @click="onPickSuggest('playlist', playlist.id, playlist.name)"
               >
-                <span class="flex-1 truncate text-sm text-on-surface">{{ playlist.name }}</span>
+                <SImg
+                  v-if="playlist.cover"
+                  :src="playlist.cover"
+                  class="size-9 shrink-0 rounded-md object-cover"
+                  decoding="async"
+                />
+                <IconLucideListMusic v-else class="size-4 shrink-0 text-on-surface-variant/40" />
+                <div class="flex-1 min-w-0 flex flex-col leading-tight">
+                  <span class="truncate text-sm text-on-surface">{{ playlist.name }}</span>
+                  <span v-if="playlist.subtitle" class="truncate text-xs text-on-surface-variant">
+                    {{ playlist.subtitle }}
+                  </span>
+                </div>
               </div>
             </div>
           </template>

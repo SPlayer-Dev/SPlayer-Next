@@ -17,6 +17,8 @@ type NowPlayingEvents = {
   "position-sync": [NowPlayingPositionSync];
   /** 当前曲目歌词偏移变化 */
   "lyric-offset-change": [NowPlayingLyricOffsetSync];
+  /** FFT 频谱数据（128 bin，~20Hz） */
+  "fft-data": [number[]];
 };
 
 /** 当前歌曲轻量信息 */
@@ -214,4 +216,14 @@ export const onPositionSync = (listener: (data: NowPlayingPositionSync) => void)
 /** 订阅当前曲目歌词偏移变化 */
 export const onLyricOffsetChange = (listener: (data: NowPlayingLyricOffsetSync) => void): void => {
   emitter.on("lyric-offset-change", listener);
+};
+
+/** 订阅 FFT 频谱数据 */
+export const onFftData = (listener: (data: number[]) => void): void => {
+  emitter.on("fft-data", listener);
+};
+
+/** 转发 FFT 数据（由 player IPC 调用） */
+export const onFftEvent = (data: number[]): void => {
+  emitter.emit("fft-data", data);
 };

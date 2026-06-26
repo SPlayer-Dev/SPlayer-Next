@@ -16,6 +16,7 @@ import {
   saveDynamicIslandState,
   applyDynamicIslandWidth,
   applyDynamicIslandHeight,
+  applyDynamicIslandBounds,
   toggleTaskbarLyricWindow,
   closeTaskbarLyricWindow,
   getTaskbarLyricWindow,
@@ -85,6 +86,12 @@ export const registerWindowIpc = (): void => {
   // 灵动岛高度变化
   ipcMain.on("dynamicIsland:setHeight", (_event, height: number) => {
     applyDynamicIslandHeight(height);
+  });
+
+  // 灵动岛宽高同步变化：渲染端一次上报宽高，主进程一次 setBounds
+  // 替代分开的 resize + setHeight，避免 IPC 顺序不确定导致窗口闪烁
+  ipcMain.on("dynamicIsland:setBounds", (_event, width: number, height: number) => {
+    applyDynamicIslandBounds(width, height);
   });
 
   // 灵动岛查询当前吸附模式

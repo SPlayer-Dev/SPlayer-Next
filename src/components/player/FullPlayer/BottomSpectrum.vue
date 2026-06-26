@@ -33,7 +33,7 @@ const SKIP_LOW = 8;
 /** bar 之间的固定间隙（px） */
 const BAR_GAP = 3;
 /** 后端推送间隔（ms），用于时间插值 */
-const PUSH_INTERVAL = 50;
+const PUSH_INTERVAL = 16;
 
 /** 上一帧推送数据 */
 const prev = new Float32Array(FFT_SIZE);
@@ -76,11 +76,14 @@ const draw = (): void => {
     lastUpdate = performance.now();
   }
 
-  // 时间插值：在 prev → curr 之间按时间平滑过渡，消除 20Hz stair-step
+  // 时间插值：在 prev → curr 之间按时间平滑过渡，消除帧间 stair-step
   const t = Math.min((performance.now() - lastUpdate) / PUSH_INTERVAL, 1);
-  // 上行快（响应灵敏），下行慢（视觉柔和）
-  const ATTACK = 0.4;
-  const DECAY = 0.88;
+  // 平滑度 0~0.9：越大上行越慢、下行越慢，频谱越柔和
+  // smoothing=0 时 ATTACK=0.4 DECAY=0.88（快速响应）
+  // smoothing=0.9 时 ATTACK=0.04 DECAY=0.97（极平滑）
+  const smoothing = settings.player.spectrumSmoothing;
+  const ATTACK = 0.4 * (1 - smoothing * 0.9);
+  const DECAY = 0.88 + smoothing * 0.09;
 
   for (let i = 0; i < FFT_SIZE; i++) {
     const target = prev[i] + (curr[i] - prev[i]) * t;
@@ -100,6 +103,10 @@ const draw = (): void => {
   const numBars = Math.floor(cssWidth / 2 / slotWidth);
   if (numBars === 0) return;
 
+  // 灵敏度增益 + 最大高度限制
+  const sensitivity = settings.player.spectrumSensitivity;
+  const maxHeightPx = cssHeight * settings.player.spectrumMaxHeight;
+
   ctx.clearRect(0, 0, cssWidth, cssHeight);
   ctx.fillStyle = getComputedStyle(canvas).color;
 
@@ -114,7 +121,7 @@ const draw = (): void => {
     for (let j = lo; j < hi; j++) sum += display[j];
     const v = sum / (hi - lo);
 
-    const barHeight = v * cssHeight;
+    const barHeight = Math.min(maxHeightPx, v * cssHeight * sensitivity);
     if (barHeight <= 0.5) continue;
     const y = cssHeight - barHeight;
     const xRight = halfWidth + i * slotWidth;

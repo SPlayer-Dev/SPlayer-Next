@@ -57,6 +57,13 @@ export const DEFAULT_LYRIC_SOURCE_ORDER: LyricSourceOrder = [...ALL_PLATFORMS];
 /** 默认格式优先级 */
 export const DEFAULT_LYRIC_FORMAT_ORDER: LyricFormatOrder = [...DEFAULT_LYRIC_FORMAT_ORDER_SHARED];
 
+/**
+ * 歌词滚动方向
+ * - natural：内容随手势同向移动（鼠标向下滚 → 内容向下移 → 露出上方内容），Mac 习惯
+ * - reverse：内容随手势反向移动（鼠标向下滚 → 内容向上移 → 露出下方内容），Windows 习惯
+ */
+export type LyricScrollDirection = "natural" | "reverse";
+
 /** 歌词设置 */
 export interface LyricSettings {
   /** 歌词来源偏好 */
@@ -109,6 +116,8 @@ export interface LyricSettings {
   excludeLyricsUserKeywords: string[];
   /** 用户自定义正则 */
   excludeLyricsUserRegexes: string[];
+  /** 歌词滚动方向：natural=内容随手势同向（Mac 习惯），reverse=内容随手势反向（Windows 习惯） */
+  lyricScrollDirection: LyricScrollDirection;
 }
 
 /** 播放器设置 */
@@ -133,6 +142,42 @@ export interface PlayerSettings {
   spectrumBarWidth: number;
   /** 在线歌曲音质偏好；实际可用级别取决于账号权限 */
   songLevel: QualityLevel;
+  /** 是否启用流体背景 */
+  enableFluidBackground: boolean;
+  /** 是否启用封面3D视差倾斜 */
+  enableParallaxTilt: boolean;
+  /** 是否启用封面呼吸效果 */
+  enableCoverBreathing: boolean;
+  /** 是否启用扇形歌词 */
+  enableFanLyrics: boolean;
+  /** 扇形歌词每行旋转角度（度） */
+  fanLyricsAngle: number;
+  /** 扇形歌词单侧可见行数 */
+  fanLyricsMaxLines: number;
+  /** 扇形歌词行高（px） */
+  fanLyricsLineHeight: number;
+  /** 扇形歌词最小缩放 */
+  fanLyricsMinScale: number;
+  /** 扇形歌词最小透明度 */
+  fanLyricsMinOpacity: number;
+  /** 扇形歌词最大模糊（px） */
+  fanLyricsMaxBlur: number;
+  /** 扇形歌词是否启用底框背景 */
+  fanLyricsEnableBackground: boolean;
+  /** 扇形歌词是否启长音节光辉 */
+  fanLyricsEnableGlow: boolean;
+  /** 频谱灵敏度（增益倍数） */
+  spectrumSensitivity: number;
+  /** 频谱最大高度比例（0~1） */
+  spectrumMaxHeight: number;
+  /** 频谱平滑度（0~1，越大越平滑） */
+  spectrumSmoothing: number;
+  /** 是否启用雪花背景层 */
+  enableSnowBackground: boolean;
+  /** 是否启用雾气背景层 */
+  enableFogBackground: boolean;
+  /** 是否启用雨滴背景层 */
+  enableRaindropBackground: boolean;
 }
 
 /** 外观设置 */

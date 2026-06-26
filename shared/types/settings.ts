@@ -134,6 +134,12 @@ export interface DesktopLyricSettings {
   locked: boolean;
 }
 
+/** 灵动岛背景风格 */
+export type IslandBackgroundStyle = "solid" | "glass" | "mica" | "dynamic";
+
+/** 灵动岛频谱样式 */
+export type IslandSpectrumStyle = "gradient" | "solid" | "minimal";
+
 /** 灵动岛歌词配置 */
 export interface DynamicIslandSettings {
   /** 缩放比例（0.5 ~ 2.0），1 = 100%；实际窗口高度由渲染端按基准高度 × 缩放算出 */
@@ -154,6 +160,8 @@ export interface DynamicIslandSettings {
   alwaysOnTop: boolean;
   /** 吸附时是否居中 */
   snapCentered: boolean;
+  /** 水平偏移（像素），仅 snapCentered=false 时生效；正值右移，负值左移 */
+  horizontalOffset: number;
   /** macOS 刘海融合 */
   notchFusion: boolean;
   /** 非遮挡模式 */
@@ -162,6 +170,18 @@ export interface DynamicIslandSettings {
   doubleLine: boolean;
   /** 显示翻译 */
   showTranslation: boolean;
+  /** 显示频谱 */
+  showSpectrum: boolean;
+  /** 频谱样式 */
+  spectrumStyle: IslandSpectrumStyle;
+  /** 启用展开视图 */
+  enableExpandedView: boolean;
+  /** 展开视图自动收起超时（秒） */
+  expandedTimeout: number;
+  /** 背景风格 */
+  backgroundStyle: IslandBackgroundStyle;
+  /** 启用封面翻转动画 */
+  enableCoverFlip: boolean;
 }
 
 /** 任务栏歌词位置模式 */
@@ -196,6 +216,14 @@ export interface TaskbarLyricSettings {
   fontSize: number;
   /** 字体 */
   fontFamily: string;
+  /** 显示频谱（纯音乐时） */
+  showSpectrum: boolean;
+  /** 频谱灵敏度（增益倍数，0.5~3.0） */
+  spectrumSensitivity: number;
+  /** 频谱平滑度（0~1，越大越平滑） */
+  spectrumSmoothing: number;
+  /** 悬停时显示的频谱条数（0=不收缩） */
+  spectrumHoverBarCount: number;
 }
 
 /** 音乐库配置 */

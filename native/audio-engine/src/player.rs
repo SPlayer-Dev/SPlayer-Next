@@ -397,7 +397,8 @@ impl InnerPlayer {
         }
     }
 
-    /// 启动 FFT 推送定时器（独立线程，每 50ms 推送一次频谱数据）
+    /// 启动 FFT 推送定时器（独立线程，每 16ms 推送一次频谱数据，约 60Hz）
+    /// 参照 WinIsland 的 ~47Hz（1024 样本/48kHz），提高到 60Hz 让灵动岛频谱更跟手
     fn start_fft_timer(&mut self) {
         self.stop_fft_timer();
 
@@ -417,7 +418,7 @@ impl InnerPlayer {
                     let data = fft.analyze();
                     cb(PlayerEvent::FftData { data });
                 }
-                sleep_unless_stopped(&stop_flag, Duration::from_millis(50));
+                sleep_unless_stopped(&stop_flag, Duration::from_millis(16));
             }
         });
         self.fft_timer_handle = Some(handle);

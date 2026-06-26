@@ -860,6 +860,20 @@
       "label": "歌词字重",
       "description": "歌词文字粗细"
     },
+    "fontFamily": {
+      "label": "歌词字体",
+      "description": "歌词文字字体，默认 Arial 保证清晰锐利",
+      "Arial": "Arial",
+      "Helvetica": "Helvetica",
+      "system-ui": "系统默认",
+      "Microsoft YaHei": "微软雅黑",
+      "PingFang SC": "苹方简体",
+      "Source Han Sans SC": "思源黑体简体",
+      "Noto Sans SC": "Noto Sans 简体",
+      "Segoe UI": "Segoe UI",
+      "Roboto": "Roboto",
+      "SF Pro Display": "SF Pro Display"
+    },
     "followCoverColor": {
       "label": "跟随封面颜色",
       "description": "歌词颜色跟随当前封面主色调"
@@ -867,6 +881,78 @@
     "autoImmersive": {
       "label": "自动沉浸模式",
       "description": "鼠标静止或离开窗口时，自动隐藏全屏播放器顶/底栏与鼠标"
+    },
+    "enableFluidBackground": {
+      "label": "流体背景",
+      "description": "根据封面颜色生成动态流动背景效果"
+    },
+    "enableSnowBackground": {
+      "label": "雪花背景层",
+      "description": "在背景上叠加飘落雪花粒子效果"
+    },
+    "enableFogBackground": {
+      "label": "雾气背景层",
+      "description": "在背景上叠加流动雾气效果"
+    },
+    "enableRaindropBackground": {
+      "label": "雨滴背景层",
+      "description": "在背景上叠加倾斜雨滴下落效果"
+    },
+    "enableParallaxTilt": {
+      "label": "封面视差倾斜",
+      "description": "鼠标移动时封面跟随轻微倾斜，产生3D视差效果"
+    },
+    "enableCoverBreathing": {
+      "label": "封面呼吸效果",
+      "description": "播放时封面轻微缩放脉动"
+    },
+    "enableFanLyrics": {
+      "label": "扇形歌词",
+      "description": "以扇形弧线排列歌词行，激活行为中心"
+    },
+    "fanLyricsAngle": {
+      "label": "扇形角度",
+      "description": "每行歌词的旋转角度（度），正数锚点在左外，负数锚点在右外"
+    },
+    "fanLyricsMaxLines": {
+      "label": "单侧可见行数",
+      "description": "激活行上下各显示的歌词行数"
+    },
+    "fanLyricsLineHeight": {
+      "label": "行高",
+      "description": "扇形歌词行间距（像素）"
+    },
+    "fanLyricsMinScale": {
+      "label": "最小缩放",
+      "description": "最远行歌词的缩放比例"
+    },
+    "fanLyricsMinOpacity": {
+      "label": "最小透明度",
+      "description": "最远行歌词的透明度"
+    },
+    "fanLyricsMaxBlur": {
+      "label": "最大模糊",
+      "description": "最远行歌词的模糊半径（像素）"
+    },
+    "fanLyricsEnableBackground": {
+      "label": "底框背景",
+      "description": "为每行歌词添加半透明圆角底框"
+    },
+    "fanLyricsEnableGlow": {
+      "label": "长音节光辉",
+      "description": "超过 1 秒的音节添加光辉效果，周围字符也有轻微光晕"
+    },
+    "spectrumSensitivity": {
+      "label": "频谱灵敏度",
+      "description": "数值越大柱条起伏越明显"
+    },
+    "spectrumMaxHeight": {
+      "label": "频谱最大高度",
+      "description": "柱条最大高度比例"
+    },
+    "spectrumSmoothing": {
+      "label": "频谱平滑度",
+      "description": "数值越大柱条起伏越平滑"
     },
     "showTranslation": {
       "label": "显示翻译",
@@ -930,6 +1016,12 @@
     "inactiveAlpha": {
       "label": "非激活行透明度",
       "description": "非当前行的基础透明度"
+    },
+    "lyricScrollDirection": {
+      "label": "鼠标滚动方向",
+      "description": "鼠标滚轮滚动时歌词的移动方向，默认按系统习惯（Mac=自然，Windows=反向）",
+      "natural": "自然（Mac 习惯：向下滚露出上方内容）",
+      "reverse": "反向（Windows 习惯：向下滚露出下方内容）"
     },
     "desktopLyricEnabled": {
       "label": "开启桌面歌词",
@@ -1052,12 +1144,47 @@
       "description": "在 MacBook 刘海屏上让灵动岛从物理刘海向下扩展"
     },
     "dynamicIslandSnapCentered": {
-      "label": "吸附时居中",
-      "description": "关闭后吸附到顶部时保留拖动到的水平位置"
+      "label": "水平居中",
+      "description": "开启时窗口水平居中；关闭后可手动设置水平偏移"
+    },
+    "dynamicIslandHorizontalOffset": {
+      "label": "水平偏移",
+      "description": "相对屏幕中心的水平偏移（像素），正值右移，负值左移"
     },
     "dynamicIslandNonOcclusive": {
       "label": "非遮挡模式",
       "description": "鼠标穿透窗口，悬停时隐藏内容"
+    },
+    "dynamicIslandShowSpectrum": {
+      "label": "显示频谱",
+      "description": "在灵动岛中显示音频频谱可视化"
+    },
+    "dynamicIslandSpectrumStyle": {
+      "label": "频谱样式",
+      "description": "频谱条的视觉风格",
+      "gradient": "渐变",
+      "solid": "纯色",
+      "minimal": "极简"
+    },
+    "dynamicIslandEnableExpandedView": {
+      "label": "启用展开视图",
+      "description": "点击灵动岛展开显示完整播放控制和频谱"
+    },
+    "dynamicIslandExpandedTimeout": {
+      "label": "自动收起时间",
+      "description": "展开视图无操作后自动收起的等待秒数"
+    },
+    "dynamicIslandBackgroundStyle": {
+      "label": "背景风格",
+      "description": "灵动岛的背景渲染方式",
+      "solid": "纯色",
+      "glass": "毛玻璃",
+      "mica": "云母",
+      "dynamic": "动态封面"
+    },
+    "dynamicIslandEnableCoverFlip": {
+      "label": "封面翻转动画",
+      "description": "切歌时封面以 3D 翻转效果过渡"
     },
     "taskbarLyricEnabled": {
       "label": "开启任务栏歌词",
@@ -1113,6 +1240,22 @@
     "taskbarLyricWordByWord": {
       "label": "逐字高亮",
       "description": "按单词进度逐字渲染高亮"
+    },
+    "taskbarLyricShowSpectrum": {
+      "label": "显示频谱",
+      "description": "纯音乐时在任务栏显示音频频谱"
+    },
+    "taskbarLyricSpectrumSensitivity": {
+      "label": "频谱灵敏度",
+      "description": "数值越大柱条起伏越明显"
+    },
+    "taskbarLyricSpectrumSmoothing": {
+      "label": "频谱平滑度",
+      "description": "数值越大柱条起伏越平滑"
+    },
+    "taskbarLyricSpectrumHoverBarCount": {
+      "label": "悬停频谱条数",
+      "description": "鼠标悬停时显示的频谱条数，0 表示不收缩"
     },
     "playerBgType": {
       "label": "播放器背景",

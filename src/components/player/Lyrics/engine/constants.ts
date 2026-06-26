@@ -5,6 +5,9 @@
 
 import type { SpringParams } from "./spring";
 
+/** 布局模式 */
+export type LayoutMode = "default" | "fan";
+
 export const DEFAULTS = {
   /** 用户滚动后自动回弹的延迟时间（毫秒） */
   scrollResetDelay: 5000,
@@ -17,7 +20,7 @@ export const DEFAULTS = {
   /** 透明度衰减速度（取消激活时） */
   alphaReleaseSpeed: 7,
   /** 非激活行的基础透明度 */
-  inactiveAlpha: 0.2,
+  inactiveAlpha: 0.3,
   /** 激活行在容器中的对齐位置（0~1） */
   alignPosition: 0.35,
   /** 逐字掩码渐变宽度比例 */
@@ -36,6 +39,26 @@ export const DEFAULTS = {
   showTranslation: true,
   /** 是否显示音译歌词 */
   showRomanization: true,
+  /** 布局模式（default 垂直堆叠 / fan 扇形展开） */
+  layoutMode: "default" as LayoutMode,
+  /** 扇形最大角度（度，正值向右展开，负值向左） */
+  fanAngle: 60,
+  /** 扇形旋转半径系数（相对 min(W,H)/2） */
+  fanRadiusFactor: 1.0,
+  /** 扇形模式单侧可见行数 */
+  fanMaxVisibleLines: 7,
+  /** 扇形模式固定行高（px） */
+  fanLineHeight: 96,
+  /** 扇形模式最远行缩放 */
+  fanMinScale: 0.78,
+  /** 扇形模式最远行透明度 */
+  fanMinOpacity: 0,
+  /** 扇形模式最远行模糊（px） */
+  fanMaxBlur: 7,
+  /** 扇形模式是否启用底框背景 */
+  fanEnableBackground: true,
+  /** 扇形模式是否启用长音节光辉 */
+  fanEnableGlow: true,
 };
 
 /** 渲染器配置 */
@@ -74,6 +97,28 @@ export interface RendererConfig {
   showTranslation: boolean;
   /** 是否显示音译歌词（默认 true） */
   showRomanization: boolean;
+  /** 布局模式（默认 default） */
+  layoutMode: LayoutMode;
+  /** 扇形最大角度（度，默认 60） */
+  fanAngle: number;
+  /** 扇形旋转半径系数（默认 1.0） */
+  fanRadiusFactor: number;
+  /** 扇形模式单侧可见行数（默认 7） */
+  fanMaxVisibleLines: number;
+  /** 扇形模式固定行高（px，默认 96） */
+  fanLineHeight: number;
+  /** 扇形模式最远行缩放（默认 0.78） */
+  fanMinScale: number;
+  /** 扇形模式最远行透明度（默认 0） */
+  fanMinOpacity: number;
+  /** 扇形模式最远行模糊（px，默认 7） */
+  fanMaxBlur: number;
+  /** 扇形模式是否启用底框背景（默认 true） */
+  fanEnableBackground: boolean;
+  /** 扇形模式是否启用长音节光辉（默认 true） */
+  fanEnableGlow: boolean;
+  /** 鼠标滚轮方向：natural=内容随手势同向（Mac），reverse=内容随手势反向（Windows） */
+  lyricScrollDirection: "natural" | "reverse";
   /** 歌词行点击回调（传入该行起始时间，用于跳转播放进度） */
   onLineClick?: (timeMs: number) => void;
 }
