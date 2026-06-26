@@ -108,6 +108,10 @@ export const registerPluginIpc = (): void => {
     await pluginRegistry.setEnabled(id, enabled);
   });
 
+  ipcMain.handle("plugin:setSetting", async (_event, id: string, key: string, value: unknown) => {
+    await pluginRegistry.setSetting(id, key, value);
+  });
+
   ipcMain.handle("plugin:resolveUrl", async (_evt, args) => {
     return resolveUrl(args);
   });

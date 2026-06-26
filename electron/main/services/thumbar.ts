@@ -7,6 +7,7 @@ import { thumbarLog } from "@main/utils/logger";
 export interface Thumbar {
   clearThumbar(): void;
   updateThumbar(playing: boolean): void;
+  updateLike(liked: boolean): void;
   refreshLocale(): void;
 }
 
@@ -17,16 +18,23 @@ const thumbarIcon = (name: string) => loadThemedIcon("thumbar", name);
 // 创建缩略图工具栏
 class ThumbarImpl implements Thumbar {
   private win: BrowserWindow;
+  private like: ThumbarButton;
   private prev: ThumbarButton;
   private next: ThumbarButton;
   private play: ThumbarButton;
   private pause: ThumbarButton;
   private isPlaying: boolean = false;
+  private isLiked: boolean = false;
   private onThemeUpdated: () => void;
   private onWindowShown: () => void;
 
   constructor(win: BrowserWindow) {
     this.win = win;
+    this.like = {
+      tooltip: t("addToLiked"),
+      icon: thumbarIcon("unlike"),
+      click: () => sendToMain("player:event", { type: "toggleLike" }),
+    };
     this.prev = {
       tooltip: t("prev"),
       icon: thumbarIcon("prev"),
@@ -68,11 +76,29 @@ class ThumbarImpl implements Thumbar {
     });
   }
 
-  // 更新工具栏
-  updateThumbar(playing: boolean): void {
+  // 下发当前按钮组，喜欢按钮随状态切换图标与提示
+  private renderButtons(): void {
     if (this.win.isDestroyed()) return;
+    this.like.icon = thumbarIcon(this.isLiked ? "like" : "unlike");
+    this.like.tooltip = t(this.isLiked ? "removeFromLiked" : "addToLiked");
+    this.win.setThumbarButtons([
+      this.prev,
+      this.isPlaying ? this.pause : this.play,
+      this.next,
+      this.like,
+    ]);
+  }
+
+  // 更新播放状态
+  updateThumbar(playing: boolean): void {
     this.isPlaying = playing;
-    this.win.setThumbarButtons([this.prev, playing ? this.pause : this.play, this.next]);
+    this.renderButtons();
+  }
+
+  // 更新喜欢状态
+  updateLike(liked: boolean): void {
+    this.isLiked = liked;
+    this.renderButtons();
   }
 
   // 语言变更后刷新 tooltip

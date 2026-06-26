@@ -11,7 +11,12 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import zlib from "node:zlib";
-import type { PluginManifest, PluginPlatform } from "@shared/types/plugin";
+import {
+  PLUGIN_TYPES,
+  type PluginManifest,
+  type PluginPlatform,
+  type PluginType,
+} from "@shared/types/plugin";
 import { HOST_API_LEVEL, PluginErrorCodes } from "@shared/defaults/plugin-api";
 
 const GZ_PREFIX = "gz_";
@@ -48,6 +53,7 @@ interface HeaderFields {
   homepage?: string;
   platform?: PluginPlatform;
   apiLevel?: number;
+  type?: PluginType;
 }
 
 const parseHeader = (source: string): HeaderFields => {
@@ -79,6 +85,11 @@ const parseHeader = (source: string): HeaderFields => {
         if (!Number.isNaN(n)) out.apiLevel = n;
         break;
       }
+      case "type":
+        out.type = (PLUGIN_TYPES as readonly string[]).includes(val)
+          ? (val as PluginType)
+          : "source";
+        break;
     }
   }
   return out;
@@ -116,6 +127,15 @@ export const loadScript = (rawOrPath: string, isPath: boolean, fileName?: string
 
   const platform: PluginPlatform = header.platform ?? (wasCompressed ? "lx" : "splayer");
   const apiLevel = header.apiLevel ?? 1;
+  const rawType: PluginType = header.type ?? "source";
+
+  // 控制类依赖 level 2 宿主 API（splayer.player / onSettingChange），低于 2 直接拒绝，和文档"否则不可用"一致
+  if (rawType === "control" && apiLevel < 2) {
+    throw Object.assign(
+      new Error(`control plugin "${name}" requires apiLevel >= 2 (declared ${apiLevel})`),
+      { code: PluginErrorCodes.API_LEVEL_MISMATCH },
+    );
+  }
 
   if (apiLevel > HOST_API_LEVEL) {
     throw Object.assign(
@@ -135,6 +155,7 @@ export const loadScript = (rawOrPath: string, isPath: boolean, fileName?: string
     author: header.author,
     homepage: header.homepage,
     platform,
+    type: rawType,
     apiLevel,
     hash,
     installedAt: Date.now(),

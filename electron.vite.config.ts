@@ -29,6 +29,7 @@ export default defineConfig({
         "@splayer/audio-engine": resolve(__dirname, "native/audio-engine"),
         "@splayer/media-ctrl": resolve(__dirname, "native/media-ctrl"),
         "@splayer/taskbar-lyric": resolve(__dirname, "native/taskbar-lyric"),
+        "@splayer/taskbar-thumbnail": resolve(__dirname, "native/taskbar-thumbnail"),
       },
     },
   },

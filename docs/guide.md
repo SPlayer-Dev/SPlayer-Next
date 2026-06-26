@@ -58,7 +58,7 @@ SPlayer-Next 支持 LRC / QRC / YRC / TTML 多种歌词格式，提供逐字高�
 
 ## 插件
 
-SPlayer-Next 内置插件系统，可通过脚本扩展音源等能力，详见 [插件使用](/plugins-usage) 与 [插件开发](/plugins-development)。
+SPlayer-Next 内置插件系统，可通过脚本扩展音源与控制等能力，详见 [插件使用](/plugins-usage) 与 [插件开发](/plugins/)。
 
 ## 外部控制
 

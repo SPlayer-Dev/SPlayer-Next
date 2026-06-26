@@ -50,17 +50,22 @@ const getWordText = (el: Element): string => {
 };
 
 /**
- * 查找 TTML 中的主 agent ID（第一个 type="person" 的 agent）
+ * 收集所有演唱者 agent：建立 id→type 映射，并取第一个 type="person" 的 agent 作为主唱
  * @param doc XML 文档
+ * @returns 主唱 agent id 与 id→type 映射
  */
-const findMainAgent = (doc: Document): string => {
+const collectAgents = (doc: Document): { mainAgent: string; agentTypes: Map<string, string> } => {
+  const agentTypes = new Map<string, string>();
+  let mainAgent = "";
   for (const el of Array.from(doc.querySelectorAll("*"))) {
-    if (el.localName === "agent" && el.getAttribute("type") === "person") {
-      const id = el.getAttribute("xml:id") || getAttr(el, "id");
-      if (id) return id;
-    }
+    if (el.localName !== "agent") continue;
+    const id = el.getAttribute("xml:id") || getAttr(el, "id");
+    if (!id) continue;
+    const type = el.getAttribute("type") || "";
+    agentTypes.set(id, type);
+    if (!mainAgent && type === "person") mainAgent = id;
   }
-  return "v1";
+  return { mainAgent: mainAgent || "v1", agentTypes };
 };
 
 /**
@@ -140,8 +145,13 @@ const collectTranslations = (
       if (node.nodeType === Node.TEXT_NODE) {
         main += node.textContent ?? "";
       } else if (node.nodeType === Node.ELEMENT_NODE) {
-        const role = getAttr(node as Element, "role");
-        if (role === "x-bg") bg += node.textContent ?? "";
+        const childEl = node as Element;
+        // x-bg 为背景行翻译；其余 span（含逐字翻译）文本并入主翻译
+        if (getAttr(childEl, "role") === "x-bg") {
+          bg += childEl.textContent ?? "";
+        } else {
+          main += childEl.textContent ?? "";
+        }
       }
     }
 
@@ -249,6 +259,51 @@ const collectTransliterations = (doc: Document): TransliterationMaps => {
 };
 
 /**
+ * 逐词音译对齐：先按起始时间 ±2ms 容差快配，失败再用时间区间交并比（IoU≥10%）兜底
+ * @param words 带时间戳的逐字单词（命中时原地写入 romanWord）
+ * @param romanWords 逐词罗马音候选（按时间升序）
+ */
+const alignRomanWords = (words: LyricWord[], romanWords: RomanWord[]): void => {
+  if (words.length === 0 || romanWords.length === 0) return;
+  const FAST_TRACK_TOLERANCE_MS = 2;
+  const MIN_IOU = 0.1;
+  let searchStart = 0;
+  for (const word of words) {
+    let bestIou = 0;
+    let bestIdx = -1;
+    let fastMatched = false;
+    for (let idx = searchStart; idx < romanWords.length; idx++) {
+      const roman = romanWords[idx];
+      // 快通道：起始时间足够接近直接命中
+      if (Math.abs(word.startTime - roman.startTime) <= FAST_TRACK_TOLERANCE_MS) {
+        word.romanWord = roman.text;
+        searchStart = idx + 1;
+        fastMatched = true;
+        break;
+      }
+      // 计算时间区间交并比，记录重叠最大者
+      const overlapStart = Math.max(word.startTime, roman.startTime);
+      const intersection = Math.max(0, Math.min(word.endTime, roman.endTime) - overlapStart);
+      if (intersection > 0) {
+        const unionStart = Math.min(word.startTime, roman.startTime);
+        const union = Math.max(1, Math.max(word.endTime, roman.endTime) - unionStart);
+        const iou = intersection / union;
+        if (iou > bestIou) {
+          bestIou = iou;
+          bestIdx = idx;
+        }
+      }
+      // 候选起始已越过本词结束，后续不再可能重叠
+      if (roman.startTime >= word.endTime) break;
+    }
+    if (!fastMatched && bestIdx !== -1 && bestIou >= MIN_IOU) {
+      word.romanWord = romanWords[bestIdx].text;
+      searchStart = bestIdx + 1;
+    }
+  }
+};
+
+/**
  * 解析 TTML 歌词文本
  * @param text TTML XML 文本内容
  * @param preferredLang 偏好翻译语言标签
@@ -261,7 +316,7 @@ export const parseTTML = (text: string, preferredLang = ""): LyricLine[] => {
     throw new Error("Invalid TTML XML");
   }
 
-  const mainAgent = findMainAgent(doc);
+  const { mainAgent, agentTypes } = collectAgents(doc);
   const translations = collectTranslations(doc, preferredLang);
   const transliterations = collectTransliterations(doc);
   const lines: LyricLine[] = [];
@@ -277,13 +332,17 @@ export const parseTTML = (text: string, preferredLang = ""): LyricLine[] => {
   ): void => {
     const begin = getAttr(el, "begin");
     const end = getAttr(el, "end");
+    const lineAgent = getAttr(el, "agent");
 
     const line: LyricLine = {
       words: [],
       translatedLyric: "",
       romanLyric: "",
       isBG,
-      isDuet: isBG ? isDuet : !!getAttr(el, "agent") && getAttr(el, "agent") !== mainAgent,
+      // 合唱（type="group"）行居中、不算对唱，仅非主唱的个人 agent 才右对齐
+      isDuet: isBG
+        ? isDuet
+        : !!lineAgent && lineAgent !== mainAgent && agentTypes.get(lineAgent) !== "group",
       startTime: begin ? parseTTMLTime(begin) : 0,
       endTime: end ? parseTTMLTime(end) : 0,
     };
@@ -297,11 +356,13 @@ export const parseTTML = (text: string, preferredLang = ""): LyricLine[] => {
       if (lineRoman) line.romanLyric = isBG ? lineRoman.bg : lineRoman.main;
     }
 
-    // 逐词罗马音候选，按起止时间精确匹配后逐个消耗
+    // 逐词罗马音候选，循环结束后与逐字 span 统一做时间对齐
     const romanWordData = itunesKey ? transliterations.words.get(itunesKey) : undefined;
     const availableRomanWords = romanWordData
       ? [...(isBG ? romanWordData.bg : romanWordData.main)]
       : [];
+    // 本行带时间戳的逐字 span，用于与逐词罗马音对齐
+    const timedWords: LyricWord[] = [];
 
     let bgCount = 0;
     let lastWasTimedSpan = false;
@@ -356,22 +417,16 @@ export const parseTTML = (text: string, preferredLang = ""): LyricLine[] => {
               startTime: parseTTMLTime(wb),
               endTime: parseTTMLTime(we),
             };
-            if (availableRomanWords.length > 0) {
-              const matchIdx = availableRomanWords.findIndex(
-                (roman) =>
-                  roman.startTime === lyricWord.startTime && roman.endTime === lyricWord.endTime,
-              );
-              if (matchIdx !== -1) {
-                lyricWord.romanWord = availableRomanWords[matchIdx].text;
-                availableRomanWords.splice(matchIdx, 1);
-              }
-            }
             line.words.push(lyricWord);
+            timedWords.push(lyricWord);
             lastWasTimedSpan = true;
           }
         }
       }
     }
+
+    // 逐词罗马音与逐字 span 做时间对齐
+    alignRomanWords(timedWords, availableRomanWords);
 
     // 行内多语言翻译按偏好语言挑选
     if (!line.translatedLyric) {

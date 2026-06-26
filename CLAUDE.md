@@ -15,7 +15,7 @@ pnpm build                # Full build (rimraf → native → typecheck → elec
 pnpm build:{win,mac,linux}# Platform packages
 pnpm typecheck            # tsc + vue-tsc (node + web targets)
 pnpm lint / format        # ESLint / Prettier
-pnpm build:native         # Rust only; add `-- --dev` for debug
+pnpm build:native         # Rust only; add `--dev` for debug
 ```
 
 `SKIP_NATIVE_BUILD=true` skips Rust during dev.

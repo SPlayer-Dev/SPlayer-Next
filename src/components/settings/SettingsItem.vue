@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { SettingItem } from "@/types/settings-schema";
 import { useSettingModel } from "@/settings/useSettingModel";
+import { dialog } from "@/composables/useDialog";
 
 const props = defineProps<{
   item: SettingItem;
@@ -10,6 +11,22 @@ const props = defineProps<{
 const { t } = useI18n();
 
 const model = props.item.binding ? useSettingModel(props.item.binding) : ref<any>();
+
+/** 应用变更 */
+const applyChange = async (next: unknown): Promise<void> => {
+  const cfg = props.item.confirm;
+  if (cfg && (!cfg.when || cfg.when(next))) {
+    const confirmed = await dialog.confirm({
+      title: cfg.titleKey ? t(cfg.titleKey) : undefined,
+      content: t(cfg.contentKey),
+      type: cfg.type ?? "warning",
+      confirmText: cfg.confirmTextKey ? t(cfg.confirmTextKey) : undefined,
+      cancelText: cfg.cancelTextKey ? t(cfg.cancelTextKey) : undefined,
+    });
+    if (!confirmed) return;
+  }
+  model.value = next;
+};
 
 const selectOptions = computed(() =>
   (props.item.options ?? []).map((o) => ({
@@ -61,14 +78,14 @@ const descriptionText = computed(() =>
           v-if="item.type === 'switch'"
           :model-value="model"
           :disabled="isDisabled"
-          @update:model-value="model = $event"
+          @update:model-value="applyChange($event)"
         />
         <SSelect
           v-else-if="item.type === 'select'"
           :model-value="model"
           :options="selectOptions"
           :disabled="isDisabled"
-          @update:model-value="model = $event"
+          @update:model-value="applyChange($event)"
         />
         <SSlider
           v-else-if="item.type === 'slider'"
@@ -83,7 +100,7 @@ const descriptionText = computed(() =>
           :track-height="4"
           always-show-thumb
           show-popover
-          @change="model = $event"
+          @change="applyChange($event)"
         >
           <template #popover="{ value }">{{ value }}</template>
         </SSlider>
@@ -93,7 +110,7 @@ const descriptionText = computed(() =>
           :disabled="isDisabled"
           :show-alpha="item.showAlpha"
           :format="item.colorFormat"
-          @update:model-value="model = $event"
+          @update:model-value="applyChange($event)"
         />
         <SButton
           v-else-if="item.type === 'button'"

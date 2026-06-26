@@ -61,8 +61,10 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
                 @click="fav.toggle(media.track)"
               >
                 <template #icon>
-                  <IconFavorite v-if="fav.isLiked(media.track)" />
-                  <IconFavoriteOutline v-else />
+                  <SIconSwap :active="fav.isLiked(media.track)">
+                    <template #on><IconFavorite /></template>
+                    <template #off><IconFavoriteOutline /></template>
+                  </SIconSwap>
                 </template>
               </SButton>
               <SDropdownMenu
@@ -139,8 +141,10 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
               @click="fav.toggle(media.track)"
             >
               <template #icon>
-                <IconFavorite v-if="fav.isLiked(media.track)" />
-                <IconFavoriteOutline v-else />
+                <SIconSwap :active="fav.isLiked(media.track)">
+                  <template #on><IconFavorite /></template>
+                  <template #off><IconFavoriteOutline /></template>
+                </SIconSwap>
               </template>
             </SButton>
             <SDropdownMenu

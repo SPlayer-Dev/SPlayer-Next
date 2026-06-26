@@ -4,11 +4,12 @@ SPlayer-Next 将性能敏感的能力下沉到 **Rust**，通过 [NAPI-RS](https
 
 ## 模块一览
 
-| 模块            | 职责                                                                         |
-| --------------- | ---------------------------------------------------------------------------- |
-| `audio-engine`  | 音频解码（FFmpeg）与播放（rodio）、FFT 频谱、封面提取                        |
-| `media-ctrl`    | 系统媒体控制（Windows SMTC / Linux MPRIS / macOS Now Playing）与 Discord RPC |
-| `taskbar-lyric` | Windows 任务栏歌词文字渲染                                                   |
+| 模块                | 职责                                                                         |
+| ------------------- | ---------------------------------------------------------------------------- |
+| `audio-engine`      | 音频解码（FFmpeg）与播放（rodio）、FFT 频谱、封面提取                        |
+| `media-ctrl`        | 系统媒体控制（Windows SMTC / Linux MPRIS / macOS Now Playing）与 Discord RPC |
+| `taskbar-lyric`     | Windows 任务栏歌词文字渲染                                                   |
+| `taskbar-thumbnail` | Windows 任务栏悬停缩略图 / Peek 预览替换为专辑封面                           |
 
 ### audio-engine
 
@@ -31,6 +32,13 @@ SPlayer-Next 将性能敏感的能力下沉到 **Rust**，通过 [NAPI-RS](https
 
 Windows 任务栏歌词渲染，跟随系统主题与任务栏状态自适应。
 
+### taskbar-thumbnail
+
+Windows 任务栏缩略图自定义（仅 Windows）：
+
+- 借助 DWM 的 iconic representation，把任务栏**悬停缩略图**与 **Peek 全尺寸预览**替换为指定图片（当前专辑封面），而非默认的实时窗口内容；
+- 对主窗口子类化，被动应答 DWM 的位图请求，封面变化时通知 DWM 重新拉取。
+
 ## 构建
 
 构建原生模块需要 **Rust 工具链**（通过 [rustup](https://rustup.rs/) 安装）。
@@ -42,15 +50,16 @@ Windows 任务栏歌词渲染，跟随系统主题与任务栏状态自适应。
 pnpm build:native
 
 # 构建 debug 版本（更快，便于调试）
-pnpm build:native -- --dev
+pnpm build:native --dev
 ```
 
 NAPI-RS 会自动生成各模块的 `index.d.ts` 类型声明，主进程通过路径别名引用：
 
 ```
-@splayer/audio-engine   → native/audio-engine
-@splayer/media-ctrl     → native/media-ctrl
-@splayer/taskbar-lyric  → native/taskbar-lyric
+@splayer/audio-engine      → native/audio-engine
+@splayer/media-ctrl        → native/media-ctrl
+@splayer/taskbar-lyric     → native/taskbar-lyric
+@splayer/taskbar-thumbnail → native/taskbar-thumbnail
 ```
 
 ::: tip 跳过原生构建

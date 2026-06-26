@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import type { Track } from "@shared/types/player";
+import type { Track, PlayerState } from "@shared/types/player";
 import type { LyricLine, LyricData } from "@shared/types/lyrics";
 import type {
   NowPlayingSnapshot,
@@ -33,6 +33,8 @@ let lastPosition = 0;
 let lastPositionAt = 0;
 /** 当前是否处于播放态 */
 let playing = false;
+/** 完整播放状态，区分 stopped 与 paused */
+let playState: PlayerState = "idle";
 /** 当前播放速度倍率（0.5 ~ 2.0） */
 let playSpeed = 1.0;
 /** 当前曲目对应的歌词偏移（ms，正值为歌词提前） */
@@ -106,9 +108,11 @@ export const onPosition = (positionMs: number, isPlaying: boolean): void => {
   lastPosition = positionMs;
   lastPositionAt = Date.now();
   playing = isPlaying;
+  if (isPlaying) playState = "playing";
   emitter.emit("position-sync", {
     position: positionMs,
     playing: isPlaying,
+    state: playState,
     speed: playSpeed,
     sendTimestamp: lastPositionAt,
   });
@@ -116,13 +120,15 @@ export const onPosition = (positionMs: number, isPlaying: boolean): void => {
 
 /**
  * 同步播放状态
- * @param isPlaying - 是否处于播放态
+ * @param state - 引擎播放状态（idle/loading/playing/paused/stopped）
  */
-export const onPlayStateChange = (isPlaying: boolean): void => {
-  playing = isPlaying;
+export const onPlayStateChange = (state: PlayerState): void => {
+  playState = state;
+  playing = state === "playing";
   emitter.emit("position-sync", {
     position: lastPosition,
-    playing: isPlaying,
+    playing,
+    state,
     speed: playSpeed,
     // 暂停态接收端不补偿延迟，恢复态不能用陈旧时间戳，故取当前时刻
     sendTimestamp: Date.now(),
@@ -140,6 +146,7 @@ export const onSpeedChange = (speed: number): void => {
   emitter.emit("position-sync", {
     position: lastPosition,
     playing,
+    state: playState,
     speed: playSpeed,
     sendTimestamp: lastPositionAt || Date.now(),
   });
@@ -181,6 +188,7 @@ export const snapshot = (): NowPlayingSnapshot => ({
   source: currentSource,
   position: lastPosition,
   playing,
+  state: playState,
   speed: playSpeed,
   lyricOffsetMs: currentLyricOffsetMs,
   // 用 position 的成立时刻，接收端据此补偿其过期时长
@@ -199,23 +207,29 @@ export const clear = (): void => {
 };
 
 /** 订阅歌曲切换 */
-export const onTrackChange = (listener: (data: { track: Track | null }) => void): void => {
+export const onTrackChange = (listener: (data: { track: Track | null }) => void): (() => void) => {
   emitter.on("track-change", listener);
+  return () => emitter.off("track-change", listener);
 };
 
 /** 订阅歌词内容变化 */
-export const onLyricChange = (listener: (snap: NowPlayingSnapshot) => void): void => {
+export const onLyricChange = (listener: (snap: NowPlayingSnapshot) => void): (() => void) => {
   emitter.on("lyric-change", listener);
+  return () => emitter.off("lyric-change", listener);
 };
 
 /** 订阅播放位置锚点 */
-export const onPositionSync = (listener: (data: NowPlayingPositionSync) => void): void => {
+export const onPositionSync = (listener: (data: NowPlayingPositionSync) => void): (() => void) => {
   emitter.on("position-sync", listener);
+  return () => emitter.off("position-sync", listener);
 };
 
 /** 订阅当前曲目歌词偏移变化 */
-export const onLyricOffsetChange = (listener: (data: NowPlayingLyricOffsetSync) => void): void => {
+export const onLyricOffsetChange = (
+  listener: (data: NowPlayingLyricOffsetSync) => void,
+): (() => void) => {
   emitter.on("lyric-offset-change", listener);
+  return () => emitter.off("lyric-offset-change", listener);
 };
 
 /** 订阅 FFT 频谱数据 */

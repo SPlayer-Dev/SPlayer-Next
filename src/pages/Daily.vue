@@ -139,7 +139,7 @@ watch(
         <div class="flex min-w-0 flex-1 flex-col gap-2">
           <!-- 标题 -->
           <div class="flex items-baseline gap-3">
-            <h1 class="text-3xl font-bold text-on-surface">{{ t("daily.title") }}</h1>
+            <h1 class="text-3xl font-bold text-on-surface text-balance">{{ t("daily.title") }}</h1>
             <span
               v-if="selectedDay && selectedDay.tracks.length > 0"
               class="flex items-center gap-1 text-sm text-on-surface-variant/50"

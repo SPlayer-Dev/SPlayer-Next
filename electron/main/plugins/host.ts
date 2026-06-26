@@ -15,6 +15,7 @@ import {
   pluginStorageRemove,
   pluginStorageSet,
 } from "./storage";
+import { playerControl } from "@main/services/playerControl";
 
 /** 处理一次 worker→host 调用 */
 export const dispatchHostCall = async (
@@ -43,6 +44,40 @@ export const dispatchHostCall = async (
         break;
       case "storage.keys":
         data = pluginStorageKeys(pluginId);
+        break;
+      case "player.play":
+        playerControl.play();
+        data = undefined;
+        break;
+      case "player.pause":
+        playerControl.pause();
+        data = undefined;
+        break;
+      case "player.next":
+        playerControl.next();
+        data = undefined;
+        break;
+      case "player.prev":
+        playerControl.prev();
+        data = undefined;
+        break;
+      case "player.seek": {
+        const positionMs = Number(args[0]);
+        // 插件侧即发即忘：吞掉引擎 rejection，不阻塞 hostCall 返回
+        if (Number.isFinite(positionMs) && positionMs >= 0) {
+          void playerControl.seek(positionMs).catch(() => {});
+        }
+        data = undefined;
+        break;
+      }
+      case "player.setVolume": {
+        const volume = Number(args[0]);
+        if (Number.isFinite(volume) && volume >= 0 && volume <= 1) playerControl.setVolume(volume);
+        data = undefined;
+        break;
+      }
+      case "player.getPosition":
+        data = playerControl.getPosition();
         break;
       default:
         throw Object.assign(new Error(`unknown host method: ${method}`), {

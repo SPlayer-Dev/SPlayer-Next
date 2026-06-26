@@ -94,6 +94,8 @@ const api = {
     // 同步播放模式到主进程（供托盘菜单显示）
     syncPlayMode: (repeatMode: string, shuffleMode: string) =>
       ipcRenderer.send("player:syncPlayMode", repeatMode, shuffleMode),
+    // 同步当前歌曲喜欢状态到主进程（供托盘菜单显示）
+    syncLikeState: (liked: boolean) => ipcRenderer.send("player:syncLikeState", liked),
     // 广播播放控制事件到所有渲染进程
     dispatch: (type: string) => ipcRenderer.send("player:dispatch", type),
     // 订阅主进程推送的播放事件
@@ -311,6 +313,9 @@ const api = {
     // 启用/禁用
     setEnabled: (id: string, enabled: boolean) =>
       ipcRenderer.invoke("plugin:setEnabled", id, enabled),
+    // 写入控制类插件配置项
+    setSetting: (id: string, key: string, value: unknown) =>
+      ipcRenderer.invoke("plugin:setSetting", id, key, value),
     // 解析播放 URL
     resolveUrl: (args: PluginResolveUrlArgs) => ipcRenderer.invoke("plugin:resolveUrl", args),
     // 订阅插件状态变化

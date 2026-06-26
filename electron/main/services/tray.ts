@@ -17,6 +17,7 @@ type PlayState = "playing" | "paused";
 let tray: Tray | null = null;
 let playState: PlayState = "paused";
 let songName = "";
+let liked = false;
 let repeatMode: RepeatMode = "list";
 let shuffleMode: ShuffleMode = "off";
 let desktopLyricOpen = false;
@@ -44,6 +45,12 @@ const buildMenu = (): Menu => {
       enabled: !!songName,
       click: () => focusMainWindow(),
     },
+    {
+      label: liked ? t("removeFromLiked") : t("addToLiked"),
+      icon: menuIcon(liked ? "like" : "unlike"),
+      enabled: !!songName,
+      click: () => sendToMain("player:event", { type: "toggleLike" }),
+    },
     { type: "separator" },
     {
       label: t("prev"),
@@ -63,7 +70,7 @@ const buildMenu = (): Menu => {
     { type: "separator" },
     {
       label: shuffleMode === "on" ? t("shuffle") : t("sequential"),
-      icon: menuIcon("shuffle"),
+      icon: menuIcon(shuffleMode === "on" ? "shuffle" : "sequential"),
       submenu: [
         {
           label: t("shuffle"),
@@ -74,7 +81,7 @@ const buildMenu = (): Menu => {
         },
         {
           label: t("sequential"),
-          icon: menuIcon("shuffle"),
+          icon: menuIcon("sequential"),
           type: "radio",
           checked: shuffleMode === "off",
           click: () => sendToMain("player:event", { type: "setShuffle", data: { mode: "off" } }),
@@ -195,6 +202,16 @@ export const setTrayPlayState = (state: PlayState): void => {
 export const setTrayPlayMode = (repeat: RepeatMode, shuffle: ShuffleMode): void => {
   repeatMode = repeat;
   shuffleMode = shuffle;
+  refreshTray();
+};
+
+/**
+ * 同步当前歌曲喜欢状态到托盘（由渲染进程调用）
+ * @param value - 是否已喜欢
+ */
+export const setTrayLikeState = (value: boolean): void => {
+  if (liked === value) return;
+  liked = value;
   refreshTray();
 };
 

@@ -26,6 +26,8 @@ export interface SButtonProps {
   strong?: boolean;
   /** 涟漪效果 */
   ripple?: boolean;
+  /** 禁用按下缩放反馈 */
+  static?: boolean;
 }
 
 const props = withDefaults(defineProps<SButtonProps>(), {
@@ -37,6 +39,8 @@ const props = withDefaults(defineProps<SButtonProps>(), {
 const isDisabled = computed(() => props.disabled || props.loading);
 
 const enableRipple = computed(() => props.ripple && !props.disabled && !props.loading);
+
+const pressScale = computed(() => (props.static ? undefined : "not-disabled:active:scale-96"));
 
 /** 预设尺寸名称 */
 type SizePreset = "tiny" | "small" | "medium" | "large";
@@ -209,11 +213,12 @@ const variantClass = computed(() => {
   <button
     v-ripple="enableRipple"
     :disabled="isDisabled"
-    class="s-button inline-flex items-center justify-center gap-1.5 font-sans select-none outline-none cursor-pointer transition-[color,background-color,border-color,opacity] duration-200 disabled:cursor-not-allowed disabled:op-50"
+    class="s-button inline-flex items-center justify-center gap-1.5 font-sans select-none outline-none cursor-pointer transition-[color,background-color,border-color,opacity,transform] duration-200 disabled:cursor-not-allowed disabled:op-50"
     :class="[
       block && 'w-full',
       strong && 'font-semibold',
       circle || round ? 'rounded-full' : 'rounded-1.5',
+      pressScale,
       sizeClass,
       variantClass,
     ]"

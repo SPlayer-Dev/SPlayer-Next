@@ -74,7 +74,7 @@ pnpm build:linux   # Package for Linux
 ```
 
 > By default a build targets the current architecture only. To target specific
-> architectures, append them, e.g. `pnpm build:win -- --x64 --arm64`.
+> architectures, append them, e.g. `pnpm build:win --x64 --arm64`.
 
 ### Other Scripts
 
@@ -82,7 +82,7 @@ pnpm build:linux   # Package for Linux
 pnpm typecheck        # tsc + vue-tsc (node + web targets)
 pnpm lint             # ESLint
 pnpm format           # Prettier
-pnpm build:native     # Build the Rust native modules only (add `-- --dev` for debug)
+pnpm build:native     # Build the Rust native modules only (add `--dev` for debug)
 ```
 
 ## Acknowledgements

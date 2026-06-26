@@ -2782,6 +2782,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "taskbar-thumbnail"
+version = "0.1.0"
+dependencies = [
+ "napi",
+ "napi-build",
+ "napi-derive",
+ "windows 0.62.2",
+]
+
+[[package]]
 name = "tempfile"
 version = "3.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

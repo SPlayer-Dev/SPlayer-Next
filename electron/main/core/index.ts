@@ -18,6 +18,10 @@ import { initDatabase, closeDatabase } from "@main/database";
 import { init as initSongCache } from "@main/services/songCache";
 import { init as initDownload } from "@main/services/downloadManager";
 import { pluginRegistry } from "@main/plugins/registry";
+import {
+  init as initPlaybackBridge,
+  dispose as disposePlaybackBridge,
+} from "@main/plugins/playbackBridge";
 import { registerCacheScheme, handleCacheProtocol } from "@main/utils/protocol";
 import { startServer, stopServer } from "@main/server";
 import { initUpdater, disposeUpdater } from "@main/services/updater";
@@ -119,6 +123,8 @@ export const initApp = (): void => {
     initLastfm();
     // 初始化插件系统
     pluginRegistry.init();
+    // 初始化播放事件桥（需在 pluginRegistry.init 之后，读 hasEnabledControlPlugin）
+    initPlaybackBridge();
     // 恢复歌词相关窗口
     restoreLyricWindows();
     // 注册全局快捷键
@@ -153,6 +159,7 @@ export const initApp = (): void => {
     closeDatabase();
     void stopServer();
     void pluginRegistry.shutdown();
+    disposePlaybackBridge();
     disposeUpdater();
   });
 };

@@ -13,7 +13,9 @@ const props = withDefaults(
 
 const { t } = useI18n();
 
-const visibleItems = computed(() => props.section.items);
+const visibleItems = computed(() =>
+  props.section.items.filter((item) => !item.visible || item.visible()),
+);
 
 const itemStyle = (i: number) => {
   const d = props.highlightKey ? "0s" : `${Math.min(props.startIndex + i, 15) * 0.03}s`;

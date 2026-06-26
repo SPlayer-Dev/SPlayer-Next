@@ -6,6 +6,7 @@ import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import * as player from "@/core/player";
 import { useSettingsStore } from "@/stores/settings";
 import { useCopyText } from "@/composables/useCopyText";
+import { toast } from "@/composables/useToast";
 import { buildDownloadQualityItems } from "@/composables/useDownload";
 import { getShareUrl } from "@/utils/format/shareUrl";
 import IconPlay from "~icons/lucide/play";
@@ -177,6 +178,7 @@ export const useTrackMenu = (
         break;
       case "playNext":
         player.insertToQueue(current);
+        toast.success(t("songList.toast.addedToNext"));
         break;
       case "addToPlaylist":
         options.onAddToPlaylist?.(current);

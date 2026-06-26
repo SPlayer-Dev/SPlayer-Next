@@ -19,6 +19,22 @@ export interface SettingOption {
   label?: string;
 }
 
+/** 设置项变更前的确认配置 */
+export interface SettingConfirm {
+  /** 仅当新值满足条件时才确认 */
+  when?: (nextValue: unknown) => boolean;
+  /** 标题 i18n key */
+  titleKey?: string;
+  /** 正文 i18n key */
+  contentKey: string;
+  /** 对话框类型，默认 warning */
+  type?: "default" | "info" | "warning" | "error";
+  /** 确认按钮文案 i18n key */
+  confirmTextKey?: string;
+  /** 取消按钮文案 i18n key */
+  cancelTextKey?: string;
+}
+
 /** 设置项 */
 export interface SettingItem {
   /** 唯一 key，同时作为 i18n 前缀：settings.{key}.label / .description */
@@ -51,6 +67,10 @@ export interface SettingItem {
   hideDescription?: boolean;
   /** 条件禁用 */
   disabled?: () => boolean;
+  /** 条件隐藏 */
+  visible?: () => boolean;
+  /** 变更前确认；用户取消则不应用本次变更（受控控件回弹原值） */
+  confirm?: SettingConfirm;
   /** button 类型的点击回调 */
   action?: () => void;
   /** custom 类型的组件 */

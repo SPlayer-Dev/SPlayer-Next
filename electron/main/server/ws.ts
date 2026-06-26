@@ -10,9 +10,8 @@
  */
 
 import type { WSContext } from "hono/ws";
-import { getPlayer } from "@main/services/engine";
-import { sendToMain } from "@main/utils/broadcast";
 import { serverLog } from "@main/utils/logger";
+import { playerControl } from "@main/services/playerControl";
 import { addWsClient, removeWsClient, getWsClientCount } from "./broadcast";
 
 interface ClientMessage {
@@ -33,26 +32,26 @@ const dispatchCommand = async (ws: WSContext, msg: ClientMessage): Promise<void>
   try {
     switch (msg.op) {
       case "play":
-        await getPlayer().play();
+        playerControl.play();
         return ack(ws, msg.op);
       case "pause":
-        getPlayer().pause();
+        playerControl.pause();
         return ack(ws, msg.op);
       case "stop":
-        getPlayer().stop();
+        playerControl.stop();
         return ack(ws, msg.op);
       case "next":
-        sendToMain("player:event", { type: "next" });
+        playerControl.next();
         return ack(ws, msg.op);
       case "prev":
-        sendToMain("player:event", { type: "prev" });
+        playerControl.prev();
         return ack(ws, msg.op);
       case "seek": {
         const positionMs = Number(msg.positionMs);
         if (!Number.isFinite(positionMs) || positionMs < 0) {
           return fail(ws, msg.op, "positionMs (number, >=0) required");
         }
-        await getPlayer().seek(positionMs / 1000);
+        await playerControl.seek(positionMs);
         return ack(ws, msg.op);
       }
       case "setVolume": {
@@ -60,7 +59,7 @@ const dispatchCommand = async (ws: WSContext, msg: ClientMessage): Promise<void>
         if (!Number.isFinite(volume) || volume < 0 || volume > 1) {
           return fail(ws, msg.op, "volume (number, 0..1) required");
         }
-        getPlayer().setVolume(volume);
+        playerControl.setVolume(volume);
         return ack(ws, msg.op);
       }
       default:

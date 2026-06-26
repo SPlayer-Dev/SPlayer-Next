@@ -22,6 +22,7 @@ import type {
   HostRequestResult,
   PluginAction,
   PluginErrorPayload,
+  RegisterArgs,
   SandboxIn,
   SandboxOut,
   SourceCapability,
@@ -103,6 +104,12 @@ let initialized = false;
 /** action → handler 注册表 */
 const handlers = new Map<PluginAction, (req: unknown) => Promise<unknown>>();
 
+/** 控制类：高层播放事件回调表，key = PlaybackEventKind */
+const playerEventHandlers = new Map<string, ((data: unknown) => void)[]>();
+
+/** 控制类：设置变化回调表，key = setting key */
+const settingChangeHandlers = new Map<string, ((value: unknown) => void)[]>();
+
 /** 已注册的 sources（等 script 执行完后随 ready 消息上报） */
 let registeredSources: Record<string, SourceCapability> = {};
 
@@ -155,10 +162,27 @@ const buildSplayer = (init: Extract<SandboxIn, { kind: "init" }>): HostApi => ({
   request: (url: string, opts?: HostRequestOptions): Promise<HostRequestResult> =>
     hostCall("request", [url, opts ?? {}]) as Promise<HostRequestResult>,
 
-  register: (caps) => {
-    registeredSources = { ...registeredSources, ...caps.sources };
-    // 异步 register 时主进程的 status.sources 已经定格，主动通知刷新
-    send({ kind: "sourcesUpdate", sources: registeredSources });
+  register: (args: RegisterArgs) => {
+    // 音源类：声明 sources，主动通知主进程刷新已定格的 status.sources
+    if (args.sources) {
+      registeredSources = { ...registeredSources, ...args.sources };
+      send({ kind: "sourcesUpdate", sources: registeredSources });
+    }
+    // 控制类：声明订阅事件 / 是否反向控制 / 设置项，上报给主进程登记
+    if (args.events || args.controls !== undefined || args.settings) {
+      // 把 schema 默认值灌进缓存（用户已存的值优先），让同步的 getSetting 与设置 UI 显示一致
+      if (Array.isArray(args.settings)) {
+        for (const item of args.settings) {
+          if (!(item.key in userSettingsCache)) userSettingsCache[item.key] = item.default;
+        }
+      }
+      send({
+        kind: "registered",
+        events: Array.isArray(args.events) ? args.events : [],
+        controls: Boolean(args.controls),
+        settings: Array.isArray(args.settings) ? args.settings : [],
+      });
+    }
   },
 
   on: <A extends PluginAction>(
@@ -189,6 +213,29 @@ const buildSplayer = (init: Extract<SandboxIn, { kind: "init" }>): HostApi => ({
   },
 
   getSetting: <T = unknown>(key: string): T | undefined => userSettingsCache[key] as T | undefined,
+
+  player: {
+    on: (kind, handler) => {
+      const list = playerEventHandlers.get(kind) ?? [];
+      list.push(handler as (data: unknown) => void);
+      playerEventHandlers.set(kind, list);
+    },
+    // 6 个控制方法走 hostCall，主进程恒会 resolve；catch 兜底避免未处理拒绝
+    play: () => void hostCall("player.play", []).catch(() => {}),
+    pause: () => void hostCall("player.pause", []).catch(() => {}),
+    next: () => void hostCall("player.next", []).catch(() => {}),
+    prev: () => void hostCall("player.prev", []).catch(() => {}),
+    seek: (positionMs: number) => void hostCall("player.seek", [positionMs]).catch(() => {}),
+    setVolume: (volume: number) => void hostCall("player.setVolume", [volume]).catch(() => {}),
+    // 偶发查询用；持续进度请读事件载荷里的 position，勿高频轮询此往返
+    getPosition: () => hostCall("player.getPosition", []) as Promise<number>,
+  },
+
+  onSettingChange: (key: string, handler: (value: unknown) => void) => {
+    const list = settingChangeHandlers.get(key) ?? [];
+    list.push(handler);
+    settingChangeHandlers.set(key, list);
+  },
 });
 
 /** 把 utils 暴露给沙箱（原生 Node 模块包装） */
@@ -376,6 +423,36 @@ parentPort.on("message", async (event) => {
         if (ctrl) {
           ctrl.abort();
           inflight.delete(msg.requestId);
+        }
+        return;
+      }
+      case "event": {
+        const eventHandlers = playerEventHandlers.get(msg.event);
+        if (eventHandlers) {
+          for (const handler of eventHandlers) {
+            try {
+              handler(msg.data);
+            } catch {
+              // 隔离插件回调异常，避免单个回调拖垮事件派发
+            }
+          }
+        }
+        return;
+      }
+      case "settingsUpdate": {
+        for (const [key, value] of Object.entries(msg.settings)) {
+          // 更新缓存，保证 getSetting 同步读到新值
+          userSettingsCache[key] = value;
+          const changeHandlers = settingChangeHandlers.get(key);
+          if (changeHandlers) {
+            for (const handler of changeHandlers) {
+              try {
+                handler(value);
+              } catch {
+                // 隔离插件回调异常
+              }
+            }
+          }
         }
         return;
       }

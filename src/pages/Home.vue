@@ -83,7 +83,7 @@ const openAlbum = (item: CoverItem): void => {
       <!-- 问候 -->
       <header class="flex items-start justify-between gap-6">
         <div class="min-w-0">
-          <h1 class="text-3xl font-bold text-on-surface">{{ greetingTitle }}</h1>
+          <h1 class="text-3xl font-bold text-on-surface text-balance">{{ greetingTitle }}</h1>
           <p class="mt-2 text-sm text-on-surface-variant/70">{{ greetingSub }}</p>
         </div>
         <div class="shrink-0 flex items-center gap-6">
@@ -100,7 +100,7 @@ const openAlbum = (item: CoverItem): void => {
       <SCard v-if="heroLoading || hero" radius="xl" flush class="min-h-40 -mb-3">
         <div class="flex items-stretch gap-4 p-4">
           <!-- 封面 -->
-          <div class="size-32 shrink-0 self-center overflow-hidden rounded-xl">
+          <div class="size-32 shrink-0 self-center overflow-hidden rounded-lg">
             <SImg :src="hero?.cover" :alt="hero?.title" class="size-full" />
           </div>
           <!-- 信息 -->

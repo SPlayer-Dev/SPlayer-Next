@@ -484,6 +484,9 @@
       "fileTitle": "Delete File",
       "fileConfirmOne": "Permanently delete \"{title}\" from disk? This cannot be undone",
       "fileConfirm": "Permanently delete {count} files from disk? This cannot be undone"
+    },
+    "toast": {
+      "addedToNext": "Added to play next"
     }
   },
   "quality": {
@@ -856,6 +859,54 @@
         "openSearch": "Open search"
       }
     },
+    "engine": {
+      "label": "Lyric Engine",
+      "description": "Choose the engine type used for lyric rendering and scrolling"
+    },
+    "lyricEngine": {
+      "physics": "Default",
+      "amll": "AMLL"
+    },
+    "confirm": {
+      "highResourceTitle": "Resource-Intensive Feature",
+      "highResourceContent": "Enabling it may noticeably increase memory and CPU usage, and could cause stuttering on lower-end devices. Enable it anyway?"
+    },
+    "useAMSpring": {
+      "label": "Spring Animation Debug Switch",
+      "description": "Enable spring bounce and active line scaling effects for applemusic-like-lyrics"
+    },
+    "amllVerticalSpringMass": {
+      "label": "Vertical Spring Mass",
+      "description": "Mass of the vertical scrolling physics spring. Larger mass increases spring inertia."
+    },
+    "amllVerticalSpringDamping": {
+      "label": "Vertical Spring Damping",
+      "description": "Damping of the vertical scrolling physics spring. Larger damping reduces oscillation and settles faster."
+    },
+    "amllVerticalSpringStiffness": {
+      "label": "Vertical Spring Stiffness",
+      "description": "Stiffness of the vertical scrolling physics spring. Larger stiffness pulls harder and bounces quicker."
+    },
+    "amllVerticalSpringSoft": {
+      "label": "Vertical Soft Spring",
+      "description": "Forces the vertical scrolling to use a softer spring profile."
+    },
+    "amllScaleSpringMass": {
+      "label": "Scale Spring Mass",
+      "description": "Mass of the active line scale animation. Larger mass increases scale bounce inertia."
+    },
+    "amllScaleSpringDamping": {
+      "label": "Scale Spring Damping",
+      "description": "Damping of the active line scale animation. Larger damping reduces scale jitter and settles faster."
+    },
+    "amllScaleSpringStiffness": {
+      "label": "Scale Spring Stiffness",
+      "description": "Stiffness of the active line scale animation. Larger stiffness responds and scales quicker."
+    },
+    "amllScaleSpringSoft": {
+      "label": "Scale Soft Spring",
+      "description": "Forces the active line scale animation to use a softer spring profile."
+    },
     "autoCenterCover": {
       "label": "Auto Center Cover",
       "description": "Center cover and hide lyric area when no lyrics available"
@@ -973,6 +1024,14 @@
     "showRomanization": {
       "label": "Show Romanization",
       "description": "Display romanized lyrics"
+    },
+    "amllShowLineRomanization": {
+      "label": "Show Line Romanization",
+      "description": "Display romanized lyrics for each line"
+    },
+    "amllShowWordRomanization": {
+      "label": "Show Word Romanization",
+      "description": "Display romanized lyrics for each word in word-by-word lyrics"
     },
     "enableWordHighlight": {
       "label": "Word Highlight",
@@ -1270,7 +1329,28 @@
       "label": "Player Background",
       "description": "Background type of the full-screen player",
       "blur": "Blur",
-      "solid": "Solid"
+      "solid": "Solid",
+      "animation": "Fluid"
+    },
+    "playerBgFlowSpeed": {
+      "label": "Flow Speed",
+      "description": "Animation flow speed of the fluid background"
+    },
+    "playerBgRenderScale": {
+      "label": "Render Scale",
+      "description": "Higher values reduce edge aliasing for a smoother look, but increase GPU load"
+    },
+    "playerBgFps": {
+      "label": "Frame Rate",
+      "description": "Render frame rate of the fluid background; higher is smoother but heavier"
+    },
+    "playerBgFreezeOnPause": {
+      "label": "Freeze When Paused",
+      "description": "Stop the fluid background animation while playback is paused"
+    },
+    "playerBgBeat": {
+      "label": "Beat Pulse",
+      "description": "Make the fluid background pulse with the low-frequency beat of the music"
     },
     "coverLayout": {
       "label": "Cover Layout",
@@ -1572,6 +1652,7 @@
       "enable": "Enable",
       "enabled": "Enabled",
       "uninstall": "Uninstall",
+      "configSubtitle": "Plugin settings",
       "uninstallConfirmTitle": "Uninstall Plugin",
       "uninstallConfirm": "Are you sure you want to uninstall \"{name}\"? This action cannot be undone.",
       "uninstallSuccess": "Plugin uninstalled",
@@ -1587,7 +1668,9 @@
         "error": "Error",
         "disabled": "Disabled",
         "unloaded": "Unloaded"
-      }
+      },
+      "sectionSource": "Source Plugins",
+      "sectionControl": "Control Plugins"
     },
     "pluginManager": {
       "label": "Plugin Manager",
@@ -1749,7 +1832,7 @@
     "deleteConfirm": "Delete {type} \"{title}\"? This cannot be undone",
     "addTo": "Add to {type}",
     "removeFrom": "Remove from {type}",
-    "tracksAdded": "{count} songs added",
+    "tracksAdded": "Added successfully, {count} songs",
     "alreadyInPlaylist": "Already in the playlist",
     "edit": "Edit {type}",
     "subscribe": "Subscribe",

@@ -3,6 +3,8 @@
  * 用于主进程、预加载、渲染进程、沙箱子进程之间的契约
  */
 
+import type { LyricLine } from "./lyrics";
+
 /**
  * 支持的插件动作
  * 当前仅有 musicUrl。扩展新动作的步骤：
@@ -25,6 +27,73 @@ export type PluginQuality = "hi-res" | "lossless" | "hq" | "sq" | "lq";
 /** 插件脚本来源平台（用于识别 lx 脚本并启用垫片） */
 export type PluginPlatform = "splayer" | "lx";
 
+/** 插件类型清单：运行时校验与分类的唯一来源，新增类型只改这里 */
+export const PLUGIN_TYPES = ["source", "control"] as const;
+/** 插件类型：音源（解析 URL）/ 控制（监听状态 + 反向控制） */
+export type PluginType = (typeof PLUGIN_TYPES)[number];
+
+/** 控制类插件可订阅的高层播放事件 */
+export type PlaybackEventKind = "trackChange" | "lyricChange" | "lineChange" | "playStateChange";
+
+/** 各高层事件的载荷 */
+export interface PlaybackEventData {
+  trackChange: {
+    track: {
+      title: string;
+      artists: string;
+      album?: string;
+      duration: number;
+      cover?: string;
+    } | null;
+  };
+  /** 歌词数据 */
+  lyricChange: { lines: LyricLine[] };
+  /** 当前行索引变化 */
+  lineChange: { index: number; position: number };
+  /** 播放态变化 */
+  playStateChange: { state: "playing" | "paused" | "stopped"; position: number };
+}
+
+/** 控制类插件注册的配置项类型（安全子集） */
+export type PluginSettingType = "switch" | "number" | "text" | "select";
+
+/** 控制类插件注册的单个配置项 */
+export interface PluginSettingItem {
+  key: string;
+  type: PluginSettingType;
+  /** 纯字符串展示名，不做多语言 */
+  label: string;
+  description?: string;
+  default: boolean | number | string;
+  /** number 专用 */
+  min?: number;
+  max?: number;
+  /** text 专用 */
+  placeholder?: string;
+  /** select 专用 */
+  options?: { label: string; value: string }[];
+}
+
+/** register 入参：音源类用 sources，控制类用 events/controls/settings */
+export interface RegisterArgs {
+  sources?: Record<string, SourceCapability>;
+  events?: PlaybackEventKind[];
+  controls?: boolean;
+  settings?: PluginSettingItem[];
+}
+
+/** 控制类插件可用的播放面 */
+export interface PluginPlayerApi {
+  on<K extends PlaybackEventKind>(kind: K, handler: (data: PlaybackEventData[K]) => void): void;
+  play(): void;
+  pause(): void;
+  next(): void;
+  prev(): void;
+  seek(positionMs: number): void;
+  setVolume(volume: number): void;
+  getPosition(): Promise<number>;
+}
+
 /** 插件头部 JSDoc 元数据 */
 export interface PluginManifest {
   /** 插件唯一 ID = name + sha1(source).slice(0,8) */
@@ -41,6 +110,8 @@ export interface PluginManifest {
   homepage?: string;
   /** 脚本平台 */
   platform: PluginPlatform;
+  /** 插件类型，来自 @type 头，缺省 "source" */
+  type?: PluginType;
   /** 声明兼容的 Host API 级别 */
   apiLevel: number;
   /** 源码 SHA1 */
@@ -65,7 +136,14 @@ export interface SourceCapability {
 export type PluginStatus =
   | { state: "unloaded" }
   | { state: "loading" }
-  | { state: "ready"; sources: Record<string, SourceCapability> }
+  | {
+      state: "ready";
+      sources: Record<string, SourceCapability>;
+      /** 控制类附加信息（音源类为 undefined） */
+      events?: PlaybackEventKind[];
+      controls?: boolean;
+      settings?: PluginSettingItem[];
+    }
   | { state: "error"; error: { code: string; message: string } }
   | { state: "disabled" };
 
@@ -88,6 +166,8 @@ export interface PluginInfo {
   status: PluginStatus;
   /** 脚本上报过"有新版本"时填充，用户更新/卸载后清空 */
   updateInfo?: PluginUpdateInfo | null;
+  /** 控制类插件的当前设置值 */
+  settingsValues?: Record<string, unknown>;
 }
 
 /* ========== 调用请求 / 响应 ========== */
@@ -155,8 +235,8 @@ export interface HostApi {
   /** 发起网络请求 */
   request: (url: string, opts?: HostRequestOptions) => Promise<HostRequestResult>;
 
-  /** 声明支持的源与动作 */
-  register: (caps: { sources: Record<string, SourceCapability> }) => void;
+  /** 声明能力：音源类传 sources，控制类传 events/controls/settings */
+  register: (args: RegisterArgs) => void;
 
   /** 注册动作处理器 */
   on: <A extends PluginAction>(
@@ -172,6 +252,12 @@ export interface HostApi {
 
   /** 用户在设置里为此插件配置的值 */
   getSetting: <T = unknown>(key: string) => T | undefined;
+
+  /** 控制类播放面：监听高层事件 + 反向控制 */
+  player: PluginPlayerApi;
+
+  /** 控制类设置变更回调：用户改设置后触发 */
+  onSettingChange: (key: string, handler: (value: unknown) => void) => void;
 }
 
 /* ========== 沙箱 ↔ 主进程消息协议 ========== */
@@ -209,7 +295,9 @@ export type SandboxIn =
       data?: unknown;
       error?: PluginErrorPayload;
     }
-  | { kind: "ping" };
+  | { kind: "ping" }
+  | { kind: "event"; event: PlaybackEventKind; data: unknown }
+  | { kind: "settingsUpdate"; settings: Record<string, unknown> };
 
 /** worker → 主 */
 export type SandboxOut =
@@ -231,7 +319,14 @@ export type SandboxOut =
   | { kind: "fatal"; error: PluginErrorPayload }
   | { kind: "pong" }
   /** sources 增量上报 */
-  | { kind: "sourcesUpdate"; sources: Record<string, SourceCapability> };
+  | { kind: "sourcesUpdate"; sources: Record<string, SourceCapability> }
+  /** 控制类注册上报：声明订阅事件 / 是否反向控制 / 设置项 */
+  | {
+      kind: "registered";
+      events: PlaybackEventKind[];
+      controls: boolean;
+      settings: PluginSettingItem[];
+    };
 
 /** worker 调用回宿主的方法名 */
 export type HostCallMethod =
@@ -239,7 +334,14 @@ export type HostCallMethod =
   | "storage.get"
   | "storage.set"
   | "storage.remove"
-  | "storage.keys";
+  | "storage.keys"
+  | "player.play"
+  | "player.pause"
+  | "player.next"
+  | "player.prev"
+  | "player.seek"
+  | "player.setVolume"
+  | "player.getPosition";
 
 /* ========== 渲染端 ↔ 主进程的 IPC 请求参数 ========== */
 
@@ -269,6 +371,13 @@ export interface PluginsApi {
   uninstall: (id: string) => Promise<{ ok: boolean; error?: string }>;
   /** 启用/禁用 */
   setEnabled: (id: string, enabled: boolean) => Promise<void>;
+  /**
+   * 写入控制类插件的单个配置项
+   * @param id - 插件 ID
+   * @param key - 配置项 key（须在插件 settings schema 中声明）
+   * @param value - 新值，由主进程按 schema 类型校验后写入并推送到沙箱
+   */
+  setSetting: (id: string, key: string, value: unknown) => Promise<void>;
   /** 获取播放 URL */
   resolveUrl: (args: PluginResolveUrlArgs) => Promise<MusicUrlRes>;
   /** 订阅插件状态变化 */

@@ -2,6 +2,7 @@ import type { PlayerEvent } from "@shared/types/player";
 import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
 import { useSettingsStore } from "@/stores/settings";
+import { useFavorite } from "@/composables/useFavorite";
 import * as playback from "@/services/playback";
 import * as autoClose from "@/services/autoClose";
 import * as abLoop from "@/services/abLoop";
@@ -10,6 +11,7 @@ import * as playStats from "./stats";
 import {
   hasReachedSeekTarget,
   isSeeking,
+  markSeek,
   nextTrack,
   pause,
   play,
@@ -43,6 +45,9 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
       status.volume = event.data.volume;
       playback.setDuration(event.data.duration);
       playback.setPlaying(event.data.state === "playing");
+      break;
+    case "seek":
+      markSeek(event.data.position);
       break;
     case "position": {
       // 歌曲加载中不更新进度
@@ -110,6 +115,9 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
       break;
     case "setRepeat":
       setRepeatMode(event.data.mode);
+      break;
+    case "toggleLike":
+      await useFavorite().toggle(useMediaStore().track);
       break;
     case "deviceChanged": {
       refreshDevices();

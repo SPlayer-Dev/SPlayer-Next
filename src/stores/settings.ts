@@ -50,6 +50,11 @@ export const useSettingsStore = defineStore(
     /** 播放器 */
     const player = reactive<PlayerSettings>({
       playerBgType: "blur",
+      playerBgFps: 30,
+      playerBgFlowSpeed: 4,
+      playerBgRenderScale: 0.5,
+      playerBgFreezeOnPause: false,
+      playerBgBeat: false,
       coverLayout: "default",
       autoCenterCover: true,
       followCoverColor: true,
@@ -91,6 +96,8 @@ export const useSettingsStore = defineStore(
       fontFamily: "Arial",
       showTranslation: true,
       showRomanization: true,
+      amllShowLineRomanization: true,
+      amllShowWordRomanization: true,
       enableWordHighlight: true,
       enableFloatAnimation: false,
       enableEmphasizeEffect: false,
@@ -108,6 +115,16 @@ export const useSettingsStore = defineStore(
       excludeLyricsUserRegexes: [],
       // 滚动方向默认按系统习惯：Mac=natural，Windows/Linux=reverse
       lyricScrollDirection: navigator.platform.toLowerCase().includes("mac") ? "natural" : "reverse",
+      engine: "physics",
+      useAMSpring: true,
+      amllVerticalSpringMass: 1,
+      amllVerticalSpringDamping: 15,
+      amllVerticalSpringStiffness: 100,
+      amllVerticalSpringSoft: false,
+      amllScaleSpringMass: 1,
+      amllScaleSpringDamping: 20,
+      amllScaleSpringStiffness: 100,
+      amllScaleSpringSoft: false,
     });
 
     /** 系统配置 - 传递主进程 */

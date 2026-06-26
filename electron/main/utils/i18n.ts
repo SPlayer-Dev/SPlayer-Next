@@ -5,6 +5,8 @@ interface MainMessages {
   play: string;
   pause: string;
   next: string;
+  addToLiked: string;
+  removeFromLiked: string;
   shuffle: string;
   sequential: string;
   repeatList: string;
@@ -25,6 +27,8 @@ const messages: Record<LocaleCode, MainMessages> = {
     play: "播放",
     pause: "暂停",
     next: "下一曲",
+    addToLiked: "添加到我喜欢",
+    removeFromLiked: "从我喜欢中移除",
     shuffle: "随机播放",
     sequential: "顺序播放",
     repeatList: "列表循环",
@@ -43,6 +47,8 @@ const messages: Record<LocaleCode, MainMessages> = {
     play: "Play",
     pause: "Pause",
     next: "Next",
+    addToLiked: "Add to Liked",
+    removeFromLiked: "Remove from Liked",
     shuffle: "Shuffle",
     sequential: "Sequential",
     repeatList: "Repeat All",

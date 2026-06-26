@@ -140,7 +140,9 @@ const handleMoreMenu = (key: string): void => {
       <div class="flex items-center justify-between mt-2 mb-4 gap-4">
         <!-- 标题 + 数量统计 -->
         <div class="flex items-baseline gap-4 min-w-0">
-          <h1 class="text-3xl font-bold text-on-surface shrink-0">{{ t("nav.streaming") }}</h1>
+          <h1 class="text-3xl font-bold text-on-surface shrink-0 text-balance">
+            {{ t("nav.streaming") }}
+          </h1>
           <Transition name="fade" mode="out-in">
             <span
               v-if="activeServer"

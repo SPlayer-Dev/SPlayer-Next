@@ -684,8 +684,10 @@ defineExpose({
                   @click="fav.toggle(item)"
                 >
                   <template #icon>
-                    <IconFavorite v-if="fav.isLiked(item)" />
-                    <IconFavoriteOutline v-else />
+                    <SIconSwap :active="fav.isLiked(item)">
+                      <template #on><IconFavorite /></template>
+                      <template #off><IconFavoriteOutline /></template>
+                    </SIconSwap>
                   </template>
                 </SButton>
               </div>

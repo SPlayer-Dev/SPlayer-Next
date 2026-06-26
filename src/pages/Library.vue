@@ -101,7 +101,7 @@ onUnmounted(() => {
     <div class="shrink-0 px-5 pb-2">
       <div class="flex items-center justify-between mt-2 mb-4">
         <div class="flex items-baseline gap-4">
-          <h1 class="text-3xl font-bold text-on-surface">{{ t("library.title") }}</h1>
+          <h1 class="text-3xl font-bold text-on-surface text-balance">{{ t("library.title") }}</h1>
           <!-- 统计或进度 -->
           <Transition name="fade" mode="out-in">
             <div

@@ -73,7 +73,7 @@ pnpm build:mac     # 打包 macOS
 pnpm build:linux   # 打包 Linux
 ```
 
-> 默认仅构建当前架构。如需指定架构，可追加参数，例如 `pnpm build:win -- --x64 --arm64`。
+> 默认仅构建当前架构。如需指定架构，可追加参数，例如 `pnpm build:win --x64 --arm64`。
 
 ### 其他脚本
 
@@ -81,7 +81,7 @@ pnpm build:linux   # 打包 Linux
 pnpm typecheck        # tsc + vue-tsc（node + web 双目标）
 pnpm lint             # ESLint
 pnpm format           # Prettier
-pnpm build:native     # 仅构建 Rust 原生模块（加 `-- --dev` 为 debug 构建）
+pnpm build:native     # 仅构建 Rust 原生模块（加 `--dev` 为 debug 构建）
 ```
 
 ## 致谢

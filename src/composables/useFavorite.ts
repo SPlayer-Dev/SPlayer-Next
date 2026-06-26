@@ -3,7 +3,7 @@ import { useLibraryStore } from "@/stores/library";
 import { useUserStore } from "@/stores/user";
 import { useSettingsStore } from "@/stores/settings";
 import { toast } from "@/composables/useToast";
-import { useI18n } from "vue-i18n";
+import i18n from "@/i18n";
 
 /**
  * 记一次收藏变更
@@ -25,7 +25,7 @@ export const useFavorite = () => {
   const library = useLibraryStore();
   const user = useUserStore();
   const settings = useSettingsStore();
-  const { t } = useI18n();
+  const t = (key: string): string => i18n.global.t(key);
 
   /**
    * 同步喜欢到 Last.fm（未开启/未连接时由主进程静默兜底）

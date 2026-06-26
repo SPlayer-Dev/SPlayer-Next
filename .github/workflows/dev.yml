@@ -35,25 +35,25 @@ jobs:
             arch: x64
             artifact_name_suffix: windows-x64
             package_extension: zip
-            build_cmd: pnpm build:win -- --x64
+            build_cmd: pnpm build:win --x64
           - os: macos-latest
             name: macOS
             arch: arm64
             artifact_name_suffix: macos-arm64
             package_extension: tar.gz
-            build_cmd: pnpm build:mac -- --arm64
+            build_cmd: pnpm build:mac --arm64
           - os: macos-latest
             name: macOS
             arch: x64
             artifact_name_suffix: macos-x64
             package_extension: tar.gz
-            build_cmd: pnpm build:mac -- --x64
+            build_cmd: pnpm build:mac --x64
           - os: ubuntu-latest
             name: linux
             arch: x64
             artifact_name_suffix: linux-x64
             package_extension: tar.gz
-            build_cmd: pnpm build:linux -- --x64
+            build_cmd: pnpm build:linux --x64
     steps:
       - name: Check out git repository
         uses: actions/checkout@v5

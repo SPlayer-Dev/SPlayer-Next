@@ -81,7 +81,7 @@ const {
         <template #default="{ item, index }: { item: Track; index: number }">
           <div class="relative pl-1 pr-20 py-1">
             <div
-              class="group relative flex items-center gap-3 px-2.5 h-16 rounded-lg cursor-pointer transition-[background-color] duration-150"
+              class="group relative flex items-center gap-3 px-2.5 h-16 rounded-xl cursor-pointer transition-[background-color] duration-150"
               :class="
                 index === statusStore.playIndex
                   ? 'bg-cover/14 text-cover'

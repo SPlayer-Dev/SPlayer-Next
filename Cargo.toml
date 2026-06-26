@@ -1,5 +1,10 @@
 [workspace]
-members = ["./native/audio-engine", "./native/media-ctrl", "./native/taskbar-lyric"]
+members = [
+  "./native/audio-engine",
+  "./native/media-ctrl",
+  "./native/taskbar-lyric",
+  "./native/taskbar-thumbnail",
+]
 resolver = "3"
 
 [workspace.lints.clippy]

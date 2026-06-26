@@ -63,7 +63,9 @@ onMounted(() => void downloadStore.init());
     <!-- 顶栏 -->
     <div class="shrink-0 px-5 pb-2">
       <div class="flex items-baseline gap-4 mt-2 mb-4 min-w-0">
-        <h1 class="text-3xl font-bold text-on-surface shrink-0">{{ t("download.title") }}</h1>
+        <h1 class="text-3xl font-bold text-on-surface shrink-0 text-balance">
+          {{ t("download.title") }}
+        </h1>
         <span class="flex items-center gap-1.5 text-sm text-on-surface-variant/50 shrink-0">
           <IconLucideMusic class="size-3.5" />
           {{ t("common.totalSongs", { count: currentTasks.length }) }}

@@ -15,7 +15,8 @@
       "@shared/*": ["./shared/*"],
       "@splayer/audio-engine": ["./native/audio-engine"],
       "@splayer/media-ctrl": ["./native/media-ctrl"],
-      "@splayer/taskbar-lyric": ["./native/taskbar-lyric"]
+      "@splayer/taskbar-lyric": ["./native/taskbar-lyric"],
+      "@splayer/taskbar-thumbnail": ["./native/taskbar-thumbnail"]
     }
   }
 }

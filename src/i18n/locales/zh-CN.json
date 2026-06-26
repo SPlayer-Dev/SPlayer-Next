@@ -472,6 +472,9 @@
       "fileTitle": "删除文件",
       "fileConfirmOne": "确认从磁盘删除「{title}」？此操作不可撤销",
       "fileConfirm": "确认从磁盘删除 {count} 个文件？此操作不可撤销"
+    },
+    "toast": {
+      "addedToNext": "已添加到下一曲播放"
     }
   },
   "quality": {
@@ -844,6 +847,54 @@
         "openSearch": "打开搜索"
       }
     },
+    "engine": {
+      "label": "歌词渲染引擎",
+      "description": "选择用于歌词渲染与滚动的动效引擎"
+    },
+    "lyricEngine": {
+      "physics": "默认",
+      "amll": "AMLL"
+    },
+    "confirm": {
+      "highResourceTitle": "高占用功能",
+      "highResourceContent": "开启后可能明显增加内存与 CPU 占用，低配设备上或出现卡顿。确定开启吗？"
+    },
+    "useAMSpring": {
+      "label": "弹簧动画调试开关",
+      "description": "为 applemusic-like-lyrics 启用物理弹性回弹与焦点行缩放效果"
+    },
+    "amllVerticalSpringMass": {
+      "label": "垂直回弹质量",
+      "description": "垂直弹性滚动的惯性质量。质量越大，回弹惯性越大"
+    },
+    "amllVerticalSpringDamping": {
+      "label": "垂直回弹阻尼",
+      "description": "垂直弹性滚动的阻尼阻力。阻力越大，回弹振幅越小且越快静止"
+    },
+    "amllVerticalSpringStiffness": {
+      "label": "垂直回弹刚度",
+      "description": "垂直弹性滚动的弹簧刚度。刚度越大，拉力越强，回弹速度越快"
+    },
+    "amllVerticalSpringSoft": {
+      "label": "垂直强制软弹簧",
+      "description": "启用后将强制使用较软的垂直滚动弹簧动效"
+    },
+    "amllScaleSpringMass": {
+      "label": "缩放回弹质量",
+      "description": "焦点行缩放动画的质量。值越大，缩放回弹的惯性越大"
+    },
+    "amllScaleSpringDamping": {
+      "label": "缩放回弹阻尼",
+      "description": "焦点行缩放动画的阻尼阻力。值越大，缩放震荡越少且越快静止"
+    },
+    "amllScaleSpringStiffness": {
+      "label": "缩放回弹刚度",
+      "description": "焦点行缩放动画的弹簧刚度。值越大，缩放回弹越迅速"
+    },
+    "amllScaleSpringSoft": {
+      "label": "缩放强制软弹簧",
+      "description": "启用后将强制使用较软的焦点行缩放弹簧动效"
+    },
     "autoCenterCover": {
       "label": "自动居中封面",
       "description": "无歌词时自动居中封面并隐藏歌词区域"
@@ -961,6 +1012,14 @@
     "showRomanization": {
       "label": "显示音译",
       "description": "显示歌词的音译文本"
+    },
+    "amllShowLineRomanization": {
+      "label": "显示逐行音译",
+      "description": "显示歌词行的音译文本"
+    },
+    "amllShowWordRomanization": {
+      "label": "显示逐词音译",
+      "description": "在逐字歌词中，显示每个字词的音译文本"
     },
     "enableWordHighlight": {
       "label": "逐字高亮",
@@ -1261,7 +1320,28 @@
       "label": "播放器背景",
       "description": "全屏播放器的背景类型",
       "blur": "模糊",
-      "solid": "纯色"
+      "solid": "纯色",
+      "animation": "流体"
+    },
+    "playerBgFlowSpeed": {
+      "label": "流动速度",
+      "description": "流体背景的动画流动速度"
+    },
+    "playerBgRenderScale": {
+      "label": "渲染缩放",
+      "description": "适当提高可减少分界线锯齿、画面更细腻，但会增加显卡压力"
+    },
+    "playerBgFps": {
+      "label": "动画帧率",
+      "description": "流体背景的渲染帧率，越高越流畅但更耗性能"
+    },
+    "playerBgFreezeOnPause": {
+      "label": "暂停时冻结",
+      "description": "暂停播放时同时停止流体背景动画"
+    },
+    "playerBgBeat": {
+      "label": "背景跳动",
+      "description": "使流体背景随音乐低频节拍产生脉动效果"
     },
     "coverLayout": {
       "label": "封面布局",
@@ -1563,6 +1643,7 @@
       "enable": "启用",
       "enabled": "已启用",
       "uninstall": "卸载",
+      "configSubtitle": "插件配置",
       "uninstallConfirmTitle": "卸载插件",
       "uninstallConfirm": "确定要卸载插件「{name}」吗？此操作不可撤销。",
       "uninstallSuccess": "插件已卸载",
@@ -1578,7 +1659,9 @@
         "error": "错误",
         "disabled": "已禁用",
         "unloaded": "未加载"
-      }
+      },
+      "sectionSource": "音源插件",
+      "sectionControl": "控制插件"
     },
     "pluginManager": {
       "label": "插件管理",
@@ -1740,7 +1823,7 @@
     "deleteConfirm": "确认删除{type}「{title}」？此操作不可撤销",
     "addTo": "添加到{type}",
     "removeFrom": "从{type}移除",
-    "tracksAdded": "已添加 {count} 首歌曲",
+    "tracksAdded": "添加成功，共 {count} 首",
     "alreadyInPlaylist": "歌曲已在歌单中",
     "edit": "编辑{type}",
     "subscribe": "收藏",

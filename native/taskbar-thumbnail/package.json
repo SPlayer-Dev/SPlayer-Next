@@ -1,0 +1,14 @@
+{
+  "name": "taskbar-thumbnail",
+  "version": "0.1.0",
+  "main": "taskbar-thumbnail.node",
+  "types": "index.d.ts",
+  "napi": {
+    "binaryName": "taskbar-thumbnail",
+    "triples": {}
+  },
+  "scripts": {
+    "build": "napi build --release --no-const-enum",
+    "build:debug": "napi build --no-const-enum"
+  }
+}

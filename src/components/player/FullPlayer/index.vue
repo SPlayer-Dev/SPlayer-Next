@@ -8,8 +8,10 @@ import type { QualityLevel } from "@/utils/quality";
 import { useFavorite } from "@/composables/useFavorite";
 import { useDownload, buildDownloadQualityItems } from "@/composables/useDownload";
 import { usePlaylistPicker } from "@/composables/usePlaylistPicker";
+import { useImmersiveMode } from "@/composables/useImmersiveMode";
 import Lyrics from "@/components/player/Lyrics/index.vue";
 
+import AMLLLyrics from "@/components/player/Lyrics/AMLLLyrics.vue";
 import PlaylistPickerDialog from "@/components/modals/PlaylistPickerDialog.vue";
 import { useWindowControls } from "@/composables/useWindowControls";
 import * as player from "@/core/player";
@@ -56,70 +58,39 @@ const {
   showLyric,
 } = storeToRefs(status);
 
-/** 歌词组件引用 */
-const lyricRef = ref<InstanceType<typeof Lyrics>>();
+const lyricRef = ref<InstanceType<typeof Lyrics> | InstanceType<typeof AMLLLyrics>>();
+const lyricMounted = ref(false);
+const initialLyricTimeMs = ref(0);
 
-/** 精确播放时间（毫秒）；offset 直接读 status mirror（主进程权威源） */
+const hasLyric = computed(() => media.parsedLyric.length > 0 || media.lyricLoading);
+const hasTrack = computed(() => !!media.track);
+
+/** 精确播放时间（毫秒） */
 const { start: startTick, stop: stopTick } = usePlaybackTime((currentMs) => {
   if (!status.trackLoading && !media.lyricLoading) {
-    lyricRef.value?.setCurrentTime(currentMs + status.lyricOffsetMs);
+    lyricRef.value?.setCurrentTime(currentMs + status.lyricOffsetMs, player.isSeeking());
   }
 });
 
-/** 歌词组件是否已挂载 */
-const lyricMounted = ref(false);
-/** 初始播放时间 */
-const initialLyricTimeMs = ref(0);
-
-/** 歌词制作者 GitHub 主页（点击跳转） */
-const authorGitHubUrl = computed(() =>
-  media.lyricAuthor ? `https://github.com/${media.lyricAuthor}` : "",
-);
-
-/** 展开前 */
-const onBeforeEnter = () => {
-  if (lyricMounted.value) {
-    // 先推一次当前时间
-    lyricRef.value?.setCurrentTime(getCurrentTime() + status.lyricOffsetMs);
-    lyricRef.value?.resume();
-    startTick();
-  }
-};
-
 /** 展开后 */
 const onAfterEnter = () => {
-  if (!lyricMounted.value) {
-    initialLyricTimeMs.value = getCurrentTime() + status.lyricOffsetMs;
-    lyricMounted.value = true;
-    nextTick(() => {
-      lyricRef.value?.resume();
-      startTick();
-    });
-  }
+  initialLyricTimeMs.value = getCurrentTime() + status.lyricOffsetMs;
+  lyricMounted.value = true;
+  nextTick(() => {
+    lyricRef.value?.resume();
+    startTick();
+  });
 };
 
-/** 收起前：冻结歌词渲染 + 停止时钟 */
+/** 收起前 */
 const onBeforeLeave = () => {
   lyricRef.value?.freeze();
   stopTick();
 };
 
-const hasTrack = computed(() => !!media.track);
-
-/** 当前歌曲是否可下载 */
-const canDownload = computed(
-  () => !!media.track && media.track.source !== "local" && settings.system.download.enabled,
-);
-
-/** 下载音质菜单项 */
-const downloadQualityItems = computed(() =>
-  buildDownloadQualityItems(t("download.qualityDefault")),
-);
-
-/** 选择音质后下载（空 key 表示用设置中的默认音质） */
-const onDownloadSelect = (key: string): void => {
-  if (!media.track) return;
-  void enqueueDownload(media.track, key ? { quality: key as QualityLevel } : {});
+/** 收起后 */
+const onAfterLeave = () => {
+  lyricMounted.value = false;
 };
 
 /** 当前曲目是否有可显示的歌词 */
@@ -138,29 +109,62 @@ watch(hasLyric, (value) => {
 // 歌词变化时先推送精确时间
 watch(
   () => media.parsedLyric,
+  () => lyricRef.value?.setCurrentTime(getCurrentTime() + status.lyricOffsetMs),
+);
+
+// 切换歌词引擎时，重新计算初始并推送时间
+watch(
+  () => settings.lyric.engine,
   () => {
-    lyricRef.value?.setCurrentTime(getCurrentTime() + status.lyricOffsetMs);
+    initialLyricTimeMs.value = getCurrentTime() + status.lyricOffsetMs;
+    nextTick(() => {
+      lyricRef.value?.setCurrentTime(getCurrentTime() + status.lyricOffsetMs);
+      if (isPlaying.value) lyricRef.value?.resume();
+    });
   },
 );
 
-/** 全屏 */
-const { isFullscreen, toggleFullscreen } = useWindowControls();
-
-/** 是否全屏封面 */
 const fullscreenCover = computed(() => settings.player.coverLayout === "fullscreen");
 
-/** 封面是否居中 */
 const coverCentered = computed(() => {
   if (fullscreenCover.value || status.fullQueueOpen) return false;
   return !showLyric.value || (settings.player.autoCenterCover && !hasLyric.value);
 });
 
-/** 弹簧配置 */
+const handleLyricSeek = async (timeMs: number): Promise<void> => {
+  await player.seek(timeMs);
+  if (!isPlaying.value) await player.play();
+};
+
 const springConfig = computed(() => ({
   mass: settings.lyric.springMass,
   damping: settings.lyric.springDamping,
   stiffness: settings.lyric.springStiffness,
 }));
+
+const lyricFontSize = computed(() =>
+  settings.lyric.adaptiveFontSize
+    ? `calc(${settings.lyric.fontSize} / 1080 * 100vh)`
+    : `${settings.lyric.fontSize}px`,
+);
+
+const { immersive, onPlayerMouseEnter, onPlayerMouseLeave, onMainMove, onBarEnter, onBarLeave } =
+  useImmersiveMode(isExpanded);
+
+const { isFullscreen, toggleFullscreen } = useWindowControls();
+
+const canDownload = computed(
+  () => !!media.track && media.track.source !== "local" && settings.system.download.enabled,
+);
+
+const downloadQualityItems = computed(() =>
+  buildDownloadQualityItems(t("download.qualityDefault")),
+);
+
+const onDownloadSelect = (key: string): void => {
+  if (!media.track) return;
+  void enqueueDownload(media.track, key ? { quality: key as QualityLevel } : {});
+};
 
 const collapse = (): void => {
   isExpanded.value = false;
@@ -170,66 +174,6 @@ const onSeekDragEnd = (value: number): void => {
   player.seek(value);
 };
 
-/** 沉浸模式闲置时间（ms） */
-const IMMERSIVE_IDLE_MS = 3000;
-/** 沉浸模式是否激活 */
-const immersive = ref(false);
-/** 鼠标是否悬停在顶栏或底栏 */
-const barHovered = ref(false);
-/** 闲置定时器 */
-let idleTimer: ReturnType<typeof setTimeout> | undefined;
-
-/** 沉浸模式是否启用 */
-const immersiveEnabled = computed(() => settings.player.autoImmersive && isExpanded.value);
-
-/** 激活沉浸模式 */
-const armIdle = (): void => {
-  clearTimeout(idleTimer);
-  immersive.value = false;
-  if (!immersiveEnabled.value) return;
-  idleTimer = setTimeout(() => {
-    if (!barHovered.value) immersive.value = true;
-  }, IMMERSIVE_IDLE_MS);
-};
-
-/** 鼠标进入播放器区域 */
-const onPlayerMouseEnter = (): void => armIdle();
-
-/** 鼠标离开播放器区域 */
-const onPlayerMouseLeave = (): void => {
-  clearTimeout(idleTimer);
-  if (immersiveEnabled.value) immersive.value = true;
-};
-
-/** 鼠标移动 */
-const onMainMove = (): void => {
-  if (!barHovered.value) armIdle();
-};
-
-/** 鼠标进入顶/底栏 */
-const onBarEnter = (): void => {
-  barHovered.value = true;
-  clearTimeout(idleTimer);
-  immersive.value = false;
-};
-
-/** 鼠标离开顶/底栏 */
-const onBarLeave = (): void => {
-  barHovered.value = false;
-  armIdle();
-};
-
-watch(immersiveEnabled, (on) => {
-  if (!on) {
-    clearTimeout(idleTimer);
-    immersive.value = false;
-    barHovered.value = false;
-  }
-});
-
-onBeforeUnmount(() => clearTimeout(idleTimer));
-
-/** 添加到歌单 */
 const {
   open: pickerOpen,
   tracks: pickerTracks,
@@ -237,13 +181,11 @@ const {
   openPicker,
 } = usePlaylistPicker();
 
-/** 歌词显隐按钮 */
 const lyricToggleDisabled = computed(() => !hasLyric.value || fullscreenCover.value);
 const lyricToggleActive = computed(
   () => showLyric.value && hasLyric.value && !status.fullQueueOpen && !fullscreenCover.value,
 );
 
-/** 切换歌词展示 */
 const toggleLyric = (): void => {
   if (status.fullQueueOpen) {
     status.fullQueueOpen = false;
@@ -261,9 +203,9 @@ const toggleLyric = (): void => {
       leave-active-class="transition-transform duration-500 ease-[cubic-bezier(0.7,0,0.3,1)]"
       enter-from-class="translate-y-full"
       leave-to-class="translate-y-full"
-      @before-enter="onBeforeEnter"
       @after-enter="onAfterEnter"
       @before-leave="onBeforeLeave"
+      @after-leave="onAfterLeave"
     >
       <div
         v-show="isExpanded"
@@ -292,7 +234,7 @@ const toggleLyric = (): void => {
           v-if="isExpanded && settings.player.enableSpectrum"
           :show="isPlaying && immersive"
         />
-        <!-- 顶/底栏渐变遮罩 -->
+        <!-- 顶/底栏渐变遮罩（全屏封面模式） -->
         <div
           v-if="fullscreenCover"
           class="cover-mask-top absolute top-0 inset-x-0 h-20 z-5 pointer-events-none transition-opacity duration-400"
@@ -341,7 +283,6 @@ const toggleLyric = (): void => {
             class="absolute inset-y-0 left-0 w-[45%] flex items-center justify-center px-12 transition-transform duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
             :style="coverCentered ? 'transform: translateX(calc(100% * 11 / 18))' : undefined"
           >
-            <!-- 封面 + 歌曲信息 -->
             <div class="relative w-[clamp(200px,85%,50vh)] -translate-y-[11vh]">
               <Transition name="scale-switch" mode="out-in">
                 <div :key="media.track?.id">
@@ -349,6 +290,7 @@ const toggleLyric = (): void => {
                     <PlayerCover />
                   </div>
                   <!-- 歌曲信息 -->
+                  <PlayerCover />
                   <div class="absolute top-full left-0 w-full pt-6">
                     <PlayerData align="left" />
                   </div>
@@ -370,26 +312,51 @@ const toggleLyric = (): void => {
             <div
               v-if="fullscreenCover"
               class="shrink-0 pt-2 pb-6 pl-[calc(1em-0.5rem)]"
-              :style="{
-                fontSize: settings.lyric.adaptiveFontSize
-                  ? `calc(${settings.lyric.fontSize} / 1080 * 100vh)`
-                  : `${settings.lyric.fontSize}px`,
-              }"
+              :style="{ fontSize: lyricFontSize }"
             >
               <PlayerData align="left" simple />
             </div>
+            <!-- 歌词容器 -->
             <div
               class="lyric-area relative flex-1 min-h-0"
               :style="{
-                fontSize: settings.lyric.adaptiveFontSize
-                  ? `calc(${settings.lyric.fontSize} / 1080 * 100vh)`
-                  : `${settings.lyric.fontSize}px`,
+                fontSize: lyricFontSize,
                 fontWeight: String(settings.lyric.fontWeight),
                 fontFamily: settings.lyric.fontFamily || undefined,
               }"
             >
+              <AMLLLyrics
+                v-if="lyricMounted && hasLyric && settings.lyric.engine === 'amll'"
+                ref="lyricRef"
+                :lyric-lines="media.parsedLyric"
+                :initial-time="initialLyricTimeMs"
+                :playing="isPlaying"
+                :align-position="settings.lyric.alignPosition"
+                :word-fade-width="settings.lyric.wordFadeWidth"
+                :hide-passed-lines="settings.lyric.hidePassedLines"
+                :enable-blur="settings.lyric.enableBlur"
+                :show-translation="settings.lyric.showTranslation"
+                :show-line-romanization="settings.lyric.amllShowLineRomanization"
+                :show-word-romanization="settings.lyric.amllShowWordRomanization"
+                @seek="handleLyricSeek"
+              >
+                <template #bottom>
+                  <div v-if="media.lyricAuthors.length > 0" class="lyric-credit-line">
+                    <span class="lyric-credit-prefix">{{ $t("player.lyricCredit") }}</span>
+                    <template v-for="(author, idx) in media.lyricAuthors" :key="author">
+                      <span v-if="idx > 0" class="mx-1">,</span>
+                      <span
+                        class="lp-content lyric-credit"
+                        @click.stop="openExternal(`https://github.com/${author}`)"
+                      >
+                        {{ "@" + author }}
+                      </span>
+                    </template>
+                  </div>
+                </template>
+              </AMLLLyrics>
               <Lyrics
-                v-if="lyricMounted && hasLyric"
+                v-else-if="lyricMounted && hasLyric"
                 ref="lyricRef"
                 :lyric-lines="media.parsedLyric"
                 :initial-time="initialLyricTimeMs"
@@ -416,16 +383,20 @@ const toggleLyric = (): void => {
                 :fan-enable-glow="settings.player.fanLyricsEnableGlow"
                 :lyric-scroll-direction="settings.lyric.lyricScrollDirection"
                 @seek="player.seek($event)"
+                @seek="handleLyricSeek"
               >
                 <template #bottom>
-                  <div v-if="media.lyricAuthor" class="lyric-credit-line">
-                    {{ $t("player.lyricCredit") }}
-                    <span
-                      class="lp-content lyric-credit"
-                      @click.stop="openExternal(authorGitHubUrl)"
-                    >
-                      {{ "@" + media.lyricAuthor }}
-                    </span>
+                  <div v-if="media.lyricAuthors.length > 0" class="lyric-credit-line">
+                    <span class="lyric-credit-prefix">{{ $t("player.lyricCredit") }}</span>
+                    <template v-for="(author, idx) in media.lyricAuthors" :key="author">
+                      <span v-if="idx > 0" class="mx-1">,</span>
+                      <span
+                        class="lp-content lyric-credit"
+                        @click.stop="openExternal(`https://github.com/${author}`)"
+                      >
+                        {{ "@" + author }}
+                      </span>
+                    </template>
                   </div>
                 </template>
               </Lyrics>
@@ -479,8 +450,10 @@ const toggleLyric = (): void => {
               @click="fav.toggle(media.track)"
             >
               <template #icon>
-                <IconFavorite v-if="fav.isLiked(media.track)" />
-                <IconFavoriteOutline v-else />
+                <SIconSwap :active="fav.isLiked(media.track)">
+                  <template #on><IconFavorite /></template>
+                  <template #off><IconFavoriteOutline /></template>
+                </SIconSwap>
               </template>
             </SButton>
             <SButton
@@ -548,8 +521,10 @@ const toggleLyric = (): void => {
                 @click="player.togglePlay()"
               >
                 <template #icon>
-                  <IconLucidePause v-if="isPlaying" />
-                  <IconLucidePlay v-else />
+                  <SIconSwap :active="isPlaying">
+                    <template #on><IconLucidePause /></template>
+                    <template #off><IconLucidePlay /></template>
+                  </SIconSwap>
                 </template>
               </SButton>
               <SButton
@@ -649,6 +624,12 @@ const toggleLyric = (): void => {
 
 .lyric-credit-line {
   font-size: max(0.5em, 10px);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  text-align: left;
+  width: 100%;
 }
 
 .lyric-credit {

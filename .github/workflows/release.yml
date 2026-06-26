@@ -115,22 +115,22 @@ jobs:
         run: |
           case "${{ matrix.target }}" in
             windows-x64)
-              pnpm build:win -- --x64 --publish never
+              pnpm build:win --x64 --publish never
               ;;
             windows-arm64)
-              pnpm build:win -- --arm64 --publish never
+              pnpm build:win --arm64 --publish never
               ;;
             macos-x64)
-              pnpm build:mac -- --x64 --publish never
+              pnpm build:mac --x64 --publish never
               ;;
             macos-arm64)
-              pnpm build:mac -- --arm64 --publish never
+              pnpm build:mac --arm64 --publish never
               ;;
             linux-x64)
-              pnpm build:linux -- --x64 --publish never
+              pnpm build:linux --x64 --publish never
               ;;
             linux-arm64)
-              pnpm build:linux -- --arm64 --publish never
+              pnpm build:linux --arm64 --publish never
               ;;
             *)
               echo "Unsupported target: ${{ matrix.target }}"

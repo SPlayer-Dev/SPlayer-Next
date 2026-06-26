@@ -31,7 +31,7 @@ export default defineConfig({
         text: "开发",
         items: [
           { text: "原生模块", link: "/native" },
-          { text: "插件开发", link: "/plugins-development" },
+          { text: "插件开发", link: "/plugins/" },
           { text: "外部 API", link: "/api" },
           { text: "贡献指南", link: "/contributing" },
         ],
@@ -60,7 +60,14 @@ export default defineConfig({
         text: "开发",
         items: [
           { text: "原生模块", link: "/native" },
-          { text: "插件开发", link: "/plugins-development" },
+          {
+            text: "插件开发",
+            items: [
+              { text: "总览与架构", link: "/plugins/" },
+              { text: "音源插件", link: "/plugins/source" },
+              { text: "控制插件", link: "/plugins/control" },
+            ],
+          },
           { text: "贡献指南", link: "/contributing" },
         ],
       },

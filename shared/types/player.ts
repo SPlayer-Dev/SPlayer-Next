@@ -163,6 +163,7 @@ export interface AudioDevice {
 export type PlayerEvent =
   | { type: "status"; data: PlayerStatus }
   | { type: "position"; data: { position: number; duration: number } }
+  | { type: "seek"; data: { position: number } }
   | { type: "ended" }
   | { type: "sourceError" }
   | { type: "play" }
@@ -171,6 +172,7 @@ export type PlayerEvent =
   | { type: "prev" }
   | { type: "setShuffle"; data: { mode: ShuffleMode } }
   | { type: "setRepeat"; data: { mode: RepeatMode } }
+  | { type: "toggleLike" }
   | { type: "fftData"; data: number[] }
   | { type: "error"; error: string }
   | { type: "deviceChanged"; data: { defaultDevice: string | null } };
@@ -239,6 +241,8 @@ export interface PlayerApi {
   getSelectedDeviceName: () => Promise<IpcResponse<string | null>>;
   /** 同步播放模式到托盘 */
   syncPlayMode: (repeatMode: string, shuffleMode: string) => void;
+  /** 同步当前歌曲喜欢状态到托盘 */
+  syncLikeState: (liked: boolean) => void;
   /** 广播播放控制事件 */
   dispatch: (type: string) => void;
   /** 订阅播放事件 */

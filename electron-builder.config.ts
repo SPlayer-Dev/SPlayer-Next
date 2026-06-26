@@ -45,6 +45,11 @@ const config: Configuration = {
       to: "native",
       filter: ["*.node"],
     },
+    {
+      from: "native/taskbar-thumbnail",
+      to: "native",
+      filter: ["*.node"],
+    },
   ],
   win: {
     executableName: "SPlayer-Next",

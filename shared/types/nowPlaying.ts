@@ -1,4 +1,4 @@
-import type { Track } from "./player";
+import type { Track, PlayerState } from "./player";
 import type { LyricLine, LyricData } from "./lyrics";
 
 /** 渲染进程 → 主进程：同步当前播放状态（track + 歌词 + 源） */
@@ -15,6 +15,8 @@ export interface NowPlayingSnapshot {
   source: LyricData;
   position: number;
   playing: boolean;
+  /** 完整播放状态，区分 stopped 与 paused */
+  state: PlayerState;
   /** 播放速度倍率（0.5 ~ 2.0） */
   speed: number;
   /** 当前曲目的歌词偏移（ms，正值为歌词提前） */
@@ -27,6 +29,8 @@ export interface NowPlayingSnapshot {
 export interface NowPlayingPositionSync {
   position: number;
   playing: boolean;
+  /** 完整播放状态，区分 stopped 与 paused */
+  state: PlayerState;
   /** 播放速度倍率（0.5 ~ 2.0） */
   speed: number;
   sendTimestamp: number;

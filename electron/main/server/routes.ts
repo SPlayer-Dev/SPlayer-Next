@@ -6,9 +6,9 @@
 import { Hono } from "hono";
 import { app as electronApp } from "electron";
 import { getPlayer } from "@main/services/engine";
-import { sendToMain } from "@main/utils/broadcast";
 import { toMs } from "@main/utils/time";
 import * as nowPlaying from "@main/services/nowPlaying";
+import { playerControl } from "@main/services/playerControl";
 import { getWsClientCount } from "./broadcast";
 
 export const buildRoutes = (): Hono => {
@@ -38,18 +38,18 @@ export const buildRoutes = (): Hono => {
   // 当前播放完整快照
   api.get("/now-playing", (c) => c.json(nowPlaying.snapshot()));
 
-  api.post("/play", async (c) => {
-    await getPlayer().play();
+  api.post("/play", (c) => {
+    playerControl.play();
     return c.json({ ok: true });
   });
 
   api.post("/pause", (c) => {
-    getPlayer().pause();
+    playerControl.pause();
     return c.json({ ok: true });
   });
 
   api.post("/stop", (c) => {
-    getPlayer().stop();
+    playerControl.stop();
     return c.json({ ok: true });
   });
 
@@ -59,7 +59,11 @@ export const buildRoutes = (): Hono => {
     if (!Number.isFinite(positionMs) || positionMs < 0) {
       return c.json({ error: "positionMs (number, >=0) required" }, 400);
     }
-    await getPlayer().seek(positionMs / 1000);
+    try {
+      await playerControl.seek(positionMs);
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+    }
     return c.json({ ok: true });
   });
 
@@ -69,16 +73,16 @@ export const buildRoutes = (): Hono => {
     if (!Number.isFinite(volume) || volume < 0 || volume > 1) {
       return c.json({ error: "volume (number, 0..1) required" }, 400);
     }
-    getPlayer().setVolume(volume);
+    playerControl.setVolume(volume);
     return c.json({ ok: true });
   });
 
   api.post("/next", (c) => {
-    sendToMain("player:event", { type: "next" });
+    playerControl.next();
     return c.json({ ok: true });
   });
   api.post("/prev", (c) => {
-    sendToMain("player:event", { type: "prev" });
+    playerControl.prev();
     return c.json({ ok: true });
   });
 
