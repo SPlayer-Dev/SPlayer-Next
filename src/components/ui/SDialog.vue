@@ -125,19 +125,19 @@ const setOpen = (val: boolean): void => {
           <slot name="footer" :close="() => setOpen(false)" />
         </div>
         <!-- 关闭按钮 -->
-        <DialogClose v-if="closable" as-child>
-          <SButton
-            :type="cover ? 'cover' : 'default'"
-            variant="ghost"
-            size="small"
-            circle
-            class="absolute top-3 right-3"
-          >
-            <template #icon>
-              <IconLucideX />
-            </template>
-          </SButton>
-        </DialogClose>
+        <SButton
+          v-if="closable"
+          :type="cover ? 'cover' : 'default'"
+          variant="ghost"
+          size="small"
+          circle
+          class="absolute top-3 right-3"
+          @click="setOpen(false)"
+        >
+          <template #icon>
+            <IconLucideX />
+          </template>
+        </SButton>
       </DialogContent>
     </DialogPortal>
   </DialogRoot>

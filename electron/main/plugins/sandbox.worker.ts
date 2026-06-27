@@ -120,6 +120,9 @@ const uiCommandHandlers = new Map<
   ) => PluginUiCommandResult | void | Promise<PluginUiCommandResult | void>
 >();
 
+/** 控制类：设置页打开回调 */
+const uiSettingsOpenHandlers = new Set<() => void>();
+
 /** 已注册的 sources（等 script 执行完后随 ready 消息上报） */
 let registeredSources: Record<string, SourceCapability> = {};
 
@@ -247,6 +250,9 @@ const buildSplayer = (init: Extract<SandboxIn, { kind: "init" }>): HostApi => ({
   ui: {
     onCommand: (commandId, handler) => {
       uiCommandHandlers.set(commandId, handler);
+    },
+    onSettingsOpen: (handler) => {
+      uiSettingsOpenHandlers.add(handler);
     },
   },
 
@@ -471,6 +477,16 @@ parentPort.on("message", async (event) => {
                 // 隔离插件回调异常
               }
             }
+          }
+        }
+        return;
+      }
+      case "uiSettingsOpen": {
+        for (const handler of uiSettingsOpenHandlers) {
+          try {
+            handler();
+          } catch {
+            // 隔离插件回调异常
           }
         }
         return;

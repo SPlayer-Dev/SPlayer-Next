@@ -52,7 +52,7 @@ const valueOf = (item: PluginSettingItem): unknown => props.values[item.key] ?? 
         />
         <SSelect
           v-else-if="item.type === 'select'"
-          :model-value="(valueOf(item) ?? '') as string"
+          :model-value="String(valueOf(item) ?? '')"
           :options="item.options ?? []"
           class="w-full"
           @update:model-value="(val) => emit('change', item.key, val)"

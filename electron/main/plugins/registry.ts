@@ -285,6 +285,17 @@ class PluginRegistry extends EventEmitter {
   async installFromSource(raw: string): Promise<PluginInfo> {
     ensureDirs();
     const { source, manifest } = loadScript(raw, false);
+    const existing = this.runtimes.get(manifest.id);
+    if (existing) {
+      await this.stop(existing);
+      try {
+        fs.unlinkSync(path.join(scriptsDir(), existing.manifest.fileName));
+      } catch {
+        /* ignore */
+      }
+      pluginStorageDrop(existing.manifest.id);
+    }
+
     // 脚本落盘（明文）
     const fileName = `${manifest.id}.js`;
     fs.writeFileSync(path.join(scriptsDir(), fileName), source, "utf-8");
@@ -316,8 +327,6 @@ class PluginRegistry extends EventEmitter {
     store.set("plugins.enabled", enabledMap);
 
     // 放入运行时
-    const existing = this.runtimes.get(manifest.id);
-    if (existing) await this.stop(existing);
     const rt: PluginRuntime = {
       manifest,
       enabled: true,
@@ -645,6 +654,20 @@ class PluginRegistry extends EventEmitter {
       rt.sandbox?.isAlive()
     ) {
       rt.sandbox.sendEvent(event, data);
+    }
+  }
+
+  /** 通知某个控制类插件的设置页已打开 */
+  notifyPluginSettingsOpen(id: string): void {
+    const rt = this.runtimes.get(id);
+    if (
+      rt &&
+      rt.enabled &&
+      rt.manifest.type === "control" &&
+      rt.status.state === "ready" &&
+      rt.sandbox?.isAlive()
+    ) {
+      rt.sandbox.sendUiSettingsOpen();
     }
   }
 

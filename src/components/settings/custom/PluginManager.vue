@@ -111,6 +111,7 @@ const settingsDialogValues = computed(() => settingsDialogInfo.value?.settingsVa
 const openSettingsDialog = (id: string): void => {
   settingsDialogId.value = id;
   settingsDialogOpen.value = true;
+  void window.api.plugins.notifySettingsOpen?.(id);
 };
 
 /** 弹窗内修改某设置项 */

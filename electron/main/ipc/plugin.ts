@@ -123,6 +123,10 @@ export const registerPluginIpc = (): void => {
     },
   );
 
+  ipcMain.handle("plugin:notifySettingsOpen", async (_evt, pluginId: string) => {
+    pluginRegistry.notifyPluginSettingsOpen(pluginId);
+  });
+
   // 状态变化广播
   pluginRegistry.on("status", (info: PluginInfo) => {
     broadcast("plugin:status", info);

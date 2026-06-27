@@ -310,6 +310,9 @@ const api = {
     // 触发控制类插件声明的 UI 命令
     invokeUiCommand: (pluginId: string, commandId: string, context: PluginUiCommandContext) =>
       ipcRenderer.invoke("plugin:invokeUiCommand", pluginId, commandId, context),
+    // 通知控制类插件设置页已打开
+    notifySettingsOpen: (pluginId: string) =>
+      ipcRenderer.invoke("plugin:notifySettingsOpen", pluginId),
     // 订阅插件状态变化
     onStatus: (callback: (info: PluginInfo) => void) =>
       subscribe<PluginInfo>("plugin:status", callback),

@@ -16,6 +16,7 @@
  * @version     1.0.0
  * @description 示例控制插件
  * @author      you
+ * @id          your-plugin-id
  * @type        control
  * @apiLevel    2
  */
@@ -289,6 +290,7 @@ splayer.ui.onCommand("submit-current", async ({ track }) => {
  * @name ClassIsland 联动
  * @version 1.0.0
  * @author imsyy
+ * @id your-plugin-id
  * @type control
  * @apiLevel 2
  * @description 把当前歌词推送到 ClassIsland 主界面
@@ -364,6 +366,7 @@ splayer.player.on("lineChange", ({ index }) => {
 /**
  * @name 示例控制插件
  * @version 1.0.0
+ * @id your-plugin-id
  * @type control
  * @apiLevel 3
  */

@@ -3,7 +3,7 @@
  *
  * - 读取脚本文件（.js 或 gz_ 压缩文本）
  * - 解析头部 JSDoc 元数据（`@name` / `@version` / ...）
- * - 生成稳定的 pluginId（name + sha1(source).slice(0,8)）
+ * - 生成稳定的 pluginId（优先使用 `@id`，否则回退到 name + sha1(source).slice(0,8)）
  * - 返回 { source, manifest }
  */
 
@@ -23,6 +23,7 @@ const GZ_PREFIX = "gz_";
 
 /** 脚本头部字段长度上限 */
 const FIELD_LIMITS: Record<string, number> = {
+  id: 64,
   name: 24,
   description: 256,
   author: 56,
@@ -46,6 +47,7 @@ export const decompressIfNeeded = (raw: string): string => {
 };
 
 interface HeaderFields {
+  id?: string;
   name?: string;
   description?: string;
   version?: string;
@@ -70,6 +72,7 @@ const parseHeader = (source: string): HeaderFields => {
     const limit = FIELD_LIMITS[key];
     const val = limit && raw.length > limit ? raw.slice(0, limit) + "..." : raw;
     switch (key) {
+      case "id":
       case "name":
       case "description":
       case "version":
@@ -104,6 +107,17 @@ const slugify = (name: string): string =>
     .replace(/[^a-z0-9_-]+/g, "-")
     .replace(/^-+|-+$/g, "") || "plugin";
 
+/** 规范化脚本声明的稳定 ID */
+const normalizeStableId = (value: string): string => {
+  const trimmed = value.trim();
+  if (!/^[A-Za-z0-9_.:-]{1,64}$/.test(trimmed)) {
+    throw Object.assign(new Error(`invalid plugin id "${value}"`), {
+      code: PluginErrorCodes.INVALID_MANIFEST,
+    });
+  }
+  return trimmed;
+};
+
 export interface LoadedScript {
   /** 纯文本源码 */
   source: string;
@@ -121,7 +135,7 @@ export const loadScript = (rawOrPath: string, isPath: boolean, fileName?: string
   const header = parseHeader(source);
   const hash = sha1(source);
 
-  // 稳定兜底——同一脚本 hash 一致，id 就一致
+  // 稳定兜底——同一脚本 hash 一致，id 就一致；若脚本显式声明 @id，则按 @id 替换升级
   const name = header.name || `user_api_${hash.slice(0, 6)}`;
   const version = header.version || "0.0.0";
 
@@ -144,7 +158,7 @@ export const loadScript = (rawOrPath: string, isPath: boolean, fileName?: string
     );
   }
 
-  const id = `${slugify(name)}-${hash.slice(0, 8)}`;
+  const id = header.id ? normalizeStableId(header.id) : `${slugify(name)}-${hash.slice(0, 8)}`;
   const finalFileName = fileName ?? (isPath ? path.basename(rawOrPath) : `${id}.js`);
 
   const manifest: PluginManifest = {

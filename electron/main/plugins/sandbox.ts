@@ -243,6 +243,12 @@ export class Sandbox {
     this.post({ kind: "settingsUpdate", settings });
   }
 
+  /** 通知沙箱插件设置页已打开 */
+  sendUiSettingsOpen(): void {
+    if (!this.ready) return;
+    this.post({ kind: "uiSettingsOpen" });
+  }
+
   isAlive(): boolean {
     return this.child != null && this.ready && !this.disposed;
   }

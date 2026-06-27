@@ -124,6 +124,8 @@ export interface PluginUiApi {
       context: PluginUiCommandContext,
     ) => PluginUiCommandResult | void | Promise<PluginUiCommandResult | void>,
   ): void;
+  /** 插件设置页被宿主打开时触发 */
+  onSettingsOpen(handler: () => void): void;
 }
 
 /** register 入参：音源类用 sources，控制类用 events/controls/settings */
@@ -357,6 +359,7 @@ export type SandboxIn =
   | { kind: "ping" }
   | { kind: "event"; event: PlaybackEventKind; data: unknown }
   | { kind: "settingsUpdate"; settings: Record<string, unknown> }
+  | { kind: "uiSettingsOpen" }
   | { kind: "uiCommand"; requestId: string; commandId: string; context: PluginUiCommandContext };
 
 /** worker → 主 */
@@ -455,6 +458,8 @@ export interface PluginsApi {
     commandId: string,
     context: PluginUiCommandContext,
   ) => Promise<PluginUiCommandResult>;
+  /** 通知控制类插件其设置页已打开 */
+  notifySettingsOpen: (pluginId: string) => Promise<void>;
   /** 订阅插件状态变化 */
   onStatus: (cb: (info: PluginInfo) => void) => () => void;
 }
