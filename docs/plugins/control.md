@@ -238,7 +238,7 @@ splayer.register({
       {
         id: "submit-current",
         label: "投稿",
-        tooltip: "投稿到 VoiceHub",
+        tooltip: "执行当前歌曲操作",
         icon: "send",
         placement: "track-actions",
       },
@@ -362,7 +362,7 @@ splayer.player.on("lineChange", ({ index }) => {
 
 ```js
 /**
- * @name VoiceHub 投稿
+ * @name 示例控制插件
  * @version 1.0.0
  * @type control
  * @apiLevel 3
@@ -370,36 +370,33 @@ splayer.player.on("lineChange", ({ index }) => {
 splayer.register({
   events: ["trackChange"],
   ui: {
-    playerBarButtons: [{ id: "submit", label: "投稿", icon: "send" }],
+    playerBarButtons: [{ id: "submit", label: "操作", icon: "send" }],
   },
   settings: [
-    { key: "baseUrl", type: "text", label: "VoiceHub 地址", default: "" },
-    { key: "token", type: "text", label: "个人令牌", default: "" },
+    { key: "endpoint", type: "text", label: "服务地址", default: "" },
+    { key: "token", type: "text", label: "访问令牌", default: "" },
   ],
 });
 
 splayer.ui.onCommand("submit", async ({ track }) => {
   if (!track) throw new Error("当前没有歌曲");
-  const baseUrl = String(splayer.getSetting("baseUrl") || "").replace(/\/$/, "");
+  const endpoint = String(splayer.getSetting("endpoint") || "").replace(/\/$/, "");
   const token = splayer.getSetting("token");
-  const platform = track.source === "qqmusic" ? "tencent" : track.source;
 
-  const res = await splayer.request(`${baseUrl}/api/open/songs/request`, {
+  const res = await splayer.request(`${endpoint}/api/example/action`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": String(token || "") },
     body: JSON.stringify({
       title: track.title,
-      artist: track.artists,
+      artists: track.artists,
       cover: track.cover,
-      musicPlatform: ["netease", "tencent"].includes(platform) ? platform : null,
-      musicId: ["netease", "tencent"].includes(platform) ? track.id : null,
-      submissionNote: "来自 SPlayer-NEXT",
+      trackId: track.id,
     }),
     responseType: "json",
   });
 
-  if (res.status < 200 || res.status >= 300) throw new Error("投稿失败");
-  return { message: "已投稿到 VoiceHub" };
+  if (res.status < 200 || res.status >= 300) throw new Error("操作失败");
+  return { message: "已完成" };
 });
 ```
 
