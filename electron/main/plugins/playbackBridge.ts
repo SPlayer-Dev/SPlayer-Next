@@ -4,7 +4,7 @@
 
 import type { Track, PlayerState } from "@shared/types/player";
 import type { LyricLine } from "@shared/types/lyrics";
-import type { PlaybackEventData, PlaybackEventKind } from "@shared/types/plugin";
+import type { PlaybackEventData, PlaybackEventKind, PluginSafeTrack } from "@shared/types/plugin";
 import type {
   NowPlayingSnapshot,
   NowPlayingPositionSync,
@@ -28,9 +28,11 @@ const toPluginState = (state: PlayerState): PluginPlayState =>
   state === "playing" ? "playing" : state === "stopped" ? "stopped" : "paused";
 
 /** Track → 插件可见的精简载荷 */
-const trackPayload = (track: Track | null) =>
+const trackPayload = (track: Track | null): PluginSafeTrack | null =>
   track
     ? {
+        id: track.id,
+        source: track.source,
         title: track.title,
         artists: track.artists.map((artist) => artist.name).join(", "),
         album: track.album?.name,

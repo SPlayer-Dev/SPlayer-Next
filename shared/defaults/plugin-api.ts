@@ -1,12 +1,15 @@
 import type { PluginsConfig } from "../types/plugin";
 
 /** 当前 Host API 级别；插件 `@apiLevel` 必须 ≤ 此值才加载 */
-export const HOST_API_LEVEL = 2;
+export const HOST_API_LEVEL = 3;
 
 /** 各动作的默认超时（毫秒）。新增动作时在此追加。 */
 export const ACTION_TIMEOUTS = {
   musicUrl: 20_000,
 } as const;
+
+/** 播放栏 UI 命令超时（毫秒） */
+export const UI_COMMAND_TIMEOUT = 20_000;
 
 /** 网络请求最大超时 */
 export const REQUEST_MAX_TIMEOUT = 60_000;

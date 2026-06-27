@@ -4,8 +4,8 @@
 
 阅读本文前请先了解 [插件总览与架构](/plugins/)，其中的通用 API 对控制插件同样适用。
 
-::: warning 需要 apiLevel 2
-脚本头部必须声明 `@type control` 与 `@apiLevel 2`，否则控制能力在运行时不可用。
+::: warning 需要 apiLevel
+脚本头部必须声明 `@type control`。监听播放事件、反向控制和设置项需要 `@apiLevel 2`；如果要在播放栏注册按钮，需要 `@apiLevel 3`。
 :::
 
 ## 快速开始
@@ -55,11 +55,12 @@ splayer.register({
 });
 ```
 
-| 字段       | 类型                  | 必填 | 说明                                               |
-| ---------- | --------------------- | ---- | -------------------------------------------------- |
-| `events`   | `PlaybackEventKind[]` |      | 要订阅的播放事件，未声明的事件不会下发             |
-| `controls` | `boolean`             |      | 是否使用反向播放控制（`splayer.player.play()` 等） |
-| `settings` | `PluginSettingItem[]` |      | 用户可配置项，渲染到插件管理的设置弹窗             |
+| 字段       | 类型                   | 必填 | 说明                                               |
+| ---------- | ---------------------- | ---- | -------------------------------------------------- |
+| `events`   | `PlaybackEventKind[]`  |      | 要订阅的播放事件，未声明的事件不会下发             |
+| `controls` | `boolean`              |      | 是否使用反向播放控制（`splayer.player.play()` 等） |
+| `settings` | `PluginSettingItem[]`  |      | 用户可配置项，渲染到插件管理的设置弹窗             |
+| `ui`       | `PluginUiContribution` |      | UI 扩展声明；目前仅支持播放栏按钮，需 `apiLevel 3` |
 
 ::: tip 只发订阅的事件
 宿主只会向插件推送它在 `events` 里声明过的事件，未声明的不会推送。插件启用时，宿主会立即补发一次当前状态快照（当前曲目、歌词、播放态、当前行），无需自己拉取初始值。
@@ -75,14 +76,16 @@ splayer.player.on(kind, (data) => { ... });
 
 ### `trackChange` — 曲目切换
 
-| 字段             | 类型             | 说明                     |
-| ---------------- | ---------------- | ------------------------ |
-| `track`          | `object \| null` | 当前曲目，`null` 表示无  |
-| `track.title`    | `string`         | 标题                     |
-| `track.artists`  | `string`         | 艺术家（已用 `, ` 拼接） |
-| `track.album`    | `string?`        | 专辑名                   |
-| `track.duration` | `number`         | 时长（毫秒）             |
-| `track.cover`    | `string?`        | 封面地址                 |
+| 字段             | 类型             | 说明                                                    |
+| ---------------- | ---------------- | ------------------------------------------------------- |
+| `track`          | `object \| null` | 当前曲目，`null` 表示无                                 |
+| `track.id`       | `string`         | 平台或本地曲目 ID                                       |
+| `track.source`   | `string`         | `local` / `streaming` / `netease` / `qqmusic` / `kugou` |
+| `track.title`    | `string`         | 标题                                                    |
+| `track.artists`  | `string`         | 艺术家（已用 `, ` 拼接）                                |
+| `track.album`    | `string?`        | 专辑名                                                  |
+| `track.duration` | `number`         | 时长（毫秒）                                            |
+| `track.cover`    | `string?`        | 封面地址                                                |
 
 ### `lyricChange` — 歌词整体变化
 
@@ -224,6 +227,59 @@ splayer.onSettingChange("enabled", (value) => {
 
 宿主会按声明的 `type` 对写入值做校验/强转（如 `switch` 转布尔、`number` 按 `min`/`max` 夹取、`select` 校验合法选项），插件读到的始终是规范化后的值。
 
+## 播放栏按钮
+
+`apiLevel 3` 控制插件可以声明播放栏按钮。宿主负责渲染按钮，插件只处理命令；插件不能直接注入 Vue 组件或操作 DOM。
+
+```js
+splayer.register({
+  ui: {
+    playerBarButtons: [
+      {
+        id: "submit-current",
+        label: "投稿",
+        tooltip: "投稿到 VoiceHub",
+        icon: "send",
+        placement: "track-actions",
+      },
+    ],
+  },
+});
+
+splayer.ui.onCommand("submit-current", async ({ track }) => {
+  if (!track) throw new Error("当前没有歌曲");
+  splayer.log.info("提交：", track.title, track.artists);
+  return { message: "已提交" };
+});
+```
+
+按钮声明限制：
+
+| 字段        | 规则                                                                 |
+| ----------- | -------------------------------------------------------------------- |
+| 数量        | 每个插件最多 4 个播放栏按钮                                          |
+| `id`        | 1-64 字符，仅允许字母、数字、`_`、`.`、`:`、`-`                      |
+| `label`     | 1-24 字符                                                            |
+| `tooltip`   | 可选，最多 80 字符                                                   |
+| `icon`      | `send` / `upload` / `radio` / `external-link` / `bookmark` / `heart` |
+| `placement` | 目前只支持 `track-actions`；不填时按 `track-actions` 处理            |
+
+无当前歌曲时按钮会自动禁用。命令执行中按钮显示加载态；处理器返回 `{ message: "..." }` 时宿主显示该消息，否则显示“已完成”。命令抛错或 20 秒内没有返回时，宿主显示错误提示。
+
+命令上下文里的 `track` 与 `trackChange` 使用同一套安全字段，不包含本地路径、文件标签、音频详情等敏感或重型数据：
+
+```js
+{
+  id: "123",
+  source: "netease",
+  title: "Song",
+  artists: "Artist",
+  album: "Album",
+  duration: 180000,
+  cover: "https://...",
+}
+```
+
 ## 完整示例
 
 比如这是一个把当前歌词（含翻译）推送到 [ClassIsland](https://github.com/ClassIsland/ClassIsland) 主界面的控制插件：订阅曲目/歌词/行变化，按用户设置决定端口、是否带翻译、无翻译时是否回退到下一行。
@@ -297,6 +353,53 @@ splayer.player.on("lineChange", ({ index }) => {
     extra = lineText(lines[index + 1]);
   }
   post(lyric, extra);
+});
+```
+
+## 播放栏按钮示例
+
+下面示例演示控制插件如何注册一个播放栏按钮，并在点击时接收当前歌曲的安全快照。SPlayer 主体只提供通用按钮和命令能力，不内置具体业务逻辑。
+
+```js
+/**
+ * @name VoiceHub 投稿
+ * @version 1.0.0
+ * @type control
+ * @apiLevel 3
+ */
+splayer.register({
+  events: ["trackChange"],
+  ui: {
+    playerBarButtons: [{ id: "submit", label: "投稿", icon: "send" }],
+  },
+  settings: [
+    { key: "baseUrl", type: "text", label: "VoiceHub 地址", default: "" },
+    { key: "token", type: "text", label: "个人令牌", default: "" },
+  ],
+});
+
+splayer.ui.onCommand("submit", async ({ track }) => {
+  if (!track) throw new Error("当前没有歌曲");
+  const baseUrl = String(splayer.getSetting("baseUrl") || "").replace(/\/$/, "");
+  const token = splayer.getSetting("token");
+  const platform = track.source === "qqmusic" ? "tencent" : track.source;
+
+  const res = await splayer.request(`${baseUrl}/api/open/songs/request`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": String(token || "") },
+    body: JSON.stringify({
+      title: track.title,
+      artist: track.artists,
+      cover: track.cover,
+      musicPlatform: ["netease", "tencent"].includes(platform) ? platform : null,
+      musicId: ["netease", "tencent"].includes(platform) ? track.id : null,
+      submissionNote: "来自 SPlayer-NEXT",
+    }),
+    responseType: "json",
+  });
+
+  if (res.status < 200 || res.status >= 300) throw new Error("投稿失败");
+  return { message: "已投稿到 VoiceHub" };
 });
 ```
 

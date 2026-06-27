@@ -8,7 +8,7 @@
  */
 
 import { ipcMain, dialog, net } from "electron";
-import type { PluginInfo } from "@shared/types/plugin";
+import type { PluginInfo, PluginUiCommandContext } from "@shared/types/plugin";
 import { INSTALL_URL_MAX_SIZE, INSTALL_URL_TIMEOUT } from "@shared/defaults/plugin-api";
 import { pluginRegistry } from "@main/plugins/registry";
 import { resolveUrl } from "@main/plugins/router";
@@ -115,6 +115,13 @@ export const registerPluginIpc = (): void => {
   ipcMain.handle("plugin:resolveUrl", async (_evt, args) => {
     return resolveUrl(args);
   });
+
+  ipcMain.handle(
+    "plugin:invokeUiCommand",
+    async (_evt, pluginId: string, commandId: string, context: PluginUiCommandContext) => {
+      return pluginRegistry.invokeUiCommand(pluginId, commandId, context);
+    },
+  );
 
   // 状态变化广播
   pluginRegistry.on("status", (info: PluginInfo) => {

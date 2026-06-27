@@ -4,6 +4,7 @@
  */
 
 import type { LyricLine } from "./lyrics";
+import type { TrackSource } from "./player";
 
 /**
  * 支持的插件动作
@@ -35,16 +36,21 @@ export type PluginType = (typeof PLUGIN_TYPES)[number];
 /** 控制类插件可订阅的高层播放事件 */
 export type PlaybackEventKind = "trackChange" | "lyricChange" | "lineChange" | "playStateChange";
 
+/** 插件可见的当前歌曲安全快照 */
+export interface PluginSafeTrack {
+  id: string;
+  source: TrackSource;
+  title: string;
+  artists: string;
+  album?: string;
+  duration: number;
+  cover?: string;
+}
+
 /** 各高层事件的载荷 */
 export interface PlaybackEventData {
   trackChange: {
-    track: {
-      title: string;
-      artists: string;
-      album?: string;
-      duration: number;
-      cover?: string;
-    } | null;
+    track: PluginSafeTrack | null;
   };
   /** 歌词数据 */
   lyricChange: { lines: LyricLine[] };
@@ -74,12 +80,59 @@ export interface PluginSettingItem {
   options?: { label: string; value: string }[];
 }
 
+/** 播放栏按钮可用图标 */
+export type PluginPlayerBarButtonIcon =
+  | "send"
+  | "upload"
+  | "radio"
+  | "external-link"
+  | "bookmark"
+  | "heart";
+
+/** 播放栏按钮挂载位置 */
+export type PluginPlayerBarButtonPlacement = "track-actions";
+
+/** 控制类插件声明的播放栏按钮 */
+export interface PluginPlayerBarButton {
+  id: string;
+  label: string;
+  tooltip?: string;
+  icon: PluginPlayerBarButtonIcon;
+  placement?: PluginPlayerBarButtonPlacement;
+}
+
+/** 控制类插件声明的 UI 扩展 */
+export interface PluginUiContribution {
+  playerBarButtons?: PluginPlayerBarButton[];
+}
+
+/** UI 命令处理器收到的上下文 */
+export interface PluginUiCommandContext {
+  track: PluginSafeTrack | null;
+}
+
+/** UI 命令处理器可返回的结果 */
+export interface PluginUiCommandResult {
+  message?: string;
+}
+
+/** 控制类插件可用的声明式 UI 命令 API */
+export interface PluginUiApi {
+  onCommand(
+    commandId: string,
+    handler: (
+      context: PluginUiCommandContext,
+    ) => PluginUiCommandResult | void | Promise<PluginUiCommandResult | void>,
+  ): void;
+}
+
 /** register 入参：音源类用 sources，控制类用 events/controls/settings */
 export interface RegisterArgs {
   sources?: Record<string, SourceCapability>;
   events?: PlaybackEventKind[];
   controls?: boolean;
   settings?: PluginSettingItem[];
+  ui?: PluginUiContribution;
 }
 
 /** 控制类插件可用的播放面 */
@@ -143,6 +196,7 @@ export type PluginStatus =
       events?: PlaybackEventKind[];
       controls?: boolean;
       settings?: PluginSettingItem[];
+      ui?: PluginUiContribution;
     }
   | { state: "error"; error: { code: string; message: string } }
   | { state: "disabled" };
@@ -168,6 +222,8 @@ export interface PluginInfo {
   updateInfo?: PluginUpdateInfo | null;
   /** 控制类插件的当前设置值 */
   settingsValues?: Record<string, unknown>;
+  /** 控制类插件声明的 UI 扩展 */
+  ui?: PluginUiContribution;
 }
 
 /* ========== 调用请求 / 响应 ========== */
@@ -256,6 +312,9 @@ export interface HostApi {
   /** 控制类播放面：监听高层事件 + 反向控制 */
   player: PluginPlayerApi;
 
+  /** 控制类声明式 UI 命令 */
+  ui: PluginUiApi;
+
   /** 控制类设置变更回调：用户改设置后触发 */
   onSettingChange: (key: string, handler: (value: unknown) => void) => void;
 }
@@ -297,7 +356,8 @@ export type SandboxIn =
     }
   | { kind: "ping" }
   | { kind: "event"; event: PlaybackEventKind; data: unknown }
-  | { kind: "settingsUpdate"; settings: Record<string, unknown> };
+  | { kind: "settingsUpdate"; settings: Record<string, unknown> }
+  | { kind: "uiCommand"; requestId: string; commandId: string; context: PluginUiCommandContext };
 
 /** worker → 主 */
 export type SandboxOut =
@@ -307,6 +367,13 @@ export type SandboxOut =
       requestId: string;
       ok: boolean;
       data?: unknown;
+      error?: PluginErrorPayload;
+    }
+  | {
+      kind: "uiCommandResult";
+      requestId: string;
+      ok: boolean;
+      data?: PluginUiCommandResult;
       error?: PluginErrorPayload;
     }
   | { kind: "hostCall"; callId: string; method: HostCallMethod; args: unknown[] }
@@ -326,7 +393,9 @@ export type SandboxOut =
       events: PlaybackEventKind[];
       controls: boolean;
       settings: PluginSettingItem[];
-    };
+    }
+  /** UI 扩展增量上报 */
+  | { kind: "uiRegistered"; ui: PluginUiContribution };
 
 /** worker 调用回宿主的方法名 */
 export type HostCallMethod =
@@ -380,6 +449,12 @@ export interface PluginsApi {
   setSetting: (id: string, key: string, value: unknown) => Promise<void>;
   /** 获取播放 URL */
   resolveUrl: (args: PluginResolveUrlArgs) => Promise<MusicUrlRes>;
+  /** 触发控制类插件声明的 UI 命令 */
+  invokeUiCommand: (
+    pluginId: string,
+    commandId: string,
+    context: PluginUiCommandContext,
+  ) => Promise<PluginUiCommandResult>;
   /** 订阅插件状态变化 */
   onStatus: (cb: (info: PluginInfo) => void) => () => void;
 }

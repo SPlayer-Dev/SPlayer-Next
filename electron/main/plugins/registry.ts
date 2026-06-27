@@ -16,11 +16,20 @@ import type {
   PluginAction,
   PluginInfo,
   PluginManifest,
+  PluginPlayerBarButton,
   PluginSettingItem,
   PluginStatus,
+  PluginUiCommandContext,
+  PluginUiCommandResult,
+  PluginUiContribution,
+  PluginSafeTrack,
   PluginUpdateInfo,
 } from "@shared/types/plugin";
-import { PluginErrorCodes, RESTART_MAX_ATTEMPTS } from "@shared/defaults/plugin-api";
+import {
+  PluginErrorCodes,
+  RESTART_MAX_ATTEMPTS,
+  UI_COMMAND_TIMEOUT,
+} from "@shared/defaults/plugin-api";
 import { store } from "@main/store";
 import { getLocale } from "@main/utils/i18n";
 import { coreLog } from "@main/utils/logger";
@@ -75,6 +84,8 @@ interface PluginRuntime {
   controls: boolean;
   /** 控制类：声明的用户配置项 */
   settings: PluginSettingItem[];
+  /** 控制类：声明式 UI 扩展 */
+  ui: PluginUiContribution;
   /** router 注册的 pending 调用 */
   pending: Map<
     string,
@@ -87,6 +98,76 @@ interface PluginRuntime {
   /** 崩溃后的重启定时器句柄；stop 时必须清除，否则卸载/替换后插件会被复活成孤儿 worker */
   restartTimer: NodeJS.Timeout | null;
 }
+
+const UI_BUTTON_ICONS = new Set(["send", "upload", "radio", "external-link", "bookmark", "heart"]);
+const UI_BUTTON_ID_RE = /^[A-Za-z0-9_.:-]{1,64}$/;
+const UI_TRACK_SOURCES = new Set(["local", "streaming", "netease", "qqmusic", "kugou"]);
+
+/** 过滤控制类插件声明的 UI 扩展，避免把任意结构暴露到渲染层 */
+const sanitizeUiContribution = (
+  pluginId: string,
+  manifest: PluginManifest,
+  ui: PluginUiContribution | undefined,
+): PluginUiContribution => {
+  if (!ui || manifest.type !== "control") return {};
+  if (manifest.apiLevel < 3) {
+    coreLog.warn(`[plugin:${pluginId}] ui contribution requires apiLevel 3`);
+    return {};
+  }
+  const buttons = Array.isArray(ui.playerBarButtons) ? ui.playerBarButtons : [];
+  const playerBarButtons: PluginPlayerBarButton[] = [];
+  for (const raw of buttons) {
+    if (playerBarButtons.length >= 4) break;
+    const button = raw as Partial<PluginPlayerBarButton>;
+    const id = typeof button.id === "string" ? button.id.trim() : "";
+    const label = typeof button.label === "string" ? button.label.trim() : "";
+    const tooltip = typeof button.tooltip === "string" ? button.tooltip.trim() : undefined;
+    const icon = button.icon;
+    const placement = button.placement ?? "track-actions";
+    const valid =
+      UI_BUTTON_ID_RE.test(id) &&
+      label.length >= 1 &&
+      label.length <= 24 &&
+      (!tooltip || tooltip.length <= 80) &&
+      typeof icon === "string" &&
+      UI_BUTTON_ICONS.has(icon) &&
+      placement === "track-actions";
+    if (!valid) {
+      coreLog.warn(`[plugin:${pluginId}] invalid player bar button ignored`, raw);
+      continue;
+    }
+    playerBarButtons.push({ id, label, tooltip, icon, placement });
+  }
+  return playerBarButtons.length > 0 ? { playerBarButtons } : {};
+};
+
+/** UI 命令上下文跨 IPC 后再过滤一次，防止调试调用携带额外字段进入插件 */
+const sanitizeUiCommandContext = (context: PluginUiCommandContext): PluginUiCommandContext => {
+  const rawTrack = context?.track as Partial<PluginSafeTrack> | null | undefined;
+  if (!rawTrack) return { track: null };
+  const source = rawTrack.source;
+  if (
+    typeof rawTrack.id !== "string" ||
+    typeof source !== "string" ||
+    !UI_TRACK_SOURCES.has(source) ||
+    typeof rawTrack.title !== "string" ||
+    typeof rawTrack.artists !== "string" ||
+    typeof rawTrack.duration !== "number"
+  ) {
+    return { track: null };
+  }
+  return {
+    track: {
+      id: rawTrack.id,
+      source: source as PluginSafeTrack["source"],
+      title: rawTrack.title,
+      artists: rawTrack.artists,
+      album: typeof rawTrack.album === "string" ? rawTrack.album : undefined,
+      duration: rawTrack.duration,
+      cover: typeof rawTrack.cover === "string" ? rawTrack.cover : undefined,
+    },
+  };
+};
 
 /** 按 schema 校验/强转设置值 */
 const sanitizeSettingValue = (item: PluginSettingItem, value: unknown): unknown => {
@@ -144,6 +225,7 @@ class PluginRegistry extends EventEmitter {
         events: [],
         controls: false,
         settings: [],
+        ui: {},
         pending: new Map(),
         restartTimer: null,
       });
@@ -165,6 +247,7 @@ class PluginRegistry extends EventEmitter {
       settingsValues:
         (store.get(`plugins.perPlugin.${rt.manifest.id}` as never) as Record<string, unknown>) ??
         {},
+      ui: rt.ui,
     }));
   }
 
@@ -246,12 +329,19 @@ class PluginRegistry extends EventEmitter {
       events: [],
       controls: false,
       settings: [],
+      ui: {},
       pending: new Map(),
       restartTimer: null,
     };
     this.runtimes.set(manifest.id, rt);
     await this.start(rt).catch(() => {});
-    return { manifest, enabled: rt.enabled, status: rt.status, updateInfo: rt.updateInfo };
+    return {
+      manifest,
+      enabled: rt.enabled,
+      status: rt.status,
+      updateInfo: rt.updateInfo,
+      ui: rt.ui,
+    };
   }
 
   async uninstall(id: string): Promise<void> {
@@ -335,6 +425,7 @@ class PluginRegistry extends EventEmitter {
             events: rt.events,
             controls: rt.controls,
             settings: rt.settings,
+            ui: rt.ui,
           });
           this.maybePrimeControl(rt);
         },
@@ -375,11 +466,37 @@ class PluginRegistry extends EventEmitter {
           rt.settings = settings;
           // ready 状态由此建立；"无→有"的 controlActivityChange 由 setStatus 内集中发出
           if (rt.status.state === "ready") {
-            this.setStatus(rt, { ...rt.status, events, controls, settings });
+            this.setStatus(rt, { ...rt.status, events, controls, settings, ui: rt.ui });
           } else {
-            this.setStatus(rt, { state: "ready", sources: {}, events, controls, settings });
+            this.setStatus(rt, {
+              state: "ready",
+              sources: {},
+              events,
+              controls,
+              settings,
+              ui: rt.ui,
+            });
           }
           this.maybePrimeControl(rt);
+        },
+        onUiRegistered: (ui) => {
+          rt.ui = sanitizeUiContribution(rt.manifest.id, rt.manifest, ui);
+          if (rt.status.state === "ready") {
+            this.setStatus(rt, { ...rt.status, ui: rt.ui });
+          }
+        },
+        onUiCommandResult: (requestId, ok, data, error) => {
+          const p = rt.pending.get(requestId);
+          if (!p) return;
+          rt.pending.delete(requestId);
+          clearTimeout(p.timer);
+          if (ok) p.resolve(data ?? {});
+          else {
+            const err = new Error(error?.message ?? "ui command failed");
+
+            (err as any).code = error?.code ?? PluginErrorCodes.UNKNOWN;
+            p.reject(err);
+          }
         },
         onFatal: (error) => {
           if (rt.sandbox !== sandbox) return; // 过期实例，忽略
@@ -463,6 +580,7 @@ class PluginRegistry extends EventEmitter {
       settingsValues:
         (store.get(`plugins.perPlugin.${rt.manifest.id}` as never) as Record<string, unknown>) ??
         {},
+      ui: rt.ui,
     } satisfies PluginInfo);
     this.notifyControlActivity(before);
   }
@@ -549,6 +667,59 @@ class PluginRegistry extends EventEmitter {
     };
     store.set(`plugins.perPlugin.${id}` as never, all);
     if (rt.sandbox?.isAlive()) rt.sandbox.sendSettingsUpdate({ [key]: sanitized });
+  }
+
+  /**
+   * 调用控制类插件声明的 UI 命令。
+   * @param pluginId - 插件 ID
+   * @param commandId - 按钮命令 ID
+   * @param context - 渲染端传入的安全上下文
+   * @returns 插件命令返回值
+   */
+  invokeUiCommand(
+    pluginId: string,
+    commandId: string,
+    context: PluginUiCommandContext,
+  ): Promise<PluginUiCommandResult> {
+    const rt = this.runtimes.get(pluginId);
+    if (!rt) {
+      throw Object.assign(new Error(`plugin ${pluginId} not found`), {
+        code: PluginErrorCodes.NOT_FOUND,
+      });
+    }
+    if (!rt.enabled) {
+      throw Object.assign(new Error(`plugin ${pluginId} disabled`), {
+        code: PluginErrorCodes.DISABLED,
+      });
+    }
+    if (rt.manifest.type !== "control" || rt.status.state !== "ready" || !rt.sandbox?.isAlive()) {
+      throw Object.assign(new Error(`plugin ${pluginId} not ready`), {
+        code: PluginErrorCodes.NOT_READY,
+      });
+    }
+    const declared = rt.ui.playerBarButtons?.some((button) => button.id === commandId);
+    if (!declared) {
+      throw Object.assign(new Error(`ui command "${commandId}" not declared`), {
+        code: PluginErrorCodes.ACTION_UNSUPPORTED,
+      });
+    }
+    const requestId = `ui-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    return new Promise<PluginUiCommandResult>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        rt.pending.delete(requestId);
+        reject(
+          Object.assign(new Error(`plugin ${pluginId} ui command timeout`), {
+            code: PluginErrorCodes.REQUEST_TIMEOUT,
+          }),
+        );
+      }, UI_COMMAND_TIMEOUT);
+      rt.pending.set(requestId, {
+        resolve: (data) => resolve((data ?? {}) as PluginUiCommandResult),
+        reject,
+        timer,
+      });
+      rt.sandbox!.sendUiCommand(requestId, commandId, sanitizeUiCommandContext(context));
+    });
   }
 
   /** 应用退出前调用 */

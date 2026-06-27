@@ -1,7 +1,11 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
 import type { TaskbarLyricSettings } from "@shared/types/settings";
-import type { PluginInfo, PluginResolveUrlArgs } from "@shared/types/plugin";
+import type {
+  PluginInfo,
+  PluginResolveUrlArgs,
+  PluginUiCommandContext,
+} from "@shared/types/plugin";
 import type { HotkeyActionId, HotkeyBinding, HotkeyConflict } from "@shared/types/hotkey";
 import type { LoadOptions, TrackSource } from "@shared/types/player";
 import type { StreamingServerConfig } from "@shared/types/streaming";
@@ -303,6 +307,9 @@ const api = {
       ipcRenderer.invoke("plugin:setSetting", id, key, value),
     // 解析播放 URL
     resolveUrl: (args: PluginResolveUrlArgs) => ipcRenderer.invoke("plugin:resolveUrl", args),
+    // 触发控制类插件声明的 UI 命令
+    invokeUiCommand: (pluginId: string, commandId: string, context: PluginUiCommandContext) =>
+      ipcRenderer.invoke("plugin:invokeUiCommand", pluginId, commandId, context),
     // 订阅插件状态变化
     onStatus: (callback: (info: PluginInfo) => void) =>
       subscribe<PluginInfo>("plugin:status", callback),

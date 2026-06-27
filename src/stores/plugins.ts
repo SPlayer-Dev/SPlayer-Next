@@ -1,4 +1,14 @@
-import type { PluginInfo } from "@shared/types/plugin";
+import type {
+  PluginInfo,
+  PluginPlayerBarButton,
+  PluginUiCommandContext,
+  PluginUiCommandResult,
+} from "@shared/types/plugin";
+
+export type PluginPlayerBarButtonEntry = PluginPlayerBarButton & {
+  pluginId: string;
+  pluginName: string;
+};
 
 /** 插件管理 Pinia store */
 export const usePluginsStore = defineStore("plugins", () => {
@@ -14,6 +24,19 @@ export const usePluginsStore = defineStore("plugins", () => {
   /** manifest.type === "control" 的插件（控制类） */
   const controlPlugins = computed(() =>
     list.value.filter((info) => info.manifest.type === "control"),
+  );
+
+  /** 当前可渲染到播放栏的插件按钮 */
+  const playerBarButtons = computed<PluginPlayerBarButtonEntry[]>(() =>
+    controlPlugins.value.flatMap((info) => {
+      if (!info.enabled || info.status.state !== "ready") return [];
+      const buttons = info.status.ui?.playerBarButtons ?? info.ui?.playerBarButtons ?? [];
+      return buttons.map((button) => ({
+        ...button,
+        pluginId: info.manifest.id,
+        pluginName: info.manifest.name,
+      }));
+    }),
   );
 
   /** 拉取列表并建立状态订阅 */
@@ -105,6 +128,13 @@ export const usePluginsStore = defineStore("plugins", () => {
     await window.api.plugins.setSetting(id, key, value);
   };
 
+  const invokeUiCommand = (
+    pluginId: string,
+    commandId: string,
+    context: PluginUiCommandContext,
+  ): Promise<PluginUiCommandResult> =>
+    window.api.plugins.invokeUiCommand(pluginId, commandId, context);
+
   const dispose = (): void => {
     unsubscribe?.();
     unsubscribe = null;
@@ -115,12 +145,14 @@ export const usePluginsStore = defineStore("plugins", () => {
     loaded,
     sourcePlugins,
     controlPlugins,
+    playerBarButtons,
     load,
     pickAndInstall,
     installFromUrl,
     uninstall,
     setEnabled,
     setSetting,
+    invokeUiCommand,
     dispose,
   };
 });

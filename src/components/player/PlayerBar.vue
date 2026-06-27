@@ -2,21 +2,32 @@
 import { useStatusStore } from "@/stores/status";
 import { useSettingsStore } from "@/stores/settings";
 import { useMediaStore } from "@/stores/media";
+import { usePluginsStore } from "@/stores/plugins";
 import { useFavorite } from "@/composables/useFavorite";
 import { usePlaylistPicker } from "@/composables/usePlaylistPicker";
 import { useTrackMenu } from "@/composables/useTrackMenu";
 import { useDownload } from "@/composables/useDownload";
+import { toast } from "@/composables/useToast";
 import * as player from "@/core/player";
 import { formatTime } from "@/utils/time";
+import type { PluginPlayerBarButtonIcon, PluginSafeTrack } from "@shared/types/plugin";
 import IconFavorite from "~icons/material-symbols/favorite-rounded";
 import IconFavoriteOutline from "~icons/material-symbols/favorite-outline-rounded";
 import IconLucideMoreHorizontal from "~icons/lucide/more-horizontal";
+import IconLucideBookmark from "~icons/lucide/bookmark";
+import IconLucideExternalLink from "~icons/lucide/external-link";
+import IconLucideHeart from "~icons/lucide/heart";
+import IconLucideRadio from "~icons/lucide/radio";
+import IconLucideSend from "~icons/lucide/send";
+import IconLucideUpload from "~icons/lucide/upload";
 
 const status = useStatusStore();
 const settings = useSettingsStore();
 const media = useMediaStore();
+const plugins = usePluginsStore();
 const fav = useFavorite();
 const { position, duration } = storeToRefs(status);
+const { playerBarButtons } = storeToRefs(plugins);
 
 /** 是否是浮动模式 */
 const isFloating = computed(() => settings.appearance.layoutMode === "floating");
@@ -40,6 +51,52 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
   onAddToPlaylist: (track) => openPicker([track]),
   onDownload: (track, quality) => void enqueueDownload(track, { quality }),
 });
+
+const pluginIconMap = {
+  send: IconLucideSend,
+  upload: IconLucideUpload,
+  radio: IconLucideRadio,
+  "external-link": IconLucideExternalLink,
+  bookmark: IconLucideBookmark,
+  heart: IconLucideHeart,
+} satisfies Record<PluginPlayerBarButtonIcon, Component>;
+
+const commandLoading = ref(new Set<string>());
+
+const safeTrack = computed<PluginSafeTrack | null>(() => {
+  const track = media.track;
+  if (!track) return null;
+  return {
+    id: track.id,
+    source: track.source,
+    title: track.title,
+    artists: track.artists.map((artist) => artist.name).join(", "),
+    album: track.album?.name,
+    duration: track.duration,
+    cover: track.cover,
+  };
+});
+
+const commandKey = (pluginId: string, commandId: string): string => `${pluginId}:${commandId}`;
+
+const isCommandLoading = (pluginId: string, commandId: string): boolean =>
+  commandLoading.value.has(commandKey(pluginId, commandId));
+
+const invokePluginButton = async (pluginId: string, commandId: string): Promise<void> => {
+  const key = commandKey(pluginId, commandId);
+  if (commandLoading.value.has(key)) return;
+  commandLoading.value = new Set(commandLoading.value).add(key);
+  try {
+    const result = await plugins.invokeUiCommand(pluginId, commandId, { track: safeTrack.value });
+    toast.success(result.message || "已完成");
+  } catch (err) {
+    toast.error(err instanceof Error && err.message ? err.message : "插件命令执行失败");
+  } finally {
+    const next = new Set(commandLoading.value);
+    next.delete(key);
+    commandLoading.value = next;
+  }
+};
 </script>
 
 <template>
@@ -65,6 +122,24 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
                     <template #on><IconFavorite /></template>
                     <template #off><IconFavoriteOutline /></template>
                   </SIconSwap>
+                </template>
+              </SButton>
+              <SButton
+                v-for="button in playerBarButtons"
+                :key="`${button.pluginId}:${button.id}`"
+                class="-my-1"
+                type="primary"
+                variant="text"
+                circle
+                :size="24"
+                :icon-size="16"
+                :title="button.tooltip || button.label"
+                :disabled="!safeTrack"
+                :loading="isCommandLoading(button.pluginId, button.id)"
+                @click="invokePluginButton(button.pluginId, button.id)"
+              >
+                <template #icon>
+                  <component :is="pluginIconMap[button.icon]" />
                 </template>
               </SButton>
               <SDropdownMenu
@@ -145,6 +220,24 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
                   <template #on><IconFavorite /></template>
                   <template #off><IconFavoriteOutline /></template>
                 </SIconSwap>
+              </template>
+            </SButton>
+            <SButton
+              v-for="button in playerBarButtons"
+              :key="`${button.pluginId}:${button.id}`"
+              class="-my-1"
+              type="primary"
+              variant="text"
+              circle
+              :size="28"
+              :icon-size="18"
+              :title="button.tooltip || button.label"
+              :disabled="!safeTrack"
+              :loading="isCommandLoading(button.pluginId, button.id)"
+              @click="invokePluginButton(button.pluginId, button.id)"
+            >
+              <template #icon>
+                <component :is="pluginIconMap[button.icon]" />
               </template>
             </SButton>
             <SDropdownMenu

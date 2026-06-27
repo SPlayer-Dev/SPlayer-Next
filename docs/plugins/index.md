@@ -47,7 +47,7 @@ SPlayer-Next 内置一套插件系统，允许用第三方 JavaScript 扩展应�
 
 **音源插件是「被调用方」**：当播放器需要某首歌的播放地址时，会选中一个已就绪、支持该音源的插件，调用你注册的 `musicUrl` 处理器，由你返回真实地址。
 
-**控制插件是「被通知方」**：当播放状态（曲目、歌词、播放态）变化时，宿主把变化推送到你注册的事件回调；你也可以反过来调用 `splayer.player.*` 控制播放器。
+**控制插件是「被通知方」**：当播放状态（曲目、歌词、播放态）变化时，宿主把变化推送到你注册的事件回调；你也可以反过来调用 `splayer.player.*` 控制播放器。若声明 `apiLevel 3`，还可以注册播放栏按钮，让宿主在点击时把当前歌曲安全快照交给你的命令处理器。
 
 ### 生命周期与状态
 
@@ -83,20 +83,20 @@ SPlayer-Next 内置一套插件系统，允许用第三方 JavaScript 扩展应�
  * @author      you
  * @homepage    https://example.com
  * @type        source
- * @apiLevel    2
+ * @apiLevel    3
  */
 ```
 
-| 字段           | 必填 | 说明                                                                 |
-| -------------- | ---- | -------------------------------------------------------------------- |
-| `@name`        | ✅   | 插件展示名（最长 24 字符）                                           |
-| `@version`     | ✅   | 版本号                                                               |
-| `@description` |      | 简介                                                                 |
-| `@author`      |      | 作者                                                                 |
-| `@homepage`    |      | 主页 URL                                                             |
-| `@type`        |      | `source`（默认）或 `control`，决定插件类型                           |
-| `@platform`    |      | `splayer`（默认）或 `lx`；`gz_` 压缩脚本默认按 `lx` 处理             |
-| `@apiLevel`    |      | 声明兼容的 [API 级别](#api-级别)，当前宿主为 `2`；控制插件需声明 `2` |
+| 字段           | 必填 | 说明                                                                                       |
+| -------------- | ---- | ------------------------------------------------------------------------------------------ |
+| `@name`        | ✅   | 插件展示名（最长 24 字符）                                                                 |
+| `@version`     | ✅   | 版本号                                                                                     |
+| `@description` |      | 简介                                                                                       |
+| `@author`      |      | 作者                                                                                       |
+| `@homepage`    |      | 主页 URL                                                                                   |
+| `@type`        |      | `source`（默认）或 `control`，决定插件类型                                                 |
+| `@platform`    |      | `splayer`（默认）或 `lx`；`gz_` 压缩脚本默认按 `lx` 处理                                   |
+| `@apiLevel`    |      | 声明兼容的 [API 级别](#api-级别)，当前宿主为 `3`；控制插件需声明 `2`，播放栏按钮需声明 `3` |
 
 ::: warning
 缺少 `@name` 或 `@version` 会导致导入失败。插件 ID 由宿主依据「名称 + 源码哈希」自动生成，**无需也无法手动指定**——同一份脚本的 ID 始终一致，改动脚本会生成新 ID。
@@ -110,12 +110,14 @@ SPlayer-Next 内置一套插件系统，允许用第三方 JavaScript 扩展应�
 | ---- | ---------------------------------------------------------------------------------------------------------------------------- |
 | `1`  | 音源能力：`register({ sources })`、`musicUrl` 处理器，以及通用 API（`request` / `storage` / `log` / `getSetting` / `utils`） |
 | `2`  | 控制能力：`register({ events, controls, settings })`、`splayer.player` 事件订阅与反向控制、`onSettingChange`                 |
+| `3`  | 声明式 UI 命令：控制插件可注册播放栏按钮，并通过 `splayer.ui.onCommand()` 接收当前歌曲安全快照                               |
 
-当前宿主级别为 **2**。规则：
+当前宿主级别为 **3**。规则：
 
 - 声明值**必须 ≤ 当前宿主级别**，否则拒绝加载并报 `PLUGIN_API_LEVEL_MISMATCH`（需等应用升级）；
-- 声明你实际用到的**最低**级别即可——只做音源写 `1`，用到任何控制能力写 `2`；
-- 控制插件（`@type control`）必须声明 `2`，否则控制能力在运行时不可用。
+- 声明你实际用到的**最低**级别即可——只做音源写 `1`，用到控制能力写 `2`，用到播放栏按钮写 `3`；
+- 控制插件（`@type control`）必须声明 `2`，声明播放栏按钮时必须声明 `3`，否则对应能力不可用。
+- 播放栏按钮只对控制插件开放，音源插件不会获得该能力。
 
 ::: tip
 后续版本若新增插件能力，会提升宿主级别并在上表追加一行。你的插件声明的级别不变即可继续运行（向后兼容），用到新能力时再相应提高 `@apiLevel`。
@@ -216,6 +218,29 @@ console.log(resp.status, resp.body);
 | `utils.base64` | `encode` / `decode`                                                                             |
 | `utils.zlib`   | `inflate` / `deflate` / `gunzip` / `gzip`                                                       |
 
+### `splayer.ui`
+
+仅 `apiLevel 3` 控制插件可用。用于注册播放栏按钮的命令处理器。
+
+| 方法 | 说明 |
+| ---- | ---- |
+| `onCommand(commandId, handler)` | 注册一个按钮命令处理器。`handler` 接收 `{ track }` 安全快照，可返回 `{ message }` 作为成功提示。 |
+
+按钮由宿主统一渲染在播放栏里，插件只负责：
+
+- 声明按钮的 `id`、`label`、`icon` 和 `tooltip`
+- 在 `onCommand()` 里处理点击事件
+- 通过返回值告诉宿主是否要展示提示文案
+
+宿主会在命令执行期间显示加载态；无当前歌曲时按钮自动禁用；命令失败时显示错误提示。
+
+```js
+splayer.ui.onCommand("submit", async ({ track }) => {
+  if (!track) throw new Error("当前没有歌曲");
+  return { message: "已处理" };
+});
+```
+
 ## 资源约束与安全
 
 | 约束         | 值    | 说明                                     |
@@ -279,6 +304,17 @@ await window.api.plugins.resolveUrl({
 
 // 修改某控制类插件的设置（会实时下发到插件）
 await window.api.plugins.setSetting("my-plugin-xxxxxxxx", "someKey", true);
+
+// 触发一次播放栏 UI 命令（调试 apiLevel 3 控制插件）
+await window.api.plugins.invokeUiCommand("my-plugin-xxxxxxxx", "submit", {
+  track: {
+    id: "123",
+    source: "netease",
+    title: "Song",
+    artists: "Artist",
+    duration: 180000,
+  },
+});
 ```
 
 插件内的 `console.*` / `splayer.log.*` 输出会汇入应用主日志（`{userData}/app-data/logs/`）。修改脚本后重新导入一次即可，旧版本会被自动替换。

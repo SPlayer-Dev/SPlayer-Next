@@ -18,6 +18,9 @@ import type {
   PluginErrorPayload,
   PluginManifest,
   PluginSettingItem,
+  PluginUiCommandContext,
+  PluginUiCommandResult,
+  PluginUiContribution,
   PluginUpdateInfo,
   SandboxIn,
   SandboxOut,
@@ -33,6 +36,12 @@ import {
 export interface SandboxEvents {
   onReady: (sources: Record<string, SourceCapability>) => void;
   onResult: (requestId: string, ok: boolean, data?: unknown, error?: PluginErrorPayload) => void;
+  onUiCommandResult: (
+    requestId: string,
+    ok: boolean,
+    data?: PluginUiCommandResult,
+    error?: PluginErrorPayload,
+  ) => void;
   onHostCall: (callId: string, method: HostCallMethod, args: unknown[]) => void;
   onLog: (level: "debug" | "info" | "warn" | "error", args: unknown[]) => void;
   onFatal: (error: PluginErrorPayload) => void;
@@ -46,6 +55,8 @@ export interface SandboxEvents {
     controls: boolean,
     settings: PluginSettingItem[],
   ) => void;
+  /** 控制类 UI 扩展注册上报 */
+  onUiRegistered?: (ui: PluginUiContribution) => void;
   /** 子进程退出（可能是崩溃或主动 kill）。isCrash=true 表示非主动 kill */
   onExit: (isCrash: boolean, code: number | null) => void;
 }
@@ -204,6 +215,18 @@ export class Sandbox {
     this.post({ kind: "cancel", requestId });
   }
 
+  /** 把播放栏 UI 命令下发到沙箱 */
+  sendUiCommand(requestId: string, commandId: string, context: PluginUiCommandContext): void {
+    if (!this.child || !this.ready) {
+      this.events.onUiCommandResult(requestId, false, undefined, {
+        code: PluginErrorCodes.NOT_READY,
+        message: "plugin is not ready",
+      });
+      return;
+    }
+    this.post({ kind: "uiCommand", requestId, commandId, context });
+  }
+
   sendHostResult(callId: string, ok: boolean, data?: unknown, error?: PluginErrorPayload): void {
     this.post({ kind: "hostResult", callId, ok, data, error });
   }
@@ -276,6 +299,9 @@ export class Sandbox {
       case "result":
         this.events.onResult(msg.requestId, msg.ok, msg.data, msg.error);
         return;
+      case "uiCommandResult":
+        this.events.onUiCommandResult(msg.requestId, msg.ok, msg.data, msg.error);
+        return;
       case "hostCall":
         this.events.onHostCall(msg.callId, msg.method, msg.args);
         return;
@@ -287,6 +313,9 @@ export class Sandbox {
         return;
       case "registered":
         this.events.onRegistered?.(msg.events, msg.controls, msg.settings);
+        return;
+      case "uiRegistered":
+        this.events.onUiRegistered?.(msg.ui);
         return;
       case "log":
         this.events.onLog(msg.level, msg.args);

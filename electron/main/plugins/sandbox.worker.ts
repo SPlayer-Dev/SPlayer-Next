@@ -22,6 +22,8 @@ import type {
   HostRequestResult,
   PluginAction,
   PluginErrorPayload,
+  PluginUiCommandContext,
+  PluginUiCommandResult,
   RegisterArgs,
   SandboxIn,
   SandboxOut,
@@ -110,6 +112,14 @@ const playerEventHandlers = new Map<string, ((data: unknown) => void)[]>();
 /** 控制类：设置变化回调表，key = setting key */
 const settingChangeHandlers = new Map<string, ((value: unknown) => void)[]>();
 
+/** 控制类：声明式 UI 命令处理器，key = commandId */
+const uiCommandHandlers = new Map<
+  string,
+  (
+    context: PluginUiCommandContext,
+  ) => PluginUiCommandResult | void | Promise<PluginUiCommandResult | void>
+>();
+
 /** 已注册的 sources（等 script 执行完后随 ready 消息上报） */
 let registeredSources: Record<string, SourceCapability> = {};
 
@@ -183,6 +193,9 @@ const buildSplayer = (init: Extract<SandboxIn, { kind: "init" }>): HostApi => ({
         settings: Array.isArray(args.settings) ? args.settings : [],
       });
     }
+    if (args.ui) {
+      send({ kind: "uiRegistered", ui: args.ui });
+    }
   },
 
   on: <A extends PluginAction>(
@@ -229,6 +242,12 @@ const buildSplayer = (init: Extract<SandboxIn, { kind: "init" }>): HostApi => ({
     setVolume: (volume: number) => void hostCall("player.setVolume", [volume]).catch(() => {}),
     // 偶发查询用；持续进度请读事件载荷里的 position，勿高频轮询此往返
     getPosition: () => hostCall("player.getPosition", []) as Promise<number>,
+  },
+
+  ui: {
+    onCommand: (commandId, handler) => {
+      uiCommandHandlers.set(commandId, handler);
+    },
   },
 
   onSettingChange: (key: string, handler: (value: unknown) => void) => {
@@ -511,6 +530,42 @@ parentPort.on("message", async (event) => {
             message: err instanceof Error ? err.message : String(err),
           };
           send({ kind: "result", requestId: msg.requestId, ok: false, error: payload });
+        }
+        return;
+      }
+      case "uiCommand": {
+        const handler = uiCommandHandlers.get(msg.commandId);
+        if (!handler) {
+          send({
+            kind: "uiCommandResult",
+            requestId: msg.requestId,
+            ok: false,
+            error: {
+              code: "PLUGIN_ACTION_UNSUPPORTED",
+              message: `ui command "${msg.commandId}" not registered`,
+            },
+          });
+          return;
+        }
+        try {
+          const data = (await handler(msg.context)) ?? {};
+          send({
+            kind: "uiCommandResult",
+            requestId: msg.requestId,
+            ok: true,
+            data: sanitizeForIpc(data) as PluginUiCommandResult,
+          });
+        } catch (err) {
+          const payload: PluginErrorPayload = {
+            code: ((err as any)?.code as string) ?? "PLUGIN_HANDLER_ERROR",
+            message: err instanceof Error ? err.message : String(err),
+          };
+          send({
+            kind: "uiCommandResult",
+            requestId: msg.requestId,
+            ok: false,
+            error: payload,
+          });
         }
         return;
       }
