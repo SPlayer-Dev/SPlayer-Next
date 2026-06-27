@@ -44,6 +44,12 @@ const configureMemoryOptimizations = (): void => {
 const MEMORY_LOG_INTERVAL_MS = 10 * 60 * 1000;
 /** 启动后首次采样延迟，避开启动期波动 */
 const MEMORY_LOG_FIRST_DELAY_MS = 60 * 1000;
+/** 启动后自动更新延迟，避免抢占首屏资源 */
+const UPDATER_INIT_DELAY_MS = 2 * 60 * 1000;
+/** 主窗口完成加载后恢复歌词辅助窗口，避免任务栏嵌入阻塞首屏 */
+const LYRIC_WINDOWS_RESTORE_DELAY_MS = 1000;
+/** 主窗口加载后再初始化系统媒体控制 */
+const MEDIA_INIT_DELAY_MS = 500;
 
 /** 记录各进程内存工作集，用于量化内存表现与防劣化对比 */
 const logProcessMemory = (): void => {
@@ -107,7 +113,11 @@ export const initApp = (): void => {
     // 注册 IPC
     registerIpcHandlers();
     // 创建主窗口
-    createMainWindow();
+    const mainWin = createMainWindow();
+    mainWin.webContents.once("did-finish-load", () => {
+      setTimeout(() => initMedia(), MEDIA_INIT_DELAY_MS);
+      setTimeout(() => restoreLyricWindows(), LYRIC_WINDOWS_RESTORE_DELAY_MS);
+    });
     // 注册 orpheus 协议并处理冷启动唤起
     initOrpheusRegistration();
     const coldOrpheusUrl = extractOrpheusUrl(process.argv);
@@ -118,21 +128,17 @@ export const initApp = (): void => {
     void initSongCache();
     // 启动下载服务
     void initDownload();
-    initMedia();
     // 初始化 Last.fm 集成
     initLastfm();
     // 初始化插件系统
     pluginRegistry.init();
     // 初始化播放事件桥（需在 pluginRegistry.init 之后，读 hasEnabledControlPlugin）
     initPlaybackBridge();
-    // 恢复歌词相关窗口
-    restoreLyricWindows();
     // 注册全局快捷键
     initGlobalHotkey();
     // 启动外部 API 服务
     void startServer();
-    // 初始化自动更新
-    initUpdater();
+    setTimeout(initUpdater, UPDATER_INIT_DELAY_MS);
     // 周期记录各进程内存
     setTimeout(logProcessMemory, MEMORY_LOG_FIRST_DELAY_MS);
     setInterval(logProcessMemory, MEMORY_LOG_INTERVAL_MS);

@@ -9,6 +9,7 @@ import { store } from "@main/store";
 import { handleCacheProtocolOnPartition } from "@main/utils/protocol";
 import { isAppQuitting } from "@main/utils/lifecycle";
 import { broadcast } from "@main/utils/broadcast";
+import { coreLog } from "@main/utils/logger";
 
 /** 主窗口 session */
 const MAIN_PARTITION = "persist:main";
@@ -26,6 +27,7 @@ let mainWindow: BrowserWindow | null = null;
  * 创建主窗口
  */
 export const createMainWindow = (): BrowserWindow => {
+  const createdAt = Date.now();
   const remember = store.get("system.rememberWindowState") ?? true;
   const saved = remember ? store.get("windowStates.main") : undefined;
 
@@ -51,12 +53,19 @@ export const createMainWindow = (): BrowserWindow => {
   // 初始化托盘
   initTray();
 
-  // 自定义任务栏缩略图
-  enableTaskbarThumbnail(mainWindow);
-
   // 缩略图工具栏
   mainWindow.webContents.once("did-finish-load", () => {
+    coreLog.info(`主窗口 did-finish-load，用时 ${Date.now() - createdAt}ms`);
+    enableTaskbarThumbnail(mainWindow!);
     initThumbar(mainWindow!);
+  });
+
+  mainWindow.webContents.once("dom-ready", () => {
+    coreLog.info(`主窗口 dom-ready，用时 ${Date.now() - createdAt}ms`);
+  });
+
+  mainWindow.webContents.once("did-fail-load", (_event, errorCode, errorDescription) => {
+    coreLog.warn(`主窗口加载失败 ${errorCode}: ${errorDescription}`);
   });
 
   // 每次加载完成应用界面缩放

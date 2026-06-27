@@ -4,6 +4,17 @@ import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
 import { useOrpheusProtocol } from "@/composables/useOrpheusProtocol";
 
+const PlayerBar = defineAsyncComponent(() => import("@/components/player/PlayerBar.vue"));
+const FullPlayer = defineAsyncComponent(() => import("@/components/player/FullPlayer/index.vue"));
+const SettingsDialog = defineAsyncComponent(
+  () => import("@/components/settings/SettingsDialog.vue"),
+);
+const UpdateDialog = defineAsyncComponent(() => import("@/components/modals/UpdateDialog.vue"));
+const SPerformanceMonitor = defineAsyncComponent(
+  () => import("@/components/SPerformanceMonitor.vue"),
+);
+const SDialogProvider = defineAsyncComponent(() => import("@/components/ui/SDialogProvider.vue"));
+
 const route = useRoute();
 const status = useStatusStore();
 const settings = useSettingsStore();

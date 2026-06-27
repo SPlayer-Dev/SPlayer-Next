@@ -17,5 +17,6 @@ skills-lock.json
 # Rust build artifacts
 **/target
 native/*/*.node
+native/*/.build-native-cache.json
 # native/*/index.d.ts
 package-lock.json

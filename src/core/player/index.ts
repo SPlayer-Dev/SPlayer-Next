@@ -805,22 +805,31 @@ export const moveInQueue = (fromIndex: number, toIndex: number): void => {
 let unsubscribe: (() => void) | null = null;
 let initialized = false;
 
+const logInitStep = (startedAt: number, step: string): void => {
+  console.info(`[player] init ${step} ${Math.round(performance.now() - startedAt)}ms`);
+};
+
 /** 初始化播放器 */
 export const initPlayer = async (): Promise<void> => {
   if (initialized) return;
   initialized = true;
-  console.log("[player] init");
+  const startedAt = performance.now();
+  console.info("[player] init");
   // 先从主进程同步后端配置，确保 system 设置可用
   const settings = useSettingsStore();
   await settings.syncSystem();
+  logInitStep(startedAt, "settings synced");
   // 流媒体 store 必须在恢复队列前就绪，否则队列里的 streaming track 拿不到 cfg
   await useStreamingStore().init();
+  logInitStep(startedAt, "streaming initialized");
   // 插件 store 同理：在线歌曲 URL 兜底走插件，列表必须在 loadTrack 前就绪
   void usePluginsStore().load();
   await queue.restoreQueue();
+  logInitStep(startedAt, "queue restored");
   const status = useStatusStore();
   // 恢复上次的音量和播放模式到主进程
   await window.api.player.setVolume(status.volume);
+  logInitStep(startedAt, "player backend ready");
   syncPlayMode();
   // 应用渐入渐出配置
   const { fadeEnabled, fadeDuration, loudnessNormalization, equalizer } = settings.system.player;
@@ -835,6 +844,7 @@ export const initPlayer = async (): Promise<void> => {
   }
   // 刷新设备列表并恢复上次选择的输出设备
   await refreshDevices();
+  logInitStep(startedAt, "devices refreshed");
   if (settings.player.outputDevice) {
     await window.api.player.setOutputDevice(settings.player.outputDevice);
   }
@@ -883,6 +893,7 @@ export const initPlayer = async (): Promise<void> => {
   } else {
     status.state = "idle";
   }
+  logInitStep(startedAt, "done");
 };
 
 /** 清理事件订阅 */

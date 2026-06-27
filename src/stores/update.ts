@@ -4,6 +4,9 @@ import i18n from "@/i18n";
 
 const { t } = i18n.global;
 
+/** 启动后自动检查更新延迟，避免抢占首屏加载 */
+const AUTO_CHECK_DELAY_MS = 2 * 60 * 1000;
+
 export const useUpdateStore = defineStore("update", () => {
   /** 当前阶段 */
   const phase = ref<UpdatePhase>("idle");
@@ -56,8 +59,10 @@ export const useUpdateStore = defineStore("update", () => {
   // 订阅主进程推送的更新事件
   const unsubscribe = window.api.update.onEvent(handleEvent);
   onScopeDispose(unsubscribe);
-  // 触发启动检查
-  void window.api.update.check(false);
+  const autoCheckTimer = window.setTimeout(() => {
+    void window.api.update.check(false);
+  }, AUTO_CHECK_DELAY_MS);
+  onScopeDispose(() => window.clearTimeout(autoCheckTimer));
 
   /** 手动检查更新 */
   const checkManually = (): void => {

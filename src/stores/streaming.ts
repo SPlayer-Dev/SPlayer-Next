@@ -52,6 +52,8 @@ export const useStreamingStore = defineStore("streaming", () => {
   const playlists = shallowRef<Playlist[]>([]);
   /** 缓存最后更新时间（ms） */
   const lastFetchedAt = ref(0);
+  /** 是否已加载服务器配置 */
+  const initialized = ref(false);
   /** 是否已从 IndexedDB 完成首次水合 */
   const hydrated = ref(false);
 
@@ -568,14 +570,15 @@ export const useStreamingStore = defineStore("streaming", () => {
   };
 
   const init = async (): Promise<void> => {
-    if (hydrated.value) return;
+    if (initialized.value) return;
+    initialized.value = true;
     const result = await window.api.streaming.loadServers();
     servers.value = result.servers;
     activeServerId.value = result.activeServerId;
     if (activeServerId.value && !servers.value.find((s) => s.id === activeServerId.value)) {
       activeServerId.value = null;
     }
-    await hydrateFromCache();
+    void hydrateFromCache();
     if (activeServerId.value) void connectToServer(activeServerId.value);
   };
 
