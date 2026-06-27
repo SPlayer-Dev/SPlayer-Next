@@ -360,7 +360,7 @@ splayer.player.on("lineChange", ({ index }) => {
 
 ## 播放栏按钮示例
 
-下面示例演示控制插件如何注册一个播放栏按钮，并在点击时接收当前歌曲的安全快照。SPlayer 主体只提供通用按钮和命令能力，不内置具体业务逻辑。
+下面示例演示控制插件如何注册一个播放栏按钮，并在点击时接收当前歌曲的安全快照。这个例子用的是更通用的“稍后听”场景，适合很多同步、收藏、待办类插件。
 
 ```js
 /**
@@ -373,7 +373,7 @@ splayer.player.on("lineChange", ({ index }) => {
 splayer.register({
   events: ["trackChange"],
   ui: {
-    playerBarButtons: [{ id: "submit", label: "操作", icon: "send" }],
+    playerBarButtons: [{ id: "listen-later", label: "稍后听", icon: "bookmark" }],
   },
   settings: [
     { key: "endpoint", type: "text", label: "服务地址", default: "" },
@@ -381,25 +381,26 @@ splayer.register({
   ],
 });
 
-splayer.ui.onCommand("submit", async ({ track }) => {
+splayer.ui.onCommand("listen-later", async ({ track }) => {
   if (!track) throw new Error("当前没有歌曲");
   const endpoint = String(splayer.getSetting("endpoint") || "").replace(/\/$/, "");
   const token = splayer.getSetting("token");
 
-  const res = await splayer.request(`${endpoint}/api/example/action`, {
+  const res = await splayer.request(`${endpoint}/api/open/listen-later`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": String(token || "") },
     body: JSON.stringify({
       title: track.title,
       artists: track.artists,
       cover: track.cover,
-      trackId: track.id,
+      musicPlatform: track.source,
+      musicId: track.id,
     }),
     responseType: "json",
   });
 
   if (res.status < 200 || res.status >= 300) throw new Error("操作失败");
-  return { message: "已完成" };
+  return { message: "已加入稍后听" };
 });
 ```
 
