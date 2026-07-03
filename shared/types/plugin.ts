@@ -9,7 +9,7 @@ import type { Track } from "./player";
 /**
  * 支持的插件动作
  */
-export type PluginAction = "musicUrl" | "menuClick";
+export type PluginAction = "musicUrl" | "menuClick" | "musicSearch" | "musicLyric" | "musicPic";
 
 /**
  * 音质等级
@@ -29,7 +29,7 @@ export type PluginType = (typeof PLUGIN_TYPES)[number];
 
 /** 插件可声明的权限清单 */
 export const PLUGIN_GRANTS = ["network", "control", "ui"] as const;
-/** 插件权限：network 联网 / control 控制播放器 / ui 扩展界面（如菜单项） */
+/** 插件权限：network 联网 / control 控制播放器 / ui 扩展界面 */
 export type PluginGrant = (typeof PLUGIN_GRANTS)[number];
 
 /** 控制类插件可订阅的高层播放事件 */
@@ -225,10 +225,67 @@ export interface MenuClickRes {
   copyText?: string;
 }
 
+/** musicSearch：在某个源里按关键词搜索候选，供 host 做时长门槛匹配 */
+export interface MusicSearchReq {
+  source: string;
+  keyword: string;
+  page?: number;
+  limit?: number;
+}
+/**
+ * 搜索候选
+ * host 用 name/singer/album/durationMs 打分匹配；命中后整条作为 musicInfo 回传给 musicLyric/musicPic，
+ * 故源内 id 等取数据所需字段都挂在这里（含自由扩展字段）
+ */
+export interface MusicSearchCandidate {
+  /** 该源内的歌曲 id（musicLyric/musicPic 凭它取数据） */
+  id: string;
+  name: string;
+  singer?: string;
+  album?: string;
+  /** 时长（毫秒） */
+  durationMs?: number;
+  [key: string]: unknown;
+}
+export interface MusicSearchRes {
+  list: MusicSearchCandidate[];
+}
+
+/** musicLyric：取某条已匹配候选的歌词 */
+export interface MusicLyricReq {
+  source: string;
+  /** host 匹配命中的候选（含源内 id） */
+  musicInfo: MusicSearchCandidate;
+}
+export interface MusicLyricRes {
+  /** 主歌词（LRC / 逐行文本） */
+  lyric: string;
+  /** 翻译 */
+  tlyric?: string;
+  /** 罗马音 */
+  rlyric?: string;
+  /** 逐字歌词（yrc/qrc/lys 等） */
+  awlyric?: string;
+}
+
+/** musicPic：取某条已匹配候选的封面 */
+export interface MusicPicReq {
+  source: string;
+  /** host 匹配命中的候选（含源内 id） */
+  musicInfo: MusicSearchCandidate;
+}
+export interface MusicPicRes {
+  /** 封面图片 URL（远端直链） */
+  url: string;
+}
+
 /** Action → 请求/响应映射，用于 HostApi.on 的重载。新增动作时在此追加。 */
 export interface ActionIO {
   musicUrl: { req: MusicUrlReq; res: MusicUrlRes };
   menuClick: { req: MenuClickReq; res: MenuClickRes };
+  musicSearch: { req: MusicSearchReq; res: MusicSearchRes };
+  musicLyric: { req: MusicLyricReq; res: MusicLyricRes };
+  musicPic: { req: MusicPicReq; res: MusicPicRes };
 }
 
 /* 宿主暴露给插件的 API */
@@ -304,10 +361,14 @@ export interface PluginErrorPayload {
   message: string;
 }
 
-/** 主 → worker */
+/**
+ * 主 ↔ 插件 host 的消息协议
+ * 一个 host 进程托管多个插件 vm 上下文：按插件的消息带 pluginId 路由，
+ * loadPlugin/unloadPlugin/ping 为 host 级控制消息。
+ */
 export type SandboxIn =
   | {
-      kind: "init";
+      kind: "loadPlugin";
       pluginId: string;
       apiLevel: number;
       locale: string;
@@ -322,42 +383,49 @@ export type SandboxIn =
         homepage: string;
       };
     }
-  | { kind: "call"; requestId: string; action: PluginAction; params: unknown }
-  | { kind: "cancel"; requestId: string }
+  | { kind: "unloadPlugin"; pluginId: string }
+  | { kind: "call"; pluginId: string; requestId: string; action: PluginAction; params: unknown }
+  | { kind: "cancel"; pluginId: string; requestId: string }
   | {
       kind: "hostResult";
+      pluginId: string;
       callId: string;
       ok: boolean;
       data?: unknown;
       error?: PluginErrorPayload;
     }
   | { kind: "ping" }
-  | { kind: "event"; event: PlaybackEventKind; data: unknown }
-  | { kind: "settingsUpdate"; settings: Record<string, unknown> };
+  | { kind: "event"; pluginId: string; event: PlaybackEventKind; data: unknown }
+  | { kind: "settingsUpdate"; pluginId: string; settings: Record<string, unknown> };
 
-/** worker → 主 */
+/** 插件 host → 主 */
 export type SandboxOut =
-  | { kind: "ready"; sources: Record<string, SourceCapability> }
+  /** host 进程 fork 后就绪一次（无 pluginId） */
+  | { kind: "hostReady" }
+  | { kind: "ready"; pluginId: string; sources: Record<string, SourceCapability> }
   | {
       kind: "result";
+      pluginId: string;
       requestId: string;
       ok: boolean;
       data?: unknown;
       error?: PluginErrorPayload;
     }
-  | { kind: "hostCall"; callId: string; method: HostCallMethod; args: unknown[] }
-  | { kind: "updateAvailable"; info: PluginUpdateInfo }
+  | { kind: "hostCall"; pluginId: string; callId: string; method: HostCallMethod; args: unknown[] }
+  | { kind: "updateAvailable"; pluginId: string; info: PluginUpdateInfo }
   | {
       kind: "log";
+      /** 缺省表示 host 级日志（如无法归因的 unhandledRejection） */
+      pluginId?: string;
       level: "debug" | "info" | "warn" | "error";
       args: unknown[];
     }
-  | { kind: "fatal"; error: PluginErrorPayload }
+  | { kind: "fatal"; pluginId: string; error: PluginErrorPayload }
   | { kind: "pong" }
   /** sources 增量上报 */
-  | { kind: "sourcesUpdate"; sources: Record<string, SourceCapability> }
+  | { kind: "sourcesUpdate"; pluginId: string; sources: Record<string, SourceCapability> }
   /** 控制/UI 类注册上报 */
-  | ({ kind: "registered" } & PluginRegistration);
+  | ({ kind: "registered"; pluginId: string } & PluginRegistration);
 
 /** worker 调用回宿主的方法名 */
 export type HostCallMethod =
@@ -396,6 +464,34 @@ export interface PluginInvokeMenuResult {
   openUrl?: string;
   /** 插件请求复制的文本（成功时） */
   copyText?: string;
+  error?: string;
+}
+
+export interface PluginMatchLyricArgs {
+  pluginId: string;
+  /** 插件内的源 key（如 kw/mg） */
+  source: string;
+  /** 当前曲目，host 据此 musicSearch + 时长门槛匹配 */
+  track: Track;
+}
+export interface PluginMatchLyricResult {
+  /** 是否取到歌词；无匹配 / 无歌词时为 false（非错误） */
+  ok: boolean;
+  data?: MusicLyricRes;
+  error?: string;
+}
+
+export interface PluginMatchCoverArgs {
+  pluginId: string;
+  /** 插件内的源 key（如 kw/mg） */
+  source: string;
+  /** 当前曲目，host 据此 musicSearch + 时长门槛匹配 */
+  track: Track;
+}
+export interface PluginMatchCoverResult {
+  /** 是否取到封面；无匹配 / 无封面时为 false（非错误） */
+  ok: boolean;
+  data?: MusicPicRes;
   error?: string;
 }
 
@@ -457,6 +553,10 @@ export interface PluginsApi {
   resolveUrl: (args: PluginResolveUrlArgs) => Promise<MusicUrlRes>;
   /** 触发某插件的自定义菜单项 */
   invokeMenu: (args: PluginInvokeMenuArgs) => Promise<PluginInvokeMenuResult>;
+  /** 经插件兜底匹配歌词：host 先 musicSearch + 时长门槛匹配，再 musicLyric */
+  matchLyric: (args: PluginMatchLyricArgs) => Promise<PluginMatchLyricResult>;
+  /** 经插件兜底匹配封面：host 复用同一次匹配，再 musicPic */
+  matchCover: (args: PluginMatchCoverArgs) => Promise<PluginMatchCoverResult>;
   /** 拉取插件市场列表 */
   market: () => Promise<{ ok: boolean; plugins: MarketPlugin[]; error?: string }>;
   /** 订阅插件状态变化 */

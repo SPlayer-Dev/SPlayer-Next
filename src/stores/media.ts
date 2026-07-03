@@ -80,6 +80,21 @@ export const useMediaStore = defineStore("media", () => {
     if (newDetail) detail.value = newDetail;
   };
 
+  /**
+   * 兜底封面：当前 track 无封面时把插件命中的远端 URL 填进去
+   * 同时写 cover 与 coverOriginal，使全屏大图与背景/取色一并补上；已有封面不覆盖
+   * @param url - 封面图片 URL
+   */
+  const patchCover = (url: string): void => {
+    if (!track.value) return;
+    if (track.value.cover && track.value.coverOriginal) return;
+    track.value = {
+      ...track.value,
+      cover: track.value.cover || url,
+      coverOriginal: track.value.coverOriginal || url,
+    };
+  };
+
   /** 重置歌词状态 */
   const resetLyricState = (): void => {
     activeLyric.value = null;
@@ -153,6 +168,7 @@ export const useMediaStore = defineStore("media", () => {
     lyricIndex,
     setTrack,
     enrichTrack,
+    patchCover,
     resetLyricState,
     setLyric,
     updateLyricIndex,

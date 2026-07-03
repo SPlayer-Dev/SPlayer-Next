@@ -91,34 +91,15 @@ export const usePluginsStore = defineStore("plugins", () => {
   };
 
   /**
-   * 启用或禁用指定插件。
-   * - 控制类（type === "control"）：独立 toggle，多个可同时启用。
-   * - 音源类（type 缺省或 "source"）：启用时互斥，先关闭其他已启用的音源。
+   * 启用或禁用指定插件
    * @param id - 插件 ID
    * @param enabled - 目标启用状态
    */
   const setEnabled = async (id: string, enabled: boolean): Promise<void> => {
     const info = list.value.find((item) => item.manifest.id === id);
     if (!info) return;
-
-    // 音源类启用时互斥：需要一并关闭的其他已启用音源
-    const disabledIds = new Set<string>();
-    if (info.manifest.type !== "control" && enabled) {
-      for (const other of sourcePlugins.value) {
-        if (other.manifest.id !== id && other.enabled) disabledIds.add(other.manifest.id);
-      }
-    }
-
-    // 本地先改，受控开关即时反映
-    list.value = list.value.map((item) => {
-      if (item.manifest.id === id) return { ...item, enabled };
-      if (disabledIds.has(item.manifest.id)) return { ...item, enabled: false };
-      return item;
-    });
-
-    for (const otherId of disabledIds) {
-      await window.api.plugins.setEnabled(otherId, false);
-    }
+    // 本地先改，开关即时反映
+    list.value = list.value.map((item) => (item.manifest.id === id ? { ...item, enabled } : item));
     await window.api.plugins.setEnabled(id, enabled);
   };
 

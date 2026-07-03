@@ -133,6 +133,12 @@ const desktopLyricSection: SettingSection = {
       binding: { store: "settings", path: "system.desktopLyric.locked" },
       defaultValue: false,
     },
+    {
+      key: "desktopLyricUseCSSDrag",
+      type: "switch",
+      binding: { store: "settings", path: "system.desktopLyric.useCSSDrag" },
+      defaultValue: false,
+    },
   ],
 };
 
@@ -230,6 +236,12 @@ const dynamicIslandSection: SettingSection = {
       key: "dynamicIslandNonOcclusive",
       type: "switch",
       binding: { store: "settings", path: "system.dynamicIsland.nonOcclusive" },
+      defaultValue: false,
+    },
+    {
+      key: "dynamicIslandUseCSSDrag",
+      type: "switch",
+      binding: { store: "settings", path: "system.dynamicIsland.useCSSDrag" },
       defaultValue: false,
     },
   ],

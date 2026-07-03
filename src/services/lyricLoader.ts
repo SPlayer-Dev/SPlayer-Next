@@ -10,6 +10,7 @@ import { bestExternalIndex, detectFormat } from "@/utils/lyric/parse";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
 import { useStreamingStore } from "@/stores/streaming";
+import { usePluginsStore } from "@/stores/plugins";
 import { DEFAULT_LYRIC_FORMAT_ORDER, DEFAULT_LYRIC_SOURCE_ORDER } from "@/types/settings";
 
 /** 一次在线 fetch 的结果 */
@@ -307,6 +308,41 @@ const tryLocalRepo = async (token: number, track: Track): Promise<boolean> => {
   return false;
 };
 
+/**
+ * 插件兜底匹配歌词：内置平台都没歌词时，向声明 musicLyric 的插件源逐个兜底
+ * @param token - 竞态 token
+ * @param track - 歌曲信息
+ * @returns 是否已提交有效歌词
+ */
+const tryPluginFallback = async (token: number, track: Track): Promise<boolean> => {
+  const plugins = usePluginsStore();
+  for (const info of plugins.list) {
+    if (!info.enabled || info.status.state !== "ready") continue;
+    for (const [source, cap] of Object.entries(info.status.sources)) {
+      if (!cap.actions.includes("musicLyric")) continue;
+      const resp = await window.api.plugins.matchLyric({
+        pluginId: info.manifest.id,
+        source,
+        track,
+      });
+      if (token !== currentToken) return false;
+      if (!resp.ok || !resp.data) continue;
+      // 有逐字优先逐字，否则主歌词
+      const content = resp.data.awlyric ?? resp.data.lyric;
+      if (!content || !content.trim()) continue;
+      commit(
+        token,
+        { source: "online", format: detectFormat(content) },
+        { content, translation: resp.data.tlyric, romaji: resp.data.rlyric },
+      );
+      if (token !== currentToken) return false;
+      // 解析后有有效行才算命中
+      if (useMediaStore().parsedLyric.length > 0) return true;
+    }
+  }
+  return false;
+};
+
 /** 开启新一轮加载周期 */
 export const beginLoad = (): number => {
   currentToken++;
@@ -344,7 +380,7 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
       const online = await tryOnlineByPreference(token, track, false, null);
       if (token !== currentToken) return;
       if (online) await applyOnline(token, track, online, null);
-      else commit(token, null, null);
+      else if (!(await tryPluginFallback(token, track))) commit(token, null, null);
       return;
     }
     // 流媒体服务器
@@ -386,7 +422,7 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
     if (online && (await tryLocalRepo(token, track))) return;
     if (online) {
       await applyOnline(token, track, online, local);
-    } else if (!hasUsableLocal) {
+    } else if (!hasUsableLocal && !(await tryPluginFallback(token, track))) {
       commit(token, null, null);
     }
   } catch (err) {
@@ -411,7 +447,7 @@ const refreshPreference = async (): Promise<void> => {
     const online = await tryOnlineByPreference(token, track, false, null);
     if (token !== currentToken) return;
     if (online) await applyOnline(token, track, online, null);
-    else commit(token, null, null);
+    else if (!(await tryPluginFallback(token, track))) commit(token, null, null);
     return;
   }
   // 本地歌曲

@@ -11,6 +11,7 @@ const getDefaultOptions = (): BrowserWindowConstructorOptions => ({
   minWidth: 800,
   minHeight: 600,
   autoHideMenuBar: true,
+  show: false,
   backgroundColor: nativeTheme.shouldUseDarkColors ? "#101014" : "#f6f6f6",
   icon,
   webPreferences: {

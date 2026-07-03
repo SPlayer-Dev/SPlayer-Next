@@ -738,6 +738,25 @@
       "label": "切换时暂停播放",
       "description": "切换输出设备时暂停播放，例如蓝牙设备的断联"
     },
+    "timeFormat": {
+      "label": "时间显示格式",
+      "description": "底栏右侧和播放页面底部的时间如何显示（单击时间可以快速切换）",
+      "currentTotal": "播放时间 / 总时长",
+      "remainingTotal": "剩余时间 / 总时长",
+      "currentRemaining": "播放时间 / 剩余时间"
+    },
+    "showProgressTooltip": {
+      "label": "显示进度条悬浮信息",
+      "description": "拖拽进度条时显示悬浮提示框"
+    },
+    "showProgressLyric": {
+      "label": "进度条悬浮时显示歌词",
+      "description": "悬浮提示框中同时显示当前时间对应的歌词"
+    },
+    "snapToLyric": {
+      "label": "进度调节吸附最近歌词",
+      "description": "调节进度时自动吸附到最近的歌词行"
+    },
     "enableSpectrum": {
       "label": "启用音乐频谱",
       "description": "实时频谱分析会持续占用一定的 CPU，性能敏感设备建议关闭"
@@ -913,6 +932,13 @@
       "label": "歌词字重",
       "description": "歌词文字粗细"
     },
+    "lyricBlendMode": {
+      "label": "歌词混合模式",
+      "description": "控制歌词与背景的混合方式",
+      "normal": "Normal",
+      "screen": "Screen",
+      "plusLighter": "Plus Lighter"
+    },
     "followCoverColor": {
       "label": "跟随封面颜色",
       "description": "歌词颜色跟随当前封面主色调"
@@ -1068,6 +1094,10 @@
       "label": "锁定窗口",
       "description": "锁定后鼠标点击将穿透到下层窗口，无法拖动"
     },
+    "desktopLyricUseCSSDrag": {
+      "label": "使用 CSS 拖拽",
+      "description": "使用 CSS -webkit-app-region 拖拽，在 Wayland 环境建议启用"
+    },
     "dynamicIslandEnabled": {
       "label": "开启灵动岛",
       "description": "在屏幕顶部显示一个简洁的悬浮歌词窗口，可拖离至任意位置"
@@ -1119,6 +1149,10 @@
     "dynamicIslandNonOcclusive": {
       "label": "非遮挡模式",
       "description": "鼠标穿透窗口，悬停时隐藏内容"
+    },
+    "dynamicIslandUseCSSDrag": {
+      "label": "使用 CSS 拖拽",
+      "description": "使用 CSS -webkit-app-region 拖拽，在 Wayland 环境建议启用"
     },
     "taskbarLyricEnabled": {
       "label": "开启任务栏歌词",

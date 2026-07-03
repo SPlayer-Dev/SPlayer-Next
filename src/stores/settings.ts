@@ -64,6 +64,10 @@ export const useSettingsStore = defineStore(
       enableSpectrum: false,
       spectrumBarWidth: 4,
       songLevel: "hq",
+      timeFormat: "current-total",
+      showProgressTooltip: true,
+      showProgressLyric: false,
+      snapToLyric: false,
     });
 
     /** 歌词 */
@@ -75,6 +79,7 @@ export const useSettingsStore = defineStore(
       adaptiveFontSize: true,
       fontSize: 48,
       fontWeight: 700,
+      lyricBlendMode: "normal",
       fontFamily: "",
       showTranslation: true,
       showRomanization: true,

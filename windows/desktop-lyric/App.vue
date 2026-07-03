@@ -34,6 +34,7 @@ const config = reactive<DesktopLyricSettings>({
   animation: true,
   alwaysOnTop: true,
   locked: false,
+  useCSSDrag: true,
 });
 
 const { track, lyric, playing, primaryIndex } = useNowPlayingSync({
@@ -142,6 +143,7 @@ const rootStyle = computed(() => ({
   "--dl-mask": config.backgroundMaskColor,
   "--dl-anim": config.animation ? "0.4s" : "0s",
   fontFamily: config.fontFamily || undefined,
+  "-webkit-app-region": !config.locked && config.useCSSDrag ? "drag" : "no-drag",
 }));
 
 /** 常驻信息文字对齐 */
@@ -451,6 +453,7 @@ onBeforeUnmount(() => {
   transition:
     opacity 0.2s ease,
     background-color 0.15s;
+  -webkit-app-region: no-drag;
 }
 .header-btn :deep(svg) {
   width: 20px;

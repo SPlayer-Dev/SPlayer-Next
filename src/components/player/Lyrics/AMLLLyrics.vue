@@ -52,6 +52,7 @@ const settings = useSettingsStore();
 const wrapperRef = ref<HTMLDivElement | null>(null);
 const playerRef = ref<CoreLyricPlayer>();
 const bottomLineEl = ref<HTMLElement>();
+const clockInitialized = ref(false);
 
 // 是否被父组件冻结
 const isFrozen = ref(false);
@@ -133,12 +134,10 @@ onMounted(() => {
   // 绑定行点击事件
   playerRef.value.addEventListener("line-click", handleLineClick);
 
-  // 应用初始状态
-  if (props.initialTime > 0) {
-    playerRef.value.setCurrentTime(props.initialTime);
-  }
   if (processedLyrics.value.length > 0) {
-    playerRef.value.setLyricLines(processedLyrics.value);
+    playerRef.value.setLyricLines(processedLyrics.value, props.initialTime);
+  } else if (Number.isFinite(props.initialTime) && props.initialTime >= 0) {
+    playerRef.value.setCurrentTime(props.initialTime, true);
   }
 
   document.addEventListener("visibilitychange", handleVisibility);
@@ -159,6 +158,11 @@ onUnmounted(() => {
 watchEffect(() => {
   const player = playerRef.value;
   if (!player) return;
+  if (!clockInitialized.value) {
+    player.resume();
+    player.update(0);
+    clockInitialized.value = true;
+  }
   if (!isFrozen.value && !document.hidden) {
     if (props.playing) {
       player.resume();
@@ -206,7 +210,7 @@ watch(processedLyrics, (newLyrics) => {
   if (isFrozen.value) {
     pendingLyrics = newLyrics;
   } else {
-    playerRef.value.setLyricLines(newLyrics);
+    playerRef.value.setLyricLines(newLyrics, props.initialTime);
   }
 });
 

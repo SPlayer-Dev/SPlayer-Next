@@ -11,6 +11,7 @@ import { ipcMain, dialog } from "electron";
 import type { PluginInfo } from "@shared/types/plugin";
 import { pluginRegistry } from "@main/plugins/registry";
 import { resolveUrl, invokeMenu } from "@main/plugins/router";
+import { matchLyric, matchCover } from "@main/plugins/metadata";
 import { fetchScript, fetchMarket } from "@main/plugins/net";
 import { broadcast } from "@main/utils/broadcast";
 import { coreLog } from "@main/utils/logger";
@@ -141,6 +142,18 @@ export const registerPluginIpc = (): void => {
       coreLog.warn("[plugin] invokeMenu failed:", err);
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
+  });
+
+  // 插件兜底匹配歌词：内置三平台拿不到时由渲染端逐个插件源调用
+  ipcMain.handle("plugin:matchLyric", async (_evt, args) => {
+    const data = await matchLyric(args);
+    return data ? { ok: true, data } : { ok: false };
+  });
+
+  // 插件兜底匹配封面：曲目无封面时由渲染端逐个插件源调用
+  ipcMain.handle("plugin:matchCover", async (_evt, args) => {
+    const data = await matchCover(args);
+    return data ? { ok: true, data } : { ok: false };
   });
 
   // 状态变化广播

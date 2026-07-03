@@ -7,6 +7,7 @@ import {
 } from "@applemusic-like-lyrics/core";
 import { getFftFrame } from "@/services/playback";
 import { acquireFft, releaseFft } from "@/services/fftCapture";
+import { getBassPulse, toAmllLowFreqVolume } from "@/services/audioFeatures";
 
 export interface BackgroundRenderProps {
   /** 专辑封面资源 URL */
@@ -53,19 +54,34 @@ const updateRendererState = () => {
     renderer.setAlbum(props.album, false);
   }
   renderer.setFPS(props.fps);
-  renderer.setFlowSpeed(props.flowSpeed);
   renderer.setRenderScale(props.renderScale);
   renderer.setHasLyric(props.hasLyric);
+  syncRendererMotion();
+};
+
+/**
+ * 同步流体背景运动状态
+ */
+const syncRendererMotion = () => {
+  const renderer = bgRenderRef.value;
+  if (!renderer) return;
 
   if (props.playing) {
+    renderer.setStaticMode(false);
+    renderer.setFlowSpeed(props.flowSpeed);
     renderer.resume();
   } else {
-    renderer.pause();
+    renderer.setFlowSpeed(0);
+    renderer.resume();
   }
 };
 
-// 低频平滑后音量
-let smoothedVolume = 0;
+const BASS_ATTACK = 0.45;
+const BASS_DECAY = 0.14;
+
+// 低频平滑后脉冲
+let smoothedPulse = 0;
+let lastFftFrame: readonly number[] = [];
 
 /**
  * 从最新 FFT 帧数据计算低频音量能量值 [0.0 - 1.0]
@@ -73,22 +89,14 @@ let smoothedVolume = 0;
 const updateLowFreqVolume = () => {
   const data = getFftFrame();
   if (!data || data.length === 0) return;
+  if (data === lastFftFrame) return;
+  lastFftFrame = data;
 
-  // 提取低频部分（前 4 段，对数映射下约 80 - 90Hz，即低音鼓/贝斯基频区）
-  const lowBins = data.slice(0, 4);
-  const sum = lowBins.reduce((acc, val) => acc + val, 0);
-  const avg = sum / lowBins.length;
+  const pulse = getBassPulse(data);
+  const smoothFactor = pulse > smoothedPulse ? BASS_ATTACK : BASS_DECAY;
+  smoothedPulse = smoothedPulse + smoothFactor * (pulse - smoothedPulse);
 
-  // 映射与幂扩展动态范围
-  const threshold = 0.05;
-  const normalized = Math.max(0, (avg - threshold) / (1.0 - threshold));
-  const rawValue = Math.pow(normalized, 1.5);
-
-  // EMA 平滑处理，提供自然的过渡律动
-  const smoothFactor = 0.2;
-  smoothedVolume = smoothedVolume + smoothFactor * (rawValue - smoothedVolume);
-
-  bgRenderRef.value?.setLowFreqVolume(smoothedVolume);
+  bgRenderRef.value?.setLowFreqVolume(toAmllLowFreqVolume(smoothedPulse));
 };
 
 const { resume: resumeFftLoop, pause: pauseFftLoop } = useRafFn(updateLowFreqVolume, {
@@ -121,16 +129,18 @@ const stopFftCapture = () => {
 };
 
 /**
- * 按播放状态与跳动开关同步 FFT 采集：仅在播放中且开启跳动时采集，
- * 否则停止采集并把低频音量复位为 1.0（不脉动）
+ * 按播放状态与跳动开关同步 FFT 采集
  */
 const syncFftCapture = () => {
   if (props.playing && props.enableBeat) {
     startFftCapture();
   } else {
     stopFftCapture();
-    smoothedVolume = 0;
-    bgRenderRef.value?.setLowFreqVolume(1.0);
+    if (!props.enableBeat) {
+      smoothedPulse = 0;
+      lastFftFrame = [];
+      bgRenderRef.value?.setLowFreqVolume(1.0);
+    }
   }
 };
 
@@ -175,11 +185,8 @@ watch(
 
 watch(
   () => props.playing,
-  (isPlaying) => {
-    if (bgRenderRef.value) {
-      if (isPlaying) bgRenderRef.value.resume();
-      else bgRenderRef.value.pause();
-    }
+  () => {
+    syncRendererMotion();
     syncFftCapture();
   },
 );
@@ -199,7 +206,7 @@ watch(
 watch(
   () => props.flowSpeed,
   (val) => {
-    bgRenderRef.value?.setFlowSpeed(val);
+    if (props.playing) bgRenderRef.value?.setFlowSpeed(val);
   },
 );
 

@@ -18,6 +18,7 @@
  * @author      you
  * @type        control
  * @apiLevel    2
+ * @grant       control
  */
 
 splayer.register({
@@ -120,7 +121,7 @@ splayer.player.on("lineChange", ({ index }) => {
 
 ## 反向控制播放
 
-在 `register` 中声明 `controls: true` 后，可调用 `splayer.player` 控制播放器：
+在 `register` 中声明 `controls: true` 并在脚本头加 `@grant control` 后，可调用 `splayer.player` 控制播放器（两者缺一时，这些控制调用会被宿主忽略）：
 
 | 方法                       | 说明                                    |
 | -------------------------- | --------------------------------------- |
@@ -295,6 +296,7 @@ splayer.on("menuClick", async ({ menuId, track }) => {
  * @author imsyy
  * @type control
  * @apiLevel 2
+ * @grant network
  * @description 把当前歌词推送到 ClassIsland 主界面
  */
 splayer.register({

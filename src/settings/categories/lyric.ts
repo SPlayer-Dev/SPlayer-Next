@@ -155,6 +155,17 @@ const lyricCategory: SettingCategory = {
           marks: { 100: "100", 400: "400", 700: "700", 900: "900" },
         },
         {
+          key: "lyricBlendMode",
+          type: "select",
+          binding: { store: "settings", path: "lyric.lyricBlendMode" },
+          options: [
+            { value: "normal", labelKey: "settings.lyricBlendMode.normal" },
+            { value: "screen", labelKey: "settings.lyricBlendMode.screen" },
+            { value: "plus-lighter", labelKey: "settings.lyricBlendMode.plusLighter" },
+          ],
+          defaultValue: "normal",
+        },
+        {
           key: "showTranslation",
           type: "switch",
           binding: { store: "settings", path: "lyric.showTranslation" },

@@ -335,11 +335,18 @@ impl AudioPlayer {
     pub async fn play(&self) -> Result<()> {
         let revival_source = self.inner.lock().play().into_napi()?;
         if let Some(source) = revival_source {
+            let is_remote = source.starts_with("http://") || source.starts_with("https://");
             if let Err(e) = self.load(source, Some(true)).await {
                 // 复活加载被更新的 load/stop 取代不是错误：已有更新的操作接管播放
-                if e.reason != LOAD_SUPERSEDED_REASON {
-                    return Err(e);
+                if e.reason == LOAD_SUPERSEDED_REASON {
+                    return Ok(());
                 }
+                // 远端源复活失败（多半 URL 过期）：发 sourceError 交 JS 重解析（命中本地缓存 / 拿新 URL）
+                if is_remote {
+                    self.inner.lock().emit_source_error();
+                    return Ok(());
+                }
+                return Err(e);
             }
         }
         Ok(())
@@ -430,7 +437,18 @@ impl AudioPlayer {
                     return Ok(());
                 }
                 if let Some(src) = current_source {
-                    self.load(src, Some(was_playing)).await?;
+                    let is_remote = src.starts_with("http://") || src.starts_with("https://");
+                    if let Err(e) = self.load(src, Some(was_playing)).await {
+                        if e.reason == LOAD_SUPERSEDED_REASON {
+                            return Ok(());
+                        }
+                        // 远端源回退重开失败（多半 URL 过期）：发 sourceError 交 JS 重解析
+                        if is_remote {
+                            self.inner.lock().emit_source_error();
+                            return Ok(());
+                        }
+                        return Err(e);
+                    }
                     Ok(())
                 } else {
                     Err(Error::from_reason("seek 失败且无 current_source"))

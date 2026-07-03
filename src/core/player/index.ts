@@ -13,6 +13,7 @@ import * as queue from "@/stores/queue";
 import * as fm from "./fm";
 import * as playback from "@/services/playback";
 import * as lyricLoader from "@/services/lyricLoader";
+import * as coverLoader from "@/services/coverLoader";
 import * as abLoop from "@/services/abLoop";
 import * as cacheScheduler from "@/services/cacheScheduler";
 import { resolveTrackSource } from "@/services/audioSource";
@@ -94,6 +95,7 @@ export const load = async (source: string, autoPlay = true, meta?: Track): Promi
   if (isOnline) {
     void lyricLoader.loadForTrack(null);
     extractColorFromUrl(meta?.cover ?? meta?.coverOriginal ?? null);
+    if (meta) void coverLoader.loadCoverForTrack(meta);
   }
   try {
     const result = await window.api.player.load(source, { autoPlay, meta });
@@ -110,6 +112,7 @@ export const load = async (source: string, autoPlay = true, meta?: Track): Promi
       if (!isOnline) {
         lyricLoader.loadForTrack(detail);
         extractColorFromUrl(enriched?.cover ?? null);
+        if (enriched) void coverLoader.loadCoverForTrack(enriched);
       }
       const dur = enriched?.duration ?? mediaInfo.duration;
       status.duration = dur;
@@ -176,11 +179,12 @@ const loadTrack = async (track: Track | null): Promise<void> => {
  * 热替换当前播放
  * 切换在线音质、或在线 URL 过期时调用：重新解析 URL 并从当前进度续播
  * @param forcePlay - 重载后强制播放
+ * @returns 是否完成（成功或被更新的加载接管）；解析/加载失败返回 false，调用方据此决定是否跳曲
  */
-export const reloadCurrentTrack = async (forcePlay?: boolean): Promise<void> => {
+export const reloadCurrentTrack = async (forcePlay?: boolean): Promise<boolean> => {
   const media = useMediaStore();
   const track = media.track;
-  if (!track || track.source === "local") return;
+  if (!track || track.source === "local") return false;
   const status = useStatusStore();
   const shouldPlay = forcePlay ?? status.isPlaying;
   const resumePosition = Math.round(playback.getCurrentTime());
@@ -189,20 +193,23 @@ export const reloadCurrentTrack = async (forcePlay?: boolean): Promise<void> => 
   // resolveTrackSource 联网解析较慢，先置加载态，让播放键立即给出反馈
   status.trackLoading = true;
   const resolved = await resolveTrackSource(track);
-  if (myToken !== trackToken) return;
-  // 解析失败：保留当前播放，不打断
+  // 被更新的加载接管：由它负责结果，不算本次失败
+  if (myToken !== trackToken) return true;
+  // 解析失败
   if (!resolved) {
     status.trackLoading = false;
-    return;
+    return false;
   }
   // 以暂停态加载，seek 回原进度后再决定是否播放，避免从 0 漏音
   const result = await load(resolved.source, false, track);
-  if (myToken !== trackToken || !result.ok) return;
+  if (myToken !== trackToken) return true;
+  if (!result.ok) return false;
   if (resumePosition > 0) await seek(resumePosition);
   if (shouldPlay) await play();
   if (resolved.cacheRequest) {
     cacheScheduler.schedule(track.id, resolved.cacheRequest);
   }
+  return true;
 };
 
 /** 同一首歌因源失效连续重载的次数，换歌时归零 */
@@ -233,7 +240,12 @@ export const recoverFromSourceFailure = async (): Promise<void> => {
     return;
   }
   sourceRecoveryCount++;
-  await reloadCurrentTrack(true);
+  // 重载失败（重新解析的 URL 仍失效 / 加载报错，且不会再有 sourceError 兜底）→ 立即跳曲
+  const ok = await reloadCurrentTrack(true);
+  if (!ok) {
+    sourceRecoveryCount = 0;
+    await nextTrack();
+  }
 };
 
 /** 恢复播放 */

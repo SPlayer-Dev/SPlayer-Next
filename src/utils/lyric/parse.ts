@@ -8,6 +8,7 @@ import { parseTTML } from "./parseTTML";
 import { parseLyS } from "./parseLyS";
 import { parseSRT } from "./parseSRT";
 import { parseASS } from "./parseASS";
+import { normalizeKangxi } from "./kangxi";
 
 /**
  * 从外部歌词列表中选出最优格式的索引
@@ -100,16 +101,20 @@ export const parseLyric = (
   format: LyricFormat,
   preferredLang = "",
 ): LyricLine[] => {
-  const lines = parseContent(input.content, format, preferredLang);
+  const lines = parseContent(normalizeKangxi(input.content), format, preferredLang);
   if (input.translation && input.translationFormat) {
     pairTranslation(
       lines,
-      parseContent(input.translation, input.translationFormat),
+      parseContent(normalizeKangxi(input.translation), input.translationFormat),
       "translatedLyric",
     );
   }
   if (input.romaji && input.romajiFormat) {
-    pairTranslation(lines, parseContent(input.romaji, input.romajiFormat), "romanLyric");
+    pairTranslation(
+      lines,
+      parseContent(normalizeKangxi(input.romaji), input.romajiFormat),
+      "romanLyric",
+    );
   }
   return lines;
 };

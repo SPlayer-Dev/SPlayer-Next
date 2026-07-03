@@ -23,6 +23,7 @@ const config = reactive<DynamicIslandSettings>({
   nonOcclusive: false,
   doubleLine: false,
   showTranslation: false,
+  useCSSDrag: false,
 });
 
 const NOTCH_WIDTH = 181;
@@ -425,6 +426,7 @@ const rootStyle = computed(() => ({
   "--di-snap-radius": `${snapRadius.value}px`,
   "--di-lyric-scale": lyricScale.value,
   fontFamily: config.fontFamily || undefined,
+  "-webkit-app-region": config.useCSSDrag ? "drag" : "no-drag",
 }));
 
 const syncViewportSize = (): void => {

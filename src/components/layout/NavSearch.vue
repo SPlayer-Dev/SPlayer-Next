@@ -2,11 +2,15 @@
 import { useDataStore } from "@/stores/data";
 import { useStatusStore } from "@/stores/status";
 import { getHotSearches, type HotSearchItem } from "@/apis/search/hot";
-import { getSearchSuggest, type SuggestData } from "@/apis/search/suggest";
+import { getSearchSuggest, type SuggestData, type SuggestSimpleItem } from "@/apis/search/suggest";
 import { songsByIds as getNeteaseSongsByIds } from "@/apis/song/netease";
 import { formatCompact } from "@/utils/format";
 import { navigateToAlbum, navigateToArtist, navigateToPlaylist } from "@/utils/navigate";
 import * as player from "@/core/player";
+import IconLucideMusic from "~icons/lucide/music";
+import IconLucideUser from "~icons/lucide/user";
+import IconLucideDisc from "~icons/lucide/disc";
+import IconLucideListMusic from "~icons/lucide/list-music";
 
 const { t, locale } = useI18n();
 const router = useRouter();
@@ -46,6 +50,45 @@ const loadSuggest = useDebounceFn(async (keyword: string) => {
   }
 }, 300);
 
+type SuggestKind = "song" | "artist" | "album" | "playlist";
+
+/**
+ * 建议分类配置
+ */
+const suggestSections = computed(() => {
+  const data = suggest.value;
+  return [
+    {
+      kind: "song" as SuggestKind,
+      icon: IconLucideMusic,
+      label: t("search.tabs.songs"),
+      items: data.songs.map<SuggestSimpleItem>((song) => ({
+        id: song.id,
+        name: song.name,
+        subtitle: [song.artist, song.album].filter(Boolean).join(" · ") || undefined,
+      })),
+    },
+    {
+      kind: "artist" as SuggestKind,
+      icon: IconLucideUser,
+      label: t("search.tabs.artists"),
+      items: data.artists,
+    },
+    {
+      kind: "album" as SuggestKind,
+      icon: IconLucideDisc,
+      label: t("search.tabs.albums"),
+      items: data.albums,
+    },
+    {
+      kind: "playlist" as SuggestKind,
+      icon: IconLucideListMusic,
+      label: t("search.tabs.playlists"),
+      items: data.playlists,
+    },
+  ].filter((sec) => sec.items.length > 0);
+});
+
 /** 跳转到搜索页 */
 const submit = (raw: string): void => {
   const word = raw.trim();
@@ -66,11 +109,7 @@ const onClearHistory = (): void => data.clearSearchHistory();
  * @param id - 网易云 id
  * @param name - 名称
  */
-const onPickSuggest = async (
-  kind: "song" | "artist" | "album" | "playlist",
-  id: number,
-  name: string,
-): Promise<void> => {
+const onPickSuggest = async (kind: SuggestKind, id: number, name: string): Promise<void> => {
   if (trimmedQuery.value) data.addSearchHistory(trimmedQuery.value);
   dialogOpen.value = false;
   switch (kind) {
@@ -107,6 +146,82 @@ const bodyStyle = computed(() =>
   bodyHeight.value !== null ? { height: `${bodyHeight.value}px` } : undefined,
 );
 
+const activeIndex = ref(-1);
+
+/** 键盘上下导航 */
+const keyboardItems = computed(() => {
+  const items: Array<{ id: string; action: () => void }> = [];
+  if (trimmedQuery.value) {
+    items.push({ id: "quick", action: onSubmit });
+    for (const sec of suggestSections.value) {
+      for (const entry of sec.items) {
+        items.push({
+          id: `${sec.kind}-${entry.id}`,
+          action: () => onPickSuggest(sec.kind, entry.id, entry.name),
+        });
+      }
+    }
+  } else {
+    for (const word of data.searchHistory) {
+      items.push({ id: `history-${word}`, action: () => onPickKeyword(word) });
+    }
+    hotItems.value
+      .slice(0, 20)
+      .forEach((item, idx) =>
+        items.push({ id: `hot-${item.keyword}-${idx}`, action: () => onPickKeyword(item.keyword) }),
+      );
+  }
+  return items;
+});
+
+watch(keyboardItems, () => {
+  activeIndex.value = -1;
+});
+
+const isActive = (id: string) => {
+  return activeIndex.value >= 0 && keyboardItems.value[activeIndex.value]?.id === id;
+};
+
+const scrollToActive = async () => {
+  await nextTick();
+  const id = keyboardItems.value[activeIndex.value]?.id;
+  if (!id || !bodyRef.value) return;
+  const safeId = id.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  const el = bodyRef.value.querySelector(`[data-search-id="${safeId}"]`) as HTMLElement;
+  if (el) {
+    el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+};
+
+const onKeydown = (e: KeyboardEvent) => {
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    if (keyboardItems.value.length === 0) return;
+    activeIndex.value = (activeIndex.value + 1) % keyboardItems.value.length;
+    scrollToActive();
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    if (keyboardItems.value.length === 0) return;
+    activeIndex.value =
+      (activeIndex.value - 1 + keyboardItems.value.length) % keyboardItems.value.length;
+    scrollToActive();
+  } else if (e.key === "Enter") {
+    if (e.isComposing) return;
+    e.preventDefault();
+    if (activeIndex.value >= 0 && activeIndex.value < keyboardItems.value.length) {
+      keyboardItems.value[activeIndex.value].action();
+    } else {
+      onSubmit();
+    }
+  }
+};
+
+const onMouseMove = () => {
+  if (activeIndex.value !== -1) {
+    activeIndex.value = -1;
+  }
+};
+
 watch(trimmedQuery, (kw, prev) => {
   // 输入变化即清空建议
   suggest.value = { ...EMPTY_SUGGEST };
@@ -124,6 +239,7 @@ watch(dialogOpen, (open) => {
   } else {
     // 关闭复位：下次开弹仍是 auto 起手
     bodyHeight.value = null;
+    activeIndex.value = -1;
   }
 });
 
@@ -162,7 +278,7 @@ onMounted(() => {
           :placeholder="t('nav.searchPlaceholder')"
           size="large"
           clearable
-          @keydown.enter="onSubmit"
+          @keydown="onKeydown"
         >
           <template #prefix>
             <IconLucideSearch class="size-4 text-on-surface-variant/50 shrink-0" />
@@ -170,7 +286,11 @@ onMounted(() => {
         </SInput>
       </div>
       <div class="overflow-hidden transition-[height] duration-300 ease-out" :style="bodyStyle">
-        <div ref="bodyRef" class="max-h-[65vh] overflow-y-auto px-4 pb-4 flex flex-col gap-4">
+        <div
+          ref="bodyRef"
+          class="max-h-[65vh] overflow-y-auto px-4 pb-4 flex flex-col gap-4"
+          @mousemove="onMouseMove"
+        >
           <template v-if="trimmedQuery">
             <!-- 快捷跳转 -->
             <div class="flex flex-col gap-1.5">
@@ -180,6 +300,8 @@ onMounted(() => {
               </div>
               <div
                 class="min-w-0 flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-on-surface/5 transition-colors duration-200"
+                :class="{ 'bg-on-surface/5': isActive('quick') }"
+                data-search-id="quick"
                 @click="onSubmit"
               >
                 <span class="flex-1 truncate text-sm text-on-surface">
@@ -188,71 +310,26 @@ onMounted(() => {
                 <IconLucideArrowRight class="size-4 shrink-0 text-on-surface-variant" />
               </div>
             </div>
-            <div v-if="suggest.songs.length > 0" class="flex flex-col gap-1.5">
+            <!-- 建议分类 -->
+            <div v-for="sec in suggestSections" :key="sec.kind" class="flex flex-col gap-1.5">
               <div class="px-2 flex items-center gap-1.5 text-sm font-medium text-primary">
-                <IconLucideMusic class="size-4" />
-                <span>{{ t("search.tabs.songs") }}</span>
+                <component :is="sec.icon" class="size-4" />
+                <span>{{ sec.label }}</span>
               </div>
               <div
-                v-for="song in suggest.songs"
-                :key="song.id"
+                v-for="entry in sec.items"
+                :key="entry.id"
                 class="min-w-0 flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-on-surface/5 transition-colors duration-200"
-                @click="onPickSuggest('song', song.id, song.name)"
+                :class="{ 'bg-on-surface/5': isActive(`${sec.kind}-${entry.id}`) }"
+                :data-search-id="`${sec.kind}-${entry.id}`"
+                @click="onPickSuggest(sec.kind, entry.id, entry.name)"
               >
                 <div class="flex-1 min-w-0 flex flex-col leading-tight">
-                  <span class="truncate text-sm text-on-surface">{{ song.name }}</span>
-                  <span v-if="song.artist" class="truncate text-xs text-on-surface-variant">
-                    {{ song.artist }}
-                    <template v-if="song.album">· {{ song.album }}</template>
+                  <span class="truncate text-sm text-on-surface">{{ entry.name }}</span>
+                  <span v-if="entry.subtitle" class="truncate text-xs text-on-surface-variant">
+                    {{ entry.subtitle }}
                   </span>
                 </div>
-              </div>
-            </div>
-            <div v-if="suggest.artists.length > 0" class="flex flex-col gap-1.5">
-              <div class="px-2 flex items-center gap-1.5 text-sm font-medium text-primary">
-                <IconLucideUser class="size-4" />
-                <span>{{ t("search.tabs.artists") }}</span>
-              </div>
-              <div
-                v-for="artist in suggest.artists"
-                :key="artist.id"
-                class="min-w-0 flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-on-surface/5 transition-colors duration-200"
-                @click="onPickSuggest('artist', artist.id, artist.name)"
-              >
-                <span class="flex-1 truncate text-sm text-on-surface">{{ artist.name }}</span>
-              </div>
-            </div>
-            <div v-if="suggest.albums.length > 0" class="flex flex-col gap-1.5">
-              <div class="px-2 flex items-center gap-1.5 text-sm font-medium text-primary">
-                <IconLucideDisc class="size-4" />
-                <span>{{ t("search.tabs.albums") }}</span>
-              </div>
-              <div
-                v-for="album in suggest.albums"
-                :key="album.id"
-                class="min-w-0 flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-on-surface/5 transition-colors duration-200"
-                @click="onPickSuggest('album', album.id, album.name)"
-              >
-                <div class="flex-1 min-w-0 flex flex-col leading-tight">
-                  <span class="truncate text-sm text-on-surface">{{ album.name }}</span>
-                  <span v-if="album.subtitle" class="truncate text-xs text-on-surface-variant">
-                    {{ album.subtitle }}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div v-if="suggest.playlists.length > 0" class="flex flex-col gap-1.5">
-              <div class="px-2 flex items-center gap-1.5 text-sm font-medium text-primary">
-                <IconLucideListMusic class="size-4" />
-                <span>{{ t("search.tabs.playlists") }}</span>
-              </div>
-              <div
-                v-for="playlist in suggest.playlists"
-                :key="playlist.id"
-                class="min-w-0 flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-on-surface/5 transition-colors duration-200"
-                @click="onPickSuggest('playlist', playlist.id, playlist.name)"
-              >
-                <span class="flex-1 truncate text-sm text-on-surface">{{ playlist.name }}</span>
               </div>
             </div>
           </template>
@@ -276,6 +353,8 @@ onMounted(() => {
                   round
                   closable
                   class="max-w-50 cursor-pointer hover:bg-on-surface/20 transition-colors duration-200"
+                  :class="{ 'bg-on-surface/20': isActive(`history-${word}`) }"
+                  :data-search-id="`history-${word}`"
                   @click="onPickKeyword(word)"
                   @close="onRemoveHistory(word)"
                 >
@@ -302,6 +381,8 @@ onMounted(() => {
                   v-for="(item, idx) in hotItems.slice(0, 20)"
                   :key="`${item.keyword}-${idx}`"
                   class="min-h-11 min-w-0 flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-on-surface/5 transition-colors duration-200"
+                  :class="{ 'bg-on-surface/5': isActive(`hot-${item.keyword}-${idx}`) }"
+                  :data-search-id="`hot-${item.keyword}-${idx}`"
                   @click="onPickKeyword(item.keyword)"
                 >
                   <span

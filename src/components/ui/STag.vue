@@ -78,7 +78,7 @@ const closeBtn = computed(() => closeBtnSize[props.size]);
 
 <template>
   <span
-    class="inline-flex items-center justify-center font-medium leading-none select-none whitespace-nowrap"
+    class="inline-flex items-center justify-center font-medium select-none whitespace-nowrap"
     :class="[round ? 'rounded-full' : 'rounded-md', sizeClass, variantClass]"
   >
     <slot />

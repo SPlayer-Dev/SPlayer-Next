@@ -288,6 +288,11 @@ impl InnerPlayer {
         }
     }
 
+    /// 对外发 SourceError：供 lib.rs 在远端源内部重开（seek 回退 / play 复活）失败时通知 JS 重解析
+    pub fn emit_source_error(&self) {
+        self.emit(PlayerEvent::SourceError);
+    }
+
     /// 取消正在进行的渐变，并等待渐变线程退出
     fn cancel_fade(&mut self) {
         if let Some(flag) = self.fade_cancel.take() {

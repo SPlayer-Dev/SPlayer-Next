@@ -17,8 +17,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, "electron/main/index.ts"),
-          // 插件沙箱 worker（utilityProcess 入口）
-          "sandbox.worker": resolve(__dirname, "electron/main/plugins/sandbox.worker.ts"),
+          // 插件 host worker（utilityProcess 入口，托管所有插件 vm 上下文）
+          "host.worker": resolve(__dirname, "electron/main/plugins/host.worker.ts"),
         },
       },
     },

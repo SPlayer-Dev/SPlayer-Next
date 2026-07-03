@@ -35,22 +35,37 @@ watch(
   { immediate: true },
 );
 
-/** 笔画动画结束 */
+/** splash 笔画动画总时长（ms） */
 const SPLASH_ANIM_MS = 2050;
+
+/** 标记 splash 定时器是否已触发 */
+let splashTimerFired = false;
+
+/** 移除 splash 层 */
+const removeSplash = (): void => {
+  const el = document.getElementById("app-loading");
+  if (!el) return;
+  el.classList.add("hidden");
+  el.addEventListener("transitionend", () => el.remove(), { once: true });
+};
+
+/** 挂载后移除 */
+const onSplashTimerDone = (): void => {
+  splashTimerFired = true;
+  removeSplash();
+};
 
 // 初始化程序
 router.isReady().then(() => {
   // 挂载应用
   app.mount("#app");
-  // 笔画播完即淡出
-  const remaining = Math.max(0, SPLASH_ANIM_MS - performance.now());
-  setTimeout(() => {
-    const loading = document.getElementById("app-loading");
-    if (loading) {
-      loading.classList.add("hidden");
-      loading.addEventListener("transitionend", () => loading.remove(), { once: true });
-    }
-  }, remaining);
+  // 计算剩余时间
+  const elapsed = performance.now() - (window.__splashStart ?? 0);
+  const remaining = Math.max(0, SPLASH_ANIM_MS - elapsed);
+  setTimeout(onSplashTimerDone, remaining);
+  if (!splashTimerFired) {
+    setTimeout(removeSplash, SPLASH_ANIM_MS + 100);
+  }
   // 初始化播放器
   initPlayer().catch(console.error);
   // 初始化快捷键

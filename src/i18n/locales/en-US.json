@@ -750,6 +750,25 @@
       "label": "Pause on Device Switch",
       "description": "Pause playback when switching the output device, e.g. when a Bluetooth device disconnects"
     },
+    "timeFormat": {
+      "label": "Time Display Format",
+      "description": "How to display time in the player bar and full player (click to quickly toggle)",
+      "currentTotal": "Elapsed / Total",
+      "remainingTotal": "Remaining / Total",
+      "currentRemaining": "Elapsed / Remaining"
+    },
+    "showProgressTooltip": {
+      "label": "Show Progress Tooltip",
+      "description": "Show a tooltip when dragging the progress bar"
+    },
+    "showProgressLyric": {
+      "label": "Show Lyric in Tooltip",
+      "description": "Display the current lyric line in the progress tooltip"
+    },
+    "snapToLyric": {
+      "label": "Snap to Nearest Lyric",
+      "description": "Automatically snap to the nearest lyric line when adjusting progress"
+    },
     "enableSpectrum": {
       "label": "Enable Spectrum",
       "description": "Real-time spectrum analysis adds some CPU load — consider disabling on lower-power devices"
@@ -925,6 +944,13 @@
       "label": "Font Weight",
       "description": "Lyric text weight"
     },
+    "lyricBlendMode": {
+      "label": "Lyric Blend Mode",
+      "description": "Controls how lyrics blend with the background",
+      "normal": "Normal",
+      "screen": "Screen",
+      "plusLighter": "Plus Lighter"
+    },
     "followCoverColor": {
       "label": "Follow Cover Color",
       "description": "Lyric color follows the current cover art"
@@ -1080,6 +1106,10 @@
       "label": "Lock Window",
       "description": "Make window click-through and non-draggable"
     },
+    "desktopLyricUseCSSDrag": {
+      "label": "Enable CSS Drag",
+      "description": "Enable CSS-based drag, recommended for Wayland environments"
+    },
     "dynamicIslandEnabled": {
       "label": "Enable Dynamic Island",
       "description": "Show a compact floating lyric window at the top of the screen; drag it anywhere"
@@ -1131,6 +1161,10 @@
     "dynamicIslandNonOcclusive": {
       "label": "Non-Occlusive Mode",
       "description": "Click-through window; hide on hover"
+    },
+    "dynamicIslandUseCSSDrag": {
+      "label": "Enable CSS Drag",
+      "description": "Enable CSS-based drag, recommended for Wayland environments"
     },
     "taskbarLyricEnabled": {
       "label": "Enable Taskbar Lyric",

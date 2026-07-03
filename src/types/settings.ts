@@ -9,6 +9,14 @@ export type PlayerBgType = "blur" | "solid" | "animation";
 export type CoverLayout = "default" | "fullscreen";
 
 /**
+ * 歌曲播放时间显示格式
+ * - current-total: 播放时间 / 总时长
+ * - remaining-total: 剩余时间 / 总时长
+ * - current-remaining: 播放时间 / 剩余时间
+ */
+export type TimeFormat = "current-total" | "remaining-total" | "current-remaining";
+
+/**
  * 歌词来源偏好
  * - auto：智能选择（按打分结果）
  * - Platform（netease / qqmusic / kugou…）：优先该平台
@@ -31,6 +39,9 @@ export type SpringPreset =
   | "heavy"
   | "noBounce"
   | "custom";
+
+/** 歌词混合模式 */
+export type LyricBlendMode = "normal" | "screen" | "plus-lighter";
 
 /** 弹簧预设参数映射 */
 export const SPRING_PRESETS: Record<
@@ -73,6 +84,8 @@ export interface LyricSettings {
   fontSize: number;
   /** 歌词字重（100~900） */
   fontWeight: number;
+  /** 歌词混合模式 */
+  lyricBlendMode: LyricBlendMode;
   /** 歌词字体 */
   fontFamily: string;
   /** 是否显示翻译歌词 */
@@ -161,6 +174,14 @@ export interface PlayerSettings {
   spectrumBarWidth: number;
   /** 在线歌曲音质偏好；实际可用级别取决于账号权限 */
   songLevel: QualityLevel;
+  /** 时间显示格式 */
+  timeFormat: TimeFormat;
+  /** 显示进度条悬浮信息 */
+  showProgressTooltip: boolean;
+  /** 进度条悬浮时显示歌词 */
+  showProgressLyric: boolean;
+  /** 进度调节吸附最近歌词 */
+  snapToLyric: boolean;
 }
 
 /** 外观设置 */

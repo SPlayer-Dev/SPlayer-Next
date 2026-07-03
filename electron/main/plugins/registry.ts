@@ -2,14 +2,15 @@
  * 插件注册表
  *
  * - 扫描 `{userData}/app-data/plugins/scripts/` 下的 .js 文件
- * - 维护 `Map<id, PluginRuntime>`（manifest + 运行时状态 + sandbox）
- * - 提供 install / uninstall / setEnabled / 启停
- * - 订阅 sandbox 事件，处理 hostCall、crash、重启
+ * - 维护 `Map<id, PluginRuntime>`（manifest + 运行时状态）
+ * - 提供 install / uninstall / setEnabled / 启停（插件跑在共享 host 进程的 vm 上下文里）
+ * - 订阅 host 回调，处理 hostCall、fatal、host 整体崩溃重启
  */
 
 import fs from "node:fs";
 import path from "node:path";
 import { EventEmitter } from "node:events";
+import { app } from "electron";
 import { writeFileSync as atomicWriteSync } from "atomically";
 import type {
   PlaybackEventKind,
@@ -26,7 +27,7 @@ import { store } from "@main/store";
 import { getLocale } from "@main/utils/i18n";
 import { coreLog } from "@main/utils/logger";
 import { pluginsDir } from "@main/utils/paths";
-import { Sandbox } from "./sandbox";
+import { pluginHost, type PluginHostCallbacks, type PluginLoadSpec } from "./host-process";
 import { loadScript } from "./loader";
 import { dispatchHostCall } from "./host";
 import { pluginStorageDrop } from "./storage";
@@ -92,9 +93,9 @@ interface PluginRuntime {
   manifest: PluginManifest;
   enabled: boolean;
   status: PluginStatus;
-  sandbox: Sandbox | null;
+  /** 是否有一次加载在途，防并发 start 重复下发 loadPlugin */
+  loading: boolean;
   source: string;
-  restartAttempts: number;
   /** 有新版本提示：splayer 由宿主比对 @version 得出，lx 由脚本 updateAlert 自报；null 表示无 */
   updateInfo: PluginUpdateInfo | null;
   /** 控制类：订阅的播放事件列表，音源类为 [] */
@@ -114,8 +115,6 @@ interface PluginRuntime {
       timer: NodeJS.Timeout;
     }
   >;
-  /** 崩溃后的重启定时器句柄；stop 时必须清除，否则卸载/替换后插件会被复活成孤儿 worker */
-  restartTimer: NodeJS.Timeout | null;
 }
 
 /** 按 schema 校验/强转设置值 */
@@ -142,10 +141,14 @@ const sanitizeSettingValue = (item: PluginSettingItem, value: unknown): unknown 
 
 class PluginRegistry extends EventEmitter {
   private runtimes = new Map<string, PluginRuntime>();
+  /** host 进程整体崩溃的重启计数与定时器（爆炸半径=全部插件） */
+  private hostRestartAttempts = 0;
+  private hostRestartTimer: NodeJS.Timeout | null = null;
 
   /** 应用启动时调用 */
   init(): void {
     ensureDirs();
+    pluginHost.setOnHostLost(() => this.handleHostLost());
     const stored = readStored();
     const enabledMap = store.get("plugins.enabled") as Record<string, boolean>;
 
@@ -169,15 +172,13 @@ class PluginRegistry extends EventEmitter {
         enabled,
         source,
         status: { state: "unloaded" },
-        sandbox: null,
-        restartAttempts: 0,
+        loading: false,
         updateInfo: null,
         events: [],
         controls: false,
         settings: [],
         menus: [],
         pending: new Map(),
-        restartTimer: null,
       });
     }
 
@@ -246,19 +247,6 @@ class PluginRegistry extends EventEmitter {
     stored.plugins[manifest.id] = manifest;
     writeStored(stored);
 
-    // 互斥：仅 source 类插件之间互斥——新装 source 时，先停掉其他已启用的 source 插件
-    if ((manifest.type ?? "source") === "source") {
-      const others = [...this.runtimes.values()].filter(
-        (other) =>
-          other.manifest.id !== manifest.id &&
-          other.enabled &&
-          (other.manifest.type ?? "source") === "source",
-      );
-      for (const other of others) {
-        await this.setEnabled(other.manifest.id, false);
-      }
-    }
-
     // 默认启用新插件
     const enabledMap = {
       ...(store.get("plugins.enabled") as Record<string, boolean>),
@@ -274,15 +262,13 @@ class PluginRegistry extends EventEmitter {
       enabled: true,
       source,
       status: { state: "unloaded" },
-      sandbox: null,
-      restartAttempts: 0,
+      loading: false,
       updateInfo: null,
       events: [],
       controls: false,
       settings: [],
       menus: [],
       pending: new Map(),
-      restartTimer: null,
     };
     this.runtimes.set(manifest.id, rt);
     await this.start(rt).catch(() => {});
@@ -388,7 +374,6 @@ class PluginRegistry extends EventEmitter {
     await this.stop(rt);
     rt.manifest = manifest;
     rt.source = source;
-    rt.restartAttempts = 0;
     rt.events = [];
     rt.controls = false;
     rt.settings = [];
@@ -443,8 +428,7 @@ class PluginRegistry extends EventEmitter {
     store.set("plugins.enabled", enabledMap);
 
     if (enabled) {
-      // 手动启用：重置崩溃计数，恢复重启额度（曾达上限的插件不会一崩就直接 error）
-      rt.restartAttempts = 0;
+      this.hostRestartAttempts = 0; // 手动启用：恢复 host 重启额度
       // 启用路径的"无→有"翻转由 start() 内的 setStatus(ready) 负责发出，无需在此重复
       if (rt.status.state !== "ready") await this.start(rt).catch(() => {});
     } else {
@@ -454,150 +438,150 @@ class PluginRegistry extends EventEmitter {
     }
   }
 
-  /** 启动单个插件的 sandbox */
+  /** 启动单个插件：在共享 host 进程里加载它 */
   private async start(rt: PluginRuntime): Promise<void> {
-    if (rt.sandbox?.isAlive()) return;
-    // 既然现在就要启动，取消可能挂着的崩溃重启定时器
-    if (rt.restartTimer) {
-      clearTimeout(rt.restartTimer);
-      rt.restartTimer = null;
-    }
+    const id = rt.manifest.id;
+    if (pluginHost.isReady(id) || rt.loading) return; // 已就绪或正在加载
+    rt.loading = true;
     this.setStatus(rt, { state: "loading" });
 
     const userSettings =
-      (store.get(`plugins.perPlugin.${rt.manifest.id}` as never) as
-        | Record<string, unknown>
-        | undefined) ?? {};
+      (store.get(`plugins.perPlugin.${id}` as never) as Record<string, unknown> | undefined) ?? {};
 
-    const sandbox = new Sandbox(
-      {
-        manifest: rt.manifest,
-        source: rt.source,
-        userSettings,
-        locale: getLocale(),
+    const spec: PluginLoadSpec = {
+      pluginId: id,
+      apiLevel: rt.manifest.apiLevel,
+      locale: getLocale(),
+      appVersion: app.getVersion(),
+      userSettings,
+      source: rt.source,
+      scriptInfo: {
+        name: rt.manifest.name,
+        description: rt.manifest.description ?? "",
+        version: rt.manifest.version,
+        author: rt.manifest.author ?? "",
+        homepage: rt.manifest.homepage ?? "",
       },
-      {
-        onReady: (sources) => {
-          if (rt.sandbox !== sandbox) return; // 过期实例的回调（期间已被 stop/替换），丢弃
-          rt.restartAttempts = 0;
-          // 控制类同步 register 时 registered 先于 ready 到达，ready 必须保留已登记的
-          // events/controls/settings，否则会覆盖掉控制信息、导致设置表单不渲染
-          this.setStatus(rt, {
-            state: "ready",
-            sources,
-            events: rt.events,
-            controls: rt.controls,
-            settings: rt.settings,
-            menus: rt.menus,
-          });
-          this.maybePrimeControl(rt);
-        },
-        onResult: (requestId, ok, data, error) => {
-          const p = rt.pending.get(requestId);
-          if (!p) return;
-          rt.pending.delete(requestId);
-          clearTimeout(p.timer);
-          if (ok) p.resolve(data);
-          else {
-            const err = new Error(error?.message ?? "call failed");
+    };
 
-            (err as any).code = error?.code ?? PluginErrorCodes.UNKNOWN;
-            p.reject(err);
-          }
-        },
-        onHostCall: (callId, method, args) => {
-          void dispatchHostCall(sandbox, rt.manifest.id, rt.manifest.grant, callId, method, args);
-        },
-        onLog: (level, args) => {
-          coreLog[level](`[plugin:${rt.manifest.id}]`, ...args);
-        },
-        onUpdateAvailable: (info) => {
-          rt.updateInfo = info;
-          // 沿当前状态再广播一次，渲染端就能拿到 updateInfo 字段
-          this.setStatus(rt, rt.status);
-        },
-        onSourcesUpdate: (sources) => {
-          // 异步 lx.send('inited') / splayer.register 触发
-          if (rt.status.state !== "ready") return;
-          const merged = { ...rt.status.sources, ...sources };
-          // 保留已登记的 events/controls/settings，避免增量补报 sources 时被清掉
-          this.setStatus(rt, { ...rt.status, sources: merged });
-        },
-        onRegistered: ({ events, controls, settings, menus: declaredMenus }) => {
-          const menus = rt.manifest.grant.includes("ui") ? declaredMenus : [];
-          if (declaredMenus.length && !menus.length) {
-            coreLog.warn(`[plugin:${rt.manifest.id}] 声明了菜单但缺少 "ui" 权限，已忽略`);
-          }
-          rt.events = events;
-          rt.controls = controls;
-          rt.settings = settings;
-          rt.menus = menus;
-          // ready 状态由此建立；"无→有"的 controlActivityChange 由 setStatus 内集中发出
-          if (rt.status.state === "ready") {
-            this.setStatus(rt, { ...rt.status, events, controls, settings, menus });
-          } else {
-            this.setStatus(rt, { state: "ready", sources: {}, events, controls, settings, menus });
-          }
-          this.maybePrimeControl(rt);
-        },
-        onFatal: (error) => {
-          if (rt.sandbox !== sandbox) return; // 过期实例，忽略
-          // 同时记录到主日志，避免错误只在 UI 卡片里可见
-          coreLog.error(`[plugin:${rt.manifest.id}] fatal ${error.code}: ${error.message}`);
-          this.setStatus(rt, { state: "error", error });
-          this.rejectAllPending(rt, error.message, error.code);
-        },
-        onExit: (isCrash) => {
-          if (rt.sandbox !== sandbox) return; // 过期实例退出，忽略
-          if (!isCrash) return;
-          // 崩溃使在途调用永无结果，立即失败掉而非挂到各自超时
-          this.rejectAllPending(rt, "plugin crashed", PluginErrorCodes.WORKER_CRASHED);
-          rt.restartAttempts++;
-          if (rt.restartAttempts > RESTART_MAX_ATTEMPTS) {
-            this.setStatus(rt, {
-              state: "error",
-              error: {
-                code: PluginErrorCodes.WORKER_CRASHED,
-                message: "plugin crashed too many times",
-              },
-            });
-            return;
-          }
-          const delayMs = [2_000, 8_000, 30_000][rt.restartAttempts - 1] ?? 30_000;
-          rt.restartTimer = setTimeout(() => {
-            rt.restartTimer = null;
-            if (rt.enabled) this.start(rt).catch(() => {});
-          }, delayMs);
-        },
+    const callbacks: PluginHostCallbacks = {
+      onReady: (sources) => {
+        this.hostRestartAttempts = 0; // host 成功带起插件 → 重置 host 重启计数
+        // 控制类同步 register 时 registered 先于 ready 到达，ready 必须保留已登记的
+        // events/controls/settings/menus，否则会覆盖掉控制信息、导致设置表单不渲染
+        this.setStatus(rt, {
+          state: "ready",
+          sources,
+          events: rt.events,
+          controls: rt.controls,
+          settings: rt.settings,
+          menus: rt.menus,
+        });
+        this.maybePrimeControl(rt);
       },
-    );
+      onResult: (requestId, ok, data, error) => {
+        const p = rt.pending.get(requestId);
+        if (!p) return;
+        rt.pending.delete(requestId);
+        clearTimeout(p.timer);
+        if (ok) p.resolve(data);
+        else {
+          const err = new Error(error?.message ?? "call failed");
 
-    rt.sandbox = sandbox;
+          (err as any).code = error?.code ?? PluginErrorCodes.UNKNOWN;
+          p.reject(err);
+        }
+      },
+      onHostCall: (callId, method, args) => {
+        void dispatchHostCall(id, rt.manifest.grant, callId, method, args);
+      },
+      onLog: (level, args) => {
+        coreLog[level](`[plugin:${id}]`, ...args);
+      },
+      onUpdateAvailable: (info) => {
+        rt.updateInfo = info;
+        this.setStatus(rt, rt.status);
+      },
+      onSourcesUpdate: (sources) => {
+        if (rt.status.state !== "ready") return;
+        const merged = { ...rt.status.sources, ...sources };
+        this.setStatus(rt, { ...rt.status, sources: merged });
+      },
+      onRegistered: ({ events, controls, settings, menus: declaredMenus }) => {
+        const menus = rt.manifest.grant.includes("ui") ? declaredMenus : [];
+        if (declaredMenus.length && !menus.length) {
+          coreLog.warn(`[plugin:${id}] 声明了菜单但缺少 "ui" 权限，已忽略`);
+        }
+        rt.events = events;
+        rt.controls = controls;
+        rt.settings = settings;
+        rt.menus = menus;
+        if (rt.status.state === "ready") {
+          this.setStatus(rt, { ...rt.status, events, controls, settings, menus });
+        } else {
+          this.setStatus(rt, { state: "ready", sources: {}, events, controls, settings, menus });
+        }
+        this.maybePrimeControl(rt);
+      },
+      onFatal: (error) => {
+        coreLog.error(`[plugin:${id}] fatal ${error.code}: ${error.message}`);
+        this.setStatus(rt, { state: "error", error });
+        this.rejectAllPending(rt, error.message, error.code);
+      },
+      onHostLost: () => {
+        // host 整体丢失：失败在途调用，由 handleHostLost 统一安排整体重启
+        this.rejectAllPending(rt, "plugin host lost", PluginErrorCodes.WORKER_CRASHED);
+      },
+    };
+
     try {
-      await sandbox.start();
+      await pluginHost.loadPlugin(spec, callbacks);
     } catch (err) {
-      if (rt.sandbox !== sandbox) return; // 期间已被 stop/替换，别用陈旧结果覆盖新状态
       const code = ((err as any)?.code as string) ?? PluginErrorCodes.UNKNOWN;
-      const message = err instanceof Error ? err.message : String(err);
-      coreLog.error(`[plugin:${rt.manifest.id}] start failed ${code}: ${message}`);
-      this.setStatus(rt, {
-        state: "error",
-        error: { code, message },
-      });
-      rt.sandbox = null;
+      // host 丢失由 handleHostLost 统一重启；期间被 stop/禁用/已 ready 改写则不覆盖
+      if (code !== PluginErrorCodes.WORKER_CRASHED && rt.enabled && rt.status.state === "loading") {
+        const message = err instanceof Error ? err.message : String(err);
+        coreLog.error(`[plugin:${id}] load failed ${code}: ${message}`);
+        this.setStatus(rt, { state: "error", error: { code, message } });
+      }
+    } finally {
+      rt.loading = false;
     }
   }
 
+  /** host 进程整体丢失：按退避重载所有 enabled 插件（爆炸半径=全部，自愈） */
+  private handleHostLost(): void {
+    if (this.hostRestartTimer) return; // 已安排重启
+    this.hostRestartAttempts++;
+    const enabled = [...this.runtimes.values()].filter((rt) => rt.enabled);
+    if (this.hostRestartAttempts > RESTART_MAX_ATTEMPTS) {
+      for (const rt of enabled) {
+        this.setStatus(rt, {
+          state: "error",
+          error: {
+            code: PluginErrorCodes.WORKER_CRASHED,
+            message: "plugin host crashed too many times",
+          },
+        });
+      }
+      return;
+    }
+    // 退避期间降级为 loading，避免 UI/解析仍把它们当 ready
+    for (const rt of enabled) this.setStatus(rt, { state: "loading" });
+    const delayMs = [2_000, 8_000, 30_000][this.hostRestartAttempts - 1] ?? 30_000;
+    coreLog.warn(`[plugin] host 丢失，${delayMs}ms 后重载 ${enabled.length} 个插件`);
+    this.hostRestartTimer = setTimeout(() => {
+      this.hostRestartTimer = null;
+      for (const rt of enabled) {
+        if (rt.enabled) this.start(rt).catch(() => {});
+      }
+    }, delayMs);
+  }
+
   private async stop(rt: PluginRuntime): Promise<void> {
-    // 取消可能挂着的崩溃重启定时器，否则卸载/替换后插件会被复活
-    if (rt.restartTimer) {
-      clearTimeout(rt.restartTimer);
-      rt.restartTimer = null;
-    }
-    if (rt.sandbox) {
-      await rt.sandbox.dispose();
-      rt.sandbox = null;
-    }
+    rt.loading = false;
+    // 软卸载：dispose 该插件的 vm 上下文，host 进程与其它插件不受扰
+    pluginHost.unloadPlugin(rt.manifest.id);
     this.rejectAllPending(rt, "plugin stopped", PluginErrorCodes.NOT_READY);
     this.setStatus(rt, { state: "unloaded" });
   }
@@ -631,7 +615,11 @@ class PluginRegistry extends EventEmitter {
    * @param rt - 插件运行时
    */
   private maybePrimeControl(rt: PluginRuntime): void {
-    if (rt.manifest.type === "control" && rt.status.state === "ready" && rt.sandbox?.isAlive()) {
+    if (
+      rt.manifest.type === "control" &&
+      rt.status.state === "ready" &&
+      pluginHost.isReady(rt.manifest.id)
+    ) {
       this.emit("controlPluginReady", rt.manifest.id);
     }
   }
@@ -661,10 +649,9 @@ class PluginRegistry extends EventEmitter {
         rt.enabled &&
         rt.manifest.type === "control" &&
         rt.status.state === "ready" &&
-        rt.events.includes(event) &&
-        rt.sandbox?.isAlive()
+        rt.events.includes(event)
       ) {
-        rt.sandbox.sendEvent(event, data);
+        pluginHost.sendEvent(rt.manifest.id, event, data);
       }
     }
   }
@@ -682,10 +669,9 @@ class PluginRegistry extends EventEmitter {
       rt.enabled &&
       rt.manifest.type === "control" &&
       rt.status.state === "ready" &&
-      rt.events.includes(event) &&
-      rt.sandbox?.isAlive()
+      rt.events.includes(event)
     ) {
-      rt.sandbox.sendEvent(event, data);
+      pluginHost.sendEvent(id, event, data);
     }
   }
 
@@ -707,12 +693,16 @@ class PluginRegistry extends EventEmitter {
       [key]: sanitized,
     };
     store.set(`plugins.perPlugin.${id}` as never, all);
-    if (rt.sandbox?.isAlive()) rt.sandbox.sendSettingsUpdate({ [key]: sanitized });
+    if (pluginHost.isReady(id)) pluginHost.sendSettingsUpdate(id, { [key]: sanitized });
   }
 
   /** 应用退出前调用 */
   async shutdown(): Promise<void> {
-    await Promise.all(Array.from(this.runtimes.values()).map((rt) => this.stop(rt)));
+    if (this.hostRestartTimer) {
+      clearTimeout(this.hostRestartTimer);
+      this.hostRestartTimer = null;
+    }
+    pluginHost.shutdown();
   }
 }
 

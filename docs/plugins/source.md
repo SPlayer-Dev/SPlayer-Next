@@ -2,6 +2,8 @@
 
 音源插件（`@type source`）为歌曲提供可播放的 URL。当播放器要播放一首在线歌曲、但拿不到官方地址时，会调用音源插件，由插件返回真实播放地址。
 
+音源插件还可选地**兜底歌词与封面**——内置来源拿不到歌词、或曲目无封面时回退到插件。不限在线平台：本地文件没有内嵌歌词 / 封面时同样适用。见[元数据兜底](#metadata-fallback)。
+
 阅读本文前请先了解 [插件总览与架构](/plugins/)，其中的通用 API（`splayer.request` / `storage` / `log` / `utils` 等）对音源插件同样适用，这里不再重复。
 
 ## 工作原理
@@ -18,7 +20,7 @@
 
 - 移植某个 lx 源脚本时，沿用它原本的 source key 即可；
 - 自己新写时，用与目标平台对应的 key；不确定就在 handler 里 `splayer.log.info(req.source)`，看播放器实际传入的 key；
-- 注册其他 key（如 lx 常见的 `kw` / `mg`）不会报错、也会显示在插件管理里，但当前不会被播放调用。
+- 注册其它 key（如 lx 常见的 `kw` / `mg`）不会报错、也会显示在插件管理里，但当前不会被播放调用。
   :::
 
 ## 快速开始
@@ -82,11 +84,11 @@ splayer.register({
 
 `sources` 是一个 `Record<string, Source>`，键即 [source key](#工作原理)（`wy` / `tx` / `kg`），值为 `Source`：
 
-| 字段        | 类型             | 必填 | 说明                            |
-| ----------- | ---------------- | ---- | ------------------------------- |
-| `name`      | `string`         | ✅   | 音源展示名（仅用于 UI 展示）    |
-| `actions`   | `("musicUrl")[]` | ✅   | 支持的动作（当前仅 `musicUrl`） |
-| `qualities` | `Quality[]`      |      | 支持的音质，仅用于 UI 展示      |
+| 字段        | 类型        | 必填 | 说明                                                                                                          |
+| ----------- | ----------- | ---- | ------------------------------------------------------------------------------------------------------------- |
+| `name`      | `string`    | ✅   | 音源展示名（仅用于 UI 展示）                                                                                  |
+| `actions`   | `Action[]`  | ✅   | 支持的动作：`musicUrl`（播放地址）/ `musicSearch`·`musicLyric`·`musicPic`（[元数据兜底](#metadata-fallback)） |
+| `qualities` | `Quality[]` |      | 支持的音质，仅用于 UI 展示                                                                                    |
 
 `Quality` 取值：
 
@@ -183,10 +185,132 @@ splayer.on("musicUrl", async (req) => {
 
 `resolveWy` / `resolveTx` 由你自己写——内部各自调对应平台的接口（一般用 [`splayer.request`](/plugins/#通用-api)）拿到播放地址。两个平台的取址逻辑互不相同，但都通过同一个 `musicUrl` 处理器对外暴露。
 
-## 优先级与互斥
+## 元数据兜底（歌词 / 封面） {#metadata-fallback}
 
-- 当多个已启用插件支持同一平台时，由播放器按用户设置的**优先级**自动选用第一个就绪的插件；它失败再尝试下一个。
-- 音源插件之间**互斥**：安装一个新音源插件时，已启用的其他音源插件会被自动停用（新装者优先）。用户仍可在插件管理中手动启停。
+除了播放地址，音源插件还能在**内置来源拿不到时兜底元数据**。SPlayer-Next 内置 netease / qqmusic / kugou 的搜索与歌词，但：
+
+- 内置三平台都匹配不到歌词时，宿主回退到插件的 `musicLyric`（在线平台曲目与本地文件都先经三平台按歌名匹配，全 miss 后才轮到插件）；
+- 曲目**完全没有封面**时（如无内嵌封面的本地文件），宿主回退到插件的 `musicPic`，补全全屏播放器大图（同时填充背景与取色）。
+
+这套兜底走「**宿主编排、插件出原语**」：你只实现 `musicSearch`（搜候选）+ `musicLyric` / `musicPic`（取数据），跨源匹配由宿主负责。
+
+### 与 musicUrl 的两点不同
+
+1. **source key 不受限**。`musicUrl` 只有 `wy` / `tx` / `kg` 会被播放调用；元数据兜底**对任意 key 生效**——宿主把你声明的 key 原样传进 `musicSearch`，所以 `kw` / `mg` 等内置不支持的平台也能在这里补上歌词 / 封面。
+2. **匹配由宿主做**。你不必自己判断「搜出来的哪条才是这首歌」：宿主用候选的 `name` / `singer` / `durationMs` 打分，**时长是硬门槛**（双方都给时长且相差超 20 秒直接排除），挑出最匹配的一条，再用它调 `musicLyric` / `musicPic`。若你声明的 source key 恰好对应曲目所属平台（`wy` / `tx` / `kg`），宿主跳过搜索、直接用平台歌曲 ID。
+
+### 声明
+
+在 source 的 `actions` 里加上要支持的动作：
+
+```js
+splayer.register({
+  sources: {
+    kw: { name: "KW", actions: ["musicSearch", "musicLyric", "musicPic"] },
+  },
+});
+```
+
+> 三个动作各自独立：只想补歌词就声明 `["musicSearch", "musicLyric"]`，封面同理。`musicSearch` 是匹配前提，补歌词或封面时都需要它。
+
+### `musicSearch`
+
+宿主先调它搜候选，供匹配打分。
+
+**请求** `{ source, keyword, page?, limit? }`——`keyword` 形如 `"歌名 歌手"`。
+
+**返回** `{ list: Candidate[] }`，`Candidate`：
+
+| 字段         | 类型     | 必填 | 说明                                                                               |
+| ------------ | -------- | ---- | ---------------------------------------------------------------------------------- |
+| `id`         | `string` | ✅   | 该源内的歌曲 ID，取歌词 / 封面时凭它                                               |
+| `name`       | `string` | ✅   | 歌名（匹配用）                                                                     |
+| `singer`     | `string` |      | 歌手（匹配用）                                                                     |
+| `album`      | `string` |      | 专辑（匹配加分）                                                                   |
+| `durationMs` | `number` |      | 时长（毫秒）——**强烈建议给**，时长是匹配硬门槛                                     |
+| 其余字段     | 任意     |      | 原样透传：命中的这条 Candidate 会作为 `musicInfo` 回传给 `musicLyric` / `musicPic` |
+
+::: warning durationMs 决定匹配质量
+不给 `durationMs` 时长门槛失效，容易匹配到同名翻唱 / 伴奏。能拿到时长就一定要填。
+:::
+
+### `musicLyric`
+
+**请求** `{ source, musicInfo }`——`musicInfo` 是宿主匹配命中的那条 `Candidate`（含 `id`）。
+
+**返回**：
+
+| 字段      | 类型     | 必填 | 说明                           |
+| --------- | -------- | ---- | ------------------------------ |
+| `lyric`   | `string` | ✅   | 主歌词（LRC / 逐行文本）       |
+| `tlyric`  | `string` |      | 翻译                           |
+| `rlyric`  | `string` |      | 罗马音                         |
+| `awlyric` | `string` |      | 逐字歌词（yrc / qrc / lys 等） |
+
+> 有逐字（`awlyric`）时宿主优先用逐字，格式自动识别。返回空 `lyric` 视为未命中，宿主转向下一个源。
+
+### `musicPic`
+
+**请求** `{ source, musicInfo }`，同上。
+
+**返回** `{ url }`——封面图片远端直链。它会同时填充全屏大图与背景，建议给尽量大的图。返回空 `url` 视为未命中。
+
+### 完整示例（兜底歌词 + 封面）
+
+```js
+/**
+ * @name     KW Metadata
+ * @version  1.0.0
+ * @type     source
+ * @apiLevel 2
+ */
+splayer.register({
+  sources: {
+    kw: { name: "KW", actions: ["musicSearch", "musicLyric", "musicPic"] },
+  },
+});
+
+splayer.on("musicSearch", async ({ keyword }) => {
+  const resp = await splayer.request(
+    `https://api.example.com/search?k=${encodeURIComponent(keyword)}`,
+    { responseType: "json" },
+  );
+  return {
+    list: (resp.body?.songs ?? []).map((song) => ({
+      id: song.rid,
+      name: song.name,
+      singer: song.artist,
+      album: song.album,
+      durationMs: song.duration * 1000, // 接口给秒就 ×1000
+    })),
+  };
+});
+
+splayer.on("musicLyric", async ({ musicInfo }) => {
+  const resp = await splayer.request(`https://api.example.com/lyric?id=${musicInfo.id}`, {
+    responseType: "json",
+  });
+  return { lyric: resp.body?.lrc ?? "", tlyric: resp.body?.tlrc };
+});
+
+splayer.on("musicPic", async ({ musicInfo }) => {
+  const resp = await splayer.request(`https://api.example.com/pic?id=${musicInfo.id}`, {
+    responseType: "json",
+  });
+  return { url: resp.body?.cover ?? "" };
+});
+```
+
+### 触发与顺序
+
+- 歌词兜底对**在线平台曲目与本地文件**生效，排在内置三平台**之后**，按插件优先级顺序逐个源尝试，首个非空即用；流媒体（Subsonic / Jellyfin / Emby）走服务器自带歌词，暂不走插件兜底；
+- 封面兜底对**任意来源**生效（本地 / 在线 / 流媒体），仅在曲目**无任何封面**时触发，有封面的曲目不会发起任何请求；
+- 这些请求都需要联网，音源插件**自动获得 `network` 权限**，无需声明。
+
+## 优先级
+
+- 多个音源插件可**同时启用**，互不排斥——即便支持同一平台。
+- 当多个已启用插件支持同一平台时，播放器按用户在插件管理里设置的**优先级**自动选用第一个就绪的插件；它失败（抛错或返回空地址）再尝试下一个。
 
 ## 更新支持
 
@@ -211,6 +335,20 @@ await window.api.plugins.resolveUrl({
   quality: "hq",
   musicInfo: { songmid: "歌曲ID", name: "歌名", singer: "歌手" },
 });
+```
+
+歌词 / 封面兜底也可直接触发（`track` 传一个 Track 形状对象即可，`pluginId` 取自 `window.api.plugins.list()`）：
+
+```js
+const track = {
+  id: "x",
+  source: "local",
+  title: "歌名",
+  artists: [{ name: "歌手" }],
+  duration: 269000,
+};
+await window.api.plugins.matchLyric({ pluginId: "kw-metadata-splayer", source: "kw", track });
+await window.api.plugins.matchCover({ pluginId: "kw-metadata-splayer", source: "kw", track });
 ```
 
 更多调试方式与错误码见 [总览 · 调试](/plugins/#调试) 与 [错误码](/plugins/#错误码)。

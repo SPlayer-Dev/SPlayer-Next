@@ -7,6 +7,9 @@ export const HOST_API_LEVEL = 2;
 export const ACTION_TIMEOUTS = {
   musicUrl: 20_000,
   menuClick: 15_000,
+  musicSearch: 15_000,
+  musicLyric: 15_000,
+  musicPic: 15_000,
 } as const;
 
 /** 网络请求最大超时 */

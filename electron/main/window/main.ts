@@ -48,6 +48,11 @@ export const createMainWindow = (): BrowserWindow => {
     mainWindow.maximize();
   }
 
+  // 窗口内容就绪
+  mainWindow.once("ready-to-show", () => {
+    mainWindow?.show();
+  });
+
   // 初始化托盘
   initTray();
 
