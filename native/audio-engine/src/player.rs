@@ -12,7 +12,7 @@ use crate::audio_output::AudioOutput;
 use crate::decoder;
 use crate::equalizer::{Equalizer, EQ_BAND_COUNT};
 use crate::fft::FftAnalyzer;
-use crate::shared::{AudioMetadata, Shared};
+use crate::shared::{AudioMetadata, HighPassRole, Shared};
 use crate::source::DecoderSource;
 use crate::tempo::StretchProcessor;
 
@@ -58,6 +58,53 @@ fn fade_volume(sink: &Sink, from: f32, to: f32, duration_ms: u64, cancel: &Atomi
     }
 }
 
+/// 同步淡出旧 sink、淡入新 sink；完成后释放旧解码资源
+fn crossfade_volume(
+    old: CrossfadeOldTrack,
+    new_sink: Arc<Sink>,
+    target_volume: f32,
+    duration_ms: u64,
+    cancel: &AtomicBool,
+) {
+    for h in [old.position_timer, old.fft_timer, old.fade_handle]
+        .into_iter()
+        .flatten()
+    {
+        let _ = h.join();
+    }
+
+    if duration_ms == 0 {
+        new_sink.set_volume(target_volume);
+    } else {
+        let step_duration = Duration::from_millis(duration_ms / u64::from(FADE_STEPS));
+        for step in 1..=FADE_STEPS {
+            if cancel.load(Ordering::Relaxed) {
+                break;
+            }
+            let progress = step as f32 / FADE_STEPS as f32;
+            new_sink.set_volume(target_volume * progress);
+            if let Some(ref sink) = old.sink {
+                sink.set_volume(target_volume * (1.0 - progress));
+            }
+            sleep_unless_stopped(cancel, step_duration);
+        }
+    }
+
+    if let Some(sink) = old.sink {
+        sink.stop();
+    }
+    if let Some(shared) = old.shared {
+        shared.stop();
+        shared.drain_buffer();
+    }
+    if let Some(handle) = old.decoder_thread {
+        let _ = handle.join();
+    }
+    if !cancel.load(Ordering::Relaxed) {
+        new_sink.set_volume(target_volume);
+    }
+}
+
 /// 播放状态
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PlayerState {
@@ -75,6 +122,8 @@ pub struct InnerPlayer {
     /// 使用 Arc 包装，允许 fade 线程在 Mutex 外操作音量
     sink: Option<Arc<Sink>>,
     shared: Option<Arc<Shared>>,
+    /// 下一首预载槽：只保留一个候选，切歌/停止/新预载会释放旧槽
+    prepared: Option<PreparedTrack>,
     /// 解码线程句柄，join 后可回收 DecoderData 复用于 seek
     decoder_thread: Option<JoinHandle<decoder::DecoderData>>,
     fft: Arc<FftAnalyzer>,
@@ -123,6 +172,16 @@ pub struct InnerPlayer {
     /// commit_loaded 比对 token 与最新值，不一致则该次加载已被新加载取代，需丢弃
     /// 用于防止快速切歌时旧 IO 完成后覆盖新音频的竞态
     load_token: Arc<AtomicU64>,
+    /// preload 单调递增 token：取消预载时让在途 commit 失效
+    preload_token: Arc<AtomicU64>,
+}
+
+/// 已解码预热但尚未接入输出的下一曲
+pub struct PreparedTrack {
+    pub source: String,
+    pub shared: Arc<Shared>,
+    pub decoder_thread: JoinHandle<decoder::DecoderData>,
+    pub metadata: AudioMetadata,
 }
 
 /// 切换/seek 时要 join 的旧线程集合，全部挪到 spawn_blocking 工作线程 join，
@@ -132,12 +191,18 @@ pub struct OldThreads {
     pub position_timer: Option<JoinHandle<()>>,
     pub fft_timer: Option<JoinHandle<()>>,
     pub fade_handle: Option<JoinHandle<()>>,
+    pub prepared: Option<PreparedTrack>,
 }
 
 impl OldThreads {
     /// 在工作线程上 join 所有旧 timer/fade，返回旧解码线程 handle 供调用方继续使用
     /// 忽略 join 错误：辅助线程 panic 不阻止新加载，主播放路径不依赖它们
     pub fn join_aux(self) -> Option<JoinHandle<decoder::DecoderData>> {
+        if let Some(prepared) = self.prepared {
+            prepared.shared.stop();
+            prepared.shared.drain_buffer();
+            let _ = prepared.decoder_thread.join();
+        }
         for h in [self.position_timer, self.fft_timer, self.fade_handle]
             .into_iter()
             .flatten()
@@ -146,6 +211,26 @@ impl OldThreads {
         }
         self.decoder_thread
     }
+}
+
+/// crossfade 接管当前播放槽时取出的旧播放资源
+pub struct CrossfadeOldTrack {
+    pub sink: Option<Arc<Sink>>,
+    pub shared: Option<Arc<Shared>>,
+    pub decoder_thread: Option<JoinHandle<decoder::DecoderData>>,
+    pub position_timer: Option<JoinHandle<()>>,
+    pub fft_timer: Option<JoinHandle<()>>,
+    pub fade_handle: Option<JoinHandle<()>>,
+}
+
+/// crossfade 前置阶段返回给 lib.rs 的参数
+pub struct CrossfadeTake {
+    pub token: u64,
+    pub prepared: Option<PreparedTrack>,
+    pub discarded_prepared: Option<PreparedTrack>,
+    pub cover_dir: Option<String>,
+    pub normalization_enabled: bool,
+    pub output_sample_rate: u32,
 }
 
 /// async seek 阶段 1 的输出：带到工作线程做 join + ffmpeg seek + 重启解码
@@ -230,6 +315,7 @@ impl InnerPlayer {
             output,
             sink: None,
             shared: None,
+            prepared: None,
             decoder_thread: None,
             fft: Arc::new(FftAnalyzer::new(decoder::TARGET_SAMPLE_RATE)),
             audio_sample_rate: 0,
@@ -258,6 +344,7 @@ impl InnerPlayer {
                 initial_rate,
             ))),
             load_token: Arc::new(AtomicU64::new(0)),
+            preload_token: Arc::new(AtomicU64::new(0)),
         })
     }
 
@@ -301,6 +388,50 @@ impl InnerPlayer {
         if let Some(handle) = self.fade_handle.take() {
             let _ = handle.join();
         }
+    }
+
+    fn stop_prepared(prepared: PreparedTrack) {
+        prepared.shared.stop();
+        prepared.shared.drain_buffer();
+        let _ = prepared.decoder_thread.join();
+    }
+
+    /// 清理预载槽并使在途 preload 失效
+    pub fn cancel_preload(&mut self) {
+        self.preload_token.fetch_add(1, Ordering::AcqRel);
+        if let Some(prepared) = self.prepared.take() {
+            Self::stop_prepared(prepared);
+        }
+    }
+
+    /// 开始一次异步预载，返回旧预载槽供工作线程释放
+    pub fn take_for_async_preload(&mut self) -> (Option<PreparedTrack>, u64) {
+        let token = self.preload_token.fetch_add(1, Ordering::AcqRel) + 1;
+        (self.prepared.take(), token)
+    }
+
+    /// 提交异步预载结果
+    pub fn commit_preloaded(
+        &mut self,
+        token: u64,
+        source: String,
+        metadata: AudioMetadata,
+        decoder_thread: JoinHandle<decoder::DecoderData>,
+        shared: Arc<Shared>,
+    ) -> Option<AudioMetadata> {
+        if token != self.preload_token.load(Ordering::Acquire) {
+            shared.stop();
+            drop(decoder_thread);
+            return None;
+        }
+        let returned = metadata.clone();
+        self.prepared = Some(PreparedTrack {
+            source,
+            shared,
+            decoder_thread,
+            metadata,
+        });
+        Some(returned)
     }
 
     /// 启动非阻塞渐变（独立线程执行，不阻塞调用方）。
@@ -526,6 +657,7 @@ impl InnerPlayer {
     pub fn take_for_async_load(&mut self) -> (OldThreads, u64) {
         // 自增 token：本次 load 的标识；任何并发的更早 commit_loaded 比较时会发现不匹配
         let token = self.load_token.fetch_add(1, Ordering::AcqRel) + 1;
+        self.preload_token.fetch_add(1, Ordering::AcqRel);
 
         // 发停止信号（原子写，纳秒级）
         if let Some(flag) = self.fade_cancel.take() {
@@ -559,6 +691,7 @@ impl InnerPlayer {
             position_timer: self.position_timer_handle.take(),
             fft_timer: self.fft_timer_handle.take(),
             fade_handle: self.fade_handle.take(),
+            prepared: self.prepared.take(),
         };
         (old_threads, token)
     }
@@ -566,6 +699,148 @@ impl InnerPlayer {
     /// token 是否仍是最新值（seek 失败回退到 load 前校验，避免复活已被取代的旧源）
     pub fn is_load_token_current(&self, token: u64) -> bool {
         token == self.load_token.load(Ordering::Acquire)
+    }
+
+    /// crossfade 前置：不停止当前播放，只取出匹配的预载槽或丢弃旧预载槽
+    pub fn take_for_async_crossfade(&mut self, source: &str) -> Result<CrossfadeTake> {
+        let token = self.load_token.fetch_add(1, Ordering::AcqRel) + 1;
+        self.preload_token.fetch_add(1, Ordering::AcqRel);
+        self.ensure_output()?;
+        let prepared = match self.prepared.take() {
+            Some(prepared) if prepared.source == source => Some(prepared),
+            other => {
+                return Ok(CrossfadeTake {
+                    token,
+                    prepared: None,
+                    discarded_prepared: other,
+                    cover_dir: self.cover_cache_dir().map(String::from),
+                    normalization_enabled: self.normalization_enabled,
+                    output_sample_rate: self.output_sample_rate(),
+                });
+            }
+        };
+        Ok(CrossfadeTake {
+            token,
+            prepared,
+            discarded_prepared: None,
+            cover_dir: self.cover_cache_dir().map(String::from),
+            normalization_enabled: self.normalization_enabled,
+            output_sample_rate: self.output_sample_rate(),
+        })
+    }
+
+    fn take_old_for_crossfade(&mut self) -> CrossfadeOldTrack {
+        if let Some(flag) = self.fade_cancel.take() {
+            flag.store(true, Ordering::Relaxed);
+        }
+        if let Some(flag) = self.position_timer_stop.take() {
+            flag.store(true, Ordering::Relaxed);
+        }
+        if let Some(flag) = self.fft_timer_stop.take() {
+            flag.store(true, Ordering::Relaxed);
+        }
+        CrossfadeOldTrack {
+            sink: self.sink.take(),
+            shared: self.shared.take(),
+            decoder_thread: self.decoder_thread.take(),
+            position_timer: self.position_timer_handle.take(),
+            fft_timer: self.fft_timer_handle.take(),
+            fade_handle: self.fade_handle.take(),
+        }
+    }
+
+    fn cloned_equalizer(&self, sample_rate: u32) -> Arc<Mutex<Equalizer>> {
+        let current = self.equalizer.lock();
+        let mut eq = Equalizer::new(sample_rate);
+        eq.set_enabled(current.enabled());
+        eq.set_band_gains(&current.band_gains_db());
+        eq.set_preamp_db(current.preamp_db());
+        Arc::new(Mutex::new(eq))
+    }
+
+    fn cloned_tempo(&self, sample_rate: u32) -> Arc<Mutex<StretchProcessor>> {
+        let current = self.tempo.lock();
+        let mut tempo = StretchProcessor::new(decoder::TARGET_CHANNELS, sample_rate);
+        tempo.set_speed(current.speed());
+        tempo.set_pitch(current.pitch());
+        tempo.set_pitch_sync(current.pitch_sync());
+        Arc::new(Mutex::new(tempo))
+    }
+
+    /// 提交 crossfade：新槽接管当前播放，旧槽在后台淡出后释放
+    pub fn commit_crossfade(
+        &mut self,
+        token: u64,
+        source: &str,
+        mut metadata: AudioMetadata,
+        decode_handle: JoinHandle<decoder::DecoderData>,
+        shared: Arc<Shared>,
+        duration_ms: u64,
+        start_seek_secs: f64,
+        initial_rate: f32,
+        mix_type: &str,
+    ) -> Result<Option<AudioMetadata>> {
+        if token != self.load_token.load(Ordering::Acquire) {
+            shared.stop();
+            drop(decode_handle);
+            return Ok(None);
+        }
+
+        self.configure_dsp_sample_rate();
+        let sink = {
+            let output = self.ensure_output()?;
+            Arc::new(Sink::try_new(output.handle()).context("Failed to create audio sink")?)
+        };
+        let old = self.take_old_for_crossfade();
+        if mix_type == "bassSwap" {
+            if let Some(ref shared) = old.shared {
+                shared.set_high_pass_automation(HighPassRole::FadeOut, duration_ms);
+            }
+            shared.set_high_pass_automation(HighPassRole::FadeIn, duration_ms);
+        }
+
+        let new_equalizer = self.cloned_equalizer(self.output_sample_rate());
+        let new_tempo = self.cloned_tempo(self.output_sample_rate());
+        new_tempo.lock().set_speed(initial_rate);
+        let decoder_source = DecoderSource::new(
+            Arc::clone(&shared),
+            Arc::clone(&self.fft),
+            Arc::clone(&new_equalizer),
+            Arc::clone(&new_tempo),
+            metadata.sample_rate,
+            metadata.channels,
+        );
+
+        sink.set_volume(0.0);
+        sink.append(decoder_source);
+        self.sink = Some(Arc::clone(&sink));
+        self.shared = Some(Arc::clone(&shared));
+        self.decoder_thread = Some(decode_handle);
+        self.seek_base = start_seek_secs;
+        self.current_source = Some(source.to_string());
+        self.audio_sample_rate = metadata.sample_rate;
+        self.audio_channels = metadata.channels;
+        self.audio_duration = metadata.duration_secs;
+        self.cover_raw = metadata.cover_raw.take();
+        self.equalizer = new_equalizer;
+        self.tempo = new_tempo;
+
+        self.state = PlayerState::Playing;
+        self.emit(PlayerEvent::StateChanged {
+            state: PlayerState::Playing,
+        });
+        self.start_position_timer();
+        self.start_fft_timer();
+
+        let target_volume = self.target_volume;
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.fade_cancel = Some(Arc::clone(&cancel));
+        let handle = thread::spawn(move || {
+            crossfade_volume(old, sink, target_volume, duration_ms, &cancel);
+        });
+        self.fade_handle = Some(handle);
+
+        Ok(Some(metadata))
     }
 
     /// 给 lib.rs async seek 用：原子发出停止信号 + take 所有旧线程 handle（不 join）
@@ -601,6 +876,7 @@ impl InnerPlayer {
             position_timer: self.position_timer_handle.take(),
             fft_timer: self.fft_timer_handle.take(),
             fade_handle: self.fade_handle.take(),
+            prepared: None,
         };
 
         let (norm_enabled, norm_gain) = match self.shared.take() {
@@ -917,6 +1193,7 @@ impl InnerPlayer {
     }
 
     fn stop_internal(&mut self) {
+        self.preload_token.fetch_add(1, Ordering::AcqRel);
         // 1. 取消渐变并等待渐变线程退出（释放 Arc<Sink>）
         self.cancel_fade();
         // 2. 停止定时器并等待线程退出（释放 Arc<Shared> 和 Arc<EventEmitter>）
@@ -933,6 +1210,9 @@ impl InnerPlayer {
         // 5. 等待解码线程退出，回收 DecoderData（FFmpeg 资源在此 drop）
         if let Some(handle) = self.decoder_thread.take() {
             let _ = handle.join();
+        }
+        if let Some(prepared) = self.prepared.take() {
+            Self::stop_prepared(prepared);
         }
         // 6. 清空共享缓冲区（即使还有外部 Arc 引用，缓冲区数据也立即释放）
         if let Some(ref shared) = self.shared {

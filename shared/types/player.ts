@@ -144,6 +144,92 @@ export interface LoadOptions {
   meta?: Track;
 }
 
+/** player:crossfadeTo 的可选参数 */
+export interface CrossfadeOptions extends LoadOptions {
+  /** 交叉混音时长（毫秒） */
+  durationMs?: number;
+  /** 下一首起播位置（毫秒） */
+  startSeekMs?: number;
+  /** 下一首初始播放速度 */
+  initialRate?: number;
+  /** 混音策略类型 */
+  mixType?: "default" | "bassSwap";
+  /** UI 与媒体状态提交延迟（毫秒） */
+  uiSwitchDelayMs?: number;
+}
+
+/** 音频分析结果 */
+export interface AudioAnalysis {
+  duration: number;
+  bpm?: number;
+  bpm_confidence?: number;
+  fade_in_pos: number;
+  fade_out_pos: number;
+  first_beat_pos?: number;
+  loudness?: number;
+  drop_pos?: number;
+  version: number;
+  analyze_window: number;
+  cut_in_pos?: number;
+  cut_out_pos?: number;
+  mix_center_pos: number;
+  mix_start_pos: number;
+  mix_end_pos: number;
+  energy_profile: number[];
+  vocal_in_pos?: number;
+  vocal_out_pos?: number;
+  vocal_last_in_pos?: number;
+  outro_energy_level?: number;
+  key_root?: number;
+  key_mode?: number;
+  key_confidence?: number;
+  camelot_key?: string;
+}
+
+/** 自动混音过渡建议 */
+export interface TransitionProposal {
+  duration: number;
+  current_track_mix_out: number;
+  next_track_mix_in: number;
+  mix_type: string;
+  filter_strategy: string;
+  compatibility_score: number;
+  key_compatible: boolean;
+  bpm_compatible: boolean;
+}
+
+/** 自动混音音量与滤波自动化点 */
+export interface AutomationPoint {
+  timeOffset: number;
+  volume: number;
+  lowCut: number;
+  highCut: number;
+}
+
+/** 自动混音高级过渡建议 */
+export interface AdvancedTransition {
+  start_time_current: number;
+  start_time_next: number;
+  duration: number;
+  pitch_shift_semitones: number;
+  playback_rate: number;
+  automation_current: AutomationPoint[];
+  automation_next: AutomationPoint[];
+  strategy: string;
+}
+
+/** 自动混音执行计划 */
+export interface AutomixPlan {
+  track: Track;
+  index: number;
+  triggerTime: number;
+  crossfadeDuration: number;
+  startSeek: number;
+  initialRate: number;
+  uiSwitchDelay: number;
+  mixType: "default" | "bassSwap";
+}
+
 /** 播放器状态快照 */
 export interface PlayerStatus {
   state: PlayerState;
@@ -163,6 +249,7 @@ export interface AudioDevice {
 export type PlayerEvent =
   | { type: "status"; data: PlayerStatus }
   | { type: "position"; data: { position: number; duration: number } }
+  | { type: "transitionCommit"; data: { source: string; duration: number; result: LoadResult } }
   | { type: "seek"; data: { position: number } }
   | { type: "ended" }
   | { type: "sourceError" }
@@ -189,6 +276,32 @@ export interface IpcResponse<T = void> {
 export interface PlayerApi {
   /** 加载音频（本地路径或网络地址）。可选下发权威 meta 用于 SMTC/托盘 */
   load: (source: string, options?: LoadOptions) => Promise<IpcResponse<LoadResult>>;
+  /** 静默预载下一首音频 */
+  preload: (source: string) => Promise<IpcResponse<LoadResult>>;
+  /** 交叉混音到目标音频 */
+  crossfadeTo: (source: string, options?: CrossfadeOptions) => Promise<IpcResponse<LoadResult>>;
+  /** 分析完整音频特征 */
+  analyzeAudioFile: (
+    path: string,
+    maxAnalyzeTimeSec?: number,
+  ) => Promise<IpcResponse<AudioAnalysis>>;
+  /** 仅分析音频头部特征 */
+  analyzeAudioFileHead: (
+    path: string,
+    maxAnalyzeTimeSec?: number,
+  ) => Promise<IpcResponse<AudioAnalysis>>;
+  /** 计算两首歌的过渡建议 */
+  suggestTransition: (
+    currentPath: string,
+    nextPath: string,
+  ) => Promise<IpcResponse<TransitionProposal | null>>;
+  /** 计算两首歌的长段混音建议 */
+  suggestLongMix: (
+    currentPath: string,
+    nextPath: string,
+  ) => Promise<IpcResponse<AdvancedTransition | null>>;
+  /** 取消下一首预载 */
+  cancelPreload: () => Promise<IpcResponse>;
   /** 恢复播放 */
   play: () => Promise<IpcResponse>;
   /** 暂停播放 */

@@ -15,6 +15,9 @@ export const defaultSystemConfig: SystemConfig = {
   player: {
     autoPlay: false,
     rememberLastTrack: true,
+    preloadNext: true,
+    automixEnabled: false,
+    automixMaxAnalyzeTimeSec: 60,
     fadeEnabled: true,
     fadeDuration: 200,
     outputDevice: null,

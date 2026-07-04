@@ -135,7 +135,7 @@ const resolveOnlineUrl = async (
 export interface ResolvedTrackSource {
   source: string;
   fromCache: boolean;
-  cacheRequest?: () => Promise<void>;
+  cacheRequest?: () => Promise<string | null>;
 }
 
 /**
@@ -168,9 +168,10 @@ export const resolveTrackSource = async (track: Track): Promise<ResolvedTrackSou
             const cacheUrl = await store.getStreamUrl(track, {
               playSessionId: crypto.randomUUID(),
             });
-            void window.api.cache.song.fetch(cacheKey, "streaming", cacheUrl);
+            return window.api.cache.song.fetch(cacheKey, "streaming", cacheUrl);
           } catch (err) {
             console.warn("[cache] streaming getStreamUrl failed", err);
+            return null;
           }
         };
       }
@@ -192,7 +193,7 @@ export const resolveTrackSource = async (track: Track): Promise<ResolvedTrackSou
       const result: ResolvedTrackSource = { source: url, fromCache: false };
       if (cacheEnabled) {
         result.cacheRequest = async () => {
-          void window.api.cache.song.fetch(cacheKey, track.source, url);
+          return window.api.cache.song.fetch(cacheKey, track.source, url);
         };
       }
       return result;

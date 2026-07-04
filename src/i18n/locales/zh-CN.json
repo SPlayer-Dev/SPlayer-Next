@@ -705,6 +705,18 @@
       "label": "记忆播放进度",
       "description": "启动时恢复上次歌曲的播放进度"
     },
+    "preloadNext": {
+      "label": "预加载下一首",
+      "description": "提前解析并准备下一首歌曲，减少切歌等待"
+    },
+    "automixEnabled": {
+      "label": "自动混音",
+      "description": "在曲末根据分析结果自动交叉混入下一首"
+    },
+    "automixMaxAnalyzeTimeSec": {
+      "label": "最大分析时长",
+      "description": "每首歌用于自动混音分析的最长秒数"
+    },
     "fadeEnabled": {
       "label": "渐入渐出",
       "description": "播放和暂停时音频淡入淡出"

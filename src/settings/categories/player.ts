@@ -26,6 +26,31 @@ const playerCategory: SettingCategory = {
           defaultValue: false,
         },
         {
+          key: "preloadNext",
+          type: "switch",
+          binding: { store: "settings", path: "system.player.preloadNext" },
+          defaultValue: true,
+        },
+        {
+          key: "automixEnabled",
+          type: "switch",
+          binding: { store: "settings", path: "system.player.automixEnabled" },
+          defaultValue: false,
+          tag: { text: "Beta" },
+          children: [
+            {
+              key: "automixMaxAnalyzeTimeSec",
+              type: "slider",
+              binding: { store: "settings", path: "system.player.automixMaxAnalyzeTimeSec" },
+              min: 10,
+              max: 300,
+              step: 10,
+              defaultValue: 60,
+              marks: { 10: "10", 60: "60", 300: "300" },
+            },
+          ],
+        },
+        {
           key: "fadeEnabled",
           type: "switch",
           binding: { store: "settings", path: "system.player.fadeEnabled" },

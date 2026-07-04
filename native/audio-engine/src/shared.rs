@@ -6,6 +6,54 @@ use parking_lot::{Condvar, Mutex};
 
 use crate::metadata::ExternalLyric;
 
+#[derive(Clone, Copy)]
+pub enum HighPassRole {
+    FadeOut,
+    FadeIn,
+}
+
+#[derive(Clone, Copy)]
+pub struct HighPassAutomation {
+    start_samples: u64,
+    sample_rate: u32,
+    channels: u16,
+    duration_ms: u64,
+    role: HighPassRole,
+}
+
+impl HighPassAutomation {
+    pub(crate) fn cutoff_at(self, consumed_samples: u64) -> f32 {
+        const BYPASS_FREQ: f32 = 10.0;
+        const SWAP_FREQ: f32 = 400.0;
+        let elapsed_samples = consumed_samples.saturating_sub(self.start_samples);
+        let elapsed_ms =
+            elapsed_samples as f32 * 1000.0 / self.sample_rate as f32 / self.channels as f32;
+        let duration_ms = self.duration_ms.max(1) as f32;
+        let mid_ms = duration_ms * 0.5;
+        match self.role {
+            HighPassRole::FadeOut => {
+                if elapsed_ms >= mid_ms {
+                    return SWAP_FREQ;
+                }
+                let t = (elapsed_ms / mid_ms.max(1.0)).clamp(0.0, 1.0);
+                BYPASS_FREQ + (SWAP_FREQ - BYPASS_FREQ) * t
+            }
+            HighPassRole::FadeIn => {
+                let release_ms = (duration_ms * 0.25).min(600.0);
+                let release_end = mid_ms + release_ms;
+                if elapsed_ms <= mid_ms {
+                    return SWAP_FREQ;
+                }
+                if elapsed_ms >= release_end {
+                    return BYPASS_FREQ;
+                }
+                let t = ((elapsed_ms - mid_ms) / release_ms.max(1.0)).clamp(0.0, 1.0);
+                SWAP_FREQ + (BYPASS_FREQ - SWAP_FREQ) * t
+            }
+        }
+    }
+}
+
 /// 解码后的 PCM 音频数据块
 pub struct AudioChunk {
     /// 交错排列的 f32 播放样本（L R L R ...）
@@ -40,6 +88,8 @@ pub struct Shared {
     /// stop() 触发时一并设为 true，让正在阻塞的 ffmpeg IO 立即返回 AVERROR_EXIT
     /// 否则 packets().next() 这种同步调用要等到 rw_timeout（15s）才能感知 stop
     interrupt_flag: Mutex<Option<Arc<AtomicBool>>>,
+    /// Automix bass swap 高通滤波自动化，仅在 crossfade 期间启用
+    high_pass_automation: Mutex<Option<HighPassAutomation>>,
 }
 
 /// 共享缓冲区最大容量（背压阈值）
@@ -64,6 +114,7 @@ impl Shared {
             normalization_gain: AtomicU32::new(1.0_f32.to_bits()),
             normalization_enabled: AtomicBool::new(false),
             interrupt_flag: Mutex::new(None),
+            high_pass_automation: Mutex::new(None),
         })
     }
 
@@ -107,6 +158,23 @@ impl Shared {
     /// 已消费采样的原始计数（用于停滞检测，不做单位换算）
     pub fn samples_consumed_count(&self) -> u64 {
         self.samples_consumed.load(Ordering::Relaxed)
+    }
+
+    /// 启用 Automix bass swap 高通滤波包络
+    pub fn set_high_pass_automation(&self, role: HighPassRole, duration_ms: u64) {
+        let start_samples = self.samples_consumed.load(Ordering::Relaxed);
+        *self.high_pass_automation.lock() = Some(HighPassAutomation {
+            start_samples,
+            sample_rate: self.sample_rate,
+            channels: self.channels,
+            duration_ms,
+            role,
+        });
+    }
+
+    /// 获取当前高通滤波包络快照，播放线程按 chunk 读取避免持锁处理采样
+    pub fn high_pass_automation(&self) -> Option<HighPassAutomation> {
+        *self.high_pass_automation.lock()
     }
 
     /// 缓冲区是否为空（true 表示解码 underrun，sink 不消费可能是正常等待数据）
@@ -202,6 +270,15 @@ impl Shared {
             flag.store(true, Ordering::Release);
         }
         self.condvar.notify_all();
+    }
+
+    /// 复位停止态，用于同一个 Shared 在 seek 后继续接收解码数据
+    pub fn clear_stop(&self) {
+        self.is_stopping.store(false, Ordering::Release);
+        self.is_eof.store(false, Ordering::Release);
+        self.all_consumed.store(false, Ordering::Release);
+        self.decode_failed.store(false, Ordering::Release);
+        self.samples_consumed.store(0, Ordering::Release);
     }
 
     /// 清空缓冲区并释放内存（stop 后调用，避免 AudioChunk 在 Arc 引用存活期间持续占用内存）

@@ -717,6 +717,18 @@
       "label": "Remember Progress",
       "description": "Restore playback position on startup"
     },
+    "preloadNext": {
+      "label": "Preload Next Track",
+      "description": "Resolve and prepare the next track early to reduce switch latency"
+    },
+    "automixEnabled": {
+      "label": "Automix",
+      "description": "Automatically crossfade into the next track near the end"
+    },
+    "automixMaxAnalyzeTimeSec": {
+      "label": "Max Analysis Time",
+      "description": "Maximum seconds of each track used for automix analysis"
+    },
     "fadeEnabled": {
       "label": "Fade In/Out",
       "description": "Audio fade on play and pause"

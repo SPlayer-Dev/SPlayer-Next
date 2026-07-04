@@ -1,4 +1,5 @@
-import type { Track } from "@shared/types/player";
+import type { AutomixPlan, LoadResult, PlayerEvent, Track } from "@shared/types/player";
+import type { ResolvedTrackSource } from "@/services/audioSource";
 import type { TagEditRequest, TagWriteOutcome } from "@shared/types/tagEditor";
 import { handleEvent } from "./events";
 import type { RepeatMode, ShuffleMode } from "@/stores/status";
@@ -16,6 +17,8 @@ import * as lyricLoader from "@/services/lyricLoader";
 import * as coverLoader from "@/services/coverLoader";
 import * as abLoop from "@/services/abLoop";
 import * as cacheScheduler from "@/services/cacheScheduler";
+import * as nextPreload from "./preload";
+import { cancelAutomix } from "./automix";
 import { resolveTrackSource } from "@/services/audioSource";
 import { installPlayStats } from "./stats";
 import { useFavorite } from "@/composables/useFavorite";
@@ -34,6 +37,16 @@ let consecutiveFailures = 0;
 const MAX_CONSECUTIVE_FAILURES = 5;
 /** 失败后跳下一首的节流延迟（毫秒） */
 const SKIP_ON_ERROR_DELAY_MS = 1000;
+
+type PendingCrossfadeCommit = {
+  trackToken: number;
+  loadToken: number;
+  plan: AutomixPlan;
+  resolved: ResolvedTrackSource;
+  committed: boolean;
+};
+
+let pendingCrossfadeCommit: PendingCrossfadeCommit | null = null;
 
 /**
  * 单曲级失败兜底
@@ -59,6 +72,62 @@ const skipOnFailure = async (myToken: number, getCurrentToken: () => number): Pr
 /** load() 的结果；失败时附带错误码，跳曲决策交给调用方 */
 export type LoadOutcome = { ok: true; track: Track | null } | { ok: false; error?: string };
 
+const applyCrossfadeCommit = async (
+  pending: PendingCrossfadeCommit,
+  result: LoadResult,
+): Promise<boolean> => {
+  if (pending.committed) return true;
+  if (pending.trackToken !== trackToken || pending.loadToken !== loadToken) return false;
+  pending.committed = true;
+
+  const status = useStatusStore();
+  const media = useMediaStore();
+  const { plan, resolved } = pending;
+  const { track } = plan;
+  const isOnline = track.source !== "local";
+
+  consecutiveFailures = 0;
+  const { detail, mediaInfo } = result;
+  media.setTrack(track);
+  if (isOnline) {
+    void lyricLoader.loadForTrack(null);
+    extractColorFromUrl(track.cover ?? track.coverOriginal ?? null);
+    void coverLoader.loadCoverForTrack(track);
+  }
+  media.enrichTrack(mediaInfo, detail);
+  const enriched = media.track;
+  if (!isOnline) {
+    lyricLoader.loadForTrack(detail);
+    extractColorFromUrl(enriched?.cover ?? null);
+    if (enriched) void coverLoader.loadCoverForTrack(enriched);
+  }
+  const dur = enriched?.duration ?? mediaInfo.duration;
+  status.playIndex = plan.index;
+  status.position = plan.startSeek;
+  status.duration = dur;
+  status.state = "playing";
+  status.currentSource = resolved.source;
+  playback.setCurrentTime(plan.startSeek, { force: true });
+  playback.setDuration(dur);
+  playback.setPlaying(true);
+  void useHistoryStore().record(track);
+  status.trackLoading = false;
+  void nextPreload.preloadNextTrack();
+  return true;
+};
+
+/** 在主进程 crossfade commit 点提交渲染层当前曲信息 */
+export const commitPendingCrossfade = async (
+  data: Extract<PlayerEvent, { type: "transitionCommit" }>["data"],
+): Promise<boolean> => {
+  const pending = pendingCrossfadeCommit;
+  if (!pending || pending.resolved.source !== data.source) return false;
+  return applyCrossfadeCommit(pending, data.result);
+};
+
+/** crossfade 已接管 native 新槽，但 UI 还没到中点提交 */
+export const hasPendingCrossfadeCommit = (): boolean => pendingCrossfadeCommit !== null;
+
 /**
  * 切歌通用前置
  * @param duration 新歌时长（毫秒），未知时传 0
@@ -73,6 +142,8 @@ const resetForLoad = (duration: number): void => {
   playback.setPlaying(false);
   // 上一首未达到缓存触发阈值的请求丢弃
   cacheScheduler.cancel();
+  cancelAutomix();
+  nextPreload.cancelPreload();
 };
 
 /**
@@ -120,6 +191,7 @@ export const load = async (source: string, autoPlay = true, meta?: Track): Promi
       status.currentSource = source;
       playback.setDuration(dur);
       playback.setPlaying(autoPlay);
+      void nextPreload.preloadNextTrack();
       return { ok: true, track: enriched };
     }
     status.state = "idle";
@@ -128,6 +200,49 @@ export const load = async (source: string, autoPlay = true, meta?: Track): Promi
     return { ok: false, error: result.error };
   } finally {
     if (token === loadToken) status.trackLoading = false;
+  }
+};
+
+/**
+ * 以双槽 crossfade 切到指定曲目
+ * @param plan - 自动混音执行计划
+ * @param resolved - 已解析的播放源
+ */
+export const crossfadeToTrack = async (
+  plan: AutomixPlan,
+  resolved: ResolvedTrackSource,
+): Promise<boolean> => {
+  const myTrackToken = ++trackToken;
+  const myLoadToken = ++loadToken;
+  const status = useStatusStore();
+  const { track } = plan;
+  cacheScheduler.cancel();
+  const pending: PendingCrossfadeCommit = {
+    trackToken: myTrackToken,
+    loadToken: myLoadToken,
+    plan,
+    resolved,
+    committed: false,
+  };
+  pendingCrossfadeCommit = pending;
+  try {
+    const result = await window.api.player.crossfadeTo(resolved.source, {
+      durationMs: plan.crossfadeDuration * 1000,
+      startSeekMs: plan.startSeek,
+      initialRate: plan.initialRate,
+      mixType: plan.mixType,
+      uiSwitchDelayMs: plan.uiSwitchDelay * 1000,
+      meta: track,
+    });
+    if (myTrackToken !== trackToken || myLoadToken !== loadToken) return false;
+    if (!result.success || !result.data) {
+      if (result.error) handleError(result.error);
+      return false;
+    }
+    return applyCrossfadeCommit(pending, result.data);
+  } finally {
+    if (pendingCrossfadeCommit === pending) pendingCrossfadeCommit = null;
+    if (myTrackToken === trackToken) status.trackLoading = false;
   }
 };
 
@@ -279,6 +394,7 @@ export const togglePlay = (): void => {
 /** 暂停播放 */
 export const pause = async (): Promise<void> => {
   const status = useStatusStore();
+  cancelAutomix();
   const prev = status.state;
   status.state = "paused";
   playback.setPlaying(false);
@@ -291,6 +407,10 @@ export const pause = async (): Promise<void> => {
 
 /** 停止播放并重置进度 */
 export const stop = async (): Promise<void> => {
+  trackToken++;
+  loadToken++;
+  cancelAutomix();
+  nextPreload.cancelPreload();
   const result = await window.api.player.stop();
   if (result.success) {
     const status = useStatusStore();
@@ -331,6 +451,7 @@ export const isSeeking = (): boolean => seekTarget !== null;
  */
 export const seek = async (posMs: number): Promise<void> => {
   const status = useStatusStore();
+  cancelAutomix();
   // 歌曲加载中 seek 无意义：引擎此刻没有可 seek 的解码线程，
   // 且 seekTarget 残留会让加载完成后的 position 推送被持续丢弃
   if (status.trackLoading) return;
@@ -416,6 +537,7 @@ export const refreshDevices = async (): Promise<void> => {
  * @param deviceName - 设备名称，传 null 跟随系统默认
  */
 export const switchDevice = async (deviceName: string | null): Promise<void> => {
+  nextPreload.cancelPreload();
   const result = await window.api.player.setOutputDevice(deviceName);
   if (!result.success) return;
   const settings = useSettingsStore();
@@ -439,6 +561,7 @@ export const playFrom = async (items: readonly Track[], startIndex = 0): Promise
   const idx = Math.max(0, Math.min(startIndex, items.length - 1));
   const isSameTrack = media.track?.id === items[idx]?.id;
   queue.setQueue(items);
+  nextPreload.cancelPreload();
   status.playIndex = idx;
   if (status.shuffleMode === "on") {
     queue.shuffleQueue(status.playIndex);
@@ -643,6 +766,8 @@ export const setRepeatMode = (mode: RepeatMode): void => {
   const status = useStatusStore();
   if (status.repeatMode === mode) return;
   status.repeatMode = mode;
+  cancelAutomix();
+  void nextPreload.preloadNextTrack();
   syncPlayMode();
   toast.info(i18n.global.t(`player.repeatMode.${mode}`), { icon: false });
 };
@@ -684,6 +809,8 @@ export const setShuffleMode = (mode: ShuffleMode): void => {
       queue.unshuffleQueue("");
     }
   }
+  cancelAutomix();
+  void nextPreload.preloadNextTrack();
   syncPlayMode();
   toast.info(i18n.global.t(`player.shuffleMode.${mode}`), { icon: false });
 };
@@ -697,6 +824,8 @@ export const removeFromQueue = async (index: number): Promise<void> => {
   if (index < 0 || index >= queue.queueLength.value) return;
   const isCurrentPlaying = index === status.playIndex;
   queue.removeFromQueue(index);
+  cancelAutomix();
+  void nextPreload.preloadNextTrack();
   if (index < status.playIndex) {
     // 移除的在当前歌之前，索引前移
     status.playIndex--;
@@ -748,11 +877,15 @@ export const insertToQueue = (item: Track, afterIndex?: number): number => {
     const safeAt = Math.max(0, Math.min(raw, len - 1));
     if (existingIdx === safeAt) return existingIdx;
     moveInQueue(existingIdx, safeAt);
+    cancelAutomix();
+    void nextPreload.preloadNextTrack();
     return safeAt;
   }
   // 插入：可以追加到末尾，clamp 到 length
   const safeAt = Math.max(0, Math.min(raw, len));
   queue.insertToQueue(item, safeAt);
+  cancelAutomix();
+  void nextPreload.preloadNextTrack();
   if (safeAt <= status.playIndex) status.playIndex++;
   return safeAt;
 };
@@ -804,6 +937,8 @@ export const playNow = async (item: Track): Promise<void> => {
 export const moveInQueue = (fromIndex: number, toIndex: number): void => {
   const status = useStatusStore();
   queue.moveInQueue(fromIndex, toIndex);
+  cancelAutomix();
+  void nextPreload.preloadNextTrack();
   // 根据移动方向调整 playIndex
   if (status.playIndex === fromIndex) {
     status.playIndex = toIndex;
@@ -815,6 +950,7 @@ export const moveInQueue = (fromIndex: number, toIndex: number): void => {
 };
 
 let unsubscribe: (() => void) | null = null;
+let stopAutomationWatch: (() => void) | null = null;
 let initialized = false;
 
 /** 初始化播放器 */
@@ -855,6 +991,23 @@ export const initPlayer = async (): Promise<void> => {
   unsubscribe = window.api.player.onEvent(handleEvent);
   // 安装播放统计累加器
   installPlayStats();
+  if (stopAutomationWatch) stopAutomationWatch();
+  stopAutomationWatch = watch(
+    [
+      () => status.playIndex,
+      () => status.repeatMode,
+      () => status.shuffleMode,
+      () => settings.player.songLevel,
+      () => settings.system.player.preloadNext,
+      () => settings.system.player.automixEnabled,
+      () => queue.queue.value.map((track) => track.id).join("|"),
+    ],
+    () => {
+      cancelAutomix();
+      nextPreload.cancelPreload();
+      void nextPreload.preloadNextTrack();
+    },
+  );
   // 订阅主进程下发的歌词偏移变化
   const media = useMediaStore();
   // 当前歌曲喜欢状态变化时同步到托盘菜单
@@ -902,5 +1055,9 @@ export const disposePlayer = (): void => {
   if (unsubscribe) {
     unsubscribe();
     unsubscribe = null;
+  }
+  if (stopAutomationWatch) {
+    stopAutomationWatch();
+    stopAutomationWatch = null;
   }
 };

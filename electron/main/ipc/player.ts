@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { extname } from "node:path";
+import { extname, join } from "node:path";
+import { Worker } from "node:worker_threads";
 import { app, ipcMain, powerMonitor } from "electron";
 import { sendToMain } from "@main/utils/broadcast";
 import { wsBroadcast } from "@main/server/broadcast";
@@ -27,11 +28,78 @@ import * as songCache from "@main/services/songCache";
 import { parseArtists, parseAlbum, formatArtists } from "@main/utils/metadata";
 import { playerLog } from "@main/utils/logger";
 import { ErrorCode } from "@shared/types/errors";
-import type { LoadOptions, RepeatMode, ShuffleMode, PlayerState } from "@shared/types/player";
+import type {
+  CrossfadeOptions,
+  LoadOptions,
+  RepeatMode,
+  ShuffleMode,
+  PlayerState,
+} from "@shared/types/player";
 import type { MediaEvent } from "@main/services/media";
 import { JsPlayerEvent } from "@splayer/audio-engine";
 
 type AudioEngineModule = typeof import("@splayer/audio-engine");
+type NativeMetadata = Awaited<ReturnType<InstanceType<AudioEngineModule["AudioPlayer"]>["load"]>>;
+type ExtendedNativePlayer = InstanceType<AudioEngineModule["AudioPlayer"]> & {
+  preload: (source: string) => Promise<NativeMetadata>;
+  cancelPreload: () => void;
+  crossfadeTo: (
+    source: string,
+    options?: {
+      durationMs?: number;
+      startSeekMs?: number;
+      initialRate?: number;
+      mixType?: "default" | "bassSwap";
+      uiSwitchDelayMs?: number;
+    },
+  ) => Promise<NativeMetadata>;
+};
+
+const getExtendedPlayer = (): ExtendedNativePlayer => getPlayer() as ExtendedNativePlayer;
+
+type AnalysisWorkerMethod =
+  | "analyzeAudioFile"
+  | "analyzeAudioFileHead"
+  | "suggestTransition"
+  | "suggestLongMix";
+
+const ANALYSIS_WORKER_SOURCE = `
+const { parentPort, workerData } = require("node:worker_threads");
+try {
+  const engine = require(workerData.modulePath);
+  const data = engine[workerData.method](...workerData.args);
+  parentPort.postMessage({ ok: true, data });
+} catch (error) {
+  parentPort.postMessage({
+    ok: false,
+    message: error && error.message ? error.message : String(error),
+  });
+}
+`;
+
+const getAudioEngineNativePath = (): string =>
+  app.isPackaged
+    ? join(process.resourcesPath, "native", "audio-engine.node")
+    : join(process.cwd(), "native", "audio-engine", "audio-engine.node");
+
+const runAnalysisWorker = (method: AnalysisWorkerMethod, args: unknown[]): Promise<unknown> =>
+  new Promise((resolve, reject) => {
+    const worker = new Worker(ANALYSIS_WORKER_SOURCE, {
+      eval: true,
+      workerData: { modulePath: getAudioEngineNativePath(), method, args },
+    });
+    worker.once("message", (message: { ok: boolean; data?: unknown; message?: string }) => {
+      if (message.ok) {
+        resolve(message.data);
+      } else {
+        reject(new Error(message.message || "audio analysis worker failed"));
+      }
+    });
+    worker.once("error", reject);
+    worker.once("exit", (code) => {
+      if (code !== 0) reject(new Error(`audio analysis worker exited: ${code}`));
+    });
+  });
 
 /** 返回失败响应，附带日志 */
 const fail = (code: ErrorCode, error?: unknown) => {
@@ -142,6 +210,33 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
 /** 每次 player:load 自增 */
 let loadSeq = 0;
 
+/**
+ * 将原生元信息转换为渲染层 LoadResult
+ * @param meta - 原生播放器返回的元信息
+ * @param isRemote - 是否为在线/流媒体音源
+ */
+const toLoadResult = (meta: NativeMetadata, isRemote: boolean) => {
+  const quality = {
+    sampleRate: meta.originalSampleRate,
+    channels: meta.channels,
+    bitsPerSample: meta.bitsPerSample,
+    bitRate: meta.bitRate,
+    codec: meta.codec,
+  };
+  return {
+    detail: {
+      quality,
+      embeddedLyric: meta.embeddedLyric,
+      externalLyrics: meta.externalLyrics,
+    },
+    mediaInfo: {
+      duration: toMs(meta.duration),
+      cover: isRemote ? undefined : toCacheUrl(meta.cover),
+      quality,
+    },
+  };
+};
+
 /** 播放器相关 IPC */
 export const registerPlayerIpc = (): void => {
   // 注册实例创建/重建时的回调
@@ -240,25 +335,7 @@ export const registerPlayerIpc = (): void => {
           setTaskbarThumbnailCover(buf);
         });
       }
-      const quality = {
-        sampleRate: meta.originalSampleRate,
-        channels: meta.channels,
-        bitsPerSample: meta.bitsPerSample,
-        bitRate: meta.bitRate,
-        codec: meta.codec,
-      };
-      const data = {
-        detail: {
-          quality,
-          embeddedLyric: meta.embeddedLyric,
-          externalLyrics: meta.externalLyrics,
-        },
-        mediaInfo: {
-          duration: durationMs,
-          cover: isRemote ? undefined : toCacheUrl(meta.cover),
-          quality,
-        },
-      };
+      const data = toLoadResult(meta, isRemote);
       playerLog.debug(`加载成功: ${displayTitle}`);
       return { success: true, data };
     } catch (error) {
@@ -280,6 +357,181 @@ export const registerPlayerIpc = (): void => {
         void songCache.invalidate(source);
       }
       return fail(code, error);
+    }
+  });
+
+  // 静默预载下一首音频
+  ipcMain.handle("player:preload", async (_event, source: string) => {
+    try {
+      const meta = await getExtendedPlayer().preload(source);
+      return { success: true, data: toLoadResult(meta, source.startsWith("http")) };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes("已被更新的 load 取代")) {
+        return fail(ErrorCode.LOAD_SUPERSEDED);
+      }
+      return fail(ErrorCode.UNKNOWN, error);
+    }
+  });
+
+  // 交叉混音到目标音频
+  ipcMain.handle(
+    "player:crossfadeTo",
+    async (_event, source: string, options: CrossfadeOptions = {}) => {
+      const authoritative = options.meta ?? null;
+      const isRemote = authoritative != null && authoritative.source !== "local";
+      const seq = ++loadSeq;
+      try {
+        const inst = getExtendedPlayer();
+        const meta = await inst.crossfadeTo(source, {
+          durationMs: options.durationMs ?? 8000,
+          startSeekMs: options.startSeekMs ?? 0,
+          initialRate: options.initialRate ?? 1,
+          mixType: options.mixType ?? "default",
+        });
+        const durationMs = toMs(meta.duration);
+        const commitDelayMs = Math.max(
+          0,
+          Math.floor(options.uiSwitchDelayMs ?? (options.durationMs ?? 8000) / 2),
+        );
+        if (commitDelayMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, commitDelayMs));
+        }
+        if (seq !== loadSeq) {
+          return fail(ErrorCode.LOAD_SUPERSEDED);
+        }
+        const loadResult = toLoadResult(meta, isRemote);
+        const commitEvent = {
+          type: "transitionCommit",
+          data: { source, duration: durationMs, result: loadResult },
+        };
+        sendToMain("player:event", commitEvent);
+        wsBroadcast(commitEvent);
+        const fallbackTitle = meta.title || source.split(/[/\\]/).pop() || source;
+        const displayTitle = authoritative?.title ?? fallbackTitle;
+        const displayArtist = authoritative
+          ? formatArtists(authoritative.artists ?? [])
+          : formatArtists(parseArtists(meta.artist ?? ""));
+        const displayAlbum = authoritative?.album?.name ?? parseAlbum(meta.album ?? "")?.name ?? "";
+        const remoteCover =
+          authoritative && authoritative.source !== "local"
+            ? (authoritative.coverOriginal ?? authoritative.cover)
+            : undefined;
+        const coverUrl = remoteCover && /^https?:\/\//i.test(remoteCover) ? remoteCover : undefined;
+        const localCover = isRemote ? null : (inst.getCoverRaw() ?? null);
+        const header = displayArtist ? `${displayTitle} - ${displayArtist}` : displayTitle;
+        mediaService.setMetadata({
+          title: displayTitle,
+          artist: displayArtist,
+          album: displayAlbum,
+          coverData: localCover ?? undefined,
+          coverUrl,
+          durationMs,
+        });
+        mediaService.setPlayState({ status: "Playing" });
+        getMainWindow()?.setTitle(header || appName);
+        setTraySongName(header || appName);
+        setTrayPlayState("playing");
+        if (!isRemote) setTaskbarThumbnailCover(meta.cover);
+        const primaryArtist =
+          authoritative?.artists?.[0]?.name ??
+          parseArtists(meta.artist ?? "")[0]?.name ??
+          displayArtist;
+        lastfm.onTrackLoaded({
+          title: displayTitle,
+          artist: primaryArtist,
+          album: displayAlbum,
+          durationMs,
+          autoPlay: true,
+        });
+        neteaseScrobble.onTrackLoaded(authoritative, durationMs, true);
+        if (coverUrl) {
+          void fetchBytes(coverUrl).then((buf) => {
+            if (!buf) return;
+            if (seq !== loadSeq) return;
+            mediaService.setMetadata({
+              title: displayTitle,
+              artist: displayArtist,
+              album: displayAlbum,
+              coverData: buf,
+              coverUrl,
+              durationMs,
+            });
+            setTaskbarThumbnailCover(buf);
+          });
+        }
+        return { success: true, data: loadResult };
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (msg.includes("已被更新的 load 取代")) {
+          return fail(ErrorCode.LOAD_SUPERSEDED);
+        }
+        return fail(
+          source.startsWith("http") ? ErrorCode.NETWORK_ERROR : ErrorCode.FILE_DECODE_ERROR,
+          error,
+        );
+      }
+    },
+  );
+
+  // 取消下一首预载
+  ipcMain.handle("player:cancelPreload", () => {
+    try {
+      getExtendedPlayer().cancelPreload();
+      return { success: true };
+    } catch (error) {
+      return fail(ErrorCode.UNKNOWN, error);
+    }
+  });
+
+  // 音频分析能力
+  ipcMain.handle(
+    "player:analyzeAudioFile",
+    async (_event, path: string, maxAnalyzeTimeSec?: number) => {
+      try {
+        return {
+          success: true,
+          data: await runAnalysisWorker("analyzeAudioFile", [path, maxAnalyzeTimeSec]),
+        };
+      } catch (error) {
+        return fail(ErrorCode.UNKNOWN, error);
+      }
+    },
+  );
+  ipcMain.handle(
+    "player:analyzeAudioFileHead",
+    async (_event, path: string, maxAnalyzeTimeSec?: number) => {
+      try {
+        return {
+          success: true,
+          data: await runAnalysisWorker("analyzeAudioFileHead", [path, maxAnalyzeTimeSec]),
+        };
+      } catch (error) {
+        return fail(ErrorCode.UNKNOWN, error);
+      }
+    },
+  );
+  ipcMain.handle(
+    "player:suggestTransition",
+    async (_event, currentPath: string, nextPath: string) => {
+      try {
+        return {
+          success: true,
+          data: await runAnalysisWorker("suggestTransition", [currentPath, nextPath]),
+        };
+      } catch (error) {
+        return fail(ErrorCode.UNKNOWN, error);
+      }
+    },
+  );
+  ipcMain.handle("player:suggestLongMix", async (_event, currentPath: string, nextPath: string) => {
+    try {
+      return {
+        success: true,
+        data: await runAnalysisWorker("suggestLongMix", [currentPath, nextPath]),
+      };
+    } catch (error) {
+      return fail(ErrorCode.UNKNOWN, error);
     }
   });
 
@@ -306,6 +558,7 @@ export const registerPlayerIpc = (): void => {
   // 停止播放并释放资源
   ipcMain.handle("player:stop", () => {
     try {
+      loadSeq++;
       getPlayer().stop();
       return { success: true };
     } catch (error) {

@@ -21,6 +21,12 @@ export declare class AudioPlayer {
    * 持锁阶段都是纯内存操作，主线程其它同步 NAPI 调用最多等几微秒，不会被 IO 卡住
    */
   load(source: string, autoPlay?: boolean): Promise<JsMusicMetadata>
+  /** 预载下一首音频源。只保留一个预载槽，新预载会替换旧预载 */
+  preload(source: string): Promise<JsMusicMetadata>
+  /** 取消下一首预载 */
+  cancelPreload(): void
+  /** 交叉混音到目标音频源，优先复用同源预载槽 */
+  crossfadeTo(source: string, options?: JsCrossfadeOptions | undefined | null): Promise<JsMusicMetadata>
   /** 恢复播放。如果已停止或播放结束，自动从头重新加载 */
   play(): Promise<void>
   /** 暂停播放 */
@@ -100,6 +106,55 @@ export declare class AudioPlayer {
   getPitchSync(): boolean
 }
 
+export interface AdvancedTransition {
+  startTimeCurrent: number
+  startTimeNext: number
+  duration: number
+  pitch_shift_semitones: number
+  playback_rate: number
+  automation_current: Array<AutomationPoint>
+  automation_next: Array<AutomationPoint>
+  strategy: string
+}
+
+export declare function analyzeAudioFile(path: string, maxAnalyzeTime?: number | undefined | null): AudioAnalysis | null
+
+export declare function analyzeAudioFileHead(path: string, maxAnalyzeTime?: number | undefined | null): AudioAnalysis | null
+
+export interface AudioAnalysis {
+  duration: number
+  bpm?: number
+  bpm_confidence?: number
+  fade_in_pos: number
+  fade_out_pos: number
+  first_beat_pos?: number
+  loudness?: number
+  drop_pos?: number
+  version: number
+  analyze_window: number
+  cut_in_pos?: number
+  cut_out_pos?: number
+  mix_center_pos: number
+  mix_start_pos: number
+  mix_end_pos: number
+  energy_profile: Array<number>
+  vocal_in_pos?: number
+  vocal_out_pos?: number
+  vocal_last_in_pos?: number
+  outro_energy_level?: number
+  key_root?: number
+  key_mode?: number
+  key_confidence?: number
+  camelot_key?: string
+}
+
+export interface AutomationPoint {
+  timeOffset: number
+  volume: number
+  lowCut: number
+  highCut: number
+}
+
 /** 取消正在进行的扫描任务 */
 export declare function cancelScan(): void
 
@@ -118,6 +173,18 @@ export interface JsAudioDevice {
   name: string
   /** 是否为系统默认设备 */
   isDefault: boolean
+}
+
+/** 交叉混音参数 */
+export interface JsCrossfadeOptions {
+  /** 过渡时长（毫秒） */
+  durationMs?: number
+  /** 下一首起播位置（毫秒） */
+  startSeekMs?: number
+  /** 下一首初始播放速度 */
+  initialRate?: number
+  /** 混音策略类型 */
+  mixType?: string
 }
 
 /** 一条外部歌词，返回给 JS 侧（仅格式和路径，内容按需加载） */
@@ -286,6 +353,21 @@ export declare function readTrackTags(path: string): Promise<JsTrackTags>
  * 每处理约 20 个文件回调一次 progress 事件，完成后回调 done 事件。
  */
 export declare function scanDirs(dirs: Array<string>, callback: (event: JsScanEvent) => void, coverCacheDir?: string | undefined | null, incrementalData?: Array<FileRecord> | undefined | null): void
+
+export declare function suggestLongMix(currentPath: string, nextPath: string): AdvancedTransition | null
+
+export declare function suggestTransition(currentPath: string, nextPath: string): TransitionProposal | null
+
+export interface TransitionProposal {
+  duration: number
+  current_track_mix_out: number
+  next_track_mix_in: number
+  mix_type: string
+  filter_strategy: string
+  compatibility_score: number
+  key_compatible: boolean
+  bpm_compatible: boolean
+}
 
 /**
  * 批量写入标签（异步），逐项返回结果，单项失败不中断整批。

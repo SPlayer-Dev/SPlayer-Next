@@ -1,6 +1,7 @@
 //! FFmpeg 音频解码 + rodio 播放 + FFT 频谱分析。
 //! 通过 NAPI-RS 暴露给 Node.js，作为 Electron 主进程的原生模块。
 
+mod analysis;
 mod audio_output;
 mod decoder;
 mod equalizer;
@@ -27,6 +28,7 @@ use napi_derive::napi;
 use parking_lot::Mutex;
 use tracing::{info, warn};
 
+pub use analysis::*;
 use player::{InnerPlayer, PlayerEvent, PlayerState, SeekTake};
 
 /// async seek 阶段 2 的输出
@@ -112,6 +114,23 @@ pub struct JsMusicMetadata {
     pub external_lyrics: Vec<JsExternalLyric>,
     /// 封面缩略图路径（300x300，用于前端日常显示）
     pub cover: Option<String>,
+}
+
+/// 交叉混音参数
+#[napi(object)]
+pub struct JsCrossfadeOptions {
+    /// 过渡时长（毫秒）
+    #[napi(js_name = "durationMs")]
+    pub duration_ms: Option<f64>,
+    /// 下一首起播位置（毫秒）
+    #[napi(js_name = "startSeekMs")]
+    pub start_seek_ms: Option<f64>,
+    /// 下一首初始播放速度
+    #[napi(js_name = "initialRate")]
+    pub initial_rate: Option<f64>,
+    /// 混音策略类型
+    #[napi(js_name = "mixType")]
+    pub mix_type: Option<String>,
 }
 
 /// 音频输出设备信息
@@ -294,6 +313,184 @@ impl AudioPlayer {
             let mut player = self.inner.lock();
             player
                 .commit_loaded(token, &source, auto_play, metadata, decode_handle, shared)
+                .into_napi()?
+        };
+
+        match returned_meta {
+            Some(meta) => Ok(Self::meta_to_js(meta)),
+            None => Err(Error::from_reason(LOAD_SUPERSEDED_REASON)),
+        }
+    }
+
+    /// 预载下一首音频源。只保留一个预载槽，新预载会替换旧预载
+    #[napi]
+    pub async fn preload(&self, source: String) -> Result<JsMusicMetadata> {
+        use crate::shared::Shared;
+
+        info!(source = %source, "预载音频源");
+        let (old_prepared, token, cover_dir, normalization_enabled, output_sample_rate) = {
+            let mut player = self.inner.lock();
+            let (old_prepared, token) = player.take_for_async_preload();
+            player.ensure_output_pub().into_napi()?;
+            (
+                old_prepared,
+                token,
+                player.cover_cache_dir().map(String::from),
+                player.is_normalization_enabled(),
+                player.output_sample_rate(),
+            )
+        };
+
+        let shared = Shared::new(output_sample_rate, decoder::TARGET_CHANNELS);
+        shared.set_normalization_enabled(normalization_enabled);
+        let shared_for_decoder = Arc::clone(&shared);
+        let source_for_decoder = source.clone();
+
+        let (metadata, decode_handle) = tokio::task::spawn_blocking(move || {
+            if let Some(prepared) = old_prepared {
+                prepared.shared.stop();
+                prepared.shared.drain_buffer();
+                let _ = prepared.decoder_thread.join();
+            }
+            decoder::start_decode(
+                &source_for_decoder,
+                shared_for_decoder,
+                cover_dir.as_deref(),
+            )
+        })
+        .await
+        .map_err(|e| Error::from_reason(format!("preload task join error: {e}")))?
+        .into_napi()?;
+
+        let returned_meta = {
+            let mut player = self.inner.lock();
+            player.commit_preloaded(token, source, metadata, decode_handle, shared)
+        };
+
+        match returned_meta {
+            Some(meta) => Ok(Self::meta_to_js(meta)),
+            None => Err(Error::from_reason(LOAD_SUPERSEDED_REASON)),
+        }
+    }
+
+    /// 取消下一首预载
+    #[napi]
+    pub fn cancel_preload(&self) {
+        self.inner.lock().cancel_preload();
+    }
+
+    /// 交叉混音到目标音频源，优先复用同源预载槽
+    #[napi]
+    pub async fn crossfade_to(
+        &self,
+        source: String,
+        options: Option<JsCrossfadeOptions>,
+    ) -> Result<JsMusicMetadata> {
+        use crate::shared::Shared;
+
+        let duration_ms = options
+            .as_ref()
+            .and_then(|o| o.duration_ms)
+            .filter(|v| v.is_finite() && *v >= 0.0)
+            .unwrap_or(8000.0) as u64;
+        let start_seek_secs = options
+            .as_ref()
+            .and_then(|o| o.start_seek_ms)
+            .filter(|v| v.is_finite() && *v > 0.0)
+            .map(|v| v / 1000.0)
+            .unwrap_or(0.0);
+        let initial_rate = options
+            .as_ref()
+            .and_then(|o| o.initial_rate)
+            .filter(|v| v.is_finite() && *v > 0.0)
+            .unwrap_or(1.0) as f32;
+        let mix_type = options
+            .as_ref()
+            .and_then(|o| o.mix_type.as_deref())
+            .unwrap_or("default");
+        info!(source = %source, duration_ms, start_seek_secs, initial_rate, mix_type, "交叉混音到音频源");
+
+        let take = {
+            let mut player = self.inner.lock();
+            player.take_for_async_crossfade(&source).into_napi()?
+        };
+
+        let (metadata, decode_handle, shared) = if let Some(prepared) = take.prepared {
+            if start_seek_secs > 0.0 {
+                let output_sample_rate = take.output_sample_rate;
+                let normalization_enabled = take.normalization_enabled;
+                let cover_dir = take.cover_dir.clone();
+                let source_for_seek = source.clone();
+                tokio::task::spawn_blocking(move || {
+                    prepared.shared.stop();
+                    prepared.shared.drain_buffer();
+                    let mut data = prepared
+                        .decoder_thread
+                        .join()
+                        .map_err(|_| Error::from_reason("preload decoder thread join error"))?;
+                    data.reset_interrupt();
+                    if data.seek(start_seek_secs) {
+                        prepared.shared.clear_stop();
+                        let handle = decoder::resume_decode(data, Arc::clone(&prepared.shared));
+                        Ok::<_, Error>((prepared.metadata, handle, prepared.shared))
+                    } else {
+                        let shared = Shared::new(output_sample_rate, decoder::TARGET_CHANNELS);
+                        shared.set_normalization_enabled(normalization_enabled);
+                        let (metadata, handle) = decoder::start_decode_at(
+                            &source_for_seek,
+                            Arc::clone(&shared),
+                            cover_dir.as_deref(),
+                            start_seek_secs,
+                        )
+                        .into_napi()?;
+                        Ok::<_, Error>((metadata, handle, shared))
+                    }
+                })
+                .await
+                .map_err(|e| Error::from_reason(format!("crossfade seek task join error: {e}")))??
+            } else {
+                (prepared.metadata, prepared.decoder_thread, prepared.shared)
+            }
+        } else {
+            let shared = Shared::new(take.output_sample_rate, decoder::TARGET_CHANNELS);
+            shared.set_normalization_enabled(take.normalization_enabled);
+            let shared_for_decoder = Arc::clone(&shared);
+            let source_for_decoder = source.clone();
+            let cover_dir = take.cover_dir.clone();
+            let discarded_prepared = take.discarded_prepared;
+            let (metadata, decode_handle) = tokio::task::spawn_blocking(move || {
+                if let Some(prepared) = discarded_prepared {
+                    prepared.shared.stop();
+                    prepared.shared.drain_buffer();
+                    let _ = prepared.decoder_thread.join();
+                }
+                decoder::start_decode_at(
+                    &source_for_decoder,
+                    shared_for_decoder,
+                    cover_dir.as_deref(),
+                    start_seek_secs,
+                )
+            })
+            .await
+            .map_err(|e| Error::from_reason(format!("crossfade task join error: {e}")))?
+            .into_napi()?;
+            (metadata, decode_handle, shared)
+        };
+
+        let returned_meta = {
+            let mut player = self.inner.lock();
+            player
+                .commit_crossfade(
+                    take.token,
+                    &source,
+                    metadata,
+                    decode_handle,
+                    shared,
+                    duration_ms,
+                    start_seek_secs,
+                    initial_rate,
+                    mix_type,
+                )
                 .into_napi()?
         };
 
@@ -866,10 +1063,11 @@ pub struct JsTagWriteResult {
 #[napi]
 pub async fn make_image_thumbnail(data: Buffer, max_size: u32) -> Result<Buffer> {
     let bytes = data.to_vec();
-    let thumb = tokio::task::spawn_blocking(move || metadata::make_thumbnail_jpeg(&bytes, max_size))
-        .await
-        .map_err(|e| Error::from_reason(format!("缩略图任务失败: {e}")))?
-        .into_napi()?;
+    let thumb =
+        tokio::task::spawn_blocking(move || metadata::make_thumbnail_jpeg(&bytes, max_size))
+            .await
+            .map_err(|e| Error::from_reason(format!("缩略图任务失败: {e}")))?
+            .into_napi()?;
     Ok(thumb.into())
 }
 

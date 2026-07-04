@@ -143,8 +143,8 @@ fn build_output_stream(
                 .find(|d| d.name().map(|got| got == name).unwrap_or(false))
                 .with_context(|| format!("Output device '{}' not found", name))?;
             let sample_rate = device_sample_rate(&device);
-            let (stream, handle) =
-                OutputStream::try_from_device(&device).context("Failed to open named output device")?;
+            let (stream, handle) = OutputStream::try_from_device(&device)
+                .context("Failed to open named output device")?;
             Ok((stream, handle, sample_rate))
         }
         None => open_default_stream(&host),

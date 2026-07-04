@@ -42,6 +42,12 @@ export interface PlayerSettings {
   autoPlay: boolean;
   /** 记忆上次播放的歌曲 */
   rememberLastTrack: boolean;
+  /** 下一首预加载 */
+  preloadNext: boolean;
+  /** 自动混音 */
+  automixEnabled: boolean;
+  /** 自动混音最大分析时长（秒） */
+  automixMaxAnalyzeTimeSec: number;
   /** 是否启用渐入渐出 */
   fadeEnabled: boolean;
   /** 渐入渐出时长（毫秒） */

@@ -8,7 +8,11 @@ import * as autoClose from "@/services/autoClose";
 import * as abLoop from "@/services/abLoop";
 import * as cacheScheduler from "@/services/cacheScheduler";
 import * as playStats from "./stats";
+import { tickAutomix } from "./automix";
 import {
+  crossfadeToTrack,
+  commitPendingCrossfade,
+  hasPendingCrossfadeCommit,
   hasReachedSeekTarget,
   isSeeking,
   markSeek,
@@ -35,7 +39,9 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
   switch (event.type) {
     case "status":
       // 歌曲加载中或 loading 事件不更新 UI，保持当前封面/进度/播放状态平滑过渡
-      if (event.data.state === "loading" || status.trackLoading) break;
+      if (event.data.state === "loading" || status.trackLoading || hasPendingCrossfadeCommit()) {
+        break;
+      }
       status.state = event.data.state;
       // seek 期间不从 status 事件更新 position，避免回跳；position 更新统一由 position 事件负责
       if (!isSeeking()) {
@@ -52,6 +58,12 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
     case "position": {
       // 歌曲加载中不更新进度
       if (status.trackLoading) break;
+      if (hasPendingCrossfadeCommit()) {
+        const adjusted = playback.getCurrentTime();
+        status.position = adjusted;
+        useMediaStore().updateLyricIndex(adjusted + status.lyricOffsetMs);
+        break;
+      }
       // seek 后丢弃旧位置，直到后端推送的位置到达 seek 目标附近
       if (!hasReachedSeekTarget(event.data.position)) break;
       const adjusted = playback.setCurrentTime(event.data.position);
@@ -66,10 +78,15 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
       abLoop.checkLoop(adjusted);
       // 推进延时缓存调度
       cacheScheduler.tick(adjusted);
+      const automixResult = await tickAutomix(adjusted, crossfadeToTrack);
+      if (automixResult === "fallback-next") await nextTrack();
       break;
     }
     case "fftData":
       playback.setFftFrame(event.data);
+      break;
+    case "transitionCommit":
+      await commitPendingCrossfade(event.data);
       break;
     case "ended": {
       if (endedGuard) return;

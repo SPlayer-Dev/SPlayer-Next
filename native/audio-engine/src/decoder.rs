@@ -78,7 +78,8 @@ pub fn start_decode(
 ) -> Result<(AudioMetadata, JoinHandle<DecoderData>)> {
     // 播放重采样目标 = 输出设备原生采样率
     let target_rate = shared.sample_rate();
-    let (reader, player_resampler, fft_resampler, interrupt_flag) = open_source(source, target_rate)?;
+    let (reader, player_resampler, fft_resampler, interrupt_flag) =
+        open_source(source, target_rate)?;
     if let Some(ref flag) = interrupt_flag {
         shared.bind_interrupt(Arc::clone(flag));
     }
@@ -137,6 +138,31 @@ pub fn start_decode(
         data
     });
 
+    Ok((metadata, handle))
+}
+
+/// 启动解码线程并从指定位置开始输出
+pub fn start_decode_at(
+    source: &str,
+    shared: Arc<Shared>,
+    cover_cache_dir: Option<&str>,
+    position_secs: f64,
+) -> Result<(AudioMetadata, JoinHandle<DecoderData>)> {
+    let (metadata, handle) = start_decode(source, Arc::clone(&shared), cover_cache_dir)?;
+    if position_secs <= 0.0 {
+        return Ok((metadata, handle));
+    }
+    shared.stop();
+    shared.drain_buffer();
+    let mut data = handle
+        .join()
+        .map_err(|_| anyhow::anyhow!("解码线程回收失败"))?;
+    data.reset_interrupt();
+    if !data.seek(position_secs) {
+        anyhow::bail!("音频 seek 失败");
+    }
+    shared.clear_stop();
+    let handle = resume_decode(data, shared);
     Ok((metadata, handle))
 }
 

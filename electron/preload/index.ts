@@ -9,7 +9,7 @@ import type {
   PluginMatchCoverArgs,
 } from "@shared/types/plugin";
 import type { HotkeyActionId, HotkeyBinding, HotkeyConflict } from "@shared/types/hotkey";
-import type { LoadOptions, TrackSource } from "@shared/types/player";
+import type { CrossfadeOptions, LoadOptions, TrackSource } from "@shared/types/player";
 import type { StreamingServerConfig } from "@shared/types/streaming";
 import type { PlayEventInput, FavoriteEventInput } from "@shared/types/stats";
 import type { TagEditRequest } from "@shared/types/tagEditor";
@@ -43,6 +43,25 @@ const api = {
     // 加载音频（本地路径或网络地址）
     load: (source: string, options?: LoadOptions) =>
       ipcRenderer.invoke("player:load", source, options ?? {}),
+    // 静默预载下一首音频
+    preload: (source: string) => ipcRenderer.invoke("player:preload", source),
+    // 交叉混音到目标音频
+    crossfadeTo: (source: string, options?: CrossfadeOptions) =>
+      ipcRenderer.invoke("player:crossfadeTo", source, options ?? {}),
+    // 分析完整音频特征
+    analyzeAudioFile: (path: string, maxAnalyzeTimeSec?: number) =>
+      ipcRenderer.invoke("player:analyzeAudioFile", path, maxAnalyzeTimeSec),
+    // 仅分析音频头部特征
+    analyzeAudioFileHead: (path: string, maxAnalyzeTimeSec?: number) =>
+      ipcRenderer.invoke("player:analyzeAudioFileHead", path, maxAnalyzeTimeSec),
+    // 计算两首歌的过渡建议
+    suggestTransition: (currentPath: string, nextPath: string) =>
+      ipcRenderer.invoke("player:suggestTransition", currentPath, nextPath),
+    // 计算两首歌的长段混音建议
+    suggestLongMix: (currentPath: string, nextPath: string) =>
+      ipcRenderer.invoke("player:suggestLongMix", currentPath, nextPath),
+    // 取消下一首预载
+    cancelPreload: () => ipcRenderer.invoke("player:cancelPreload"),
     // 恢复播放
     play: () => ipcRenderer.invoke("player:play"),
     // 暂停播放
