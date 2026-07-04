@@ -38,6 +38,8 @@ export const useTimeFormat = () => {
           return formatTime(statusStore.duration);
         case "remaining":
           return "-" + formatTime(statusStore.duration - statusStore.position);
+        default:
+          return "";
       }
     });
 
