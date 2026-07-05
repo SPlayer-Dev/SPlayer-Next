@@ -1,5 +1,3 @@
-# tag（v*）触发
-# 各架构原生 runner 构建 → 合并清单 → 创建 GitHub 草稿 Release
 name: Release
 
 on:
@@ -8,22 +6,24 @@ on:
       - "v*"
   workflow_dispatch:
 
+# 全局最小权限，各 job 按需提升
 permissions:
-  contents: write
+  contents: read
 
 env:
   NODE_VERSION: 22.x
 
-# 同一个 tag 的发布串行执行，避免并发上传资源产生竞态
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  # 各平台/架构在对应的原生 runner 上独立构建
   build:
     name: Build on ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60          # 防止异常构建无限挂起
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -31,54 +31,62 @@ jobs:
           - name: Windows x64
             runner: windows-latest
             target: windows-x64
+            build_cmd: pnpm build:win --x64 --publish never
           - name: Windows arm64
             runner: windows-11-arm
             target: windows-arm64
+            build_cmd: pnpm build:win --arm64 --publish never
           - name: macOS x64
-            runner: macos-15-intel
+            runner: macos-13       # ← 原生 Intel x64，非 macos-15-intel
             target: macos-x64
+            build_cmd: pnpm build:mac --x64 --publish never
           - name: macOS arm64
             runner: macos-latest
             target: macos-arm64
+            build_cmd: pnpm build:mac --arm64 --publish never
           - name: Linux x64
             runner: ubuntu-latest
             target: linux-x64
+            build_cmd: pnpm build:linux --x64 --publish never
           - name: Linux arm64
             runner: ubuntu-24.04-arm
             target: linux-arm64
+            build_cmd: pnpm build:linux --arm64 --publish never
+
     steps:
-      - name: Check out git repository
-        uses: actions/checkout@v5
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'            # ← 缓存 pnpm store，大幅提速
 
-      - name: Setup Rust toolchain
+      - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "native/audio-engine -> target\nnative/media-ctrl -> target"
+          workspaces: |
+            native/audio-engine -> target
+            native/media-ctrl -> target
 
-      # 校验 tag 与 package.json 版本一致
       - name: Verify tag matches version
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         run: |
           PKG_VERSION="v$(node -p "require('./package.json').version")"
           if [ "$PKG_VERSION" != "$GITHUB_REF_NAME" ]; then
-            echo "标签 $GITHUB_REF_NAME 与 package.json 版本 $PKG_VERSION 不一致"
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION"
             exit 1
           fi
 
-      # Linux: 安装系统构建/打包依赖
-      - name: 安装系统依赖 (Linux)
+      - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
@@ -86,79 +94,40 @@ jobs:
             libasound2-dev libdbus-1-dev pkg-config clang \
             rpm libarchive-tools
 
-      # 清理旧构建产物
-      - name: Clean workspace on Windows
-        if: runner.os == 'Windows'
-        run: |
-          if (Test-Path dist) { Remove-Item -Recurse -Force dist }
-          if (Test-Path out) { Remove-Item -Recurse -Force out }
-
-      - name: Clean workspace on macOS & Linux
-        if: runner.os != 'Windows'
+      - name: Clean workspace
+        shell: bash
         run: rm -rf dist out
 
-      # CI 不需要国内镜像
-      - name: 移除 .npmrc
+      - name: Remove .npmrc
         shell: bash
         run: rm -f .npmrc
 
-      # 安装项目依赖
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile   # ← 锁定依赖，保证可复现
 
-      # 仅构建本机架构
       - name: Build ${{ matrix.name }}
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: |
-          case "${{ matrix.target }}" in
-            windows-x64)
-              pnpm build:win --x64 --publish never
-              ;;
-            windows-arm64)
-              pnpm build:win --arm64 --publish never
-              ;;
-            macos-x64)
-              pnpm build:mac --x64 --publish never
-              ;;
-            macos-arm64)
-              pnpm build:mac --arm64 --publish never
-              ;;
-            linux-x64)
-              pnpm build:linux --x64 --publish never
-              ;;
-            linux-arm64)
-              pnpm build:linux --arm64 --publish never
-              ;;
-            *)
-              echo "Unsupported target: ${{ matrix.target }}"
-              exit 1
-              ;;
-          esac
+        run: ${{ matrix.build_cmd }}
 
-      # 修复 Linux arm64 自动更新清单命名
-      # electron-builder 单独构建 arm64 时仍命名为 latest-linux.yml，会与 x64 撞名，
-      # 显式重命名为 latest-linux-arm64.yml（electron-updater 在 arm64 上据此查找）
       - name: Rename Linux arm64 update manifest
         if: matrix.target == 'linux-arm64'
         shell: bash
         run: |
           if [ -f dist/latest-linux.yml ]; then
             mv dist/latest-linux.yml dist/latest-linux-arm64.yml
-            echo "Renamed latest-linux.yml -> latest-linux-arm64.yml"
-          else
-            echo "dist/latest-linux.yml not found, skipping"
+            echo "Renamed latest-linux.yml → latest-linux-arm64.yml"
           fi
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: SPlayer-Next-${{ matrix.name }}
           path: dist/*.*
+          if-no-files-found: error   # ← 构建失败时立刻报错，不静默跳过
 
-  # 合并多架构更新清单并创建 GitHub 草稿 Release
   release:
     name: Create GitHub Release
     needs: build
@@ -167,39 +136,40 @@ jobs:
       contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           path: artifacts
+          merge-multiple: false
 
-      # 整理待发布资源
       - name: Prepare release assets
         shell: bash
         run: |
           npm install --no-save --prefix "$RUNNER_TEMP/jsyaml" js-yaml@4.1.0
           NODE_PATH="$RUNNER_TEMP/jsyaml/node_modules" \
             node .github/scripts/prepare-release-assets.cjs artifacts release-assets
-          echo "待发布资源："
+          echo "Release assets:"
           ls -1 release-assets
 
-      # 用官方 gh CLI 确定性创建草稿 Release
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
-          # 重跑场景：若同名 release 已存在则先删除，避免脏状态（保留 tag）
+          
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Deleting existing release $TAG"
             gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes
           fi
+          
           gh release create "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --title "$TAG" \
