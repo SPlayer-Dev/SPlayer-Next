@@ -94,6 +94,9 @@
     "more": "More",
     "save": "Save",
     "reset": "Reset",
+    "retry": "Retry",
+    "prev": "Previous",
+    "next": "Next",
     "search": "Search",
     "loading": "Loading",
     "noData": "No data",
@@ -106,6 +109,17 @@
     "totalAlbums": "{count} albums",
     "totalArtists": "{count} artists",
     "totalPlaylists": "{count} playlists"
+  },
+  "comments": {
+    "name": "Song Comments",
+    "title": "Comments for \"{name}\"",
+    "hot": "Top Comments",
+    "new": "Latest Comments",
+    "loading": "Loading comments...",
+    "empty": "No comments yet",
+    "noSource": "No comment source available",
+    "location": "From {location}",
+    "page": "Page {page} / {total}"
   },
   "equalizer": {
     "title": "Equalizer",
@@ -181,6 +195,12 @@
       "quick": "Quick",
       "history": "Recent searches",
       "hot": "Trending"
+    },
+    "link": {
+      "song": "Play [{id}]",
+      "album": "Go to album [{id}]",
+      "artist": "Go to artist [{id}]",
+      "playlist": "Go to playlist [{id}]"
     }
   },
   "home": {
@@ -649,6 +669,7 @@
       "download": "Downloads",
       "localCache": "Local & Cache",
       "plugins": "Plugin Manager",
+      "other": "Other",
       "about": "About"
     },
     "section": {
@@ -694,7 +715,8 @@
       "cache": "Caches",
       "database": "Database",
       "backupReset": "Backup & Reset",
-      "debug": "Debug"
+      "debug": "Debug",
+      "preset": "OCD Settings"
     },
     "about": {
       "checkUpdate": "Check for Updates",
@@ -713,9 +735,33 @@
       "label": "Auto Play",
       "description": "Automatically start playback after loading a track"
     },
+    "fuckDjMode": {
+      "label": "Fuck DJ Mode",
+      "description": "Auto skip songs with DJ, TikTok, 0.9, 0.8, viral, car, hot, slow rock in the title"
+    },
+    "uncensorProfanity": {
+      "label": "Fuck ** Mode",
+      "description": "Restore masked profanity in lyrics to original words"
+    },
+    "hideVipTag": {
+      "label": "Hide VIP Tag",
+      "description": "Don't show VIP tags in song list"
+    },
+    "hideQualityTag": {
+      "label": "Hide Quality Tag",
+      "description": "Don't show quality tags in song list"
+    },
+    "showSubtitle": {
+      "label": "Show Subtitle",
+      "description": "Show alias and other subtitle info in song list"
+    },
     "rememberLastTrack": {
       "label": "Remember Progress",
       "description": "Restore playback position on startup"
+    },
+    "showLyricInBar": {
+      "label": "Show Lyric While Playing",
+      "description": "Replace artist name with current lyric in the bottom player bar"
     },
     "fadeEnabled": {
       "label": "Fade In/Out",

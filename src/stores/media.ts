@@ -7,6 +7,7 @@ import { parseLyric } from "@/utils/lyric/parse";
 import { extractLyricAuthors } from "@/utils/lyric/author";
 import { applyLyricExclude } from "@/utils/lyric/lyricStripper";
 import { normalizeLyricLines } from "@/utils/lyric/normalize";
+import { applyProfanityUncensor } from "@/utils/preset/profanity";
 
 export const useMediaStore = defineStore("media", () => {
   watchLyricPreference();
@@ -118,6 +119,10 @@ export const useMediaStore = defineStore("media", () => {
         const lines = parseLyric(input, source.format, useSettingsStore().locale);
         nextLines = applyLyricExclude(lines, track.value);
         normalizeLyricLines(nextLines);
+        // Fuck Mode
+        if (useSettingsStore().preset.uncensorProfanity) {
+          applyProfanityUncensor(nextLines);
+        }
       } catch (e) {
         console.error("[media] parse lyric failed:", e);
         nextLines = [];

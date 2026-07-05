@@ -22,6 +22,10 @@ export interface SDialogProps {
   top?: string;
   /** 内容区自定义样式 */
   contentStyle?: string | CSSProperties;
+  /** 首次打开时再挂载内容 */
+  lazy?: boolean;
+  /** 关闭后销毁内容 */
+  destroyOnClose?: boolean;
 }
 
 const props = withDefaults(defineProps<SDialogProps>(), {
@@ -30,7 +34,11 @@ const props = withDefaults(defineProps<SDialogProps>(), {
   cover: false,
   width: "460px",
   height: "auto",
+  lazy: true,
+  destroyOnClose: false,
 });
+
+const DESTROY_DELAY_MS = 180;
 
 const containerStyle = computed(() => ({
   width: props.width,
@@ -44,6 +52,28 @@ const emit = defineEmits<{
 }>();
 
 const isOpen = ref(props.open ?? false);
+const mounted = ref((!props.lazy && !props.destroyOnClose) || isOpen.value);
+let destroyTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** 更新内容挂载状态 */
+const syncMounted = (open: boolean): void => {
+  if (destroyTimer) {
+    clearTimeout(destroyTimer);
+    destroyTimer = undefined;
+  }
+
+  if (open) {
+    mounted.value = true;
+    return;
+  }
+
+  if (!props.destroyOnClose) return;
+
+  destroyTimer = setTimeout(() => {
+    mounted.value = false;
+    destroyTimer = undefined;
+  }, DESTROY_DELAY_MS);
+};
 
 watch(
   () => props.open,
@@ -51,6 +81,12 @@ watch(
     if (val !== undefined) isOpen.value = val;
   },
 );
+
+watch(isOpen, syncMounted, { immediate: true });
+
+onBeforeUnmount(() => {
+  if (destroyTimer) clearTimeout(destroyTimer);
+});
 
 const setOpen = (val: boolean): void => {
   isOpen.value = val;
@@ -65,7 +101,7 @@ const setOpen = (val: boolean): void => {
       <slot name="trigger" />
     </DialogTrigger>
 
-    <DialogPortal>
+    <DialogPortal v-if="mounted">
       <!-- 遮罩层 -->
       <DialogOverlay
         :class="[

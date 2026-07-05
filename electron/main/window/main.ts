@@ -60,7 +60,7 @@ export const createMainWindow = (): BrowserWindow => {
   enableTaskbarThumbnail(mainWindow);
 
   // 缩略图工具栏
-  mainWindow.webContents.once("did-finish-load", () => {
+  mainWindow.once("show", () => {
     initThumbar(mainWindow!);
   });
 

@@ -538,6 +538,7 @@ export const createDynamicIslandWindow = (): BrowserWindow => {
 
   dynamicIslandWindow.once("ready-to-show", () => {
     if (!dynamicIslandWindow) return;
+    dynamicIslandWindow.show();
     dynamicIslandWindow.setAlwaysOnTop(config.alwaysOnTop, "screen-saver");
     if (config.nonOcclusive) {
       dynamicIslandWindow.setIgnoreMouseEvents(true, { forward: true });

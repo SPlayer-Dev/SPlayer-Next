@@ -63,7 +63,7 @@ splayer.on("musicUrl", async (req) => {
 保存为 `example.js`，在 **设置 → 插件管理 → 本地导入** 即可使用。
 
 ::: tip
-`@type source` 可省略（缺省即为 `source`）。音源插件不依赖控制类能力，`@apiLevel` 写 `1` 或 `2` 均可。
+`@type source` 可省略（缺省即为 `source`）。音源插件不依赖控制类能力，播放地址 / 歌词 / 封面写 `1` 或 `2` 均可；若声明 `musicComment`，需写 `3`。各级别新增能力见[插件总览 · API 级别与变更记录](/plugins/#api-级别与变更记录)。
 :::
 
 ## `splayer.register(capabilities)`
@@ -84,11 +84,11 @@ splayer.register({
 
 `sources` 是一个 `Record<string, Source>`，键即 [source key](#工作原理)（`wy` / `tx` / `kg`），值为 `Source`：
 
-| 字段        | 类型        | 必填 | 说明                                                                                                          |
-| ----------- | ----------- | ---- | ------------------------------------------------------------------------------------------------------------- |
-| `name`      | `string`    | ✅   | 音源展示名（仅用于 UI 展示）                                                                                  |
-| `actions`   | `Action[]`  | ✅   | 支持的动作：`musicUrl`（播放地址）/ `musicSearch`·`musicLyric`·`musicPic`（[元数据兜底](#metadata-fallback)） |
-| `qualities` | `Quality[]` |      | 支持的音质，仅用于 UI 展示                                                                                    |
+| 字段        | 类型        | 必填 | 说明                                                                                                                                                   |
+| ----------- | ----------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name`      | `string`    | ✅   | 音源展示名（仅用于 UI 展示）                                                                                                                           |
+| `actions`   | `Action[]`  | ✅   | 支持的动作：`musicUrl`（播放地址）/ `musicSearch`·`musicLyric`·`musicPic`（[元数据兜底](#metadata-fallback)）/ `musicComment`（[评论](#musiccomment)） |
+| `qualities` | `Quality[]` |      | 支持的音质，仅用于 UI 展示                                                                                                                             |
 
 `Quality` 取值：
 
@@ -192,12 +192,12 @@ splayer.on("musicUrl", async (req) => {
 - 内置三平台都匹配不到歌词时，宿主回退到插件的 `musicLyric`（在线平台曲目与本地文件都先经三平台按歌名匹配，全 miss 后才轮到插件）；
 - 曲目**完全没有封面**时（如无内嵌封面的本地文件），宿主回退到插件的 `musicPic`，补全全屏播放器大图（同时填充背景与取色）。
 
-这套兜底走「**宿主编排、插件出原语**」：你只实现 `musicSearch`（搜候选）+ `musicLyric` / `musicPic`（取数据），跨源匹配由宿主负责。
+这套兜底走「**宿主编排、插件出原语**」：你只实现 `musicSearch`（搜候选）+ `musicLyric` / `musicPic` / `musicComment`（取数据），跨源匹配由宿主负责。
 
 ### 与 musicUrl 的两点不同
 
 1. **source key 不受限**。`musicUrl` 只有 `wy` / `tx` / `kg` 会被播放调用；元数据兜底**对任意 key 生效**——宿主把你声明的 key 原样传进 `musicSearch`，所以 `kw` / `mg` 等内置不支持的平台也能在这里补上歌词 / 封面。
-2. **匹配由宿主做**。你不必自己判断「搜出来的哪条才是这首歌」：宿主用候选的 `name` / `singer` / `durationMs` 打分，**时长是硬门槛**（双方都给时长且相差超 20 秒直接排除），挑出最匹配的一条，再用它调 `musicLyric` / `musicPic`。若你声明的 source key 恰好对应曲目所属平台（`wy` / `tx` / `kg`），宿主跳过搜索、直接用平台歌曲 ID。
+2. **匹配由宿主做**。你不必自己判断「搜出来的哪条才是这首歌」：宿主用候选的 `name` / `singer` / `durationMs` 打分，**时长是硬门槛**（双方都给时长且相差超 20 秒直接排除），挑出最匹配的一条，再用它调 `musicLyric` / `musicPic` / `musicComment`。若你声明的 source key 恰好对应曲目所属平台（`wy` / `tx` / `kg`），宿主跳过搜索、直接用平台歌曲 ID。
 
 ### 声明
 
@@ -206,12 +206,12 @@ splayer.on("musicUrl", async (req) => {
 ```js
 splayer.register({
   sources: {
-    kw: { name: "KW", actions: ["musicSearch", "musicLyric", "musicPic"] },
+    kw: { name: "KW", actions: ["musicSearch", "musicLyric", "musicPic", "musicComment"] },
   },
 });
 ```
 
-> 三个动作各自独立：只想补歌词就声明 `["musicSearch", "musicLyric"]`，封面同理。`musicSearch` 是匹配前提，补歌词或封面时都需要它。
+> `musicSearch` 是匹配前提，补歌词 / 封面 / 评论时都需要它。评论能力属于 API level 3，级别变更记录见[插件总览](/plugins/#api-级别与变更记录)。
 
 ### `musicSearch`
 
@@ -221,14 +221,14 @@ splayer.register({
 
 **返回** `{ list: Candidate[] }`，`Candidate`：
 
-| 字段         | 类型     | 必填 | 说明                                                                               |
-| ------------ | -------- | ---- | ---------------------------------------------------------------------------------- |
-| `id`         | `string` | ✅   | 该源内的歌曲 ID，取歌词 / 封面时凭它                                               |
-| `name`       | `string` | ✅   | 歌名（匹配用）                                                                     |
-| `singer`     | `string` |      | 歌手（匹配用）                                                                     |
-| `album`      | `string` |      | 专辑（匹配加分）                                                                   |
-| `durationMs` | `number` |      | 时长（毫秒）——**强烈建议给**，时长是匹配硬门槛                                     |
-| 其余字段     | 任意     |      | 原样透传：命中的这条 Candidate 会作为 `musicInfo` 回传给 `musicLyric` / `musicPic` |
+| 字段         | 类型     | 必填 | 说明                                                                                                |
+| ------------ | -------- | ---- | --------------------------------------------------------------------------------------------------- |
+| `id`         | `string` | ✅   | 该源内的歌曲 ID，取歌词 / 封面时凭它                                                                |
+| `name`       | `string` | ✅   | 歌名（匹配用）                                                                                      |
+| `singer`     | `string` |      | 歌手（匹配用）                                                                                      |
+| `album`      | `string` |      | 专辑（匹配加分）                                                                                    |
+| `durationMs` | `number` |      | 时长（毫秒）——**强烈建议给**，时长是匹配硬门槛                                                      |
+| 其余字段     | 任意     |      | 原样透传：命中的这条 Candidate 会作为 `musicInfo` 回传给 `musicLyric` / `musicPic` / `musicComment` |
 
 ::: warning durationMs 决定匹配质量
 不给 `durationMs` 时长门槛失效，容易匹配到同名翻唱 / 伴奏。能拿到时长就一定要填。
@@ -255,6 +255,65 @@ splayer.register({
 
 **返回** `{ url }`——封面图片远端直链。它会同时填充全屏大图与背景，建议给尽量大的图。返回空 `url` 视为未命中。
 
+### `musicComment`
+
+::: warning 需要 apiLevel 3
+脚本头部必须声明 `@apiLevel 3`。各级别新增能力见[插件总览 · API 级别与变更记录](/plugins/#api-级别与变更记录)。
+:::
+
+**请求**：
+
+```js
+{
+  source: "kw",
+  musicInfo: { ... }, // 宿主匹配命中的 Candidate
+  type: "hot",        // "hot" 热门评论 / "new" 最新评论
+  page: 1,            // 页码，从 1 开始
+  limit: 20,          // 每页数量，宿主会限制最大值
+}
+```
+
+**返回**：
+
+```js
+{
+  list: [
+    {
+      id: "comment-id",
+      userId: "user-id",
+      userName: "用户名",
+      avatar: "https://example.com/avatar.jpg",
+      text: "评论内容",
+      time: 1710000000000,
+      location: "广东",
+      likedCount: 123,
+      reply: [
+        { id: "reply-id", userName: "被回复用户", text: "回复内容" },
+      ],
+    },
+  ],
+  total: 1000,
+  page: 1,
+  limit: 20,
+}
+```
+
+| 字段         | 类型        | 必填 | 说明                                 |
+| ------------ | ----------- | ---- | ------------------------------------ |
+| `list`       | `Comment[]` | ✅   | 当前页评论                           |
+| `total`      | `number`    | ✅   | 评论总数，用于分页                   |
+| `page`       | `number`    | ✅   | 当前页码                             |
+| `limit`      | `number`    | ✅   | 当前页每页数量                       |
+| `id`         | `string`    | ✅   | 评论 ID                              |
+| `userName`   | `string`    | ✅   | 评论用户名                           |
+| `text`       | `string`    | ✅   | 评论正文                             |
+| `userId`     | `string`    |      | 用户 ID                              |
+| `avatar`     | `string`    |      | 用户头像 URL                         |
+| `time`       | `number`    |      | 评论时间戳（ms）                     |
+| `location`   | `string`    |      | IP 属地 / 地区                       |
+| `likedCount` | `number`    |      | 点赞数                               |
+| `reply`      | `Comment[]` |      | 内嵌回复摘要；楼中楼分页暂不要求实现 |
+
 ### 完整示例（兜底歌词 + 封面）
 
 ```js
@@ -262,11 +321,11 @@ splayer.register({
  * @name     KW Metadata
  * @version  1.0.0
  * @type     source
- * @apiLevel 2
+ * @apiLevel 3
  */
 splayer.register({
   sources: {
-    kw: { name: "KW", actions: ["musicSearch", "musicLyric", "musicPic"] },
+    kw: { name: "KW", actions: ["musicSearch", "musicLyric", "musicPic", "musicComment"] },
   },
 });
 
@@ -299,12 +358,33 @@ splayer.on("musicPic", async ({ musicInfo }) => {
   });
   return { url: resp.body?.cover ?? "" };
 });
+
+splayer.on("musicComment", async ({ musicInfo, type, page, limit }) => {
+  const resp = await splayer.request(
+    `https://api.example.com/comment?id=${musicInfo.id}&type=${type}&page=${page}&limit=${limit}`,
+    { responseType: "json" },
+  );
+  return {
+    list: (resp.body?.comments ?? []).map((item) => ({
+      id: String(item.id),
+      userName: item.user?.name ?? "",
+      avatar: item.user?.avatar,
+      text: item.content ?? "",
+      time: item.time,
+      likedCount: item.likedCount,
+    })),
+    total: resp.body?.total ?? 0,
+    page,
+    limit,
+  };
+});
 ```
 
 ### 触发与顺序
 
 - 歌词兜底对**在线平台曲目与本地文件**生效，排在内置三平台**之后**，按插件优先级顺序逐个源尝试，首个非空即用；流媒体（Subsonic / Jellyfin / Emby）走服务器自带歌词，暂不走插件兜底；
 - 封面兜底对**任意来源**生效（本地 / 在线 / 流媒体），仅在曲目**无任何封面**时触发，有封面的曲目不会发起任何请求；
+- 评论源会出现在评论弹窗右上角来源下拉中；只有同时声明 `musicSearch` 与 `musicComment` 的源会展示，显示名使用 `sources[key].name`；
 - 这些请求都需要联网，音源插件**自动获得 `network` 权限**，无需声明。
 
 ## 优先级

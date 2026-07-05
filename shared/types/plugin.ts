@@ -5,11 +5,18 @@
 
 import type { LyricLine } from "./lyrics";
 import type { Track } from "./player";
+import type { CommentTab, MusicCommentItem } from "./comment";
 
 /**
  * 支持的插件动作
  */
-export type PluginAction = "musicUrl" | "menuClick" | "musicSearch" | "musicLyric" | "musicPic";
+export type PluginAction =
+  | "musicUrl"
+  | "menuClick"
+  | "musicSearch"
+  | "musicLyric"
+  | "musicPic"
+  | "musicComment";
 
 /**
  * 音质等级
@@ -279,6 +286,25 @@ export interface MusicPicRes {
   url: string;
 }
 
+/** musicComment：取某条已匹配候选的评论 */
+export interface MusicCommentReq {
+  source: string;
+  /** host 匹配命中的候选（含源内 id） */
+  musicInfo: MusicSearchCandidate;
+  /** 评论类型 */
+  type: CommentTab;
+  /** 页码，从 1 开始 */
+  page: number;
+  /** 每页数量 */
+  limit: number;
+}
+export interface MusicCommentRes {
+  list: MusicCommentItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 /** Action → 请求/响应映射，用于 HostApi.on 的重载。新增动作时在此追加。 */
 export interface ActionIO {
   musicUrl: { req: MusicUrlReq; res: MusicUrlRes };
@@ -286,6 +312,7 @@ export interface ActionIO {
   musicSearch: { req: MusicSearchReq; res: MusicSearchRes };
   musicLyric: { req: MusicLyricReq; res: MusicLyricRes };
   musicPic: { req: MusicPicReq; res: MusicPicRes };
+  musicComment: { req: MusicCommentReq; res: MusicCommentRes };
 }
 
 /* 宿主暴露给插件的 API */

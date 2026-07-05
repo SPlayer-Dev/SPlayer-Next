@@ -82,6 +82,9 @@
     "more": "更多",
     "save": "保存",
     "reset": "重置",
+    "retry": "重试",
+    "prev": "上一页",
+    "next": "下一页",
     "search": "搜索",
     "loading": "加载中",
     "noData": "暂无数据",
@@ -94,6 +97,17 @@
     "totalAlbums": "共 {count} 张专辑",
     "totalArtists": "共 {count} 位歌手",
     "totalPlaylists": "共 {count} 个歌单"
+  },
+  "comments": {
+    "name": "歌曲评论",
+    "title": "「{name}」的评论",
+    "hot": "热门评论",
+    "new": "最新评论",
+    "loading": "评论加载中...",
+    "empty": "暂无评论",
+    "noSource": "没有可用的评论来源",
+    "location": "来自{location}",
+    "page": "第 {page} / {total} 页"
   },
   "equalizer": {
     "title": "均衡器",
@@ -169,6 +183,12 @@
       "quick": "快捷",
       "history": "搜索历史",
       "hot": "热搜榜"
+    },
+    "link": {
+      "song": "直接播放「{id}」",
+      "album": "前往专辑「{id}」",
+      "artist": "前往歌手「{id}」",
+      "playlist": "前往歌单「{id}」"
     }
   },
   "home": {
@@ -637,6 +657,7 @@
       "download": "下载配置",
       "localCache": "本地与缓存",
       "plugins": "插件管理",
+      "other": "其他设置",
       "about": "关于软件"
     },
     "section": {
@@ -682,7 +703,8 @@
       "downloadGeneral": "下载选项",
       "downloadTags": "写入内容",
       "backupReset": "备份与重置",
-      "debug": "调试"
+      "debug": "调试",
+      "preset": "强迫症配置"
     },
     "about": {
       "checkUpdate": "检查更新",
@@ -701,9 +723,33 @@
       "label": "自动播放",
       "description": "加载歌曲后自动开始播放"
     },
+    "fuckDjMode": {
+      "label": "Fuck DJ Mode",
+      "description": "歌曲名字带有 DJ 抖音 0.9 0.8 网红 车载 热歌 慢摇 自动跳过"
+    },
+    "uncensorProfanity": {
+      "label": "Fuck ** Mode",
+      "description": "把歌词里的 f**k 等屏蔽词还原为原词"
+    },
+    "hideVipTag": {
+      "label": "隐藏 VIP 标签",
+      "description": "歌曲列表中不显示 VIP 标签"
+    },
+    "hideQualityTag": {
+      "label": "隐藏音质标签",
+      "description": "歌曲列表中不显示音质标签"
+    },
+    "showSubtitle": {
+      "label": "显示副标题",
+      "description": "歌曲列表中显示别名等副标题信息"
+    },
     "rememberLastTrack": {
       "label": "记忆播放进度",
       "description": "启动时恢复上次歌曲的播放进度"
+    },
+    "showLyricInBar": {
+      "label": "播放时显示歌词",
+      "description": "底部播放栏播放时将歌手名替换为当前歌词"
     },
     "fadeEnabled": {
       "label": "渐入渐出",

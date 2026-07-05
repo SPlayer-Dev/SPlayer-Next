@@ -65,8 +65,36 @@ const slots = defineSlots<{
   popover?(props: { value: number }): unknown;
 }>();
 
+interface PopoverShiftOptions {
+  anchorX: number;
+  contentWidth: number;
+  viewportWidth: number;
+  padding: number;
+}
+
+/** 计算水平 popover 为留在视口内需要偏移的距离 */
+const computePopoverShift = ({
+  anchorX,
+  contentWidth,
+  viewportWidth,
+  padding,
+}: PopoverShiftOptions): number => {
+  const left = anchorX - contentWidth / 2;
+  const right = anchorX + contentWidth / 2;
+  const minLeft = padding;
+  const maxRight = viewportWidth - padding;
+
+  if (left < minLeft) return minLeft - left;
+  if (right > maxRight) return maxRight - right;
+  return 0;
+};
+
 /** 轨道 DOM 引用 */
 const trackRef = ref<HTMLElement>();
+/** 滑块根节点 DOM 引用 */
+const sliderRef = ref<HTMLElement>();
+/** popover 内容 DOM 引用 */
+const popoverContentRef = ref<HTMLElement>();
 /** 是否正在拖拽 */
 const isDragging = ref(false);
 /** 鼠标是否悬停在整个滑块上 */
@@ -75,6 +103,9 @@ const isHovering = ref(false);
 const isThumbHovering = ref(false);
 /** 拖拽过程中的临时值（松手前不同步给父组件） */
 const dragValue = ref(props.modelValue);
+/** popover 为避免贴边溢出的水平修正量 */
+const popoverShift = ref(0);
+let popoverFrame = 0;
 
 /** 外部 modelValue 变化时同步到内部（拖拽中忽略，避免冲突） */
 watch(
@@ -96,6 +127,13 @@ const progressRatio = computed(() => {
 
 /** 进度百分比字符串 */
 const progressPercent = computed(() => `${Math.round(progressRatio.value * 10000) / 100}%`);
+
+/** 水平 popover 锚点在滑块内的位置 */
+const popoverAnchorOffset = (width: number): number => {
+  const min = 24;
+  const max = Math.max(min, width - min);
+  return Math.max(min, Math.min(progressRatio.value * width, max));
+};
 
 /** 中心填充模式下的填充几何（百分比） */
 const centerFillStyle = computed(() => {
@@ -127,6 +165,36 @@ const onMarkClick = (value: number): void => {
 const popoverVisible = computed(
   () => props.showPopover && (isThumbHovering.value || isDragging.value),
 );
+
+/** 更新 popover 边缘避让偏移 */
+const updatePopoverShift = (): void => {
+  if (props.vertical || !popoverVisible.value) {
+    popoverShift.value = 0;
+    return;
+  }
+
+  if (popoverFrame) cancelAnimationFrame(popoverFrame);
+  popoverFrame = requestAnimationFrame(() => {
+    popoverFrame = 0;
+    const slider = sliderRef.value;
+    const content = popoverContentRef.value;
+    if (!slider || !content) return;
+
+    const rect = slider.getBoundingClientRect();
+    popoverShift.value = computePopoverShift({
+      anchorX: rect.left + popoverAnchorOffset(rect.width),
+      contentWidth: content.offsetWidth,
+      viewportWidth: window.innerWidth,
+      padding: 8,
+    });
+  });
+};
+
+watch([popoverVisible, displayValue], updatePopoverShift, { flush: "post" });
+
+onBeforeUnmount(() => {
+  if (popoverFrame) cancelAnimationFrame(popoverFrame);
+});
 
 /** step 的小数位数 */
 const stepDecimals = computed(() => {
@@ -180,6 +248,7 @@ const onPointerUp = (): void => {
 
 <template>
   <div
+    ref="sliderRef"
     class="s-slider relative select-none"
     :class="[
       disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer',
@@ -338,12 +407,18 @@ const onPointerUp = (): void => {
       ]"
       :style="{
         left: 'clamp(24px, var(--s-slider-progress), calc(100% - 24px))',
-        translate: '-50% 0',
+        translate: `calc(-50% + ${popoverShift}px) 0`,
         [popoverSide === 'top' ? 'marginBottom' : 'marginTop']: `${popoverOffset}px`,
       }"
     >
       <div
+        ref="popoverContentRef"
         class="s-slider-popover-content rounded-lg px-2 py-1 text-xs font-medium shadow-lg whitespace-nowrap border border-solid bg-surface-bright text-on-surface border-outline-variant/30"
+        :style="{
+          maxWidth: 'min(360px, calc(100vw - 16px))',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }"
       >
         <slot name="popover" :value="displayValue" />
       </div>

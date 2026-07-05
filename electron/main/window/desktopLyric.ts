@@ -211,6 +211,7 @@ export const createDesktopLyricWindow = (): BrowserWindow => {
     const b = desktopLyricWindow.getBounds();
     cachedSize.width = b.width;
     cachedSize.height = b.height;
+    desktopLyricWindow.show();
     desktopLyricWindow.setAlwaysOnTop(config.alwaysOnTop, "screen-saver");
     startCursorPolling();
   });

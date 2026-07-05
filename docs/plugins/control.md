@@ -5,7 +5,7 @@
 阅读本文前请先了解 [插件总览与架构](/plugins/)，其中的通用 API 对控制插件同样适用。
 
 ::: warning 需要 apiLevel 2
-脚本头部必须声明 `@type control` 与 `@apiLevel 2`，否则控制能力在运行时不可用。
+脚本头部必须声明 `@type control` 与 `@apiLevel 2`，否则控制能力在运行时不可用。各级别新增能力见[插件总览 · API 级别与变更记录](/plugins/#api-级别与变更记录)。
 :::
 
 ## 快速开始

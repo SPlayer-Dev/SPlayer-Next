@@ -597,7 +597,7 @@ defineExpose({
                       "
                     />
                     <span
-                      v-if="item.comment"
+                      v-if="item.comment && settings.preset.showSubtitle"
                       class="flex-1 min-w-0 text-base truncate"
                       :class="
                         playingId === item.id ? 'text-primary/60' : 'text-on-surface-variant/60'
@@ -611,7 +611,7 @@ defineExpose({
                     :class="playingId === item.id ? 'text-primary/70' : 'text-on-surface-variant'"
                   >
                     <span
-                      v-if="item.quality"
+                      v-if="item.quality && !settings.preset.hideQualityTag"
                       class="shrink-0 px-1 rounded text-[10px] leading-[18px] font-bold border border-solid"
                       :class="
                         isLosslessQuality(item.quality)
@@ -622,13 +622,13 @@ defineExpose({
                       {{ getQualityLabel(item.quality) }}
                     </span>
                     <span
-                      v-if="item.fee === 1"
+                      v-if="item.fee === 1 && !settings.preset.hideVipTag"
                       class="shrink-0 px-1 rounded text-[10px] leading-[18px] font-bold border border-solid text-red-400 border-red-400/40"
                     >
                       VIP
                     </span>
                     <span
-                      v-else-if="item.fee === 2"
+                      v-else-if="item.fee === 2 && !settings.preset.hideVipTag"
                       class="shrink-0 px-1 rounded text-[10px] leading-[18px] font-bold border border-solid text-red-400 border-red-400/40"
                     >
                       EP

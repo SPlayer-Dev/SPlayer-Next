@@ -21,6 +21,7 @@ import { installPlayStats } from "./stats";
 import { useFavorite } from "@/composables/useFavorite";
 import { extractColorFromUrl } from "@/utils/color";
 import { handleError, isSkippableError } from "@/utils/errors";
+import { shouldSkipDjTrack } from "@/utils/preset/djMode";
 import { toast } from "@/composables/useToast";
 import i18n from "@/i18n";
 
@@ -138,6 +139,12 @@ export const load = async (source: string, autoPlay = true, meta?: Track): Promi
  */
 const loadTrack = async (track: Track | null): Promise<void> => {
   if (!track) return;
+  // Fuck DJ Mode
+  const settings = useSettingsStore();
+  if (settings.preset.fuckDjMode && shouldSkipDjTrack(track)) {
+    await nextTrack();
+    return;
+  }
   const myToken = ++trackToken;
   // 乐观更新
   useMediaStore().setTrack(track);
