@@ -759,12 +759,11 @@
       "label": "最大分析时长",
       "description": "每首歌用于自动混音分析的最长秒数"
     },
-    "showLyricInBar": {
-      "label": "播放时显示歌词",
-      "description": "底部播放栏播放时将歌手名替换为当前歌词"
-    },
-    },
-    "fadeEnabled": {
+   "showLyricInBar": {
+     "label": "播放时显示歌词",
+     "description": "底部播放栏播放时将歌手名替换为当前歌词"
+   },
+   "fadeEnabled": {
       "label": "渐入渐出",
       "description": "播放和暂停时音频淡入淡出"
     },
