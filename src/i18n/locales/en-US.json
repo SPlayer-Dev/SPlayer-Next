@@ -771,11 +771,11 @@
       "label": "Max Analysis Time",
       "description": "Maximum seconds of each track used for automix analysis"
     },
-   "showLyricInBar": {
-     "label": "Show Lyric While Playing",
-     "description": "Replace artist name with current lyric in the bottom player bar"
-   },
-   "fadeEnabled": {
+    "showLyricInBar": {
+      "label": "Show Lyric While Playing",
+      "description": "Replace artist name with current lyric in the bottom player bar"
+    },
+    "fadeEnabled": {
       "label": "Fade In/Out",
       "description": "Audio fade on play and pause"
     },
