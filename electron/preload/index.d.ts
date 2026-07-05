@@ -20,6 +20,7 @@ import { IpcResponse } from "@shared/types/player";
 import { StatsApi } from "@shared/types/stats";
 import { UpdateApi } from "@shared/types/update";
 import { CloudUploadApi } from "@shared/types/cloudUpload";
+import { CommentsApi } from "@shared/types/comment";
 
 declare global {
   interface Window {
@@ -57,6 +58,7 @@ declare global {
       apis: ApisApi;
       cloud: CloudUploadApi;
       lyrics: LyricsApi;
+      comments: CommentsApi;
       download: DownloadApi;
       theme: {
         pickBackgroundImage: () => Promise<string | null>;

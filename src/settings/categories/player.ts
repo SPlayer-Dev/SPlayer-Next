@@ -51,6 +51,12 @@ const playerCategory: SettingCategory = {
           ],
         },
         {
+          key: "showLyricInBar",
+          type: "switch",
+          binding: { store: "settings", path: "player.showLyricInBar" },
+          defaultValue: true,
+        },
+        {
           key: "fadeEnabled",
           type: "switch",
           binding: { store: "settings", path: "system.player.fadeEnabled" },

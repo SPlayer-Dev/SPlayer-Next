@@ -6,6 +6,8 @@ import { getSearchSuggest, type SuggestData, type SuggestSimpleItem } from "@/ap
 import { songsByIds as getNeteaseSongsByIds } from "@/apis/song/netease";
 import { formatCompact } from "@/utils/format";
 import { navigateToAlbum, navigateToArtist, navigateToPlaylist } from "@/utils/navigate";
+import { parseMusicLink, type LinkType } from "@/utils/link";
+import type { TrackSource } from "@shared/types/player";
 import * as player from "@/core/player";
 import IconLucideMusic from "~icons/lucide/music";
 import IconLucideUser from "~icons/lucide/user";
@@ -25,6 +27,9 @@ const dialogOpen = computed({
 const searchQuery = ref("");
 
 const trimmedQuery = computed(() => searchQuery.value.trim());
+
+/** 音乐链接检测 */
+const parsedLink = computed(() => parseMusicLink(trimmedQuery.value));
 
 /** 热搜结果 */
 const hotItems = ref<HotSearchItem[]>([]);
@@ -109,28 +114,44 @@ const onClearHistory = (): void => data.clearSearchHistory();
  * @param id - 网易云 id
  * @param name - 名称
  */
-const onPickSuggest = async (kind: SuggestKind, id: number, name: string): Promise<void> => {
-  if (trimmedQuery.value) data.addSearchHistory(trimmedQuery.value);
+const navigateToResource = async (
+  kind: SuggestKind | LinkType,
+  id: string,
+  source: TrackSource,
+  name?: string,
+): Promise<void> => {
   dialogOpen.value = false;
   switch (kind) {
     case "song":
       try {
-        const [track] = await getNeteaseSongsByIds([id]);
+        const [track] = await getNeteaseSongsByIds([Number(id)]);
         if (track) await player.playNow(track);
       } catch (err) {
-        console.warn("[NavSearch] play suggest song failed:", err);
+        console.warn("[NavSearch] play song failed:", err);
       }
       break;
     case "artist":
-      navigateToArtist(name, { source: "netease", artistId: String(id) });
+      navigateToArtist(name, { source, artistId: id });
       break;
     case "album":
-      navigateToAlbum(name, { source: "netease", albumId: String(id) });
+      navigateToAlbum(name, { source, albumId: id });
       break;
     case "playlist":
-      navigateToPlaylist(String(id), { source: "netease", name });
+      navigateToPlaylist(id, { source, name });
       break;
   }
+};
+
+const onPickSuggest = (kind: SuggestKind, id: number, name: string): void => {
+  if (trimmedQuery.value) data.addSearchHistory(trimmedQuery.value);
+  navigateToResource(kind, String(id), "netease", name);
+};
+
+/** 音乐链接点击 */
+const onPickLink = (): void => {
+  const link = parsedLink.value;
+  if (!link) return;
+  navigateToResource(link.type, link.id, link.source);
 };
 
 const bodyRef = ref<HTMLElement | null>(null);
@@ -152,6 +173,9 @@ const activeIndex = ref(-1);
 const keyboardItems = computed(() => {
   const items: Array<{ id: string; action: () => void }> = [];
   if (trimmedQuery.value) {
+    if (parsedLink.value) {
+      items.push({ id: "parsed-link", action: onPickLink });
+    }
     items.push({ id: "quick", action: onSubmit });
     for (const sec of suggestSections.value) {
       for (const entry of sec.items) {
@@ -298,6 +322,20 @@ onMounted(() => {
                 <IconLucideZap class="size-4" />
                 <span>{{ t("nav.searchSection.quick") }}</span>
               </div>
+              <!-- 链接跳转 -->
+              <div
+                v-if="parsedLink"
+                class="min-w-0 flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-on-surface/5 transition-colors duration-200"
+                :class="{ 'bg-on-surface/5': isActive('parsed-link') }"
+                data-search-id="parsed-link"
+                @click="onPickLink"
+              >
+                <span class="flex-1 truncate text-sm text-on-surface">
+                  {{ t(`nav.link.${parsedLink.type}`, { id: parsedLink.id }) }}
+                </span>
+                <IconLucideArrowRight class="size-4 shrink-0 text-on-surface-variant" />
+              </div>
+              <!-- 搜索关键词 -->
               <div
                 class="min-w-0 flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-on-surface/5 transition-colors duration-200"
                 :class="{ 'bg-on-surface/5': isActive('quick') }"

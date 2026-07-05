@@ -3,6 +3,7 @@ import type {
   LyricSettings,
   AppearanceSettings,
   SpringPreset,
+  PresetSettings,
 } from "@/types/settings";
 import {
   DEFAULT_LYRIC_FORMAT_ORDER,
@@ -68,6 +69,16 @@ export const useSettingsStore = defineStore(
       showProgressTooltip: true,
       showProgressLyric: false,
       snapToLyric: false,
+      showLyricInBar: true,
+    });
+
+    /** 强迫症设置 */
+    const preset = reactive<PresetSettings>({
+      fuckDjMode: false,
+      uncensorProfanity: false,
+      hideVipTag: false,
+      hideQualityTag: false,
+      showSubtitle: true,
     });
 
     /** 歌词 */
@@ -236,6 +247,7 @@ export const useSettingsStore = defineStore(
       locale,
       appearance,
       player,
+      preset,
       lyric,
       system,
       isDesktopLyricOpen,

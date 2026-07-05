@@ -26,6 +26,20 @@ export const formatTimeWithDeci = (ms: number): string => {
 };
 
 /**
+ * 格式化日期时间戳
+ * @param time 毫秒时间戳
+ * @returns 本地化日期文本
+ */
+export const formatDate = (time?: number): string => {
+  if (!time) return "";
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(time));
+};
+
+/**
  * 倒计时格式化（输入秒），自动选择 m:ss 或 h:mm:ss
  * @param totalSec 总秒数
  * @returns 格式化后的时间

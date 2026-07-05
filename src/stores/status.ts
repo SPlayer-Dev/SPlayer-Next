@@ -1,4 +1,10 @@
-import type { PlayerState, AudioDevice, RepeatMode, ShuffleMode } from "@shared/types/player";
+import type {
+  PlayerState,
+  AudioDevice,
+  RepeatMode,
+  ShuffleMode,
+  Track,
+} from "@shared/types/player";
 import type { Platform } from "@shared/types/platform";
 import type { ContentScope } from "@/types/collection";
 export type { RepeatMode, ShuffleMode } from "@shared/types/player";
@@ -29,6 +35,10 @@ export const useStatusStore = defineStore(
     const fullQueueOpen = ref(false);
     /** 搜索弹窗状态 */
     const searchOpen = ref(false);
+    /** 评论弹窗状态 */
+    const commentsOpen = ref(false);
+    /** 评论弹窗当前歌曲 */
+    const commentsTrack = shallowRef<Track | null>(null);
     /** 全屏播放器是否展示歌词 */
     const showLyric = ref(true);
     /** 当前播放索引 */
@@ -86,6 +96,12 @@ export const useStatusStore = defineStore(
      */
     const currentTrack = computed(() => queue.getTrack(playIndex.value));
 
+    /** 打开指定歌曲评论 */
+    const showComments = (track: Track): void => {
+      commentsTrack.value = track;
+      commentsOpen.value = true;
+    };
+
     return {
       state,
       position,
@@ -101,6 +117,8 @@ export const useStatusStore = defineStore(
       outerQueueOpen,
       fullQueueOpen,
       searchOpen,
+      commentsOpen,
+      commentsTrack,
       showLyric,
       outputDevices,
       playIndex,
@@ -119,6 +137,7 @@ export const useStatusStore = defineStore(
       likedPageTab,
       settingsCategory,
       currentTrack,
+      showComments,
     };
   },
   {

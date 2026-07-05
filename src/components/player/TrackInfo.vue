@@ -2,6 +2,7 @@
 import type { Artist } from "@shared/types/player";
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
+import { useSettingsStore } from "@/stores/settings";
 import { navigateToArtist } from "@/utils/navigate";
 
 withDefaults(
@@ -14,6 +15,7 @@ withDefaults(
 
 const status = useStatusStore();
 const media = useMediaStore();
+const settings = useSettingsStore();
 const { isExpanded, isPlaying } = storeToRefs(status);
 
 /** 主歌词行 */
@@ -21,7 +23,13 @@ const mainLines = computed(() => media.parsedLyric.filter((l) => !l.isBG));
 
 /** 当前歌词文本 */
 const currentLyricText = computed(() => {
-  if (!isPlaying.value || media.lyricIndex < 0 || !mainLines.value.length) return null;
+  if (
+    !settings.player.showLyricInBar ||
+    !isPlaying.value ||
+    media.lyricIndex < 0 ||
+    !mainLines.value.length
+  )
+    return null;
   const currentMs = media.parsedLyric[media.lyricIndex]?.startTime ?? 0;
   const line = mainLines.value.findLast((l) => l.startTime <= currentMs) ?? mainLines.value[0];
   const text = line.words.map((w) => w.word).join("");

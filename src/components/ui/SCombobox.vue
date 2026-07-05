@@ -32,6 +32,8 @@ export interface SComboboxProps {
   emptyText?: string;
   /** 启用虚拟滚动 */
   virtual?: boolean;
+  /** 作为 fallback 显示 */
+  fallbackOption?: boolean;
 }
 
 const props = withDefaults(defineProps<SComboboxProps>(), {
@@ -45,6 +47,7 @@ const props = withDefaults(defineProps<SComboboxProps>(), {
   maxTagCount: 2,
   emptyText: "",
   virtual: false,
+  fallbackOption: false,
 });
 
 const emit = defineEmits<{
@@ -65,7 +68,14 @@ const optionMap = computed(
 );
 
 const selectedOptions = computed(() =>
-  selectedValues.value.map((v) => optionMap.value.get(v)).filter((o): o is SComboboxOption => !!o),
+  selectedValues.value
+    .map((v) => {
+      const opt = optionMap.value.get(v);
+      if (opt) return opt;
+      if (props.fallbackOption) return { value: v, label: String(v) } as SComboboxOption;
+      return null;
+    })
+    .filter((o): o is SComboboxOption => !!o),
 );
 
 const visibleTags = computed(() => selectedOptions.value.slice(0, props.maxTagCount));

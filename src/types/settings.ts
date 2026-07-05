@@ -182,6 +182,8 @@ export interface PlayerSettings {
   showProgressLyric: boolean;
   /** 进度调节吸附最近歌词 */
   snapToLyric: boolean;
+  /** 播放时底部显示歌词而非歌手名 */
+  showLyricInBar: boolean;
 }
 
 /** 外观设置 */
@@ -204,4 +206,18 @@ export interface AppearanceSettings {
   fontFamily: string;
   /** 性能监视器悬浮卡片 */
   showPerformanceMonitor: boolean;
+}
+
+/** 强迫症设置 */
+export interface PresetSettings {
+  /** Fuck DJ Mode */
+  fuckDjMode: boolean;
+  /** Fuck ** Mode */
+  uncensorProfanity: boolean;
+  /** 隐藏歌曲列表的 VIP 标签 */
+  hideVipTag: boolean;
+  /** 隐藏歌曲列表的音质标签 */
+  hideQualityTag: boolean;
+  /** 显示歌曲副标题（别名） */
+  showSubtitle: boolean;
 }

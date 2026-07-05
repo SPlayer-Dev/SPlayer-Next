@@ -10,6 +10,7 @@ import mediaSourceCategory from "./categories/streaming";
 import downloadCategory from "./categories/download";
 import localCacheCategory from "./categories/localCache";
 import pluginsCategory from "./categories/plugins";
+import otherCategory from "./categories/other";
 import AboutSettings from "@/components/settings/custom/AboutSettings.vue";
 import IconLucideInfo from "~icons/lucide/info";
 
@@ -25,5 +26,6 @@ export const settingsSchema: SettingCategory[] = [
   downloadCategory,
   localCacheCategory,
   pluginsCategory,
+  otherCategory,
   { id: "about", icon: IconLucideInfo, component: AboutSettings },
 ];

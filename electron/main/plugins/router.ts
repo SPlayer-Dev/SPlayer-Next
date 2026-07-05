@@ -11,6 +11,8 @@ import type {
   MenuClickRes,
   MusicLyricReq,
   MusicLyricRes,
+  MusicCommentReq,
+  MusicCommentRes,
   MusicPicReq,
   MusicPicRes,
   MusicSearchReq,
@@ -121,3 +123,10 @@ export const callMusicLyric = (rt: PluginRuntime, req: MusicLyricReq): Promise<M
 /** 在某插件上取某条已匹配候选的封面 */
 export const callMusicPic = (rt: PluginRuntime, req: MusicPicReq): Promise<MusicPicRes> =>
   callOn<MusicPicRes>(rt, "musicPic", req, ACTION_TIMEOUTS.musicPic);
+
+/** 在某插件上取某条已匹配候选的评论 */
+export const callMusicComment = (
+  rt: PluginRuntime,
+  req: MusicCommentReq,
+): Promise<MusicCommentRes> =>
+  callOn<MusicCommentRes>(rt, "musicComment", req, ACTION_TIMEOUTS.musicComment);
