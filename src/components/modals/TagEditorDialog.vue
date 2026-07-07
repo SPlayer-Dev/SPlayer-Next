@@ -18,7 +18,9 @@ const emit = defineEmits<{ "update:open": [value: boolean] }>();
 const { t } = useI18n();
 
 /** 文件名 */
-const fileName = computed(() => props.track?.path?.split(/[/\\]/).pop() ?? "");
+const fileName = computed(
+  () => (props.track?.cueAudioPath ?? props.track?.path)?.split(/[/\\]/).pop() ?? "",
+);
 
 /** 格式 · 大小 摘要行 */
 const fileMeta = computed(() => {
@@ -77,7 +79,7 @@ const resetForm = (tags: TrackTags | null): void => {
 watch(
   () => props.open,
   async (open) => {
-    if (!open || !props.track?.path) return;
+    if (!open || !props.track?.path || props.track.cuePath) return;
     loading.value = true;
     original.value = null;
     resetForm(null);

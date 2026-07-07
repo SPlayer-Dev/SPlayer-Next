@@ -9,6 +9,7 @@ import { store } from "@main/store";
 import { handleCacheProtocolOnPartition } from "@main/utils/protocol";
 import { isAppQuitting } from "@main/utils/lifecycle";
 import { broadcast } from "@main/utils/broadcast";
+import { CURRENT_AGREEMENT_VERSION } from "@shared/constants/agreement";
 
 /** 主窗口 session */
 const MAIN_PARTITION = "persist:main";
@@ -145,8 +146,13 @@ export const createMainWindow = (): BrowserWindow => {
     openExternalSafe(url);
   });
 
-  // 首启引导路径
-  const initialHash = store.get("system.onboardingCompleted") ? "" : "/onboarding";
+  // 首启引导路径:未完成向导 → 向导;协议版本落后 → 仅协议更新页
+  let initialHash = "";
+  if (!store.get("system.onboardingCompleted")) {
+    initialHash = "/onboarding";
+  } else if ((store.get("system.agreedAgreementVersion") as number) < CURRENT_AGREEMENT_VERSION) {
+    initialHash = "/agreement-update";
+  }
 
   // 基于 electron-vite cli 的 HMR
   if (is.dev && process.env["ELECTRON_RENDERER_URL"]) {

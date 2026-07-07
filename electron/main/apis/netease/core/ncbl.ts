@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID as cryptoRandomUUID } from "node:crypto";
 import * as zlib from "node:zlib";
 import { CLIENT_LOG3_DOMAIN } from "./config";
+import { fetchWithProxy } from "@main/utils/proxy";
 
 interface NeteaseLogRecord {
   time: number;
@@ -437,19 +438,22 @@ export const doUpload = async (
 ): Promise<UploadResult> => {
   const payload = encryptNCBL(metaJson, body);
   const multipart = buildMultipart(payload);
-  const resp = await fetch(`${CLIENT_LOG3_DOMAIN}/api/clientlog/encrypt/upload?multiupload=true`, {
-    method: "POST",
-    headers: {
-      "Content-Type": `multipart/form-data; boundary=${multipart.boundary}`,
-      Referer: "https://music.163.com/di",
-      "User-Agent": `Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36 Chrome/91.0.4472.164 NeteaseMusicDesktop/${ctx.app.version}`,
-      "Accept-Encoding": "gzip,deflate",
-      "Accept-Language": "zh-CN,zh;q=0.8",
-      Cookie: cookieStr,
+  const resp = await fetchWithProxy(
+    `${CLIENT_LOG3_DOMAIN}/api/clientlog/encrypt/upload?multiupload=true`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": `multipart/form-data; boundary=${multipart.boundary}`,
+        Referer: "https://music.163.com/di",
+        "User-Agent": `Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36 Chrome/91.0.4472.164 NeteaseMusicDesktop/${ctx.app.version}`,
+        "Accept-Encoding": "gzip,deflate",
+        "Accept-Language": "zh-CN,zh;q=0.8",
+        Cookie: cookieStr,
+      },
+      body: new Uint8Array(multipart.body),
+      signal: AbortSignal.timeout(15000),
     },
-    body: new Uint8Array(multipart.body),
-    signal: AbortSignal.timeout(15000),
-  });
+  );
 
   const text = await resp.text();
   let respBody: Record<string, any>;

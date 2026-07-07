@@ -43,7 +43,9 @@ const cacheKeyForTrack = (track: Track, songLevel: QualityLevel): string | null 
 };
 
 /** 在线 URL 解析结果 */
-export type OnlineResolveResult = { url: string } | { url: null; errorCode: ErrorCode };
+export type OnlineResolveResult =
+  | { ok: true; url: string; isTrial: boolean }
+  | { ok: false; errorCode: ErrorCode };
 
 /**
  * 经插件解析在线音频源 URL
@@ -55,7 +57,7 @@ export const resolveByPlugin = async (
   track: Track,
   quality: QualityLevel = "hq",
 ): Promise<OnlineResolveResult> => {
-  const fail = (errorCode: ErrorCode): OnlineResolveResult => ({ url: null, errorCode });
+  const fail = (errorCode: ErrorCode): OnlineResolveResult => ({ ok: false, errorCode });
   if (!isOnlinePlatform(track.source)) return fail(ErrorCode.URL_RESOLVE_FAILED);
   const pluginSource = PLATFORM_TO_PLUGIN_SOURCE[track.source];
   if (!pluginSource) return fail(ErrorCode.URL_RESOLVE_FAILED);
@@ -99,12 +101,12 @@ export const resolveByPlugin = async (
         quality,
         musicInfo,
       });
-      if (res?.url) return { url: res.url };
+      if (res?.url) return { ok: true, url: res.url, isTrial: false };
     } catch (err) {
       console.warn("[plugin] resolveUrl failed", plugin.manifest.id, err);
     }
   }
-  return { url: null, errorCode: ErrorCode.URL_RESOLVE_FAILED };
+  return fail(ErrorCode.URL_RESOLVE_FAILED);
 };
 
 /**
@@ -116,15 +118,22 @@ const resolveOnlineUrl = async (
   track: Track,
   songLevel: QualityLevel,
 ): Promise<OnlineResolveResult> => {
+  const settings = useSettingsStore();
+  let trialUrl: string | null = null;
   try {
     if (track.source === "netease") {
       const resolved = await resolveNeteaseUrl(track, songLevel);
-      if (resolved) return { url: resolved };
+      if (resolved && !resolved.isTrial) {
+        return { ok: true, url: resolved.url, isTrial: false };
+      }
+      if (resolved?.isTrial) trialUrl = resolved.url;
     }
   } catch {
     // 官方 API 异常回落插件
   }
-  return resolveByPlugin(track);
+  const pluginResolved = await resolveByPlugin(track);
+  if (pluginResolved.ok || !trialUrl || !settings.player.allowTrialPlay) return pluginResolved;
+  return { ok: true, url: trialUrl, isTrial: true };
 };
 
 /**
@@ -145,7 +154,8 @@ export interface ResolvedTrackSource {
 export const resolveTrackSource = async (track: Track): Promise<ResolvedTrackSource | null> => {
   // 本地文件
   if (track.source === "local") {
-    return track.path ? { source: track.path, fromCache: false } : null;
+    const localPath = track.cueAudioPath ?? track.path;
+    return localPath ? { source: localPath, fromCache: false } : null;
   }
   const settings = useSettingsStore();
   const songLevel = settings.player.songLevel;
@@ -184,13 +194,13 @@ export const resolveTrackSource = async (track: Track): Promise<ResolvedTrackSou
   if (isOnlinePlatform(track.source)) {
     try {
       const resolved = await resolveOnlineUrl(track, songLevel);
-      if (resolved.url === null) {
+      if (!resolved.ok) {
         handleError(resolved.errorCode);
         return null;
       }
       const url = resolved.url;
       const result: ResolvedTrackSource = { source: url, fromCache: false };
-      if (cacheEnabled) {
+      if (cacheEnabled && !resolved.isTrial) {
         result.cacheRequest = async () => {
           void window.api.cache.song.fetch(cacheKey, track.source, url);
         };

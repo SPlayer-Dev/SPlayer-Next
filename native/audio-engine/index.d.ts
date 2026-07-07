@@ -199,6 +199,10 @@ export interface JsScanEvent {
   tracks?: Array<JsScannedTrack>
   /** 已删除的文件路径列表（仅 done 事件） */
   removedPaths?: Array<string>
+  /** 遍历时收集到的 CUE 文件路径（仅 done 事件） */
+  cueFiles?: Array<string>
+  /** 不可达的扫描目录 */
+  unavailableDirs?: Array<string>
 }
 
 /** 扫描到的曲目信息 */

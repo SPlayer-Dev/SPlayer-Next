@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 
 /** 当前 schema 版本 */
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 type TableInfoRow = { name: string };
 
@@ -33,6 +33,23 @@ export const migrate = (d: Database.Database): void => {
       d.exec("ALTER TABLE tracks ADD COLUMN track INTEGER");
     }
     v = 3;
+  }
+
+  // v3 → v4: 添加 CUE 分轨列
+  if (v < 4) {
+    if (!hasColumn(d, "tracks", "cue_path")) {
+      d.exec("ALTER TABLE tracks ADD COLUMN cue_path TEXT");
+    }
+    if (!hasColumn(d, "tracks", "cue_audio_path")) {
+      d.exec("ALTER TABLE tracks ADD COLUMN cue_audio_path TEXT");
+    }
+    if (!hasColumn(d, "tracks", "cue_start_ms")) {
+      d.exec("ALTER TABLE tracks ADD COLUMN cue_start_ms INTEGER");
+    }
+    if (!hasColumn(d, "tracks", "cue_end_ms")) {
+      d.exec("ALTER TABLE tracks ADD COLUMN cue_end_ms INTEGER");
+    }
+    v = 4;
   }
 
   // 版本无关部分

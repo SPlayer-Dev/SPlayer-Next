@@ -54,6 +54,12 @@ const lyricCategory: SettingCategory = {
           type: "custom",
           component: LyricFormatOrderConfig,
         },
+        {
+          key: "detectBackgroundLyrics",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.detectBackgroundLyrics" },
+          defaultValue: true,
+        },
       ],
     },
     {

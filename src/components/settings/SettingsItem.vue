@@ -123,14 +123,26 @@ const descriptionText = computed(() =>
         </SButton>
         <SNumberInput
           v-else-if="item.type === 'number'"
-          v-model="model"
+          :model-value="model"
           :min="item.min"
           :max="item.max"
           :step="item.step"
           :unit="item.unit"
           :placeholder="item.placeholderKey ? t(item.placeholderKey) : ''"
           :disabled="isDisabled"
+          update-on="blur"
           class="w-full"
+          @update:model-value="applyChange($event)"
+        />
+        <SInput
+          v-else-if="item.type === 'text'"
+          :model-value="model"
+          :placeholder="item.placeholderKey ? t(item.placeholderKey) : ''"
+          :disabled="isDisabled"
+          update-on="blur"
+          clearable
+          class="w-full"
+          @update:model-value="applyChange($event)"
         />
         <component
           :is="item.component"

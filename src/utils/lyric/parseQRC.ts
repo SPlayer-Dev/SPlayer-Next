@@ -82,7 +82,7 @@ const extractFromXml = (text: string): string => {
 };
 
 /** 解析 QRC 歌词 */
-export const parseQRC = (text: string): LyricLine[] => {
+export const parseQRC = (text: string, detectBackground = true): LyricLine[] => {
   const content = extractFromXml(text);
   const lines: LyricLine[] = [];
 
@@ -107,13 +107,13 @@ export const parseQRC = (text: string): LyricLine[] => {
       romanLyric: "",
       startTime: lineStart,
       endTime: lineStart + lineDur,
-      isBG: detectBackgroundLine(words),
+      isBG: detectBackgroundLine(words, detectBackground),
       isDuet: false,
     };
     lines.push(line);
     // 行内尾随和声「主歌词（和声）」拆成紧随的背景行
     if (!line.isBG) {
-      const bg = splitTrailingBackground(line);
+      const bg = splitTrailingBackground(line, detectBackground);
       if (bg) lines.push(bg);
     }
   }

@@ -16,6 +16,8 @@ export interface SInputProps {
   size?: "small" | "medium" | "large";
   /** 状态色（错误等） */
   status?: "default" | "error";
+  /** 更新时机：input 立即更新；blur 在失焦或回车时提交 */
+  updateOn?: "input" | "blur";
 }
 
 const props = withDefaults(defineProps<SInputProps>(), {
@@ -30,6 +32,7 @@ const props = withDefaults(defineProps<SInputProps>(), {
   resize: "none",
   size: "medium",
   status: "default",
+  updateOn: "input",
 });
 
 const isTextarea = computed(() => props.type === "textarea");
@@ -66,10 +69,57 @@ const emit = defineEmits<{
 }>();
 
 const isFocused = ref(false);
-const showClear = computed(() => props.clearable && props.modelValue.length > 0 && !props.disabled);
+const draftValue = ref(props.modelValue);
+const displayValue = computed(() =>
+  props.updateOn === "blur" ? draftValue.value : props.modelValue,
+);
+const showClear = computed(
+  () => props.clearable && displayValue.value.length > 0 && !props.disabled,
+);
+
+watch(
+  () => props.modelValue,
+  (value) => {
+    if (props.updateOn === "input" || !isFocused.value) draftValue.value = value;
+  },
+);
+
+const commitValue = (): void => {
+  if (draftValue.value !== props.modelValue) emit("update:modelValue", draftValue.value);
+};
+
+const rollbackValue = (): void => {
+  draftValue.value = props.modelValue;
+};
+
+const handleInput = (value: string): void => {
+  if (props.updateOn === "input") {
+    emit("update:modelValue", value);
+    return;
+  }
+  draftValue.value = value;
+};
 
 const handleClear = () => {
-  emit("update:modelValue", "");
+  handleInput("");
+};
+
+const handleBlur = (): void => {
+  isFocused.value = false;
+  if (props.updateOn === "blur") commitValue();
+  emit("blur");
+};
+
+const handleEnter = (event: KeyboardEvent): void => {
+  if (props.updateOn !== "blur") return;
+  commitValue();
+  (event.currentTarget as HTMLInputElement).blur();
+};
+
+const handleEscape = (event: KeyboardEvent): void => {
+  if (props.updateOn !== "blur") return;
+  rollbackValue();
+  (event.currentTarget as HTMLInputElement).blur();
 };
 </script>
 
@@ -93,22 +143,20 @@ const handleClear = () => {
     <!-- 多行 -->
     <template v-if="isTextarea">
       <textarea
-        :value="modelValue"
+        :value="displayValue"
         :placeholder="placeholder"
         :disabled="disabled"
         :readonly="readonly"
         :rows="rows"
         class="w-full block bg-transparent outline-none border-none shadow-none text-on-surface placeholder:text-on-surface-variant/40 disabled:cursor-not-allowed"
         :class="[resizeClass, readonly ? 'cursor-pointer' : '', showClear ? 'pr-5' : '']"
-        @input="emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)"
+        @input="handleInput(($event.target as HTMLTextAreaElement).value)"
         @focus="
           isFocused = true;
           emit('focus');
         "
-        @blur="
-          isFocused = false;
-          emit('blur');
-        "
+        @blur="handleBlur"
+        @keydown.esc="handleEscape"
       />
       <!-- 清空按钮（textarea 模式右上角浮动） -->
       <Transition name="fade">
@@ -125,22 +173,21 @@ const handleClear = () => {
       <slot name="prefix" />
 
       <input
-        :value="modelValue"
+        :value="displayValue"
         :type="type"
         :placeholder="placeholder"
         :disabled="disabled"
         :readonly="readonly"
         class="flex-1 min-w-0 h-full bg-transparent outline-none border-none shadow-none text-on-surface placeholder:text-on-surface-variant/40 disabled:cursor-not-allowed"
         :class="readonly ? 'cursor-pointer' : ''"
-        @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
+        @input="handleInput(($event.target as HTMLInputElement).value)"
         @focus="
           isFocused = true;
           emit('focus');
         "
-        @blur="
-          isFocused = false;
-          emit('blur');
-        "
+        @blur="handleBlur"
+        @keydown.enter="handleEnter"
+        @keydown.esc="handleEscape"
       />
 
       <!-- 清空按钮：mousedown.prevent 保留输入焦点，避免触发 blur 让 focus-within 宽度回缩导致点击错位 -->

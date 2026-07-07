@@ -49,7 +49,7 @@ export const resolveDownloadSource = async (
   // 其他播放源走插件
   if (isPlatform(track.source)) {
     const res = await resolveByPlugin(track, level);
-    if (res.url) return { url: res.url };
+    if (res.ok && !res.isTrial) return { url: res.url };
   }
   return null;
 };

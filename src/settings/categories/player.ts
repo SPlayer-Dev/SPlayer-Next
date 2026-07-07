@@ -69,6 +69,12 @@ const playerCategory: SettingCategory = {
           ],
           defaultValue: "hq",
         },
+        {
+          key: "allowTrialPlay",
+          type: "switch",
+          binding: { store: "settings", path: "player.allowTrialPlay" },
+          defaultValue: false,
+        },
       ],
     },
     {

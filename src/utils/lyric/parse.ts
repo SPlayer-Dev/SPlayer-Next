@@ -10,6 +10,10 @@ import { parseSRT } from "./parseSRT";
 import { parseASS } from "./parseASS";
 import { normalizeKangxi } from "./kangxi";
 
+export interface ParseLyricOptions {
+  detectBackground?: boolean;
+}
+
 /**
  * 从外部歌词列表中选出最优格式的索引
  * @param lyrics   外部歌词列表
@@ -69,18 +73,24 @@ export const detectFormat = (text: string): LyricFormat => {
  * @param preferredLang 偏好翻译语言标签
  * @returns 解析后的歌词行数组
  */
-const parseContent = (text: string, format: LyricFormat, preferredLang = ""): LyricLine[] => {
+const parseContent = (
+  text: string,
+  format: LyricFormat,
+  preferredLang = "",
+  options: ParseLyricOptions = {},
+): LyricLine[] => {
+  const detectBackground = options.detectBackground !== false;
   switch (format) {
     case "ttml":
       return parseTTML(text, preferredLang);
     case "qrc":
-      return parseQRC(text);
+      return parseQRC(text, detectBackground);
     case "krc":
-      return parseKRC(text);
+      return parseKRC(text, detectBackground);
     case "yrc":
-      return parseYRC(text);
+      return parseYRC(text, detectBackground);
     case "lrc":
-      return parseLRC(text);
+      return parseLRC(text, detectBackground);
     case "lys":
       return parseLyS(text);
     case "srt":
@@ -95,24 +105,26 @@ const parseContent = (text: string, format: LyricFormat, preferredLang = ""): Ly
  * @param input 主 + 可选翻译 / 音译
  * @param format 主歌词格式
  * @param preferredLang 偏好翻译语言标签（TTML 多语言时据此挑选）
+ * @param options 解析选项
  */
 export const parseLyric = (
   input: LyricInput,
   format: LyricFormat,
   preferredLang = "",
+  options: ParseLyricOptions = {},
 ): LyricLine[] => {
-  const lines = parseContent(normalizeKangxi(input.content), format, preferredLang);
+  const lines = parseContent(normalizeKangxi(input.content), format, preferredLang, options);
   if (input.translation && input.translationFormat) {
     pairTranslation(
       lines,
-      parseContent(normalizeKangxi(input.translation), input.translationFormat),
+      parseContent(normalizeKangxi(input.translation), input.translationFormat, "", options),
       "translatedLyric",
     );
   }
   if (input.romaji && input.romajiFormat) {
     pairTranslation(
       lines,
-      parseContent(normalizeKangxi(input.romaji), input.romajiFormat),
+      parseContent(normalizeKangxi(input.romaji), input.romajiFormat, "", options),
       "romanLyric",
     );
   }

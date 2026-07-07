@@ -134,6 +134,8 @@ const api = {
       ipcRenderer.invoke("system:saveFile", data, defaultName),
     // 重启应用
     relaunch: () => ipcRenderer.invoke("system:relaunch"),
+    // 测试当前网络代理
+    testNetworkProxy: () => ipcRenderer.invoke("system:testNetworkProxy"),
     // 订阅主进程下发的 orpheus 唤起 URL
     onProtocolUrl: (callback: (url: string) => void) =>
       subscribe<string>("protocol:orpheus", callback),

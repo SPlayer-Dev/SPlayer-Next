@@ -1,3 +1,5 @@
+<!-- agreement-version: 1 -->
+
 # SPlayer Next 用户协议与免责声明
 
 **版本：v1.0**<br>

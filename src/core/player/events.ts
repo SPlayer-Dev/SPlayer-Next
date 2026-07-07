@@ -26,6 +26,31 @@ import {
 /** 防止 ended 事件重入 */
 let endedGuard = false;
 
+/** 按当前播放模式结算并进入下一步 */
+const finishCurrentTrack = async (): Promise<void> => {
+  const status = useStatusStore();
+  if (endedGuard) return;
+  endedGuard = true;
+  try {
+    const stopByTimer = autoClose.onTrackEnded();
+    // FM 模式跳过
+    const repeatOne = status.repeatMode === "one" && !status.fmMode;
+    // 结算播放统计
+    playStats.onTrackEnded(repeatOne && !stopByTimer);
+    // 定时关闭"等本曲结束"模式
+    if (stopByTimer) return;
+    // 单曲循环：seek 回开头继续播放
+    if (repeatOne) {
+      await seek(0);
+      await play();
+    } else {
+      await nextTrack();
+    }
+  } finally {
+    endedGuard = false;
+  }
+};
+
 /**
  * 处理主进程推送的播放事件
  * @param event - 播放事件
@@ -66,32 +91,17 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
       abLoop.checkLoop(adjusted);
       // 推进延时缓存调度
       cacheScheduler.tick(adjusted);
+      const track = useMediaStore().track;
+      if (track?.cueEndMs != null && status.isPlaying && status.duration > 0) {
+        if (adjusted >= status.duration - 250) await finishCurrentTrack();
+      }
       break;
     }
     case "fftData":
       playback.setFftFrame(event.data);
       break;
     case "ended": {
-      if (endedGuard) return;
-      endedGuard = true;
-      try {
-        const stopByTimer = autoClose.onTrackEnded();
-        // FM 模式跳过
-        const repeatOne = status.repeatMode === "one" && !status.fmMode;
-        // 结算播放统计
-        playStats.onTrackEnded(repeatOne && !stopByTimer);
-        // 定时关闭"等本曲结束"模式
-        if (stopByTimer) break;
-        // 单曲循环：seek 回开头继续播放
-        if (repeatOne) {
-          await seek(0);
-          await play();
-        } else {
-          await nextTrack();
-        }
-      } finally {
-        endedGuard = false;
-      }
+      await finishCurrentTrack();
       break;
     }
     case "sourceError":

@@ -23,7 +23,7 @@
   "license": "AGPL-3.0",
   "license-file": "LICENSE",
   "engines": {
-    "node": ">=22",
+    "node": ">=22.19.0",
     "npm": ">=11",
     "pnpm": ">=10"
   },
@@ -57,6 +57,7 @@
     "electron-updater": "^6.8.3",
     "font-list": "^2.0.2",
     "hono": "^4.12.25",
+    "undici": "^8.7.0",
     "ws": "^8.20.1"
   },
   "devDependencies": {

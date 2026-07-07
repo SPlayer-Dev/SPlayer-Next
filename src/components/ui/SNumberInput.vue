@@ -13,6 +13,8 @@ export interface SNumberInputProps {
   status?: "default" | "error";
   /** 封面主题模式 */
   cover?: boolean;
+  /** 更新时机：input 立即更新；blur 在失焦或回车时提交 */
+  updateOn?: "input" | "blur";
 }
 
 const props = withDefaults(defineProps<SNumberInputProps>(), {
@@ -23,6 +25,7 @@ const props = withDefaults(defineProps<SNumberInputProps>(), {
   size: "medium",
   status: "default",
   cover: false,
+  updateOn: "input",
 });
 
 const emit = defineEmits<{
@@ -30,6 +33,9 @@ const emit = defineEmits<{
   focus: [];
   blur: [];
 }>();
+
+const isFocused = ref(false);
+const draftValue = ref<number | null>(props.modelValue);
 
 const sizeClasses = computed(() => {
   if (props.size === "small") return "h-7 text-xs";
@@ -45,15 +51,59 @@ const stepperClass = computed(() => {
 });
 
 /** NumberField modelValue 是 number；null/undefined 走 undefined 让组件内部判断 */
+const displayValue = computed(() =>
+  props.updateOn === "blur" ? draftValue.value : props.modelValue,
+);
 const innerValue = computed<number | undefined>(() =>
-  props.modelValue == null ? undefined : props.modelValue,
+  displayValue.value == null ? undefined : displayValue.value,
+);
+
+watch(
+  () => props.modelValue,
+  (value) => {
+    if (props.updateOn === "input" || !isFocused.value) draftValue.value = value;
+  },
 );
 
 const onUpdate = (value: number): void => {
+  if (props.updateOn === "blur") {
+    draftValue.value = value;
+    return;
+  }
   emit("update:modelValue", value);
 };
 
-const isFocused = ref(false);
+const commitValue = (): void => {
+  if (draftValue.value != null && draftValue.value !== props.modelValue) {
+    emit("update:modelValue", draftValue.value);
+  }
+};
+
+const rollbackValue = (): void => {
+  draftValue.value = props.modelValue;
+};
+
+const handleBlur = (): void => {
+  isFocused.value = false;
+  if (props.updateOn === "blur") commitValue();
+  emit("blur");
+};
+
+const handleEnter = (event: KeyboardEvent): void => {
+  if (props.updateOn !== "blur") return;
+  commitValue();
+  (event.currentTarget as HTMLInputElement).blur();
+};
+
+const handleEscape = (event: KeyboardEvent): void => {
+  if (props.updateOn !== "blur") return;
+  rollbackValue();
+  (event.currentTarget as HTMLInputElement).blur();
+};
+
+const commitAfterStep = (): void => {
+  if (props.updateOn === "blur") void nextTick(commitValue);
+};
 </script>
 
 <template>
@@ -92,6 +142,7 @@ const isFocused = ref(false);
           ? 'text-cover/70 hover:text-cover hover:bg-cover/10 disabled:hover:text-cover/70'
           : 'text-on-surface-variant/70 hover:text-on-surface hover:bg-on-surface/8 disabled:hover:text-on-surface-variant/70',
       ]"
+      @click="commitAfterStep"
     >
       <IconLucideMinus class="size-3.5" />
     </NumberFieldDecrement>
@@ -109,10 +160,9 @@ const isFocused = ref(false);
         isFocused = true;
         emit('focus');
       "
-      @blur="
-        isFocused = false;
-        emit('blur');
-      "
+      @blur="handleBlur()"
+      @keydown.enter="handleEnter"
+      @keydown.esc="handleEscape"
     />
 
     <slot name="suffix" />
@@ -131,6 +181,7 @@ const isFocused = ref(false);
           ? 'text-cover/70 hover:text-cover hover:bg-cover/10 disabled:hover:text-cover/70'
           : 'text-on-surface-variant/70 hover:text-on-surface hover:bg-on-surface/8 disabled:hover:text-on-surface-variant/70',
       ]"
+      @click="commitAfterStep"
     >
       <IconLucidePlus class="size-3.5" />
     </NumberFieldIncrement>

@@ -64,6 +64,10 @@ pub enum ScanEvent {
         scanned: u32,
         total: u32,
         removed_paths: Vec<String>,
+        /// 遍历时顺带收集到的 CUE 文件路径
+        cue_files: Vec<String>,
+        /// 不可达的扫描目录
+        unavailable_dirs: Vec<String>,
     },
 }
 
@@ -72,6 +76,13 @@ fn is_audio_file(path: &Path) -> bool {
     path.extension()
         .and_then(|ext| ext.to_str())
         .is_some_and(|ext| AUDIO_EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()))
+}
+
+/// 判断文件是否为 CUE 分轨描述文件
+fn is_cue_file(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("cue"))
 }
 
 /// 使用 ffmpeg_audio 打开音频文件并读取元数据
@@ -172,6 +183,7 @@ pub fn scan_directories(
     let walk_start = Instant::now();
     let mut audio_files: Vec<(String, u64, u64, u64)> = Vec::new();
     let mut scanned_paths: Vec<String> = Vec::new();
+    let mut cue_files: Vec<String> = Vec::new();
     // 本轮不可达的目录（NAS 掉线 / 移动硬盘未挂载），其下已有记录不得报告为已删除
     let mut unavailable_dirs: Vec<&str> = Vec::new();
 
@@ -188,7 +200,14 @@ pub fn scan_directories(
         }
         for entry in WalkDir::new(dir).follow_links(true).into_iter().flatten() {
             let path = entry.path();
-            if !path.is_file() || !is_audio_file(path) {
+            if !path.is_file() {
+                continue;
+            }
+            if is_cue_file(path) {
+                cue_files.push(path.to_string_lossy().into_owned());
+                continue;
+            }
+            if !is_audio_file(path) {
                 continue;
             }
             let path_str = path.to_string_lossy().into_owned();
@@ -226,6 +245,8 @@ pub fn scan_directories(
                 scanned,
                 total,
                 removed_paths: Vec::new(),
+                cue_files: std::mem::take(&mut cue_files),
+                unavailable_dirs: unavailable_dirs.iter().map(|s| s.to_string()).collect(),
             });
             return;
         }
@@ -299,5 +320,7 @@ pub fn scan_directories(
         scanned,
         total,
         removed_paths,
+        cue_files,
+        unavailable_dirs: unavailable_dirs.iter().map(|s| s.to_string()).collect(),
     });
 }

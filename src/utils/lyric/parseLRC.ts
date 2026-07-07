@@ -112,7 +112,7 @@ const parseLrcWords = (line: string): LyricWord[] | null => {
  * @param text LRC 文本内容
  * @returns 解析后的歌词行数组，按时间排序
  */
-export const parseLRC = (text: string): LyricLine[] => {
+export const parseLRC = (text: string, detectBackground = true): LyricLine[] => {
   const lines: LyricLine[] = [];
   for (const raw of text.split("\n")) {
     const trimmed = raw.trim();
@@ -135,7 +135,7 @@ export const parseLRC = (text: string): LyricLine[] => {
           romanLyric: "",
           startTime: words[0].startTime,
           endTime: words[words.length - 1].endTime,
-          isBG: detectBackgroundLine(words),
+          isBG: detectBackgroundLine(words, detectBackground),
           isDuet: false,
         });
       }
@@ -150,14 +150,14 @@ export const parseLRC = (text: string): LyricLine[] => {
         romanLyric: "",
         startTime: lrcWords[0].startTime,
         endTime: lrcWords[lrcWords.length - 1].endTime,
-        isBG: detectBackgroundLine(lrcWords),
+        isBG: detectBackgroundLine(lrcWords, detectBackground),
         isDuet: false,
       });
       continue;
     }
     // 回退标准整行模式
     const lineWords = [{ startTime: 0, endTime: 0, word: content.trim() }];
-    const isBG = detectBackgroundLine(lineWords);
+    const isBG = detectBackgroundLine(lineWords, detectBackground);
     for (const t of times) {
       lines.push({
         words: [{ startTime: t, endTime: 0, word: lineWords[0].word }],

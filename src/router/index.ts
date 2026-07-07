@@ -9,6 +9,11 @@ const router = createRouter({
       component: () => import("@/pages/Onboarding.vue"),
     },
     {
+      path: "/agreement-update",
+      name: "agreement-update",
+      component: () => import("@/pages/AgreementUpdate.vue"),
+    },
+    {
       path: "/",
       component: () => import("@/layouts/MainLayout.vue"),
       children: [

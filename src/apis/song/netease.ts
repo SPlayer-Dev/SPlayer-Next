@@ -24,20 +24,24 @@ const NETEASE_LEVEL: Record<QualityLevel, string> = {
   "hi-res": "hires",
 };
 
+export interface NeteasePlayUrlResult {
+  url: string;
+  isTrial: boolean;
+}
+
 /**
  * 解析网易云 Track 的可播放 URL
- * VIP 试听片段 / 无版权 → 返回 null
  * @param track - track.id 为云端 songId
  * @param songLevel - 音质偏好；实际可用级别取决于账号权限
  */
 export const resolveNeteaseUrl = async (
   track: Track,
   songLevel: QualityLevel,
-): Promise<string | null> => {
+): Promise<NeteasePlayUrlResult | null> => {
   const body = await neteaseApi.song_url({ id: track.id, level: NETEASE_LEVEL[songLevel] });
   const item = body?.data?.[0];
-  if (!item?.url || item.freeTrialInfo) return null;
-  return item.url;
+  if (!item?.url) return null;
+  return { url: item.url, isTrial: !!item.freeTrialInfo };
 };
 
 /** 网易云下载源（带格式与体积） */

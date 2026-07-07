@@ -74,6 +74,11 @@
       }
     }
   },
+  "agreementUpdate": {
+    "title": "用户协议已更新",
+    "subtitle": "协议内容有变更，请重新阅读并同意后继续使用",
+    "accept": "我已阅读并同意，继续使用"
+  },
   "common": {
     "confirm": "确认",
     "cancel": "取消",
@@ -775,6 +780,10 @@
       "lossless": "无损 (Lossless)",
       "hi-res": "高解析度无损 (Hi-Res)"
     },
+    "allowTrialPlay": {
+      "label": "允许播放试听",
+      "description": "完整音源和插件都不可用时，允许播放平台返回的试听片段"
+    },
     "outputDevice": {
       "label": "输出设备",
       "description": "选择音频输出设备",
@@ -833,6 +842,10 @@
     "smartPreferOnline": {
       "label": "自动升级歌词格式",
       "description": "当前歌词格式较低时，从其他平台获取更高级的格式覆盖"
+    },
+    "detectBackgroundLyrics": {
+      "label": "自动识别背景歌词",
+      "description": "根据括号识别背景人声，误判时可关闭"
     },
     "enableOnlineTTMLLyric": {
       "label": "启用在线 TTML 歌词",
@@ -1464,6 +1477,29 @@
     "taskbarThumbnailCover": {
       "label": "任务栏封面预览",
       "description": "悬停任务栏时以专辑封面作为窗口预览，关闭则显示系统默认的实时窗口"
+    },
+    "networkProxyProtocol": {
+      "label": "网络代理",
+      "description": "为在线请求配置手动代理",
+      "off": "关闭代理",
+      "http": "HTTP 代理",
+      "https": "HTTPS 代理",
+      "socks5": "SOCKS5 代理"
+    },
+    "networkProxyHost": {
+      "label": "代理服务器地址",
+      "description": "填写代理服务器地址，例如 127.0.0.1",
+      "placeholder": "127.0.0.1"
+    },
+    "networkProxyPort": {
+      "label": "代理服务器端口",
+      "description": "填写代理服务器端口，例如 7890"
+    },
+    "networkProxyTest": {
+      "label": "测试代理",
+      "description": "测试代理配置是否可以正常连通",
+      "success": "该代理可正常使用",
+      "failed": "代理测试失败，请检查配置"
     },
     "neteaseRealIp": {
       "label": "使用真实IP地址",

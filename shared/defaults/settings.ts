@@ -144,7 +144,13 @@ export const defaultSystemConfig: SystemConfig = {
     taskbarThumbnailCover: true,
     uiZoom: 100,
     onboardingCompleted: false,
+    agreedAgreementVersion: 1,
     neteaseRealIp: false,
+    networkProxy: {
+      protocol: "off",
+      host: "127.0.0.1",
+      port: 7890,
+    },
     neteaseScrobbleEnabled: false,
     neteaseScrobbleMode: "ncbl",
     registerOrpheusProtocol: false,
