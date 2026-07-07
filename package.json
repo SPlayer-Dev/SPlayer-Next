@@ -58,7 +58,7 @@
     "font-list": "^2.0.2",
     "hono": "^4.12.25",
     "undici": "^8.7.0",
-    "ws": "^8.20.1"
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@applemusic-like-lyrics/core": "^0.5.1",
@@ -105,7 +105,7 @@
     "unplugin-icons": "^23.0.1",
     "unplugin-vue-components": "^31.1.0",
     "uqr": "^0.1.3",
-    "vite": "^7.3.2",
+    "vite": "^7.3.5",
     "vitepress": "2.0.0-alpha.15",
     "vue": "^3.5.32",
     "vue-eslint-parser": "^10.4.0",
