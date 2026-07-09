@@ -279,6 +279,7 @@ onMounted(() => {
     :aria-label="t('nav.searchPlaceholder')"
     class="app-no-drag w-60 h-10 px-4 cursor-pointer flex items-center gap-2 rounded-full border border-solid bg-on-surface/3 border-on-surface/15 hover:bg-on-surface/10 hover:border-on-surface/25 transition-colors duration-250 select-none"
     @click="dialogOpen = true"
+    @contextmenu.prevent="dialogOpen = true"
     @mousedown.prevent
   >
     <IconLucideSearch class="size-4 text-on-surface-variant/50 shrink-0" />
@@ -297,17 +298,12 @@ onMounted(() => {
     <div class="flex flex-col">
       <!-- 顶栏：输入框 -->
       <div class="px-4 pt-4 pb-3">
-        <SInput
+        <NavSearchInput
           v-model="searchQuery"
           :placeholder="t('nav.searchPlaceholder')"
-          size="large"
-          clearable
           @keydown="onKeydown"
-        >
-          <template #prefix>
-            <IconLucideSearch class="size-4 text-on-surface-variant/50 shrink-0" />
-          </template>
-        </SInput>
+          @search="submit"
+        />
       </div>
       <div class="overflow-hidden transition-[height] duration-300 ease-out" :style="bodyStyle">
         <div

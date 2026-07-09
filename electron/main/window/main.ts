@@ -32,12 +32,13 @@ export const createMainWindow = (): BrowserWindow => {
 
   // 注册 cache:// 协议
   handleCacheProtocolOnPartition(MAIN_PARTITION);
+  const borderlessWindow = store.get("system.borderlessWindow") ?? true;
 
   mainWindow = createWindow({
     width: saved?.width ?? 1280,
     height: saved?.height ?? 800,
     ...(saved?.x != null && saved?.y != null ? { x: saved.x, y: saved.y } : {}),
-    frame: false,
+    frame: !borderlessWindow,
     webPreferences: {
       partition: MAIN_PARTITION,
       webgl: true,

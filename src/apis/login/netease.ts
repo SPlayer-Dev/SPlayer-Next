@@ -5,6 +5,16 @@
 import type { UserProfile } from "@/types/user";
 import { netease as neteaseApi } from "@/apis/netease";
 
+interface LoginStatusBody {
+  code?: number | string;
+  data?: {
+    profile?: Partial<UserProfile> & { userId?: number };
+    account?: { id?: number };
+  };
+  profile?: Partial<UserProfile> & { userId?: number };
+  account?: { id?: number };
+}
+
 /**
  * 生成扫码登录二维码 key
  * @returns 二维码 key
@@ -54,19 +64,22 @@ export const qrContent = (key: string): string => `https://music.163.com/login?c
  * @returns 已登录返回 profile；未登录或 cookie 失效返回 null
  */
 export const fetchLoginStatus = async (): Promise<UserProfile | null> => {
-  const body = await neteaseApi.login_status();
-  const raw = body?.data?.profile as (Partial<UserProfile> & { userId?: number }) | undefined;
-  if (!raw?.userId) return null;
+  const body = await neteaseApi.login_status<LoginStatusBody>();
+  if (body?.code !== undefined && Number(body.code) !== 200) return null;
+  const raw = body?.data?.profile ?? body?.profile;
+  const userId = raw?.userId ?? body?.data?.account?.id ?? body?.account?.id;
+  if (!userId) return null;
+  const profile = raw ?? {};
   return {
-    userId: raw.userId,
-    nickname: raw.nickname ?? "",
-    avatarUrl: raw.avatarUrl,
-    backgroundUrl: raw.backgroundUrl,
-    signature: raw.signature,
-    vipType: raw.vipType,
-    gender: raw.gender,
-    province: raw.province,
-    city: raw.city,
+    userId,
+    nickname: profile.nickname ?? "",
+    avatarUrl: profile.avatarUrl,
+    backgroundUrl: profile.backgroundUrl,
+    signature: profile.signature,
+    vipType: profile.vipType,
+    gender: profile.gender,
+    province: profile.province,
+    city: profile.city,
   };
 };
 

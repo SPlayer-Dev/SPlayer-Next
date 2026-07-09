@@ -30,6 +30,22 @@ const generalCategory: SettingCategory = {
           defaultValue: true,
         },
         {
+          key: "borderlessWindow",
+          type: "switch",
+          binding: { store: "settings", path: "system.system.borderlessWindow" },
+          defaultValue: true,
+          confirm: {
+            titleKey: "settings.confirm.restartRequiredTitle",
+            contentKey: "settings.confirm.restartRequiredContent",
+            type: "warning",
+            confirmTextKey: "common.saveAndRelaunch",
+          },
+          action: async (next) => {
+            await window.api.config.set("system.borderlessWindow", next);
+            await window.api.system.relaunch();
+          },
+        },
+        {
           key: "taskbarProgress",
           type: "switch",
           binding: { store: "settings", path: "system.system.taskbarProgress" },

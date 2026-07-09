@@ -231,6 +231,8 @@ export const registerPlayerIpc = (): void => {
           undefined,
           authoritative.duration ?? 0,
         );
+      } else {
+        applyDisplay(source.split(/[/\\]/).pop() || source, "", "", undefined, 0);
       }
       const meta = await inst.load(source, cueRange ? false : autoPlay);
       if (cueRange) {

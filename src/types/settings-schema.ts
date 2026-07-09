@@ -72,8 +72,8 @@ export interface SettingItem {
   visible?: () => boolean;
   /** 变更前确认；用户取消则不应用本次变更（受控控件回弹原值） */
   confirm?: SettingConfirm;
-  /** button 类型的点击回调 */
-  action?: () => void;
+  /** 点击或确认变更后的回调 */
+  action?: (value?: unknown) => void | Promise<void>;
   /** custom 类型的组件 */
   component?: Component;
   /** custom：独占整行 */

@@ -185,11 +185,14 @@ const isEmptyResult = computed(() => {
     <!-- 顶栏 -->
     <div class="shrink-0 px-5 pb-2">
       <div class="mt-2 mb-4 flex items-end justify-between gap-4">
-        <h1 class="truncate min-w-0">
-          <span class="text-3xl font-bold text-on-surface">
+        <h1 class="min-w-0 flex items-baseline pr-3">
+          <span class="min-w-0 truncate text-3xl font-bold text-on-surface">
             {{ keyword || t("search.title") }}
           </span>
-          <span v-if="keyword" class="ml-2 font-medium text-lg text-on-surface-variant/60">
+          <span
+            v-if="keyword"
+            class="ml-2 shrink-0 whitespace-nowrap font-medium text-lg text-on-surface-variant/60"
+          >
             {{ t("search.titleSuffix") }}
           </span>
         </h1>

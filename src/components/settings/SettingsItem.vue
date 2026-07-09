@@ -26,6 +26,7 @@ const applyChange = async (next: unknown): Promise<void> => {
     if (!confirmed) return;
   }
   model.value = next;
+  await props.item.action?.(next);
 };
 
 const selectOptions = computed(() =>

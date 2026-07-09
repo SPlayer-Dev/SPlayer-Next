@@ -400,6 +400,8 @@ export interface SystemConfig {
   system: {
     /** 记忆窗口状态 */
     rememberWindowState: boolean;
+    /** 开启无边框主窗口 */
+    borderlessWindow: boolean;
     /** 在任务栏显示播放进度 */
     taskbarProgress: boolean;
     /** 悬停任务栏时以专辑封面作为窗口预览（仅 Windows） */

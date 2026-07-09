@@ -51,6 +51,7 @@ struct SmtcContext {
     /// 封面更新代数，每次 update_metadata 递增，旧任务发现代数过期后自行放弃
     cover_generation: u64,
     is_enabled: bool,
+    has_metadata: bool,
 }
 
 impl SmtcContext {
@@ -118,6 +119,25 @@ async fn make_cover_stream(data: Option<Vec<u8>>) -> Option<RandomAccessStreamRe
     })
     .await;
     r.ok()
+}
+
+fn update_display(
+    ctx: &SmtcContext,
+    title: &str,
+    artist: &str,
+    album: &str,
+    thumb: Option<&RandomAccessStreamReference>,
+) -> Result<()> {
+    let smtc = ctx.smtc()?;
+    let updater = smtc.DisplayUpdater()?;
+    updater.SetType(MediaPlaybackType::Music)?;
+    let props = updater.MusicProperties()?;
+    props.SetTitle(&HSTRING::from(title))?;
+    props.SetArtist(&HSTRING::from(artist))?;
+    props.SetAlbumTitle(&HSTRING::from(album))?;
+    updater.SetThumbnail(thumb)?;
+    updater.Update()?;
+    Ok(())
 }
 
 pub struct WindowsImpl;
@@ -214,6 +234,7 @@ impl SystemMediaControls for WindowsImpl {
             callback: None,
             cover_generation: 0,
             is_enabled: false,
+            has_metadata: false,
         };
 
         if let Ok(mut g) = CTX.lock() {
@@ -225,7 +246,12 @@ impl SystemMediaControls for WindowsImpl {
     fn enable(&self) -> Result<()> {
         with_ctx(|ctx| {
             ctx.is_enabled = true;
-            Ok(ctx.smtc()?.SetIsEnabled(true)?)
+            ctx.smtc()?.SetIsEnabled(true)?;
+            if !ctx.has_metadata {
+                update_display(ctx, "SPlayer Next", "", "", None)?;
+                ctx.has_metadata = true;
+            }
+            Ok(())
         })
     }
 
@@ -268,6 +294,13 @@ impl SystemMediaControls for WindowsImpl {
         let artist = payload.artist.clone();
         let album = payload.album.clone();
         let cover_data = payload.cover_data;
+        if update_display(ctx, &title, &artist, &album, None).is_err() {
+            return;
+        }
+        ctx.has_metadata = true;
+        if cover_data.is_none() {
+            return;
+        }
 
         TOKIO_RT.spawn(async move {
             // 异步创建封面流（WinRT 资源在 await 完成后正常释放）
@@ -277,20 +310,7 @@ impl SystemMediaControls for WindowsImpl {
                 if inner.cover_generation != generation || !inner.is_enabled {
                     return Ok(());
                 }
-                let smtc = inner.smtc()?;
-                let updater = smtc.DisplayUpdater()?;
-                updater.SetType(MediaPlaybackType::Music)?;
-                let props = updater.MusicProperties()?;
-                props.SetTitle(&HSTRING::from(&title))?;
-                props.SetArtist(&HSTRING::from(&artist))?;
-                props.SetAlbumTitle(&HSTRING::from(&album))?;
-                if let Some(ref stream_ref) = thumb {
-                    updater.SetThumbnail(stream_ref)?;
-                } else {
-                    updater.SetThumbnail(None)?;
-                }
-                updater.Update()?;
-                Ok(())
+                update_display(inner, &title, &artist, &album, thumb.as_ref())
             });
         });
     }

@@ -8,6 +8,7 @@
 
 import { ipcMain } from "electron";
 import { callNetease, clearNeteaseCookies, mergeNeteaseCookies } from "@main/apis/netease";
+import { NeteaseRequestError } from "@main/apis/netease/core/request";
 import { cookieToJson } from "@main/apis/netease/core/cookie";
 import { callQQMusic } from "@main/apis/qqmusic";
 import { callKugou } from "@main/apis/kugou";
@@ -48,6 +49,14 @@ export const registerApisIpc = (): void => {
         return { ok: true, ...result };
       } catch (err) {
         coreLog.warn(`[apis] ${platform}.${name} failed:`, err);
+        if (platform === "netease" && err instanceof NeteaseRequestError) {
+          return {
+            ok: false,
+            error: err.message,
+            status: err.response.status,
+            body: err.response.body,
+          };
+        }
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
       }
     },

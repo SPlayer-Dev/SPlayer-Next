@@ -10,6 +10,7 @@ export const useWindowControls = () => {
 
   const isMaximized = ref(false);
   const isFullscreen = ref(false);
+  const isBorderless = computed(() => settings.system.system.borderlessWindow);
 
   const minimize = (): void => window.api.window.minimize();
   const toggleMaximize = (): void => window.api.window.toggleMaximize();
@@ -78,6 +79,7 @@ export const useWindowControls = () => {
   return {
     isMaximized,
     isFullscreen,
+    isBorderless,
     minimize,
     toggleMaximize,
     toggleFullscreen,

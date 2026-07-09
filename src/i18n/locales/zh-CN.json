@@ -86,6 +86,7 @@
     "configure": "配置",
     "more": "更多",
     "save": "保存",
+    "saveAndRelaunch": "保存并重启",
     "reset": "重置",
     "retry": "重试",
     "prev": "上一页",
@@ -188,6 +189,11 @@
       "quick": "快捷",
       "history": "搜索历史",
       "hot": "热搜榜"
+    },
+    "searchMenu": {
+      "copy": "复制",
+      "paste": "粘贴",
+      "pasteSearch": "粘贴并搜索"
     },
     "link": {
       "song": "直接播放「{id}」",
@@ -937,7 +943,9 @@
     },
     "confirm": {
       "highResourceTitle": "高占用功能",
-      "highResourceContent": "开启后可能明显增加内存与 CPU 占用，低配设备上或出现卡顿。确定开启吗？"
+      "highResourceContent": "开启后可能明显增加内存与 CPU 占用，低配设备上或出现卡顿。确定开启吗？",
+      "restartRequiredTitle": "需要重启应用",
+      "restartRequiredContent": "此设置需要重启应用后生效。确定保存并立即重启吗？"
     },
     "useAMSpring": {
       "label": "弹簧动画调试开关",
@@ -1457,6 +1465,10 @@
     "rememberWindowState": {
       "label": "记忆窗口状态",
       "description": "下次启动时恢复窗口的大小、位置和最大化状态"
+    },
+    "borderlessWindow": {
+      "label": "开启无边框窗口",
+      "description": "关闭后使用系统原生窗口边框和标题栏"
     },
     "autoCheckUpdate": {
       "label": "自动检查更新",

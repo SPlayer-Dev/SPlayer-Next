@@ -166,6 +166,7 @@ declare module 'vue' {
     MusicCommentsDialog: typeof import('./src/components/modals/MusicCommentsDialog.vue')['default']
     NavHeader: typeof import('./src/components/layout/NavHeader.vue')['default']
     NavSearch: typeof import('./src/components/layout/NavSearch.vue')['default']
+    NavSearchInput: typeof import('./src/components/layout/NavSearchInput.vue')['default']
     NavUser: typeof import('./src/components/layout/NavUser.vue')['default']
     NumberFieldDecrement: typeof import('reka-ui')['NumberFieldDecrement']
     NumberFieldIncrement: typeof import('reka-ui')['NumberFieldIncrement']

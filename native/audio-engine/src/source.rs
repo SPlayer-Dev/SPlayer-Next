@@ -10,6 +10,37 @@ use crate::fft::FftAnalyzer;
 use crate::shared::Shared;
 use crate::tempo::StretchProcessor;
 
+const OUTPUT_CEILING: f32 = 0.98;
+const LIMITER_RELEASE: f32 = 0.0005;
+
+struct OutputLimiter {
+    gain: f32,
+}
+
+impl OutputLimiter {
+    fn new() -> Self {
+        Self { gain: 1.0 }
+    }
+
+    fn process(&mut self, samples: &mut [f32]) {
+        for sample in samples {
+            let peak = sample.abs();
+            let target_gain = if peak > OUTPUT_CEILING {
+                OUTPUT_CEILING / peak
+            } else {
+                1.0
+            };
+            if peak * self.gain >= OUTPUT_CEILING {
+                self.gain = target_gain;
+            } else {
+                self.gain += (1.0 - self.gain) * LIMITER_RELEASE;
+            }
+            *sample *= self.gain;
+            *sample = sample.clamp(-OUTPUT_CEILING, OUTPUT_CEILING);
+        }
+    }
+}
+
 /// rodio 音频源，从共享缓冲区拉取样本。
 /// 使用 condvar 阻塞等待数据，不会返回静音填充。
 pub struct DecoderSource {
@@ -23,6 +54,7 @@ pub struct DecoderSource {
     local_buffer: VecDeque<f32>,
     /// stretch 输出复用缓冲（避免每帧分配）
     tempo_scratch: Vec<f32>,
+    limiter: OutputLimiter,
     sample_rate: u32,
     channels: u16,
 }
@@ -43,6 +75,7 @@ impl DecoderSource {
             tempo,
             local_buffer: VecDeque::new(),
             tempo_scratch: Vec::new(),
+            limiter: OutputLimiter::new(),
             sample_rate,
             channels,
         }
@@ -79,6 +112,7 @@ impl Iterator for DecoderSource {
                     self.tempo_scratch.clear();
                     self.tempo.lock().process(&samples, &mut self.tempo_scratch);
                     if !self.tempo_scratch.is_empty() {
+                        self.limiter.process(&mut self.tempo_scratch);
                         self.local_buffer.extend(self.tempo_scratch.drain(..));
                     }
                     self.shared.advance_consumed(source_count);
@@ -113,5 +147,62 @@ impl Source for DecoderSource {
 
     fn total_duration(&self) -> Option<Duration> {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::shared::AudioChunk;
+
+    #[test]
+    fn limits_samples_after_equalizer_preamp() {
+        let shared = Shared::new(48000, 2);
+        shared.push(AudioChunk {
+            player_samples: vec![0.8, -0.8],
+            fft_samples: Vec::new(),
+        });
+
+        let equalizer = Arc::new(Mutex::new(Equalizer::new(48000)));
+        {
+            let mut eq = equalizer.lock();
+            eq.set_enabled(true);
+            eq.set_preamp_db(12.0);
+        }
+
+        let mut source = DecoderSource::new(
+            shared,
+            Arc::new(FftAnalyzer::new(48000)),
+            equalizer,
+            Arc::new(Mutex::new(StretchProcessor::new(2, 48000))),
+            48000,
+            2,
+        );
+
+        assert!(source.next().unwrap().abs() <= 0.980001);
+        assert!(source.next().unwrap().abs() <= 0.980001);
+    }
+
+    #[test]
+    fn keeps_quiet_samples_before_limited_peak() {
+        let shared = Shared::new(48000, 2);
+        shared.push(AudioChunk {
+            player_samples: vec![0.1, -0.1, 2.0, -2.0],
+            fft_samples: Vec::new(),
+        });
+
+        let mut source = DecoderSource::new(
+            shared,
+            Arc::new(FftAnalyzer::new(48000)),
+            Arc::new(Mutex::new(Equalizer::new(48000))),
+            Arc::new(Mutex::new(StretchProcessor::new(2, 48000))),
+            48000,
+            2,
+        );
+
+        assert!((source.next().unwrap() - 0.1).abs() < 1e-6);
+        assert!((source.next().unwrap() + 0.1).abs() < 1e-6);
+        assert!((source.next().unwrap() - 0.98).abs() < 1e-6);
+        assert!((source.next().unwrap() + 0.98).abs() < 1e-6);
     }
 }
