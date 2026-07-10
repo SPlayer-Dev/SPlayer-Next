@@ -1,5 +1,4 @@
 import type {
-  AdvancedTransition,
   AudioAnalysis,
   AutomixPlan,
   Track,
@@ -28,7 +27,6 @@ let pairKey: string | null = null;
 let currentAnalysis: AudioAnalysis | null = null;
 let nextAnalysis: AudioAnalysis | null = null;
 let transitionProposal: TransitionProposal | null = null;
-let advancedTransition: AdvancedTransition | null = null;
 let pairAnalysisInFlight: Promise<void> | null = null;
 let scheduledPlan: AutomixPlan | null = null;
 let transitioning = false;
@@ -66,7 +64,6 @@ const kickPairAnalysis = (currentSource: string, nextSource: string): void => {
   currentAnalysis = null;
   nextAnalysis = null;
   transitionProposal = null;
-  advancedTransition = null;
   const token = cancelToken;
   const analyzeTime = clampAnalyzeTime();
   pairAnalysisInFlight = window.api.player
@@ -78,7 +75,6 @@ const kickPairAnalysis = (currentSource: string, nextSource: string): void => {
         currentAnalysis = data.current;
         nextAnalysis = data.next;
         transitionProposal = data.transition;
-        advancedTransition = data.long_mix;
       }
     })
     .catch((error: unknown) => {
@@ -277,7 +273,6 @@ export const cancelAutomix = (): void => {
   currentAnalysis = null;
   nextAnalysis = null;
   transitionProposal = null;
-  advancedTransition = null;
   pairAnalysisInFlight = null;
   scheduledPlan = null;
   transitioning = false;
