@@ -136,7 +136,7 @@ watch(
         </button>
         <span
           v-if="singleTrack"
-          class="w-12 shrink-0 text-right text-xs tabular-nums text-on-surface-variant/45"
+          class="mr-2 w-12 shrink-0 text-right text-xs tabular-nums text-on-surface-variant/45"
         >
           {{ formatTime(singleTrack.duration) }}
         </span>
