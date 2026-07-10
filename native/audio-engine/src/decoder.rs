@@ -167,7 +167,7 @@ pub fn start_decode_at(
         anyhow::bail!("音频 seek 失败");
     }
     shared.clear_stop();
-    let handle = resume_decode(data, shared);
+    let handle = resume_decode(data, shared)?;
     Ok((metadata, handle))
 }
 

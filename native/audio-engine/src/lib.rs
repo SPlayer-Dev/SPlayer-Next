@@ -442,7 +442,8 @@ impl AudioPlayer {
                     data.reset_interrupt();
                     if data.seek(start_seek_secs) {
                         prepared.shared.clear_stop();
-                        let handle = decoder::resume_decode(data, Arc::clone(&prepared.shared));
+                        let handle =
+                            decoder::resume_decode(data, Arc::clone(&prepared.shared)).into_napi()?;
                         Ok::<_, Error>((prepared.metadata, handle, prepared.shared))
                     } else {
                         let shared = Shared::new(output_sample_rate, decoder::TARGET_CHANNELS);
