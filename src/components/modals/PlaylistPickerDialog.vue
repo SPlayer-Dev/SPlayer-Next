@@ -128,5 +128,5 @@ const handlePick = async (playlistId: string): Promise<void> => {
       <SButton variant="tertiary" @click="close">{{ t("common.cancel") }}</SButton>
     </template>
   </SDialog>
-  <PlaylistCreateDialog v-model:open="createDialogOpen" :mode="mode" />
+  <PlaylistCreateDialog v-model:open="createDialogOpen" :mode="mode" lock-type />
 </template>
