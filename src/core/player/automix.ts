@@ -1,9 +1,4 @@
-import type {
-  AudioAnalysis,
-  AutomixPlan,
-  Track,
-  TransitionProposal,
-} from "@shared/types/player";
+import type { AudioAnalysis, AutomixPlan, Track, TransitionProposal } from "@shared/types/player";
 import type { ResolvedTrackSource } from "@/services/audioSource";
 import { useSettingsStore } from "@/stores/settings";
 import { useStatusStore } from "@/stores/status";
