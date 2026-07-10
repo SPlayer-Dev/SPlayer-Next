@@ -2,13 +2,132 @@ import type { Track } from "@shared/types/player";
 import type { CoverItem } from "@/types/artist";
 import type { NeteaseSong } from "@/types/netease";
 import { netease as neteaseApi } from "@/apis/netease";
-import { songsToTracks, withPicSize, toPlaylist, toArtist, toAlbum } from "@/utils/format/netease";
+import {
+  ensureOk,
+  songsToTracks,
+  withPicSize,
+  toPlaylist,
+  toArtist,
+  toAlbum,
+} from "@/utils/format/netease";
 import { playlistToCoverItem, artistToCoverItem, albumToCoverItem } from "@/utils/format/coverItem";
 
 /** 每日推荐歌曲（每日 30 首，需登录） */
 export const fetchDailySongs = async (): Promise<Track[]> => {
   const body = await neteaseApi.recommend_songs({ timestamp: Date.now() });
   return songsToTracks(body?.data?.dailySongs);
+};
+
+interface FollowedArtistPlayAllResponse {
+  code?: number;
+  data?: {
+    count?: number;
+    songList?: NeteaseSong[];
+  };
+}
+
+/** 播放所有关注歌手最近的 50 首新歌（需登录） */
+export const fetchFollowedArtistPlayAll = async (): Promise<Track[]> => {
+  const body = ensureOk(await neteaseApi.artist_new_song_playall<FollowedArtistPlayAllResponse>());
+  return songsToTracks(body.data?.songList);
+};
+
+interface RawNewReleaseTitle {
+  artistName: string;
+  artistId: number;
+  artistUserId?: number;
+  imgUrl?: string;
+  resourceId: number;
+  resourceName: string;
+  resourcePicUrl?: string;
+  publishTime: number;
+}
+
+interface RawNewReleaseWork {
+  sourceType: number;
+  info?: {
+    blockTitle?: RawNewReleaseTitle;
+    blockType?: string;
+    songLists?: NeteaseSong[];
+    publishTime?: number;
+    albumSongCount?: number;
+  };
+}
+
+interface FollowedArtistNewWorksResponse {
+  code?: number;
+  data?: {
+    hasMore?: boolean;
+    latestVisitTime?: number;
+    newSongCount?: number;
+    newWorks?: RawNewReleaseWork[];
+  };
+}
+
+export interface FollowedArtistNewWork {
+  id: string;
+  sourceType: number;
+  blockType: string;
+  artistId: string;
+  artistName: string;
+  artistAvatar?: string;
+  resourceId: string;
+  resourceName: string;
+  resourceCover?: string;
+  publishTime: number;
+  albumSongCount: number;
+  tracks: Track[];
+}
+
+export interface FollowedArtistNewWorksPage {
+  works: FollowedArtistNewWork[];
+  hasMore: boolean;
+  newSongCount: number;
+  nextTimestamp?: number;
+}
+
+/** 关注歌手新歌发布流，按歌手和专辑/单曲分块 */
+export const fetchFollowedArtistNewWorks = async (params: {
+  startTimestamp: number;
+  firstRequest: boolean;
+  limit?: number;
+}): Promise<FollowedArtistNewWorksPage> => {
+  const body = ensureOk(
+    await neteaseApi.artist_new_song_mv_list_v2<FollowedArtistNewWorksResponse>({
+      startTimestamp: params.startTimestamp,
+      sourceType: 1,
+      limit: params.limit ?? 10,
+      firstRequest: params.firstRequest,
+    }),
+  );
+  const works = (body.data?.newWorks ?? []).flatMap<FollowedArtistNewWork>((raw) => {
+    const title = raw.info?.blockTitle;
+    if (!title) return [];
+    const tracks = songsToTracks(raw.info?.songLists);
+    return [
+      {
+        id: `${raw.sourceType}:${title.resourceId}:${title.publishTime}`,
+        sourceType: raw.sourceType,
+        blockType: raw.info?.blockType ?? "song",
+        artistId: String(title.artistId),
+        artistName: title.artistName,
+        artistAvatar: withPicSize(title.imgUrl, 100),
+        resourceId: String(title.resourceId),
+        resourceName: title.resourceName,
+        resourceCover: withPicSize(title.resourcePicUrl) ?? tracks[0]?.cover,
+        publishTime: raw.info?.publishTime ?? title.publishTime,
+        albumSongCount: raw.info?.albumSongCount ?? tracks.length,
+        tracks,
+      },
+    ];
+  });
+  const lastTimestamp = works.at(-1)?.publishTime;
+  return {
+    works,
+    hasMore: body.data?.hasMore ?? false,
+    newSongCount: body.data?.newSongCount ?? 0,
+    nextTimestamp: lastTimestamp === undefined ? undefined : Math.max(0, lastTimestamp - 1),
+  };
 };
 
 /**
