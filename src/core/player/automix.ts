@@ -2,7 +2,6 @@ import type {
   AdvancedTransition,
   AudioAnalysis,
   AutomixPlan,
-  PairAnalysisResult,
   Track,
   TransitionProposal,
 } from "@shared/types/player";
@@ -188,36 +187,6 @@ const computePlan = (
   const current = pairKey === expectedKey ? currentAnalysis : null;
   const next = pairKey === expectedKey ? nextAnalysis : null;
   const transition = pairKey === expectedKey ? transitionProposal : null;
-  const advanced = pairKey === expectedKey ? advancedTransition : null;
-
-  const canUseAdvanced =
-    advanced &&
-    current &&
-    next &&
-    hasReliableBeatGrid(current) &&
-    hasReliableBeatGrid(next) &&
-    advanced.playback_rate >= 1 - MAX_TEMPO_ADJUSTMENT &&
-    advanced.playback_rate <= 1 + MAX_TEMPO_ADJUSTMENT &&
-    advanced.duration >= MIN_CROSSFADE_SEC &&
-    advanced.duration <= MAX_CROSSFADE_SEC;
-  if (canUseAdvanced) {
-    const mixType = advanced.strategy.includes("Bass Swap") ? "bassSwap" : "default";
-    return normalizePlan(
-      {
-        track,
-        index,
-        triggerTime: advanced.start_time_current,
-        crossfadeDuration: advanced.duration,
-        startSeek: advanced.start_time_next * 1000,
-        initialRate: advanced.playback_rate,
-        uiSwitchDelay: advanced.duration * 0.5,
-        mixType,
-        loudnessGainDb: computeLoudnessGainDb(current, next),
-      },
-      durationSec,
-    );
-  }
-
   const canTrustExitPoint = !!current;
   const vocalOut = current?.vocal_out_pos;
   let rawFadeOut = current ? current.fade_out_pos || durationSec : durationSec;
@@ -273,7 +242,7 @@ const computePlan = (
     }
   }
 
-  if (!advanced && !usedTransition && canTrustExitPoint && current) {
+  if (!usedTransition && canTrustExitPoint && current) {
     const outro = applyAggressiveOutro(current, triggerTime, crossfadeDuration, exitPoint);
     if (outro) {
       triggerTime = outro.triggerTime;
