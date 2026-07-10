@@ -226,7 +226,7 @@ const computePlan = (
     triggerTime = durationSec - rawTrigger < 4 ? exitPoint - crossfadeDuration : rawTrigger;
     startSeek = (next.fade_in_pos || 0) * 1000;
     if (hasReliableBeatGrid(current) && hasReliableBeatGrid(next)) {
-      const ratio = current.bpm / next.bpm;
+      const ratio = current.bpm! / next.bpm!;
       if (ratio >= 1 - MAX_TEMPO_ADJUSTMENT && ratio <= 1 + MAX_TEMPO_ADJUSTMENT) {
         initialRate = ratio;
       }
