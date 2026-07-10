@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useSettingsDialog } from "@/settings/useSettingsDialog";
+import { useWindowControls } from "@/composables/useWindowControls";
 import { useThemeStore } from "@/stores/theme";
 import { useUpdateStore } from "@/stores/update";
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
@@ -16,6 +17,7 @@ const { t } = useI18n();
 const { show: showSettings } = useSettingsDialog();
 const theme = useThemeStore();
 const update = useUpdateStore();
+const { isBorderless } = useWindowControls();
 
 /** 界面缩放弹窗开关 */
 const uiZoomOpen = ref(false);
@@ -104,7 +106,7 @@ const onMenuSelect = (key: string): void => {
           </SButton>
         </template>
       </SDropdownMenu>
-      <SDivider vertical />
+      <SDivider v-if="isBorderless" vertical />
       <WindowControls />
     </div>
     <UiZoomDialog v-model:open="uiZoomOpen" />

@@ -33,8 +33,8 @@ const controlSettings = (info: PluginInfo) => {
 
 /**
  * 切换插件启用状态
- * - 音源类：setEnabled 内部已处理互斥（启用时禁掉其他音源）
- * - 控制类：setEnabled 独立切换
+ * - 音源类：允许多开，播放时按候选顺序尝试
+ * - 控制类：独立切换
  * @param id - 插件 ID
  * @param currentlyEnabled - 当前是否已启用
  */

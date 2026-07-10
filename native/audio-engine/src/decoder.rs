@@ -230,9 +230,7 @@ fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
     let mut loudness = LoudnessAnalyzer::new(shared.sample_rate(), TARGET_CHANNELS);
     loudness.set_has_replay_gain(has_replay_gain);
 
-    // 容忍尾部坏帧（FLAC ID3v1 尾巴 / 封面 chunk / VBR 末帧），避免整首歌被标记 SourceError。
-    // 该容忍只适用于数据层错误；IO 层错误（网络中断 / URL 过期）无论何时发生都必须上报，
-    // 否则中途网络死亡会被当成正常播完，前端误跳下一曲而不是重新解析播放地址
+    // 用于日志诊断：记录是否曾成功解码过帧
     let mut had_success = false;
 
     loop {
@@ -246,9 +244,7 @@ fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
                 // 1-to-N：同一帧顺序喂两个重采样器
                 if data.player_resampler.process::<f32>(Some(&frame)).is_err() {
                     debug!("player resampler 处理失败，结束解码");
-                    if !had_success {
-                        shared.mark_decode_failed();
-                    }
+                    shared.mark_decode_failed();
                     return;
                 }
                 let mut player_samples = data.player_resampler.output_as::<f32>().to_vec();
@@ -310,9 +306,13 @@ fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
                     AudioError::FFmpeg(code, _) => *code == AVERROR_EIO,
                     _ => false,
                 };
-                if io_failure || !had_success {
-                    shared.mark_decode_failed();
-                }
+                // 统一标记 decode_failed：包括 IO 错误和 FFmpeg 数据错误
+                // 长时间暂停后 HTTP 流断开重连、URL 过期等场景下 FFmpeg 会报
+                // INVALIDDATA（非 EIO），但本质仍是数据源故障，需要标记以触发
+                // SourceError 让 JS 重新解析播放地址
+                // 尾部坏帧（FLAC ID3v1 / VBR 末帧）容忍由 position timer 的 3s
+                // 阈值保障：mark_decode_failed 后若 position 接近末尾仍发 Ended
+                shared.mark_decode_failed();
                 debug!(error = %e, had_success, io_failure, "解码线程异常结束");
                 return;
             }

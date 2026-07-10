@@ -86,6 +86,11 @@
       }
     }
   },
+  "agreementUpdate": {
+    "title": "User Agreement Updated",
+    "subtitle": "The agreement has changed. Please re-read and accept to continue",
+    "accept": "I've read and agree, continue"
+  },
   "common": {
     "confirm": "Confirm",
     "cancel": "Cancel",
@@ -93,6 +98,7 @@
     "configure": "Configure",
     "more": "More",
     "save": "Save",
+    "saveAndRelaunch": "Save & Relaunch",
     "reset": "Reset",
     "retry": "Retry",
     "prev": "Previous",
@@ -195,6 +201,11 @@
       "quick": "Quick",
       "history": "Recent searches",
       "hot": "Trending"
+    },
+    "searchMenu": {
+      "copy": "Copy",
+      "paste": "Paste",
+      "pasteSearch": "Paste and Search"
     },
     "link": {
       "song": "Play [{id}]",
@@ -799,6 +810,10 @@
       "lossless": "Lossless",
       "hi-res": "Hi-Res"
     },
+    "allowTrialPlay": {
+      "label": "Allow Trial Playback",
+      "description": "Play trial clips returned by the platform only when full sources and plugins are unavailable"
+    },
     "outputDevice": {
       "label": "Output Device",
       "description": "Select audio output device",
@@ -857,6 +872,10 @@
     "smartPreferOnline": {
       "label": "Auto-Upgrade Lyric Format",
       "description": "Fetch a higher-ranked format from other platforms when the current one is low"
+    },
+    "detectBackgroundLyrics": {
+      "label": "Auto-Detect Background Lyrics",
+      "description": "Detect backing vocals from brackets. Disable this if lyrics are misdetected"
     },
     "enableOnlineTTMLLyric": {
       "label": "Enable Online TTML Lyrics",
@@ -948,7 +967,9 @@
     },
     "confirm": {
       "highResourceTitle": "Resource-Intensive Feature",
-      "highResourceContent": "Enabling it may noticeably increase memory and CPU usage, and could cause stuttering on lower-end devices. Enable it anyway?"
+      "highResourceContent": "Enabling it may noticeably increase memory and CPU usage, and could cause stuttering on lower-end devices. Enable it anyway?",
+      "restartRequiredTitle": "Restart Required",
+      "restartRequiredContent": "This setting requires an app restart. Save and relaunch now?"
     },
     "useAMSpring": {
       "label": "Spring Animation Debug Switch",
@@ -1469,6 +1490,10 @@
       "label": "Remember Window State",
       "description": "Restore window size, position and maximized state on next launch"
     },
+    "borderlessWindow": {
+      "label": "Enable Borderless Window",
+      "description": "Disable to use the system native window frame and title bar"
+    },
     "autoCheckUpdate": {
       "label": "Auto Check for Updates",
       "description": "Check for new versions in the background on launch and periodically"
@@ -1488,6 +1513,29 @@
     "taskbarThumbnailCover": {
       "label": "Taskbar Cover Preview",
       "description": "Use the album cover as the window preview when hovering the taskbar; disable to show the system's live window"
+    },
+    "networkProxyProtocol": {
+      "label": "Network Proxy",
+      "description": "Configure a manual proxy for online requests",
+      "off": "Proxy off",
+      "http": "HTTP proxy",
+      "https": "HTTPS proxy",
+      "socks5": "SOCKS5 proxy"
+    },
+    "networkProxyHost": {
+      "label": "Proxy server",
+      "description": "Enter the proxy server address, for example 127.0.0.1",
+      "placeholder": "127.0.0.1"
+    },
+    "networkProxyPort": {
+      "label": "Proxy port",
+      "description": "Enter the proxy server port, for example 7890"
+    },
+    "networkProxyTest": {
+      "label": "Test proxy",
+      "description": "Test whether the proxy configuration can connect successfully",
+      "success": "Proxy is available",
+      "failed": "Proxy test failed. Check the configuration"
     },
     "neteaseRealIp": {
       "label": "Use Real IP",

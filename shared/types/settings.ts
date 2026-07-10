@@ -232,6 +232,19 @@ export interface ExternalApiSettings {
   port: number;
 }
 
+/** 网络代理协议 */
+export type NetworkProxyProtocol = "off" | "http" | "https" | "socks5";
+
+/** 网络代理配置 */
+export interface NetworkProxySettings {
+  /** 代理协议；off 时不改变原始请求路径 */
+  protocol: NetworkProxyProtocol;
+  /** 代理服务器地址 */
+  host: string;
+  /** 代理服务器端口 */
+  port: number;
+}
+
 /** 外部 API 服务运行时状态 */
 export interface ExternalApiStatus {
   /** 是否正在监听 */
@@ -393,6 +406,8 @@ export interface SystemConfig {
   system: {
     /** 记忆窗口状态 */
     rememberWindowState: boolean;
+    /** 开启无边框主窗口 */
+    borderlessWindow: boolean;
     /** 在任务栏显示播放进度 */
     taskbarProgress: boolean;
     /** 悬停任务栏时以专辑封面作为窗口预览（仅 Windows） */
@@ -401,8 +416,12 @@ export interface SystemConfig {
     uiZoom: number;
     /** 首启引导是否已完成 */
     onboardingCompleted: boolean;
+    /** 用户已同意的协议版本号 */
+    agreedAgreementVersion: number;
     /** NCM请求注入国内 IP（X-Real-IP/X-Forwarded-For） */
     neteaseRealIp: boolean;
+    /** 网络代理配置 */
+    networkProxy: NetworkProxySettings;
     /** 听歌打卡开关 */
     neteaseScrobbleEnabled: boolean;
     /** 听歌打卡上报方式 */

@@ -8,7 +8,7 @@ export type ApiPlatform = "netease" | "qqmusic" | "kugou";
 /** 通用响应包装 */
 export type ApiCallResponse =
   | { ok: true; status?: number; body?: unknown; data?: unknown }
-  | { ok: false; error: string };
+  | { ok: false; error: string; status?: number; body?: unknown };
 
 /** 渲染端统一入口 */
 export interface ApisApi {

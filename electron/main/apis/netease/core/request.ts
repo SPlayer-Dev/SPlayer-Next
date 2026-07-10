@@ -2,7 +2,7 @@
  * Netease API 请求层
  *
  * 核心职责：根据加密方式（weapi / linuxapi / eapi / api / xeapi）构造 URL、headers、form body，
- * 处理 cookie 合并、响应解密、状态码归一化。使用 Node 原生 fetch。
+ * 处理 cookie 合并、响应解密、状态码归一化
  */
 
 import { randomBytes } from "node:crypto";
@@ -20,6 +20,7 @@ import { cookieObjToString, cookieToJson } from "./cookie";
 import * as encrypt from "./crypto";
 import { getAnonymousToken, getDeviceId } from "./device";
 import { ensureXeapiKey, getXeapiSession, updateXeapiSession } from "./xeapi";
+import { fetchWithProxy } from "@main/utils/proxy";
 
 /** 调用方传入的可选参数 */
 export interface RequestOptions {
@@ -266,14 +267,19 @@ export const createRequest = async (
 
   let res: Response;
   try {
-    res = await fetch(url, { method: "POST", headers, body, signal: AbortSignal.timeout(8000) });
+    res = await fetchWithProxy(url, {
+      method: "POST",
+      headers,
+      body,
+      signal: AbortSignal.timeout(8000),
+    });
   } catch (err) {
     answer.status = 502;
     answer.body = { code: 502, msg: err instanceof Error ? err.message : String(err) };
     throw new NeteaseRequestError(answer);
   }
 
-  // 收集 set-cookie（Node fetch 通过 headers.getSetCookie 暴露原始多值头）
+  // 收集 set-cookie
   const setCookie =
     (res.headers as unknown as { getSetCookie?: () => string[] }).getSetCookie?.() ??
     (res.headers.get("set-cookie") ? [res.headers.get("set-cookie") as string] : []);

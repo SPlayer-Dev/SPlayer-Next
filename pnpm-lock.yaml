@@ -35,6 +35,9 @@ importers:
       hono:
         specifier: ^4.12.25
         version: 4.12.25
+      undici:
+        specifier: ^8.7.0
+        version: 8.7.0
       ws:
         specifier: ^8.20.1
         version: 8.20.1
@@ -4179,6 +4182,10 @@ packages:
   undici@6.25.0:
     resolution: {integrity: sha512-ZgpWDC5gmNiuY9CnLVXEH8rl50xhRCuLNA97fAUnKi8RRuV4E6KG31pDTsLVUKnohJE0I3XDrTeEydAXRw47xg==}
     engines: {node: '>=18.17'}
+
+  undici@8.7.0:
+    resolution: {integrity: sha512-N7iQtfyLhIMOFgQubvmLV26svHpO0bqKnAiWotTQCVKCmWrcGbBotPuW1x+xwYZ2VHdSTVUfPQQnlEt1/LouTQ==}
+    engines: {node: '>=22.19.0'}
 
   unimport@5.7.0:
     resolution: {integrity: sha512-njnL6sp8lEA8QQbZrt+52p/g4X0rw3bnGGmUcJnt1jeG8+iiqO779aGz0PirCtydAIVcuTBRlJ52F0u46z309Q==}
@@ -8548,6 +8555,8 @@ snapshots:
   undici-types@7.16.0: {}
 
   undici@6.25.0: {}
+
+  undici@8.7.0: {}
 
   unimport@5.7.0:
     dependencies:

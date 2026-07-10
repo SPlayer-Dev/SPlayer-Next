@@ -14,7 +14,7 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::{anyhow, Context, Result};
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
 const USER_AGENT: &str = "SPlayer-Next/1.0";
 const PROBE_TIMEOUT_SECS: u64 = 10;
@@ -222,6 +222,22 @@ impl HttpRangeSource {
                     return OpenOutcome::Fatal(io::Error::other(format!(
                         "重连意外状态码: {status}"
                     )));
+                }
+                // 重连时验证 Content-Type：CDN URL 过期后可能返回 206 但 body 是错误页面
+                if self.pos > 0 {
+                    if let Some(ct) = resp.header("Content-Type") {
+                        let ct_lower = ct.to_lowercase();
+                        if ct_lower.starts_with("text/")
+                            || ct_lower.contains("html")
+                            || ct_lower.contains("json")
+                            || ct_lower.contains("xml")
+                        {
+                            return OpenOutcome::Fatal(io::Error::other(format!(
+                                "重连返回非音频内容类型: {ct}，URL 可能已过期"
+                            )));
+                        }
+                    }
+                    info!(pos = self.pos, status, "HTTP 流重连成功");
                 }
                 self.stream = Some(resp.into_reader());
                 OpenOutcome::Ok

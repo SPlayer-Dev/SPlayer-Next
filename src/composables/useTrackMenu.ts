@@ -71,6 +71,7 @@ export const useTrackMenu = (
   const items = computed<DropdownMenuItem[]>(() => {
     const source = track.value?.source;
     const isLocal = source === "local";
+    const isCue = !!track.value?.cuePath;
     const showCloudRemove = isCloudView && track.value?.cloud === true;
     const canAddToPlaylist = source === "local" || source === "netease";
     const isOnline = source !== "local" && source !== "streaming";
@@ -106,7 +107,7 @@ export const useTrackMenu = (
         key: "editTags",
         label: t("songList.context.editTags"),
         icon: markRaw(IconSquarePen),
-        show: isLocal && !!options.onEditTags,
+        show: isLocal && !isCue && !!options.onEditTags,
       },
       {
         key: "download",
@@ -128,7 +129,7 @@ export const useTrackMenu = (
         label: t("songList.context.deleteFile"),
         icon: markRaw(IconTrash2),
         separator: !(isPlaylist && canRemove),
-        show: isLocal,
+        show: isLocal && !isCue,
       },
       {
         key: "removeFromCloud",
@@ -232,10 +233,13 @@ export const useTrackMenu = (
         options.onAddToPlaylist?.(current);
         break;
       case "showInExplorer":
-        if (current.path) window.api.system.showInExplorer(current.path);
+        if (current.cueAudioPath ?? current.path) {
+          window.api.system.showInExplorer((current.cueAudioPath ?? current.path)!);
+        }
         break;
       case "copyPath":
-        await copy(current.path);
+        if (current.cueAudioPath ?? current.path)
+          await copy((current.cueAudioPath ?? current.path)!);
         break;
       case "removeFromCollection":
         options.onRemove?.(current);

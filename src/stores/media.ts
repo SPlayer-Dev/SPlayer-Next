@@ -116,11 +116,14 @@ export const useMediaStore = defineStore("media", () => {
     let nextLines: LyricLine[] = [];
     if (source && input) {
       try {
-        const lines = parseLyric(input, source.format, useSettingsStore().locale);
+        const settings = useSettingsStore();
+        const lines = parseLyric(input, source.format, settings.locale, {
+          detectBackground: settings.lyric.detectBackgroundLyrics,
+        });
         nextLines = applyLyricExclude(lines, track.value);
         normalizeLyricLines(nextLines);
         // Fuck Mode
-        if (useSettingsStore().preset.uncensorProfanity) {
+        if (settings.preset.uncensorProfanity) {
           applyProfanityUncensor(nextLines);
         }
       } catch (e) {

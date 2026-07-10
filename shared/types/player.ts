@@ -74,6 +74,14 @@ export interface Track {
   source: TrackSource;
   /** 本地路径 */
   path?: string;
+  /** CUE 文件路径 */
+  cuePath?: string;
+  /** CUE 分轨对应的真实音频路径 */
+  cueAudioPath?: string;
+  /** CUE 分轨开始时间（毫秒） */
+  cueStartMs?: number;
+  /** CUE 分轨结束时间（毫秒） */
+  cueEndMs?: number;
   /** 流媒体服务器实例 ID（仅 source==='streaming'） */
   serverId?: string;
   /** 流媒体服务器原生 ID（仅 source==='streaming'） */

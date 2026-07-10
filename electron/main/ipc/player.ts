@@ -101,6 +101,36 @@ const runAnalysisWorker = (method: AnalysisWorkerMethod, args: unknown[]): Promi
     });
   });
 
+interface CueRange {
+  startMs: number;
+  durationMs: number;
+}
+
+/** 当前加载的 CUE 分轨范围 */
+let activeCueRange: CueRange | null = null;
+
+/** 从 Track 元数据提取 CUE 分轨范围 */
+const cueRangeFromTrack = (track: LoadOptions["meta"] | null | undefined): CueRange | null => {
+  const start = track?.cueStartMs;
+  const end = track?.cueEndMs;
+  if (start == null || end == null || end <= start) return null;
+  return { startMs: start, durationMs: end - start };
+};
+
+/** 引擎绝对时间转换为当前曲目展示时间 */
+const toDisplayPositionMs = (positionMs: number): number => {
+  if (!activeCueRange) return positionMs;
+  return Math.max(0, Math.min(activeCueRange.durationMs, positionMs - activeCueRange.startMs));
+};
+
+/** 当前曲目展示时长 */
+const toDisplayDurationMs = (durationMs: number): number =>
+  activeCueRange?.durationMs ?? durationMs;
+
+/** 展示时间转换为引擎绝对时间 */
+const toEnginePositionMs = (positionMs: number): number =>
+  activeCueRange ? activeCueRange.startMs + positionMs : positionMs;
+
 /** 返回失败响应，附带日志 */
 const fail = (code: ErrorCode, error?: unknown) => {
   if (error) playerLog.error(`${code}:`, error);
@@ -127,8 +157,9 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
         } else if (state === "paused") {
           mediaService.setPlayState({ status: "Paused" });
           if (store.get("system.taskbarProgress")) {
-            const dur = inst.getDuration();
-            if (dur > 0) setTaskbarProgress(inst.getPosition() / dur, true);
+            const dur = toDisplayDurationMs(toMs(inst.getDuration()));
+            const pos = toDisplayPositionMs(toMs(inst.getPosition()));
+            if (dur > 0) setTaskbarProgress(pos / dur, true);
           }
         } else if (state === "stopped") {
           mediaService.setPlayState({ status: "Paused" });
@@ -141,8 +172,8 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
           type: "status",
           data: {
             state,
-            position: toMs(inst.getPosition()),
-            duration: toMs(inst.getDuration()),
+            position: toDisplayPositionMs(toMs(inst.getPosition())),
+            duration: toDisplayDurationMs(toMs(inst.getDuration())),
             volume: inst.getVolume(),
             isFinished: false,
           },
@@ -169,8 +200,8 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
         break;
       }
       case "position": {
-        const posMs = toMs(event.position ?? 0);
-        const durMs = toMs(event.duration ?? 0);
+        const posMs = toDisplayPositionMs(toMs(event.position ?? 0));
+        const durMs = toDisplayDurationMs(toMs(event.duration ?? 0));
         const positionEvent = {
           type: "position",
           data: { position: posMs, duration: durMs },
@@ -246,6 +277,8 @@ export const registerPlayerIpc = (): void => {
   ipcMain.handle("player:load", async (_event, source: string, options: LoadOptions = {}) => {
     const autoPlay = options.autoPlay ?? true;
     const authoritative = options.meta ?? null;
+    const cueRange = cueRangeFromTrack(authoritative);
+    activeCueRange = cueRange;
     // 非本地音源
     const isRemote = authoritative != null && authoritative.source !== "local";
     const seq = ++loadSeq;
@@ -293,9 +326,16 @@ export const registerPlayerIpc = (): void => {
           undefined,
           authoritative.duration ?? 0,
         );
+      } else {
+        applyDisplay(source.split(/[/\\]/).pop() || source, "", "", undefined, 0);
       }
-      const meta = await inst.load(source, autoPlay);
-      const durationMs = toMs(meta.duration);
+      const meta = await inst.load(source, cueRange ? false : autoPlay);
+      if (cueRange) {
+        await inst.seek(cueRange.startMs / 1000);
+        if (autoPlay) await inst.play();
+      }
+      const nativeDurationMs = toMs(meta.duration);
+      const durationMs = toDisplayDurationMs(nativeDurationMs);
       const fallbackTitle = meta.title || source.split(/[/\\]/).pop() || source;
       const displayTitle = authoritative?.title ?? fallbackTitle;
       const displayArtist = authoritative
@@ -339,6 +379,7 @@ export const registerPlayerIpc = (): void => {
       playerLog.debug(`加载成功: ${displayTitle}`);
       return { success: true, data };
     } catch (error) {
+      if (seq === loadSeq) activeCueRange = null;
       const msg = error instanceof Error ? error.message : String(error);
       // 被更新的 load/stop 取代是正常竞态结果，不能按源类型误判为网络/解码错误
       //（那两类是可跳曲错误，会让用户的停止操作变成自动跳下一曲）
@@ -559,6 +600,7 @@ export const registerPlayerIpc = (): void => {
   ipcMain.handle("player:stop", () => {
     try {
       loadSeq++;
+      activeCueRange = null;
       getPlayer().stop();
       return { success: true };
     } catch (error) {
@@ -569,11 +611,12 @@ export const registerPlayerIpc = (): void => {
   // 跳转到指定播放位置
   ipcMain.handle("player:seek", async (_event, positionMs: number) => {
     try {
-      const positionSecs = positionMs / 1000;
+      const enginePositionMs = toEnginePositionMs(positionMs);
+      const positionSecs = enginePositionMs / 1000;
       await getPlayer().seek(positionSecs);
       mediaService.setTimeline({
         currentMs: positionMs,
-        totalMs: toMs(getPlayer().getDuration()),
+        totalMs: toDisplayDurationMs(toMs(getPlayer().getDuration())),
         seeked: true,
       });
       return { success: true };
@@ -620,8 +663,8 @@ export const registerPlayerIpc = (): void => {
       success: true,
       data: {
         state: raw.state,
-        position: toMs(raw.position),
-        duration: toMs(raw.duration),
+        position: toDisplayPositionMs(toMs(raw.position)),
+        duration: toDisplayDurationMs(toMs(raw.duration)),
         volume: raw.volume,
         isFinished: raw.isFinished,
       },

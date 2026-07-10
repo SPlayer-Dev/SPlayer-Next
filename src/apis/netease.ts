@@ -10,6 +10,18 @@
 
 import type { ApiCallResponse } from "@shared/types/apis";
 
+export class NeteaseApiError extends Error {
+  readonly status?: number;
+  readonly body?: unknown;
+
+  constructor(message: string, status?: number, body?: unknown) {
+    super(message);
+    this.name = "NeteaseApiError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
 /**
  * 调用 Netease API，返回原始响应
  * @param name 接口名
@@ -21,7 +33,7 @@ export const neteaseRaw = async (
   params?: Record<string, unknown>,
 ): Promise<{ status: number; body: unknown }> => {
   const res: ApiCallResponse = await window.api.apis.call("netease", name, params);
-  if (!res.ok) throw new Error(res.error);
+  if (!res.ok) throw new NeteaseApiError(res.error, res.status, res.body);
   return { status: res.status ?? 200, body: res.body };
 };
 

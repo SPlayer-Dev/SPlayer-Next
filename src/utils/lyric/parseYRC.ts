@@ -17,7 +17,7 @@ const LINE_HEADER_RE = /^\[(\d+),(\d+)\]/;
 const WORD_RE = /\((\d+),(\d+),\d+\)([^(]*)/g;
 
 /** 解析 YRC 歌词 */
-export const parseYRC = (text: string): LyricLine[] => {
+export const parseYRC = (text: string, detectBackground = true): LyricLine[] => {
   const lines: LyricLine[] = [];
 
   for (const raw of text.split("\n")) {
@@ -48,13 +48,13 @@ export const parseYRC = (text: string): LyricLine[] => {
       romanLyric: "",
       startTime: lineStart,
       endTime: lineStart + lineDur,
-      isBG: detectBackgroundLine(words),
+      isBG: detectBackgroundLine(words, detectBackground),
       isDuet: false,
     };
     lines.push(line);
     // 行内尾随和声「主歌词（和声）」拆成紧随的背景行
     if (!line.isBG) {
-      const bg = splitTrailingBackground(line);
+      const bg = splitTrailingBackground(line, detectBackground);
       if (bg) lines.push(bg);
     }
   }

@@ -35,6 +35,10 @@ export const initDatabase = (): void => {
     CREATE TABLE IF NOT EXISTS tracks (
       id TEXT PRIMARY KEY,
       path TEXT NOT NULL UNIQUE,
+      cue_path TEXT,
+      cue_audio_path TEXT,
+      cue_start_ms INTEGER,
+      cue_end_ms INTEGER,
       title TEXT NOT NULL,
       track INTEGER,
       artists TEXT NOT NULL DEFAULT '[]',
@@ -150,6 +154,7 @@ export {
   getAllTracks,
   getTrackCount,
   getFileRecords,
+  getCueTrackPathsByDirs,
   upsertTracks,
   deleteTracksByPaths,
   searchTracks,

@@ -58,9 +58,11 @@ export const buildFolderTree = (
   };
 
   for (const track of tracks) {
-    if (!track.path) continue;
-    const fullPath = normalizePath(track.path);
-    const rootPath = findScanRoot(track.path);
+    // CUE 虚拟分轨的 path 是 cue://... 协议路径，按其真实容器文件路径归入磁盘目录
+    const diskPath = track.cueAudioPath ?? track.path;
+    if (!diskPath) continue;
+    const fullPath = normalizePath(diskPath);
+    const rootPath = findScanRoot(diskPath);
     const rootNode =
       roots.get(rootPath) ?? ensureFolder(rootPath, folderBasename(rootPath) || rootPath);
     if (!roots.has(rootPath)) roots.set(rootPath, rootNode);

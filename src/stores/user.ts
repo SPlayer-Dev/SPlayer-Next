@@ -1,7 +1,7 @@
 import localforage from "localforage";
 import type { Album, Artist, Playlist, Track } from "@shared/types/player";
 import type { UserProfile, UserSubcount } from "@/types/user";
-import { clearNeteaseSession } from "@/apis/netease";
+import { clearNeteaseSession, NeteaseApiError } from "@/apis/netease";
 import {
   fetchLoginStatus,
   refreshLogin as refreshLoginApi,
@@ -46,6 +46,18 @@ const CLOUD_CACHE_KEY = "cloud-tracks";
 interface LikedPlaylistCache {
   playlistId: string;
   tracks: Track[];
+  cachedAt: number;
+}
+
+interface LikedSongIdsCache {
+  userId: number;
+  ids: string[];
+  cachedAt: number;
+}
+
+interface PlaylistsCache {
+  userId: number;
+  playlists: Playlist[];
   cachedAt: number;
 }
 
@@ -128,6 +140,61 @@ export const useUserStore = defineStore(
     /** 是否红心 */
     const isLiked = (trackId: string): boolean => likedSongIds.value.has(trackId);
 
+    /** 持久化红心 id 列表 */
+    const persistLikedSongIds = (): void => {
+      const userId = profile.value?.userId;
+      if (!userId) return;
+      const payload: LikedSongIdsCache = {
+        userId,
+        ids: [...likedSongIds.value],
+        cachedAt: Date.now(),
+      };
+      cacheDb.setItem(LIKED_SONG_IDS_CACHE_KEY, payload).catch(() => {});
+    };
+
+    /**
+     * 两组红心 id 是否一致
+     * @param ids 歌曲 id 列表
+     */
+    const hasSameLikedSongIds = (ids: Iterable<string>): boolean => {
+      const next = new Set(ids);
+      if (next.size !== likedSongIds.value.size) return false;
+      for (const id of next) {
+        if (!likedSongIds.value.has(id)) return false;
+      }
+      return true;
+    };
+
+    /**
+     * 应用远端红心 id 列表
+     * @param ids 歌曲 id 列表
+     */
+    const applyLikedSongIds = (ids: Iterable<string>): void => {
+      const next = [...ids];
+      if (hasSameLikedSongIds(next)) return;
+      likedSongIds.value = new Set(next);
+      persistLikedSongIds();
+    };
+
+    /** 当前已加载的喜欢歌单是否与红心 id 集合一致 */
+    const isLikedPlaylistFresh = (): boolean =>
+      hasSameLikedSongIds(likedPlaylistTracks.value.map((track) => track.id));
+
+    /**
+     * 是否是明确的登录失效错误
+     * @param err 捕获到的异常
+     */
+    const isAuthExpiredError = (err: unknown): boolean => {
+      const status = err instanceof NeteaseApiError ? err.status : undefined;
+      const body = err instanceof NeteaseApiError ? err.body : undefined;
+      const code = (body as { code?: number | string } | null | undefined)?.code;
+      if (status === 401 || status === 403) return true;
+      if (code === 301 || code === 401 || code === 403) return true;
+      if (code === "301" || code === "401" || code === "403") return true;
+      const message = err instanceof Error ? err.message : String(err ?? "");
+      return /need.?login|not.?login|unauthori[sz]ed|登录|未登录|鉴权|cookie/i.test(message);
+    };
+
     /** 清空所有用户内容 */
     const clearContent = (): void => {
       playlists.value = [];
@@ -152,12 +219,24 @@ export const useUserStore = defineStore(
     const hydrateLikedPlaylistFromCache = async (playlistId: string): Promise<void> => {
       try {
         const cached = await cacheDb.getItem<LikedPlaylistCache>(LIKED_PLAYLIST_CACHE_KEY);
-        if (cached && cached.playlistId === playlistId && cached.tracks.length > 0) {
-          likedPlaylistTracks.value = cached.tracks;
-        }
+        if (cached && cached.playlistId === playlistId) likedPlaylistTracks.value = cached.tracks;
       } catch {
         console.error("[user] hydrate liked playlist from cache failed");
       }
+    };
+
+    /**
+     * 持久化喜欢歌单曲目缓存
+     * @param playlistId 歌单 id
+     * @param tracks 歌单曲目
+     */
+    const persistLikedPlaylistCache = (playlistId: string, tracks: Track[]): void => {
+      const payload: LikedPlaylistCache = {
+        playlistId,
+        tracks: tracks.map((track) => ({ ...track })),
+        cachedAt: Date.now(),
+      };
+      cacheDb.setItem(LIKED_PLAYLIST_CACHE_KEY, payload).catch(() => {});
     };
 
     /** 拉取最新喜欢歌单曲目 */
@@ -177,14 +256,9 @@ export const useUserStore = defineStore(
           },
         });
         if (controller.signal.aborted) return;
-        if (accumulated.length > 0) {
-          const payload: LikedPlaylistCache = {
-            playlistId,
-            tracks: accumulated.map((track) => ({ ...track })),
-            cachedAt: Date.now(),
-          };
-          cacheDb.setItem(LIKED_PLAYLIST_CACHE_KEY, payload).catch(() => {});
-        }
+        likedPlaylistTracks.value = accumulated;
+        applyLikedSongIds(accumulated.map((track) => track.id));
+        persistLikedPlaylistCache(playlistId, accumulated);
       } finally {
         if (!controller.signal.aborted) likedPlaylistLoading.value = false;
       }
@@ -193,7 +267,7 @@ export const useUserStore = defineStore(
     /**
      * 确保「我喜欢的音乐」曲目已就绪
      * - 首次访问该歌单：缓存即时上屏 + 网络刷新
-     * - 再次访问：仅当 likedSongIds 数量与已加载曲目数量不一致时才刷新（外部增删过 → 数据脏）
+     * - 再次访问：likedSongIds 与已加载曲目内容不一致时刷新（外部增删过 → 数据脏）
      * @param force true 强制走网络刷新（用户手动点刷新时用）
      */
     const ensureLikedPlaylist = async (force = false): Promise<void> => {
@@ -206,7 +280,7 @@ export const useUserStore = defineStore(
         refreshLikedPlaylist(playlistId);
         return;
       }
-      if (force || likedSongIds.value.size !== likedPlaylistTracks.value.length) {
+      if (force || !isLikedPlaylistFresh()) {
         refreshLikedPlaylist(playlistId);
       }
     };
@@ -296,17 +370,17 @@ export const useUserStore = defineStore(
     };
 
     /** 从缓存恢复轻量内容 */
-    const hydrateContentFromCache = async (): Promise<void> => {
+    const hydrateContentFromCache = async (userId: number): Promise<void> => {
       try {
         const [cachedIds, cachedPlaylists] = await Promise.all([
-          cacheDb.getItem<string[]>(LIKED_SONG_IDS_CACHE_KEY),
-          cacheDb.getItem<Playlist[]>(PLAYLISTS_CACHE_KEY),
+          cacheDb.getItem<LikedSongIdsCache>(LIKED_SONG_IDS_CACHE_KEY),
+          cacheDb.getItem<PlaylistsCache>(PLAYLISTS_CACHE_KEY),
         ]);
-        if (Array.isArray(cachedIds) && cachedIds.length > 0) {
-          likedSongIds.value = new Set(cachedIds);
+        if (cachedIds?.userId === userId) {
+          likedSongIds.value = new Set(cachedIds.ids);
         }
-        if (Array.isArray(cachedPlaylists) && cachedPlaylists.length > 0) {
-          playlists.value = cachedPlaylists;
+        if (cachedPlaylists?.userId === userId) {
+          playlists.value = cachedPlaylists.playlists;
         }
       } catch {
         console.error("[user] hydrate content from cache failed");
@@ -323,7 +397,12 @@ export const useUserStore = defineStore(
       const total = (sub.createdPlaylistCount || 0) + (sub.subPlaylistCount || 0) || 50;
       const list = await fetchUserPlaylists(uid, total);
       playlists.value = list;
-      cacheDb.setItem(PLAYLISTS_CACHE_KEY, list).catch(() => {});
+      const payload: PlaylistsCache = {
+        userId: uid,
+        playlists: list,
+        cachedAt: Date.now(),
+      };
+      cacheDb.setItem(PLAYLISTS_CACHE_KEY, payload).catch(() => {});
     };
 
     /**
@@ -333,7 +412,7 @@ export const useUserStore = defineStore(
     const loadContent = async (uid: number): Promise<void> => {
       if (!uid) return;
       // 缓存即时上屏，不阻塞后续网络
-      await hydrateContentFromCache();
+      await hydrateContentFromCache(uid);
       const settled = await Promise.allSettled([
         fetchAndApplyPlaylists(uid),
         fetchLikelist(uid),
@@ -343,8 +422,7 @@ export const useUserStore = defineStore(
       ]);
       const [_plRes, likeRes, albumRes, artistRes, levelRes] = settled;
       if (likeRes.status === "fulfilled") {
-        likedSongIds.value = new Set(likeRes.value);
-        cacheDb.setItem(LIKED_SONG_IDS_CACHE_KEY, likeRes.value).catch(() => {});
+        applyLikedSongIds(likeRes.value);
       }
       if (albumRes.status === "fulfilled") albums.value = albumRes.value;
       if (artistRes.status === "fulfilled") artists.value = artistRes.value;
@@ -353,6 +431,10 @@ export const useUserStore = defineStore(
         if (result.status === "rejected") {
           console.warn("[user] content load failed:", result.reason);
         }
+      }
+      const playlistId = likedPlaylistId.value;
+      if (playlistId && currentLikedPlaylistId === playlistId && !isLikedPlaylistFresh()) {
+        refreshLikedPlaylist(playlistId);
       }
     };
 
@@ -368,7 +450,7 @@ export const useUserStore = defineStore(
       likedSongIds.value = next;
       try {
         await toggleLikeSong(trackId, !wasLiked);
-        cacheDb.setItem(LIKED_SONG_IDS_CACHE_KEY, [...next]).catch(() => {});
+        persistLikedSongIds();
         return true;
       } catch (err) {
         const rollback = new Set(likedSongIds.value);
@@ -442,7 +524,7 @@ export const useUserStore = defineStore(
         const next = new Set(likedSongIds.value);
         for (const trackId of trackIds) next.add(trackId);
         likedSongIds.value = next;
-        cacheDb.setItem(LIKED_SONG_IDS_CACHE_KEY, [...next]).catch(() => {});
+        persistLikedSongIds();
       }
       await refreshPlaylists();
       return count;
@@ -463,7 +545,7 @@ export const useUserStore = defineStore(
         const next = new Set(likedSongIds.value);
         for (const trackId of trackIds) next.delete(trackId);
         likedSongIds.value = next;
-        cacheDb.setItem(LIKED_SONG_IDS_CACHE_KEY, [...next]).catch(() => {});
+        persistLikedSongIds();
         likedPlaylistTracks.value = likedPlaylistTracks.value.filter(
           (track) => !removeSet.has(track.id),
         );
@@ -511,7 +593,9 @@ export const useUserStore = defineStore(
       try {
         const latest = await fetchLoginStatus();
         if (latest) {
+          const previousUserId = profile.value?.userId;
           profile.value = latest;
+          if (previousUserId && previousUserId !== latest.userId) clearContent();
           syncContent(latest.userId);
           if (Date.now() - lastRefreshAt.value > REFRESH_INTERVAL_MS) {
             void refresh();
@@ -522,7 +606,14 @@ export const useUserStore = defineStore(
         lastRefreshAt.value = 0;
         syncContent(undefined);
         return false;
-      } catch {
+      } catch (err) {
+        if (isAuthExpiredError(err)) {
+          profile.value = null;
+          lastRefreshAt.value = 0;
+          syncContent(undefined);
+          await clearNeteaseSession();
+          return false;
+        }
         // 网络失败保留缓存的 profile，不强制登出（离线可用性）
         return profile.value !== null;
       }

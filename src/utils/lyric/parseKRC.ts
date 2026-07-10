@@ -21,7 +21,7 @@ const LINE_HEADER_RE = /^\[(\d+):(\d+)[.:](\d{1,3})\]/;
 const WORD_RE = /<(\d+),(\d+)>([^<]*)/g;
 
 /** 解析 KRC 歌词 */
-export const parseKRC = (text: string): LyricLine[] => {
+export const parseKRC = (text: string, detectBackground = true): LyricLine[] => {
   const lines: LyricLine[] = [];
 
   for (const raw of text.split("\n")) {
@@ -57,7 +57,7 @@ export const parseKRC = (text: string): LyricLine[] => {
       romanLyric: "",
       startTime: lineStart,
       endTime: lastEnd,
-      isBG: detectBackgroundLine(words),
+      isBG: detectBackgroundLine(words, detectBackground),
       isDuet: false,
     });
   }

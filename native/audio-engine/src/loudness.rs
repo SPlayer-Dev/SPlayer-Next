@@ -24,6 +24,9 @@ const MAX_GAIN: f32 = 3.0;
 /// 最小增益下限
 const MIN_GAIN: f32 = 0.1;
 
+/// 峰值保护余量，给后续 EQ 和设备转换留一点空间
+const PEAK_HEADROOM: f32 = 0.95;
+
 /// 初始快速收敛阶段的窗口数
 const INITIAL_WINDOWS: u32 = 3;
 
@@ -71,7 +74,9 @@ impl LoudnessAnalyzer {
             return 1.0;
         }
 
+        let mut peak = 0.0_f32;
         for &sample in samples {
+            peak = peak.max(sample.abs());
             self.sum_squares += (sample as f64) * (sample as f64);
             self.sample_count += 1;
         }
@@ -102,6 +107,32 @@ impl LoudnessAnalyzer {
             self.windows_completed = self.windows_completed.saturating_add(1);
         }
 
+        if peak > 1e-6 {
+            self.current_gain = self.current_gain.min(PEAK_HEADROOM / peak);
+        }
+
         self.current_gain
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn drops_gain_before_loud_transient_clips() {
+        let mut analyzer = LoudnessAnalyzer::new(48000, 2);
+
+        let initial_quiet = vec![0.04; 4800 * 2];
+        for _ in 0..3 {
+            analyzer.process(&initial_quiet);
+        }
+        let normal_quiet = vec![0.04; 19200 * 2];
+        analyzer.process(&normal_quiet);
+
+        let loud = vec![0.8; 960 * 2];
+        let gain = analyzer.process(&loud);
+
+        assert!(gain * 0.8 <= 0.95);
     }
 }

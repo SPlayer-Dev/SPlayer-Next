@@ -476,6 +476,7 @@ export const watchLyricPreference = (): void => {
     () => [
       settings.lyric.lyricSourcePreference,
       settings.lyric.smartPreferOnline,
+      settings.lyric.detectBackgroundLyrics,
       settings.system.lyric.enableOnlineTTMLLyric,
       settings.system.localLyric.enableLocalTTMLOverride,
       settings.system.localLyric.repoDir,

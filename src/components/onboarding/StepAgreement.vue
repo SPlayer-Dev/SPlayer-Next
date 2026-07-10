@@ -7,6 +7,24 @@ import IconArrowRight from "~icons/lucide/arrow-right";
 
 const { t } = useI18n();
 const emit = defineEmits<{ (e: "next"): void; (e: "back"): void }>();
+const props = withDefaults(
+  defineProps<{ variant?: "onboarding" | "update"; loading?: boolean }>(),
+  {
+    variant: "onboarding",
+    loading: false,
+  },
+);
+
+const isUpdate = computed(() => props.variant === "update");
+const titleKey = computed(() =>
+  isUpdate.value ? "agreementUpdate.title" : "onboarding.agreement.title",
+);
+const subtitleKey = computed(() =>
+  isUpdate.value ? "agreementUpdate.subtitle" : "onboarding.agreement.subtitle",
+);
+const acceptKey = computed(() =>
+  isUpdate.value ? "agreementUpdate.accept" : "onboarding.agreement.accept",
+);
 
 const agreementHtml = marked.parse(agreementRaw, { async: false }) as string;
 
@@ -39,10 +57,10 @@ const handleContinue = (): void => {
   <div class="flex flex-col h-full w-full">
     <div class="flex items-center gap-3 mb-2 shrink-0">
       <IconFileText class="size-6 text-primary" />
-      <h2 class="text-2xl font-bold">{{ t("onboarding.agreement.title") }}</h2>
+      <h2 class="text-2xl font-bold">{{ t(titleKey) }}</h2>
     </div>
     <p class="text-on-surface-variant/70 mb-4 leading-relaxed shrink-0">
-      {{ t("onboarding.agreement.subtitle") }}
+      {{ t(subtitleKey) }}
     </p>
     <!-- eslint-disable vue/no-v-html -->
     <div
@@ -64,13 +82,19 @@ const handleContinue = (): void => {
       </span>
     </div>
     <div class="flex items-center gap-3 shrink-0">
-      <SButton variant="ghost" round @click="emit('back')">
+      <SButton v-if="!isUpdate" variant="ghost" round :disabled="loading" @click="emit('back')">
         <template #icon><IconChevronLeft /></template>
         {{ t("onboarding.back") }}
       </SButton>
       <div class="flex-1" />
-      <SButton type="primary" round :disabled="!canContinue" @click="handleContinue">
-        {{ t("onboarding.agreement.accept") }}
+      <SButton
+        type="primary"
+        round
+        :disabled="!canContinue"
+        :loading="loading"
+        @click="handleContinue"
+      >
+        {{ t(acceptKey) }}
         <template #icon><IconArrowRight /></template>
       </SButton>
     </div>

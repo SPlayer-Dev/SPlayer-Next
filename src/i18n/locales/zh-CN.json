@@ -74,6 +74,11 @@
       }
     }
   },
+  "agreementUpdate": {
+    "title": "用户协议已更新",
+    "subtitle": "协议内容有变更，请重新阅读并同意后继续使用",
+    "accept": "我已阅读并同意，继续使用"
+  },
   "common": {
     "confirm": "确认",
     "cancel": "取消",
@@ -81,6 +86,7 @@
     "configure": "配置",
     "more": "更多",
     "save": "保存",
+    "saveAndRelaunch": "保存并重启",
     "reset": "重置",
     "retry": "重试",
     "prev": "上一页",
@@ -183,6 +189,11 @@
       "quick": "快捷",
       "history": "搜索历史",
       "hot": "热搜榜"
+    },
+    "searchMenu": {
+      "copy": "复制",
+      "paste": "粘贴",
+      "pasteSearch": "粘贴并搜索"
     },
     "link": {
       "song": "直接播放「{id}」",
@@ -787,6 +798,10 @@
       "lossless": "无损 (Lossless)",
       "hi-res": "高解析度无损 (Hi-Res)"
     },
+    "allowTrialPlay": {
+      "label": "允许播放试听",
+      "description": "完整音源和插件都不可用时，允许播放平台返回的试听片段"
+    },
     "outputDevice": {
       "label": "输出设备",
       "description": "选择音频输出设备",
@@ -845,6 +860,10 @@
     "smartPreferOnline": {
       "label": "自动升级歌词格式",
       "description": "当前歌词格式较低时，从其他平台获取更高级的格式覆盖"
+    },
+    "detectBackgroundLyrics": {
+      "label": "自动识别背景歌词",
+      "description": "根据括号识别背景人声，误判时可关闭"
     },
     "enableOnlineTTMLLyric": {
       "label": "启用在线 TTML 歌词",
@@ -936,7 +955,9 @@
     },
     "confirm": {
       "highResourceTitle": "高占用功能",
-      "highResourceContent": "开启后可能明显增加内存与 CPU 占用，低配设备上或出现卡顿。确定开启吗？"
+      "highResourceContent": "开启后可能明显增加内存与 CPU 占用，低配设备上或出现卡顿。确定开启吗？",
+      "restartRequiredTitle": "需要重启应用",
+      "restartRequiredContent": "此设置需要重启应用后生效。确定保存并立即重启吗？"
     },
     "useAMSpring": {
       "label": "弹簧动画调试开关",
@@ -1457,6 +1478,10 @@
       "label": "记忆窗口状态",
       "description": "下次启动时恢复窗口的大小、位置和最大化状态"
     },
+    "borderlessWindow": {
+      "label": "开启无边框窗口",
+      "description": "关闭后使用系统原生窗口边框和标题栏"
+    },
     "autoCheckUpdate": {
       "label": "自动检查更新",
       "description": "启动后及定时在后台检查新版本"
@@ -1476,6 +1501,29 @@
     "taskbarThumbnailCover": {
       "label": "任务栏封面预览",
       "description": "悬停任务栏时以专辑封面作为窗口预览，关闭则显示系统默认的实时窗口"
+    },
+    "networkProxyProtocol": {
+      "label": "网络代理",
+      "description": "为在线请求配置手动代理",
+      "off": "关闭代理",
+      "http": "HTTP 代理",
+      "https": "HTTPS 代理",
+      "socks5": "SOCKS5 代理"
+    },
+    "networkProxyHost": {
+      "label": "代理服务器地址",
+      "description": "填写代理服务器地址，例如 127.0.0.1",
+      "placeholder": "127.0.0.1"
+    },
+    "networkProxyPort": {
+      "label": "代理服务器端口",
+      "description": "填写代理服务器端口，例如 7890"
+    },
+    "networkProxyTest": {
+      "label": "测试代理",
+      "description": "测试代理配置是否可以正常连通",
+      "success": "该代理可正常使用",
+      "failed": "代理测试失败，请检查配置"
     },
     "neteaseRealIp": {
       "label": "使用真实IP地址",
