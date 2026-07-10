@@ -61,7 +61,8 @@ type AnalysisWorkerMethod =
   | "analyzeAudioFile"
   | "analyzeAudioFileHead"
   | "suggestTransition"
-  | "suggestLongMix";
+  | "suggestLongMix"
+  | "analyzePair";
 
 const ANALYSIS_WORKER_SOURCE = `
 const { parentPort, workerData } = require("node:worker_threads");
@@ -576,6 +577,19 @@ export const registerPlayerIpc = (): void => {
       return fail(ErrorCode.UNKNOWN, error);
     }
   });
+  ipcMain.handle(
+    "player:analyzePair",
+    async (_event, currentPath: string, nextPath: string, currentMaxTimeSec?: number) => {
+      try {
+        return {
+          success: true,
+          data: await runAnalysisWorker("analyzePair", [currentPath, nextPath, currentMaxTimeSec]),
+        };
+      } catch (error) {
+        return fail(ErrorCode.UNKNOWN, error);
+      }
+    },
+  );
 
   // 恢复播放
   ipcMain.handle("player:play", async () => {

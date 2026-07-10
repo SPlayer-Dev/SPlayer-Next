@@ -121,6 +121,9 @@ export declare function analyzeAudioFile(path: string, maxAnalyzeTime?: number |
 
 export declare function analyzeAudioFileHead(path: string, maxAnalyzeTime?: number | undefined | null): AudioAnalysis | null
 
+/** 单次双曲分析：仅打开每个文件一次，同时计算过渡建议与长段混音建议 */
+export declare function analyzePair(currentPath: string, nextPath: string, currentMaxTimeSec?: number | undefined | null): PairAnalysisResult | null
+
 export interface AudioAnalysis {
   duration: number
   bpm?: number
@@ -349,6 +352,18 @@ export interface JsTrackTags {
  */
 export declare function makeImageThumbnail(data: Buffer, maxSize: number): Promise<Buffer>
 
+/** 单次双曲分析结果：两首歌共享一次文件打开，减少重复 IO */
+export interface PairAnalysisResult {
+  /** 当前曲完整分析 */
+  current: AudioAnalysis
+  /** 下一首头部分析 */
+  next: AudioAnalysis
+  /** 过渡建议（从已分析数据直接计算，无额外 IO） */
+  transition?: TransitionProposal
+  /** 长段混音建议（从已分析数据直接计算，无额外 IO） */
+  longMix?: AdvancedTransition
+}
+
 /** 读取文件的可编辑标签（异步，阻塞 IO 在 tokio 阻塞线程执行） */
 export declare function readTrackTags(path: string): Promise<JsTrackTags>
 
@@ -359,10 +374,6 @@ export declare function readTrackTags(path: string): Promise<JsTrackTags>
  * 每处理约 20 个文件回调一次 progress 事件，完成后回调 done 事件。
  */
 export declare function scanDirs(dirs: Array<string>, callback: (event: JsScanEvent) => void, coverCacheDir?: string | undefined | null, incrementalData?: Array<FileRecord> | undefined | null): void
-
-export declare function suggestLongMix(currentPath: string, nextPath: string): AdvancedTransition | null
-
-export declare function suggestTransition(currentPath: string, nextPath: string): TransitionProposal | null
 
 export interface TransitionProposal {
   duration: number

@@ -284,6 +284,14 @@ export interface IpcResponse<T = void> {
   error?: string;
 }
 
+/** 单次双曲分析结果 */
+export interface PairAnalysisResult {
+  current: AudioAnalysis;
+  next: AudioAnalysis;
+  transition: TransitionProposal | null;
+  long_mix: AdvancedTransition | null;
+}
+
 /** 播放器 API */
 export interface PlayerApi {
   /** 加载音频（本地路径或网络地址）。可选下发权威 meta 用于 SMTC/托盘 */
@@ -312,6 +320,12 @@ export interface PlayerApi {
     currentPath: string,
     nextPath: string,
   ) => Promise<IpcResponse<AdvancedTransition | null>>;
+  /** 单次双曲分析：一次调用同时获取两轨特征与过渡建议 */
+  analyzePair: (
+    currentPath: string,
+    nextPath: string,
+    currentMaxTimeSec?: number,
+  ) => Promise<IpcResponse<PairAnalysisResult | null>>;
   /** 取消下一首预载 */
   cancelPreload: () => Promise<IpcResponse>;
   /** 恢复播放 */

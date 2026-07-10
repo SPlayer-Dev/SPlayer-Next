@@ -116,7 +116,18 @@ pub struct AdvancedTransition {
     pub strategy: String,
 }
 
-// --- Constants ---
+/// 单次双曲分析结果：两首歌共享一次文件打开，减少重复 IO
+#[napi(object)]
+pub struct PairAnalysisResult {
+    /// 当前曲完整分析
+    pub current: AudioAnalysis,
+    /// 下一首头部分析
+    pub next: AudioAnalysis,
+    /// 过渡建议（从已分析数据直接计算，无额外 IO）
+    pub transition: Option<TransitionProposal>,
+    /// 长段混音建议（从已分析数据直接计算，无额外 IO）
+    pub long_mix: Option<AdvancedTransition>,
+}
 
 const ENV_RATE: f64 = 50.0;
 const WINDOW_SIZE_MS: usize = 20;
@@ -1108,11 +1119,7 @@ const STRATEGIES: &[MixStrategy] = &[
     MixStrategy::new("Quick Blend", "Quick Fade", 4.0, true, false),
 ];
 
-#[napi]
-pub fn suggest_transition(current_path: String, next_path: String) -> Option<TransitionProposal> {
-    let cur = TrackAnalyzer::new(current_path, None, true).analyze()?;
-    let next = TrackAnalyzer::new(next_path, Some(120.0), false).analyze()?;
-
+fn transition_from_analysis(cur: &AudioAnalysis, next: &AudioAnalysis) -> TransitionProposal {
     let bpm_a = cur.bpm.unwrap_or(128.0);
     let bpm_b = next.bpm.unwrap_or(128.0);
     let bpm_compatible = (bpm_a - bpm_b).abs() / bpm_a < 0.06;
@@ -1122,10 +1129,8 @@ pub fn suggest_transition(current_path: String, next_path: String) -> Option<Tra
     let cur_out = cur.cut_out_pos.unwrap_or(cur.fade_out_pos);
     let next_in = next.first_beat_pos.unwrap_or(0.0);
     let next_intro_len = next.vocal_in_pos.unwrap_or(30.0) - next_in;
-
     let sec_per_bar = 240.0 / bpm_a;
 
-    // 1. Try Standard Strategies
     for s in STRATEGIES {
         if s.req_bpm && !bpm_compatible {
             continue;
@@ -1133,20 +1138,15 @@ pub fn suggest_transition(current_path: String, next_path: String) -> Option<Tra
         if s.req_key && !key_compatible {
             continue;
         }
-
         let dur = s.bars * sec_per_bar;
         if next_intro_len < dur {
             continue;
-        } // Next track intro too short
-
-        // Check if Current track has space
-        let start = cur_out - dur; // Simple backward calculation
+        }
+        let start = cur_out - dur;
         if start < cur.mix_center_pos - 30.0 {
             continue;
-        } // Too far back?
-
-        // Success
-        return Some(TransitionProposal {
+        }
+        return TransitionProposal {
             duration: dur,
             current_track_mix_out: start,
             next_track_mix_in: next_in,
@@ -1155,14 +1155,13 @@ pub fn suggest_transition(current_path: String, next_path: String) -> Option<Tra
             compatibility_score: 0.9,
             key_compatible,
             bpm_compatible,
-        });
+        };
     }
 
-    // 2. Fallback: Aggressive Bass Swap
     if bpm_compatible {
         let dur = 16.0 * sec_per_bar;
         if cur.duration - cur_out > dur {
-            return Some(TransitionProposal {
+            return TransitionProposal {
                 duration: dur,
                 current_track_mix_out: cur_out - dur,
                 next_track_mix_in: next_in,
@@ -1171,12 +1170,11 @@ pub fn suggest_transition(current_path: String, next_path: String) -> Option<Tra
                 compatibility_score: 0.7,
                 key_compatible,
                 bpm_compatible,
-            });
+            };
         }
     }
 
-    // 3. Fallback: Echo Out
-    Some(TransitionProposal {
+    TransitionProposal {
         duration: sec_per_bar * 4.0,
         current_track_mix_out: cur_out,
         next_track_mix_in: next_in,
@@ -1185,43 +1183,58 @@ pub fn suggest_transition(current_path: String, next_path: String) -> Option<Tra
         compatibility_score: 0.5,
         key_compatible,
         bpm_compatible,
-    })
+    }
 }
 
-#[napi]
-pub fn suggest_long_mix(current_path: String, next_path: String) -> Option<AdvancedTransition> {
-    let cur = TrackAnalyzer::new(current_path, None, true).analyze()?;
-    let next = TrackAnalyzer::new(next_path, Some(180.0), false).analyze()?;
-
+fn long_mix_from_analysis(cur: &AudioAnalysis, next: &AudioAnalysis) -> AdvancedTransition {
     let bpm_a = cur.bpm.unwrap_or(128.0);
     let bpm_b = next.bpm.unwrap_or(128.0);
     let playback_rate = bpm_a / bpm_b;
-
     let target_bars = 32.0;
     let sec_per_bar = 240.0 / bpm_a;
     let duration = target_bars * sec_per_bar;
-
-    // Anchor: End of Current Bass -> Start of Next Bass (Drop)
-    let cur_end = cur.duration - 5.0; // Near end
+    let cur_end = cur.duration - 5.0;
     let next_start = next
         .drop_pos
         .or(next.vocal_in_pos)
         .unwrap_or(32.0 * 240.0 / bpm_b);
-
-    // Automation
     let (auto_a, auto_b) = generate_bass_swap_automation(duration);
-
-    Some(AdvancedTransition {
+    AdvancedTransition {
         start_time_current: (cur_end - duration).max(0.0),
         start_time_next: (next_start - duration / playback_rate).max(0.0),
         duration,
-        pitch_shift_semitones: 0, // Simplified for now
+        pitch_shift_semitones: 0,
         playback_rate,
         automation_current: auto_a,
         automation_next: auto_b,
         strategy: "Long Bass Swap".to_string(),
+    }
+}
+
+/// 单次双曲分析：仅打开每个文件一次，同时计算过渡建议与长段混音建议
+#[napi]
+pub fn analyze_pair(
+    current_path: String,
+    next_path: String,
+    current_max_time_sec: Option<f64>,
+) -> Option<PairAnalysisResult> {
+    let max_time = current_max_time_sec
+        .map(|t| t)
+        .unwrap_or(60.0)
+        .clamp(10.0, 300.0);
+    let cur = TrackAnalyzer::new(current_path, Some(max_time), true).analyze()?;
+    // 下一首只需头部，但分析窗口取两个子函数中较大值（180s）
+    let next = TrackAnalyzer::new(next_path, Some(180.0), false).analyze()?;
+    let transition = transition_from_analysis(&cur, &next);
+    let long_mix = long_mix_from_analysis(&cur, &next);
+    Some(PairAnalysisResult {
+        current: cur,
+        next,
+        transition: Some(transition),
+        long_mix: Some(long_mix),
     })
 }
+
 
 // --- Utils ---
 

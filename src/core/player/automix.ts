@@ -2,6 +2,7 @@ import type {
   AdvancedTransition,
   AudioAnalysis,
   AutomixPlan,
+  PairAnalysisResult,
   Track,
   TransitionProposal,
 } from "@shared/types/player";
@@ -16,34 +17,25 @@ const MIN_CROSSFADE_SEC = 0.5;
 const MAX_CROSSFADE_SEC = 12;
 const MIN_BEAT_CONFIDENCE = 0.65;
 const MAX_TEMPO_ADJUSTMENT = 0.04;
-const ANALYSIS_DEADLINE_MS = 12_000;
+/** 距触发时间低于此值时强制计划生成，不再等待分析完成 */
+const PLAN_DEADLINE_MS = 8_000;
 const TRIGGER_TOLERANCE_MS = 250;
 
 export type AutomixResult = "idle" | "transitioned" | "fallback-next";
 export type AutomixPlay = (plan: AutomixPlan, resolved: ResolvedTrackSource) => Promise<boolean>;
 
-let currentAnalysisKey: string | null = null;
+/** 双曲分析状态机：单次 analyzePair 替代原来的4个并发请求 */
+let pairKey: string | null = null;
 let currentAnalysis: AudioAnalysis | null = null;
-let currentAnalysisInFlight: Promise<void> | null = null;
-let nextAnalysisKey: string | null = null;
 let nextAnalysis: AudioAnalysis | null = null;
-let nextAnalysisInFlight: Promise<void> | null = null;
-let transitionKey: string | null = null;
 let transitionProposal: TransitionProposal | null = null;
 let advancedTransition: AdvancedTransition | null = null;
-let transitionInFlight: Promise<void> | null = null;
+let pairAnalysisInFlight: Promise<void> | null = null;
 let scheduledPlan: AutomixPlan | null = null;
 let transitioning = false;
 let cancelToken = 0;
 
 const isLocalLikeSource = (source: string): boolean => !/^https?:\/\//i.test(source);
-
-const settleBeforeDeadline = async (promises: Promise<void>[]): Promise<void> => {
-  await Promise.race([
-    Promise.allSettled(promises).then(() => undefined),
-    new Promise<void>((resolve) => setTimeout(resolve, ANALYSIS_DEADLINE_MS)),
-  ]);
-};
 
 const clampAnalyzeTime = (): number => {
   const raw = useSettingsStore().system.player.automixMaxAnalyzeTimeSec || 60;
@@ -63,84 +55,39 @@ const snapToBeat = (
   return firstBeat + units * interval;
 };
 
-const resetTransitionCache = (currentSource: string, nextSource: string): void => {
+/**
+ * 后台异步分析当前曲/下一首对。
+ * 不 await — 调用后立即返回；tickAutomix 每次 tick 读取模块级状态快照。
+ */
+const kickPairAnalysis = (currentSource: string, nextSource: string): void => {
+  if (!isLocalLikeSource(currentSource) || !isLocalLikeSource(nextSource)) return;
   const key = `${currentSource}>>${nextSource}`;
-  if (transitionKey === key) return;
-  transitionKey = key;
+  if (pairKey === key) return; // 同一对，已在飞行中或已完成，跳过
+  pairKey = key;
+  currentAnalysis = null;
+  nextAnalysis = null;
   transitionProposal = null;
   advancedTransition = null;
-  transitionInFlight = null;
-};
-
-const ensureAnalysisReady = async (currentSource: string, nextSource: string): Promise<void> => {
-  if (!isLocalLikeSource(currentSource) || !isLocalLikeSource(nextSource)) return;
-  const analyzeTime = clampAnalyzeTime();
   const token = cancelToken;
-
-  if (currentAnalysisKey !== currentSource) {
-    currentAnalysisKey = currentSource;
-    currentAnalysis = null;
-    currentAnalysisInFlight = null;
-  }
-  if (!currentAnalysis && !currentAnalysisInFlight) {
-    currentAnalysisInFlight = window.api.player
-      .analyzeAudioFile(currentSource, analyzeTime)
-      .then((result) => {
-        if (token !== cancelToken || currentAnalysisKey !== currentSource) return;
-        currentAnalysis = result.success ? (result.data ?? null) : null;
-      })
-      .catch((error) => {
-        console.warn("[automix] current track analysis failed", error);
-      })
-      .finally(() => {
-        if (currentAnalysisKey === currentSource) currentAnalysisInFlight = null;
-      });
-  }
-
-  if (nextAnalysisKey !== nextSource) {
-    nextAnalysisKey = nextSource;
-    nextAnalysis = null;
-    nextAnalysisInFlight = null;
-  }
-  if (!nextAnalysis && !nextAnalysisInFlight) {
-    nextAnalysisInFlight = window.api.player
-      .analyzeAudioFileHead(nextSource, analyzeTime)
-      .then((result) => {
-        if (token !== cancelToken || nextAnalysisKey !== nextSource) return;
-        nextAnalysis = result.success ? (result.data ?? null) : null;
-      })
-      .catch((error) => {
-        console.warn("[automix] next track analysis failed", error);
-      })
-      .finally(() => {
-        if (nextAnalysisKey === nextSource) nextAnalysisInFlight = null;
-      });
-  }
-
-  resetTransitionCache(currentSource, nextSource);
-  if (!transitionProposal && !advancedTransition && !transitionInFlight) {
-    transitionInFlight = Promise.all([
-      window.api.player.suggestTransition(currentSource, nextSource),
-      window.api.player.suggestLongMix(currentSource, nextSource),
-    ])
-      .then(([transition, longMix]) => {
-        if (token !== cancelToken || transitionKey !== `${currentSource}>>${nextSource}`) return;
-        transitionProposal = transition.success ? (transition.data ?? null) : null;
-        advancedTransition = longMix.success ? (longMix.data ?? null) : null;
-      })
-      .catch((error) => {
-        console.warn("[automix] transition analysis failed", error);
-      })
-      .finally(() => {
-        if (transitionKey === `${currentSource}>>${nextSource}`) transitionInFlight = null;
-      });
-  }
-
-  await settleBeforeDeadline(
-    [currentAnalysisInFlight, nextAnalysisInFlight, transitionInFlight].filter(
-      (promise): promise is Promise<void> => promise !== null,
-    ),
-  );
+  const analyzeTime = clampAnalyzeTime();
+  pairAnalysisInFlight = window.api.player
+    .analyzePair(currentSource, nextSource, analyzeTime)
+    .then((result) => {
+      if (token !== cancelToken || pairKey !== key) return;
+      const data = result.success ? (result.data ?? null) : null;
+      if (data) {
+        currentAnalysis = data.current;
+        nextAnalysis = data.next;
+        transitionProposal = data.transition;
+        advancedTransition = data.long_mix;
+      }
+    })
+    .catch((error: unknown) => {
+      console.warn("[automix] pair analysis failed", error);
+    })
+    .finally(() => {
+      if (pairKey === key) pairAnalysisInFlight = null;
+    });
 };
 
 const applyAggressiveOutro = (
@@ -237,11 +184,11 @@ const computePlan = (
   nextSource: string,
   durationSec: number,
 ): AutomixPlan => {
-  const current = currentAnalysisKey === currentSource ? currentAnalysis : null;
-  const next = nextAnalysisKey === nextSource ? nextAnalysis : null;
-  const transition =
-    transitionKey === `${currentSource}>>${nextSource}` ? transitionProposal : null;
-  const advanced = transitionKey === `${currentSource}>>${nextSource}` ? advancedTransition : null;
+  const expectedKey = `${currentSource}>>${nextSource}`;
+  const current = pairKey === expectedKey ? currentAnalysis : null;
+  const next = pairKey === expectedKey ? nextAnalysis : null;
+  const transition = pairKey === expectedKey ? transitionProposal : null;
+  const advanced = pairKey === expectedKey ? advancedTransition : null;
 
   const canUseAdvanced =
     advanced &&
@@ -326,7 +273,7 @@ const computePlan = (
     }
   }
 
-  if (!canUseAdvanced && canTrustExitPoint && current) {
+  if (!advanced && !usedTransition && canTrustExitPoint && current) {
     const outro = applyAggressiveOutro(current, triggerTime, crossfadeDuration, exitPoint);
     if (outro) {
       triggerTime = outro.triggerTime;
@@ -357,16 +304,12 @@ const computePlan = (
 /** 取消当前自动混音调度 */
 export const cancelAutomix = (): void => {
   cancelToken++;
-  currentAnalysisKey = null;
+  pairKey = null;
   currentAnalysis = null;
-  currentAnalysisInFlight = null;
-  nextAnalysisKey = null;
   nextAnalysis = null;
-  nextAnalysisInFlight = null;
-  transitionKey = null;
   transitionProposal = null;
   advancedTransition = null;
-  transitionInFlight = null;
+  pairAnalysisInFlight = null;
   scheduledPlan = null;
   transitioning = false;
 };
@@ -402,14 +345,23 @@ export const tickAutomix = async (
     (remaining <= FALLBACK_DURATION_SEC * 1000 ? await preloadNextTrack() : null);
   if (!prepared || prepared.track.cuePath) return "idle";
 
+  // 预载完成后立即后台启动分析，不 await，让分析在后台运行
+  kickPairAnalysis(status.currentSource, prepared.source);
+
   const durationSec = status.duration / 1000;
   const planKey = `${status.currentSource}|${prepared.source}|${prepared.track.id}|${prepared.index}`;
-  if (
+  const planStale =
     !scheduledPlan ||
     planKey !==
-      `${status.currentSource}|${prepared.source}|${scheduledPlan.track.id}|${scheduledPlan.index}`
-  ) {
-    await ensureAnalysisReady(status.currentSource, prepared.source);
+      `${status.currentSource}|${prepared.source}|${scheduledPlan.track.id}|${scheduledPlan.index}`;
+
+  if (planStale) {
+    // 分析仍在飞行中且距曲末还有充足时间：推迟计划生成，等分析完成后会更准确
+    const analysisRunning = !!pairAnalysisInFlight;
+    const mustDecideNow = remaining <= PLAN_DEADLINE_MS + FALLBACK_DURATION_SEC * 1000;
+    if (analysisRunning && !mustDecideNow) {
+      return "idle";
+    }
     scheduledPlan = computePlan(
       prepared.track,
       prepared.index,

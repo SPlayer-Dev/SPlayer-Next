@@ -61,6 +61,9 @@ const api = {
     // 计算两首歌的长段混音建议
     suggestLongMix: (currentPath: string, nextPath: string) =>
       ipcRenderer.invoke("player:suggestLongMix", currentPath, nextPath),
+    // 单次双曲分析：一次调用同时得到两轨分析结果与过渡建议
+    analyzePair: (currentPath: string, nextPath: string, currentMaxTimeSec?: number) =>
+      ipcRenderer.invoke("player:analyzePair", currentPath, nextPath, currentMaxTimeSec),
     // 取消下一首预载
     cancelPreload: () => ipcRenderer.invoke("player:cancelPreload"),
     // 恢复播放
