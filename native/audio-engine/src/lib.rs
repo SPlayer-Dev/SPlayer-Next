@@ -12,6 +12,7 @@ mod logger;
 mod loudness;
 mod metadata;
 mod player;
+mod priority;
 mod scanner;
 mod shared;
 mod source;
@@ -73,6 +74,7 @@ pub fn init_logger(log_dir: String, is_dev: bool) {
     INIT.call_once(|| {
         logger::init_logger(&log_dir, is_dev);
         ffmpeg_audio::log::set_log_level(ffmpeg_audio::sys::LogLevel::Fatal);
+        priority::configure_process_priority();
         info!(log_dir, is_dev, "audio-engine 日志系统已初始化");
     });
 }
@@ -620,7 +622,13 @@ impl AudioPlayer {
             let shared = Shared::new(output_sample_rate, decoder::TARGET_CHANNELS);
             shared.set_normalization_enabled(normalization_enabled);
             shared.set_normalization_gain(normalization_gain);
-            let handle = decoder::resume_decode(decoder_data, Arc::clone(&shared));
+            let handle = match decoder::resume_decode(decoder_data, Arc::clone(&shared)) {
+                Ok(handle) => handle,
+                Err(err) => {
+                    warn!(error = %err, "seek 后启动解码线程失败，回退到重新加载");
+                    return SeekOutcome::Fallback;
+                }
+            };
             SeekOutcome::Resumed { shared, handle }
         })
         .await

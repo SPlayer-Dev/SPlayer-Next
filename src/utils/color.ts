@@ -2,7 +2,6 @@ import {
   argbFromHex,
   themeFromSourceColor,
   QuantizerCelebi,
-  Score,
   Hct,
   type Theme,
 } from "@material/material-color-utilities";
@@ -12,6 +11,14 @@ import { useThemeStore } from "@/stores/theme";
 
 /** 默认主色 */
 export const DEFAULT_PRIMARY = "#fe7971";
+/** 封面取色竞态 token */
+let coverColorToken = 0;
+/** 封面取样大小 */
+const COVER_SAMPLE_SIZE = 64;
+/** 封面边缘留白 */
+const COVER_EDGE_MARGIN = 3;
+/** 封面最小色度 */
+const MIN_COVER_CHROMA = 8;
 
 /** 将 ARGB 整数转为 HEX 字符串 */
 const argbToHex = (argb: number): string => {
@@ -19,6 +26,58 @@ const argbToHex = (argb: number): string => {
   const g = (argb >> 8) & 0xff;
   const b = argb & 0xff;
   return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+};
+
+/** 根据位置给中心主体区域更高权重，降低边框和角落装饰干扰 */
+const sampleWeight = (x: number, y: number): number => {
+  const center = (COVER_SAMPLE_SIZE - 1) / 2;
+  const dx = (x - center) / center;
+  const dy = (y - center) / center;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  if (distance < 0.34) return 3;
+  if (distance < 0.58) return 2;
+  return 1;
+};
+
+/** 从量化后的候选中选封面代表色 */
+const pickRepresentativeCoverColor = (colors: Map<number, number>): number | null => {
+  const entries = Array.from(colors);
+  if (entries.length === 0) return null;
+  const maxCount = Math.max(...entries.map(([, count]) => count));
+
+  let best: number | null = null;
+  let bestScore = 0;
+  for (const [argb, count] of entries) {
+    const hct = Hct.fromInt(argb);
+    if (hct.chroma < MIN_COVER_CHROMA) continue;
+    if (hct.tone < 10 || hct.tone > 94) continue;
+
+    const populationScore = Math.pow(count / maxCount, 0.72);
+    const chromaScore = Math.min(hct.chroma / 52, 1);
+    const toneScore = Math.max(0, 1 - Math.abs(hct.tone - 58) / 58);
+    const score = populationScore * 0.58 + chromaScore * 0.28 + toneScore * 0.14;
+    if (score > bestScore) {
+      best = argb;
+      bestScore = score;
+    }
+  }
+  return best;
+};
+
+/** 把真实代表色约束到适合作为背景基色的范围 */
+const toCoverBaseColor = (argb: number): string => {
+  const hct = Hct.fromInt(argb);
+  const tone = Math.min(72, Math.max(28, hct.tone));
+  const chroma = Math.min(64, Math.max(12, hct.chroma));
+  return argbToHex(Hct.from(hct.hue, chroma, tone).toInt());
+};
+
+/** 从封面代表色派生播放器前景 UI 色 */
+const toCoverUiColor = (hex: string): string => {
+  const hct = Hct.fromInt(argbFromHex(hex));
+  const tone = 88;
+  const chroma = Math.min(30, Math.max(14, hct.chroma * 0.48));
+  return argbToHex(Hct.from(hct.hue, chroma, tone).toInt());
 };
 
 /** 将 HEX 字符串转为 "R G B" 字符串 */
@@ -123,30 +182,35 @@ export const extractColorFromImage = (img: HTMLImageElement | null): void => {
  */
 export const extractColorFromUrl = (url: string | null): void => {
   const themeStore = useThemeStore();
+  const token = ++coverColorToken;
   if (!url || !useSettingsStore().player.followCoverColor) {
     themeStore.coverColor = null;
     return;
   }
   if (/^https?:\/\//i.test(url)) {
-    void loadColorFromRemote(url);
+    void loadColorFromRemote(url, token);
     return;
   }
   const img = new Image();
   img.crossOrigin = "anonymous";
   img.onload = () => {
+    if (token !== coverColorToken || !useSettingsStore().player.followCoverColor) return;
     themeStore.coverColor = extractColorFromImageElement(img);
   };
   img.onerror = () => {
+    if (token !== coverColorToken) return;
     themeStore.coverColor = null;
   };
   img.src = url;
 };
 
 /** 跨域封面：主进程拉字节 → blob URL → 同源 canvas 取色 */
-const loadColorFromRemote = async (url: string): Promise<void> => {
+const loadColorFromRemote = async (url: string, token: number): Promise<void> => {
+  const settings = useSettingsStore();
   const themeStore = useThemeStore();
   try {
     const result = await window.api.system.fetchRemoteBytes(url);
+    if (token !== coverColorToken || !settings.player.followCoverColor) return;
     if (!result.success || !result.data) {
       themeStore.coverColor = null;
       return;
@@ -155,15 +219,24 @@ const loadColorFromRemote = async (url: string): Promise<void> => {
     const blobUrl = URL.createObjectURL(blob);
     const img = new Image();
     img.onload = () => {
+      if (token !== coverColorToken || !settings.player.followCoverColor) {
+        URL.revokeObjectURL(blobUrl);
+        return;
+      }
       themeStore.coverColor = extractColorFromImageElement(img);
       URL.revokeObjectURL(blobUrl);
     };
     img.onerror = () => {
+      if (token !== coverColorToken) {
+        URL.revokeObjectURL(blobUrl);
+        return;
+      }
       themeStore.coverColor = null;
       URL.revokeObjectURL(blobUrl);
     };
     img.src = blobUrl;
   } catch {
+    if (token !== coverColorToken) return;
     themeStore.coverColor = null;
   }
 };
@@ -188,15 +261,25 @@ export const extractColorFromImageUrl = (url: string): Promise<string | null> =>
  */
 const extractColorFromImageElement = (img: HTMLImageElement): string | null => {
   const canvas = document.createElement("canvas");
-  canvas.width = 50;
-  canvas.height = 50;
+  canvas.width = COVER_SAMPLE_SIZE;
+  canvas.height = COVER_SAMPLE_SIZE;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) return null;
-  ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, 50, 50);
-  // 跨域无 CORS 头会污染 canvas，getImageData 抛 SecurityError → 静默放弃提色
+  // 跨域无 CORS 头会污染 canvas；图片状态异常时 drawImage 也可能抛错
   let data: Uint8ClampedArray;
   try {
-    data = ctx.getImageData(0, 0, 50, 50).data;
+    ctx.drawImage(
+      img,
+      0,
+      0,
+      img.naturalWidth,
+      img.naturalHeight,
+      0,
+      0,
+      COVER_SAMPLE_SIZE,
+      COVER_SAMPLE_SIZE,
+    );
+    data = ctx.getImageData(0, 0, COVER_SAMPLE_SIZE, COVER_SAMPLE_SIZE).data;
   } catch {
     canvas.width = 0;
     canvas.height = 0;
@@ -204,9 +287,16 @@ const extractColorFromImageElement = (img: HTMLImageElement): string | null => {
   }
   // RGBA → ARGB int
   const pixels: number[] = [];
-  for (let i = 0; i < data.length; i += 4) {
-    pixels.push(((data[i + 3] << 24) | (data[i] << 16) | (data[i + 1] << 8) | data[i + 2]) >>> 0);
+  for (let y = COVER_EDGE_MARGIN; y < COVER_SAMPLE_SIZE - COVER_EDGE_MARGIN; y++) {
+    for (let x = COVER_EDGE_MARGIN; x < COVER_SAMPLE_SIZE - COVER_EDGE_MARGIN; x++) {
+      const i = (y * COVER_SAMPLE_SIZE + x) * 4;
+      if (data[i + 3] < 16) continue;
+      const argb = ((data[i + 3] << 24) | (data[i] << 16) | (data[i + 1] << 8) | data[i + 2]) >>> 0;
+      const weight = sampleWeight(x, y);
+      for (let j = 0; j < weight; j++) pixels.push(argb);
+    }
   }
+  if (pixels.length === 0) return null;
   const quantized = QuantizerCelebi.quantize(pixels, 128);
   const sorted = Array.from(quantized).sort((a, b) => b[1] - a[1]);
   // 单调检测：前 5 色 RGB 分量差值均 < 8 → 灰度图
@@ -214,18 +304,12 @@ const extractColorFromImageElement = (img: HTMLImageElement): string | null => {
     .slice(0, 5)
     .map(([argb]) => [(argb >> 16) & 0xff, (argb >> 8) & 0xff, argb & 0xff]);
   if (top5.every((c) => Math.max(...c) - Math.min(...c) < 8)) return null;
-  // Score 评分取最佳色
-  const ranked = Score.score(new Map(sorted.slice(0, 50)));
-  // 彩度检测：scored 色的 chroma 过低说明实际无有效彩色
-  const scoredHct = Hct.fromInt(ranked[0]);
-  if (scoredHct.chroma < 6) return null;
-  // 经 Material 主题提取 secondary 色相后提亮至 tone 90
-  const materialTheme: Theme = themeFromSourceColor(ranked[0]);
-  const { hue, chroma } = materialTheme.palettes.secondary;
+  const picked = pickRepresentativeCoverColor(new Map(sorted.slice(0, 50)));
+  if (!picked) return null;
   // 释放 canvas GPU 资源
   canvas.width = 0;
   canvas.height = 0;
-  return argbToHex(Hct.from(hue, chroma, 90).toInt());
+  return toCoverBaseColor(picked);
 };
 
 /**
@@ -241,6 +325,10 @@ export const applyThemeToDOM = (
     const cssVar = `--s-${key.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`)}`;
     root.style.setProperty(cssVar, value);
   }
-  root.style.setProperty("--s-cover", coverColorHex ? hexToRgb(coverColorHex) : "239 239 239");
+  root.style.setProperty(
+    "--s-cover",
+    coverColorHex ? hexToRgb(toCoverUiColor(coverColorHex)) : "239 239 239",
+  );
+  root.style.setProperty("--s-cover-base", coverColorHex ? hexToRgb(coverColorHex) : "20 20 28");
   root.classList.toggle("dark", isDark);
 };

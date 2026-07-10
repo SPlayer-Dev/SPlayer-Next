@@ -110,6 +110,7 @@ export default defineConfig({
       outline: "rgb(var(--s-outline) / <alpha-value>)",
       "outline-variant": "rgb(var(--s-outline-variant) / <alpha-value>)",
       cover: "rgb(var(--s-cover) / <alpha-value>)",
+      "cover-base": "rgb(var(--s-cover-base) / <alpha-value>)",
     },
   },
 });

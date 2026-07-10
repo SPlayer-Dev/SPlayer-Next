@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { useSettingsStore } from "@/stores/settings";
-import { useThemeStore } from "@/stores/theme";
 import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
 import DEFAULT_COVER from "@/assets/images/song.jpg";
@@ -8,7 +7,6 @@ import BackgroundRender from "./BackgroundRender.vue";
 
 const media = useMediaStore();
 const settings = useSettingsStore();
-const theme = useThemeStore();
 const status = useStatusStore();
 
 const bgType = computed(() => settings.player.playerBgType as string);
@@ -48,16 +46,6 @@ const bgPlaying = computed(() => {
   if (!status.isExpanded) return false;
   if (!status.isPlaying && settings.player.playerBgFreezeOnPause) return false;
   return true;
-});
-
-// 封面颜色（纯色模式）
-const coverColor = computed(() => {
-  const hex = theme.coverColor;
-  if (!hex) return "20, 20, 28";
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `${r}, ${g}, ${b}`;
 });
 
 // 模糊模式：双缓冲层，切歌时交叉淡入淡出
@@ -123,7 +111,7 @@ onBeforeUnmount(() => {
 <template>
   <!-- 纯色背景 -->
   <div class="absolute inset-0 overflow-hidden -z-1 bg-solid-wrap">
-    <div class="color" :style="{ backgroundColor: `rgb(${coverColor})` }" />
+    <div class="color bg-cover-base" />
   </div>
   <!-- 模糊背景 -->
   <Transition v-if="bgType === 'blur'" name="bg-fade">

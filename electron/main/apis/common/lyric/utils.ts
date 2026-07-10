@@ -27,6 +27,45 @@ export const normalize = (text: string | undefined | null): string => {
 const bothContains = (left: string, right: string): boolean =>
   left.length > 0 && right.length > 0 && (left.includes(right) || right.includes(left));
 
+/** 拆分候选歌手文本 */
+const splitArtists = (text: string | undefined | null): string[] =>
+  (text ?? "")
+    .split(/[、&;，,/|·・]+/g)
+    .map(normalize)
+    .filter(Boolean);
+
+/** Track 全部歌手归一化 */
+export const normalizeTrackArtists = (track: Track): string[] =>
+  track.artists.map((artist) => normalize(artist.name)).filter(Boolean);
+
+/** 搜索关键词用全部歌手，减少平台返回同名异歌手候选 */
+export const buildLyricSearchKeyword = (track: Track): string =>
+  [track.title, track.artists.map((artist) => artist.name).join(" ")]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" ");
+
+/** 歌手是否有可用交集 */
+const artistMatches = (
+  candidateArtist: string | undefined | null,
+  trackArtists: readonly string[],
+): { exact: boolean; contains: boolean } => {
+  if (trackArtists.length === 0) return { exact: false, contains: false };
+  const candFull = normalize(candidateArtist);
+  const candParts = splitArtists(candidateArtist);
+  if (!candFull) return { exact: false, contains: false };
+  const exact = trackArtists.some(
+    (artist) => candFull === artist || candParts.some((part) => part === artist),
+  );
+  if (exact) return { exact: true, contains: false };
+  const contains = trackArtists.some(
+    (artist) =>
+      artist.length >= 2 &&
+      (bothContains(candFull, artist) || candParts.some((part) => bothContains(part, artist))),
+  );
+  return { exact: false, contains };
+};
+
 /** 时长是否在容差内（ms） */
 const durationClose = (leftMs?: number, rightMs?: number, tolMs = 5000): boolean => {
   if (!leftMs || !rightMs) return false;
@@ -53,7 +92,7 @@ const NAME_CONTAIN_MIN_RATIO = 0.34;
  * 硬性条件（不满足直接跳过）
  *  - name 全等，或双向 includes 且短串占长串比例 ≥ NAME_CONTAIN_MIN_RATIO
  *  - 双方都给了 duration 时，差距不能超过 20s
- *  - name 仅子串命中（非全等）时，必须有 artist 交集佐证；name 全等则不要求（保留翻唱）
+ *  - track 有 artist 时，候选必须命中至少一个 artist，避免同名异歌手误匹配
  *
  * 打分规则（分数越高越优先）
  *  - name 全等：+10；name 子串命中：+4
@@ -66,7 +105,7 @@ export const pickBestCandidate = <E>(
   track: Track,
 ): LyricCandidate<E> | null => {
   const trackName = normalize(track.title);
-  const trackArtist = normalize(track.artists[0]?.name);
+  const trackArtists = normalizeTrackArtists(track);
   const trackAlbum = normalize(track.album?.name);
   const trackDuration = track.duration;
 
@@ -75,7 +114,6 @@ export const pickBestCandidate = <E>(
 
   for (const candidate of candidates) {
     const candName = normalize(candidate.name);
-    const candArtist = normalize(candidate.artist);
     const candAlbum = normalize(candidate.album);
 
     const nameExact = candName.length > 0 && candName === trackName;
@@ -88,14 +126,21 @@ export const pickBestCandidate = <E>(
 
     if (durationFar(candidate.duration, trackDuration)) continue;
 
-    const artistExact = trackArtist.length > 0 && candArtist === trackArtist;
-    const artistContains = !artistExact && bothContains(candArtist, trackArtist);
-    // 置信度地板：name 仅子串命中时 artist 必须有交集，否则视为巧合 substring 丢弃
-    if (!nameExact && !artistExact && !artistContains) continue;
+    const artist = artistMatches(candidate.artist, trackArtists);
+    if (trackArtists.length > 0 && !artist.exact && !artist.contains) continue;
+    // 置信度地板：name 仅子串命中时必须有 artist 或时长佐证，否则视为巧合 substring 丢弃
+    if (
+      !nameExact &&
+      !artist.exact &&
+      !artist.contains &&
+      !durationClose(candidate.duration, trackDuration)
+    ) {
+      continue;
+    }
 
     let score = nameExact ? 10 : 4;
-    if (artistExact) score += 5;
-    else if (artistContains) score += 2;
+    if (artist.exact) score += 5;
+    else if (artist.contains) score += 2;
     if (trackAlbum && candAlbum === trackAlbum) score += 2;
     if (durationClose(candidate.duration, trackDuration)) score += 3;
 

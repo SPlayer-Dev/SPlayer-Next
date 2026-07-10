@@ -7,7 +7,7 @@ use rodio::Source;
 
 use crate::equalizer::Equalizer;
 use crate::fft::FftAnalyzer;
-use crate::shared::Shared;
+use crate::shared::{PopResult, Shared};
 use crate::tempo::StretchProcessor;
 
 struct BiquadHighPass {
@@ -41,6 +41,7 @@ impl BiquadHighPass {
 
 const OUTPUT_CEILING: f32 = 0.98;
 const LIMITER_RELEASE: f32 = 0.0005;
+const UNDERRUN_SILENCE_MS: u32 = 20;
 
 struct OutputLimiter {
     gain: f32,
@@ -71,7 +72,7 @@ impl OutputLimiter {
 }
 
 /// rodio 音频源，从共享缓冲区拉取样本。
-/// 使用 condvar 阻塞等待数据，不会返回静音填充。
+/// 使用非阻塞 try_pop；解码暂时跟不上时输出短静音垫片。
 pub struct DecoderSource {
     shared: Arc<Shared>,
     fft: Arc<FftAnalyzer>,
@@ -92,6 +93,8 @@ pub struct DecoderSource {
     tempo_scratch: Vec<f32>,
     high_pass_left: BiquadHighPass,
     high_pass_right: BiquadHighPass,
+    /// 解码暂时跟不上时输出的短静音垫片，避免阻塞实时输出链路
+    underrun_silence_remaining: usize,
     limiter: OutputLimiter,
     sample_rate: u32,
     channels: u16,
@@ -120,6 +123,7 @@ impl DecoderSource {
             tempo_scratch: Vec::new(),
             high_pass_left: BiquadHighPass::new(),
             high_pass_right: BiquadHighPass::new(),
+            underrun_silence_remaining: 0,
             limiter: OutputLimiter::new(),
             sample_rate,
             channels,
@@ -131,7 +135,8 @@ impl DecoderSource {
             return;
         }
         self.batch_output_emitted += 1;
-        let target = self.batch_source_samples * self.batch_output_emitted / self.batch_output_samples;
+        let target =
+            self.batch_source_samples * self.batch_output_emitted / self.batch_output_samples;
         let advance = target.saturating_sub(self.batch_source_advanced);
         if advance > 0 {
             self.shared.advance_consumed(advance);
@@ -191,46 +196,60 @@ impl Iterator for DecoderSource {
         if let Some(sample) = self.next_buffered_sample() {
             return Some(sample);
         }
+        if self.underrun_silence_remaining > 0 {
+            self.underrun_silence_remaining -= 1;
+            return Some(0.0);
+        }
 
-        // 慢速路径：从共享缓冲区阻塞获取，跳过空数据块
+        // 慢速路径：从共享缓冲区非阻塞获取，跳过空数据块
         loop {
-            if let Some(chunk) = self.shared.pop() {
-                // 将 FFT 样本推送给分析器
-                if !chunk.fft_samples.is_empty() {
-                    self.fft.push_samples(&chunk.fft_samples);
-                }
-
-                // 填充本地缓冲，一次性批量计数（而非逐采样）
-                if !chunk.player_samples.is_empty() {
-                    let mut samples = chunk.player_samples;
-                    self.apply_high_pass_automation(&mut samples);
-                    // 对整 chunk 应用 EQ：每秒只锁 50~100 次，开销摊到几千个样本上
-                    self.equalizer
-                        .lock()
-                        .process_interleaved_stereo(&mut samples);
-                    let source_count = samples.len() as u64;
-                    self.pending_source_samples += source_count;
-                    self.tempo_scratch.clear();
-                    self.tempo.lock().process(&samples, &mut self.tempo_scratch);
-                    if !self.tempo_scratch.is_empty() {
-                        self.limiter.process(&mut self.tempo_scratch);
-                        self.batch_source_samples = self.pending_source_samples;
-                        self.batch_output_samples = self.tempo_scratch.len() as u64;
-                        self.batch_output_emitted = 0;
-                        self.batch_source_advanced = 0;
-                        self.pending_source_samples = 0;
-                        self.local_buffer.extend(self.tempo_scratch.drain(..));
+            match self.shared.try_pop() {
+                PopResult::Chunk(chunk) => {
+                    if !chunk.fft_samples.is_empty() {
+                        self.fft.push_samples(&chunk.fft_samples);
                     }
-                    let Some(sample) = self.next_buffered_sample() else {
-                        continue;
-                    };
-                    return Some(sample);
+
+                    // 填充本地缓冲，一次性批量计数（而非逐采样）
+                    if !chunk.player_samples.is_empty() {
+                        let mut samples = chunk.player_samples;
+                        self.apply_high_pass_automation(&mut samples);
+                        // 对整 chunk 应用 EQ：每秒只锁 50~100 次，开销摊到几千个样本上
+                        self.equalizer
+                            .lock()
+                            .process_interleaved_stereo(&mut samples);
+                        let source_count = samples.len() as u64;
+                        self.pending_source_samples += source_count;
+                        self.tempo_scratch.clear();
+                        self.tempo.lock().process(&samples, &mut self.tempo_scratch);
+                        if !self.tempo_scratch.is_empty() {
+                            self.limiter.process(&mut self.tempo_scratch);
+                            self.batch_source_samples = self.pending_source_samples;
+                            self.batch_output_samples = self.tempo_scratch.len() as u64;
+                            self.batch_output_emitted = 0;
+                            self.batch_source_advanced = 0;
+                            self.pending_source_samples = 0;
+                            self.local_buffer.extend(self.tempo_scratch.drain(..));
+                        }
+                        let Some(sample) = self.next_buffered_sample() else {
+                            continue;
+                        };
+                        return Some(sample);
+                    }
+                    // 空数据块（重采样器预热期），继续获取下一个
                 }
-                // 空数据块（重采样器预热期），继续获取下一个
-            } else {
-                // 数据源耗尽，标记消费完毕
-                self.shared.mark_all_consumed();
-                return None;
+                PopResult::Pending => {
+                    let silence_samples = (u64::from(self.sample_rate)
+                        * u64::from(self.channels)
+                        * u64::from(UNDERRUN_SILENCE_MS)
+                        / 1000) as usize;
+                    self.underrun_silence_remaining = silence_samples.saturating_sub(1);
+                    return Some(0.0);
+                }
+                PopResult::Finished => {
+                    // 数据源耗尽，标记消费完毕
+                    self.shared.mark_all_consumed();
+                    return None;
+                }
             }
         }
     }
@@ -308,5 +327,29 @@ mod tests {
         assert!((source.next().unwrap() + 0.1).abs() < 1e-6);
         assert!((source.next().unwrap() - 0.98).abs() < 1e-6);
         assert!((source.next().unwrap() + 0.98).abs() < 1e-6);
+    }
+
+    #[test]
+    fn returns_short_silence_when_decoder_temporarily_underruns() {
+        let shared = Shared::new(1000, 2);
+        let mut source = DecoderSource::new(
+            Arc::clone(&shared),
+            Arc::new(FftAnalyzer::new(1000)),
+            Arc::new(Mutex::new(Equalizer::new(1000))),
+            Arc::new(Mutex::new(StretchProcessor::new(2, 1000))),
+            1000,
+            2,
+        );
+
+        assert_eq!(source.next(), Some(0.0));
+        shared.push(AudioChunk {
+            player_samples: vec![0.25, -0.25],
+            fft_samples: Vec::new(),
+        });
+        for _ in 0..39 {
+            assert_eq!(source.next(), Some(0.0));
+        }
+        assert_eq!(source.next(), Some(0.25));
+        assert_eq!(source.next(), Some(-0.25));
     }
 }

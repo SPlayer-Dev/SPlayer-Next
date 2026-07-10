@@ -11,6 +11,7 @@ use tracing::debug;
 use crate::http_source;
 use crate::loudness::LoudnessAnalyzer;
 use crate::metadata;
+use crate::priority;
 use crate::shared::{AudioChunk, AudioMetadata, Shared};
 
 /// 播放输出目标格式（重采样后送入 rodio）
@@ -128,15 +129,19 @@ pub fn start_decode(
         interrupt_flag,
     };
 
-    let handle = thread::spawn(move || {
-        let mut data = data;
-        // panic 兜底：让 mark_eof 一定被调到，避免前端永远收不到 ended 卡死
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            run_decoding_loop(&mut data, &shared);
-        }));
-        shared.mark_eof();
-        data
-    });
+    let handle = thread::Builder::new()
+        .name("audio-decoder".to_string())
+        .spawn(move || {
+            priority::boost_current_audio_thread("audio-decoder");
+            let mut data = data;
+            // panic 兜底：让 mark_eof 一定被调到，避免前端永远收不到 ended 卡死
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                run_decoding_loop(&mut data, &shared);
+            }));
+            shared.mark_eof();
+            data
+        })
+        .context("启动解码线程失败")?;
 
     Ok((metadata, handle))
 }
@@ -167,18 +172,22 @@ pub fn start_decode_at(
 }
 
 /// 用已有的 DecoderData 继续解码（seek 后复用）
-pub fn resume_decode(data: DecoderData, shared: Arc<Shared>) -> JoinHandle<DecoderData> {
+pub fn resume_decode(data: DecoderData, shared: Arc<Shared>) -> Result<JoinHandle<DecoderData>> {
     if let Some(flag) = data.interrupt_handle() {
         shared.bind_interrupt(flag);
     }
-    thread::spawn(move || {
-        let mut data = data;
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            run_decoding_loop(&mut data, &shared);
-        }));
-        shared.mark_eof();
-        data
-    })
+    thread::Builder::new()
+        .name("audio-decoder".to_string())
+        .spawn(move || {
+            priority::boost_current_audio_thread("audio-decoder");
+            let mut data = data;
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                run_decoding_loop(&mut data, &shared);
+            }));
+            shared.mark_eof();
+            data
+        })
+        .context("启动解码线程失败")
 }
 
 /// 根据 source 协议打开音频：http(s) 走 HttpRangeSource + 拿 cancel flag，其他走本地 File

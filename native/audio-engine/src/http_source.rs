@@ -122,6 +122,8 @@ pub struct HttpRangeSource {
     stream: Option<Box<dyn Read + Send + Sync>>,
     cancel: Arc<AtomicBool>,
     config: Config,
+    reconnect_failures: u32,
+    terminal_error: Option<String>,
 }
 
 /// 按指定 connect 超时构建 agent；read/write 超时统一取自 config
@@ -185,6 +187,8 @@ impl HttpRangeSource {
             stream: Some(resp.into_reader()),
             cancel: Arc::new(AtomicBool::new(false)),
             config,
+            reconnect_failures: 0,
+            terminal_error: None,
         })
     }
 
@@ -199,6 +203,33 @@ impl HttpRangeSource {
         } else {
             Ok(())
         }
+    }
+
+    fn check_terminal_error(&self) -> io::Result<()> {
+        if let Some(error) = &self.terminal_error {
+            Err(io::Error::other(error.clone()))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn set_terminal_error(&mut self, error: io::Error) -> io::Error {
+        let kind = error.kind();
+        let message = error.to_string();
+        self.set_terminal_message(kind, message)
+    }
+
+    fn set_terminal_message(&mut self, kind: io::ErrorKind, message: String) -> io::Error {
+        self.terminal_error = Some(message.clone());
+        io::Error::new(kind, message)
+    }
+
+    fn next_retry_attempt(&mut self, error: &io::Error) -> io::Result<u32> {
+        if self.reconnect_failures >= self.config.max_reconnect_attempts {
+            return Err(self.set_terminal_message(error.kind(), error.to_string()));
+        }
+        self.reconnect_failures += 1;
+        Ok(self.reconnect_failures)
     }
 
     /// 单次尝试开 stream 到当前 pos。不内部重试，由调用方按 OpenOutcome 决定后续
@@ -286,24 +317,21 @@ impl HttpRangeSource {
 impl Read for HttpRangeSource {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.check_cancel()?;
+        self.check_terminal_error()?;
         if self.pos >= self.total_size || buf.is_empty() {
             return Ok(0);
         }
 
-        let mut attempts: u32 = 0;
-        let max = self.config.max_reconnect_attempts;
         loop {
             self.check_cancel()?;
+            self.check_terminal_error()?;
 
             if self.stream.is_none() {
                 match self.open_stream() {
                     OpenOutcome::Ok => {}
-                    OpenOutcome::Fatal(e) => return Err(e),
+                    OpenOutcome::Fatal(e) => return Err(self.set_terminal_error(e)),
                     OpenOutcome::Retryable { error, retry_after } => {
-                        if attempts >= max {
-                            return Err(error);
-                        }
-                        attempts += 1;
+                        let attempts = self.next_retry_attempt(&error)?;
                         let wait = retry_after
                             .map(|d| d.min(self.config.retry_after_max))
                             .unwrap_or_else(|| self.backoff_delay(attempts));
@@ -327,13 +355,9 @@ impl Read for HttpRangeSource {
                     }
                     // 同样计入重连次数并退避：服务端持续返回合法但空 body 的响应
                     //（如文件被替换变短）时，不计数会变成全速重连死循环
-                    if attempts >= max {
-                        return Err(io::Error::new(
-                            io::ErrorKind::UnexpectedEof,
-                            "提前 EOF 且重连次数耗尽",
-                        ));
-                    }
-                    attempts += 1;
+                    let error =
+                        io::Error::new(io::ErrorKind::UnexpectedEof, "提前 EOF 且重连次数耗尽");
+                    let attempts = self.next_retry_attempt(&error)?;
                     let wait = self.backoff_delay(attempts);
                     debug!(
                         pos = self.pos,
@@ -346,6 +370,7 @@ impl Read for HttpRangeSource {
                 }
                 Ok(n) => {
                     self.pos += n as u64;
+                    self.reconnect_failures = 0;
                     return Ok(n);
                 }
                 Err(e) if e.kind() == io::ErrorKind::Interrupted => {
@@ -354,10 +379,7 @@ impl Read for HttpRangeSource {
                 }
                 Err(e) => {
                     self.stream = None;
-                    if attempts >= max {
-                        return Err(e);
-                    }
-                    attempts += 1;
+                    let attempts = self.next_retry_attempt(&e)?;
                     let wait = self.backoff_delay(attempts);
                     warn!(error = %e, attempts, wait_ms = wait.as_millis(),
                           "stream read 失败，退避重连");
@@ -390,6 +412,8 @@ impl Seek for HttpRangeSource {
         if new_pos != self.pos {
             self.stream = None;
             self.pos = new_pos;
+            self.reconnect_failures = 0;
+            self.terminal_error = None;
         }
         Ok(new_pos)
     }
@@ -562,6 +586,35 @@ mod tests {
         // 第二段反复 503 用尽重试预算 → 失败
         assert!(result.is_err());
         m_init.assert_hits(1);
+    }
+
+    #[test]
+    fn exhausted_reconnect_budget_stays_failed_across_reads() {
+        let server = MockServer::start();
+        let payload = body_n(256);
+        let total = payload.len();
+
+        let m_init = server.mock(|when, then| {
+            when.method(GET).path("/file").header("range", "bytes=0-");
+            then.status(206)
+                .header("Content-Range", format!("bytes 0-{}/{}", total - 1, total))
+                .body(&payload[..50]);
+        });
+        let m_503 = server.mock(|when, then| {
+            when.method(GET).path("/file").header("range", "bytes=50-");
+            then.status(503);
+        });
+
+        let mut src = HttpRangeSource::new_with_config(server.url("/file"), test_config()).unwrap();
+        let mut head = vec![0u8; 50];
+        src.read_exact(&mut head).unwrap();
+
+        let mut more = vec![0u8; 32];
+        assert!(src.read(&mut more).is_err());
+        assert!(src.read(&mut more).is_err());
+
+        m_init.assert_hits(1);
+        m_503.assert_hits(2);
     }
 
     #[test]
