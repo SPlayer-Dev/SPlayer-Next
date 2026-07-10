@@ -159,15 +159,26 @@ impl DecoderSource {
             return;
         }
         let base_samples = self.shared.samples_consumed_count();
+        let mut completed = false;
         for (frame_index, frame) in samples.chunks_exact_mut(2).enumerate() {
             let consumed = base_samples + frame_index as u64 * 2;
-            let cutoff = plan.cutoff_at(consumed);
-            frame[0] = self
-                .high_pass_left
-                .process(frame[0], cutoff, self.sample_rate);
-            frame[1] = self
-                .high_pass_right
-                .process(frame[1], cutoff, self.sample_rate);
+            match plan.cutoff_at(consumed) {
+                Some(cutoff) => {
+                    frame[0] = self.high_pass_left.process(frame[0], cutoff, self.sample_rate);
+                    frame[1] = self.high_pass_right.process(frame[1], cutoff, self.sample_rate);
+                }
+                None => {
+                    // FadeIn 自动化已完成，后续帧不再经过高通，同一批内不处理
+                    completed = true;
+                    break;
+                }
+            }
+        }
+        if completed {
+            self.shared.clear_high_pass_automation();
+            // 滤波器历史清零，避免下次意外复用残留状态
+            self.high_pass_left = BiquadHighPass::new();
+            self.high_pass_right = BiquadHighPass::new();
         }
     }
 }

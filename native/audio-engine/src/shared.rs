@@ -22,35 +22,38 @@ pub struct HighPassAutomation {
 }
 
 impl HighPassAutomation {
-    pub(crate) fn cutoff_at(self, consumed_samples: u64) -> f32 {
+    pub(crate) fn cutoff_at(self, consumed_samples: u64) -> Option<f32> {
         const BYPASS_FREQ: f32 = 10.0;
-        const SWAP_FREQ: f32 = 400.0;
+        const SWAP_FREQ: f32 = 150.0;
         let elapsed_samples = consumed_samples.saturating_sub(self.start_samples);
         let elapsed_ms =
             elapsed_samples as f32 * 1000.0 / self.sample_rate as f32 / self.channels as f32;
         let duration_ms = self.duration_ms.max(1) as f32;
         let mid_ms = duration_ms * 0.5;
-        match self.role {
+        let cutoff = match self.role {
             HighPassRole::FadeOut => {
                 if elapsed_ms >= mid_ms {
-                    return SWAP_FREQ;
+                    SWAP_FREQ
+                } else {
+                    let t = (elapsed_ms / mid_ms.max(1.0)).clamp(0.0, 1.0);
+                    BYPASS_FREQ + (SWAP_FREQ - BYPASS_FREQ) * t
                 }
-                let t = (elapsed_ms / mid_ms.max(1.0)).clamp(0.0, 1.0);
-                BYPASS_FREQ + (SWAP_FREQ - BYPASS_FREQ) * t
             }
             HighPassRole::FadeIn => {
                 let release_ms = (duration_ms * 0.25).min(600.0);
                 let release_end = mid_ms + release_ms;
                 if elapsed_ms <= mid_ms {
-                    return SWAP_FREQ;
+                    SWAP_FREQ
+                } else if elapsed_ms >= release_end {
+                    return None; // 已完成，清除自动化
+                } else {
+                    let t = ((elapsed_ms - mid_ms) / release_ms.max(1.0)).clamp(0.0, 1.0);
+                    SWAP_FREQ + (BYPASS_FREQ - SWAP_FREQ) * t
                 }
-                if elapsed_ms >= release_end {
-                    return BYPASS_FREQ;
-                }
-                let t = ((elapsed_ms - mid_ms) / release_ms.max(1.0)).clamp(0.0, 1.0);
-                SWAP_FREQ + (BYPASS_FREQ - SWAP_FREQ) * t
             }
-        }
+        };
+        // FadeOut 在中点后固定 SWAP_FREQ，等 Crossfade 结束槽被释放即清除
+        Some(cutoff)
     }
 }
 
@@ -170,6 +173,11 @@ impl Shared {
             duration_ms,
             role,
         });
+    }
+
+    /// 清除高通滤波自动化（FadeIn 完成后由播放线程调用）
+    pub fn clear_high_pass_automation(&self) {
+        *self.high_pass_automation.lock() = None;
     }
 
     /// 获取当前高通滤波包络快照，播放线程按 chunk 读取避免持锁处理采样

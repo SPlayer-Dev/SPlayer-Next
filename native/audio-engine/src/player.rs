@@ -785,6 +785,7 @@ impl InnerPlayer {
         start_seek_secs: f64,
         initial_rate: f32,
         mix_type: &str,
+        loudness_gain_db: f32,
     ) -> Result<Option<AudioMetadata>> {
         if token != self.load_token.load(Ordering::Acquire) {
             shared.stop();
@@ -839,10 +840,15 @@ impl InnerPlayer {
         self.start_fft_timer();
 
         let target_volume = self.target_volume;
+        let effective_target = if loudness_gain_db.abs() > 0.001 {
+            (target_volume * crate::metadata::db_to_linear(loudness_gain_db)).clamp(0.0, 2.0)
+        } else {
+            target_volume
+        };
         let cancel = Arc::new(AtomicBool::new(false));
         self.fade_cancel = Some(Arc::clone(&cancel));
         let handle = thread::spawn(move || {
-            crossfade_volume(old, sink, target_volume, duration_ms, &cancel);
+            crossfade_volume(old, sink, effective_target, duration_ms, &cancel);
         });
         self.fade_handle = Some(handle);
 

@@ -176,6 +176,21 @@ const applyAggressiveOutro = (
   };
 };
 
+const MAX_LOUDNESS_CORRECTION_DB = 6;
+
+const computeLoudnessGainDb = (
+  current: AudioAnalysis | null,
+  next: AudioAnalysis | null,
+): number => {
+  const outgoingLufs = current?.loudness ?? null;
+  const incomingLufs = next?.loudness ?? null;
+  if (outgoingLufs === null || incomingLufs === null) return 0;
+  if (!Number.isFinite(outgoingLufs) || !Number.isFinite(incomingLufs)) return 0;
+  // 旧曲比新曲响时，新曲需要升响（正值）；新曲比旧曲响时，需要降响（负值）
+  const delta = outgoingLufs - incomingLufs;
+  return Math.max(-MAX_LOUDNESS_CORRECTION_DB, Math.min(MAX_LOUDNESS_CORRECTION_DB, delta));
+};
+
 const normalizePlan = (plan: AutomixPlan, durationSec: number): AutomixPlan => {
   const crossfadeDuration = Math.max(
     MIN_CROSSFADE_SEC,
@@ -250,6 +265,7 @@ const computePlan = (
         initialRate: advanced.playback_rate,
         uiSwitchDelay: advanced.duration * 0.5,
         mixType,
+        loudnessGainDb: computeLoudnessGainDb(current, next),
       },
       durationSec,
     );
@@ -332,6 +348,7 @@ const computePlan = (
       initialRate,
       uiSwitchDelay: crossfadeDuration * 0.5,
       mixType,
+      loudnessGainDb: computeLoudnessGainDb(current, next),
     },
     durationSec,
   );

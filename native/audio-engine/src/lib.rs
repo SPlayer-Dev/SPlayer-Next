@@ -131,6 +131,9 @@ pub struct JsCrossfadeOptions {
     /// 混音策略类型
     #[napi(js_name = "mixType")]
     pub mix_type: Option<String>,
+    /// 新曲响度补偿（dB），正值升响，负值降响，限制在 ±6dB 内
+    #[napi(js_name = "loudnessGainDb")]
+    pub loudness_gain_db: Option<f64>,
 }
 
 /// 音频输出设备信息
@@ -408,7 +411,13 @@ impl AudioPlayer {
             .as_ref()
             .and_then(|o| o.mix_type.as_deref())
             .unwrap_or("default");
-        info!(source = %source, duration_ms, start_seek_secs, initial_rate, mix_type, "交叉混音到音频源");
+        let loudness_gain_db = options
+            .as_ref()
+            .and_then(|o| o.loudness_gain_db)
+            .filter(|v| v.is_finite())
+            .unwrap_or(0.0)
+            .clamp(-6.0, 6.0) as f32;
+        info!(source = %source, duration_ms, start_seek_secs, initial_rate, mix_type, loudness_gain_db, "交叉混音到音频源");
 
         let take = {
             let mut player = self.inner.lock();
@@ -490,6 +499,7 @@ impl AudioPlayer {
                     start_seek_secs,
                     initial_rate,
                     mix_type,
+                    loudness_gain_db,
                 )
                 .into_napi()?
         };

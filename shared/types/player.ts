@@ -164,6 +164,8 @@ export interface CrossfadeOptions extends LoadOptions {
   mixType?: "default" | "bassSwap";
   /** UI 与媒体状态提交延迟（毫秒） */
   uiSwitchDelayMs?: number;
+  /** 新曲响度补偿（dB），用于对齐过渡区短时响度；正值升响，负值降响 */
+  loudnessGainDb?: number;
 }
 
 /** 音频分析结果 */
@@ -236,6 +238,8 @@ export interface AutomixPlan {
   initialRate: number;
   uiSwitchDelay: number;
   mixType: "default" | "bassSwap";
+  /** 新曲相对旧曲的响度补偿（dB，正值升响，负值降响，限制 ±6dB） */
+  loudnessGainDb?: number;
 }
 
 /** 播放器状态快照 */

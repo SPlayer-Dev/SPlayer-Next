@@ -429,6 +429,7 @@ export const registerPlayerIpc = (): void => {
           startSeekMs: options.startSeekMs ?? 0,
           initialRate: options.initialRate ?? 1,
           mixType: options.mixType ?? "default",
+          loudnessGainDb: options.loudnessGainDb ?? 0,
         });
         const durationMs = toMs(meta.duration);
         const commitDelayMs = Math.max(

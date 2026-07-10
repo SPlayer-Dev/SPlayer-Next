@@ -185,6 +185,8 @@ export interface JsCrossfadeOptions {
   initialRate?: number
   /** 混音策略类型 */
   mixType?: string
+  /** 新曲响度补偿（dB），正值升响，负值降响，限制在 ±6dB 内 */
+  loudnessGainDb?: number
 }
 
 /** 一条外部歌词，返回给 JS 侧（仅格式和路径，内容按需加载） */

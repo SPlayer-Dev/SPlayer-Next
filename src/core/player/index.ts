@@ -339,6 +339,7 @@ export const crossfadeToTrack = async (
       initialRate: plan.initialRate,
       mixType: plan.mixType,
       uiSwitchDelayMs: plan.uiSwitchDelay * 1000,
+      loudnessGainDb: plan.loudnessGainDb ?? 0,
       meta: track,
     });
     if (myTrackToken !== trackToken || myLoadToken !== loadToken) return false;
