@@ -36,8 +36,13 @@ pub enum PlayerEvent {
 /// 事件发射器类型（跨线程安全）
 pub type EventEmitter = Arc<dyn Fn(PlayerEvent) + Send + Sync>;
 
-/// 渐变步数
-const FADE_STEPS: u32 = 20;
+/// 每秒渐变更新次数
+const FADE_STEPS_PER_SECOND: u64 = 100;
+const MIN_FADE_STEPS: u64 = 20;
+
+fn fade_step_count(duration_ms: u64) -> u64 {
+    ((duration_ms * FADE_STEPS_PER_SECOND) / 1000).max(MIN_FADE_STEPS)
+}
 
 /// 可取消的渐变：在独立线程中逐步调整音量，cancel 为 true 时提前退出
 fn fade_volume(sink: &Sink, from: f32, to: f32, duration_ms: u64, cancel: &AtomicBool) {
@@ -45,15 +50,14 @@ fn fade_volume(sink: &Sink, from: f32, to: f32, duration_ms: u64, cancel: &Atomi
         sink.set_volume(to);
         return;
     }
-    let step_duration = Duration::from_millis(duration_ms / u64::from(FADE_STEPS));
-    for step in 1..=FADE_STEPS {
+    let steps = fade_step_count(duration_ms);
+    let step_duration = Duration::from_micros(duration_ms * 1000 / steps);
+    for step in 1..=steps {
         if cancel.load(Ordering::Relaxed) {
             return;
         }
-        let progress = step as f32 / FADE_STEPS as f32;
+        let progress = step as f32 / steps as f32;
         sink.set_volume(from + (to - from) * progress);
-        // 分片可取消：渐变时长用户可配，长渐变的整步 sleep 会让 cancel_fade 的
-        // 同步 join 卡住最长一个步长
         sleep_unless_stopped(cancel, step_duration);
     }
 }
@@ -76,15 +80,17 @@ fn crossfade_volume(
     if duration_ms == 0 {
         new_sink.set_volume(target_volume);
     } else {
-        let step_duration = Duration::from_millis(duration_ms / u64::from(FADE_STEPS));
-        for step in 1..=FADE_STEPS {
+        let steps = fade_step_count(duration_ms);
+        let step_duration = Duration::from_micros(duration_ms * 1000 / steps);
+        for step in 1..=steps {
             if cancel.load(Ordering::Relaxed) {
                 break;
             }
-            let progress = step as f32 / FADE_STEPS as f32;
-            new_sink.set_volume(target_volume * progress);
+            let progress = step as f32 / steps as f32;
+            let angle = progress * std::f32::consts::FRAC_PI_2;
+            new_sink.set_volume(target_volume * angle.sin());
             if let Some(ref sink) = old.sink {
-                sink.set_volume(target_volume * (1.0 - progress));
+                sink.set_volume(target_volume * angle.cos());
             }
             sleep_unless_stopped(cancel, step_duration);
         }

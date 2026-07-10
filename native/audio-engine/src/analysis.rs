@@ -120,7 +120,7 @@ pub struct AdvancedTransition {
 
 const ENV_RATE: f64 = 50.0;
 const WINDOW_SIZE_MS: usize = 20;
-const ANALYSIS_VERSION: i32 = 13;
+const ANALYSIS_VERSION: i32 = 14;
 const DEFAULT_SAMPLE_RATE: u32 = 44100;
 
 // Key Detection Constants
@@ -386,6 +386,9 @@ impl TrackAnalyzer {
             }
             _ => None,
         };
+        if let Some(duration) = estimated_duration {
+            self.duration = duration;
+        }
 
         let mut decoder = symphonia::default::get_codecs()
             .make(params, &DecoderOptions::default())
@@ -394,12 +397,8 @@ impl TrackAnalyzer {
         // Phase 1: Head
         self.process_segment(&mut format, &mut decoder, track_id, true, time_base)?;
 
-        // Phase 2: Tail
         if self.include_tail {
             if let Some(tot) = estimated_duration {
-                // If total duration is significantly longer than what we analyzed + max_analyze_time
-                // We only jump if there is unanalyzed gap.
-                // Actually, logic is: analyze tail if song is long enough.
                 if tot > self.max_analyze_time * 2.0 {
                     let seek_target = tot - self.max_analyze_time;
                     let seek_time = Time::from(seek_target);
@@ -413,11 +412,6 @@ impl TrackAnalyzer {
                         )
                         .is_ok()
                     {
-                        // Reset duration to correct time after seek?
-                        // Actually duration tracking inside process_segment handles packets.
-                        // But we need to ensure we don't overwrite self.duration with wrong values if packets are weird.
-                        // Wait, process_segment updates self.duration from packet timestamp.
-                        // That is correct.
                         self.process_segment(
                             &mut format,
                             &mut decoder,
@@ -455,7 +449,7 @@ impl TrackAnalyzer {
 
         let key_max_samples =
             (f64::from(self.sample_rate) * self.max_analyze_time.min(30.0)) as usize;
-        let mut processed_duration_local = 0.0; // For fallback if time_base missing
+        let mut processed_duration_local = 0.0;
 
         let segment = if is_head {
             &mut self.head
@@ -479,18 +473,9 @@ impl TrackAnalyzer {
                 let t = tb.calc_time(packet.ts());
                 t.seconds as f64 + t.frac
             } else {
-                // If we sought, this local duration is wrong for absolute time,
-                // but if time_base is missing, seeking is likely impossible/unreliable anyway.
-                if !is_head {
-                    // If no time_base, we can't really do tail analysis properly via seek.
-                    // We just continue.
-                }
-                self.duration + processed_duration_local
+                processed_duration_local
             };
 
-            self.duration = packet_time;
-
-            // Stop condition
             if is_head && packet_time > self.max_analyze_time {
                 break;
             }
@@ -503,6 +488,8 @@ impl TrackAnalyzer {
             let spec = *decoded.spec();
             let frames = decoded.frames();
             let channels = spec.channels.count().min(8);
+            let packet_end = packet_time + frames as f64 / f64::from(self.sample_rate);
+            self.duration = self.duration.max(packet_end);
 
             if time_base.is_none() {
                 processed_duration_local += frames as f64 / f64::from(self.sample_rate);
@@ -913,51 +900,81 @@ fn calculate_smart_cut_in(
 
 // --- BPM & Key Detection Wrappers ---
 
-fn detect_bpm(env: &[f32], _low_env: &[f32], rate: f64) -> (Option<f64>, Option<f64>, Option<f64>) {
+fn detect_bpm(env: &[f32], low_env: &[f32], rate: f64) -> (Option<f64>, Option<f64>, Option<f64>) {
     if env.len() < 100 {
         return (None, None, None);
     }
 
-    // Simple Flux
     let flux: Vec<f32> = env.windows(2).map(|w| (w[1] - w[0]).max(0.0)).collect();
-    if flux.len() < 110 {
+    let low_flux: Vec<f32> = low_env
+        .windows(2)
+        .map(|w| (w[1] - w[0]).max(0.0))
+        .collect();
+    if flux.len() < BPM_MAX_LAG * 2 {
         return (None, None, None);
     }
 
-    // Autocorrelation (60-180 BPM -> 0.33-1.0s -> 16-50 samples)
-    let mut best_corr = 0.0;
-    let mut best_lag = 0;
+    let correlation = |signal: &[f32], lag: usize| -> f32 {
+        if signal.len() <= lag {
+            return 0.0;
+        }
+        let mut cross = 0.0;
+        let mut energy_a = 0.0;
+        let mut energy_b = 0.0;
+        for i in 0..(signal.len() - lag) {
+            let a = signal[i];
+            let b = signal[i + lag];
+            cross += a * b;
+            energy_a += a * a;
+            energy_b += b * b;
+        }
+        let denom = (energy_a * energy_b).sqrt();
+        if denom > f32::EPSILON {
+            cross / denom
+        } else {
+            0.0
+        }
+    };
 
+    let mut candidates = Vec::with_capacity(BPM_MAX_LAG - BPM_MIN_LAG);
     for lag in BPM_MIN_LAG..BPM_MAX_LAG {
-        let mut sum = 0.0;
-        for i in 0..(flux.len() - lag) {
-            sum += flux[i] * flux[i + lag];
-        }
-        if sum > best_corr {
-            best_corr = sum;
-            best_lag = lag;
-        }
+        let full_corr = correlation(&flux, lag);
+        let low_corr = correlation(&low_flux, lag);
+        candidates.push((lag, full_corr.mul_add(0.65, low_corr * 0.35)));
     }
+    candidates.sort_by(|a, b| b.1.total_cmp(&a.1));
 
-    if best_corr <= 0.001 {
+    let Some(&(best_lag, best_corr)) = candidates.first() else {
+        return (None, None, None);
+    };
+    if best_corr < 0.08 {
         return (None, None, None);
     }
+
+    let second_corr = candidates
+        .iter()
+        .find(|(lag, _)| lag.abs_diff(best_lag) > 1)
+        .map_or(0.0, |(_, corr)| *corr);
+    let prominence = ((best_corr - second_corr) / best_corr.max(0.001)).clamp(0.0, 1.0);
+    let confidence = (best_corr.clamp(0.0, 1.0) * 0.7 + prominence * 0.3) as f64;
 
     let bpm = 60.0 / (best_lag as f64 / rate);
-    // Refine phase
     let first_beat = (0..best_lag)
-        .max_by_key(|&phase| {
-            let mut e = 0.0;
-            let mut idx = phase;
-            while idx < flux.len() {
-                e += flux[idx];
-                idx += best_lag;
-            }
-            (e * 1000.0) as i32
+        .max_by(|&a, &b| {
+            let phase_energy = |phase: usize| -> f32 {
+                let mut energy = 0.0;
+                let mut idx = phase;
+                while idx < flux.len() {
+                    energy += flux[idx];
+                    idx += best_lag;
+                }
+                energy
+            };
+            phase_energy(a).total_cmp(&phase_energy(b))
         })
-        .map(|p| p as f64 / rate);
+        .map(|phase| phase as f64 / rate);
 
-    (Some(bpm), Some(0.8), first_beat)
+    (Some(bpm), Some(confidence), first_beat)
 }
 
 fn detect_key(pcm: &[f32], sr: u32) -> (Option<i32>, Option<i32>, Option<f64>) {
@@ -981,11 +998,8 @@ fn detect_key(pcm: &[f32], sr: u32) -> (Option<i32>, Option<i32>, Option<f64>) {
         })
         .collect();
 
-    // Processing chunks
-    for chunk in pcm.chunks(frame_size).step_by(FFT_STEP) {
-        if chunk.len() < frame_size {
-            break;
-        }
+    for start in (0..=pcm.len() - frame_size).step_by(FFT_STEP) {
+        let chunk = &pcm[start..start + frame_size];
         for i in 0..frame_size {
             buffer[i] = Complex32::new(chunk[i] * window[i], 0.0);
         }
@@ -1021,10 +1035,7 @@ fn detect_key(pcm: &[f32], sr: u32) -> (Option<i32>, Option<i32>, Option<f64>) {
         *x /= norm;
     }
 
-    let mut best_score = -1.0;
-    let mut best_root = 0;
-    let mut best_mode = 0; // 0=Maj, 1=Min
-
+    let mut scores = Vec::with_capacity(24);
     for root in 0..12 {
         let mut s_maj = 0.0;
         let mut s_min = 0.0;
@@ -1033,23 +1044,24 @@ fn detect_key(pcm: &[f32], sr: u32) -> (Option<i32>, Option<i32>, Option<f64>) {
             s_maj += c * major[idx] as f32;
             s_min += c * minor[idx] as f32;
         }
-        if s_maj > best_score {
-            best_score = s_maj;
-            best_root = root;
-            best_mode = 0;
-        }
-        if s_min > best_score {
-            best_score = s_min;
-            best_root = root;
-            best_mode = 1;
-        }
+        scores.push((s_maj, root, 0));
+        scores.push((s_min, root, 1));
     }
+    scores.sort_by(|a, b| b.0.total_cmp(&a.0));
 
-    if best_score > 0.0 {
-        (Some(best_root as i32), Some(best_mode), Some(0.8))
-    } else {
-        (None, None, None)
+    let Some(&(best_score, best_root, best_mode)) = scores.first() else {
+        return (None, None, None);
+    };
+    if best_score <= 0.0 {
+        return (None, None, None);
     }
+    let second_score = scores.get(1).map_or(0.0, |candidate| candidate.0);
+    let confidence = ((best_score - second_score) / best_score.max(0.001)).clamp(0.0, 1.0);
+    (
+        Some(best_root as i32),
+        Some(best_mode),
+        Some(f64::from(confidence)),
+    )
 }
 
 // --- Transition Logic ---

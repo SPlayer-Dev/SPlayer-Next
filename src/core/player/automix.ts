@@ -13,6 +13,10 @@ import { getPreloadedTrack, preloadNextTrack } from "./preload";
 const PRELOAD_AHEAD_MS = 45_000;
 const FALLBACK_DURATION_SEC = 8;
 const MIN_CROSSFADE_SEC = 0.5;
+const MAX_CROSSFADE_SEC = 12;
+const MIN_BEAT_CONFIDENCE = 0.65;
+const MAX_TEMPO_ADJUSTMENT = 0.04;
+const ANALYSIS_DEADLINE_MS = 12_000;
 const TRIGGER_TOLERANCE_MS = 250;
 
 export type AutomixResult = "idle" | "transitioned" | "fallback-next";
@@ -33,6 +37,13 @@ let transitioning = false;
 let cancelToken = 0;
 
 const isLocalLikeSource = (source: string): boolean => !/^https?:\/\//i.test(source);
+
+const settleBeforeDeadline = async (promises: Promise<void>[]): Promise<void> => {
+  await Promise.race([
+    Promise.allSettled(promises).then(() => undefined),
+    new Promise<void>((resolve) => setTimeout(resolve, ANALYSIS_DEADLINE_MS)),
+  ]);
+};
 
 const clampAnalyzeTime = (): number => {
   const raw = useSettingsStore().system.player.automixMaxAnalyzeTimeSec || 60;
@@ -78,6 +89,9 @@ const ensureAnalysisReady = async (currentSource: string, nextSource: string): P
         if (token !== cancelToken || currentAnalysisKey !== currentSource) return;
         currentAnalysis = result.success ? (result.data ?? null) : null;
       })
+      .catch((error) => {
+        console.warn("[automix] current track analysis failed", error);
+      })
       .finally(() => {
         if (currentAnalysisKey === currentSource) currentAnalysisInFlight = null;
       });
@@ -95,6 +109,9 @@ const ensureAnalysisReady = async (currentSource: string, nextSource: string): P
         if (token !== cancelToken || nextAnalysisKey !== nextSource) return;
         nextAnalysis = result.success ? (result.data ?? null) : null;
       })
+      .catch((error) => {
+        console.warn("[automix] next track analysis failed", error);
+      })
       .finally(() => {
         if (nextAnalysisKey === nextSource) nextAnalysisInFlight = null;
       });
@@ -111,16 +128,19 @@ const ensureAnalysisReady = async (currentSource: string, nextSource: string): P
         transitionProposal = transition.success ? (transition.data ?? null) : null;
         advancedTransition = longMix.success ? (longMix.data ?? null) : null;
       })
+      .catch((error) => {
+        console.warn("[automix] transition analysis failed", error);
+      })
       .finally(() => {
         if (transitionKey === `${currentSource}>>${nextSource}`) transitionInFlight = null;
       });
   }
 
-  await Promise.all([
-    currentAnalysisInFlight ?? Promise.resolve(),
-    nextAnalysisInFlight ?? Promise.resolve(),
-    transitionInFlight ?? Promise.resolve(),
-  ]);
+  await settleBeforeDeadline(
+    [currentAnalysisInFlight, nextAnalysisInFlight, transitionInFlight].filter(
+      (promise): promise is Promise<void> => promise !== null,
+    ),
+  );
 };
 
 const applyAggressiveOutro = (
@@ -156,16 +176,44 @@ const applyAggressiveOutro = (
   };
 };
 
-const createFallbackPlan = (track: Track, index: number, durationSec: number): AutomixPlan => ({
-  track,
-  index,
-  triggerTime: Math.max(0, durationSec - FALLBACK_DURATION_SEC),
-  crossfadeDuration: Math.min(FALLBACK_DURATION_SEC, durationSec),
-  startSeek: 0,
-  initialRate: 1,
-  uiSwitchDelay: FALLBACK_DURATION_SEC * 0.5,
-  mixType: "default",
-});
+const normalizePlan = (plan: AutomixPlan, durationSec: number): AutomixPlan => {
+  const crossfadeDuration = Math.max(
+    MIN_CROSSFADE_SEC,
+    Math.min(plan.crossfadeDuration, MAX_CROSSFADE_SEC, durationSec),
+  );
+  const triggerTime = Math.max(0, Math.min(plan.triggerTime, durationSec - crossfadeDuration));
+  return {
+    ...plan,
+    triggerTime,
+    crossfadeDuration,
+    startSeek: Math.max(0, plan.startSeek),
+    initialRate: Math.max(
+      1 - MAX_TEMPO_ADJUSTMENT,
+      Math.min(1 + MAX_TEMPO_ADJUSTMENT, plan.initialRate),
+    ),
+    uiSwitchDelay: crossfadeDuration * 0.5,
+  };
+};
+
+const hasReliableBeatGrid = (analysis: AudioAnalysis | null): analysis is AudioAnalysis =>
+  !!analysis?.bpm &&
+  analysis.first_beat_pos !== undefined &&
+  (analysis.bpm_confidence ?? 0) >= MIN_BEAT_CONFIDENCE;
+
+const createFallbackPlan = (track: Track, index: number, durationSec: number): AutomixPlan =>
+  normalizePlan(
+    {
+      track,
+      index,
+      triggerTime: Math.max(0, durationSec - FALLBACK_DURATION_SEC),
+      crossfadeDuration: Math.min(FALLBACK_DURATION_SEC, durationSec),
+      startSeek: 0,
+      initialRate: 1,
+      uiSwitchDelay: FALLBACK_DURATION_SEC * 0.5,
+      mixType: "default",
+    },
+    durationSec,
+  );
 
 const computePlan = (
   track: Track,
@@ -180,18 +228,31 @@ const computePlan = (
     transitionKey === `${currentSource}>>${nextSource}` ? transitionProposal : null;
   const advanced = transitionKey === `${currentSource}>>${nextSource}` ? advancedTransition : null;
 
-  if (advanced) {
+  const canUseAdvanced =
+    advanced &&
+    current &&
+    next &&
+    hasReliableBeatGrid(current) &&
+    hasReliableBeatGrid(next) &&
+    advanced.playback_rate >= 1 - MAX_TEMPO_ADJUSTMENT &&
+    advanced.playback_rate <= 1 + MAX_TEMPO_ADJUSTMENT &&
+    advanced.duration >= MIN_CROSSFADE_SEC &&
+    advanced.duration <= MAX_CROSSFADE_SEC;
+  if (canUseAdvanced) {
     const mixType = advanced.strategy.includes("Bass Swap") ? "bassSwap" : "default";
-    return {
-      track,
-      index,
-      triggerTime: advanced.start_time_current,
-      crossfadeDuration: advanced.duration,
-      startSeek: advanced.start_time_next * 1000,
-      initialRate: advanced.playback_rate,
-      uiSwitchDelay: advanced.duration * 0.5,
-      mixType,
-    };
+    return normalizePlan(
+      {
+        track,
+        index,
+        triggerTime: advanced.start_time_current,
+        crossfadeDuration: advanced.duration,
+        startSeek: advanced.start_time_next * 1000,
+        initialRate: advanced.playback_rate,
+        uiSwitchDelay: advanced.duration * 0.5,
+        mixType,
+      },
+      durationSec,
+    );
   }
 
   const canTrustExitPoint = !!current;
@@ -218,29 +279,38 @@ const computePlan = (
   let startSeek = 0;
   let initialRate = 1;
   let mixType: "default" | "bassSwap" = "default";
+  let usedTransition = false;
 
   if (transition && transition.duration > MIN_CROSSFADE_SEC) {
-    const safeTrigger = Math.min(transition.current_track_mix_out, durationSec - 1);
-    triggerTime = safeTrigger;
-    crossfadeDuration = Math.min(transition.duration, durationSec - safeTrigger);
-    startSeek = transition.next_track_mix_in * 1000;
-    mixType = transition.filter_strategy.includes("Bass Swap") ? "bassSwap" : "default";
-  } else if (current && next) {
+    const strategyNeedsBeatGrid =
+      transition.bpm_compatible || transition.filter_strategy.includes("Bass Swap");
+    const canUseTransition =
+      !strategyNeedsBeatGrid || (hasReliableBeatGrid(current) && hasReliableBeatGrid(next));
+    if (canUseTransition) {
+      const safeTrigger = Math.min(transition.current_track_mix_out, durationSec - 1);
+      triggerTime = safeTrigger;
+      crossfadeDuration = Math.min(transition.duration, durationSec - safeTrigger);
+      startSeek = transition.next_track_mix_in * 1000;
+      mixType = transition.filter_strategy.includes("Bass Swap") ? "bassSwap" : "default";
+      usedTransition = true;
+    }
+  }
+  if (!usedTransition && current && next) {
     let rawTrigger = exitPoint - crossfadeDuration;
-    rawTrigger = snapToBeat(rawTrigger, current.bpm, current.first_beat_pos, true);
+    if (hasReliableBeatGrid(current)) {
+      rawTrigger = snapToBeat(rawTrigger, current.bpm, current.first_beat_pos, false);
+    }
     triggerTime = durationSec - rawTrigger < 4 ? exitPoint - crossfadeDuration : rawTrigger;
     startSeek = (next.fade_in_pos || 0) * 1000;
-    if (current.bpm && next.bpm) {
-      const confidenceA = current.bpm_confidence ?? 0;
-      const confidenceB = next.bpm_confidence ?? 0;
+    if (hasReliableBeatGrid(current) && hasReliableBeatGrid(next)) {
       const ratio = current.bpm / next.bpm;
-      if (confidenceA > 0.4 && confidenceB > 0.4 && ratio >= 0.97 && ratio <= 1.03) {
+      if (ratio >= 1 - MAX_TEMPO_ADJUSTMENT && ratio <= 1 + MAX_TEMPO_ADJUSTMENT) {
         initialRate = ratio;
       }
     }
   }
 
-  if (!advanced && canTrustExitPoint && current) {
+  if (!canUseAdvanced && canTrustExitPoint && current) {
     const outro = applyAggressiveOutro(current, triggerTime, crossfadeDuration, exitPoint);
     if (outro) {
       triggerTime = outro.triggerTime;
@@ -252,16 +322,19 @@ const computePlan = (
   }
   if (triggerTime < 0) triggerTime = 0;
 
-  return {
-    track,
-    index,
-    triggerTime,
-    crossfadeDuration,
-    startSeek,
-    initialRate,
-    uiSwitchDelay: crossfadeDuration * 0.5,
-    mixType,
-  };
+  return normalizePlan(
+    {
+      track,
+      index,
+      triggerTime,
+      crossfadeDuration,
+      startSeek,
+      initialRate,
+      uiSwitchDelay: crossfadeDuration * 0.5,
+      mixType,
+    },
+    durationSec,
+  );
 };
 
 /** 取消当前自动混音调度 */
@@ -295,6 +368,7 @@ export const tickAutomix = async (
   if (!settings.system.player.automixEnabled || status.fmMode || status.trackLoading) {
     return "idle";
   }
+  if (status.currentTrack?.cuePath) return "idle";
   if (
     !status.currentSource ||
     !status.isPlaying ||
@@ -309,7 +383,7 @@ export const tickAutomix = async (
   const prepared =
     getPreloadedTrack() ??
     (remaining <= FALLBACK_DURATION_SEC * 1000 ? await preloadNextTrack() : null);
-  if (!prepared) return "idle";
+  if (!prepared || prepared.track.cuePath) return "idle";
 
   const durationSec = status.duration / 1000;
   const planKey = `${status.currentSource}|${prepared.source}|${prepared.track.id}|${prepared.index}`;
@@ -335,8 +409,15 @@ export const tickAutomix = async (
   if (transitioning) return "idle";
 
   transitioning = true;
-  const ok = await playMixed(plan, prepared.resolved);
-  transitioning = false;
-  cancelAutomix();
-  return ok ? "transitioned" : "fallback-next";
+  try {
+    const ok = await playMixed(plan, prepared.resolved);
+    cancelAutomix();
+    return ok ? "transitioned" : "fallback-next";
+  } catch (error) {
+    console.error("[automix] crossfade failed", error);
+    cancelAutomix();
+    return "fallback-next";
+  } finally {
+    transitioning = false;
+  }
 };

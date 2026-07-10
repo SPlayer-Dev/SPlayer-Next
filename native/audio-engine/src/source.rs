@@ -81,6 +81,13 @@ pub struct DecoderSource {
     tempo: Arc<Mutex<StretchProcessor>>,
     /// 本地缓冲，减少锁竞争
     local_buffer: VecDeque<f32>,
+    /// 当前输出批次对应的源采样数，按实际 yield 进度推进播放时钟
+    batch_source_samples: u64,
+    batch_output_samples: u64,
+    batch_output_emitted: u64,
+    batch_source_advanced: u64,
+    /// stretch 预热未产出时累积的源采样数
+    pending_source_samples: u64,
     /// stretch 输出复用缓冲（避免每帧分配）
     tempo_scratch: Vec<f32>,
     high_pass_left: BiquadHighPass,
@@ -105,6 +112,11 @@ impl DecoderSource {
             equalizer,
             tempo,
             local_buffer: VecDeque::new(),
+            batch_source_samples: 0,
+            batch_output_samples: 0,
+            batch_output_emitted: 0,
+            batch_source_advanced: 0,
+            pending_source_samples: 0,
             tempo_scratch: Vec::new(),
             high_pass_left: BiquadHighPass::new(),
             high_pass_right: BiquadHighPass::new(),
@@ -112,6 +124,31 @@ impl DecoderSource {
             sample_rate,
             channels,
         }
+    }
+
+    fn advance_output_clock(&mut self) {
+        if self.batch_output_samples == 0 {
+            return;
+        }
+        self.batch_output_emitted += 1;
+        let target = self.batch_source_samples * self.batch_output_emitted / self.batch_output_samples;
+        let advance = target.saturating_sub(self.batch_source_advanced);
+        if advance > 0 {
+            self.shared.advance_consumed(advance);
+            self.batch_source_advanced = target;
+        }
+        if self.batch_output_emitted == self.batch_output_samples {
+            self.batch_source_samples = 0;
+            self.batch_output_samples = 0;
+            self.batch_output_emitted = 0;
+            self.batch_source_advanced = 0;
+        }
+    }
+
+    fn next_buffered_sample(&mut self) -> Option<f32> {
+        let sample = self.local_buffer.pop_front()?;
+        self.advance_output_clock();
+        Some(sample)
     }
 
     fn apply_high_pass_automation(&mut self, samples: &mut [f32]) {
@@ -140,7 +177,7 @@ impl Iterator for DecoderSource {
 
     fn next(&mut self) -> Option<f32> {
         // 快速路径：从本地缓冲返回（无原子操作）
-        if let Some(sample) = self.local_buffer.pop_front() {
+        if let Some(sample) = self.next_buffered_sample() {
             return Some(sample);
         }
 
@@ -160,21 +197,23 @@ impl Iterator for DecoderSource {
                     self.equalizer
                         .lock()
                         .process_interleaved_stereo(&mut samples);
-                    // 源时间长度（按输入计数，与 speed 无关；让 consumed_position 反映源进度）
                     let source_count = samples.len() as u64;
-                    // 变速变调（bypass 时直接 extend，零开销）
+                    self.pending_source_samples += source_count;
                     self.tempo_scratch.clear();
                     self.tempo.lock().process(&samples, &mut self.tempo_scratch);
                     if !self.tempo_scratch.is_empty() {
                         self.limiter.process(&mut self.tempo_scratch);
+                        self.batch_source_samples = self.pending_source_samples;
+                        self.batch_output_samples = self.tempo_scratch.len() as u64;
+                        self.batch_output_emitted = 0;
+                        self.batch_source_advanced = 0;
+                        self.pending_source_samples = 0;
                         self.local_buffer.extend(self.tempo_scratch.drain(..));
                     }
-                    self.shared.advance_consumed(source_count);
-                    // stretch 在预热期可能本帧没产出，没样本就继续拉下一块
-                    let Some(s) = self.local_buffer.pop_front() else {
+                    let Some(sample) = self.next_buffered_sample() else {
                         continue;
                     };
-                    return Some(s);
+                    return Some(sample);
                 }
                 // 空数据块（重采样器预热期），继续获取下一个
             } else {
