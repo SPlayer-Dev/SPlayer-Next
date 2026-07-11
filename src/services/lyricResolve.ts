@@ -7,11 +7,13 @@ import { useSettingsStore } from "@/stores/settings";
 import { useStreamingStore } from "@/stores/streaming";
 import { usePluginsStore } from "@/stores/plugins";
 import { DEFAULT_LYRIC_FORMAT_ORDER, DEFAULT_LYRIC_SOURCE_ORDER } from "@/types/settings";
+import { buildLyricValidationKey, evaluateLyricMatch } from "@/utils/lyric/matchQuality";
 
 /** 一次在线 fetch 的结果 */
 export interface OnlineResult {
   source: { source: "online"; format: LyricFormat; platform: Platform };
   input: LyricInput;
+  candidate?: LyricMatchResult["candidate"];
 }
 
 /** 已解析的原始歌词候选 */
@@ -36,6 +38,7 @@ export const toLyricInput = (data: LyricMatchResult): LyricInput => ({
 export const toOnlineResult = (data: LyricMatchResult): OnlineResult => ({
   source: { source: "online", format: data.format, platform: data.platform },
   input: toLyricInput(data),
+  candidate: data.candidate,
 });
 
 /** 提取内嵌歌词兜底 */
@@ -54,16 +57,57 @@ export const embeddedLyricFromDetail = (detail: TrackDetail | null): LocalLyric 
 export const fetchFromPlatform = async (
   platform: Platform,
   track: Track,
+  reference?: ResolvedLyric,
 ): Promise<OnlineResult | null> => {
   const mode = track.source === platform ? "byId" : "byQuery";
   // QM lyric 接口要数字 songID
   const lookupId = platform === "qqmusic" ? (track.extId ?? track.id) : track.id;
-  const resp =
-    mode === "byId"
-      ? await window.api.lyrics.matchById(platform, lookupId)
-      : await window.api.lyrics.matchByQuery(platform, track);
-  if (!resp.ok || !resp.data) return null;
-  return toOnlineResult(resp.data);
+  if (mode === "byId") {
+    const resp = await window.api.lyrics.matchById(platform, lookupId);
+    if (!resp.ok || !resp.data) return null;
+    return toOnlineResult(resp.data);
+  }
+
+  const excludedIds: string[] = [];
+  const validationKey = reference
+    ? buildLyricValidationKey(reference.input, reference.source.format)
+    : undefined;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const resp = await window.api.lyrics.matchByQuery(platform, track, {
+      excludedIds,
+      validationKey,
+    });
+    if (!resp.ok || !resp.data) return null;
+    const result = toOnlineResult(resp.data);
+    if (!reference) return result;
+    if (!result.candidate) return null;
+
+    const decision = evaluateLyricMatch(
+      reference.input,
+      reference.source.format,
+      result.input,
+      result.source.format,
+      track.duration,
+      result.candidate.duration,
+    );
+    console.info(
+      `[lyrics] ${platform}:${result.candidate.platformId} ${decision.status}/${decision.reason}`,
+      decision.metrics,
+    );
+    if (decision.status === "accepted") {
+      if (!result.candidate.validated) {
+        await window.api.lyrics.confirmMatch({
+          platform,
+          track: toRaw(track),
+          candidate: result.candidate,
+          validationKey: decision.validationKey,
+        });
+      }
+      return result;
+    }
+    excludedIds.push(result.candidate.platformId);
+  }
+  return null;
 };
 
 /** 平台主格式可达列表 */
@@ -110,6 +154,7 @@ const isOnlineResultUpgrade = (result: OnlineResult, localFormat: LyricFormat): 
 interface OnlinePreferenceOptions {
   hasLocal: boolean;
   localFormat: LyricFormat | null;
+  reference?: ResolvedLyric;
   onCandidate?: (result: OnlineResult) => void;
   shouldContinue?: () => boolean;
 }
@@ -126,27 +171,33 @@ export const resolveOnlineByPreference = async (
   const settings = useSettingsStore();
   const preference = settings.lyric.lyricSourcePreference;
   const isCurrent = options.shouldContinue ?? (() => true);
+  const sourceResult = isPlatform(track.source)
+    ? await fetchFromPlatform(track.source, track)
+    : null;
+  if (!isCurrent()) return null;
+  const reference: ResolvedLyric | undefined = options.reference ?? sourceResult ?? undefined;
   if (preference === "self") {
-    if (isPlatform(track.source)) return fetchFromPlatform(track.source, track);
-    return null;
+    return sourceResult;
   }
   if (preference === "auto") {
     const order = settings.lyric.lyricSourceOrder ?? DEFAULT_LYRIC_SOURCE_ORDER;
     const formatOrder = settings.lyric.lyricFormatOrder ?? DEFAULT_LYRIC_FORMAT_ORDER;
-    let candidates: Platform[] = [...order];
-    if (options.hasLocal) {
-      if (!settings.lyric.smartPreferOnline || !options.localFormat) return null;
-      candidates = order.filter((p) => platformCanUpgrade(p, options.localFormat!, formatOrder));
-      if (candidates.length === 0) return null;
+    const baselineFormat = options.localFormat ?? sourceResult?.source.format ?? null;
+    let candidates: Platform[] = order.filter((platform) => platform !== track.source);
+    if (options.hasLocal && !settings.lyric.smartPreferOnline) return null;
+    if (settings.lyric.smartPreferOnline && baselineFormat) {
+      candidates = candidates.filter((platform) =>
+        platformCanUpgrade(platform, baselineFormat, formatOrder),
+      );
     }
+    if (candidates.length === 0) return sourceResult;
     if (settings.lyric.smartPreferOnline) {
-      let best: OnlineResult | null = null;
-      const localIdx =
-        options.hasLocal && options.localFormat ? formatOrder.indexOf(options.localFormat) : -1;
-      let bestRank = localIdx === -1 ? Infinity : localIdx;
+      let best: OnlineResult | null = sourceResult;
+      const baselineIdx = baselineFormat ? formatOrder.indexOf(baselineFormat) : -1;
+      let bestRank = baselineIdx === -1 ? Infinity : baselineIdx;
       await Promise.all(
         candidates.map(async (platform) => {
-          const result = await fetchFromPlatform(platform, track);
+          const result = await fetchFromPlatform(platform, track, reference);
           if (!isCurrent() || !result) return;
           const idx = formatOrder.indexOf(result.source.format);
           const rank = idx === -1 ? Infinity : idx;
@@ -161,7 +212,7 @@ export const resolveOnlineByPreference = async (
       return best;
     }
     for (const platform of candidates) {
-      const result = await fetchFromPlatform(platform, track);
+      const result = await fetchFromPlatform(platform, track, reference);
       if (!isCurrent()) return null;
       if (!result) continue;
       if (
@@ -173,9 +224,10 @@ export const resolveOnlineByPreference = async (
       }
       return result;
     }
-    return null;
+    return sourceResult;
   }
-  return fetchFromPlatform(preference, track);
+  if (preference === track.source) return sourceResult;
+  return (await fetchFromPlatform(preference, track, reference)) ?? sourceResult;
 };
 
 /**
@@ -211,10 +263,23 @@ export const resolveTTMLOverlay = async (
   if (!shouldTryTTML(online.source.platform, online.source.format)) return null;
   const resp = await window.api.lyrics.fetchTTMLOverlay(track, online.source.platform);
   if (!resp.ok || !resp.data) return null;
-  return {
+  const resolved: ResolvedLyric = {
     source: { source: "online", format: "ttml", platform: online.source.platform },
     input: { content: resp.data },
   };
+  const decision = evaluateLyricMatch(
+    online.input,
+    online.source.format,
+    resolved.input,
+    resolved.source.format,
+    track.duration,
+    track.duration,
+  );
+  console.info(
+    `[lyrics] ttml:${online.source.platform} ${decision.status}/${decision.reason}`,
+    decision.metrics,
+  );
+  return decision.status === "accepted" ? resolved : null;
 };
 
 /**

@@ -20,7 +20,7 @@ const TTL_MS = 30 * 24 * 60 * 60 * 1000;
 /** 时长按 5s 桶归一，避免不同来源元数据微差导致 miss */
 const DURATION_BUCKET_MS = 5000;
 /** 指纹规则版本，变更匹配规则时递增以避开旧误匹配缓存 */
-const FINGERPRINT_VERSION = "v2";
+const FINGERPRINT_VERSION = "v3";
 
 /** 命中记录 */
 export interface MatchedRecord {

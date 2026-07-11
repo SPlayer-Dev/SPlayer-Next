@@ -14,9 +14,14 @@ import * as qqmusic from "@main/apis/common/lyric/qqmusic";
 import * as kugou from "@main/apis/common/lyric/kugou";
 import { fetchTTML } from "@main/apis/common/lyric/ttml";
 import { matchLocalTTML } from "@main/services/localLyricRepo";
-import { buildFingerprint, getMatchedId } from "@main/database/lyricMatchCache";
+import { buildFingerprint, getMatchedId, setMatchedId } from "@main/database/lyricMatchCache";
 import { coreLog } from "@main/utils/logger";
-import type { LyricMatchResponse, LyricTTMLResponse } from "@shared/types/lyrics";
+import type {
+  LyricMatchConfirmation,
+  LyricMatchQueryOptions,
+  LyricMatchResponse,
+  LyricTTMLResponse,
+} from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
 import type { Track } from "@shared/types/player";
 
@@ -63,15 +68,19 @@ const resolveById = async (platform: Platform, id: string): Promise<LyricMatchRe
 };
 
 /** 按 Track 元数据 fuzzy 匹配 */
-const resolveByQuery = async (platform: Platform, track: Track): Promise<LyricMatchResponse> => {
+const resolveByQuery = async (
+  platform: Platform,
+  track: Track,
+  options: LyricMatchQueryOptions,
+): Promise<LyricMatchResponse> => {
   try {
     switch (platform) {
       case "netease":
-        return { ok: true, data: await netease.getByQuery(track) };
+        return { ok: true, data: await netease.getByQuery(track, options) };
       case "qqmusic":
-        return { ok: true, data: await qqmusic.getByQuery(track) };
+        return { ok: true, data: await qqmusic.getByQuery(track, options) };
       case "kugou":
-        return { ok: true, data: await kugou.getByQuery(track) };
+        return { ok: true, data: await kugou.getByQuery(track, options) };
       default:
         return { ok: false, error: `unsupported platform: ${platform}` };
     }
@@ -115,9 +124,22 @@ export const registerLyricsIpc = (): void => {
   ipcMain.handle("lyrics:matchById", (_evt, platform: Platform, id: string) =>
     dedup(`byId:${platform}:${id}`, () => resolveById(platform, id)),
   );
-  ipcMain.handle("lyrics:matchByQuery", (_evt, platform: Platform, track: Track) =>
-    dedup(`byQuery:${platform}:${track.id}`, () => resolveByQuery(platform, track)),
+  ipcMain.handle(
+    "lyrics:matchByQuery",
+    (_evt, platform: Platform, track: Track, options: LyricMatchQueryOptions = {}) =>
+      dedup(
+        `byQuery:${platform}:${track.id}:${options.validationKey ?? "none"}:${(options.excludedIds ?? []).join(",")}`,
+        () => resolveByQuery(platform, track, options),
+      ),
   );
+  ipcMain.handle("lyrics:confirmMatch", (_evt, confirmation: LyricMatchConfirmation): void => {
+    const { platform, track, candidate, validationKey } = confirmation;
+    setMatchedId(buildFingerprint(track), platform, candidate.platformId, {
+      ...candidate.extra,
+      validationKey,
+    });
+    coreLog.info(`[lyrics] confirmed ${platform}:${candidate.platformId} for "${track.title}"`);
+  });
   ipcMain.handle("lyrics:fetchTTMLOverlay", (_evt, track: Track, platform: "netease" | "qqmusic") =>
     dedup(`ttml:${platform}:${track.id}`, () => resolveTTMLOverlay(track, platform)),
   );

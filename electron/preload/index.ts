@@ -16,6 +16,7 @@ import type { TagEditRequest } from "@shared/types/tagEditor";
 import type { UpdateEvent } from "@shared/types/update";
 import type { CloudUploadProgress } from "@shared/types/cloudUpload";
 import type { MusicCommentQuery } from "@shared/types/comment";
+import type { LyricMatchConfirmation, LyricMatchQueryOptions } from "@shared/types/lyrics";
 
 /** 订阅主进程推送的事件 */
 const subscribe = <T>(channel: string, callback: (data: T) => void): (() => void) => {
@@ -355,8 +356,11 @@ const api = {
     matchById: (platform: string, id: string) =>
       ipcRenderer.invoke("lyrics:matchById", platform, id),
     // 按 Track 元数据在某平台模糊搜索歌词
-    matchByQuery: (platform: string, track: unknown) =>
-      ipcRenderer.invoke("lyrics:matchByQuery", platform, track),
+    matchByQuery: (platform: string, track: unknown, options?: LyricMatchQueryOptions) =>
+      ipcRenderer.invoke("lyrics:matchByQuery", platform, track, options),
+    // 歌词一致性校验通过后写入模糊匹配缓存
+    confirmMatch: (confirmation: LyricMatchConfirmation) =>
+      ipcRenderer.invoke("lyrics:confirmMatch", confirmation),
     // 获取 AMLL TTML DB 的 TTML
     fetchTTMLOverlay: (track: unknown, platform: string) =>
       ipcRenderer.invoke("lyrics:fetchTTMLOverlay", track, platform),

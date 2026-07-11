@@ -86,6 +86,22 @@ export interface LyricInput {
 export interface LyricMatchExtra {
   /** QM 的 mid */
   mid?: string;
+  /** 校验通过时使用的基准歌词摘要 */
+  validationKey?: string;
+}
+
+/** 模糊搜索命中的候选元数据 */
+export interface LyricMatchCandidate {
+  /** 候选平台 ID */
+  platformId: string;
+  name: string;
+  artist: string;
+  album?: string;
+  /** 毫秒 */
+  duration?: number;
+  extra?: LyricMatchExtra;
+  /** 是否来自已经通过当前基准校验的匹配缓存 */
+  validated?: boolean;
 }
 
 /** 歌词匹配结果 */
@@ -93,8 +109,26 @@ export interface LyricMatchResult extends LyricInput {
   platform: Platform;
   /** 主歌词格式 */
   format: LyricFormat;
-  /** 平台额外字段，netease/kugou 暂未使用 */
+  /** 平台额外字段与匹配校验信息 */
   extra?: LyricMatchExtra;
+  /** 仅模糊搜索结果携带，用于歌词一致性校验与确认缓存 */
+  candidate?: LyricMatchCandidate;
+}
+
+/** 模糊搜索选项 */
+export interface LyricMatchQueryOptions {
+  /** 本轮已拒绝的平台 ID */
+  excludedIds?: string[];
+  /** 基准歌词摘要，只复用相同基准下验证过的缓存 */
+  validationKey?: string;
+}
+
+/** 确认模糊匹配 */
+export interface LyricMatchConfirmation {
+  platform: Platform;
+  track: Track;
+  candidate: LyricMatchCandidate;
+  validationKey: string;
 }
 
 /** 歌词匹配 IPC 响应 */
@@ -110,7 +144,13 @@ export interface LyricsApi {
   /** 按 id 直取某平台歌词 */
   matchById: (platform: Platform, id: string) => Promise<LyricMatchResponse>;
   /** 按 Track 元数据在某平台模糊搜索歌词 */
-  matchByQuery: (platform: Platform, track: Track) => Promise<LyricMatchResponse>;
+  matchByQuery: (
+    platform: Platform,
+    track: Track,
+    options?: LyricMatchQueryOptions,
+  ) => Promise<LyricMatchResponse>;
+  /** 歌词一致性校验通过后持久化模糊匹配 */
+  confirmMatch: (confirmation: LyricMatchConfirmation) => Promise<void>;
   /** 抓取 AMLL TTML DB 的 TTML 歌词，仅 NCM/QM 适用 */
   fetchTTMLOverlay: (track: Track, platform: "netease" | "qqmusic") => Promise<LyricTTMLResponse>;
   /** 在本地 TTML 歌词库中按元信息匹配，命中返回 TTML 原文 */
