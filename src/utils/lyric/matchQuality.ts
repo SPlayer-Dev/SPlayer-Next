@@ -7,6 +7,7 @@ const MAX_P90_DIFF_MS = 2500;
 const MAX_TIMELINE_DRIFT_MS = 4000;
 const MIN_TIMELINE_RATIO = 0.985;
 const MAX_TIMELINE_RATIO = 1.015;
+const MIN_LINE_SIMILARITY = 0.68;
 const METADATA_LINE_RE =
   /^(?:作词|作曲|编曲|制作人|混音|母带|录音|词|曲|composer|lyricist|arranger|producer|mixed by)\s*[:：]/i;
 
@@ -65,6 +66,7 @@ const toComparableLines = (lines: LyricLine[]): ComparableLine[] =>
 const textSimilarity = (left: string, right: string): number => {
   if (left === right) return 1;
   if (!left || !right) return 0;
+  if (left.length < right.length) return textSimilarity(right, left);
   const previous = new Uint16Array(right.length + 1);
   const current = new Uint16Array(right.length + 1);
   for (let j = 0; j <= right.length; j++) previous[j] = j;
@@ -82,11 +84,11 @@ const textSimilarity = (left: string, right: string): number => {
   return 1 - previous[right.length] / Math.max(left.length, right.length);
 };
 
+const spanLength = (lines: ComparableLine[], start: number, count: number): number =>
+  lines[start].text.length + (count === 2 ? lines[start + 1].text.length : 0);
+
 const joinSpan = (lines: ComparableLine[], start: number, count: number): string =>
-  lines
-    .slice(start, start + count)
-    .map((line) => line.text)
-    .join("");
+  count === 1 ? lines[start].text : lines[start].text + lines[start + 1].text;
 
 /**
  * 有序对齐歌词行，并允许相邻两行互相合并，兼容不同平台的断句差异
@@ -128,10 +130,19 @@ const alignLines = (
         if (i + referenceCount > reference.length) break;
         for (let candidateCount = 1; candidateCount <= 2; candidateCount++) {
           if (j + candidateCount > candidate.length) break;
+          const referenceLength = spanLength(reference, i, referenceCount);
+          const candidateLength = spanLength(candidate, j, candidateCount);
+          if (
+            Math.min(referenceLength, candidateLength) /
+              Math.max(referenceLength, candidateLength) <
+            MIN_LINE_SIMILARITY
+          ) {
+            continue;
+          }
           const referenceText = joinSpan(reference, i, referenceCount);
           const candidateText = joinSpan(candidate, j, candidateCount);
           const similarity = textSimilarity(referenceText, candidateText);
-          if (similarity < 0.68) continue;
+          if (similarity < MIN_LINE_SIMILARITY) continue;
           update(
             i,
             j,

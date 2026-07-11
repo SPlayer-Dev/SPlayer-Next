@@ -101,6 +101,22 @@ describe("pickBestCandidate", () => {
       "live",
     );
   });
+
+  it("歌曲名恰好为版本关键字时保留原标题", () => {
+    const candidates: LyricCandidate<{ id: string }>[] = [
+      {
+        name: "Live",
+        artist: "目标歌手",
+        duration: 180_000,
+        extra: { id: "literal-live-title" },
+      },
+    ];
+
+    assert.equal(
+      pickBestCandidate(candidates, track({ title: "Live" }))?.extra.id,
+      "literal-live-title",
+    );
+  });
 });
 
 describe("buildLyricSearchKeyword", () => {

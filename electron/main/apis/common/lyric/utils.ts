@@ -110,8 +110,13 @@ const versionMatches = (left: string, right: string): boolean => {
 };
 
 /** 去掉已经单独比较的版本标记，避免中英文标记影响歌名主体 */
-const stripVersionMarkers = (text: string): string =>
-  VERSION_MARKERS.reduce((result, { pattern }) => result.replace(pattern, ""), text);
+const stripVersionMarkers = (text: string): string => {
+  const stripped = VERSION_MARKERS.reduce(
+    (result, { pattern }) => result.replace(pattern, ""),
+    text,
+  ).trim();
+  return stripped || text;
+};
 
 /** 子串命中时短串占长串的最低长度比，过低视为巧合 */
 const NAME_CONTAIN_MIN_RATIO = 0.34;
