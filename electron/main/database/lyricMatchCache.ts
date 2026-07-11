@@ -9,7 +9,7 @@
  * extra：JSON 字符串，平台额外字段
  */
 
-import { normalize } from "@main/apis/common/lyric/utils";
+import { normalize, normalizeTrackArtists } from "@main/apis/common/lyric/utils";
 import type { LyricMatchExtra } from "@shared/types/lyrics";
 import type { Track } from "@shared/types/player";
 import type { Platform } from "@shared/types/platform";
@@ -19,6 +19,8 @@ const TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** 时长按 5s 桶归一，避免不同来源元数据微差导致 miss */
 const DURATION_BUCKET_MS = 5000;
+/** 指纹规则版本，变更匹配规则时递增以避开旧误匹配缓存 */
+const FINGERPRINT_VERSION = "v2";
 
 /** 命中记录 */
 export interface MatchedRecord {
@@ -27,12 +29,12 @@ export interface MatchedRecord {
   extra?: LyricMatchExtra;
 }
 
-/** 用 title + 第一艺术家 + 时长桶 算 track 指纹 */
+/** 用 title + 全部艺术家 + 时长桶 算 track 指纹 */
 export const buildFingerprint = (track: Track): string => {
   const title = normalize(track.title);
-  const artist = normalize(track.artists[0]?.name);
+  const artist = normalizeTrackArtists(track).join("");
   const bucket = track.duration ? Math.round(track.duration / DURATION_BUCKET_MS) : 0;
-  return `${title}|${artist}|${bucket}`;
+  return `${FINGERPRINT_VERSION}|${title}|${artist}|${bucket}`;
 };
 
 /** 解析 extra JSON */

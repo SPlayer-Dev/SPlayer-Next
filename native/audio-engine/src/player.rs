@@ -999,7 +999,7 @@ impl InnerPlayer {
             shared.set_normalization_enabled(old_shared.is_normalization_enabled());
             shared.set_normalization_gain(old_shared.normalization_gain());
         }
-        let handle = decoder::resume_decode(decoder_data, Arc::clone(&shared));
+        let handle = decoder::resume_decode(decoder_data, Arc::clone(&shared))?;
 
         let sink = {
             let output = self.ensure_output()?;

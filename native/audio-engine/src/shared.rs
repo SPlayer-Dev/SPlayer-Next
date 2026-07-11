@@ -14,6 +14,13 @@ pub struct AudioChunk {
     pub fft_samples: Vec<f32>,
 }
 
+/// 非阻塞弹出缓冲区的结果
+pub enum PopResult {
+    Chunk(AudioChunk),
+    Pending,
+    Finished,
+}
+
 /// 解码线程与播放迭代器之间的共享状态
 pub struct Shared {
     buffer: Mutex<VecDeque<AudioChunk>>,
@@ -43,7 +50,7 @@ pub struct Shared {
 }
 
 /// 共享缓冲区最大容量（背压阈值）
-pub const FRAME_BUFFER_CAPACITY: usize = 64;
+pub const FRAME_BUFFER_CAPACITY: usize = 192;
 
 impl Shared {
     pub fn new(sample_rate: u32, channels: u16) -> Arc<Self> {
@@ -172,19 +179,17 @@ impl Shared {
         self.condvar.notify_one();
     }
 
-    /// 弹出数据块，缓冲区空时阻塞等待。
-    /// 仅在 EOF 或停止且缓冲区为空时返回 None。
-    pub fn pop(&self) -> Option<AudioChunk> {
+    /// 非阻塞弹出数据块，供实时输出线程避免在音频回调链路里等待解码线程
+    pub fn try_pop(&self) -> PopResult {
         let mut buf = self.buffer.lock();
-        loop {
-            if let Some(chunk) = buf.pop_front() {
-                self.condvar.notify_one();
-                return Some(chunk);
-            }
-            if self.is_eof.load(Ordering::Acquire) || self.is_stopping.load(Ordering::Acquire) {
-                return None;
-            }
-            self.condvar.wait(&mut buf);
+        if let Some(chunk) = buf.pop_front() {
+            self.condvar.notify_one();
+            return PopResult::Chunk(chunk);
+        }
+        if self.is_eof.load(Ordering::Acquire) || self.is_stopping.load(Ordering::Acquire) {
+            PopResult::Finished
+        } else {
+            PopResult::Pending
         }
     }
 

@@ -20,6 +20,8 @@ use cpal::traits::{DeviceTrait, HostTrait};
 use rodio::{OutputStream, OutputStreamHandle};
 use tracing::{debug, warn};
 
+use crate::priority;
+
 /// 持有音频输出的跨线程句柄。`Send`，可放进 `InnerPlayer` 而不需 `unsafe impl Send`。
 ///
 /// 内部专用线程独占 `OutputStream`，drop 这个结构会通过 channel 通知线程退出，
@@ -55,6 +57,7 @@ impl AudioOutput {
     /// - 无可用音频设备
     /// - 专用线程 spawn 失败
     pub fn new(device_name: Option<&str>) -> Result<Self> {
+        priority::configure_process_priority();
         let device_name = device_name.map(String::from);
 
         // 把构建结果回传给调用线程；用 sync_channel 容量 1 避免发送方阻塞
@@ -65,6 +68,7 @@ impl AudioOutput {
         let thread = thread::Builder::new()
             .name("audio-output-owner".to_string())
             .spawn(move || {
+                priority::boost_current_audio_thread("audio-output-owner");
                 debug!(device = ?device_name, "audio-output-owner: starting");
                 let build_result = build_output_stream(device_name.as_deref());
                 match build_result {
@@ -143,8 +147,8 @@ fn build_output_stream(
                 .find(|d| d.name().map(|got| got == name).unwrap_or(false))
                 .with_context(|| format!("Output device '{}' not found", name))?;
             let sample_rate = device_sample_rate(&device);
-            let (stream, handle) =
-                OutputStream::try_from_device(&device).context("Failed to open named output device")?;
+            let (stream, handle) = OutputStream::try_from_device(&device)
+                .context("Failed to open named output device")?;
             Ok((stream, handle, sample_rate))
         }
         None => open_default_stream(&host),

@@ -5,22 +5,52 @@
  */
 
 import type { Track } from "@shared/types/player";
-import type { LyricFormat } from "@shared/types/lyrics";
+import type { LyricFormat, LyricInput } from "@shared/types/lyrics";
 import { isPlatform } from "@shared/types/platform";
-import { useStreamingStore } from "@/stores/streaming";
-import { detectFormat } from "@/utils/lyric/parse";
+import { buildDownloadLyric } from "@/utils/lyric/serialize";
+import {
+  resolveLocalRepoLyric,
+  resolveOnlineByPreference,
+  resolvePluginLyric,
+  resolveStreamingServerLyric,
+  resolveTTMLOverlay,
+  type OnlineResult,
+  type ResolvedLyric,
+} from "@/services/lyricResolve";
 
 /** 下载用歌词 */
-export interface DownloadLyric {
-  content: string;
+export interface DownloadLyric extends LyricInput {
   format: LyricFormat;
-  /** 翻译原文 */
-  translation?: string;
-  translationFormat?: LyricFormat;
-  /** 音译原文 */
-  romaji?: string;
-  romajiFormat?: LyricFormat;
 }
+
+/** 转为下载歌词结构 */
+const toDownloadLyric = (lyric: ResolvedLyric): DownloadLyric => ({
+  format: lyric.source.format,
+  ...lyric.input,
+});
+
+/** 判断候选歌词是否能被下载序列化使用 */
+const toUsableDownloadLyric = (lyric: ResolvedLyric | null): DownloadLyric | null => {
+  if (!lyric) return null;
+  const downloadLyric = toDownloadLyric(lyric);
+  const hasContent =
+    buildDownloadLyric(downloadLyric, downloadLyric.format, "lrc") ||
+    buildDownloadLyric(downloadLyric, downloadLyric.format, "ttml");
+  return hasContent ? downloadLyric : null;
+};
+
+/** 在线歌词优先尝试 TTML，失败再回落原结果 */
+const resolveOnlineDownloadLyric = async (
+  track: Track,
+  online: OnlineResult | null,
+): Promise<DownloadLyric | null> => {
+  if (!online) return null;
+  const ttml = await resolveTTMLOverlay(track, online);
+  return (
+    toUsableDownloadLyric(ttml) ??
+    toUsableDownloadLyric({ source: online.source, input: online.input })
+  );
+};
 
 /**
  * 取歌曲歌词文本
@@ -28,26 +58,25 @@ export interface DownloadLyric {
  * @returns 歌词文本与格式；无歌词返回 null
  */
 export const resolveDownloadLyric = async (track: Track): Promise<DownloadLyric | null> => {
+  const local = toUsableDownloadLyric(await resolveLocalRepoLyric(track));
+  if (local) return local;
   // 流媒体
   if (track.source === "streaming") {
-    const text = await useStreamingStore().getLyrics(track);
-    if (text && text.trim()) return { content: text, format: detectFormat(text) };
-    return null;
+    const serverLyric = toUsableDownloadLyric(await resolveStreamingServerLyric(track));
+    if (serverLyric) return serverLyric;
+    const online = await resolveOnlineByPreference(track, { hasLocal: false, localFormat: null });
+    return (
+      (await resolveOnlineDownloadLyric(track, online)) ??
+      toUsableDownloadLyric(await resolvePluginLyric(track))
+    );
   }
-  // 在线平台：按 id 直取
+  // 在线平台
   if (isPlatform(track.source)) {
-    const lookupId = track.source === "qqmusic" ? (track.extId ?? track.id) : track.id;
-    const resp = await window.api.lyrics.matchById(track.source, lookupId);
-    if (resp.ok && resp.data?.content) {
-      return {
-        content: resp.data.content,
-        format: resp.data.format,
-        translation: resp.data.translation,
-        translationFormat: resp.data.translationFormat,
-        romaji: resp.data.romaji,
-        romajiFormat: resp.data.romajiFormat,
-      };
-    }
+    const online = await resolveOnlineByPreference(track, { hasLocal: false, localFormat: null });
+    return (
+      (await resolveOnlineDownloadLyric(track, online)) ??
+      toUsableDownloadLyric(await resolvePluginLyric(track))
+    );
   }
   return null;
 };

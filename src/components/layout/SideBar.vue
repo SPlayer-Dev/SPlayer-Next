@@ -57,9 +57,9 @@ const handleCreate = (): void => {
 };
 
 /** 新建成功后跳转到该歌单 */
-const handleCreated = (playlistId: string): void => {
+const handleCreated = (playlistId: string, scope: ContentScope): void => {
   router.push(
-    `/collection/${createMode.value === "local" ? "local" : "netease"}/playlist/${playlistId}`,
+    `/collection/${scope === "local" ? "local" : "netease"}/playlist/${playlistId}`,
   );
 };
 

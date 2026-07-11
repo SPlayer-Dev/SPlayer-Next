@@ -15,7 +15,7 @@ import { buildFingerprint, getMatchedId, setMatchedId } from "@main/database/lyr
 import { coreLog } from "@main/utils/logger";
 import type { LyricMatchResult } from "@shared/types/lyrics";
 import type { Track } from "@shared/types/player";
-import { pickBestCandidate, type LyricCandidate } from "./utils";
+import { buildLyricSearchKeyword, pickBestCandidate, type LyricCandidate } from "./utils";
 
 /** krc 优先，其次 lrc */
 const pickFormatted = (
@@ -93,7 +93,7 @@ export const getByQuery = async (track: Track): Promise<LyricMatchResult | null>
     });
   }
 
-  const keyword = `${track.title} ${track.artists[0]?.name ?? ""}`.trim();
+  const keyword = buildLyricSearchKeyword(track);
   if (!keyword) return null;
 
   const candidates: LyricCandidate<{ hash: string }>[] = [];

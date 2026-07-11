@@ -15,7 +15,7 @@ import { coreLog } from "@main/utils/logger";
 import type { LyricMatchResult } from "@shared/types/lyrics";
 import type { Track } from "@shared/types/player";
 import { prefetchTTML } from "./ttml";
-import { pickBestCandidate, type LyricCandidate } from "./utils";
+import { buildLyricSearchKeyword, pickBestCandidate, type LyricCandidate } from "./utils";
 
 /** 主歌词：yrc 优先，其次 lrc */
 const pickMain = (
@@ -94,7 +94,7 @@ export const getByQuery = async (track: Track): Promise<LyricMatchResult | null>
   const cached = getMatchedId(fingerprint, "netease");
   if (cached) return getByPlatformId(cached.platformId);
 
-  const keyword = `${track.title} ${track.artists[0]?.name ?? ""}`.trim();
+  const keyword = buildLyricSearchKeyword(track);
   if (!keyword) return null;
   // 搜索 + 归一化
   const candidates: LyricCandidate<{ id: string }>[] = [];

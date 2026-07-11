@@ -3,6 +3,8 @@ import type { Track } from "@shared/types/player";
 import type { FolderNode } from "@/types/folder";
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import { useLibraryStore } from "@/stores/library";
+import { usePlaylistStore } from "@/stores/playlist";
+import { toast } from "@/composables/useToast";
 import SongList from "@/components/list/SongList.vue";
 import * as player from "@/core/player";
 import IconLucideFolder from "~icons/lucide/folder";
@@ -11,11 +13,13 @@ import IconLucideMusic from "~icons/lucide/music";
 import IconLucideChevronRight from "~icons/lucide/chevron-right";
 import IconLucidePlay from "~icons/lucide/play";
 import IconLucideListChecks from "~icons/lucide/list-checks";
+import IconLucideListPlus from "~icons/lucide/list-plus";
 import IconLucideEllipsis from "~icons/lucide/ellipsis";
 
 const { t } = useI18n();
 const router = useRouter();
 const libraryStore = useLibraryStore();
+const playlistStore = usePlaylistStore();
 const { tracks, initialized, folderTree, folderCount } = storeToRefs(libraryStore);
 
 const trackCount = computed(() => tracks.value.filter((tr) => !!tr.path).length);
@@ -23,15 +27,22 @@ const trackCount = computed(() => tracks.value.filter((tr) => !!tr.path).length)
 const expanded = ref<string[]>([]);
 const selectedFolder = shallowRef<FolderNode | null>(null);
 const songListRef = shallowRef<InstanceType<typeof SongList> | null>(null);
+const createOpen = ref(false);
 
 /** 更多操作菜单 */
 const moreMenuItems = computed<DropdownMenuItem[]>(() => [
+  {
+    key: "createPlaylist",
+    label: t("collection.create", { type: t("collection.playlist") }),
+    icon: IconLucideListPlus,
+  },
   { key: "batchManage", label: t("songList.batch.manage"), icon: IconLucideListChecks },
 ]);
 
 /** 处理更多操作 */
 const handleMore = (key: string): void => {
-  if (key === "batchManage") songListRef.value?.enterBatch();
+  if (key === "createPlaylist") createOpen.value = true;
+  else if (key === "batchManage") songListRef.value?.enterBatch();
 };
 
 // 默认展开/选中只在首次拿到非空树时执行一次，之后用户的折叠/选择不再被覆盖
@@ -80,6 +91,12 @@ const selectedTracks = computed<Track[]>(() => {
 const handlePlayAll = (): void => {
   if (selectedTracks.value.length === 0) return;
   player.playFrom(selectedTracks.value, 0);
+};
+
+/** 文件夹创建为本地歌单 */
+const handleCreated = async (playlistId: string): Promise<void> => {
+  const count = await playlistStore.addTracks(playlistId, selectedTracks.value);
+  toast.success(t("collection.tracksAdded", { count }));
 };
 
 const getKey = (node: FolderNode): string => node.path;
@@ -214,5 +231,12 @@ onMounted(async () => {
         </SButton>
       </div>
     </div>
+    <PlaylistCreateDialog
+      v-model:open="createOpen"
+      mode="local"
+      lock-type
+      :initial-name="selectedFolder?.name"
+      @created="handleCreated"
+    />
   </div>
 </template>
