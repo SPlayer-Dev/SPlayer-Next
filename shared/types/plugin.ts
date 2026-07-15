@@ -3,7 +3,7 @@
  * 用于主进程、预加载、渲染进程、沙箱子进程之间的契约
  */
 
-import type { LyricLine } from "./lyrics";
+import type { LyricData, LyricLine, LyricLoadState } from "./lyrics";
 import type { Track } from "./player";
 import type { CommentTab, MusicCommentItem } from "./comment";
 
@@ -40,18 +40,39 @@ export const PLUGIN_GRANTS = ["network", "control", "ui"] as const;
 export type PluginGrant = (typeof PLUGIN_GRANTS)[number];
 
 /** 控制类插件可订阅的高层播放事件 */
-export type PlaybackEventKind = "trackChange" | "lyricChange" | "lineChange" | "playStateChange";
+export type PlaybackEventKind =
+  | "trackChange"
+  | "trackUpdate"
+  | "lyricChange"
+  | "lineChange"
+  | "playStateChange"
+  | "positionSync";
 
 /** 各高层事件的载荷 */
 export interface PlaybackEventData {
   /** 曲目切换 */
-  trackChange: { track: Track | null };
+  trackChange: { track: Track | null; revision: number };
+  /** 当前曲目的封面、时长等延迟元数据更新 */
+  trackUpdate: { track: Track; revision: number };
   /** 歌词数据 */
-  lyricChange: { lines: LyricLine[] };
+  lyricChange: {
+    lines: LyricLine[];
+    source: LyricData;
+    status: LyricLoadState;
+    revision: number;
+  };
   /** 当前行索引变化 */
   lineChange: { index: number; position: number };
   /** 播放态变化 */
   playStateChange: { state: "playing" | "paused" | "stopped"; position: number };
+  /** 播放位置锚点；订阅者应按 speed 在本地插值 */
+  positionSync: {
+    position: number;
+    state: "playing" | "paused" | "stopped";
+    speed: number;
+    lyricOffsetMs: number;
+    sendTimestamp: number;
+  };
 }
 
 /** 控制类插件注册的配置项类型（安全子集） */
@@ -113,6 +134,21 @@ export interface PluginPlayerApi {
   seek(positionMs: number): void;
   setVolume(volume: number): void;
   getPosition(): Promise<number>;
+}
+
+/** 插件按需读取的当前封面 */
+export interface PluginCoverData {
+  trackId: string;
+  source: Track["source"];
+  mimeType: "image/jpeg";
+  hash: string;
+  data: Uint8Array;
+}
+
+/** 插件只读媒体数据面 */
+export interface PluginMediaApi {
+  /** 获取适合小尺寸展示的当前封面，不返回原始高清图 */
+  getCover(): Promise<PluginCoverData | null>;
 }
 
 /** 插件头部 JSDoc 元数据 */
@@ -377,6 +413,9 @@ export interface HostApi {
   /** 控制类播放面：监听高层事件 + 反向控制 */
   player: PluginPlayerApi;
 
+  /** 只读媒体数据面 */
+  media: PluginMediaApi;
+
   /** 控制类设置变更回调：用户改设置后触发 */
   onSettingChange: (key: string, handler: (value: unknown) => void) => void;
 }
@@ -467,7 +506,8 @@ export type HostCallMethod =
   | "player.prev"
   | "player.seek"
   | "player.setVolume"
-  | "player.getPosition";
+  | "player.getPosition"
+  | "media.getCover";
 
 /* ========== 渲染端 ↔ 主进程的 IPC 请求参数 ========== */
 

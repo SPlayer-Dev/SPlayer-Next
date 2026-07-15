@@ -46,6 +46,11 @@ export const useMediaStore = defineStore("media", () => {
         track: track.value ? toRaw(track.value) : null,
         lyric: toRaw(parsedLyric.value),
         source: activeLyric.value ? toRaw(activeLyric.value) : null,
+        lyricStatus: lyricLoading.value
+          ? ("loading" as const)
+          : parsedLyric.value.length > 0
+            ? ("ready" as const)
+            : ("none" as const),
       };
       window.api.nowPlaying.update(payload);
     } catch (error) {
@@ -79,6 +84,7 @@ export const useMediaStore = defineStore("media", () => {
       quality: track.value.quality ?? info.quality,
     };
     if (newDetail) detail.value = newDetail;
+    syncToMain();
   };
 
   /**
@@ -94,6 +100,7 @@ export const useMediaStore = defineStore("media", () => {
       cover: track.value.cover || url,
       coverOriginal: track.value.coverOriginal || url,
     };
+    syncToMain();
   };
 
   /** 重置歌词状态 */

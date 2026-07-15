@@ -120,6 +120,14 @@ export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSyn
     }
 
     unsubscribers.push(
+      window.api.nowPlaying.onTrackChange(({ track: nextTrack }) => {
+        track.value = nextTrack;
+        lyric.value = [];
+        primaryIndex.value = -1;
+      }),
+      window.api.nowPlaying.onTrackUpdate(({ track: nextTrack }) => {
+        track.value = nextTrack;
+      }),
       window.api.nowPlaying.onLyricChange((snap) => {
         applySnapshot(snap);
         kickTick();

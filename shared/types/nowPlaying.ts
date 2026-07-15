@@ -1,18 +1,25 @@
 import type { Track, PlayerState } from "./player";
-import type { LyricLine, LyricData } from "./lyrics";
+import type { LyricLine, LyricData, LyricLoadState } from "./lyrics";
 
 /** 渲染进程 → 主进程：同步当前播放状态（track + 歌词 + 源） */
 export interface NowPlayingUpdatePayload {
   track: Track | null;
   lyric: LyricLine[];
   source: LyricData;
+  lyricStatus: LyricLoadState;
 }
 
 /** 主进程 → 窗口：当前播放的完整快照 */
 export interface NowPlayingSnapshot {
   track: Track | null;
+  /** 当前曲目元数据修订号 */
+  trackRevision: number;
   lyric: LyricLine[];
   source: LyricData;
+  /** 当前歌词加载状态 */
+  lyricStatus: LyricLoadState;
+  /** 当前歌词文档修订号 */
+  lyricRevision: number;
   position: number;
   playing: boolean;
   /** 完整播放状态，区分 stopped 与 paused */
@@ -53,7 +60,11 @@ export interface NowPlayingApi {
   /** 写入指定曲目的歌词偏移（ms）；0 视为清除 */
   setLyricOffset: (trackId: string, offsetMs: number) => void;
   /** 订阅歌曲切换 */
-  onTrackChange: (callback: (data: { track: Track | null }) => void) => () => void;
+  onTrackChange: (
+    callback: (data: { track: Track | null; revision: number }) => void,
+  ) => () => void;
+  /** 订阅当前曲目的延迟元数据更新 */
+  onTrackUpdate: (callback: (data: { track: Track; revision: number }) => void) => () => void;
   /** 订阅歌词内容变化 */
   onLyricChange: (callback: (snapshot: NowPlayingSnapshot) => void) => () => void;
   /** 订阅播放位置锚点 */

@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
+import { isDeepStrictEqual } from "node:util";
 import type { Track, PlayerState } from "@shared/types/player";
-import type { LyricLine, LyricData } from "@shared/types/lyrics";
+import type { LyricLine, LyricData, LyricLoadState } from "@shared/types/lyrics";
 import type {
   NowPlayingSnapshot,
   NowPlayingPositionSync,
@@ -10,7 +11,9 @@ import { store } from "@main/store";
 
 type NowPlayingEvents = {
   /** 歌曲切换 */
-  "track-change": [{ track: Track | null }];
+  "track-change": [{ track: Track | null; revision: number }];
+  /** 当前曲目的延迟元数据更新 */
+  "track-update": [{ track: Track; revision: number }];
   /** 歌词内容变化 */
   "lyric-change": [NowPlayingSnapshot];
   /** 播放位置锚点 */
@@ -21,10 +24,16 @@ type NowPlayingEvents = {
 
 /** 当前歌曲轻量信息 */
 let currentTrack: Track | null = null;
+/** 当前曲目元数据修订号 */
+let trackRevision = 0;
 /** 当前歌曲的完整解析歌词 */
 let currentLyric: LyricLine[] = [];
 /** 当前激活的歌词源 */
 let currentSource: LyricData = null;
+/** 当前歌词加载状态 */
+let currentLyricStatus: LyricLoadState = "none";
+/** 当前歌词文档修订号 */
+let lyricRevision = 0;
 /** 最近一次播放位置（毫秒） */
 let lastPosition = 0;
 /** lastPosition 真实成立的墙钟时刻（Date.now 毫秒），用于补偿其过期时长 */
@@ -73,16 +82,37 @@ let currentOffsetKey = "";
  * @param lyric - 当前歌词
  * @param source - 当前歌词源
  */
-export const update = (track: Track | null, lyric: LyricLine[], source: LyricData): void => {
-  const trackChanged = (currentTrack?.id ?? null) !== (track?.id ?? null);
+export const update = (
+  track: Track | null,
+  lyric: LyricLine[],
+  source: LyricData,
+  lyricStatus: LyricLoadState,
+): void => {
+  const previousIdentity = currentTrack ? `${currentTrack.source}:${currentTrack.id}` : null;
+  const nextIdentity = track ? `${track.source}:${track.id}` : null;
+  const trackChanged = previousIdentity !== nextIdentity;
+  const trackUpdated = !trackChanged && !isDeepStrictEqual(currentTrack, track);
   currentTrack = track;
-  currentLyric = lyric;
-  currentSource = source;
   if (trackChanged) {
+    trackRevision++;
     // 重置播放进度
     lastPosition = 0;
     lastPositionAt = Date.now();
-    emitter.emit("track-change", { track });
+    emitter.emit("track-change", { track, revision: trackRevision });
+  } else if (trackUpdated && track) {
+    trackRevision++;
+    emitter.emit("track-update", { track, revision: trackRevision });
+  }
+
+  const lyricChanged =
+    currentLyricStatus !== lyricStatus ||
+    !isDeepStrictEqual(currentSource, source) ||
+    !isDeepStrictEqual(currentLyric, lyric);
+  currentLyric = lyric;
+  currentSource = source;
+  currentLyricStatus = lyricStatus;
+  if (lyricChanged) {
+    lyricRevision++;
   }
   // 曲目或歌词源任一变化都重读偏移并广播
   const key = track?.id ? offsetKey(track.id, source) : "";
@@ -94,7 +124,7 @@ export const update = (track: Track | null, lyric: LyricLine[], source: LyricDat
       offsetMs: currentLyricOffsetMs,
     });
   }
-  emitter.emit("lyric-change", snapshot());
+  if (lyricChanged) emitter.emit("lyric-change", snapshot());
 };
 
 /**
@@ -182,8 +212,11 @@ export const setLyricOffset = (trackId: string, offsetMs: number): void => {
 /** 拉取当前完整状态 */
 export const snapshot = (): NowPlayingSnapshot => ({
   track: currentTrack,
+  trackRevision,
   lyric: currentLyric,
   source: currentSource,
+  lyricStatus: currentLyricStatus,
+  lyricRevision,
   position: lastPosition,
   playing,
   state: playState,
@@ -195,19 +228,23 @@ export const snapshot = (): NowPlayingSnapshot => ({
 
 /** 清空 */
 export const clear = (): void => {
-  currentTrack = null;
-  currentLyric = [];
-  currentSource = null;
-  currentLyricOffsetMs = 0;
-  currentOffsetKey = "";
-  emitter.emit("lyric-change", snapshot());
-  emitter.emit("lyric-offset-change", { trackId: null, offsetMs: 0 });
+  update(null, [], null, "none");
 };
 
 /** 订阅歌曲切换 */
-export const onTrackChange = (listener: (data: { track: Track | null }) => void): (() => void) => {
+export const onTrackChange = (
+  listener: (data: { track: Track | null; revision: number }) => void,
+): (() => void) => {
   emitter.on("track-change", listener);
   return () => emitter.off("track-change", listener);
+};
+
+/** 订阅当前曲目的延迟元数据更新 */
+export const onTrackUpdate = (
+  listener: (data: { track: Track; revision: number }) => void,
+): (() => void) => {
+  emitter.on("track-update", listener);
+  return () => emitter.off("track-update", listener);
 };
 
 /** 订阅歌词内容变化 */
