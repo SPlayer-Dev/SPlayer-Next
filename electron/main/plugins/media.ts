@@ -7,6 +7,7 @@ import { resolveCacheUrlPath } from "@main/utils/protocol";
 import { pluginLog } from "@main/utils/logger";
 
 const MAX_COVER_INPUT_BYTES = 4 * 1024 * 1024;
+const MAX_COVER_BASE64_LENGTH = Math.ceil(MAX_COVER_INPUT_BYTES / 3) * 4;
 const COVER_SIZE = 300;
 const COVER_TIMEOUT_MS = 10_000;
 
@@ -16,22 +17,59 @@ const ensureBounded = (data: Uint8Array): Uint8Array | null =>
 
 /** 读取 data URL */
 const readDataUrl = (url: string): Uint8Array | null => {
-  const match = /^data:image\/[a-z0-9.+-]+;base64,([a-z0-9+/=\s]+)$/i.exec(url);
-  if (!match) return null;
-  return ensureBounded(Buffer.from(match[1], "base64"));
+  const separator = url.indexOf(",");
+  if (separator < 0 || !/^data:image\/[a-z0-9.+-]+;base64$/i.test(url.slice(0, separator)))
+    return null;
+  const encoded = url.slice(separator + 1);
+  if (
+    encoded.length === 0 ||
+    encoded.length > MAX_COVER_BASE64_LENGTH ||
+    encoded.length % 4 === 1 ||
+    !/^[a-z0-9+/]*={0,2}$/i.test(encoded)
+  )
+    return null;
+  const padding = encoded.endsWith("==") ? 2 : encoded.endsWith("=") ? 1 : 0;
+  if (padding > 0 && encoded.length % 4 !== 0) return null;
+  const decodedLength = Math.floor((encoded.length - padding) * 0.75);
+  if (decodedLength === 0 || decodedLength > MAX_COVER_INPUT_BYTES) return null;
+  return ensureBounded(Buffer.from(encoded, "base64"));
 };
 
 /** 读取 HTTP(S) 封面 */
 const readRemoteCover = async (url: string): Promise<Uint8Array | null> => {
-  const response = await net.fetch(url, {
-    method: "GET",
-    redirect: "follow",
-    signal: AbortSignal.timeout(COVER_TIMEOUT_MS),
-  });
-  if (!response.ok) return null;
-  const length = Number(response.headers.get("content-length"));
-  if (Number.isFinite(length) && length > MAX_COVER_INPUT_BYTES) return null;
-  return ensureBounded(new Uint8Array(await response.arrayBuffer()));
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), COVER_TIMEOUT_MS);
+  try {
+    const response = await net.fetch(url, {
+      method: "GET",
+      redirect: "follow",
+      signal: controller.signal,
+    });
+    if (!response.ok || !response.body) return null;
+    const contentLength = response.headers.get("content-length");
+    if (contentLength !== null) {
+      const length = Number(contentLength);
+      if (Number.isFinite(length) && length > MAX_COVER_INPUT_BYTES) return null;
+    }
+
+    const chunks: Uint8Array[] = [];
+    const reader = response.body.getReader();
+    let total = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_COVER_INPUT_BYTES) {
+        controller.abort();
+        return null;
+      }
+      chunks.push(value);
+    }
+    if (total === 0) return null;
+    return Buffer.concat(chunks, total);
+  } finally {
+    clearTimeout(timer);
+  }
 };
 
 /** 读取当前 Track 的小尺寸封面来源 */
