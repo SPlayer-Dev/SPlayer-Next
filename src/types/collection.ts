@@ -15,6 +15,8 @@ export interface PlaylistRecord {
   description?: string;
   /** 歌曲 ID 列表 */
   trackIds: string[];
+  /** 不在本地曲库中的在线曲目快照 */
+  tracks?: Track[];
   trackCount?: number;
   cover?: string;
   createTime?: number;

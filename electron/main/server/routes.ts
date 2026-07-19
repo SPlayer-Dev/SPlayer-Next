@@ -10,6 +10,40 @@ import { toMs } from "@main/utils/time";
 import * as nowPlaying from "@main/services/nowPlaying";
 import { playerControl } from "@main/services/playerControl";
 import { getWsClientCount } from "./broadcast";
+import { importRecommendations } from "@main/ipc/recommendations";
+import type { RecommendationImportRequest } from "@shared/types/recommendation";
+
+const MAX_RECOMMENDATION_ITEMS = 50;
+
+const isImportRequest = (value: unknown): value is RecommendationImportRequest => {
+  if (!value || typeof value !== "object") return false;
+  const request = value as Partial<RecommendationImportRequest>;
+  if (request.provider !== "youtube-music") return false;
+  if (request.mode !== "playlist" && request.mode !== "append" && request.mode !== "replace") return false;
+  if (
+    !Array.isArray(request.items) ||
+    request.items.length === 0 ||
+    request.items.length > MAX_RECOMMENDATION_ITEMS
+  ) {
+    return false;
+  }
+  return request.items.every((item) => {
+    if (!item || typeof item !== "object") return false;
+    return (
+      typeof item.sourceId === "string" &&
+      item.sourceId.length > 0 &&
+      typeof item.title === "string" &&
+      item.title.trim().length > 0 &&
+      Array.isArray(item.artists) &&
+      item.artists.every((artist) => typeof artist === "string") &&
+      (item.album === undefined || typeof item.album === "string") &&
+      (item.durationMs === undefined ||
+        (typeof item.durationMs === "number" &&
+          Number.isFinite(item.durationMs) &&
+          item.durationMs >= 0))
+    );
+  });
+};
 
 export const buildRoutes = (): Hono => {
   const api = new Hono();
@@ -84,6 +118,18 @@ export const buildRoutes = (): Hono => {
   api.post("/prev", (c) => {
     playerControl.prev();
     return c.json({ ok: true });
+  });
+
+  api.post("/recommendations/import", async (c) => {
+    const body = await c.req.json().catch(() => null);
+    if (!isImportRequest(body)) {
+      return c.json({ error: "invalid recommendation import request" }, 400);
+    }
+    try {
+      return c.json(await importRecommendations(body));
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 503);
+    }
   });
 
   return api;

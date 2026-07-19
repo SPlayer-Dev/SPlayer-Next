@@ -16,6 +16,7 @@ import type { TagEditRequest } from "@shared/types/tagEditor";
 import type { UpdateEvent } from "@shared/types/update";
 import type { CloudUploadProgress } from "@shared/types/cloudUpload";
 import type { MusicCommentQuery } from "@shared/types/comment";
+import type { RecommendationImportResult, RecommendationImportTask } from "@shared/types/recommendation";
 
 /** 订阅主进程推送的事件 */
 const subscribe = <T>(channel: string, callback: (data: T) => void): (() => void) => {
@@ -327,6 +328,15 @@ const api = {
     // 订阅插件状态变化
     onStatus: (callback: (info: PluginInfo) => void) =>
       subscribe<PluginInfo>("plugin:status", callback),
+  },
+  recommendations: {
+    ready: () => ipcRenderer.send("recommendations:ready"),
+    onImport: (callback: (task: RecommendationImportTask) => void) =>
+      subscribe<RecommendationImportTask>("recommendations:import", callback),
+    complete: (requestId: string, result: RecommendationImportResult) =>
+      ipcRenderer.invoke("recommendations:complete", requestId, result),
+    fail: (requestId: string, error: string) =>
+      ipcRenderer.invoke("recommendations:fail", requestId, error),
   },
   apis: {
     // 调用任意平台的任意接口
