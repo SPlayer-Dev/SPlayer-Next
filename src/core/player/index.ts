@@ -10,6 +10,7 @@ import { usePluginsStore } from "@/stores/plugins";
 import { useHistoryStore } from "@/stores/history";
 import { useLibraryStore } from "@/stores/library";
 import * as queue from "@/stores/queue";
+import { importRecommendations } from "@/services/recommendations";
 import * as fm from "./fm";
 import * as playback from "@/services/playback";
 import * as lyricLoader from "@/services/lyricLoader";
@@ -965,6 +966,17 @@ export const initPlayer = async (): Promise<void> => {
   // 先订阅事件，确保 load 触发播放后 position 事件能被接收
   if (unsubscribe) unsubscribe();
   unsubscribe = window.api.player.onEvent(handleEvent);
+  window.api.recommendations.ready();
+  window.api.recommendations.onImport(({ requestId, request }) => {
+    void importRecommendations(request, { append: insertManyToQueue, replace: playFrom })
+      .then((result) => window.api.recommendations.complete(requestId, result))
+      .catch((error) =>
+        window.api.recommendations.fail(
+          requestId,
+          error instanceof Error ? error.message : String(error),
+        ),
+      );
+  });
   // 安装播放统计累加器
   installPlayStats();
   // 订阅主进程下发的歌词偏移变化
