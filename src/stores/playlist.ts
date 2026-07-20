@@ -171,6 +171,26 @@ export const usePlaylistStore = defineStore("playlist", () => {
     return { ...meta, tracks, trackCount: tracks.length };
   };
 
+  /** 替换歌单中的在线曲目快照 */
+  const replaceTracks = async (id: string, tracks: Track[]): Promise<Collection | null> => {
+    const record = await db.getItem<PlaylistRecord>(id);
+    if (!record) return null;
+    record.trackIds = [];
+    record.tracks = tracks;
+    record.trackCount = tracks.length;
+    record.cover = tracks.find((track) => track.cover)?.cover;
+    record.updateTime = Date.now();
+    await db.setItem(id, record);
+    const idx = playlists.value.findIndex((playlist) => playlist.id === id);
+    if (idx !== -1) {
+      const { trackIds: _, tracks: __, ...meta } = record;
+      const next = [...playlists.value];
+      next[idx] = meta;
+      playlists.value = next;
+    }
+    return { ...record, tracks, trackCount: tracks.length };
+  };
+
   /** 从歌单移除歌曲 */
   const removeTracks = async (id: string, trackIds: string[]): Promise<void> => {
     const record = await db.getItem<PlaylistRecord>(id);
@@ -225,5 +245,6 @@ export const usePlaylistStore = defineStore("playlist", () => {
     addTracks,
     removeTracks,
     saveSnapshot,
+    replaceTracks,
   };
 });

@@ -11,15 +11,17 @@ import * as nowPlaying from "@main/services/nowPlaying";
 import { playerControl } from "@main/services/playerControl";
 import { getWsClientCount } from "./broadcast";
 import { importRecommendations } from "@main/ipc/recommendations";
+import { requestExternalPlaylist } from "@main/ipc/externalPlaylists";
 import type { RecommendationImportRequest } from "@shared/types/recommendation";
 
-const MAX_RECOMMENDATION_ITEMS = 50;
+const MAX_RECOMMENDATION_ITEMS = 500;
 
 const isImportRequest = (value: unknown): value is RecommendationImportRequest => {
   if (!value || typeof value !== "object") return false;
   const request = value as Partial<RecommendationImportRequest>;
   if (request.provider !== "youtube-music") return false;
-  if (request.mode !== "playlist" && request.mode !== "append" && request.mode !== "replace") return false;
+  if (request.mode !== "playlist" && request.mode !== "append" && request.mode !== "replace")
+    return false;
   if (
     !Array.isArray(request.items) ||
     request.items.length === 0 ||
@@ -44,6 +46,15 @@ const isImportRequest = (value: unknown): value is RecommendationImportRequest =
     );
   });
 };
+
+const getText = (value: unknown, maxLength: number): string | undefined => {
+  if (typeof value !== "string") return undefined;
+  const text = value.trim();
+  return text && text.length <= maxLength ? text : undefined;
+};
+
+const getPlaylistId = (value: string): string | undefined =>
+  value.startsWith("pl_") && value.length <= 100 ? value : undefined;
 
 export const buildRoutes = (): Hono => {
   const api = new Hono();
@@ -127,6 +138,109 @@ export const buildRoutes = (): Hono => {
     }
     try {
       return c.json(await importRecommendations(body));
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 503);
+    }
+  });
+
+  api.get("/playlists", async (c) => {
+    try {
+      return c.json(await requestExternalPlaylist({ operation: "list" }));
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 503);
+    }
+  });
+
+  api.get("/playlists/:id", async (c) => {
+    const playlistId = getPlaylistId(c.req.param("id"));
+    if (!playlistId) return c.json({ error: "invalid playlist id" }, 400);
+    try {
+      const result = await requestExternalPlaylist({ operation: "get", playlistId });
+      return result.found === false ? c.json({ error: "playlist not found" }, 404) : c.json(result);
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 503);
+    }
+  });
+
+  api.post("/playlists", async (c) => {
+    const body = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+    const title = getText(body?.title, 200);
+    if (!title) return c.json({ error: "title (non-empty string, <=200) required" }, 400);
+    const description =
+      body?.description === undefined ? undefined : getText(body.description, 2_000);
+    if (body?.description !== undefined && description === undefined) {
+      return c.json({ error: "description (non-empty string, <=2000) required" }, 400);
+    }
+    try {
+      return c.json(
+        await requestExternalPlaylist({ operation: "create", title, description }),
+        201,
+      );
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 503);
+    }
+  });
+
+  api.patch("/playlists/:id", async (c) => {
+    const playlistId = getPlaylistId(c.req.param("id"));
+    const body = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!playlistId) return c.json({ error: "invalid playlist id" }, 400);
+    const title = body?.title === undefined ? undefined : getText(body.title, 200);
+    const description =
+      body?.description === null
+        ? null
+        : body?.description === undefined
+          ? undefined
+          : getText(body.description, 2_000);
+    if (
+      (title === undefined && description === undefined) ||
+      (body?.title !== undefined && title === undefined) ||
+      (body?.description !== undefined && description === undefined)
+    ) {
+      return c.json({ error: "title or description required" }, 400);
+    }
+    try {
+      const result = await requestExternalPlaylist({
+        operation: "update",
+        playlistId,
+        title,
+        description,
+      });
+      return result.found === false ? c.json({ error: "playlist not found" }, 404) : c.json(result);
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 503);
+    }
+  });
+
+  api.delete("/playlists/:id", async (c) => {
+    const playlistId = getPlaylistId(c.req.param("id"));
+    if (!playlistId) return c.json({ error: "invalid playlist id" }, 400);
+    try {
+      const result = await requestExternalPlaylist({ operation: "remove", playlistId });
+      return result.found === false
+        ? c.json({ error: "playlist not found" }, 404)
+        : c.json({ ok: true });
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 503);
+    }
+  });
+
+  api.put("/playlists/:id/tracks", async (c) => {
+    const playlistId = getPlaylistId(c.req.param("id"));
+    const body = (await c.req
+      .json()
+      .catch(() => null)) as Partial<RecommendationImportRequest> | null;
+    const request = { ...(body ?? {}), mode: "playlist" };
+    if (!playlistId || !isImportRequest(request)) {
+      return c.json({ error: "invalid playlist track replacement request" }, 400);
+    }
+    try {
+      const result = await requestExternalPlaylist({
+        operation: "replaceTracks",
+        playlistId,
+        items: request.items,
+      });
+      return result.found === false ? c.json({ error: "playlist not found" }, 404) : c.json(result);
     } catch (err) {
       return c.json({ error: err instanceof Error ? err.message : String(err) }, 503);
     }

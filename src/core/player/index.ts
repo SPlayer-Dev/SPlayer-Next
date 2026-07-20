@@ -10,7 +10,7 @@ import { usePluginsStore } from "@/stores/plugins";
 import { useHistoryStore } from "@/stores/history";
 import { useLibraryStore } from "@/stores/library";
 import * as queue from "@/stores/queue";
-import { importRecommendations } from "@/services/recommendations";
+import { handleExternalPlaylistTask, importRecommendations } from "@/services/recommendations";
 import * as fm from "./fm";
 import * as playback from "@/services/playback";
 import * as lyricLoader from "@/services/lyricLoader";
@@ -972,6 +972,17 @@ export const initPlayer = async (): Promise<void> => {
       .then((result) => window.api.recommendations.complete(requestId, result))
       .catch((error) =>
         window.api.recommendations.fail(
+          requestId,
+          error instanceof Error ? error.message : String(error),
+        ),
+      );
+  });
+  window.api.externalPlaylists.ready();
+  window.api.externalPlaylists.onRequest(({ requestId, ...task }) => {
+    void handleExternalPlaylistTask({ requestId, ...task })
+      .then((result) => window.api.externalPlaylists.complete(requestId, result))
+      .catch((error) =>
+        window.api.externalPlaylists.fail(
           requestId,
           error instanceof Error ? error.message : String(error),
         ),

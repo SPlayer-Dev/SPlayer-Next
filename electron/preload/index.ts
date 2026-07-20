@@ -16,7 +16,11 @@ import type { TagEditRequest } from "@shared/types/tagEditor";
 import type { UpdateEvent } from "@shared/types/update";
 import type { CloudUploadProgress } from "@shared/types/cloudUpload";
 import type { MusicCommentQuery } from "@shared/types/comment";
-import type { RecommendationImportResult, RecommendationImportTask } from "@shared/types/recommendation";
+import type {
+  RecommendationImportResult,
+  RecommendationImportTask,
+} from "@shared/types/recommendation";
+import type { ExternalPlaylistResult, ExternalPlaylistTask } from "@shared/types/externalPlaylist";
 
 /** 订阅主进程推送的事件 */
 const subscribe = <T>(channel: string, callback: (data: T) => void): (() => void) => {
@@ -105,7 +109,8 @@ const api = {
     // 同步当前歌曲喜欢状态到主进程（供托盘菜单显示）
     syncLikeState: (liked: boolean) => ipcRenderer.send("player:syncLikeState", liked),
     // 通知外部控制端当前歌曲收藏状态变更
-    notifyLike: (track: Track, liked: boolean) => ipcRenderer.send("player:notifyLike", track, liked),
+    notifyLike: (track: Track, liked: boolean) =>
+      ipcRenderer.send("player:notifyLike", track, liked),
     // 广播播放控制事件到所有渲染进程
     dispatch: (type: string) => ipcRenderer.send("player:dispatch", type),
     // 订阅主进程推送的播放事件
@@ -339,6 +344,15 @@ const api = {
       ipcRenderer.invoke("recommendations:complete", requestId, result),
     fail: (requestId: string, error: string) =>
       ipcRenderer.invoke("recommendations:fail", requestId, error),
+  },
+  externalPlaylists: {
+    ready: () => ipcRenderer.send("externalPlaylists:ready"),
+    onRequest: (callback: (task: ExternalPlaylistTask) => void) =>
+      subscribe<ExternalPlaylistTask>("externalPlaylists:request", callback),
+    complete: (requestId: string, result: ExternalPlaylistResult) =>
+      ipcRenderer.invoke("externalPlaylists:complete", requestId, result),
+    fail: (requestId: string, error: string) =>
+      ipcRenderer.invoke("externalPlaylists:fail", requestId, error),
   },
   apis: {
     // 调用任意平台的任意接口
