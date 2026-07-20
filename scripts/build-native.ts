@@ -1,5 +1,8 @@
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import process from "node:process";
+import os from "node:os";
 
 interface NativeModule {
   name: string;
@@ -31,6 +34,86 @@ const isRustAvailable = () => {
   return !result.error && !result.signal && result.status === 0;
 };
 
+/** Windows 下加载 MSVC + Windows SDK 环境，避免 C/C++ 依赖找不到 errno.h。 */
+const configureMsvcEnvironment = () => {
+  if (process.platform !== "win32") return;
+  const programFiles = process.env.ProgramFiles ?? "C:\\Program Files";
+  const candidates = [
+    join(
+      programFiles,
+      "Microsoft Visual Studio",
+      "18",
+      "Insiders",
+      "VC",
+      "Auxiliary",
+      "Build",
+      "vcvars64.bat",
+    ),
+    join(
+      programFiles,
+      "Microsoft Visual Studio",
+      "2022",
+      "Community",
+      "VC",
+      "Auxiliary",
+      "Build",
+      "vcvars64.bat",
+    ),
+    join(
+      programFiles,
+      "Microsoft Visual Studio",
+      "2022",
+      "BuildTools",
+      "VC",
+      "Auxiliary",
+      "Build",
+      "vcvars64.bat",
+    ),
+  ];
+  const vcvars = candidates.find((candidate) => existsSync(candidate));
+  if (!vcvars || process.env.VCToolsInstallDir) return;
+  const tempDir = mkdtempSync(join(os.tmpdir(), "splayer-vcvars-"));
+  const batchFile = join(tempDir, "env.bat");
+  try {
+    writeFileSync(batchFile, `@call "${vcvars}"\r\n@set\r\n`, "utf8");
+    const output = execFileSync(process.env.ComSpec ?? "cmd.exe", ["/d", "/c", batchFile], {
+      encoding: "utf8",
+      windowsHide: true,
+    });
+    for (const line of output.split(/\r?\n/)) {
+      const separator = line.indexOf("=");
+      if (separator <= 0) continue;
+      process.env[line.slice(0, separator)] = line.slice(separator + 1);
+    }
+    console.log(`[BuildNative] 使用 MSVC: ${vcvars}`);
+  } catch (error) {
+    console.warn(`[BuildNative] 加载 MSVC 环境失败: ${String(error)}`);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+};
+
+/** Windows 下自动寻找 bindgen 所需的 libclang，优先尊重用户显式配置。 */
+const configureLibclang = () => {
+  if (process.platform !== "win32") return;
+  const roots = [process.env.MSYS2_ROOT, "C:\\msys64", "C:\\msys2"].filter((root): root is string =>
+    Boolean(root),
+  );
+  const candidates = roots.map((root) => join(root, "clang64", "bin"));
+  const libclangPath =
+    process.env.LIBCLANG_PATH ??
+    candidates.find((candidate) => existsSync(join(candidate, "libclang.dll")));
+  if (libclangPath) {
+    process.env.LIBCLANG_PATH = libclangPath;
+    const pathEntries = (process.env.PATH ?? "").split(";");
+    if (!pathEntries.some((entry) => entry.toLowerCase() === libclangPath.toLowerCase())) {
+      // 放在 PATH 末尾，避免 MSYS2 clang 抢走 MSVC/FFmpeg 的 C/C++ 工具链。
+      process.env.PATH = `${process.env.PATH ?? ""};${libclangPath}`;
+    }
+    console.log(`[BuildNative] 使用 libclang: ${libclangPath}`);
+  }
+};
+
 if (process.env.SKIP_NATIVE_BUILD === "true" || process.env.SKIP_NATIVE_BUILD === "1") {
   console.log("[BuildNative] SKIP_NATIVE_BUILD 已设置，跳过原生模块构建");
   process.exit(0);
@@ -44,6 +127,9 @@ if (!isRustAvailable()) {
   );
   process.exit(1);
 }
+
+configureMsvcEnvironment();
+configureLibclang();
 
 const parseArgs = () => {
   const options: {
