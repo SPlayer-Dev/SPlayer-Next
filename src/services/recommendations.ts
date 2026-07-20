@@ -27,6 +27,8 @@ const isRateLimited = (error: unknown): boolean =>
 
 const pickRandom = <T>(items: readonly T[]): T => items[Math.floor(Math.random() * items.length)];
 
+const shuffled = <T>(items: readonly T[]): T[] => [...items].sort(() => Math.random() - 0.5);
+
 /** 将外部推荐按给定顺序解析为网易云曲目 */
 export const resolveRecommendationTracks = async (
   request: RecommendationImportRequest,
@@ -62,6 +64,37 @@ export const resolveRecommendationTracks = async (
         continue;
       }
       break;
+    }
+    if (!track) {
+      for (const fallback of shuffled(
+        [...availablePlatforms].filter((item) => item !== platform),
+      )) {
+        try {
+          const result = await searchSongs(fallback, keyword, 0, 1);
+          track = result.items[0];
+          if (track) {
+            console.info("[recommendations] 已使用单曲备用来源解析", {
+              sourceId: item.sourceId,
+              title: item.title,
+              artists: item.artists,
+              keyword,
+              platform: fallback,
+            });
+            break;
+          }
+        } catch (error) {
+          lastError = error;
+          if (isRateLimited(error)) availablePlatforms.delete(fallback);
+          console.warn("[recommendations] 单曲备用来源搜索失败", {
+            sourceId: item.sourceId,
+            title: item.title,
+            artists: item.artists,
+            keyword,
+            platform: fallback,
+            error: error instanceof Error ? error.stack || error.message : String(error),
+          });
+        }
+      }
     }
     if (!track) {
       console.error("[recommendations] 当前搜索来源未能解析曲目", {
