@@ -9,13 +9,20 @@ import type {
   ExternalPlaylistTask,
 } from "@shared/types/externalPlaylist";
 import type { Track } from "@shared/types/player";
+import type { Platform } from "@shared/types/platform";
 import { searchSongs } from "@/apis/search";
 import { usePlaylistStore } from "@/stores/playlist";
 
 const SEARCH_DELAY_MS = 500;
+const NETEASE_RETRY_DELAY_MS = 3_000;
 
 const getSearchKeyword = (title: string, artists: string[]): string =>
   [title, ...artists].filter(Boolean).join(" ");
+
+const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+const isNeteaseRateLimited = (error: unknown): boolean =>
+  /netease 405\b|\b405:/.test(error instanceof Error ? error.message : String(error));
 
 /** 将外部推荐按给定顺序解析为网易云曲目 */
 export const resolveRecommendationTracks = async (
@@ -25,36 +32,69 @@ export const resolveRecommendationTracks = async (
   const skipped: RecommendationImportSkipped[] = [];
   for (const [index, item] of request.items.entries()) {
     const keyword = getSearchKeyword(item.title, item.artists);
+    let track: Track | undefined;
+    let neteaseError: unknown;
     try {
       const result = await searchSongs("netease", keyword, 0, 1);
-      const track = result.items[0];
-      if (track) tracks.push(track);
-      else {
-        console.warn("[recommendations] 网易云未找到曲目", {
-          sourceId: item.sourceId,
-          title: item.title,
-          artists: item.artists,
-          keyword,
-        });
-        skipped.push({
-          sourceId: item.sourceId,
-          reason: "notFound",
-          title: item.title,
-          artists: item.artists,
-          album: item.album,
-          durationMs: item.durationMs,
-          keyword,
-        });
-      }
+      track = result.items[0];
     } catch (error) {
-      console.error("[recommendations] 网易云解析失败", {
+      neteaseError = error;
+      if (isNeteaseRateLimited(error)) {
+        console.warn("[recommendations] 网易云搜索限流，3 秒后重试", {
+          sourceId: item.sourceId,
+          title: item.title,
+          artists: item.artists,
+          keyword,
+        });
+        await wait(NETEASE_RETRY_DELAY_MS);
+        try {
+          const result = await searchSongs("netease", keyword, 0, 1);
+          track = result.items[0];
+          neteaseError = undefined;
+        } catch (retryError) {
+          neteaseError = retryError;
+        }
+      }
+    }
+    if (!track) {
+      for (const platform of ["qqmusic", "kugou"] as const satisfies readonly Platform[]) {
+        try {
+          const result = await searchSongs(platform, keyword, 0, 1);
+          track = result.items[0];
+          if (track) {
+            console.info("[recommendations] 已使用备用来源解析曲目", {
+              sourceId: item.sourceId,
+              title: item.title,
+              artists: item.artists,
+              keyword,
+              platform,
+            });
+            break;
+          }
+        } catch (error) {
+          console.warn("[recommendations] 备用来源搜索失败", {
+            sourceId: item.sourceId,
+            title: item.title,
+            artists: item.artists,
+            keyword,
+            platform,
+            error: error instanceof Error ? error.stack || error.message : String(error),
+          });
+        }
+      }
+    }
+    if (track) {
+      tracks.push(track);
+    } else {
+      console.error("[recommendations] 所有来源均未能解析曲目", {
         sourceId: item.sourceId,
         title: item.title,
         artists: item.artists,
         album: item.album,
         durationMs: item.durationMs,
         keyword,
-        error: error instanceof Error ? error.stack || error.message : String(error),
+        error:
+          neteaseError instanceof Error ? neteaseError.stack || neteaseError.message : undefined,
       });
       skipped.push({
         sourceId: item.sourceId,
@@ -64,11 +104,12 @@ export const resolveRecommendationTracks = async (
         album: item.album,
         durationMs: item.durationMs,
         keyword,
-        error: error instanceof Error ? error.stack || error.message : String(error),
+        error:
+          neteaseError instanceof Error ? neteaseError.stack || neteaseError.message : undefined,
       });
     }
     if (index < request.items.length - 1) {
-      await new Promise<void>((resolve) => setTimeout(resolve, SEARCH_DELAY_MS));
+      await wait(SEARCH_DELAY_MS);
     }
   }
   return { tracks, skipped };
