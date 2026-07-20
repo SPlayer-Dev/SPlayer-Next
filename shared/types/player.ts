@@ -114,6 +114,8 @@ export interface Track {
   fee?: TrackFee;
   /** 云盘歌曲 */
   cloud?: boolean;
+  /** 当前账户是否已收藏 */
+  liked?: boolean;
 }
 
 /** 歌曲详细信息 */
@@ -251,6 +253,8 @@ export interface PlayerApi {
   syncPlayMode: (repeatMode: string, shuffleMode: string) => void;
   /** 同步当前歌曲喜欢状态到托盘 */
   syncLikeState: (liked: boolean) => void;
+  /** 通知外部控制端当前歌曲收藏状态已变更 */
+  notifyLike: (track: Track, liked: boolean) => void;
   /** 广播播放控制事件 */
   dispatch: (type: string) => void;
   /** 订阅播放事件 */

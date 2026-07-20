@@ -27,7 +27,7 @@ import * as songCache from "@main/services/songCache";
 import { parseArtists, parseAlbum, formatArtists } from "@main/utils/metadata";
 import { playerLog } from "@main/utils/logger";
 import { ErrorCode } from "@shared/types/errors";
-import type { LoadOptions, RepeatMode, ShuffleMode, PlayerState } from "@shared/types/player";
+import type { LoadOptions, RepeatMode, ShuffleMode, PlayerState, Track } from "@shared/types/player";
 import type { MediaEvent } from "@main/services/media";
 import { JsPlayerEvent } from "@splayer/audio-engine";
 
@@ -601,6 +601,11 @@ export const registerPlayerIpc = (): void => {
   ipcMain.on("player:syncLikeState", (_event, liked: boolean) => {
     setTrayLikeState(liked);
     getThumbar()?.updateLike(liked);
+  });
+
+  // 渲染进程在收藏成功后通知外部控制端
+  ipcMain.on("player:notifyLike", (_event, track: Track, liked: boolean) => {
+    wsBroadcast({ type: "like", data: { track, liked } });
   });
 
   // 转发渲染端发起的播放控制

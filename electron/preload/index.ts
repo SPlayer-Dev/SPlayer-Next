@@ -9,7 +9,7 @@ import type {
   PluginMatchCoverArgs,
 } from "@shared/types/plugin";
 import type { HotkeyActionId, HotkeyBinding, HotkeyConflict } from "@shared/types/hotkey";
-import type { LoadOptions, TrackSource } from "@shared/types/player";
+import type { LoadOptions, Track, TrackSource } from "@shared/types/player";
 import type { StreamingServerConfig } from "@shared/types/streaming";
 import type { PlayEventInput, FavoriteEventInput } from "@shared/types/stats";
 import type { TagEditRequest } from "@shared/types/tagEditor";
@@ -104,6 +104,8 @@ const api = {
       ipcRenderer.send("player:syncPlayMode", repeatMode, shuffleMode),
     // 同步当前歌曲喜欢状态到主进程（供托盘菜单显示）
     syncLikeState: (liked: boolean) => ipcRenderer.send("player:syncLikeState", liked),
+    // 通知外部控制端当前歌曲收藏状态变更
+    notifyLike: (track: Track, liked: boolean) => ipcRenderer.send("player:notifyLike", track, liked),
     // 广播播放控制事件到所有渲染进程
     dispatch: (type: string) => ipcRenderer.send("player:dispatch", type),
     // 订阅主进程推送的播放事件

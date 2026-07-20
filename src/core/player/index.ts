@@ -985,7 +985,10 @@ export const initPlayer = async (): Promise<void> => {
   const fav = useFavorite();
   watch(
     () => fav.isLiked(media.track),
-    (liked) => window.api.player.syncLikeState(liked),
+    (liked) => {
+      window.api.player.syncLikeState(liked);
+      media.syncToMain();
+    },
     { immediate: true },
   );
   window.api.nowPlaying.onLyricOffsetChange(({ offsetMs }) => {
