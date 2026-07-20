@@ -58,7 +58,11 @@ export const usePlaylistStore = defineStore("playlist", () => {
   };
 
   /** 创建歌单 */
-  const create = async (title: string, description?: string): Promise<Collection> => {
+  const create = async (
+    title: string,
+    description?: string,
+    cover?: string,
+  ): Promise<Collection> => {
     const now = Date.now();
     const record: PlaylistRecord = {
       id: generateId(),
@@ -66,6 +70,7 @@ export const usePlaylistStore = defineStore("playlist", () => {
       source: "local",
       title,
       description,
+      cover,
       trackIds: [],
       trackCount: 0,
       createTime: now,
@@ -80,7 +85,7 @@ export const usePlaylistStore = defineStore("playlist", () => {
   /** 更新歌单信息 */
   const update = async (
     id: string,
-    data: Partial<Pick<PlaylistRecord, "title" | "description">>,
+    data: Partial<Pick<PlaylistRecord, "title" | "description" | "cover">>,
   ): Promise<void> => {
     const record = await db.getItem<PlaylistRecord>(id);
     if (!record) return;
@@ -178,7 +183,7 @@ export const usePlaylistStore = defineStore("playlist", () => {
     record.trackIds = [];
     record.tracks = tracks;
     record.trackCount = tracks.length;
-    record.cover = tracks.find((track) => track.cover)?.cover;
+    if (!record.cover) record.cover = tracks.find((track) => track.cover)?.cover;
     record.updateTime = Date.now();
     await db.setItem(id, record);
     const idx = playlists.value.findIndex((playlist) => playlist.id === id);

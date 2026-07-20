@@ -113,7 +113,7 @@ export const handleExternalPlaylistTask = async (
     };
   }
   if (task.operation === "create") {
-    const playlist = await store.create(task.title, task.description);
+    const playlist = await store.create(task.title, task.description, task.cover);
     return { playlist: toExternalPlaylist(playlist) };
   }
   if (!existing) return { found: false };
@@ -123,6 +123,7 @@ export const handleExternalPlaylistTask = async (
       ...(task.description === undefined
         ? {}
         : { description: task.description === null ? undefined : task.description }),
+      ...(task.cover === undefined ? {} : { cover: task.cover === null ? undefined : task.cover }),
     });
     const playlist = await store.get(task.playlistId);
     return { found: true, playlist: playlist ? toExternalPlaylist(playlist) : undefined };

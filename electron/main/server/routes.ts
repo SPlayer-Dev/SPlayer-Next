@@ -56,6 +56,17 @@ const getText = (value: unknown, maxLength: number): string | undefined => {
 const getPlaylistId = (value: string): string | undefined =>
   value.startsWith("pl_") && value.length <= 100 ? value : undefined;
 
+const getCoverUrl = (value: unknown): string | undefined => {
+  const url = getText(value, 2_000);
+  if (!url) return undefined;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? url : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 export const buildRoutes = (): Hono => {
   const api = new Hono();
 
@@ -168,12 +179,16 @@ export const buildRoutes = (): Hono => {
     if (!title) return c.json({ error: "title (non-empty string, <=200) required" }, 400);
     const description =
       body?.description === undefined ? undefined : getText(body.description, 2_000);
+    const cover = body?.cover === undefined ? undefined : getCoverUrl(body.cover);
     if (body?.description !== undefined && description === undefined) {
       return c.json({ error: "description (non-empty string, <=2000) required" }, 400);
     }
+    if (body?.cover !== undefined && cover === undefined) {
+      return c.json({ error: "cover (http(s) URL, <=2000) required" }, 400);
+    }
     try {
       return c.json(
-        await requestExternalPlaylist({ operation: "create", title, description }),
+        await requestExternalPlaylist({ operation: "create", title, description, cover }),
         201,
       );
     } catch (err) {
@@ -192,12 +207,15 @@ export const buildRoutes = (): Hono => {
         : body?.description === undefined
           ? undefined
           : getText(body.description, 2_000);
+    const cover =
+      body?.cover === null ? null : body?.cover === undefined ? undefined : getCoverUrl(body.cover);
     if (
-      (title === undefined && description === undefined) ||
+      (title === undefined && description === undefined && cover === undefined) ||
       (body?.title !== undefined && title === undefined) ||
-      (body?.description !== undefined && description === undefined)
+      (body?.description !== undefined && description === undefined) ||
+      (body?.cover !== undefined && cover === undefined)
     ) {
-      return c.json({ error: "title or description required" }, 400);
+      return c.json({ error: "title, description, or cover required" }, 400);
     }
     try {
       const result = await requestExternalPlaylist({
@@ -205,6 +223,7 @@ export const buildRoutes = (): Hono => {
         playlistId,
         title,
         description,
+        cover,
       });
       return result.found === false ? c.json({ error: "playlist not found" }, 404) : c.json(result);
     } catch (err) {

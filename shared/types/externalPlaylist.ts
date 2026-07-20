@@ -15,8 +15,14 @@ export interface ExternalPlaylist {
 export type ExternalPlaylistOperation =
   | { operation: "list" }
   | { operation: "get"; playlistId: string }
-  | { operation: "create"; title: string; description?: string }
-  | { operation: "update"; playlistId: string; title?: string; description?: string | null }
+  | { operation: "create"; title: string; description?: string; cover?: string }
+  | {
+      operation: "update";
+      playlistId: string;
+      title?: string;
+      description?: string | null;
+      cover?: string | null;
+    }
   | { operation: "remove"; playlistId: string }
   | {
       operation: "replaceTracks";
