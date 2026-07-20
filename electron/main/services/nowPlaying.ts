@@ -75,6 +75,7 @@ let currentOffsetKey = "";
  */
 export const update = (track: Track | null, lyric: LyricLine[], source: LyricData): void => {
   const trackChanged = (currentTrack?.id ?? null) !== (track?.id ?? null);
+  const likedChanged = currentTrack?.liked !== track?.liked;
   currentTrack = track;
   currentLyric = lyric;
   currentSource = source;
@@ -84,6 +85,7 @@ export const update = (track: Track | null, lyric: LyricLine[], source: LyricDat
     lastPositionAt = Date.now();
     emitter.emit("track-change", { track });
   }
+  if (!trackChanged && likedChanged) emitter.emit("track-change", { track });
   // 曲目或歌词源任一变化都重读偏移并广播
   const key = track?.id ? offsetKey(track.id, source) : "";
   if (trackChanged || key !== currentOffsetKey) {
