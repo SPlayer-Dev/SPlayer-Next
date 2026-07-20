@@ -16,7 +16,10 @@ import type { RecommendationImportRequest } from "@shared/types/recommendation";
 
 const MAX_RECOMMENDATION_ITEMS = 500;
 
-const isImportRequest = (value: unknown): value is RecommendationImportRequest => {
+const isImportRequest = (
+  value: unknown,
+  allowEmptyItems = false,
+): value is RecommendationImportRequest => {
   if (!value || typeof value !== "object") return false;
   const request = value as Partial<RecommendationImportRequest>;
   if (request.provider !== "youtube-music") return false;
@@ -24,7 +27,7 @@ const isImportRequest = (value: unknown): value is RecommendationImportRequest =
     return false;
   if (
     !Array.isArray(request.items) ||
-    request.items.length === 0 ||
+    (!allowEmptyItems && request.items.length === 0) ||
     request.items.length > MAX_RECOMMENDATION_ITEMS
   ) {
     return false;
@@ -42,7 +45,11 @@ const isImportRequest = (value: unknown): value is RecommendationImportRequest =
       (item.durationMs === undefined ||
         (typeof item.durationMs === "number" &&
           Number.isFinite(item.durationMs) &&
-          item.durationMs >= 0))
+          item.durationMs >= 0)) &&
+      (item.neteaseId === undefined ||
+        (typeof item.neteaseId === "string" &&
+          item.neteaseId.length > 0 &&
+          item.neteaseId.length <= 30))
     );
   });
 };
@@ -258,6 +265,33 @@ export const buildRoutes = (): Hono => {
         operation: "replaceTracks",
         playlistId,
         items: request.items,
+      });
+      return result.found === false ? c.json({ error: "playlist not found" }, 404) : c.json(result);
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 503);
+    }
+  });
+
+  api.patch("/playlists/:id/tracks", async (c) => {
+    const playlistId = getPlaylistId(c.req.param("id"));
+    const body = (await c.req.json().catch(() => null)) as
+      (Partial<RecommendationImportRequest> & { removeTrackIds?: unknown }) | null;
+    const request = { ...(body ?? {}), mode: "playlist" };
+    const removeTrackIds = body?.removeTrackIds;
+    if (
+      !playlistId ||
+      !isImportRequest(request, true) ||
+      !Array.isArray(removeTrackIds) ||
+      !removeTrackIds.every((id) => typeof id === "string" && id.length > 0)
+    ) {
+      return c.json({ error: "invalid playlist track patch request" }, 400);
+    }
+    try {
+      const result = await requestExternalPlaylist({
+        operation: "patchTracks",
+        playlistId,
+        items: request.items,
+        removeTrackIds,
       });
       return result.found === false ? c.json({ error: "playlist not found" }, 404) : c.json(result);
     } catch (err) {

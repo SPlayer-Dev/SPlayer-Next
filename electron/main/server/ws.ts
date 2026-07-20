@@ -5,11 +5,14 @@
  *   - 连接建立：`{ kind: "hello", clients: N }`
  *   - player 事件：`{ kind: "event", type, data }`（由 wsBroadcast 推）
  *   - 命令 ack：`{ kind: "ack", op }` / `{ kind: "error", op, error }`
+ *   - 搜索结果：`{ kind: "result", op: "searchSongs", platform, status, body }`
  *
  * Client → Server：`{ op: "play" | "pause" | "stop" | "next" | "prev" | "seek" | "setVolume", ... }`
  */
 
 import type { WSContext } from "hono/ws";
+import { callNetease } from "@main/apis/netease";
+import { NeteaseRequestError } from "@main/apis/netease/core/request";
 import { serverLog } from "@main/utils/logger";
 import { playerControl } from "@main/services/playerControl";
 import { addWsClient, removeWsClient, getWsClientCount } from "./broadcast";
@@ -18,6 +21,9 @@ interface ClientMessage {
   op: string;
   positionMs?: number;
   volume?: number;
+  keyword?: string;
+  offset?: number;
+  limit?: number;
 }
 
 const ack = (ws: WSContext, op: string): void => {
@@ -26,6 +32,10 @@ const ack = (ws: WSContext, op: string): void => {
 
 const fail = (ws: WSContext, op: string, error: string): void => {
   ws.send(JSON.stringify({ kind: "error", op, error }));
+};
+
+const result = (ws: WSContext, op: string, status: number, body: unknown): void => {
+  ws.send(JSON.stringify({ kind: "result", op, platform: "netease", status, body }));
 };
 
 const dispatchCommand = async (ws: WSContext, msg: ClientMessage): Promise<void> => {
@@ -61,6 +71,34 @@ const dispatchCommand = async (ws: WSContext, msg: ClientMessage): Promise<void>
         }
         playerControl.setVolume(volume);
         return ack(ws, msg.op);
+      }
+      case "searchSongs": {
+        const keyword = typeof msg.keyword === "string" ? msg.keyword.trim() : "";
+        const offset = msg.offset ?? 0;
+        const limit = msg.limit ?? 30;
+        if (!keyword || keyword.length > 200) {
+          return fail(ws, msg.op, "keyword (non-empty string, <=200) required");
+        }
+        if (!Number.isInteger(offset) || offset < 0) {
+          return fail(ws, msg.op, "offset (integer, >=0) required");
+        }
+        if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+          return fail(ws, msg.op, "limit (integer, 1..100) required");
+        }
+        try {
+          const response = await callNetease("cloudsearch", {
+            keywords: keyword,
+            type: 1,
+            offset,
+            limit,
+          });
+          return result(ws, msg.op, response.status, response.body);
+        } catch (err) {
+          if (err instanceof NeteaseRequestError && err.response.status === 405) {
+            return result(ws, msg.op, err.response.status, err.response.body);
+          }
+          throw err;
+        }
       }
       default:
         return fail(ws, msg.op ?? "?", "unknown op");

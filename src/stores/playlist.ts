@@ -196,6 +196,34 @@ export const usePlaylistStore = defineStore("playlist", () => {
     return { ...record, tracks, trackCount: tracks.length };
   };
 
+  /** 增量更新在线曲目快照 */
+  const patchTracks = async (
+    id: string,
+    addTracks: Track[],
+    removeTrackIds: string[],
+  ): Promise<Collection | null> => {
+    const record = await db.getItem<PlaylistRecord>(id);
+    if (!record) return null;
+    const removed = new Set(removeTrackIds);
+    const tracks = (record.tracks ?? []).filter((track) => !removed.has(track.id));
+    const existing = new Set(tracks.map((track) => track.id));
+    tracks.push(...addTracks.filter((track) => !existing.has(track.id)));
+    record.trackIds = [];
+    record.tracks = tracks;
+    record.trackCount = tracks.length;
+    if (!record.cover) record.cover = tracks.find((track) => track.cover)?.cover;
+    record.updateTime = Date.now();
+    await db.setItem(id, record);
+    const idx = playlists.value.findIndex((playlist) => playlist.id === id);
+    if (idx !== -1) {
+      const { trackIds: _, tracks: __, ...meta } = record;
+      const next = [...playlists.value];
+      next[idx] = meta;
+      playlists.value = next;
+    }
+    return { ...record, tracks, trackCount: tracks.length };
+  };
+
   /** 从歌单移除歌曲 */
   const removeTracks = async (id: string, trackIds: string[]): Promise<void> => {
     const record = await db.getItem<PlaylistRecord>(id);
@@ -251,5 +279,6 @@ export const usePlaylistStore = defineStore("playlist", () => {
     removeTracks,
     saveSnapshot,
     replaceTracks,
+    patchTracks,
   };
 });

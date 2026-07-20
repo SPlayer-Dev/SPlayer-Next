@@ -1,4 +1,8 @@
-import type { RecommendationImportSkipped, RecommendationInput } from "./recommendation";
+import type {
+  RecommendationImportSkipped,
+  RecommendationInput,
+  RecommendationResolved,
+} from "./recommendation";
 
 /** 外部 API 可见的歌单元数据 */
 export interface ExternalPlaylist {
@@ -28,6 +32,12 @@ export type ExternalPlaylistOperation =
       operation: "replaceTracks";
       playlistId: string;
       items: RecommendationInput[];
+    }
+  | {
+      operation: "patchTracks";
+      playlistId: string;
+      items: RecommendationInput[];
+      removeTrackIds: string[];
     };
 
 /** 外部歌单操作任务 */
@@ -41,6 +51,7 @@ export interface ExternalPlaylistResult {
   requested?: number;
   imported?: number;
   skipped?: RecommendationImportSkipped[];
+  resolved?: RecommendationResolved[];
 }
 
 /** 预加载层暴露给渲染进程的外部歌单操作 API */

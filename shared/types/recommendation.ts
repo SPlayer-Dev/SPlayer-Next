@@ -12,6 +12,14 @@ export interface RecommendationInput {
   artists: string[];
   album?: string;
   durationMs?: number;
+  /** Bridge 已缓存的网易云 songId，存在时跳过关键词搜索 */
+  neteaseId?: string;
+}
+
+/** 外部曲目与网易云 songId 的解析结果 */
+export interface RecommendationResolved {
+  sourceId: string;
+  neteaseId: string;
 }
 
 /** Bridge 提交给 SPlayer 的推荐导入请求 */
@@ -40,6 +48,7 @@ export interface RecommendationImportResult {
   requested: number;
   imported: number;
   skipped: RecommendationImportSkipped[];
+  resolved: RecommendationResolved[];
   playlistId?: string;
 }
 

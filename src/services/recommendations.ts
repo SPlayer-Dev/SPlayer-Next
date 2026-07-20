@@ -2,6 +2,7 @@ import type {
   RecommendationImportRequest,
   RecommendationImportResult,
   RecommendationImportSkipped,
+  RecommendationResolved,
 } from "@shared/types/recommendation";
 import type {
   ExternalPlaylist,
@@ -10,6 +11,7 @@ import type {
 } from "@shared/types/externalPlaylist";
 import type { Track } from "@shared/types/player";
 import { searchSongs } from "@/apis/search";
+import { songsByIds } from "@/apis/song/netease";
 import { usePlaylistStore } from "@/stores/playlist";
 
 const SEARCH_DELAY_MS = 500;
@@ -26,16 +28,21 @@ const isNeteaseRateLimited = (error: unknown): boolean =>
 /** 将外部推荐按给定顺序解析为网易云曲目 */
 export const resolveRecommendationTracks = async (
   request: RecommendationImportRequest,
-): Promise<{ tracks: Track[]; skipped: RecommendationImportSkipped[] }> => {
+): Promise<{
+  tracks: Track[];
+  skipped: RecommendationImportSkipped[];
+  resolved: RecommendationResolved[];
+}> => {
   const tracks: Track[] = [];
   const skipped: RecommendationImportSkipped[] = [];
+  const resolved: RecommendationResolved[] = [];
   for (const [index, item] of request.items.entries()) {
     const keyword = getSearchKeyword(item.title, item.artists);
     let track: Track | undefined;
     let error: unknown;
     try {
-      const result = await searchSongs("netease", keyword, 0, 1);
-      track = result.items[0];
+      if (item.neteaseId) track = (await songsByIds([item.neteaseId]))[0];
+      else track = (await searchSongs("netease", keyword, 0, 1)).items[0];
     } catch (caught) {
       error = caught;
       if (isNeteaseRateLimited(caught)) {
@@ -47,8 +54,7 @@ export const resolveRecommendationTracks = async (
         });
         await wait(NETEASE_RETRY_DELAY_MS);
         try {
-          const result = await searchSongs("netease", keyword, 0, 1);
-          track = result.items[0];
+          track = (await searchSongs("netease", keyword, 0, 1)).items[0];
           error = undefined;
         } catch (retryError) {
           error = retryError;
@@ -77,12 +83,13 @@ export const resolveRecommendationTracks = async (
       });
     } else {
       tracks.push(track);
+      resolved.push({ sourceId: item.sourceId, neteaseId: track.id });
     }
     if (index < request.items.length - 1) {
       await wait(SEARCH_DELAY_MS);
     }
   }
-  return { tracks, skipped };
+  return { tracks, skipped, resolved };
 };
 
 /** 导入 Bridge 提供的推荐曲目 */
@@ -93,7 +100,7 @@ export const importRecommendations = async (
     replace: (tracks: readonly Track[]) => Promise<void>;
   },
 ): Promise<RecommendationImportResult> => {
-  const { tracks, skipped } = await resolveRecommendationTracks(request);
+  const { tracks, skipped, resolved } = await resolveRecommendationTracks(request);
   if (request.mode === "append") actions.append(tracks);
   if (request.mode === "replace" && tracks.length > 0) await actions.replace(tracks);
 
@@ -108,6 +115,7 @@ export const importRecommendations = async (
     requested: request.items.length,
     imported: tracks.length,
     skipped,
+    resolved,
     playlistId,
   };
 };
@@ -166,17 +174,21 @@ export const handleExternalPlaylistTask = async (
     await store.remove(task.playlistId);
     return { found: true };
   }
-  const { tracks, skipped } = await resolveRecommendationTracks({
+  const { tracks, skipped, resolved } = await resolveRecommendationTracks({
     provider: "youtube-music",
     mode: "playlist",
     items: task.items,
   });
-  const playlist = await store.replaceTracks(task.playlistId, tracks);
+  const playlist =
+    task.operation === "patchTracks"
+      ? await store.patchTracks(task.playlistId, tracks, task.removeTrackIds)
+      : await store.replaceTracks(task.playlistId, tracks);
   return {
     found: playlist !== null,
     playlist: playlist ? toExternalPlaylist(playlist) : undefined,
     requested: task.items.length,
     imported: tracks.length,
     skipped,
+    resolved,
   };
 };
