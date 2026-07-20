@@ -27,6 +27,12 @@ export interface RecommendationImportRequest {
 export interface RecommendationImportSkipped {
   sourceId: string;
   reason: "invalid" | "notFound";
+  title?: string;
+  artists?: string[];
+  album?: string;
+  durationMs?: number;
+  keyword?: string;
+  error?: string;
 }
 
 /** 推荐导入结果 */

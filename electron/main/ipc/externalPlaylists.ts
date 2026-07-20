@@ -5,7 +5,7 @@ import type {
 } from "@shared/types/externalPlaylist";
 import { sendToMain } from "@main/utils/broadcast";
 
-const REQUEST_TIMEOUT = 60_000;
+const REQUEST_TIMEOUT = 10 * 60_000;
 
 interface PendingRequest {
   resolve: (result: ExternalPlaylistResult) => void;

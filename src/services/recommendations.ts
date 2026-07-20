@@ -12,7 +12,7 @@ import type { Track } from "@shared/types/player";
 import { searchSongs } from "@/apis/search";
 import { usePlaylistStore } from "@/stores/playlist";
 
-const SEARCH_CONCURRENCY = 3;
+const SEARCH_DELAY_MS = 500;
 
 const getSearchKeyword = (title: string, artists: string[]): string =>
   [title, ...artists].filter(Boolean).join(" ");
@@ -21,34 +21,57 @@ const getSearchKeyword = (title: string, artists: string[]): string =>
 export const resolveRecommendationTracks = async (
   request: RecommendationImportRequest,
 ): Promise<{ tracks: Track[]; skipped: RecommendationImportSkipped[] }> => {
-  const tracks = new Array<Track | null>(request.items.length).fill(null);
+  const tracks: Track[] = [];
   const skipped: RecommendationImportSkipped[] = [];
-  let nextIndex = 0;
-
-  const worker = async (): Promise<void> => {
-    while (nextIndex < request.items.length) {
-      const index = nextIndex++;
-      const item = request.items[index];
-      try {
-        const result = await searchSongs(
-          "netease",
-          getSearchKeyword(item.title, item.artists),
-          0,
-          1,
-        );
-        const track = result.items[0];
-        if (track) tracks[index] = track;
-        else skipped.push({ sourceId: item.sourceId, reason: "notFound" });
-      } catch {
-        skipped.push({ sourceId: item.sourceId, reason: "notFound" });
+  for (const [index, item] of request.items.entries()) {
+    const keyword = getSearchKeyword(item.title, item.artists);
+    try {
+      const result = await searchSongs("netease", keyword, 0, 1);
+      const track = result.items[0];
+      if (track) tracks.push(track);
+      else {
+        console.warn("[recommendations] 网易云未找到曲目", {
+          sourceId: item.sourceId,
+          title: item.title,
+          artists: item.artists,
+          keyword,
+        });
+        skipped.push({
+          sourceId: item.sourceId,
+          reason: "notFound",
+          title: item.title,
+          artists: item.artists,
+          album: item.album,
+          durationMs: item.durationMs,
+          keyword,
+        });
       }
+    } catch (error) {
+      console.error("[recommendations] 网易云解析失败", {
+        sourceId: item.sourceId,
+        title: item.title,
+        artists: item.artists,
+        album: item.album,
+        durationMs: item.durationMs,
+        keyword,
+        error: error instanceof Error ? error.stack || error.message : String(error),
+      });
+      skipped.push({
+        sourceId: item.sourceId,
+        reason: "notFound",
+        title: item.title,
+        artists: item.artists,
+        album: item.album,
+        durationMs: item.durationMs,
+        keyword,
+        error: error instanceof Error ? error.stack || error.message : String(error),
+      });
     }
-  };
-
-  await Promise.all(
-    Array.from({ length: Math.min(SEARCH_CONCURRENCY, request.items.length) }, worker),
-  );
-  return { tracks: tracks.filter((track): track is Track => track !== null), skipped };
+    if (index < request.items.length - 1) {
+      await new Promise<void>((resolve) => setTimeout(resolve, SEARCH_DELAY_MS));
+    }
+  }
+  return { tracks, skipped };
 };
 
 /** 导入 Bridge 提供的推荐曲目 */
