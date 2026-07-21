@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import IconFolder from "~icons/lucide/folder";
 import IconChevronLeft from "~icons/lucide/chevron-left";
+import IconArrowRight from "~icons/lucide/arrow-right";
 
 const { t } = useI18n();
 defineEmits<{ (e: "next"): void; (e: "back"): void }>();
@@ -28,6 +29,7 @@ defineEmits<{ (e: "next"): void; (e: "back"): void }>();
       <div class="flex-1" />
       <SButton type="primary" round @click="$emit('next')">
         {{ t("onboarding.next") }}
+        <template #icon><IconArrowRight /></template>
       </SButton>
     </div>
   </div>

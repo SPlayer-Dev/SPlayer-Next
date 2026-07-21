@@ -102,10 +102,27 @@
       "subtitle": "Configure lyric sources, render engine and external lyric windows."
     },
     "other": {
-      "title": "Network, Services & More",
-      "subtitle": "Proxy, system media controls, Discord / Last.fm, downloads, cache and plugins.",
-      "pluginManage": "Plugin Manager",
-      "pluginManageHint": "Import, enable or uninstall extension plugins."
+      "title": "Downloads & Cache",
+      "subtitle": "Configure downloads and local cache, manage storage"
+    },
+    "plugins": {
+      "title": "Plugins",
+      "subtitle": "Extend the player with plugins — browse the market to install community ones",
+      "marketLabel": "Plugin Market",
+      "features": {
+        "extend": {
+          "title": "Extend functionality",
+          "desc": "Install community or custom plugins for new sources, lyrics, themes and more"
+        },
+        "market": {
+          "title": "Plugin market",
+          "desc": "Browse and one-click install community-reviewed plugins with auto-updates"
+        },
+        "safe": {
+          "title": "Safety notice",
+          "desc": "Only install plugins from trusted sources — plugins have full system access"
+        }
+      }
     }
   },
   "agreementUpdate": {

@@ -28,7 +28,7 @@ const items = [
 
     <div class="flex-1 min-h-0 overflow-y-auto pr-1 -mr-1">
       <div class="flex flex-col gap-2.5">
-        <SettingsItem v-for="item in items" :key="item.key" :item="item" />
+        <SettingsItem v-for="item in items" :key="item.key" :item="item" compact />
       </div>
     </div>
 

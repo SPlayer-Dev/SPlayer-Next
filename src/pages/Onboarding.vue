@@ -11,6 +11,7 @@ import StepNetease from "@/components/onboarding/StepNetease.vue";
 import StepPlayback from "@/components/onboarding/StepPlayback.vue";
 import StepLyric from "@/components/onboarding/StepLyric.vue";
 import StepOther from "@/components/onboarding/StepOther.vue";
+import StepPlugins from "@/components/onboarding/StepPlugins.vue";
 import StepHotkeys from "@/components/onboarding/StepHotkeys.vue";
 import SettingsDialog from "@/components/settings/SettingsDialog.vue";
 
@@ -28,6 +29,7 @@ const STEPS = [
   { key: "playback", component: StepPlayback },
   { key: "lyric", component: StepLyric },
   { key: "other", component: StepOther },
+  { key: "plugins", component: StepPlugins },
   { key: "hotkeys", component: StepHotkeys },
 ] as const;
 

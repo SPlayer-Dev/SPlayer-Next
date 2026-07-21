@@ -6,6 +6,8 @@ import { dialog } from "@/composables/useDialog";
 const props = defineProps<{
   item: SettingItem;
   highlighted?: boolean;
+  /** 紧凑模式：标签用 text-sm、行距 py-3，向导页面使用 */
+  compact?: boolean;
 }>();
 
 const { t } = useI18n();
@@ -59,11 +61,11 @@ const descriptionText = computed(() =>
     />
     <div
       v-else
-      class="flex items-center justify-between gap-4 rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3.5 transition-all duration-300"
-      :class="highlighted ? 'animate-highlight-pulse' : ''"
+      class="flex items-center justify-between gap-4 rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 transition-all duration-300"
+      :class="[highlighted ? 'animate-highlight-pulse' : '', compact ? 'py-3' : 'py-3.5']"
     >
       <div class="min-w-0 flex-1">
-        <div class="flex items-center gap-2 text-base">
+        <div class="flex items-center gap-2" :class="compact ? 'text-sm' : 'text-base'">
           <span>{{ t(`settings.${item.key}.label`) }}</span>
           <STag v-if="item.tag" :type="item.tag.type ?? 'primary'">
             {{ item.tag.text }}
@@ -158,7 +160,12 @@ const descriptionText = computed(() =>
       class="mt-2.5 flex flex-col gap-2.5 transition-opacity duration-200"
       :class="isChildrenActive ? '' : 'opacity-50 pointer-events-none'"
     >
-      <SettingsItem v-for="child in item.children" :key="child.key" :item="child" />
+      <SettingsItem
+        v-for="child in item.children"
+        :key="child.key"
+        :item="child"
+        :compact="compact"
+      />
     </div>
   </div>
 </template>

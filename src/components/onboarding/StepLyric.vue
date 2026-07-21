@@ -17,7 +17,13 @@ const items = [
     "dynamicIslandEnabled",
     "taskbarLyricEnabled",
   ]),
-];
+].map((item) => {
+  // 向导中不展示 AMLL TTML DB 地址（引导后再配置）
+  if (item.key === "enableOnlineTTMLLyric" && item.children) {
+    return { ...item, children: item.children.filter((c) => c.key !== "amllDbServer") };
+  }
+  return item;
+});
 </script>
 
 <template>
@@ -32,7 +38,7 @@ const items = [
 
     <div class="flex-1 min-h-0 overflow-y-auto pr-1 -mr-1">
       <div class="flex flex-col gap-2.5">
-        <SettingsItem v-for="item in items" :key="item.key" :item="item" />
+        <SettingsItem v-for="item in items" :key="item.key" :item="item" compact />
       </div>
     </div>
 

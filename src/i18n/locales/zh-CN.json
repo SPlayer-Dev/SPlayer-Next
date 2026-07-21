@@ -90,10 +90,27 @@
       "subtitle": "配置歌词来源、渲染引擎与外部歌词窗口"
     },
     "other": {
-      "title": "网络、服务与其他",
-      "subtitle": "代理、系统媒体控制、Discord / Last.fm、下载、缓存与插件",
-      "pluginManage": "插件管理",
-      "pluginManageHint": "导入、启用或卸载扩展插件"
+      "title": "下载与缓存",
+      "subtitle": "配置下载功能和本地缓存，管理存储空间"
+    },
+    "plugins": {
+      "title": "插件",
+      "subtitle": "通过插件扩展播放器功能，浏览市场安装社区插件",
+      "marketLabel": "插件市场",
+      "features": {
+        "extend": {
+          "title": "功能扩展",
+          "desc": "安装社区或自定义插件，增加新音源、歌词源、主题等能力"
+        },
+        "market": {
+          "title": "插件市场",
+          "desc": "浏览并一键安装社区审核的插件，保持自动更新"
+        },
+        "safe": {
+          "title": "安全提示",
+          "desc": "仅安装信任来源的插件，插件拥有完整系统权限"
+        }
+      }
     }
   },
   "agreementUpdate": {

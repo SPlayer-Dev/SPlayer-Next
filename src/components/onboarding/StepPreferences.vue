@@ -150,7 +150,7 @@ const layoutItems = pickItems(appearanceCategory, [
         {{ t("settings.section.appearanceStyle") }}
       </h3>
       <div class="flex flex-col gap-2.5 mb-6">
-        <SettingsItem v-for="item in appearanceItems" :key="item.key" :item="item" />
+        <SettingsItem v-for="item in appearanceItems" :key="item.key" :item="item" compact />
       </div>
 
       <!-- 字体 -->
@@ -158,7 +158,7 @@ const layoutItems = pickItems(appearanceCategory, [
         {{ t("settings.section.font") }}
       </h3>
       <div class="flex flex-col gap-2.5 mb-6">
-        <SettingsItem v-for="item in fontItems" :key="item.key" :item="item" />
+        <SettingsItem v-for="item in fontItems" :key="item.key" :item="item" compact />
       </div>
 
       <!-- 布局 -->
@@ -166,7 +166,7 @@ const layoutItems = pickItems(appearanceCategory, [
         {{ t("settings.section.layout") }}
       </h3>
       <div class="flex flex-col gap-2.5">
-        <SettingsItem v-for="item in layoutItems" :key="item.key" :item="item" />
+        <SettingsItem v-for="item in layoutItems" :key="item.key" :item="item" compact />
       </div>
     </div>
 

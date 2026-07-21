@@ -13,6 +13,11 @@ const { profile, isLoggedIn } = storeToRefs(user);
 
 const loginOpen = ref(false);
 
+/** 下一步按钮文案：未登录显示"跳过"，已登录显示"下一步" */
+const nextLabel = computed(() =>
+  isLoggedIn.value ? t("onboarding.next") : t("onboarding.netease.skipButton"),
+);
+
 onMounted(() => {
   void user.fetchStatus();
 });
@@ -55,15 +60,10 @@ onMounted(() => {
         <div class="text-sm text-on-surface-variant/70 leading-relaxed">
           {{ t("onboarding.netease.guestHint") }}
         </div>
-        <div class="flex items-center gap-3">
-          <SButton type="primary" round @click="loginOpen = true">
-            <template #icon><IconLogIn /></template>
-            {{ t("onboarding.netease.loginButton") }}
-          </SButton>
-          <SButton variant="ghost" round @click="emit('next')">
-            {{ t("onboarding.netease.skipButton") }}
-          </SButton>
-        </div>
+        <SButton type="primary" round @click="loginOpen = true">
+          <template #icon><IconLogIn /></template>
+          {{ t("onboarding.netease.loginButton") }}
+        </SButton>
       </div>
     </div>
 
@@ -74,7 +74,7 @@ onMounted(() => {
       </SButton>
       <div class="flex-1" />
       <SButton type="primary" round @click="emit('next')">
-        {{ t("onboarding.next") }}
+        {{ nextLabel }}
         <template #icon><IconArrowRight /></template>
       </SButton>
     </div>
