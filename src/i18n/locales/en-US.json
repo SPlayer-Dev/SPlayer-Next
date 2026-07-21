@@ -84,6 +84,28 @@
           "desc": "See and rebind every shortcut in Settings → Shortcuts"
         }
       }
+    },
+    "netease": {
+      "title": "Netease Account",
+      "subtitle": "Sign in to sync playlists, likes and cloud drive. You can also do this later in Settings.",
+      "guestHint": "Without signing in, local library and streaming servers still work.",
+      "loginButton": "Sign in to Netease",
+      "skipButton": "Skip",
+      "loggedInHint": "Signed in. You can sign out from the user menu anytime."
+    },
+    "playback": {
+      "title": "Playback & Quality",
+      "subtitle": "Pick online audio quality, player background and spectrum."
+    },
+    "lyric": {
+      "title": "Lyrics",
+      "subtitle": "Configure lyric sources, render engine and external lyric windows."
+    },
+    "other": {
+      "title": "Network, Services & More",
+      "subtitle": "Proxy, system media controls, Discord / Last.fm, downloads, cache and plugins.",
+      "pluginManage": "Plugin Manager",
+      "pluginManageHint": "Import, enable or uninstall extension plugins."
     }
   },
   "agreementUpdate": {

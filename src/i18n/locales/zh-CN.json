@@ -72,6 +72,28 @@
           "desc": "「设置 → 快捷键」中可以查看完整列表并修改绑定"
         }
       }
+    },
+    "netease": {
+      "title": "网易云账号",
+      "subtitle": "登录后可同步歌单、红心与云盘；也可以稍后在设置中登录",
+      "guestHint": "未登录时，本地音乐库与流媒体服务器仍可正常使用",
+      "loginButton": "登录网易云音乐",
+      "skipButton": "跳过",
+      "loggedInHint": "已登录，可随时在用户菜单中登出"
+    },
+    "playback": {
+      "title": "播放与音质",
+      "subtitle": "选择在线音质、播放器背景与频谱效果"
+    },
+    "lyric": {
+      "title": "歌词",
+      "subtitle": "配置歌词来源、渲染引擎与外部歌词窗口"
+    },
+    "other": {
+      "title": "网络、服务与其他",
+      "subtitle": "代理、系统媒体控制、Discord / Last.fm、下载、缓存与插件",
+      "pluginManage": "插件管理",
+      "pluginManageHint": "导入、启用或卸载扩展插件"
     }
   },
   "agreementUpdate": {

@@ -7,7 +7,12 @@ import StepPreferences from "@/components/onboarding/StepPreferences.vue";
 import StepAgreement from "@/components/onboarding/StepAgreement.vue";
 import StepLibrary from "@/components/onboarding/StepLibrary.vue";
 import StepStreaming from "@/components/onboarding/StepStreaming.vue";
+import StepNetease from "@/components/onboarding/StepNetease.vue";
+import StepPlayback from "@/components/onboarding/StepPlayback.vue";
+import StepLyric from "@/components/onboarding/StepLyric.vue";
+import StepOther from "@/components/onboarding/StepOther.vue";
 import StepHotkeys from "@/components/onboarding/StepHotkeys.vue";
+import SettingsDialog from "@/components/settings/SettingsDialog.vue";
 
 const { t } = useI18n();
 const router = useRouter();
@@ -19,6 +24,10 @@ const STEPS = [
   { key: "preferences", component: StepPreferences },
   { key: "library", component: StepLibrary },
   { key: "streaming", component: StepStreaming },
+  { key: "netease", component: StepNetease },
+  { key: "playback", component: StepPlayback },
+  { key: "lyric", component: StepLyric },
+  { key: "other", component: StepOther },
   { key: "hotkeys", component: StepHotkeys },
 ] as const;
 
@@ -104,6 +113,11 @@ const complete = async (): Promise<void> => {
     <footer class="shrink-0 text-center pt-3 pb-5">
       <span class="text-xs text-on-surface-variant/40">{{ t("onboarding.footer") }}</span>
     </footer>
+
+    <!-- 向导期间也需要 toast / dialog / 设置弹窗支持（路由不挂 MainLayout） -->
+    <SToast :max="1" />
+    <SDialogProvider />
+    <SettingsDialog />
   </div>
 </template>
 
