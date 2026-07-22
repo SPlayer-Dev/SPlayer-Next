@@ -117,8 +117,7 @@ const coverCentered = computed(() => {
 /** 全屏内嵌评论布局模式：off 关闭 / half 左半屏 / full 全屏 */
 const fullCommentMode = computed<"off" | "half" | "full">(() => {
   if (!status.fullCommentsOpen) return "off";
-  if (fullscreenCover.value) return "half";
-  return hasLyric.value ? "half" : "full";
+  return hasLyric.value && showLyric.value ? "half" : "full";
 });
 
 const handleLyricSeek = async (timeMs: number): Promise<void> => {
@@ -288,9 +287,7 @@ watch(
           <div
             v-if="!fullscreenCover"
             class="absolute inset-y-0 left-0 w-[45%] flex items-center justify-center px-12 transition-[transform,opacity] duration-250 ease-[cubic-bezier(0.4,0,0.2,1)]"
-            :class="
-              fullCommentMode === 'off' ? 'opacity-100' : 'opacity-0 pointer-events-none'
-            "
+            :class="fullCommentMode === 'off' ? 'opacity-100' : 'opacity-0 pointer-events-none'"
             :style="coverCentered ? 'transform: translateX(calc(100% * 11 / 18))' : undefined"
           >
             <div class="relative w-[clamp(200px,85%,50vh)] -translate-y-[11vh]">
@@ -429,7 +426,7 @@ watch(
               class="absolute py-4 z-6 transition-[inset,width,padding] duration-250 ease-[cubic-bezier(0.4,0,0.2,1)]"
               :class="
                 fullCommentMode === 'half'
-                  ? 'inset-y-0 left-0 w-[45%] px-[clamp(32px,4vw,64px)]'
+                  ? 'inset-y-0 left-0 w-1/2 pl-[clamp(32px,4vw,64px)] pr-[clamp(20px,2.5vw,40px)]'
                   : 'inset-0 w-full px-[clamp(32px,5vw,80px)]'
               "
             >

@@ -39,7 +39,7 @@ const {
 } = comments;
 
 const columnMinWidth = computed(() => (props.mode === "half" ? 400 : 360));
-const totalComments = computed(() => Math.max(page.value.total, dedupedList.value.length));
+const artistNames = computed(() => media.track?.artists.map((artist) => artist.name).join(" / "));
 const scrolling = ref(false);
 let loadMoreObserver: IntersectionObserver | undefined;
 let scrollTimer: ReturnType<typeof setTimeout> | undefined;
@@ -83,7 +83,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="flex h-full flex-col text-cover">
-    <div class="shrink-0 flex items-start justify-between gap-4 pl-1 pr-20 pb-4">
+    <div class="shrink-0 flex items-start justify-between gap-4 pl-1 pb-4">
       <div class="flex min-w-0 items-center gap-3 pl-2.5">
         <SImg
           v-if="media.track?.cover"
@@ -98,8 +98,8 @@ onBeforeUnmount(() => {
           </h2>
           <div class="mt-1 flex min-w-0 items-center gap-2 text-sm text-cover/55">
             <span class="truncate">{{ media.track?.title }}</span>
-            <span class="shrink-0 text-cover/25">·</span>
-            <span class="shrink-0">{{ t("comments.total", { count: totalComments }) }}</span>
+            <span v-if="artistNames" class="shrink-0 text-cover/25">·</span>
+            <span v-if="artistNames" class="truncate">{{ artistNames }}</span>
           </div>
         </div>
       </div>
@@ -120,7 +120,7 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div class="shrink-0 flex items-center gap-4 pl-3 pr-20 pb-3">
+    <div class="shrink-0 flex items-center gap-4 pl-3 pb-3">
       <div class="min-w-0 flex-1">
         <STabs v-model="activeTab" :tabs="tabs" type="bar" size="medium" cover />
       </div>
@@ -143,7 +143,7 @@ onBeforeUnmount(() => {
     >
       <div
         ref="listScrollRef"
-        class="h-full overflow-y-auto pl-3 pr-20 pt-6 pb-8 [scrollbar-gutter:stable] [&::-webkit-scrollbar-thumb]:bg-cover/25 [&::-webkit-scrollbar-thumb:hover]:bg-cover/45"
+        class="h-full overflow-y-auto pl-3 pr-2 pt-6 pb-8 [scrollbar-gutter:stable] [&::-webkit-scrollbar-thumb]:bg-cover/25 [&::-webkit-scrollbar-thumb:hover]:bg-cover/45"
         :class="immersive && !scrolling ? '[&::-webkit-scrollbar-thumb]:bg-transparent' : ''"
         @scroll="handleScroll"
       >
