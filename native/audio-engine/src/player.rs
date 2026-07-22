@@ -28,7 +28,7 @@ pub enum PlayerEvent {
     /// 位置更新（秒）—— 由内部定时器推送
     Position { position: f64, duration: f64 },
     /// FFT 频谱数据推送
-    FftData { data: Vec<f32> },
+    FftData { ldata: Vec<f32>, rdata: Vec<f32> },
     /// 输出流停滞（rodio sink 长时间未消费样本，需要外部重建输出）
     OutputStalled,
 }
@@ -213,6 +213,7 @@ impl InnerPlayer {
         let rate = self.output_sample_rate();
         self.equalizer.lock().set_sample_rate(rate);
         self.tempo.lock().set_sample_rate(rate);
+        self.fft.set_sample_rate(rate);
     }
 
     pub fn new() -> Result<Self> {
@@ -231,7 +232,7 @@ impl InnerPlayer {
             sink: None,
             shared: None,
             decoder_thread: None,
-            fft: Arc::new(FftAnalyzer::new(decoder::TARGET_SAMPLE_RATE)),
+            fft: Arc::new(FftAnalyzer::new(initial_rate)),
             audio_sample_rate: 0,
             audio_channels: 0,
             audio_duration: 0.0,
@@ -405,6 +406,9 @@ impl InnerPlayer {
     /// 启动 FFT 推送定时器（独立线程，每 50ms 推送一次频谱数据）
     fn start_fft_timer(&mut self) {
         self.stop_fft_timer();
+        if !self.fft_enabled() {
+            return;
+        }
 
         let stop_flag = Arc::new(AtomicBool::new(false));
         self.fft_timer_stop = Some(Arc::clone(&stop_flag));
@@ -419,8 +423,8 @@ impl InnerPlayer {
         let handle = thread::spawn(move || {
             while !stop_flag.load(Ordering::Relaxed) {
                 if fft_enabled.load(Ordering::Relaxed) {
-                    let data = fft.analyze();
-                    cb(PlayerEvent::FftData { data });
+                    let (ldata, rdata) = fft.analyze();
+                    cb(PlayerEvent::FftData { ldata, rdata });
                 }
                 sleep_unless_stopped(&stop_flag, Duration::from_millis(50));
             }
@@ -441,6 +445,12 @@ impl InnerPlayer {
     /// 设置 FFT 推送开关
     pub fn set_fft_enabled(&mut self, enabled: bool) {
         self.fft_enabled.store(enabled, Ordering::Relaxed);
+        self.fft.set_enabled(enabled);
+        if enabled && self.state == PlayerState::Playing {
+            self.start_fft_timer();
+        } else if !enabled {
+            self.stop_fft_timer();
+        }
     }
 
     /// 获取 FFT 推送开关状态
@@ -983,10 +993,6 @@ impl InnerPlayer {
             return self.seek_via_reload();
         };
 
-        // 清掉中断标志：上面 shared.stop() 已让 interrupt_flag=true，
-        // 否则 ffmpeg 的 avformat_seek_file 一进入就会被中断
-        decoder_data.reset_interrupt();
-
         if !decoder_data.seek(position_secs) {
             drop(decoder_data);
             return self.seek_via_reload();
@@ -1091,7 +1097,7 @@ impl InnerPlayer {
     }
 
     /// 获取 FFT 频谱数据（128 个频段）
-    pub fn fft_data(&self) -> Vec<f32> {
+    pub fn fft_data(&self) -> (Vec<f32>, Vec<f32>) {
         self.fft.analyze()
     }
 

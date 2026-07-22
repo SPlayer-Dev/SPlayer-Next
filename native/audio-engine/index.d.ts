@@ -72,7 +72,7 @@ export declare class AudioPlayer {
   /** 获取前级增益（dB） */
   getPreampGain(): number
   /** 获取 FFT 频谱数据（128 个频段，值域 0.0 ~ 1.0） */
-  getFftData(): Array<number>
+  getFftData(): JsFftData
   /**
    * 返回 load 时缓存的原始封面数据（用于 SMTC / 全屏播放器）。
    * 封面在 load 阶段从已打开的 FFmpeg 上下文一次性提取，不再重复打开文件。
@@ -128,6 +128,12 @@ export interface JsExternalLyric {
   path: string
 }
 
+/** FFT 双声道频谱数据 */
+export interface JsFftData {
+  ldata: Array<number>
+  rdata: Array<number>
+}
+
 /** 歌曲完整元信息，返回给 JS 侧（load 时一次性返回） */
 export interface JsMusicMetadata {
   title?: string
@@ -168,7 +174,7 @@ export interface JsPlayerEvent {
   /** 时长（秒，仅 position 时有值） */
   duration?: number
   /** FFT 频谱数据（仅 fftData 时有值，128 个频段，值域 0.0 ~ 1.0） */
-  fftData?: Array<number>
+  fftData?: JsFftData
 }
 
 /** 播放器状态快照 */

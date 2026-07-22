@@ -6,7 +6,6 @@ mod decoder;
 mod equalizer;
 mod error;
 mod fft;
-mod http_source;
 mod logger;
 mod loudness;
 mod metadata;
@@ -124,6 +123,13 @@ pub struct JsAudioDevice {
     pub is_default: bool,
 }
 
+/// FFT 双声道频谱数据
+#[napi(object)]
+pub struct JsFftData {
+    pub ldata: Vec<f64>,
+    pub rdata: Vec<f64>,
+}
+
 /// 播放器事件，推送给 JS 侧
 #[napi(object)]
 #[derive(Default)]
@@ -138,7 +144,7 @@ pub struct JsPlayerEvent {
     /// 时长（秒，仅 position 时有值）
     pub duration: Option<f64>,
     /// FFT 频谱数据（仅 fftData 时有值，128 个频段，值域 0.0 ~ 1.0）
-    pub fft_data: Option<Vec<f64>>,
+    pub fft_data: Option<JsFftData>,
 }
 
 /// 播放器状态快照
@@ -223,9 +229,12 @@ impl AudioPlayer {
                     duration: Some(duration),
                     ..Default::default()
                 },
-                PlayerEvent::FftData { data } => JsPlayerEvent {
+                PlayerEvent::FftData { ldata, rdata } => JsPlayerEvent {
                     event_type: "fftData".into(),
-                    fft_data: Some(data.into_iter().map(|v| v as f64).collect()),
+                    fft_data: Some(JsFftData {
+                        ldata: ldata.into_iter().map(|v| v as f64).collect(),
+                        rdata: rdata.into_iter().map(|v| v as f64).collect(),
+                    }),
                     ..Default::default()
                 },
                 PlayerEvent::OutputStalled => JsPlayerEvent {
@@ -404,10 +413,6 @@ impl AudioPlayer {
                 Some(d) => d,
                 None => return SeekOutcome::Fallback,
             };
-            // 关键：清掉中断标志再 seek
-            // take_for_async_seek 调过 old_shared.stop()，已把 interrupt_flag 设为 true，
-            // 否则 ffmpeg 的 avformat_seek_file 一进入就会被中断回调拒绝
-            decoder_data.reset_interrupt();
             if !decoder_data.seek(position) {
                 return SeekOutcome::Fallback;
             }
@@ -582,13 +587,11 @@ impl AudioPlayer {
 
     /// 获取 FFT 频谱数据（128 个频段，值域 0.0 ~ 1.0）
     #[napi]
-    pub fn get_fft_data(&self) -> Vec<f64> {
-        self.inner
-            .lock()
-            .fft_data()
-            .into_iter()
-            .map(|v| v as f64)
-            .collect()
+    pub fn get_fft_data(&self) -> JsFftData {
+        let (ldata, rdata) = self.inner.lock().fft_data();
+        let ldata = ldata.into_iter().map(|v| v as f64).collect();
+        let rdata = rdata.into_iter().map(|v| v as f64).collect();
+        JsFftData { ldata, rdata }
     }
 
     /// 返回 load 时缓存的原始封面数据（用于 SMTC / 全屏播放器）。

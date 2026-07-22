@@ -37,13 +37,15 @@ const BAR_GAP = 3;
 const PUSH_INTERVAL = 50;
 
 /** 上一帧推送数据 */
-const prev = new Float32Array(FFT_SIZE);
+const prev = [new Float32Array(FFT_SIZE), new Float32Array(FFT_SIZE)];
 /** 当前帧推送数据 */
-const curr = new Float32Array(FFT_SIZE);
+const curr = [new Float32Array(FFT_SIZE), new Float32Array(FFT_SIZE)];
 /** 实际渲染显示值（经过指数平滑） */
-const display = new Float32Array(FFT_SIZE);
+const display = [new Float32Array(FFT_SIZE), new Float32Array(FFT_SIZE)];
+/** 双声道显示值 */
+const stereoDisplay = new Float32Array(FFT_SIZE * 2);
 /** 上一次推送数据的引用，用于检测新帧到达 */
-let lastRef: readonly number[] = [];
+let lastRef: readonly [number[], number[]] = [[], []];
 /** 上一次推送到达的时间戳 */
 let lastUpdate = 0;
 
@@ -72,8 +74,12 @@ const draw = (): void => {
   const data = getFftFrame();
   if (data !== lastRef) {
     lastRef = data;
-    prev.set(curr);
-    for (let i = 0; i < FFT_SIZE; i++) curr[i] = data[i] ?? 0;
+    prev[0].set(curr[0]);
+    prev[1].set(curr[1]);
+    for (let i = 0; i < FFT_SIZE; i++) {
+      curr[0][i] = data[0][i] ?? 0;
+      curr[1][i] = data[1][i] ?? 0;
+    }
     lastUpdate = performance.now();
   }
 
@@ -83,46 +89,52 @@ const draw = (): void => {
   const ATTACK = 0.4;
   const DECAY = 0.88;
 
-  for (let i = 0; i < FFT_SIZE; i++) {
-    const target = prev[i] + (curr[i] - prev[i]) * t;
-    if (target > display[i]) {
-      display[i] = display[i] + (target - display[i]) * ATTACK;
-    } else {
-      display[i] = display[i] * DECAY + target * (1 - DECAY);
+  // 处理双声道
+  for (let c = 0; c < 2; c++) {
+    for (let i = 0; i < FFT_SIZE; i++) {
+      const target = prev[c][i] + (curr[c][i] - prev[c][i]) * t;
+      if (target > display[c][i]) {
+        display[c][i] = display[c][i] + (target - display[c][i]) * ATTACK;
+      } else {
+        display[c][i] = display[c][i] * DECAY + target * (1 - DECAY);
+      }
     }
+  }
+  // 直接写入预分配缓冲区，避免 RAF 热路径产生临时数组
+  const channelLength = FFT_SIZE - SKIP_LOW;
+  for (let i = 0; i < channelLength; i++) {
+    stereoDisplay[i] = display[0][FFT_SIZE - 1 - i];
+    stereoDisplay[channelLength + i] = display[1][SKIP_LOW + i];
   }
 
   const cssWidth = canvas.clientWidth;
   const cssHeight = canvas.clientHeight;
-  const usableLen = FFT_SIZE - SKIP_LOW;
+  const usableLen = channelLength * 2;
   const barWidth = Math.max(1, settings.player.spectrumBarWidth);
   const slotWidth = barWidth + BAR_GAP;
-  // 一侧能放下的 bar 数；不再限制 ≤ usableLen，允许过采样（多个相邻 bar 共用一个 bin 的均值）
-  const numBars = Math.floor(cssWidth / 2 / slotWidth);
+  // 能放下的 bar 数；不再限制 ≤ usableLen，允许过采样（多个相邻 bar 共用一个 bin 的均值）
+  const numBars = Math.floor(cssWidth / slotWidth);
   if (numBars === 0) return;
 
   ctx.clearRect(0, 0, cssWidth, cssHeight);
   ctx.fillStyle = getComputedStyle(canvas).color;
 
-  const halfWidth = cssWidth / 2;
   for (let i = 0; i < numBars; i++) {
     // 每个 bar 覆盖一段 bin，再扩 1 个邻居做空间平滑，避免相邻 bin 方差导致的悬崖
-    const startBin = SKIP_LOW + Math.floor((i * usableLen) / numBars);
-    const endBin = SKIP_LOW + Math.floor(((i + 1) * usableLen) / numBars);
-    const lo = Math.max(SKIP_LOW, startBin - 1);
-    const hi = Math.min(FFT_SIZE, Math.max(endBin, startBin + 1) + 1);
+    const startBin = Math.floor(i * (usableLen / numBars));
+    const endBin = Math.floor((i + 1) * (usableLen / numBars));
+    const lo = Math.max(0, startBin - 1);
+    const hi = Math.min(usableLen, Math.max(endBin, startBin + 1) + 1);
     let sum = 0;
-    for (let j = lo; j < hi; j++) sum += display[j];
+    for (let j = lo; j < hi; j++) sum += stereoDisplay[j];
     const v = sum / (hi - lo);
 
     const barHeight = v * cssHeight;
     if (barHeight <= 0.5) continue;
     const y = cssHeight - barHeight;
-    const xRight = halfWidth + i * slotWidth;
-    const xLeft = halfWidth - (i + 1) * slotWidth;
+    const x = i * slotWidth;
     ctx.beginPath();
-    ctx.roundRect(xRight, y, barWidth, barHeight, props.radius);
-    ctx.roundRect(xLeft, y, barWidth, barHeight, props.radius);
+    ctx.roundRect(x, y, barWidth, barHeight, props.radius);
     ctx.fill();
   }
 };
@@ -166,10 +178,13 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener("resize", resizeCanvas);
   stopCapture();
-  prev.fill(0);
-  curr.fill(0);
-  display.fill(0);
-  lastRef = [];
+  prev[0].fill(0);
+  prev[1].fill(0);
+  curr[0].fill(0);
+  curr[1].fill(0);
+  display[0].fill(0);
+  display[1].fill(0);
+  lastRef = [[], []];
 });
 </script>
 

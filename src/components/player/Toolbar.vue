@@ -120,7 +120,7 @@ const onMoreMenuSelect = (key: string): void => {
       :class="isDesktopLyricOpen ? undefined : mutedClass"
       @click="toggleDesktopLyric"
     >
-      <template #icon><IconLucideMicVocal /></template>
+      <template #icon><IconLucideCaptions /></template>
     </SButton>
     <SButton
       v-if="!status.fmMode && cover"

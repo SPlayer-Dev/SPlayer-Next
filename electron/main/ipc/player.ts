@@ -149,7 +149,7 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
         break;
       }
       case "fftData": {
-        const fftEvent = { type: "fftData", data: event.fftData ?? [] };
+        const fftEvent = { type: "fftData", data: event.fftData ?? { ldata: [], rdata: [] } };
         if (getMainWindow()?.isVisible()) sendToMain("player:event", fftEvent);
         wsBroadcast(fftEvent);
         break;

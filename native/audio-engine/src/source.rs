@@ -104,8 +104,8 @@ impl Iterator for DecoderSource {
             match self.shared.try_pop() {
                 // 将 FFT 样本推送给分析器
                 PopResult::Chunk(chunk) => {
-                    if !chunk.fft_samples.is_empty() {
-                        self.fft.push_samples(&chunk.fft_samples);
+                    if self.fft.is_enabled() {
+                        self.fft.push_interleaved_samples(&chunk.player_samples);
                     }
 
                     // 填充本地缓冲，一次性批量计数（而非逐采样）
@@ -179,7 +179,6 @@ mod tests {
         let shared = Shared::new(48000, 2);
         shared.push(AudioChunk {
             player_samples: vec![0.8, -0.8],
-            fft_samples: Vec::new(),
         });
 
         let equalizer = Arc::new(Mutex::new(Equalizer::new(48000)));
@@ -207,7 +206,6 @@ mod tests {
         let shared = Shared::new(48000, 2);
         shared.push(AudioChunk {
             player_samples: vec![0.1, -0.1, 2.0, -2.0],
-            fft_samples: Vec::new(),
         });
 
         let mut source = DecoderSource::new(
@@ -240,7 +238,6 @@ mod tests {
         assert_eq!(source.next(), Some(0.0));
         shared.push(AudioChunk {
             player_samples: vec![0.25, -0.25],
-            fft_samples: Vec::new(),
         });
         for _ in 0..39 {
             assert_eq!(source.next(), Some(0.0));
