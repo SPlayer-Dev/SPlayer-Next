@@ -251,6 +251,17 @@ export const normalizeKugouCommentPage = (
   };
 };
 
+/** 纯函数：从已归一化的评论中筛选主创评论（userId 命中账号集合） */
+export const scanCreatorComments = (
+  items: MusicCommentItem[],
+  accountIds: Set<string>,
+): MusicCommentItem[] => {
+  if (accountIds.size === 0) return [];
+  return items.filter(
+    (item) => item.userId != null && accountIds.has(item.userId),
+  );
+};
+
 /** 构建可用评论源 */
 export const buildCommentSources = (
   plugins: Array<

@@ -135,7 +135,12 @@
     "empty": "No comments yet",
     "noSource": "No comment source available",
     "location": "From {location}",
-    "page": "Page {page} / {total}"
+    "page": "Page {page} / {total}",
+    "creator": "Creator Says",
+    "creatorBadge": "Creator",
+    "playTrack": "Play Track",
+    "back": "Back",
+    "pageTitle": "Song Comments"
   },
   "equalizer": {
     "title": "Equalizer",
