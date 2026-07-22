@@ -118,8 +118,7 @@ const coverCentered = computed(() => {
 const fullCommentMode = computed<"off" | "half" | "full">(() => {
   if (!status.fullCommentsOpen) return "off";
   if (fullscreenCover.value) return "half";
-  if (!hasLyric.value && settings.player.autoCenterCover) return "full";
-  return "half";
+  return hasLyric.value ? "half" : "full";
 });
 
 const handleLyricSeek = async (timeMs: number): Promise<void> => {
@@ -224,9 +223,19 @@ watch(
         <!-- 背景 -->
         <PlayerBackground />
         <!-- 全屏封面 -->
-        <div v-if="fullscreenCover && fullCommentMode === 'off'" class="absolute inset-y-0 left-0 w-[60%]">
-          <PlayerCover fullscreen />
-        </div>
+        <Transition
+          enter-active-class="transition-opacity duration-250"
+          enter-from-class="opacity-0"
+          leave-active-class="transition-opacity duration-250"
+          leave-to-class="opacity-0"
+        >
+          <div
+            v-if="fullscreenCover && fullCommentMode === 'off'"
+            class="absolute inset-y-0 left-0 w-[60%]"
+          >
+            <PlayerCover fullscreen />
+          </div>
+        </Transition>
         <!-- 底部频谱 -->
         <BottomSpectrum
           v-if="isPlayerExpanded && settings.player.enableSpectrum"
@@ -277,8 +286,11 @@ watch(
         <div class="absolute top-14 inset-x-0 bottom-20" @mousemove="onMainMove">
           <!-- 左侧 -->
           <div
-            v-if="!fullscreenCover && fullCommentMode === 'off'"
-            class="absolute inset-y-0 left-0 w-[45%] flex items-center justify-center px-12 transition-transform duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
+            v-if="!fullscreenCover"
+            class="absolute inset-y-0 left-0 w-[45%] flex items-center justify-center px-12 transition-[transform,opacity] duration-250 ease-[cubic-bezier(0.4,0,0.2,1)]"
+            :class="
+              fullCommentMode === 'off' ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            "
             :style="coverCentered ? 'transform: translateX(calc(100% * 11 / 18))' : undefined"
           >
             <div class="relative w-[clamp(200px,85%,50vh)] -translate-y-[11vh]">
@@ -294,22 +306,29 @@ watch(
           </div>
           <!-- 右侧 -->
           <div
-            class="group absolute inset-y-0 right-0 pr-20 flex flex-col transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
+            class="group absolute inset-y-0 right-0 pr-20 flex flex-col transition-opacity duration-250 ease-[cubic-bezier(0.4,0,0.2,1)]"
             :class="[
               fullscreenCover ? 'w-1/2' : 'w-[55%]',
-              coverCentered || status.fullQueueOpen
+              coverCentered || status.fullQueueOpen || fullCommentMode === 'full'
                 ? 'opacity-0 pointer-events-none'
                 : 'opacity-100',
             ]"
           >
             <!-- 全屏封面 -->
-            <div
-              v-if="fullscreenCover && fullCommentMode === 'off'"
-              class="shrink-0 pt-2 pb-6 pl-[calc(1em-0.5rem)]"
-              :style="{ fontSize: lyricFontSize }"
+            <Transition
+              enter-active-class="transition-opacity duration-250"
+              enter-from-class="opacity-0"
+              leave-active-class="transition-opacity duration-250"
+              leave-to-class="opacity-0"
             >
-              <PlayerData align="left" simple />
-            </div>
+              <div
+                v-if="fullscreenCover && fullCommentMode === 'off'"
+                class="shrink-0 pt-2 pb-6 pl-[calc(1em-0.5rem)]"
+                :style="{ fontSize: lyricFontSize }"
+              >
+                <PlayerData align="left" simple />
+              </div>
+            </Transition>
             <!-- 歌词容器 -->
             <div
               class="lyric-area relative flex-1 min-h-0"
@@ -398,32 +417,27 @@ watch(
             <!-- 歌词侧边工具栏 -->
             <LyricActions :immersive="immersive" />
           </div>
-          <!-- 全屏内嵌评论：半屏 -->
+          <!-- 全屏内嵌评论 -->
           <Transition
-            enter-active-class="transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
+            enter-active-class="transition-opacity duration-250 ease-[cubic-bezier(0.4,0,0.2,1)]"
             enter-from-class="opacity-0"
-            leave-active-class="transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
+            leave-active-class="transition-opacity duration-250 ease-[cubic-bezier(0.4,0,0.2,1)]"
             leave-to-class="opacity-0"
           >
             <div
-              v-if="fullCommentMode === 'half'"
-              class="absolute inset-y-0 left-0 w-[45%] px-6 py-4 z-6"
+              v-if="fullCommentMode !== 'off'"
+              class="absolute py-4 z-6 transition-[inset,width,padding] duration-250 ease-[cubic-bezier(0.4,0,0.2,1)]"
+              :class="
+                fullCommentMode === 'half'
+                  ? 'inset-y-0 left-0 w-[45%] px-[clamp(32px,4vw,64px)]'
+                  : 'inset-0 w-full px-[clamp(32px,5vw,80px)]'
+              "
             >
-              <FullPlayerComments mode="half" @close="toggleFullComments" />
-            </div>
-          </Transition>
-          <!-- 全屏内嵌评论：全屏 -->
-          <Transition
-            enter-active-class="transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
-            enter-from-class="opacity-0"
-            leave-active-class="transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
-            leave-to-class="opacity-0"
-          >
-            <div
-              v-if="fullCommentMode === 'full'"
-              class="absolute inset-0 px-8 py-4 z-6"
-            >
-              <FullPlayerComments mode="full" @close="toggleFullComments" />
+              <FullPlayerComments
+                :mode="fullCommentMode"
+                :immersive="immersive"
+                @close="toggleFullComments"
+              />
             </div>
           </Transition>
           <!-- 播放队列 -->
