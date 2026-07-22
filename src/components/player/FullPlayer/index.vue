@@ -118,8 +118,7 @@ const coverCentered = computed(() => {
 /** 全屏内嵌评论布局模式：off 关闭 / half 左半屏 / full 全屏 */
 const fullCommentMode = computed<"off" | "half" | "full">(() => {
   if (!status.fullCommentsOpen) return "off";
-  if (fullscreenCover.value) return "half";
-  return hasLyric.value ? "half" : "full";
+  return hasLyric.value && showLyric.value ? "half" : "full";
 });
 
 const handleLyricSeek = async (timeMs: number): Promise<void> => {
@@ -431,7 +430,7 @@ watch(
               class="absolute py-4 z-6 transition-[inset,width,padding] duration-250 ease-[cubic-bezier(0.4,0,0.2,1)]"
               :class="
                 fullCommentMode === 'half'
-                  ? 'inset-y-0 left-0 px-[clamp(32px,4vw,64px)]'
+                  ? 'inset-y-0 left-0 pl-[clamp(32px,4vw,64px)] pr-[clamp(20px,2.5vw,40px)]'
                   : 'inset-0 w-full px-[clamp(32px,5vw,80px)]'
               "
               :style="fullCommentMode === 'half' ? { width: coverWidth } : undefined"

@@ -138,7 +138,6 @@
     "page": "Page {page} / {total}",
     "creator": "Creator Says",
     "creatorBadge": "Creator",
-    "total": "{count} comments",
     "playTrack": "Play Track",
     "back": "Back",
     "pageTitle": "Song Comments"
