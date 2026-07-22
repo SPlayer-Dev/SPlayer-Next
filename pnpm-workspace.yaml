@@ -1,4 +1,8 @@
 packages: []
+
+overrides:
+  yauzl: ^3.3.1
+
 allowBuilds:
   "@parcel/watcher": false
   better-sqlite3: true
@@ -6,6 +10,7 @@ allowBuilds:
   electron-winstaller: true
   esbuild: true
   vue-demi: true
+
 minimumReleaseAgeExclude:
   - app-builder-lib@26.15.3
   - builder-util@26.15.3
