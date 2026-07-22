@@ -6,12 +6,12 @@ import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import * as player from "@/core/player";
 import { useSettingsStore } from "@/stores/settings";
 import { usePluginsStore } from "@/stores/plugins";
-import { useStatusStore } from "@/stores/status";
 import { useDownloadStore } from "@/stores/download";
 import { useCopyText } from "@/composables/useCopyText";
 import { toast } from "@/composables/useToast";
 import { buildDownloadQualityItems } from "@/composables/useDownload";
 import { getTrackShareUrl } from "@/utils/format/shareUrl";
+import { setCommentPageSnapshot } from "@/services/commentPageSnapshot";
 import { openExternal } from "@/utils/url";
 import IconPlay from "~icons/lucide/play";
 import IconListEnd from "~icons/lucide/list-end";
@@ -62,7 +62,6 @@ export const useTrackMenu = (
 ) => {
   const { t } = useI18n();
   const router = useRouter();
-  const status = useStatusStore();
   const settings = useSettingsStore();
   const plugins = usePluginsStore();
   const download = useDownloadStore();
@@ -276,9 +275,18 @@ export const useTrackMenu = (
       case "searchSame":
         router.push({ path: "/search", query: { q: current.title } });
         break;
-      case "comments":
-        status.showComments(current);
+      case "comments": {
+        setCommentPageSnapshot(current);
+        router.push({
+          name: "comments",
+          params: { source: current.source, id: encodeURIComponent(current.id) },
+          query: {
+            name: current.title,
+            artists: current.artists.map((a) => a.name).join(" / "),
+          },
+        });
         break;
+      }
       case "copyTitle":
         await copy(current.title);
         break;

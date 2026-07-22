@@ -46,6 +46,8 @@ export const useStatusStore = defineStore(
     const commentsTrack = shallowRef<Track | null>(null);
     /** 音频输出信息弹窗状态 */
     const audioInfoOpen = ref(false);
+    /** 全屏播放器内嵌评论开关 */
+    const fullCommentsOpen = ref(false);
     /** 全屏播放器是否展示歌词 */
     const showLyric = ref(true);
     /** 当前播放索引 */
@@ -136,6 +138,7 @@ export const useStatusStore = defineStore(
       commentsOpen,
       commentsTrack,
       audioInfoOpen,
+      fullCommentsOpen,
       showLyric,
       outputDevices,
       playIndex,

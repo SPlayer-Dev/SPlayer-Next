@@ -1,4 +1,8 @@
 <script setup lang="ts">
+/**
+ * @deprecated 歌曲评论主入口已迁移至 /comments 路由（Comments.vue）与全屏内嵌面板（FullPlayerComments.vue）
+ * 本组件保留挂载于 MainLayout 以兼容旧入口，不再扩展新功能
+ */
 import type { CommentSource, CommentTab, MusicCommentPage } from "@shared/types/comment";
 import { useStatusStore } from "@/stores/status";
 import { toast } from "@/composables/useToast";
