@@ -305,7 +305,7 @@ watch(
           <div
             class="group absolute inset-y-0 right-0 pr-20 flex flex-col transition-opacity duration-250 ease-[cubic-bezier(0.4,0,0.2,1)]"
             :class="[
-              fullscreenCover ? 'w-1/2' : 'w-[55%]',
+              fullscreenCover || fullCommentMode === 'half' ? 'w-1/2' : 'w-[55%]',
               coverCentered || status.fullQueueOpen || fullCommentMode === 'full'
                 ? 'opacity-0 pointer-events-none'
                 : 'opacity-100',
