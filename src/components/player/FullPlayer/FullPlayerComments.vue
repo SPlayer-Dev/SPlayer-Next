@@ -9,6 +9,8 @@ import IconLucideMessageCircleOff from "~icons/lucide/message-circle-off";
 interface Props {
   /** 展示模式：half 左半屏窄列，full 全屏多列 */
   mode: "half" | "full";
+  /** 播放器当前是否处于沉浸状态 */
+  immersive: boolean;
 }
 
 const props = defineProps<Props>();
@@ -17,9 +19,9 @@ const emit = defineEmits<{ close: [] }>();
 const { t } = useI18n();
 const media = useMediaStore();
 
-/** 全屏内嵌跟随当前播放曲目切换（与独立页冻结快照形成对比） */
 const trackRef = computed(() => media.track ?? null);
 const listScrollRef = ref<HTMLElement | null>(null);
+const loadMoreSentinelRef = ref<HTMLElement | null>(null);
 const comments = useMusicComments(trackRef, listScrollRef);
 
 const {
@@ -30,22 +32,56 @@ const {
   creatorIds,
   loading,
   page,
-  maxPage,
   sourceOptions,
   tabs,
   dedupedList,
   error,
 } = comments;
 
-/** half 模式窄列（半屏宽度有限），full 模式标准列宽 */
-const columnMinWidth = computed(() => (props.mode === "half" ? 400 : 280));
+const columnMinWidth = computed(() => (props.mode === "half" ? 400 : 360));
+const scrolling = ref(false);
+let loadMoreObserver: IntersectionObserver | undefined;
+let scrollTimer: ReturnType<typeof setTimeout> | undefined;
 
 const handleClose = (): void => emit("close");
+
+const handleScroll = (): void => {
+  scrolling.value = true;
+  clearTimeout(scrollTimer);
+  scrollTimer = setTimeout(() => {
+    scrolling.value = false;
+  }, 700);
+};
+
+onMounted(() => {
+  loadMoreObserver = new IntersectionObserver(
+    ([entry]) => {
+      if (entry?.isIntersecting) void comments.loadMore();
+    },
+    { root: listScrollRef.value, rootMargin: "0px 0px 400px", threshold: 0 },
+  );
+  if (loadMoreSentinelRef.value) loadMoreObserver.observe(loadMoreSentinelRef.value);
+});
+
+watch(
+  () => [activeTab.value, loading.value, page.value.list.length] as const,
+  async () => {
+    await nextTick();
+    const sentinel = loadMoreSentinelRef.value;
+    if (!sentinel || !loadMoreObserver) return;
+    loadMoreObserver.unobserve(sentinel);
+    loadMoreObserver.observe(sentinel);
+  },
+);
+
+onBeforeUnmount(() => {
+  loadMoreObserver?.disconnect();
+  clearTimeout(scrollTimer);
+});
 </script>
 
 <template>
   <div class="flex flex-col h-full text-cover">
-    <!-- 顶部精简歌曲信息头 -->
     <div class="shrink-0 flex items-center gap-3 pb-3">
       <SImg
         v-if="media.track?.cover"
@@ -57,7 +93,7 @@ const handleClose = (): void => emit("close");
       <div class="flex-1 min-w-0">
         <div class="text-base truncate font-medium leading-snug">{{ media.track?.title }}</div>
         <div class="text-sm truncate leading-snug mt-0.5 text-cover/55">
-          {{ media.track?.artists.map((a) => a.name).join(" / ") }}
+          {{ media.track?.artists.map((artist) => artist.name).join(" / ") }}
         </div>
       </div>
       <SButton type="cover" variant="ghost" circle @click="handleClose">
@@ -65,7 +101,6 @@ const handleClose = (): void => emit("close");
       </SButton>
     </div>
 
-    <!-- 工具栏 -->
     <div class="shrink-0 flex items-center gap-3 pb-3">
       <div class="min-w-0 flex-1">
         <STabs v-model="activeTab" :tabs="tabs" type="bar" size="medium" />
@@ -89,9 +124,12 @@ const handleClose = (): void => emit("close");
       </div>
     </div>
 
-    <!-- 滚动内容区 -->
-    <div ref="listScrollRef" class="min-h-0 flex-1 overflow-y-auto pr-1">
-      <!-- 主创说分区 -->
+    <div
+      ref="listScrollRef"
+      class="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-gutter:stable] [&::-webkit-scrollbar-thumb]:bg-cover/25 [&::-webkit-scrollbar-thumb:hover]:bg-cover/45"
+      :class="immersive && !scrolling ? '[&::-webkit-scrollbar-thumb]:bg-transparent' : ''"
+      @scroll="handleScroll"
+    >
       <div v-if="creatorComments.length" class="mb-5">
         <h3 class="text-sm font-semibold mb-3">{{ t("comments.creator") }}</h3>
         <CommentList
@@ -101,7 +139,6 @@ const handleClose = (): void => emit("close");
         />
       </div>
 
-      <!-- 四态分支 -->
       <div
         v-if="!sources.length"
         class="flex items-center justify-center py-16 text-cover/35"
@@ -116,7 +153,7 @@ const handleClose = (): void => emit("close");
         class="flex flex-col items-center justify-center gap-3 py-16"
       >
         <div class="text-sm text-cover/55">{{ error }}</div>
-        <SButton variant="outline" @click="comments.loadPage(activeTab, page.page)">
+        <SButton variant="outline" @click="comments.loadPage(activeTab, 1)">
           {{ t("common.retry") }}
         </SButton>
       </div>
@@ -138,33 +175,15 @@ const handleClose = (): void => emit("close");
           <div class="text-sm">{{ t("comments.empty") }}</div>
         </div>
       </div>
-      <div v-else>
-        <CommentList :items="dedupedList" :column-min-width="columnMinWidth" />
-      </div>
-    </div>
+      <CommentList v-else :items="dedupedList" :column-min-width="columnMinWidth" />
 
-    <!-- 分页栏 -->
-    <div
-      v-if="sources.length"
-      class="shrink-0 flex items-center justify-between py-3 text-xs text-cover/55"
-    >
-      <span>{{ t("comments.page", { page: page.page, total: maxPage }) }}</span>
-      <div class="flex gap-2">
-        <SButton
-          size="small"
-          variant="secondary"
-          :disabled="page.page <= 1 || loading"
-          @click="comments.changePage(-1)"
-        >
-          {{ t("common.prev") }}
-        </SButton>
-        <SButton
-          size="small"
-          variant="secondary"
-          :disabled="page.page >= maxPage || loading"
-          @click="comments.changePage(1)"
-        >
-          {{ t("common.next") }}
+      <div ref="loadMoreSentinelRef" class="h-px" />
+      <div v-if="page.loadingMore" class="flex justify-center py-5 text-cover/55">
+        <SLoading class="text-2xl" />
+      </div>
+      <div v-else-if="page.appendError" class="flex justify-center py-5">
+        <SButton size="small" type="cover" variant="outline" @click="comments.loadMore">
+          {{ t("common.retry") }}
         </SButton>
       </div>
     </div>
