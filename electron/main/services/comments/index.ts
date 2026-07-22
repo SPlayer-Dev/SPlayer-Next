@@ -80,8 +80,21 @@ const findPluginMatch = async (
   return pickBestCandidate(candidates, track)?.extra ?? null;
 };
 
-const findNeteaseId = async (track: Track): Promise<string | null> => {
-  if (track.source === "netease" && track.id) return track.id;
+/**
+ * 解析 Track 对应的网易云歌曲元信息：songId + 歌手 id 列表
+ * 一次 search 同时取两者，避免主创说二次搜索
+ */
+export const findNeteaseSongMeta = async (
+  track: Track,
+): Promise<{ songId: string; artistIds: string[] } | null> => {
+  if (track.source === "netease" && track.id) {
+    return {
+      songId: track.id,
+      artistIds: track.artists
+        .map((a) => a.id)
+        .filter((id): id is string => !!id),
+    };
+  }
   const keyword = toKeyword(track);
   if (!keyword) return null;
   const { status, body } = await callNetease("search", {
@@ -91,11 +104,11 @@ const findNeteaseId = async (track: Track): Promise<string | null> => {
   });
   if (status !== 200) return null;
   const songs = body.result?.songs ?? [];
-  const candidates: LyricCandidate<{ id: string }>[] = songs.map(
+  const candidates: LyricCandidate<{ id: string; artistIds: string[] }>[] = songs.map(
     (song: {
       id: string | number;
       name?: string;
-      artists?: { name: string }[];
+      artists?: { id?: string | number; name: string }[];
       album?: { name?: string };
       duration?: number;
     }) => ({
@@ -103,10 +116,23 @@ const findNeteaseId = async (track: Track): Promise<string | null> => {
       artist: (song.artists ?? []).map((artist) => artist.name).join(" / "),
       album: song.album?.name,
       duration: song.duration,
-      extra: { id: String(song.id) },
+      extra: {
+        id: String(song.id),
+        artistIds: (song.artists ?? [])
+          .map((a) => (a.id ? String(a.id) : ""))
+          .filter(Boolean),
+      },
     }),
   );
-  return pickBestCandidate(candidates, track)?.extra.id ?? null;
+  const best = pickBestCandidate(candidates, track)?.extra;
+  if (!best) return null;
+  return { songId: best.id, artistIds: best.artistIds };
+};
+
+/** 取网易云歌曲 id（薄包装，供普通评论拉取复用） */
+const findNeteaseId = async (track: Track): Promise<string | null> => {
+  const meta = await findNeteaseSongMeta(track);
+  return meta?.songId ?? null;
 };
 
 const getNeteaseComments = async (args: MusicCommentQuery): Promise<MusicCommentPage> => {

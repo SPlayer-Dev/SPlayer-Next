@@ -17,7 +17,7 @@ import type { PlayEventInput, FavoriteEventInput } from "@shared/types/stats";
 import type { TagEditRequest } from "@shared/types/tagEditor";
 import type { UpdateEvent } from "@shared/types/update";
 import type { CloudUploadProgress } from "@shared/types/cloudUpload";
-import type { MusicCommentQuery } from "@shared/types/comment";
+import type { MusicCommentCreatorQuery, MusicCommentQuery } from "@shared/types/comment";
 import type { AiModelSaveInput } from "@shared/types/ai";
 import type { DesktopLyricUnlockButtonBounds } from "@shared/types/window";
 import type {
@@ -428,6 +428,8 @@ const api = {
   comments: {
     sources: () => ipcRenderer.invoke("comments:sources"),
     get: (args: MusicCommentQuery) => ipcRenderer.invoke("comments:get", args),
+    creator: (args: MusicCommentCreatorQuery) =>
+      ipcRenderer.invoke("comments:creator", args),
   },
   download: {
     // 入队下载
