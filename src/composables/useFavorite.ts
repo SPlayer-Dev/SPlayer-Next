@@ -12,6 +12,7 @@ import i18n from "@/i18n";
  */
 const recordFavoriteChange = (track: Track, liked: boolean): void => {
   window.api.stats.recordFavorite({ track, action: liked ? "add" : "remove" });
+  window.api.player.notifyLike(track, liked);
 };
 
 /**

@@ -21,6 +21,8 @@ import { StatsApi } from "@shared/types/stats";
 import { UpdateApi } from "@shared/types/update";
 import { CloudUploadApi } from "@shared/types/cloudUpload";
 import { CommentsApi } from "@shared/types/comment";
+import { RecommendationsApi } from "@shared/types/recommendation";
+import { ExternalPlaylistsApi } from "@shared/types/externalPlaylist";
 
 declare global {
   interface Window {
@@ -56,6 +58,8 @@ declare global {
       taskbarLyric: TaskbarLyricApi;
       nowPlaying: NowPlayingApi;
       plugins: PluginsApi;
+      recommendations: RecommendationsApi;
+      externalPlaylists: ExternalPlaylistsApi;
       apis: ApisApi;
       cloud: CloudUploadApi;
       lyrics: LyricsApi;

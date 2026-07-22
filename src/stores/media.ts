@@ -1,7 +1,9 @@
 import type { MediaInfo, Track, TrackDetail } from "@shared/types/player";
 import type { LyricData, LyricFormat, LyricInput, LyricLine } from "@shared/types/lyrics";
 import { findLyricIndex } from "@shared/utils/lyric";
+import { useLibraryStore } from "@/stores/library";
 import { useSettingsStore } from "@/stores/settings";
+import { useUserStore } from "@/stores/user";
 import { watchLyricPreference } from "@/services/lyricLoader";
 import { parseLyric } from "@/utils/lyric/parse";
 import { extractLyricAuthors } from "@/utils/lyric/author";
@@ -42,8 +44,15 @@ export const useMediaStore = defineStore("media", () => {
   /** 同步当前歌词源到主进程 */
   const syncToMain = (): void => {
     try {
+      const currentTrack = track.value ? toRaw(track.value) : null;
+      const liked =
+        currentTrack?.source === "local"
+          ? useLibraryStore().isLiked(currentTrack.id)
+          : currentTrack?.source === "netease"
+            ? useUserStore().isLiked(currentTrack.id)
+            : false;
       const payload = {
-        track: track.value ? toRaw(track.value) : null,
+        track: currentTrack ? { ...currentTrack, liked } : null,
         lyric: toRaw(parsedLyric.value),
         source: activeLyric.value ? toRaw(activeLyric.value) : null,
       };
@@ -179,6 +188,7 @@ export const useMediaStore = defineStore("media", () => {
     patchCover,
     resetLyricState,
     setLyric,
+    syncToMain,
     updateLyricIndex,
     clear,
   };
