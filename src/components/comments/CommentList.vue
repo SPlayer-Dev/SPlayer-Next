@@ -12,6 +12,8 @@ interface Props {
   creatorIds?: Set<string>;
   /** 紧凑模式透传给 CommentCard */
   compact?: boolean;
+  /** 是否使用全屏播放器配色 */
+  cover?: boolean;
   /** 列间距（px） */
   gap?: number;
 }
@@ -20,6 +22,7 @@ const props = withDefaults(defineProps<Props>(), {
   columnMinWidth: 280,
   creatorIds: () => new Set<string>(),
   compact: false,
+  cover: false,
   gap: 12,
 });
 
@@ -114,6 +117,7 @@ onBeforeUnmount(() => {
         :item="item"
         :creator="creatorIds.has(item.id)"
         :compact="compact"
+        :cover="cover"
       />
     </div>
   </div>
