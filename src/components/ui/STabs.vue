@@ -24,6 +24,8 @@ export interface STabsProps {
   animated?: boolean;
   /** 圆角胶囊 */
   round?: boolean;
+  /** 使用全屏播放器配色 */
+  cover?: boolean;
 }
 
 const props = withDefaults(defineProps<STabsProps>(), {
@@ -31,6 +33,7 @@ const props = withDefaults(defineProps<STabsProps>(), {
   size: "medium",
   animated: false,
   round: false,
+  cover: false,
 });
 
 const emit = defineEmits<{
@@ -216,15 +219,19 @@ const panelTransitionClasses = computed(() => {
       type === 'bar' && (justifyContent ? 'flex w-full pb-1' : 'inline-flex shrink-0 gap-3 pb-1'),
     ]"
   >
-    <div v-if="type === 'line'" class="absolute inset-x-0 bottom-0 h-0.5 bg-outline-variant/65" />
+    <div
+      v-if="type === 'line'"
+      class="absolute inset-x-0 bottom-0 h-0.5"
+      :class="cover ? 'bg-cover/15' : 'bg-outline-variant/65'"
+    />
 
     <div
       v-if="indicatorStyle.width"
       :class="[
         'absolute pointer-events-none transition-[left,width] duration-320 ease-[cubic-bezier(0.4,0,0.2,1)]',
         type === 'segment'
-          ? ['bg-primary/12', round ? 'rounded-full' : 'rounded-md']
-          : 'bottom-0.5 h-[3px] bg-primary rounded-full',
+          ? [cover ? 'bg-cover/14' : 'bg-primary/12', round ? 'rounded-full' : 'rounded-md']
+          : [cover ? 'bg-cover' : 'bg-primary', 'bottom-0.5 h-[3px] rounded-full'],
       ]"
       :style="indicatorStyle"
     />
@@ -241,16 +248,20 @@ const panelTransitionClasses = computed(() => {
         type === 'segment' ? ['flex-1 h-full', segmentTabClasses[size]] : sizeClasses[size],
         tab.disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer',
         modelValue === tab.key
-          ? {
-              bar: 'text-primary font-medium',
-              line: 'text-primary font-medium',
-              segment: 'text-on-surface font-medium',
-            }[type]
-          : {
-              bar: 'text-on-surface-variant',
-              line: 'text-on-surface-variant',
-              segment: 'text-on-surface',
-            }[type],
+          ? cover
+            ? 'text-cover font-medium'
+            : {
+                bar: 'text-primary font-medium',
+                line: 'text-primary font-medium',
+                segment: 'text-on-surface font-medium',
+              }[type]
+          : cover
+            ? 'text-cover/55 hover:text-cover/75'
+            : {
+                bar: 'text-on-surface-variant',
+                line: 'text-on-surface-variant',
+                segment: 'text-on-surface',
+              }[type],
       ]"
       @click="select(tab)"
     >
