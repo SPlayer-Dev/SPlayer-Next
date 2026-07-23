@@ -1,9 +1,6 @@
 import { callNetease } from "@main/apis/netease";
 import { coreLog } from "@main/utils/logger";
-import type {
-  MusicCommentCreatorQuery,
-  MusicCommentItem,
-} from "@shared/types/comment";
+import type { MusicCommentCreatorQuery, MusicCommentItem } from "@shared/types/comment";
 import { normalizeNeteaseCommentPage, scanCreatorComments } from "./data";
 import { findNeteaseSongMeta } from "./index";
 
@@ -48,9 +45,7 @@ class BoundedMap<K, V> {
 }
 
 /** artist id → 绑定的网易云用户 accountId（null 表示负缓存：未绑定） */
-const artistAccountIdCache = new BoundedMap<string, string | null>(
-  ARTIST_ACCOUNT_CACHE_LIMIT,
-);
+const artistAccountIdCache = new BoundedMap<string, string | null>(ARTIST_ACCOUNT_CACHE_LIMIT);
 /** 网易云 songId → 主创评论列表（空数组表示负缓存：无主创评论） */
 const creatorCommentsCache = new BoundedMap<string, MusicCommentItem[]>(
   CREATOR_COMMENTS_CACHE_LIMIT,
@@ -76,9 +71,7 @@ const fetchHotPage = async (
  * 解析歌手列表对应的网易云用户 accountId 集合
  * 多歌手多账号匹配并去重；accountId 为 0 或不存在视为未绑定（负缓存）
  */
-const resolveArtistAccountIds = async (
-  artistIds: string[],
-): Promise<Set<string>> => {
+const resolveArtistAccountIds = async (artistIds: string[]): Promise<Set<string>> => {
   const accountIds = new Set<string>();
   for (const artistId of artistIds) {
     if (!artistId) continue;
@@ -99,10 +92,7 @@ const resolveArtistAccountIds = async (
       artistAccountIdCache.set(artistId, normalized);
       if (normalized) accountIds.add(normalized);
     } catch (err) {
-      coreLog.warn(
-        `[comments] resolve artist ${artistId} accountId failed:`,
-        err,
-      );
+      coreLog.warn(`[comments] resolve artist ${artistId} accountId failed:`, err);
       artistAccountIdCache.set(artistId, null);
     }
   }

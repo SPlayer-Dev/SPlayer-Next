@@ -27,10 +27,7 @@ export const registerCommentsIpc = (): void => {
 
   ipcMain.handle(
     "comments:creator",
-    async (
-      _evt,
-      args: MusicCommentCreatorQuery,
-    ): Promise<MusicCommentCreatorResponse> => {
+    async (_evt, args: MusicCommentCreatorQuery): Promise<MusicCommentCreatorResponse> => {
       try {
         return { ok: true, data: await getCreatorComments(args) };
       } catch (err) {
