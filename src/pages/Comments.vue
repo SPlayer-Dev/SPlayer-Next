@@ -139,13 +139,7 @@ onBeforeUnmount(() => loadMoreObserver?.disconnect());
             {{ trackSnapshot.artists.map((artist) => artist.name).join(" / ") }}
           </div>
         </div>
-        <SButton
-          type="primary"
-          variant="secondary"
-          round
-          class="shrink-0 mt-1"
-          @click="handlePlay"
-        >
+        <SButton type="primary" variant="secondary" round class="shrink-0 mt-1" @click="handlePlay">
           <template #icon><IconLucidePlay /></template>
           {{ t("comments.playTrack") }}
         </SButton>
@@ -175,11 +169,7 @@ onBeforeUnmount(() => loadMoreObserver?.disconnect());
     >
       <div v-if="creatorComments.length" class="mb-5">
         <h3 class="text-sm font-semibold mb-3 text-on-surface">{{ t("comments.creator") }}</h3>
-        <CommentList
-          :items="creatorComments"
-          :creator-ids="creatorIds"
-          :column-min-width="360"
-        />
+        <CommentList :items="creatorComments" :creator-ids="creatorIds" :column-min-width="360" />
       </div>
 
       <div
@@ -221,10 +211,7 @@ onBeforeUnmount(() => loadMoreObserver?.disconnect());
       <CommentList v-else :items="dedupedList" :column-min-width="360" />
 
       <div ref="loadMoreSentinelRef" class="h-px" />
-      <div
-        v-if="page.loadingMore"
-        class="flex justify-center py-5 text-on-surface-variant/60"
-      >
+      <div v-if="page.loadingMore" class="flex justify-center py-5 text-on-surface-variant/60">
         <SLoading class="text-2xl" />
       </div>
       <div v-else-if="page.appendError" class="flex justify-center py-5">

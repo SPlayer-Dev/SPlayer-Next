@@ -257,9 +257,7 @@ export const scanCreatorComments = (
   accountIds: Set<string>,
 ): MusicCommentItem[] => {
   if (accountIds.size === 0) return [];
-  return items.filter(
-    (item) => item.userId != null && accountIds.has(item.userId),
-  );
+  return items.filter((item) => item.userId != null && accountIds.has(item.userId));
 };
 
 /** 构建可用评论源 */

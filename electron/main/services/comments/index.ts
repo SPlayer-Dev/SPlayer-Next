@@ -90,9 +90,7 @@ export const findNeteaseSongMeta = async (
   if (track.source === "netease" && track.id) {
     return {
       songId: track.id,
-      artistIds: track.artists
-        .map((a) => a.id)
-        .filter((id): id is string => !!id),
+      artistIds: track.artists.map((a) => a.id).filter((id): id is string => !!id),
     };
   }
   const keyword = toKeyword(track);
@@ -118,9 +116,7 @@ export const findNeteaseSongMeta = async (
       duration: song.duration,
       extra: {
         id: String(song.id),
-        artistIds: (song.artists ?? [])
-          .map((a) => (a.id ? String(a.id) : ""))
-          .filter(Boolean),
+        artistIds: (song.artists ?? []).map((a) => (a.id ? String(a.id) : "")).filter(Boolean),
       },
     }),
   );

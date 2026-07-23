@@ -164,7 +164,8 @@ export const useMusicComments = (
             result.data.total,
             result.data.list.length,
             result.data.limit,
-          ) && (!append || nextList.length > previousCount),
+          ) &&
+          (!append || nextList.length > previousCount),
         loadingMore: false,
         initialError: "",
         appendError: "",
