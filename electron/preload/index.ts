@@ -428,8 +428,7 @@ const api = {
   comments: {
     sources: () => ipcRenderer.invoke("comments:sources"),
     get: (args: MusicCommentQuery) => ipcRenderer.invoke("comments:get", args),
-    creator: (args: MusicCommentCreatorQuery) =>
-      ipcRenderer.invoke("comments:creator", args),
+    creator: (args: MusicCommentCreatorQuery) => ipcRenderer.invoke("comments:creator", args),
   },
   download: {
     // 入队下载
