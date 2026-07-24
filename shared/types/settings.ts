@@ -136,6 +136,9 @@ export interface DesktopLyricSettings {
   useCSSDrag: boolean;
 }
 
+/** 灵动岛歌词切换动画 */
+export type DynamicIslandTransition = "bounce" | "smooth";
+
 /** 灵动岛歌词配置 */
 export interface DynamicIslandSettings {
   /** 缩放比例（0.5 ~ 2.0），1 = 100%；实际窗口高度由渲染端按基准高度 × 缩放算出 */
@@ -146,6 +149,8 @@ export interface DynamicIslandSettings {
   fontFamily: string;
   /** 逐字高亮 */
   wordByWord: boolean;
+  /** 歌词行切换动画 */
+  transition: DynamicIslandTransition;
   /** 已播放颜色 */
   playedColor: string;
   /** 未播放颜色 */
@@ -180,6 +185,8 @@ export interface TaskbarLyricSettings {
   position: TaskbarLyricPosition;
   /** 宽度自动：开启时占满可用空间，关闭时按 maxWidth 限制 */
   autoMaxWidth: boolean;
+  /** 根据当前歌词与悬浮控件动态调整真实窗口宽度 */
+  autoAdjustOccupiedSpace: boolean;
   /** 最大宽度（逻辑像素）；仅在 autoMaxWidth 关闭时生效；超出可用空间时仍以可用空间为准 */
   maxWidth: number;
   /** 左边距（逻辑像素），从可用空间左侧扣除 */
@@ -188,6 +195,8 @@ export interface TaskbarLyricSettings {
   rightMargin: number;
   /** 配色模式 */
   colorMode: TaskbarLyricColorMode;
+  /** 获焦时显示半透明背景 */
+  showBackground: boolean;
   /** 双行显示（歌词 + 翻译 / 下一行） */
   doubleLine: boolean;
   /** 显示翻译（doubleLine 开启时，副行优先显示翻译，没有翻译则回退到下一行） */

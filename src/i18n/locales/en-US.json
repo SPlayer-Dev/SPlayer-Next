@@ -1204,6 +1204,12 @@
       "label": "Word Highlight",
       "description": "Render progressive word-by-word highlight"
     },
+    "dynamicIslandTransition": {
+      "label": "Transition",
+      "description": "Choose how the island width and lyric lines transition",
+      "bounce": "Dynamic Bounce",
+      "smooth": "Smooth Transition"
+    },
     "dynamicIslandDoubleLine": {
       "label": "Always Two Lines",
       "description": "Keep two-line layout even when no translation is available"
@@ -1257,7 +1263,11 @@
     },
     "taskbarLyricAutoMaxWidth": {
       "label": "Auto Width",
-      "description": "When enabled, fill the available taskbar space; otherwise limit to Max Width below"
+      "description": "Use the available taskbar area as the maximum width; disable to set it manually"
+    },
+    "taskbarLyricAutoAdjustOccupiedSpace": {
+      "label": "Shrink Window to Content",
+      "description": "Within the automatic width, shrink the actual window to the primary lyric and hover controls"
     },
     "taskbarLyricMaxWidth": {
       "label": "Max Width",
@@ -1278,6 +1288,10 @@
       "taskbarInverse": "Follow Taskbar (Inverted)",
       "light": "Light",
       "dark": "Dark"
+    },
+    "taskbarLyricShowBackground": {
+      "label": "Show Background",
+      "description": "Show a translucent background while focused"
     },
     "taskbarLyricFontSize": {
       "label": "Font Size",

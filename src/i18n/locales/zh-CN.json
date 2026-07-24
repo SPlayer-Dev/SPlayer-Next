@@ -1192,6 +1192,12 @@
       "label": "逐字高亮",
       "description": "按单词进度逐字渲染高亮"
     },
+    "dynamicIslandTransition": {
+      "label": "切换动画",
+      "description": "选择灵动岛宽度与歌词行的切换方式",
+      "bounce": "灵动回弹",
+      "smooth": "平滑过渡"
+    },
     "dynamicIslandDoubleLine": {
       "label": "总是显示双行",
       "description": "即使没有翻译可用也保持双行布局"
@@ -1244,8 +1250,12 @@
       "right": "右侧"
     },
     "taskbarLyricAutoMaxWidth": {
-      "label": "宽度自动",
-      "description": "开启后占满任务栏的可用空间；关闭后按下方最大宽度限制"
+      "label": "自动宽度",
+      "description": "自动使用任务栏可用区域作为最大宽度；关闭后手动设置最大宽度"
+    },
+    "taskbarLyricAutoAdjustOccupiedSpace": {
+      "label": "按内容收缩窗口",
+      "description": "在自动宽度范围内，根据当前主行和悬浮控件缩小实际占用空间"
     },
     "taskbarLyricMaxWidth": {
       "label": "最大宽度",
@@ -1266,6 +1276,10 @@
       "taskbarInverse": "跟随任务栏（反向）",
       "light": "浅色",
       "dark": "深色"
+    },
+    "taskbarLyricShowBackground": {
+      "label": "显示背景",
+      "description": "获焦时显示半透明背景，增强歌词与任务栏的区分"
     },
     "taskbarLyricFontSize": {
       "label": "字号",

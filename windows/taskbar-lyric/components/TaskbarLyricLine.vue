@@ -178,6 +178,7 @@ onBeforeUnmount(() => {
 }
 .scroll-content {
   display: inline-block;
+  pointer-events: auto;
   will-change: transform;
 }
 .tb-word {

@@ -179,6 +179,16 @@ const dynamicIslandSection: SettingSection = {
       defaultValue: true,
     },
     {
+      key: "dynamicIslandTransition",
+      type: "select",
+      binding: { store: "settings", path: "system.dynamicIsland.transition" },
+      options: [
+        { value: "bounce", labelKey: "settings.dynamicIslandTransition.bounce" },
+        { value: "smooth", labelKey: "settings.dynamicIslandTransition.smooth" },
+      ],
+      defaultValue: "bounce",
+    },
+    {
       key: "dynamicIslandDoubleLine",
       type: "switch",
       binding: { store: "settings", path: "system.dynamicIsland.doubleLine" },
@@ -274,12 +284,21 @@ const taskbarLyricSection: SettingSection = {
       type: "switch",
       binding: { store: "settings", path: "system.taskbarLyric.autoMaxWidth" },
       defaultValue: true,
-      childrenCondition: () => useSettingsStore().system.taskbarLyric.autoMaxWidth === false,
+      childrenCondition: () => true,
       children: [
+        {
+          key: "taskbarLyricAutoAdjustOccupiedSpace",
+          type: "switch",
+          binding: { store: "settings", path: "system.taskbarLyric.autoAdjustOccupiedSpace" },
+          defaultValue: false,
+          visible: () => useSettingsStore().system.taskbarLyric.autoMaxWidth === true,
+          tag: { text: "Beta" },
+        },
         {
           key: "taskbarLyricMaxWidth",
           type: "slider",
           binding: { store: "settings", path: "system.taskbarLyric.maxWidth" },
+          visible: () => useSettingsStore().system.taskbarLyric.autoMaxWidth === false,
           min: 200,
           max: 800,
           step: 20,
@@ -315,6 +334,12 @@ const taskbarLyricSection: SettingSection = {
         { value: "dark", labelKey: "settings.taskbarLyricColorMode.dark" },
       ],
       defaultValue: "taskbar",
+    },
+    {
+      key: "taskbarLyricShowBackground",
+      type: "switch",
+      binding: { store: "settings", path: "system.taskbarLyric.showBackground" },
+      defaultValue: false,
     },
     {
       key: "taskbarLyricFontSize",

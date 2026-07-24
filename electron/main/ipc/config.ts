@@ -100,6 +100,7 @@ const applyConfigChange = (keyPath: string, value: unknown): void => {
       break;
     case "taskbarLyric.position":
     case "taskbarLyric.autoMaxWidth":
+    case "taskbarLyric.autoAdjustOccupiedSpace":
     case "taskbarLyric.maxWidth":
     case "taskbarLyric.leftMargin":
     case "taskbarLyric.rightMargin":

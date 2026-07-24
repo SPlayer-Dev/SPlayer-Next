@@ -2,7 +2,7 @@
 import type { TrackSource } from "@shared/types/player";
 import type { Collection, CollectionType } from "@/types/collection";
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
-import { loadCollection as loadCollectionService } from "@/services/collectionLoader";
+import { loadCollection as loadCollectionService } from "@/services/collection";
 import { useCollectionSubscribe } from "@/composables/collection/useCollectionSubscribe";
 import { usePlaylistManage } from "@/composables/collection/usePlaylistManage";
 import SongList from "@/components/list/SongList.vue";

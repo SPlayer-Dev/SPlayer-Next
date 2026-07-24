@@ -263,6 +263,7 @@ const api = {
     saveState: () => ipcRenderer.send("dynamicIsland:saveState"),
     // 渲染端上报目标宽度，主进程立即 resize
     resize: (width: number) => ipcRenderer.send("dynamicIsland:resize", width),
+    setShape: (width: number | null) => ipcRenderer.send("dynamicIsland:setShape", width),
     // 渲染端上报目标高度
     setHeight: (height: number) => ipcRenderer.send("dynamicIsland:setHeight", height),
     // 查询当前吸附模式
@@ -275,6 +276,7 @@ const api = {
       subscribe<boolean>("dynamicIsland:cursorInside", callback),
   },
   taskbarLyric: {
+    setContentWidth: (width: number) => ipcRenderer.send("taskbarLyric:setContentWidth", width),
     // 订阅布局变化（锚定方向、是否居中、系统类型、任务栏主题）
     onLayout: (
       callback: (data: {
@@ -282,6 +284,7 @@ const api = {
         systemType: string;
         isLight: boolean;
         anchor: "left" | "right";
+        maxWidth: number;
       }) => void,
     ) =>
       subscribe<{
@@ -289,6 +292,7 @@ const api = {
         systemType: string;
         isLight: boolean;
         anchor: "left" | "right";
+        maxWidth: number;
       }>("taskbarLyric:layout", callback),
     // 订阅任务栏歌词配置变化
     onConfigChange: (callback: (config: TaskbarLyricSettings) => void) =>
