@@ -1,5 +1,6 @@
 import type { SettingCategory } from "@/types/settings-schema";
 import { useSettingsStore } from "@/stores/settings";
+import { useUserStore } from "@/stores/user";
 import DeviceSelector from "@/components/settings/custom/DeviceSelector.vue";
 import IconLucidePlay from "~icons/lucide/play";
 
@@ -188,6 +189,17 @@ const playerCategory: SettingCategory = {
           type: "switch",
           binding: { store: "settings", path: "player.followCoverColor" },
           defaultValue: true,
+        },
+        {
+          key: "dynamicCover",
+          type: "switch",
+          binding: { store: "settings", path: "player.dynamicCover" },
+          defaultValue: false,
+          descriptionKey: "settings.player.dynamicCover.description",
+          disabled: () => {
+            const user = useUserStore();
+            return user.isLoggedIn !== true;
+          },
         },
         {
           key: "timeFormat",

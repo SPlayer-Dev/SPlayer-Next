@@ -114,7 +114,6 @@ declare module 'vue' {
     IconLucideMessageCircle: typeof import('~icons/lucide/message-circle')['default']
     IconLucideMessageCircleOff: typeof import('~icons/lucide/message-circle-off')['default']
     IconLucideMic: typeof import('~icons/lucide/mic')['default']
-    IconLucideMicVocal: typeof import('~icons/lucide/mic-vocal')['default']
     IconLucideMinimize: typeof import('~icons/lucide/minimize')['default']
     IconLucideMinus: typeof import('~icons/lucide/minus')['default']
     IconLucideMoreHorizontal: typeof import('~icons/lucide/more-horizontal')['default']

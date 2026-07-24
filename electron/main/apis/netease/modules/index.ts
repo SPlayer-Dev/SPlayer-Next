@@ -63,6 +63,7 @@ import comment_hot from "./comment_hot";
 import song_detail from "./song_detail";
 import song_url from "./song_url";
 import song_download_url from "./song_download_url";
+import song_dynamic_cover from "./song_dynamic_cover";
 import playmode_intelligence from "./playmode_intelligence";
 import personal_fm from "./personal_fm";
 import fm_trash from "./fm_trash";
@@ -103,6 +104,7 @@ import artist_sub from "./artist_sub";
 import artist_sublist from "./artist_sublist";
 
 export const modules: Record<string, NeteaseModule> = {
+  "song/dynamic/cover": song_dynamic_cover,
   captcha_sent,
   captcha_verify,
   login,

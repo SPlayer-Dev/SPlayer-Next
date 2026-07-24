@@ -196,6 +196,8 @@ export interface PlayerSettings {
   snapToLyric: boolean;
   /** 播放时底部显示歌词而非歌手名 */
   showLyricInBar: boolean;
+  /** 动态封面：在封面位置展示动态视频，仅在默认/全屏封面布局下有效 */
+  dynamicCover: boolean;
 }
 
 /** 外观设置 */

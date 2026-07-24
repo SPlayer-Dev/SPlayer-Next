@@ -122,6 +122,8 @@ export interface TrackDetail {
   embeddedLyric?: string;
   /** 外部歌词文件列表 */
   externalLyrics: { format: LyricFormat; path: string }[];
+  /** 动态封面视频 URL（部分歌曲可能没有） */
+  bannerVideo?: string;
 }
 
 /** 播放器加载后从音频流提取出的可覆盖元数据 */
