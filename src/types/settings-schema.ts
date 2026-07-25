@@ -70,6 +70,8 @@ export interface SettingItem {
   disabled?: () => boolean;
   /** 条件隐藏 */
   visible?: () => boolean;
+  /** 禁用时的提示文本 i18n key（如 "请先登录"） */
+  disabledTitleKey?: string;
   /** 变更前确认；用户取消则不应用本次变更（受控控件回弹原值） */
   confirm?: SettingConfirm;
   /** 点击或确认变更后的回调 */

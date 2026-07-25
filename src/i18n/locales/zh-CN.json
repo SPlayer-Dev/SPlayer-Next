@@ -1021,6 +1021,7 @@
       "label": "动态封面",
       "description": "可展示部分歌曲的动态封面，仅在封面模式有效"
     },
+    "pleaseLogin": "请先登录",
     "autoImmersive": {
       "label": "自动沉浸模式",
       "description": "鼠标静止或离开窗口时，自动隐藏全屏播放器顶/底栏与鼠标"

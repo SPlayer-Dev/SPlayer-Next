@@ -80,6 +80,7 @@ const descriptionText = computed(() =>
           v-if="item.type === 'switch'"
           :model-value="model"
           :disabled="isDisabled"
+          :title="item.disabledTitleKey ? t(item.disabledTitleKey) : ''"
           @update:model-value="applyChange($event)"
         />
         <SSelect

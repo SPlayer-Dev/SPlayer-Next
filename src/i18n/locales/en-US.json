@@ -1033,6 +1033,7 @@
       "label": "Dynamic Cover",
       "description": "Show dynamic cover for supported songs, only effective in cover mode"
     },
+    "pleaseLogin": "Please log in first",
     "autoImmersive": {
       "label": "Auto Immersive Mode",
       "description": "Hide top/bottom bars and the cursor when the mouse is idle or leaves the window"
