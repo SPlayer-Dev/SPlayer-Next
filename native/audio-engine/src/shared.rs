@@ -2,10 +2,9 @@ use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 
-use parking_lot::{Condvar, Mutex};
-use tokio_util::sync::CancellationToken;
-
+use crate::http_source::HttpInterrupt;
 use crate::metadata::ExternalLyric;
+use parking_lot::{Condvar, Mutex};
 
 /// 解码后的 PCM 音频数据块
 pub struct AudioChunk {
@@ -42,9 +41,9 @@ pub struct Shared {
     normalization_gain: AtomicU32,
     /// 音量归一化开关
     normalization_enabled: AtomicBool,
-    /// 关联的网络请求取消令牌（由 decoder::start_decode 在打开输入前注入）
-    /// stop() 触发时取消连接、读取和退避等待
-    interrupt_token: Mutex<Option<CancellationToken>>,
+    /// 关联的网络中断句柄（由 decoder::start_decode 在打开输入前注入）
+    /// stop() 触发时中断读取和重试等待，seek 前可重置
+    interrupt: Mutex<Option<HttpInterrupt>>,
 }
 
 /// 共享缓冲区最大容量（背压阈值）
@@ -68,13 +67,13 @@ impl Shared {
             decode_failed: AtomicBool::new(false),
             normalization_gain: AtomicU32::new(1.0_f32.to_bits()),
             normalization_enabled: AtomicBool::new(false),
-            interrupt_token: Mutex::new(None),
+            interrupt: Mutex::new(None),
         })
     }
 
-    /// 绑定网络请求取消令牌，之后调用 stop() 会立即中断 HTTP IO
-    pub fn bind_interrupt(&self, token: CancellationToken) {
-        *self.interrupt_token.lock() = Some(token);
+    /// 绑定网络中断句柄，之后调用 stop() 会中断 HTTP IO
+    pub fn bind_interrupt(&self, interrupt: HttpInterrupt) {
+        *self.interrupt.lock() = Some(interrupt);
     }
 
     /// 设置归一化增益因子（线性值）
@@ -197,11 +196,11 @@ impl Shared {
     }
 
     /// 发出停止信号，唤醒双方
-    /// 同时取消网络请求，让阻塞中的 HTTP IO 立即返回
+    /// 同时取消网络请求，让阻塞中的 HTTP IO 尽快返回
     pub fn stop(&self) {
         self.is_stopping.store(true, Ordering::Release);
-        if let Some(token) = self.interrupt_token.lock().as_ref() {
-            token.cancel();
+        if let Some(interrupt) = self.interrupt.lock().as_ref() {
+            interrupt.cancel();
         }
         self.condvar.notify_all();
     }

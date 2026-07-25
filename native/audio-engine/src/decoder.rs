@@ -4,12 +4,10 @@ use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use ffmpeg_audio::{
-    sys, AudioError, AudioReader, HttpAudioSource, ResampleOptions, Resampler, SeekMode,
-};
-use tokio_util::sync::CancellationToken;
+use ffmpeg_audio::{sys, AudioError, AudioReader, ResampleOptions, Resampler, SeekMode};
 use tracing::debug;
 
+use crate::http_source::{HttpInterrupt, HttpRangeSource};
 use crate::loudness::LoudnessAnalyzer;
 use crate::metadata;
 use crate::priority;
@@ -28,10 +26,8 @@ const AVERROR_EIO: i32 = sys::averror(libc::EIO);
 pub struct DecoderData {
     reader: AudioReader,
     player_resampler: Resampler,
-    /// 取消令牌仅由网络源持有，stop() 可立即中断连接、读取和重试等待
-    interrupt_token: Option<CancellationToken>,
-    source: String,
-    target_rate: u32,
+    /// 网络中断句柄仅由远端源持有，stop() 取消后可在 seek 前重置
+    interrupt: Option<HttpInterrupt>,
 }
 
 impl DecoderData {
@@ -39,19 +35,8 @@ impl DecoderData {
     ///
     /// seek 后重采样器要 flush 掉残留样本，否则播放会带上上一段尾巴
     pub fn seek(&mut self, position_secs: f64) -> bool {
-        if self
-            .interrupt_token
-            .as_ref()
-            .is_some_and(CancellationToken::is_cancelled)
-        {
-            let Ok((reader, player_resampler, interrupt_token)) =
-                open_source(&self.source, self.target_rate, None)
-            else {
-                return false;
-            };
-            self.reader = reader;
-            self.player_resampler = player_resampler;
-            self.interrupt_token = interrupt_token;
+        if let Some(interrupt) = &self.interrupt {
+            interrupt.reset();
         }
         let target = Duration::from_secs_f64(position_secs);
         if self.reader.seek(target, SeekMode::Accurate).is_err()
@@ -63,9 +48,9 @@ impl DecoderData {
         true
     }
 
-    /// 获取网络请求取消令牌，恢复解码时绑定到新的共享状态
-    pub fn interrupt_handle(&self) -> Option<CancellationToken> {
-        self.interrupt_token.clone()
+    /// 获取网络中断句柄，恢复解码时绑定到新的共享状态
+    pub fn interrupt_handle(&self) -> Option<HttpInterrupt> {
+        self.interrupt.clone()
     }
 }
 
@@ -80,8 +65,7 @@ pub fn start_decode(
 ) -> Result<(AudioMetadata, JoinHandle<DecoderData>)> {
     // 播放重采样目标 = 输出设备原生采样率
     let target_rate = shared.sample_rate();
-    let (reader, player_resampler, interrupt_token) =
-        open_source(source, target_rate, Some(&shared))?;
+    let (reader, player_resampler, interrupt) = open_source(source, target_rate, Some(&shared))?;
 
     let info = reader.source_info();
     let duration_secs = reader.duration().map(|d| d.as_secs_f64()).unwrap_or(0.0);
@@ -123,9 +107,7 @@ pub fn start_decode(
     let data = DecoderData {
         reader,
         player_resampler,
-        interrupt_token,
-        source: source.to_string(),
-        target_rate,
+        interrupt,
     };
 
     let handle = thread::Builder::new()
@@ -147,8 +129,8 @@ pub fn start_decode(
 
 /// 用已有的 DecoderData 继续解码（seek 后复用）
 pub fn resume_decode(data: DecoderData, shared: Arc<Shared>) -> Result<JoinHandle<DecoderData>> {
-    if let Some(token) = data.interrupt_handle() {
-        shared.bind_interrupt(token);
+    if let Some(interrupt) = data.interrupt_handle() {
+        shared.bind_interrupt(interrupt);
     }
     thread::Builder::new()
         .name("audio-decoder".to_string())
@@ -164,20 +146,20 @@ pub fn resume_decode(data: DecoderData, shared: Arc<Shared>) -> Result<JoinHandl
         .context("启动解码线程失败")
 }
 
-/// 根据 source 协议打开音频：http(s) 走 ffmpeg_audio HTTP 源，其他走本地 File
+/// 根据 source 协议打开音频：http(s) 走延迟 Range 源，其他走本地 File
 ///
 /// `target_rate` 为播放重采样目标采样率（输出设备原生采样率）
 fn open_source(
     source: &str,
     target_rate: u32,
     shared: Option<&Shared>,
-) -> Result<(AudioReader, Resampler, Option<CancellationToken>)> {
+) -> Result<(AudioReader, Resampler, Option<HttpInterrupt>)> {
     let (reader, cancel) = if source.starts_with("http://") || source.starts_with("https://") {
-        let cancel = CancellationToken::new();
+        let http = HttpRangeSource::new(source)?;
+        let cancel = http.interrupt_handle();
         if let Some(shared) = shared {
             shared.bind_interrupt(cancel.clone());
         }
-        let http = HttpAudioSource::new_with_token(source, cancel.clone())?;
         let reader =
             AudioReader::new(http).with_context(|| format!("打开网络音频失败: {source}"))?;
         (reader, Some(cancel))

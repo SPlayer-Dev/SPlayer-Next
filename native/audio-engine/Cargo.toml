@@ -9,7 +9,8 @@ crate-type = ["cdylib"]
 [dependencies]
 napi = { version = "3.8", features = ["napi9", "serde-json", "tokio_rt"] }
 napi-derive = "3.5"
-ffmpeg_audio = { version = "0.2.0", default-features = false, features = ["http"] }
+ffmpeg_audio = { version = "0.2.0", default-features = false }
+ureq = { version = "2", default-features = false, features = ["tls"] }
 libc = "0.2"
 rodio = { version = "0.20", default-features = false }
 cpal = "0.15"
