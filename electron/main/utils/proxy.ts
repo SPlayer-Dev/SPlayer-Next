@@ -1,11 +1,11 @@
 import { store } from "@main/store";
 import { systemLog } from "@main/utils/logger";
-import { fetch as undiciFetch, ProxyAgent, Socks5ProxyAgent } from "undici";
+import * as undici from "undici";
 import type { Dispatcher } from "undici";
 
 const PROXY_TEST_URL = "https://www.baidu.com";
 
-let proxyAgent: Dispatcher | null = null;
+let proxyAgent: Dispatcher | undefined = undefined;
 let proxyAgentUrl = "";
 
 const isManualProxyProtocol = (value: string): value is "http" | "https" | "socks5" =>
@@ -26,7 +26,7 @@ const getProxyDispatcher = (): Dispatcher | undefined => {
   if (!url) return undefined;
   if (!proxyAgent || proxyAgentUrl !== url) {
     proxyAgent?.close().catch(() => {});
-    proxyAgent = url.startsWith("socks5://") ? new Socks5ProxyAgent(url) : new ProxyAgent(url);
+    proxyAgent = new undici.ProxyAgent(url);
     proxyAgentUrl = url;
     systemLog.info(`[proxy] node fetch proxy=${url}`);
   }
@@ -37,8 +37,8 @@ const getProxyDispatcher = (): Dispatcher | undefined => {
 export const fetchWithProxy = (input: string | URL, init?: RequestInit): Promise<Response> => {
   const dispatcher = getProxyDispatcher();
   if (!dispatcher) return fetch(input, init);
-  return undiciFetch(input, { ...(init as RequestInit), dispatcher } as Parameters<
-    typeof undiciFetch
+  return undici.fetch(input, { ...(init as RequestInit), dispatcher } as Parameters<
+    typeof undici.fetch
   >[1]) as unknown as Promise<Response>;
 };
 
