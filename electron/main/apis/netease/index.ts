@@ -22,6 +22,8 @@ import { cookieToJson } from "./core/cookie";
 import { createRequest } from "./core/request";
 import { modules } from "./modules";
 import type { Query } from "./core/option";
+import NeteaseCloudMusicApi from "@neteasecloudmusicapienhanced/api";
+import { pathCase } from "change-case";
 
 /** 会变更登录态的接口：响应里若带 set-cookie，才值得写回 SQLite */
 const SESSION_MUTATING: ReadonlySet<string> = new Set([
@@ -126,6 +128,12 @@ export const clearNeteaseCookies = (): void => {
   cacheClear();
 };
 
+/** "server.js" 导出（serveNcmApi 等），需从 enhanced 包中排除 */
+const NON_API_EXPORTS = new Set<string>([
+  ...Object.keys((NeteaseCloudMusicApi as Record<string, unknown>).server ?? {}),
+  "server",
+]);
+
 /** set-cookie 数组 → 扁平对象（只取 key=value，忽略 Path/Domain/Max-Age 等属性） */
 const parseSetCookie = (arr: string[]): Record<string, string> => {
   const out: Record<string, string> = {};
@@ -140,18 +148,61 @@ const parseSetCookie = (arr: string[]): Record<string, string> => {
   return out;
 };
 
-/**
- * 调用任意 Netease API
- * @param name 见 modules/index.ts 中的 key
+/** 调用任意 Netease API
+ * @param name 见 modules/index.ts 中的 key，或 neteasecloudmusicapi-enhanced 的函数名
  * @param params 业务参数；cookie 自动注入，无需调用方传
  */
 export const callNetease = async (
   name: string,
   params: Record<string, unknown> = {},
 ): Promise<{ status: number; body: any }> => {
-  // hasOwn 守卫
-  const fn = Object.hasOwn(modules, name) ? modules[name] : undefined;
-  if (!fn) throw new Error(`unknown netease api: ${name}`);
+  // 1) 优先查找本地模块
+  let fn = Object.hasOwn(modules, name) ? modules[name] : undefined;
+
+  // 2) 未找到时，尝试 neteasecloudmusicapi-enhanced（path-case → camelCase 匹配）
+  if (!fn) {
+    const enhancedName = Object.keys(NeteaseCloudMusicApi).find((key) => {
+      if (NON_API_EXPORTS.has(key)) return false;
+      if (typeof (NeteaseCloudMusicApi as Record<string, unknown>)[key] !== "function")
+        return false;
+      return pathCase(key) === name || key === name;
+    });
+
+    if (enhancedName) {
+      fn = async (query: Query, _request: typeof createRequest) => {
+        const enhancedApi = (
+          NeteaseCloudMusicApi as unknown as Record<
+            string,
+            (p: Record<string, unknown>) => Promise<any>
+          >
+        )[enhancedName];
+
+        const session = loadSession();
+        const apiParams: Record<string, unknown> = { ...query };
+
+        // 注入 cookie
+        const cookieStr =
+          typeof query.cookie === "string"
+            ? query.cookie
+            : serialize({ ...session, ...(query.cookie as Record<string, string> | undefined) });
+        if (cookieStr) apiParams.cookie = cookieStr;
+
+        // 注入国内 IP
+        if (store.get("system.neteaseRealIp") && !apiParams.realIP) {
+          apiParams.realIP = sessionRealIp();
+        }
+
+        const result = await enhancedApi(apiParams);
+        return {
+          status: result?.status ?? 200,
+          body: result?.body ?? result,
+          cookie: [],
+        };
+      };
+    } else {
+      throw new Error(`unknown netease api: ${name}`);
+    }
+  }
 
   const session = loadSession();
 

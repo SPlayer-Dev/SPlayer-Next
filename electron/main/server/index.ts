@@ -13,6 +13,7 @@ import { broadcast } from "@main/utils/broadcast";
 import type { ExternalApiStatus } from "@shared/types/settings";
 import { externalControlGate, wsGate } from "./gate";
 import { buildRoutes } from "./routes";
+import { buildNeteaseRoutes } from "./netease";
 import { wsHandlers } from "./ws";
 
 let runningServer: Server | null = null;
@@ -72,6 +73,7 @@ export const startServer = (): Promise<ExternalApiStatus> => {
     const app = new Hono();
     app.use("/api/*", externalControlGate);
     app.route("/api", buildRoutes());
+    app.route("/api/netease", buildNeteaseRoutes());
     app.get(
       "/ws",
       externalControlGate,
