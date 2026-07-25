@@ -195,7 +195,7 @@ const playerCategory: SettingCategory = {
           type: "switch",
           binding: { store: "settings", path: "player.dynamicCover" },
           defaultValue: false,
-          descriptionKey: "settings.player.dynamicCover.description",
+          descriptionKey: "settings.dynamicCover.description",
           disabled: () => {
             const user = useUserStore();
             return user.isLoggedIn !== true;
