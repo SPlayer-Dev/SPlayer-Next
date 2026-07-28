@@ -13,6 +13,8 @@ skills-lock.json
 *.log*
 .vscode/settings.json
 .idea
+.aur/PKGBUILD
+.aur/.SRCINFO
 
 # Rust build artifacts
 **/target
