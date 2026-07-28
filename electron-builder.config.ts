@@ -105,7 +105,7 @@ const config: Configuration = {
     artifactName: "${name}-${version}-${arch}.${ext}",
     maintainer: "imsyy.top",
     category: "Audio;Music;AudioVideo;",
-    target: ["AppImage", "deb", "rpm", "tar.gz"],
+    target: ["AppImage", "deb", "rpm", "tar.gz", "pacman"],
     syncDesktopName: true,
     desktop: { entry: { MimeType: "x-scheme-handler/orpheus;" } },
   },
