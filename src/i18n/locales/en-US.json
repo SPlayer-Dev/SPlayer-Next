@@ -195,6 +195,7 @@
     "history": "Play History",
     "download": "Downloads",
     "favorites": "Favorites",
+    "newReleases": "New Releases",
     "cloud": "My Cloud",
     "streaming": "Streaming",
     "reload": "Reload",
@@ -640,6 +641,24 @@
     "refresh": "Refresh",
     "empty": "No daily recommendations available",
     "needLogin": "Sign in to see daily recommendations"
+  },
+  "newReleases": {
+    "title": "New Releases",
+    "tagline": "New music released in the last three months by artists you follow",
+    "playLatest": "Play Latest 50",
+    "refresh": "Refresh releases",
+    "empty": "No new songs from followed artists",
+    "noResults": "No matching releases",
+    "needLogin": "Sign in to view new songs from artists you follow",
+    "loadFailed": "Failed to load new releases. Please try again later",
+    "playFailed": "Failed to load the play queue. Please try again later",
+    "releaseAlbum": "released an album on {date}",
+    "releaseSong": "released a song on {date}",
+    "trackCount": "{count} tracks",
+    "expand": "Show {count} more",
+    "collapse": "Collapse",
+    "loadMore": "Load More",
+    "playRelease": "Play this release"
   },
   "favorites": {
     "title": "Favorites",

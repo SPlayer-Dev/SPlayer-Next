@@ -183,6 +183,7 @@
     "history": "播放历史",
     "download": "下载管理",
     "favorites": "我的收藏",
+    "newReleases": "新歌发布",
     "cloud": "我的云盘",
     "streaming": "流媒体",
     "reload": "热重载",
@@ -628,6 +629,24 @@
     "refresh": "刷新日推",
     "empty": "暂无每日推荐内容",
     "needLogin": "登录后查看每日推荐"
+  },
+  "newReleases": {
+    "title": "新歌发布",
+    "tagline": "近三个月内，所有关注歌手发布的新歌",
+    "playLatest": "播放最新50",
+    "refresh": "刷新新歌",
+    "empty": "暂无关注歌手的新歌",
+    "noResults": "没有匹配的新歌发布",
+    "needLogin": "登录后查看关注歌手的新歌",
+    "loadFailed": "新歌加载失败，请稍后重试",
+    "playFailed": "播放列表获取失败，请稍后重试",
+    "releaseAlbum": "{date} 上线专辑",
+    "releaseSong": "{date} 上线新歌",
+    "trackCount": "共 {count} 首",
+    "expand": "展开其余 {count} 首",
+    "collapse": "收起",
+    "loadMore": "加载更多",
+    "playRelease": "播放此发布"
   },
   "favorites": {
     "title": "我的收藏",

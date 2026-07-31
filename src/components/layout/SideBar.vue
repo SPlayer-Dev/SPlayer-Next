@@ -21,6 +21,7 @@ import IconLucideStar from "~icons/lucide/star";
 import IconLucideHistory from "~icons/lucide/history";
 import IconLucideDownload from "~icons/lucide/download";
 import IconLucideCloud from "~icons/lucide/cloud";
+import IconLucideSparkles from "~icons/lucide/sparkles";
 import IconLucidePlus from "~icons/lucide/plus";
 import IconLucideChevronDown from "~icons/lucide/chevron-down";
 import IconSpHeartMode from "~icons/sp/heart-mode";
@@ -167,6 +168,7 @@ const menuItems = computed<SMenuItem[]>(() => [
       ),
   },
   { key: "/favorites", label: t("nav.favorites"), icon: markRaw(IconLucideStar) },
+  { key: "/new-releases", label: t("nav.newReleases"), icon: markRaw(IconLucideSparkles) },
   { key: "/cloud", label: t("nav.cloud"), icon: markRaw(IconLucideCloud) },
   ...(systemSettings.download.enabled
     ? ([
