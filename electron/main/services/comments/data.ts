@@ -98,7 +98,7 @@ const toStringId = (value: unknown): string => {
   return "";
 };
 
-const optionalString = (value: unknown): string | undefined => {
+export const optionalString = (value: unknown): string | undefined => {
   if (typeof value !== "string") return undefined;
   const text = value.trim();
   return text || undefined;
@@ -251,13 +251,26 @@ export const normalizeKugouCommentPage = (
   };
 };
 
-/** 纯函数：从已归一化的评论中筛选主创评论（userId 命中账号集合） */
+/**
+ * 纯函数：从已归一化的评论中筛选主创评论（userId 命中账号映射）
+ * 命中时把账号对应的歌手名挂到 creatorName，便于卡片徽章直接展示
+ * @param items - 已归一化的评论列表
+ * @param accountMap - 网易云账号 id → 歌手名
+ * @returns 命中的主创评论（带 creatorName）
+ */
 export const scanCreatorComments = (
   items: MusicCommentItem[],
-  accountIds: Set<string>,
+  accountMap: Map<string, string>,
 ): MusicCommentItem[] => {
-  if (accountIds.size === 0) return [];
-  return items.filter((item) => item.userId != null && accountIds.has(item.userId));
+  if (accountMap.size === 0) return [];
+  const result: MusicCommentItem[] = [];
+  for (const item of items) {
+    const userId = item.userId;
+    if (!userId || !accountMap.has(userId)) continue;
+    const creatorName = accountMap.get(userId);
+    result.push(creatorName ? { ...item, creatorName } : item);
+  }
+  return result;
 };
 
 /** 构建可用评论源 */

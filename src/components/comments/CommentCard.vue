@@ -47,7 +47,7 @@ withDefaults(defineProps<Props>(), {
             <div class="flex items-center gap-1.5">
               <span class="truncate text-sm font-medium">{{ item.userName }}</span>
               <STag v-if="creator" type="primary" variant="soft" size="tiny" round>
-                {{ $t("comments.creatorBadge") }}
+                {{ item.creatorName ?? $t("comments.creatorBadge") }}
               </STag>
             </div>
             <div

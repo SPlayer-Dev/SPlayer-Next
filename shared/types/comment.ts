@@ -33,6 +33,8 @@ export interface MusicCommentItem {
   replyTotal?: number;
   reply?: MusicCommentItem[];
   hasMoreReply?: boolean;
+  /** 主创评论对应的歌手名（仅「主创说」评论携带，由歌手绑定的网易云账号匹配得出） */
+  creatorName?: string;
 }
 
 /** 歌曲评论分页 */
