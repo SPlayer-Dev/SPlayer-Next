@@ -229,6 +229,15 @@ export const useMusicComments = (
   const refresh = async (): Promise<void> => {
     resetPages();
     await Promise.all([loadPage("hot"), loadPage("new"), loadCreator()]);
+    // 小众歌曲可能无任何热门评论，落到最新评论避免开局即空状态
+    if (
+      activeTab.value === "hot" &&
+      pages.hot.total === 0 &&
+      pages.hot.initialError === "" &&
+      pages.new.total > 0
+    ) {
+      activeTab.value = "new";
+    }
     await nextTick();
     scrollRef.value?.scrollTo({ top: 0 });
   };
