@@ -103,7 +103,10 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </div>
-      <div class="shrink-0 flex items-center gap-3">
+      <div
+        class="shrink-0 flex items-center gap-3 transition-opacity duration-400"
+        :class="immersive ? 'opacity-0 pointer-events-none' : 'opacity-100'"
+      >
         <SButton
           type="cover"
           variant="secondary"
@@ -124,7 +127,10 @@ onBeforeUnmount(() => {
       <div class="min-w-0 flex-1">
         <STabs v-model="activeTab" :tabs="tabs" type="bar" size="medium" cover />
       </div>
-      <div class="w-32 shrink-0">
+      <div
+        class="w-32 shrink-0 transition-opacity duration-400"
+        :class="immersive ? 'opacity-0 pointer-events-none' : 'opacity-100'"
+      >
         <SSelect
           v-model="sourceId"
           :options="sourceOptions"

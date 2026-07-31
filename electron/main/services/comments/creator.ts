@@ -1,7 +1,7 @@
 import { callNetease } from "@main/apis/netease";
 import { coreLog } from "@main/utils/logger";
 import type { MusicCommentCreatorQuery, MusicCommentItem } from "@shared/types/comment";
-import { normalizeNeteaseCommentPage, scanCreatorComments } from "./data";
+import { normalizeNeteaseCommentPage, optionalString, scanCreatorComments } from "./data";
 import { findNeteaseSongMeta } from "./index";
 
 const NETEASE_SOURCE_ID = "builtin:netease";
@@ -44,8 +44,12 @@ class BoundedMap<K, V> {
   }
 }
 
-/** artist id → 绑定的网易云用户 accountId（null 表示负缓存：未绑定） */
-const artistAccountIdCache = new BoundedMap<string, string | null>(ARTIST_ACCOUNT_CACHE_LIMIT);
+type ArtistAccountInfo = { accountId: string; artistName: string };
+
+/** artist id → 绑定的网易云账号信息（null 表示负缓存：未绑定） */
+const artistAccountIdCache = new BoundedMap<string, ArtistAccountInfo | null>(
+  ARTIST_ACCOUNT_CACHE_LIMIT,
+);
 /** 网易云 songId → 主创评论列表（空数组表示负缓存：无主创评论） */
 const creatorCommentsCache = new BoundedMap<string, MusicCommentItem[]>(
   CREATOR_COMMENTS_CACHE_LIMIT,
@@ -68,35 +72,42 @@ const fetchHotPage = async (
 };
 
 /**
- * 解析歌手列表对应的网易云用户 accountId 集合
+ * 解析歌手列表对应的网易云账号 → 歌手名映射
  * 多歌手多账号匹配并去重；accountId 为 0 或不存在视为未绑定（负缓存）
+ * @param artistIds - 歌手 id 列表
+ * @returns accountId → 歌手名
  */
-const resolveArtistAccountIds = async (artistIds: string[]): Promise<Set<string>> => {
-  const accountIds = new Set<string>();
+const resolveArtistAccountIds = async (artistIds: string[]): Promise<Map<string, string>> => {
+  const accountToName = new Map<string, string>();
   for (const artistId of artistIds) {
     if (!artistId) continue;
     const cached = artistAccountIdCache.get(artistId);
     if (cached !== undefined) {
-      if (cached) accountIds.add(cached);
+      if (cached) accountToName.set(cached.accountId, cached.artistName);
       continue;
     }
     try {
       const { body } = await callNetease("artists", { id: artistId });
-      const raw = body?.artist?.accountId;
-      const normalized =
-        typeof raw === "number" && raw > 0
-          ? String(raw)
-          : typeof raw === "string" && raw
-            ? raw
+      const rawAccountId = body?.artist?.accountId;
+      const accountId =
+        typeof rawAccountId === "number" && rawAccountId > 0
+          ? String(rawAccountId)
+          : typeof rawAccountId === "string" && rawAccountId
+            ? rawAccountId
             : null;
-      artistAccountIdCache.set(artistId, normalized);
-      if (normalized) accountIds.add(normalized);
+      const artistName = optionalString(body?.artist?.name) ?? "";
+      if (accountId) {
+        artistAccountIdCache.set(artistId, { accountId, artistName });
+        accountToName.set(accountId, artistName);
+      } else {
+        artistAccountIdCache.set(artistId, null);
+      }
     } catch (err) {
       coreLog.warn(`[comments] resolve artist ${artistId} accountId failed:`, err);
       artistAccountIdCache.set(artistId, null);
     }
   }
-  return accountIds;
+  return accountToName;
 };
 
 /**
@@ -115,8 +126,8 @@ export const getCreatorComments = async (
   const cached = creatorCommentsCache.get(songId);
   if (cached) return cached;
 
-  const accountIds = await resolveArtistAccountIds(artistIds);
-  if (accountIds.size === 0) {
+  const accountMap = await resolveArtistAccountIds(artistIds);
+  if (accountMap.size === 0) {
     creatorCommentsCache.set(songId, []);
     return [];
   }
@@ -126,14 +137,14 @@ export const getCreatorComments = async (
   // 前两页必拉，收集全部命中
   for (let page = 1; page <= 2 && hasMore; page++) {
     const { items, hasMore: hm } = await fetchHotPage(songId, page);
-    result.push(...scanCreatorComments(items, accountIds));
+    result.push(...scanCreatorComments(items, accountMap));
     hasMore = hm;
   }
   // 前两页无命中 + 还有更多 → 额外翻页，命中即停
   if (result.length === 0 && hasMore) {
     for (let extra = 1; extra <= MAX_EXTRA_PAGES && hasMore; extra++) {
       const { items, hasMore: hm } = await fetchHotPage(songId, 2 + extra);
-      const hits = scanCreatorComments(items, accountIds);
+      const hits = scanCreatorComments(items, accountMap);
       result.push(...hits);
       hasMore = hm;
       if (hits.length > 0) break;
