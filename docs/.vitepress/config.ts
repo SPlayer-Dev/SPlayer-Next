@@ -33,6 +33,7 @@ export default defineConfig({
           { text: "原生模块", link: "/native" },
           { text: "插件开发", link: "/plugins/" },
           { text: "外部 API", link: "/api" },
+          { text: "MCP 接口", link: "/mcp" },
           { text: "贡献指南", link: "/contributing" },
         ],
       },
@@ -55,6 +56,7 @@ export default defineConfig({
         items: [
           { text: "外部 API（HTTP）", link: "/api" },
           { text: "WebSocket API", link: "/socket" },
+          { text: "MCP 接口", link: "/mcp" },
         ],
       },
       {

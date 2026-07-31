@@ -29,6 +29,7 @@ import {
 import { broadcast } from "@main/utils/broadcast";
 import { isWin } from "@main/utils/config";
 import { startServer, stopServer } from "@main/server";
+import { startMcpServer, stopMcpServer } from "@main/services/mcp/http";
 import { setOrpheusProtocolRegistered } from "@main/services/orpheus";
 import { setTaskbarThumbnailEnabled } from "@main/services/thumbnail";
 
@@ -73,6 +74,9 @@ const applyConfigChange = (keyPath: string, value: unknown): void => {
     case "externalApi.enabled":
       void (value ? startServer() : stopServer());
       break;
+    case "mcp.enabled":
+      void (value ? startMcpServer() : stopMcpServer());
+      break;
     case "system.uiZoom":
       applyMainWindowZoom();
       break;
@@ -96,6 +100,7 @@ const applyConfigChange = (keyPath: string, value: unknown): void => {
       break;
     case "taskbarLyric.position":
     case "taskbarLyric.autoMaxWidth":
+    case "taskbarLyric.autoAdjustOccupiedSpace":
     case "taskbarLyric.maxWidth":
     case "taskbarLyric.leftMargin":
     case "taskbarLyric.rightMargin":

@@ -49,6 +49,7 @@ const handleReset = () => {
       <SCard
         v-for="(item, idx) in list"
         :key="item"
+        variant="settings"
         class="flex items-center gap-3 cursor-grab active:cursor-grabbing"
       >
         <span class="w-5 text-center text-xs text-on-surface-variant/60 font-medium">

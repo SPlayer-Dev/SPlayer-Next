@@ -1,389 +1,211 @@
-//! 把 HTTP/HTTPS 资源伪装成 Read + Seek 流喂给 ffmpeg_audio
+//! 将 HTTP Range 音频包装为延迟请求的 `Read + Seek`。
 //!
-//! 行为对齐 Chrome <audio> / mpv stream_lavf：单个开放 Range GET 服务全部顺序读
-//! TCP 背压自然节流。read 错误（CDN 闲置超时、TCP 静默死亡、网络瞬断）触发
-//! 自动重连 `Range: bytes={pos}-`，FFmpeg 无感
-//!
-//! 取消传播：`cancel_handle()` 注入 `shared.bind_interrupt`，player.stop() 触发后
-//! 最长 SOCKET_READ_TIMEOUT_SECS 内 read 返回 Interrupted
+//! FFmpeg 初始化和时间跳转会连续发出多个字节 seek。这里只记录最终位置，
+//! 直到下一次 read 才建立 Range 流，避免每次探测都产生一次网络请求。
 
 use std::io::{self, Read, Seek, SeekFrom};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
-use tracing::{debug, info, warn};
+use parking_lot::Mutex;
+use tokio_util::sync::CancellationToken;
+use tracing::{debug, warn};
 
 const USER_AGENT: &str = "SPlayer-Next/1.0";
-const PROBE_TIMEOUT_SECS: u64 = 10;
-/// 重连阶段的 connect 超时：cancel flag 能打断 read 但打断不了 ureq 的 connect，
-/// 复用 10s 的 probe 超时会让网络抖动时的同步 stop() 被卡住最长 10s
-const RECONNECT_CONNECT_TIMEOUT_SECS: u64 = 2;
-const SOCKET_READ_TIMEOUT_SECS: u64 = 2;
-const MAX_RECONNECT_ATTEMPTS: u32 = 3;
-const RETRY_BACKOFF_BASE_MS: u64 = 200;
-const RETRY_AFTER_MAX_SECS: u64 = 5;
+const PROBE_TIMEOUT: Duration = Duration::from_secs(10);
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
+const READ_TIMEOUT: Duration = Duration::from_secs(2);
+const MAX_CONSECUTIVE_FAILURES: u32 = 3;
 
-#[derive(Clone, Copy)]
-pub(crate) struct Config {
-    pub socket_read_timeout: Duration,
-    pub probe_timeout: Duration,
-    pub max_reconnect_attempts: u32,
-    pub retry_backoff_base: Duration,
-    pub retry_after_max: Duration,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            socket_read_timeout: Duration::from_secs(SOCKET_READ_TIMEOUT_SECS),
-            probe_timeout: Duration::from_secs(PROBE_TIMEOUT_SECS),
-            max_reconnect_attempts: MAX_RECONNECT_ATTEMPTS,
-            retry_backoff_base: Duration::from_millis(RETRY_BACKOFF_BASE_MS),
-            retry_after_max: Duration::from_secs(RETRY_AFTER_MAX_SECS),
-        }
-    }
-}
-
-enum OpenOutcome {
-    Ok,
+enum OpenError {
     Fatal(io::Error),
-    Retryable {
-        error: io::Error,
-        retry_after: Option<Duration>,
-    },
+    Retryable(io::Error),
 }
 
-enum RetryAction {
-    FailFast,
-    Backoff,
-    RetryAfter,
+/** 可重置的网络中断句柄，seek 可复用同一个 HTTP 源。 */
+#[derive(Clone)]
+pub struct HttpInterrupt {
+    token: Arc<Mutex<CancellationToken>>,
 }
 
-fn classify_status(code: u16) -> RetryAction {
-    match code {
-        429 | 503 => RetryAction::RetryAfter,
-        400..=499 => RetryAction::FailFast,
-        _ => RetryAction::Backoff,
-    }
-}
-
-/// 解析 `Content-Range: bytes 0-999/12345` 中末尾的 total
-/// 形如 `bytes 0-999/*` 表示未知，返回 None
-fn parse_content_range_total(header: &str) -> Option<u64> {
-    let after_slash = header.rsplit_once('/')?.1.trim();
-    if after_slash == "*" {
-        return None;
-    }
-    after_slash.parse().ok()
-}
-
-/// 解析 Retry-After，仅支持纯秒数（HTTP-date 形式暂不支持，回退到退避）
-fn parse_retry_after(header: &str) -> Option<Duration> {
-    let trimmed = header.trim();
-    match trimmed.parse::<u64>() {
-        Ok(secs) => Some(Duration::from_secs(secs)),
-        Err(_) => {
-            warn!(value = trimmed, "Retry-After 非纯秒数，回退到指数退避");
-            None
+impl HttpInterrupt {
+    pub(crate) fn new() -> Self {
+        Self {
+            token: Arc::new(Mutex::new(CancellationToken::new())),
         }
     }
+
+    /** 取消当前网络会话。 */
+    pub fn cancel(&self) {
+        self.token.lock().cancel();
+    }
+
+    /** seek 前替换已取消的令牌，同时保留 HTTP 源与 FFmpeg 上下文。 */
+    pub fn reset(&self) {
+        let mut token = self.token.lock();
+        if token.is_cancelled() {
+            *token = CancellationToken::new();
+        }
+    }
+
+    fn is_cancelled(&self) -> bool {
+        self.token.lock().is_cancelled()
+    }
 }
 
-/// 基于 SystemTime 子秒 nano 的低成本伪随机 jitter，±25%
-fn jitter(base: Duration) -> Duration {
-    let nanos = base.as_nanos() as u64;
-    if nanos == 0 {
-        return base;
-    }
-    let max_offset = nanos / 4;
-    if max_offset == 0 {
-        return base;
-    }
-    let seed = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .map(|d| d.subsec_nanos() as u64)
-        .unwrap_or(0);
-    let offset = (seed % (2 * max_offset + 1)) as i64 - max_offset as i64;
-    let result = (nanos as i64 + offset).max(0) as u64;
-    Duration::from_nanos(result)
-}
-
+/** 延迟建立 Range 流的 HTTP 音频源。 */
 pub struct HttpRangeSource {
     url: String,
     agent: ureq::Agent,
     total_size: u64,
-    /// 服务端是否支持 Range：首次探测为 206 即 true，200 fallback 即 false
-    range_supported: bool,
     pos: u64,
-    /// 当前活动的 HTTP body reader，跟 pos 关联；None 表示需要重新发起 GET
     stream: Option<Box<dyn Read + Send + Sync>>,
-    cancel: Arc<AtomicBool>,
-    config: Config,
-    reconnect_failures: u32,
-    terminal_error: Option<String>,
-}
-
-/// 按指定 connect 超时构建 agent；read/write 超时统一取自 config
-fn build_agent(connect_timeout: Duration, config: &Config) -> ureq::Agent {
-    ureq::AgentBuilder::new()
-        .user_agent(USER_AGENT)
-        .timeout_connect(connect_timeout)
-        .timeout_read(config.socket_read_timeout)
-        .timeout_write(config.socket_read_timeout)
-        .build()
+    interrupt: HttpInterrupt,
 }
 
 impl HttpRangeSource {
+    /** 探测远端文件并复用首次响应作为起始数据流。 */
+    #[cfg(test)]
     pub fn new(url: impl Into<String>) -> Result<Self> {
-        Self::new_with_config(url, Config::default())
+        Self::new_with_interrupt(url, HttpInterrupt::new())
     }
 
-    pub(crate) fn new_with_config(url: impl Into<String>, config: Config) -> Result<Self> {
+    /** 使用调用方提供的中断句柄探测远端文件。 */
+    pub fn new_with_interrupt(url: impl Into<String>, interrupt: HttpInterrupt) -> Result<Self> {
         let url = url.into();
-        // 初始探测允许更长的 connect 超时
-        let probe_agent = build_agent(config.probe_timeout, &config);
-
-        let resp = probe_agent
+        let probe_agent = build_agent(PROBE_TIMEOUT);
+        let response = probe_agent
             .get(&url)
             .set("Range", "bytes=0-")
             .call()
-            .with_context(|| format!("初始 GET 失败: {url}"))?;
-
-        let status = resp.status();
-        let (total_size, range_supported) = match status {
-            206 => {
-                let cr = resp
-                    .header("Content-Range")
-                    .ok_or_else(|| anyhow!("206 响应缺少 Content-Range 头: {url}"))?;
-                let total = parse_content_range_total(cr)
-                    .ok_or_else(|| anyhow!("Content-Range 解析失败: {cr}"))?;
-                (total, true)
-            }
-            200 => {
-                let cl = resp
-                    .header("Content-Length")
-                    .ok_or_else(|| anyhow!("200 响应缺少 Content-Length，无法估算长度: {url}"))?;
-                let total: u64 = cl
-                    .parse()
-                    .with_context(|| format!("Content-Length 解析失败: {cl}"))?;
-                warn!(url, "服务端不支持 Range（返回 200），seek 将失败");
-                (total, false)
-            }
-            s => return Err(anyhow!("初始 GET 意外状态: {s}")),
-        };
-
-        // 后续重连专用 agent：connect 超时缩短，保证 stop() 不被 connect 阶段长时间卡住
-        let agent = build_agent(Duration::from_secs(RECONNECT_CONNECT_TIMEOUT_SECS), &config);
+            .with_context(|| format!("初始 Range 请求失败: {url}"))?;
+        let total_size = validate_response(&response, 0, None)?;
 
         Ok(Self {
             url,
-            agent,
+            agent: build_agent(CONNECT_TIMEOUT),
             total_size,
-            range_supported,
             pos: 0,
-            stream: Some(resp.into_reader()),
-            cancel: Arc::new(AtomicBool::new(false)),
-            config,
-            reconnect_failures: 0,
-            terminal_error: None,
+            stream: Some(response.into_reader()),
+            interrupt,
         })
     }
 
-    /// 拿 cancel flag 的 Arc clone，注入到 shared 后即可被 player.stop() 触发
-    pub fn cancel_handle(&self) -> Arc<AtomicBool> {
-        Arc::clone(&self.cancel)
+    #[cfg(test)]
+    fn interrupt_handle(&self) -> HttpInterrupt {
+        self.interrupt.clone()
     }
 
-    fn check_cancel(&self) -> io::Result<()> {
-        if self.cancel.load(Ordering::Acquire) {
+    fn ensure_active(&self) -> io::Result<()> {
+        if self.interrupt.is_cancelled() {
             Err(io::Error::new(io::ErrorKind::Interrupted, "cancelled"))
         } else {
             Ok(())
         }
     }
 
-    fn check_terminal_error(&self) -> io::Result<()> {
-        if let Some(error) = &self.terminal_error {
-            Err(io::Error::other(error.clone()))
-        } else {
-            Ok(())
+    fn open_stream(&mut self) -> Result<(), OpenError> {
+        self.ensure_active().map_err(OpenError::Fatal)?;
+        if self.pos >= self.total_size {
+            return Ok(());
         }
-    }
 
-    fn set_terminal_error(&mut self, error: io::Error) -> io::Error {
-        let kind = error.kind();
-        let message = error.to_string();
-        self.set_terminal_message(kind, message)
-    }
-
-    fn set_terminal_message(&mut self, kind: io::ErrorKind, message: String) -> io::Error {
-        self.terminal_error = Some(message.clone());
-        io::Error::new(kind, message)
-    }
-
-    fn next_retry_attempt(&mut self, error: &io::Error) -> io::Result<u32> {
-        if self.reconnect_failures >= self.config.max_reconnect_attempts {
-            return Err(self.set_terminal_message(error.kind(), error.to_string()));
-        }
-        self.reconnect_failures += 1;
-        Ok(self.reconnect_failures)
-    }
-
-    /// 单次尝试开 stream 到当前 pos。不内部重试，由调用方按 OpenOutcome 决定后续
-    fn open_stream(&mut self) -> OpenOutcome {
-        if self.pos > 0 && !self.range_supported {
-            return OpenOutcome::Fatal(io::Error::other(
-                "服务端最初不支持 Range，无法从非 0 位置恢复",
-            ));
-        }
-        let range_header = format!("bytes={}-", self.pos);
-
-        match self.agent.get(&self.url).set("Range", &range_header).call() {
-            Ok(resp) => {
-                let status = resp.status();
-                if self.pos > 0 && status == 200 {
-                    return OpenOutcome::Fatal(io::Error::other(
-                        "服务端忽略 Range，返回 200 而非 206，数据会错位",
-                    ));
-                }
-                if status != 200 && status != 206 {
-                    return OpenOutcome::Fatal(io::Error::other(format!(
-                        "重连意外状态码: {status}"
-                    )));
-                }
-                // 重连时验证 Content-Type：CDN URL 过期后可能返回 206 但 body 是错误页面
-                if self.pos > 0 {
-                    if let Some(ct) = resp.header("Content-Type") {
-                        let ct_lower = ct.to_lowercase();
-                        if ct_lower.starts_with("text/")
-                            || ct_lower.contains("html")
-                            || ct_lower.contains("json")
-                            || ct_lower.contains("xml")
-                        {
-                            return OpenOutcome::Fatal(io::Error::other(format!(
-                                "重连返回非音频内容类型: {ct}，URL 可能已过期"
-                            )));
-                        }
-                    }
-                    info!(pos = self.pos, status, "HTTP 流重连成功");
-                }
-                self.stream = Some(resp.into_reader());
-                OpenOutcome::Ok
+        let range = format!("bytes={}-", self.pos);
+        match self.agent.get(&self.url).set("Range", &range).call() {
+            Ok(response) => {
+                validate_response(&response, self.pos, Some(self.total_size))
+                    .map_err(|error| OpenError::Fatal(io::Error::other(error.to_string())))?;
+                self.stream = Some(response.into_reader());
+                debug!(position = self.pos, "HTTP Range 流已建立");
+                Ok(())
             }
-            Err(ureq::Error::Status(code, resp)) => match classify_status(code) {
-                RetryAction::FailFast => {
-                    OpenOutcome::Fatal(io::Error::other(format!("GET 返回 {code}（不可重试）")))
-                }
-                RetryAction::RetryAfter => OpenOutcome::Retryable {
-                    error: io::Error::other(format!("status {code}")),
-                    retry_after: resp.header("Retry-After").and_then(parse_retry_after),
-                },
-                RetryAction::Backoff => OpenOutcome::Retryable {
-                    error: io::Error::other(format!("status {code}")),
-                    retry_after: None,
-                },
-            },
-            Err(ureq::Error::Transport(t)) => OpenOutcome::Retryable {
-                error: io::Error::other(format!("transport: {t}")),
-                retry_after: None,
-            },
-        }
-    }
-
-    fn sleep_with_cancel(&self, dur: Duration) -> io::Result<()> {
-        let deadline = Instant::now() + dur;
-        loop {
-            self.check_cancel()?;
-            let now = Instant::now();
-            if now >= deadline {
-                return Ok(());
+            Err(ureq::Error::Status(status, _))
+                if (400..500).contains(&status) && status != 429 =>
+            {
+                Err(OpenError::Fatal(io::Error::other(format!(
+                    "HTTP Range 请求失败: {status}"
+                ))))
             }
-            let chunk = (deadline - now).min(Duration::from_millis(50));
-            thread::sleep(chunk);
+            Err(error) => Err(OpenError::Retryable(io::Error::other(error.to_string()))),
         }
     }
 
-    /// 指数退避 + ±25% jitter
-    fn backoff_delay(&self, attempt: u32) -> Duration {
-        let shift = attempt.saturating_sub(1).min(8);
-        let base = self.config.retry_backoff_base * (1u32 << shift);
-        jitter(base)
+    fn wait_backoff(&self, duration: Duration) -> io::Result<()> {
+        let step = Duration::from_millis(50);
+        let mut waited = Duration::ZERO;
+        while waited < duration {
+            self.ensure_active()?;
+            let remaining = duration - waited;
+            let current = remaining.min(step);
+            thread::sleep(current);
+            waited += current;
+        }
+        Ok(())
     }
 }
 
 impl Read for HttpRangeSource {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.check_cancel()?;
-        self.check_terminal_error()?;
+        self.ensure_active()?;
         if self.pos >= self.total_size || buf.is_empty() {
             return Ok(0);
         }
 
+        let mut failures = 0_u32;
         loop {
-            self.check_cancel()?;
-            self.check_terminal_error()?;
-
+            self.ensure_active()?;
             if self.stream.is_none() {
                 match self.open_stream() {
-                    OpenOutcome::Ok => {}
-                    OpenOutcome::Fatal(e) => return Err(self.set_terminal_error(e)),
-                    OpenOutcome::Retryable { error, retry_after } => {
-                        let attempts = self.next_retry_attempt(&error)?;
-                        let wait = retry_after
-                            .map(|d| d.min(self.config.retry_after_max))
-                            .unwrap_or_else(|| self.backoff_delay(attempts));
-                        warn!(error = %error, attempts, wait_ms = wait.as_millis(),
-                              "open_stream 失败，退避重试");
-                        self.sleep_with_cancel(wait)?;
+                    Ok(()) => {}
+                    Err(OpenError::Fatal(error)) => return Err(error),
+                    Err(OpenError::Retryable(error)) => {
+                        failures += 1;
+                        if failures > MAX_CONSECUTIVE_FAILURES {
+                            return Err(error);
+                        }
+                        let wait = retry_delay(failures);
+                        warn!(error = %error, failures, wait_ms = wait.as_millis(), "HTTP Range 建立失败，退避重试");
+                        self.wait_backoff(wait)?;
                         continue;
                     }
                 }
             }
-
-            let stream = self
-                .stream
-                .as_mut()
-                .expect("stream is Some after open_stream Ok");
-            match stream.read(buf) {
-                Ok(0) => {
+            let result = self.stream.as_mut().expect("stream 应已建立").read(buf);
+            match result {
+                Ok(0) if self.pos < self.total_size => {
                     self.stream = None;
-                    if self.pos >= self.total_size {
-                        return Ok(0);
+                    failures += 1;
+                    if failures > MAX_CONSECUTIVE_FAILURES {
+                        return Err(io::Error::new(
+                            io::ErrorKind::UnexpectedEof,
+                            "HTTP 流连续提前结束",
+                        ));
                     }
-                    // 同样计入重连次数并退避：服务端持续返回合法但空 body 的响应
-                    //（如文件被替换变短）时，不计数会变成全速重连死循环
-                    let error =
-                        io::Error::new(io::ErrorKind::UnexpectedEof, "提前 EOF 且重连次数耗尽");
-                    let attempts = self.next_retry_attempt(&error)?;
-                    let wait = self.backoff_delay(attempts);
-                    debug!(
-                        pos = self.pos,
-                        total = self.total_size,
-                        attempts,
-                        "stream 早 EOF，退避重连"
+                    let wait = retry_delay(failures);
+                    warn!(
+                        position = self.pos,
+                        failures,
+                        wait_ms = wait.as_millis(),
+                        "HTTP 流提前结束，退避续传"
                     );
-                    self.sleep_with_cancel(wait)?;
-                    continue;
+                    self.wait_backoff(wait)?;
                 }
                 Ok(n) => {
                     self.pos += n as u64;
-                    self.reconnect_failures = 0;
                     return Ok(n);
                 }
-                Err(e) if e.kind() == io::ErrorKind::Interrupted => {
-                    self.check_cancel()?;
-                    continue;
-                }
-                Err(e) => {
+                Err(error) => {
+                    self.ensure_active()?;
                     self.stream = None;
-                    let attempts = self.next_retry_attempt(&e)?;
-                    let wait = self.backoff_delay(attempts);
-                    warn!(error = %e, attempts, wait_ms = wait.as_millis(),
-                          "stream read 失败，退避重连");
-                    self.sleep_with_cancel(wait)?;
+                    failures += 1;
+                    if failures > MAX_CONSECUTIVE_FAILURES {
+                        return Err(error);
+                    }
+                    let wait = retry_delay(failures);
+                    warn!(position = self.pos, error = %error, failures, wait_ms = wait.as_millis(), "HTTP 读取失败，退避续传");
+                    self.wait_backoff(wait)?;
                 }
             }
         }
@@ -391,326 +213,308 @@ impl Read for HttpRangeSource {
 }
 
 impl Seek for HttpRangeSource {
-    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        let new_pos = match pos {
-            SeekFrom::Start(p) => p,
-            SeekFrom::End(o) => {
-                if o >= 0 {
-                    self.total_size.saturating_add(o as u64)
-                } else {
-                    self.total_size.saturating_sub(o.unsigned_abs())
-                }
-            }
-            SeekFrom::Current(o) => {
-                if o >= 0 {
-                    self.pos.saturating_add(o as u64)
-                } else {
-                    self.pos.saturating_sub(o.unsigned_abs())
-                }
-            }
+    fn seek(&mut self, position: SeekFrom) -> io::Result<u64> {
+        let target = match position {
+            SeekFrom::Start(offset) => offset,
+            SeekFrom::Current(offset) => checked_offset(self.pos, offset)?,
+            SeekFrom::End(offset) => checked_offset(self.total_size, offset)?,
         };
-        if new_pos != self.pos {
+        if target != self.pos {
+            self.pos = target;
             self.stream = None;
-            self.pos = new_pos;
-            self.reconnect_failures = 0;
-            self.terminal_error = None;
         }
-        Ok(new_pos)
+        Ok(target)
     }
 }
 
-/// 判断 source 字符串是否是 http/https URL
-pub fn is_network_source(source: &str) -> bool {
-    source.starts_with("http://") || source.starts_with("https://")
+fn build_agent(connect_timeout: Duration) -> ureq::Agent {
+    ureq::AgentBuilder::new()
+        .user_agent(USER_AGENT)
+        .timeout_connect(connect_timeout)
+        .timeout_read(READ_TIMEOUT)
+        .timeout_write(READ_TIMEOUT)
+        .build()
+}
+
+fn checked_offset(base: u64, offset: i64) -> io::Result<u64> {
+    if offset >= 0 {
+        base.checked_add(offset as u64)
+    } else {
+        base.checked_sub(offset.unsigned_abs())
+    }
+    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "seek 位置超出范围"))
+}
+
+fn retry_delay(failures: u32) -> Duration {
+    Duration::from_millis(200 * (1 << failures.saturating_sub(1)))
+}
+
+fn validate_response(
+    response: &ureq::Response,
+    expected_start: u64,
+    expected_total: Option<u64>,
+) -> Result<u64> {
+    if response.status() != 206 {
+        return Err(anyhow!("服务端未返回 206: {}", response.status()));
+    }
+    let content_range = response
+        .header("Content-Range")
+        .ok_or_else(|| anyhow!("206 响应缺少 Content-Range"))?;
+    let (start, end, total) = parse_content_range(content_range)
+        .ok_or_else(|| anyhow!("Content-Range 无效: {content_range}"))?;
+    if start != expected_start {
+        return Err(anyhow!(
+            "Range 起点不匹配: expected={expected_start}, actual={start}"
+        ));
+    }
+    if expected_total.is_some_and(|expected| expected != total) {
+        return Err(anyhow!("远端文件长度发生变化"));
+    }
+    if end < start || end >= total {
+        return Err(anyhow!("Content-Range 范围超出文件长度: {content_range}"));
+    }
+    Ok(total)
+}
+
+fn parse_content_range(value: &str) -> Option<(u64, u64, u64)> {
+    let value = value.strip_prefix("bytes ")?;
+    let (range, total) = value.split_once('/')?;
+    let (start, end) = range.split_once('-')?;
+    Some((start.parse().ok()?, end.parse().ok()?, total.parse().ok()?))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use httpmock::prelude::*;
-    use std::io::Read;
-    use std::sync::atomic::Ordering;
-    use std::thread;
-    use std::time::Duration;
+    use std::io::Write;
+    use std::net::TcpListener;
 
-    fn test_config() -> Config {
-        Config {
-            socket_read_timeout: Duration::from_millis(300),
-            probe_timeout: Duration::from_secs(2),
-            max_reconnect_attempts: 2,
-            retry_backoff_base: Duration::from_millis(20),
-            retry_after_max: Duration::from_millis(200),
-        }
+    fn payload(length: usize) -> Vec<u8> {
+        (0..length).map(|index| (index % 251) as u8).collect()
     }
 
-    fn body_n(n: usize) -> Vec<u8> {
-        (0..n).map(|i| (i % 251) as u8).collect()
-    }
-
-    #[test]
-    fn probe_206_open_range() {
-        let server = MockServer::start();
-        let payload = body_n(1024);
-        let mock = server.mock(|when, then| {
-            when.method(GET).path("/file");
-            then.status(206)
-                .header(
-                    "Content-Range",
-                    format!("bytes 0-{}/{}", payload.len() - 1, payload.len()),
-                )
-                .header("Content-Length", payload.len().to_string())
-                .body(&payload);
-        });
-
-        let src = HttpRangeSource::new_with_config(server.url("/file"), test_config()).unwrap();
-        assert_eq!(src.total_size, 1024);
-        assert!(src.range_supported);
-        assert!(src.stream.is_some());
-        mock.assert_hits(1);
-    }
-
-    #[test]
-    fn probe_200_fallback_non_seekable() {
-        let server = MockServer::start();
-        let payload = body_n(512);
-        server.mock(|when, then| {
-            when.method(GET).path("/file");
-            then.status(200)
-                .header("Content-Length", payload.len().to_string())
-                .body(&payload);
-        });
-
-        let src = HttpRangeSource::new_with_config(server.url("/file"), test_config()).unwrap();
-        assert_eq!(src.total_size, 512);
-        assert!(!src.range_supported);
-    }
-
-    #[test]
-    fn sequential_read_single_get() {
-        let server = MockServer::start();
-        let payload = body_n(8192);
-        let mock = server.mock(|when, then| {
-            when.method(GET).path("/file");
-            then.status(206)
-                .header(
-                    "Content-Range",
-                    format!("bytes 0-{}/{}", payload.len() - 1, payload.len()),
-                )
-                .body(&payload);
-        });
-
-        let mut src = HttpRangeSource::new_with_config(server.url("/file"), test_config()).unwrap();
-        let mut out = Vec::new();
-        src.read_to_end(&mut out).unwrap();
-        assert_eq!(out, payload);
-        mock.assert_hits(1);
-    }
-
-    #[test]
-    fn seek_invalidates_stream_and_reconnects() {
-        let server = MockServer::start();
-        let payload = body_n(4096);
-        let total = payload.len();
-
-        let m_initial = server.mock(|when, then| {
-            when.method(GET).path("/file").header("range", "bytes=0-");
-            then.status(206)
-                .header("Content-Range", format!("bytes 0-{}/{}", total - 1, total))
-                .body(&payload);
-        });
-        let m_seek = server.mock(|when, then| {
-            when.method(GET)
-                .path("/file")
-                .header("range", "bytes=2000-");
-            then.status(206)
-                .header(
-                    "Content-Range",
-                    format!("bytes 2000-{}/{}", total - 1, total),
-                )
-                .body(&payload[2000..]);
-        });
-
-        let mut src = HttpRangeSource::new_with_config(server.url("/file"), test_config()).unwrap();
-
-        let mut head = vec![0u8; 100];
-        src.read_exact(&mut head).unwrap();
-        assert_eq!(head, payload[..100]);
-
-        src.seek(SeekFrom::Start(2000)).unwrap();
-        assert!(src.stream.is_none());
-
-        let mut mid = vec![0u8; 100];
-        src.read_exact(&mut mid).unwrap();
-        assert_eq!(mid, payload[2000..2100]);
-
-        m_initial.assert_hits(1);
-        m_seek.assert_hits(1);
-    }
-
-    #[test]
-    fn fail_fast_on_404() {
-        let server = MockServer::start();
-        let mock = server.mock(|when, then| {
-            when.method(GET).path("/missing");
-            then.status(404);
-        });
-
-        let result = HttpRangeSource::new_with_config(server.url("/missing"), test_config());
-        assert!(result.is_err());
-        // 初始 GET 不走重试路径（new 直接返错），所以应该只命中 1 次
-        mock.assert_hits(1);
-    }
-
-    #[test]
-    fn backoff_on_5xx() {
-        let server = MockServer::start();
-        let payload = body_n(256);
-        let total = payload.len();
-
-        // 第一次是初始 GET 成功（206）
-        let m_init = server.mock(|when, then| {
-            when.method(GET).path("/file").header("range", "bytes=0-");
-            then.status(206)
-                .header("Content-Range", format!("bytes 0-{}/{}", total - 1, total))
-                .body(&payload[..50]);
-        });
-        // 提前 EOF 后会触发 ensure_stream 重连。前两次返 503，第三次成功
-        let _m_503 = server.mock(|when, then| {
-            when.method(GET).path("/file").header("range", "bytes=50-");
-            then.status(503);
-        });
-
-        let mut src = HttpRangeSource::new_with_config(server.url("/file"), test_config()).unwrap();
-        let mut buf = vec![0u8; total];
-        let result = src.read_to_end(&mut buf);
-        // 第二段反复 503 用尽重试预算 → 失败
-        assert!(result.is_err());
-        m_init.assert_hits(1);
-    }
-
-    #[test]
-    fn exhausted_reconnect_budget_stays_failed_across_reads() {
-        let server = MockServer::start();
-        let payload = body_n(256);
-        let total = payload.len();
-
-        let m_init = server.mock(|when, then| {
-            when.method(GET).path("/file").header("range", "bytes=0-");
-            then.status(206)
-                .header("Content-Range", format!("bytes 0-{}/{}", total - 1, total))
-                .body(&payload[..50]);
-        });
-        let m_503 = server.mock(|when, then| {
-            when.method(GET).path("/file").header("range", "bytes=50-");
-            then.status(503);
-        });
-
-        let mut src = HttpRangeSource::new_with_config(server.url("/file"), test_config()).unwrap();
-        let mut head = vec![0u8; 50];
-        src.read_exact(&mut head).unwrap();
-
-        let mut more = vec![0u8; 32];
-        assert!(src.read(&mut more).is_err());
-        assert!(src.read(&mut more).is_err());
-
-        m_init.assert_hits(1);
-        m_503.assert_hits(2);
-    }
-
-    #[test]
-    fn cancel_flag_interrupts_pending_read() {
-        // 场景 A：read 调用前 cancel 已被置位 → 立即返回 Interrupted
-        let server = MockServer::start();
-        let total = 1024u64;
-        let initial = body_n(100);
-        server.mock(|when, then| {
-            when.method(GET).path("/file");
-            then.status(206)
-                .header("Content-Range", format!("bytes 0-{}/{}", total - 1, total))
-                .body(&initial);
-        });
-
-        let mut src = HttpRangeSource::new_with_config(server.url("/file"), test_config()).unwrap();
-        let cancel = src.cancel_handle();
-
-        let mut buf = vec![0u8; 50];
-        src.read_exact(&mut buf).unwrap();
-
-        cancel.store(true, Ordering::Release);
-
-        let mut more = vec![0u8; 50];
-        let err = src.read(&mut more).unwrap_err();
-        assert_eq!(err.kind(), io::ErrorKind::Interrupted);
-    }
-
-    #[test]
-    fn cancel_flag_interrupts_during_backoff() {
-        // 场景 B：cancel 在 sleep_with_cancel 退避期间触发
-        // 用 503 触发 Retryable 路径，让 read 落入 sleep_with_cancel
-        let mut config = test_config();
-        config.retry_backoff_base = Duration::from_millis(500); // 足够长以被 cancel 截断
-        config.max_reconnect_attempts = 5;
-
-        let server = MockServer::start();
-        let total = 1024u64;
-        let initial = body_n(100);
-        server.mock(|when, then| {
-            when.method(GET).path("/file").header("range", "bytes=0-");
-            then.status(206)
-                .header("Content-Range", format!("bytes 0-{}/{}", total - 1, total))
-                .body(&initial);
-        });
-        server.mock(|when, then| {
-            when.method(GET).path("/file").header("range", "bytes=100-");
-            then.status(503);
-        });
-
-        let mut src = HttpRangeSource::new_with_config(server.url("/file"), config).unwrap();
-        let cancel = src.cancel_handle();
-
-        let mut buf = vec![0u8; 100];
-        src.read_exact(&mut buf).unwrap();
-
-        thread::spawn(move || {
-            thread::sleep(Duration::from_millis(100));
-            cancel.store(true, Ordering::Release);
-        });
-
-        let mut more = vec![0u8; 100];
-        let start = Instant::now();
-        let err = src.read(&mut more).unwrap_err();
-        let elapsed = start.elapsed();
-
-        assert_eq!(err.kind(), io::ErrorKind::Interrupted);
-        // 503 快速返回 → 进 sleep_with_cancel(500ms)，cancel 在 ~100ms 触发，应在 ~150ms 内返回
-        assert!(
-            elapsed < Duration::from_secs(1),
-            "cancel 响应超时: {elapsed:?}"
+    fn write_range_response(stream: &mut impl Write, range: &str, body: &[u8]) {
+        let headers = format!(
+            "HTTP/1.1 206 Partial Content\r\nContent-Range: {range}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
         );
+        stream.write_all(headers.as_bytes()).unwrap();
+        stream.write_all(body).unwrap();
     }
 
     #[test]
-    fn parse_content_range_total_basic() {
-        assert_eq!(parse_content_range_total("bytes 0-999/12345"), Some(12345));
-        assert_eq!(parse_content_range_total("bytes 100-200/500"), Some(500));
-        assert_eq!(parse_content_range_total("bytes 0-9/*"), None);
-        assert_eq!(parse_content_range_total("garbage"), None);
+    fn consecutive_seeks_are_coalesced_until_read() {
+        let server = MockServer::start();
+        let data = payload(4096);
+        let initial_data = data.clone();
+        let seek_data = data.clone();
+        let initial = server.mock(move |when, then| {
+            when.method(GET).path("/audio").header("range", "bytes=0-");
+            then.status(206)
+                .header("Content-Range", "bytes 0-4095/4096")
+                .body(initial_data);
+        });
+        let seek = server.mock(move |when, then| {
+            when.method(GET)
+                .path("/audio")
+                .header("range", "bytes=2048-");
+            then.status(206)
+                .header("Content-Range", "bytes 2048-4095/4096")
+                .body(&seek_data[2048..]);
+        });
+
+        let mut source = HttpRangeSource::new(server.url("/audio")).unwrap();
+        source.seek(SeekFrom::Start(1024)).unwrap();
+        source.seek(SeekFrom::Start(2048)).unwrap();
+        initial.assert_hits(1);
+        seek.assert_hits(0);
+
+        let mut output = [0_u8; 16];
+        source.read_exact(&mut output).unwrap();
+        seek.assert_hits(1);
+        assert_eq!(output, data[2048..2064]);
     }
 
     #[test]
-    fn parse_retry_after_seconds() {
-        assert_eq!(parse_retry_after("5"), Some(Duration::from_secs(5)));
-        assert_eq!(parse_retry_after("  10 "), Some(Duration::from_secs(10)));
-        assert_eq!(parse_retry_after("Wed, 21 Oct 2026 07:28:00 GMT"), None);
+    fn interrupt_can_be_reset_for_seek() {
+        let server = MockServer::start();
+        let data = payload(1024);
+        let initial_data = data.clone();
+        let seek_data = data.clone();
+        server.mock(move |when, then| {
+            when.method(GET).path("/audio").header("range", "bytes=0-");
+            then.status(206)
+                .header("Content-Range", "bytes 0-1023/1024")
+                .body(initial_data);
+        });
+        server.mock(move |when, then| {
+            when.method(GET)
+                .path("/audio")
+                .header("range", "bytes=512-");
+            then.status(206)
+                .header("Content-Range", "bytes 512-1023/1024")
+                .body(&seek_data[512..]);
+        });
+
+        let mut source = HttpRangeSource::new(server.url("/audio")).unwrap();
+        let interrupt = source.interrupt_handle();
+        interrupt.cancel();
+        assert_eq!(
+            source.read(&mut [0_u8; 1]).unwrap_err().kind(),
+            io::ErrorKind::Interrupted
+        );
+
+        interrupt.reset();
+        source.seek(SeekFrom::Start(512)).unwrap();
+        let mut output = [0_u8; 16];
+        source.read_exact(&mut output).unwrap();
+        assert_eq!(output, data[512..528]);
     }
 
     #[test]
-    fn classify_status_table() {
-        assert!(matches!(classify_status(200), RetryAction::Backoff));
-        assert!(matches!(classify_status(404), RetryAction::FailFast));
-        assert!(matches!(classify_status(403), RetryAction::FailFast));
-        assert!(matches!(classify_status(429), RetryAction::RetryAfter));
-        assert!(matches!(classify_status(500), RetryAction::Backoff));
-        assert!(matches!(classify_status(503), RetryAction::RetryAfter));
+    fn probe_rejects_response_without_range_support() {
+        let server = MockServer::start();
+        server.mock(|when, then| {
+            when.method(GET).path("/audio").header("range", "bytes=0-");
+            then.status(200).body(payload(128));
+        });
+
+        assert!(HttpRangeSource::new(server.url("/audio")).is_err());
+    }
+
+    #[test]
+    fn premature_eof_resumes_from_current_position() {
+        let server = MockServer::start();
+        let data = payload(1024);
+        let first_data = data[..128].to_vec();
+        let resumed_data = data[128..].to_vec();
+        let initial = server.mock(move |when, then| {
+            when.method(GET).path("/audio").header("range", "bytes=0-");
+            then.status(206)
+                .header("Content-Range", "bytes 0-127/1024")
+                .body(first_data);
+        });
+        let resumed = server.mock(move |when, then| {
+            when.method(GET)
+                .path("/audio")
+                .header("range", "bytes=128-");
+            then.status(206)
+                .header("Content-Range", "bytes 128-1023/1024")
+                .body(resumed_data);
+        });
+
+        let mut source = HttpRangeSource::new(server.url("/audio")).unwrap();
+        let mut output = vec![0_u8; 256];
+        source.read_exact(&mut output).unwrap();
+
+        initial.assert_hits(1);
+        resumed.assert_hits(1);
+        assert_eq!(output, data[..256]);
+    }
+
+    #[test]
+    fn repeated_premature_eof_recovers_before_failure_limit() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let data = payload(1024);
+        let server_data = data.clone();
+        let server = std::thread::spawn(move || {
+            for request_index in 0..4 {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut request = [0_u8; 1024];
+                let _ = stream.read(&mut request).unwrap();
+                match request_index {
+                    0 => write_range_response(&mut stream, "bytes 0-63/1024", &server_data[..64]),
+                    1 | 2 => write_range_response(&mut stream, "bytes 64-1023/1024", &[]),
+                    _ => {
+                        write_range_response(&mut stream, "bytes 64-1023/1024", &server_data[64..])
+                    }
+                }
+            }
+        });
+
+        let mut source = HttpRangeSource::new(format!("http://{address}/audio")).unwrap();
+        let mut output = vec![0_u8; 128];
+        source.read_exact(&mut output).unwrap();
+
+        server.join().unwrap();
+        assert_eq!(output, data[..128]);
+    }
+
+    #[test]
+    fn read_rejects_wrong_range_start() {
+        let server = MockServer::start();
+        server.mock(|when, then| {
+            when.method(GET).path("/audio").header("range", "bytes=0-");
+            then.status(206)
+                .header("Content-Range", "bytes 0-1023/1024")
+                .body(payload(1024));
+        });
+        server.mock(|when, then| {
+            when.method(GET)
+                .path("/audio")
+                .header("range", "bytes=512-");
+            then.status(206)
+                .header("Content-Range", "bytes 500-1023/1024")
+                .body(payload(524));
+        });
+
+        let mut source = HttpRangeSource::new(server.url("/audio")).unwrap();
+        source.seek(SeekFrom::Start(512)).unwrap();
+        assert!(source.read(&mut [0_u8; 1]).is_err());
+    }
+
+    #[test]
+    fn read_rejects_changed_remote_size() {
+        let server = MockServer::start();
+        server.mock(|when, then| {
+            when.method(GET).path("/audio").header("range", "bytes=0-");
+            then.status(206)
+                .header("Content-Range", "bytes 0-1023/1024")
+                .body(payload(1024));
+        });
+        server.mock(|when, then| {
+            when.method(GET)
+                .path("/audio")
+                .header("range", "bytes=512-");
+            then.status(206)
+                .header("Content-Range", "bytes 512-2047/2048")
+                .body(payload(1536));
+        });
+
+        let mut source = HttpRangeSource::new(server.url("/audio")).unwrap();
+        source.seek(SeekFrom::Start(512)).unwrap();
+        assert!(source.read(&mut [0_u8; 1]).is_err());
+    }
+
+    #[test]
+    fn seek_supports_all_origins_and_checks_underflow() {
+        let server = MockServer::start();
+        server.mock(|when, then| {
+            when.method(GET).path("/audio").header("range", "bytes=0-");
+            then.status(206)
+                .header("Content-Range", "bytes 0-1023/1024")
+                .body(payload(1024));
+        });
+
+        let mut source = HttpRangeSource::new(server.url("/audio")).unwrap();
+        assert_eq!(source.seek(SeekFrom::Start(100)).unwrap(), 100);
+        assert_eq!(source.seek(SeekFrom::Current(-40)).unwrap(), 60);
+        assert_eq!(source.seek(SeekFrom::End(-24)).unwrap(), 1000);
+        assert_eq!(
+            source.seek(SeekFrom::Current(-1001)).unwrap_err().kind(),
+            io::ErrorKind::InvalidInput
+        );
+        assert_eq!(source.seek(SeekFrom::Start(2048)).unwrap(), 2048);
+        assert_eq!(source.read(&mut [0_u8; 1]).unwrap(), 0);
+    }
+
+    #[test]
+    fn content_range_parser_rejects_malformed_values() {
+        assert_eq!(parse_content_range("bytes 12-34/100"), Some((12, 34, 100)));
+        assert_eq!(parse_content_range("12-34/100"), None);
+        assert_eq!(parse_content_range("bytes */100"), None);
+        assert_eq!(parse_content_range("bytes 12-x/100"), None);
     }
 }

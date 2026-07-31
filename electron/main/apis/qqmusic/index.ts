@@ -64,6 +64,8 @@ export const callQQMusic = async (name: string, params: QMParams = {}): Promise<
   const fn = Object.hasOwn(modules, name) ? modules[name] : undefined;
   if (!fn) throw new Error(`unknown qm api: ${name}`);
 
+  if (name === "search") return fn(params);
+
   const key = `${name}|${hashParams(params)}`;
   const hit = cacheGet(key);
   if (hit !== undefined) return hit;

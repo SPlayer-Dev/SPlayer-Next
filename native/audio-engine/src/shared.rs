@@ -2,15 +2,15 @@ use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 
-use parking_lot::{Condvar, Mutex};
-
+use crate::http_source::HttpInterrupt;
 use crate::metadata::ExternalLyric;
+use parking_lot::{Condvar, Mutex};
 
 /// 解码后的 PCM 音频数据块
 pub struct AudioChunk {
     /// 交错排列的 f32 播放样本（L R L R ...）
     pub player_samples: Vec<f32>,
-    /// 单声道 f32 样本，用于 FFT 频谱分析
+    /// 交错排列的 f32 FFT 样本（L R L R ...）
     pub fft_samples: Vec<f32>,
 }
 
@@ -43,10 +43,9 @@ pub struct Shared {
     normalization_gain: AtomicU32,
     /// 音量归一化开关
     normalization_enabled: AtomicBool,
-    /// 关联的 ffmpeg 中断标志（由 decoder::start_decode 在打开输入后注入）
-    /// stop() 触发时一并设为 true，让正在阻塞的 ffmpeg IO 立即返回 AVERROR_EXIT
-    /// 否则 packets().next() 这种同步调用要等到 rw_timeout（15s）才能感知 stop
-    interrupt_flag: Mutex<Option<Arc<AtomicBool>>>,
+    /// 关联的网络中断句柄（由 decoder 在启动解码前注入）
+    /// stop() 触发时中断读取和重试等待，seek 前可重置
+    interrupt: Mutex<Option<HttpInterrupt>>,
 }
 
 /// 共享缓冲区最大容量（背压阈值）
@@ -70,14 +69,13 @@ impl Shared {
             decode_failed: AtomicBool::new(false),
             normalization_gain: AtomicU32::new(1.0_f32.to_bits()),
             normalization_enabled: AtomicBool::new(false),
-            interrupt_flag: Mutex::new(None),
+            interrupt: Mutex::new(None),
         })
     }
 
-    /// 绑定 ffmpeg 中断标志：start_decode 在打开输入后调用一次
-    /// 之后任意线程调用 stop() 都会一并 set 这个标志，触发 ffmpeg 中断回调
-    pub fn bind_interrupt(&self, flag: Arc<AtomicBool>) {
-        *self.interrupt_flag.lock() = Some(flag);
+    /// 绑定网络中断句柄，之后调用 stop() 会中断 HTTP IO
+    pub fn bind_interrupt(&self, interrupt: HttpInterrupt) {
+        *self.interrupt.lock() = Some(interrupt);
     }
 
     /// 设置归一化增益因子（线性值）
@@ -200,11 +198,11 @@ impl Shared {
     }
 
     /// 发出停止信号，唤醒双方
-    /// 同时设置 ffmpeg 中断标志，让阻塞中的 IO（HTTP read 等）立即返回 AVERROR_EXIT
+    /// 同时取消网络请求，让阻塞中的 HTTP IO 尽快返回
     pub fn stop(&self) {
         self.is_stopping.store(true, Ordering::Release);
-        if let Some(flag) = self.interrupt_flag.lock().as_ref() {
-            flag.store(true, Ordering::Release);
+        if let Some(interrupt) = self.interrupt.lock().as_ref() {
+            interrupt.cancel();
         }
         self.condvar.notify_all();
     }

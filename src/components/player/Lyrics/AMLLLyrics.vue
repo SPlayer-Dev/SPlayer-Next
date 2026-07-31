@@ -91,6 +91,27 @@ const handleLineClick = (e: Event) => {
   }
 };
 
+// 为所有主歌词行设置 html lang 属性
+const processLyricLanguage = (player = playerRef.value) => {
+  const lyricGroups = player?.currentLyricGroups;
+  if (!Array.isArray(lyricGroups) || lyricGroups.length === 0) return;
+
+  for (const group of lyricGroups) {
+    for (const line of [group.mainLine, group.bgLine]) {
+      const lyricLine = line?.getLine();
+      const lyricLineElement = line?.getElement();
+      if (!lyricLine || !lyricLineElement) continue;
+
+      const lyricMainLineElement = lyricLineElement.firstChild;
+      if (lyricMainLineElement instanceof HTMLElement) {
+        const language = (lyricLine as LyricLine).language;
+        if (language) lyricMainLineElement.lang = language;
+        else lyricMainLineElement.removeAttribute("lang");
+      }
+    }
+  }
+};
+
 const { resume: resumeRaf, pause: pauseRaf } = useRafFn(
   ({ delta }) => {
     playerRef.value?.update(delta);
@@ -136,6 +157,7 @@ onMounted(() => {
 
   if (processedLyrics.value.length > 0) {
     playerRef.value.setLyricLines(processedLyrics.value, props.initialTime);
+    processLyricLanguage();
   } else if (Number.isFinite(props.initialTime) && props.initialTime >= 0) {
     playerRef.value.setCurrentTime(props.initialTime, true);
   }
@@ -211,6 +233,7 @@ watch(processedLyrics, (newLyrics) => {
     pendingLyrics = newLyrics;
   } else {
     playerRef.value.setLyricLines(newLyrics, props.initialTime);
+    processLyricLanguage();
   }
 });
 
@@ -228,6 +251,7 @@ const freeze = () => {
 const resume = () => {
   if (pendingLyrics) {
     playerRef.value?.setLyricLines(pendingLyrics);
+    processLyricLanguage();
     pendingLyrics = null;
   }
   isFrozen.value = false;
@@ -262,6 +286,22 @@ defineExpose({
   --amll-lp-color: var(--lp-color, #fff);
   width: 100%;
   height: 100%;
+}
+
+:deep(:lang(zh)) {
+  font-family: var(--lyric-font-zh, inherit);
+}
+
+:deep(:lang(ja)) {
+  font-family: var(--lyric-font-ja, inherit);
+}
+
+:deep(:lang(ko)) {
+  font-family: var(--lyric-font-ko, inherit);
+}
+
+:deep(:lang(und-Latn)) {
+  font-family: var(--lyric-font-latin, inherit);
 }
 
 :deep(.lp-line.lp-credit) {

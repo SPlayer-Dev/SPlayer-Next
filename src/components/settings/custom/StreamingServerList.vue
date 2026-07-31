@@ -276,7 +276,7 @@ const formatTime = (t?: number): string => (t ? new Date(t).toLocaleString() : "
               <template #icon>
                 <IconLucideTrash class="size-4" />
               </template>
-              {{ t("streaming.server.delete") }}
+              {{ t("common.delete") }}
             </SButton>
           </div>
         </div>

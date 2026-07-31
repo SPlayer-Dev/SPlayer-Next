@@ -12,11 +12,11 @@ import {
   resolveLocalRepoLyric,
   resolveOnlineByPreference,
   resolvePluginLyric,
-  resolveStreamingServerLyric,
+  resolveStreamingLyric,
   resolveTTMLOverlay,
   type OnlineResult,
   type ResolvedLyric,
-} from "@/services/lyricResolve";
+} from "@/services/lyric/resolve";
 
 /** 下载用歌词 */
 export interface DownloadLyric extends LyricInput {
@@ -62,7 +62,7 @@ export const resolveDownloadLyric = async (track: Track): Promise<DownloadLyric 
   if (local) return local;
   // 流媒体
   if (track.source === "streaming") {
-    const serverLyric = toUsableDownloadLyric(await resolveStreamingServerLyric(track));
+    const serverLyric = toUsableDownloadLyric(await resolveStreamingLyric(track));
     if (serverLyric) return serverLyric;
     const online = await resolveOnlineByPreference(track, { hasLocal: false, localFormat: null });
     return (

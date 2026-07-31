@@ -13,7 +13,7 @@ useOrpheusProtocol();
 
 /** 有歌曲信息时显示播放栏 */
 const showPlayerBar = computed(() => !!useMediaStore().track);
-const { isExpanded } = storeToRefs(status);
+const { isPlayerExpanded } = storeToRefs(status);
 const { appearance } = settings;
 
 /** 路由切换动效 */
@@ -62,7 +62,7 @@ const playerBarWrapperClass = computed(() => {
 /** 内层播放条样式 */
 const playerBarInnerClass = computed(() => {
   // 禁用底部播放栏交互
-  const base = isExpanded.value ? "pointer-events-none" : "pointer-events-auto";
+  const base = isPlayerExpanded.value ? "pointer-events-none" : "pointer-events-auto";
   switch (appearance.layoutMode) {
     case "floating":
       return `${base} mx-auto max-w-4xl glass-panel rounded-full shadow-xl border border-solid border-primary/10`;
@@ -76,7 +76,7 @@ const playerBarInnerClass = computed(() => {
   <!-- 主界面 -->
   <div
     class="h-screen flex bg-app text-on-surface transition-[transform,opacity] duration-500 ease-[cubic-bezier(0.7,0,0.3,1)] origin-center"
-    :class="isExpanded ? 'scale-95 opacity-0 pointer-events-none' : ''"
+    :class="isPlayerExpanded ? 'scale-95 opacity-0 pointer-events-none' : ''"
   >
     <!-- 侧边栏 -->
     <aside

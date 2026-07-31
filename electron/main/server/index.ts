@@ -9,6 +9,7 @@ import { serve, upgradeWebSocket } from "@hono/node-server";
 import { WebSocketServer } from "ws";
 import { store } from "@main/store";
 import { serverLog } from "@main/utils/logger";
+import { broadcast } from "@main/utils/broadcast";
 import type { ExternalApiStatus } from "@shared/types/settings";
 import { externalControlGate, wsGate } from "./gate";
 import { buildRoutes } from "./routes";
@@ -47,6 +48,9 @@ export const getServerStatus = (): ExternalApiStatus => ({
   port: runningPort,
   error: lastError,
 });
+
+/** 向渲染进程同步外部 API 服务状态 */
+const publishStatus = (): void => broadcast("externalApi:status", getServerStatus());
 
 /** 启动外部 API 服务 */
 export const startServer = (): Promise<ExternalApiStatus> => {
@@ -104,6 +108,7 @@ export const startServer = (): Promise<ExternalApiStatus> => {
       runningHost = null;
       runningAllowLan = false;
       lastError = error;
+      publishStatus();
       resolve(getServerStatus());
     });
 
@@ -116,6 +121,7 @@ export const startServer = (): Promise<ExternalApiStatus> => {
       runningAllowLan = hostname === "0.0.0.0";
       runningHost = runningAllowLan ? (getLanAddress() ?? "0.0.0.0") : hostname;
       lastError = null;
+      publishStatus();
       serverLog.info(`外部 API 已启动: http://${hostname}:${port}`);
       resolve(getServerStatus());
     });
@@ -132,7 +138,8 @@ export const stopServer = (): Promise<void> => {
   runningPort = null;
   runningHost = null;
   runningAllowLan = false;
-  return new Promise((resolve) => {
+  publishStatus();
+  const serverClosed = new Promise<void>((resolve) => {
     wss?.close();
     server.close((err) => {
       if (err) serverLog.warn("外部 API 关闭异常:", err);
@@ -140,6 +147,7 @@ export const stopServer = (): Promise<void> => {
       resolve();
     });
   });
+  return serverClosed;
 };
 
 /** 配置变更后重启服务 */

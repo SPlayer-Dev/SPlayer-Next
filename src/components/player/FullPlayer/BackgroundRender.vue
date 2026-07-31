@@ -81,14 +81,14 @@ const BASS_DECAY = 0.14;
 
 // 低频平滑后脉冲
 let smoothedPulse = 0;
-let lastFftFrame: readonly number[] = [];
+let lastFftFrame: readonly [number[], number[]] = [[], []];
 
 /**
  * 从最新 FFT 帧数据计算低频音量能量值 [0.0 - 1.0]
  */
 const updateLowFreqVolume = () => {
   const data = getFftFrame();
-  if (!data || data.length === 0) return;
+  if (!data || data[0].length === 0) return;
   if (data === lastFftFrame) return;
   lastFftFrame = data;
 
@@ -138,7 +138,7 @@ const syncFftCapture = () => {
     stopFftCapture();
     if (!props.enableBeat) {
       smoothedPulse = 0;
-      lastFftFrame = [];
+      lastFftFrame = [[], []];
       bgRenderRef.value?.setLowFreqVolume(1.0);
     }
   }

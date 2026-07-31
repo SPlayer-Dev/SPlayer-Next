@@ -10,11 +10,13 @@ import * as cacheScheduler from "@/services/cacheScheduler";
 import * as playStats from "./stats";
 import {
   hasReachedSeekTarget,
+  insertManyToQueue,
   isSeeking,
   markSeek,
   nextTrack,
   pause,
   play,
+  playNow,
   prevTrack,
   recoverFromSourceFailure,
   refreshDevices,
@@ -98,7 +100,7 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
       break;
     }
     case "fftData":
-      playback.setFftFrame(event.data);
+      playback.setFftFrame(event.data.ldata, event.data.rdata);
       break;
     case "ended": {
       await finishCurrentTrack();
@@ -111,11 +113,14 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
     case "play":
       await play();
       break;
+    case "playTrack":
+      await playNow(event.data.track);
+      break;
     case "pause":
       await pause();
       break;
     case "next":
-      await nextTrack(true);
+      await nextTrack();
       break;
     case "prev":
       await prevTrack();
@@ -125,6 +130,9 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
       break;
     case "setRepeat":
       setRepeatMode(event.data.mode);
+      break;
+    case "addToQueue":
+      insertManyToQueue(event.data.tracks, event.data.position);
       break;
     case "toggleLike":
       await useFavorite().toggle(useMediaStore().track);

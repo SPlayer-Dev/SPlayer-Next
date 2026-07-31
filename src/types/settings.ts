@@ -90,6 +90,14 @@ export interface LyricSettings {
   lyricBlendMode: LyricBlendMode;
   /** 歌词字体 */
   fontFamily: string;
+  /** 拉丁文字歌词字体（为空时跟随歌词字体） */
+  fontFamilyLatin: string;
+  /** 日文歌词字体（为空时跟随歌词字体） */
+  fontFamilyJapanese: string;
+  /** 韩文歌词字体（为空时跟随歌词字体） */
+  fontFamilyKorean: string;
+  /** 中文歌词字体（为空时跟随歌词字体） */
+  fontFamilyChinese: string;
   /** 是否显示翻译歌词 */
   showTranslation: boolean;
   /** 是否显示音译歌词 */
@@ -188,6 +196,8 @@ export interface PlayerSettings {
   snapToLyric: boolean;
   /** 播放时底部显示歌词而非歌手名 */
   showLyricInBar: boolean;
+  /** 播放时提前获取下一首的播放数据 */
+  preloadNextTrack: boolean;
 }
 
 /** 外观设置 */

@@ -57,7 +57,7 @@ const isAlbumLinkable = computed((): boolean => {
 /** 跳转到歌手页 */
 const goToArtist = (artist: Artist): void => {
   if (!isArtistLinkable(artist)) return;
-  status.isExpanded = false;
+  status.isPlayerExpanded = false;
   navigateToArtist(artist.name, { source: media.track?.source, artistId: artist.id });
 };
 
@@ -66,7 +66,7 @@ const goToAlbum = (): void => {
   if (!isAlbumLinkable.value) return;
   const track = media.track;
   if (!track?.album?.name) return;
-  status.isExpanded = false;
+  status.isPlayerExpanded = false;
   navigateToAlbum(track.album.name, { source: track.source, albumId: track.album.id });
 };
 

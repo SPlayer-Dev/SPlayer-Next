@@ -7,6 +7,7 @@ import type { ArtistProfile } from "@/types/artist";
 import { useLibraryStore } from "@/stores/library";
 import { useStreamingStore } from "@/stores/streaming";
 import { fetchArtist } from "@/apis/artist/netease";
+import { fetchQQMusicArtist } from "@/apis/artist/qqmusic";
 import { albumsToCoverItems } from "@/utils/format/coverItem";
 
 export interface LoadArtistOptions {
@@ -39,6 +40,12 @@ export const loadArtist = async (
   }
   if (source === "netease") {
     await loadNetease(id, options);
+    return;
+  }
+  if (source === "qqmusic") {
+    const artistId = decodeURIComponent(id);
+    const result = await fetchQQMusicArtist(artistId, options.fallbackName ?? artistId);
+    if (!options.signal?.aborted) options.onUpdate(result);
     return;
   }
   options.onUpdate(null);

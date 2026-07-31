@@ -86,6 +86,11 @@
     "configure": "配置",
     "more": "更多",
     "save": "保存",
+    "edit": "编辑",
+    "delete": "删除",
+    "enable": "启用",
+    "enabled": "已启用",
+    "active": "已启用",
     "saveAndRelaunch": "保存并重启",
     "reset": "重置",
     "retry": "重试",
@@ -96,6 +101,7 @@
     "noData": "暂无数据",
     "noMore": "没有更多了 ~",
     "refreshCache": "刷新缓存",
+    "success": "成功",
     "copied": "已复制",
     "copyFailed": "复制失败",
     "playAll": "播放全部",
@@ -376,7 +382,6 @@
       "added": "服务器已添加",
       "edit": "编辑服务器",
       "updated": "服务器已更新",
-      "delete": "删除",
       "removed": "服务器已删除",
       "deleteConfirmTitle": "删除服务器",
       "deleteConfirm": "确定删除服务器「{name}」吗？此操作不可撤销。",
@@ -443,8 +448,7 @@
     },
     "repeatMode": {
       "list": "列表循环",
-      "one": "单曲循环",
-      "off": "关闭循环"
+      "one": "单曲循环"
     },
     "shuffleMode": {
       "on": "随机播放",
@@ -664,6 +668,7 @@
       "appearance": "外观设置",
       "hotkeys": "快捷键配置",
       "services": "网络与服务",
+      "aiIntegration": "AI 集成",
       "mediaSource": "媒体源配置",
       "download": "下载配置",
       "localCache": "本地与缓存",
@@ -681,6 +686,7 @@
       "language": "语言",
       "playback": "播放器",
       "playControl": "播放控制",
+      "audioSource": "播放音源",
       "scrobble": "听歌打卡",
       "lyricContent": "歌词内容",
       "lyricTTML": "TTML 歌词",
@@ -703,6 +709,8 @@
       "discord": "Discord RPC",
       "lastfm": "Last.fm",
       "externalApi": "外部 API",
+      "mcp": "MCP",
+      "aiModel": "AI 模型",
       "systemConfig": "系统配置",
       "pluginManage": "导入插件",
       "pluginsList": "插件管理",
@@ -789,6 +797,10 @@
     "allowTrialPlay": {
       "label": "允许播放试听",
       "description": "完整音源和插件都不可用时，允许播放平台返回的试听片段"
+    },
+    "preloadNextTrack": {
+      "label": "预载下一首歌曲",
+      "description": "提前获取下一首的播放信息，可能会增加网络占用"
     },
     "outputDevice": {
       "label": "输出设备",
@@ -1181,6 +1193,12 @@
       "label": "逐字高亮",
       "description": "按单词进度逐字渲染高亮"
     },
+    "dynamicIslandTransition": {
+      "label": "切换动画",
+      "description": "选择灵动岛宽度与歌词行的切换方式",
+      "bounce": "灵动回弹",
+      "smooth": "平滑过渡"
+    },
     "dynamicIslandDoubleLine": {
       "label": "总是显示双行",
       "description": "即使没有翻译可用也保持双行布局"
@@ -1233,8 +1251,12 @@
       "right": "右侧"
     },
     "taskbarLyricAutoMaxWidth": {
-      "label": "宽度自动",
-      "description": "开启后占满任务栏的可用空间；关闭后按下方最大宽度限制"
+      "label": "自动宽度",
+      "description": "自动使用任务栏可用区域作为最大宽度；关闭后手动设置最大宽度"
+    },
+    "taskbarLyricAutoAdjustOccupiedSpace": {
+      "label": "按内容收缩窗口",
+      "description": "在自动宽度范围内，根据当前主行和悬浮控件缩小实际占用空间"
     },
     "taskbarLyricMaxWidth": {
       "label": "最大宽度",
@@ -1256,9 +1278,17 @@
       "light": "浅色",
       "dark": "深色"
     },
+    "taskbarLyricShowBackground": {
+      "label": "显示背景",
+      "description": "获焦时显示半透明背景，增强歌词与任务栏的区分"
+    },
     "taskbarLyricFontSize": {
       "label": "字号",
       "description": "任务栏歌词的文字大小（像素）"
+    },
+    "taskbarLyricFontWeight": {
+      "label": "字重",
+      "description": "任务栏歌词的文字粗细"
     },
     "taskbarLyricShowCover": {
       "label": "显示封面",
@@ -1392,6 +1422,7 @@
       "placeholder": "输入字体名称",
       "useSystem": "系统默认",
       "useGlobal": "跟随全局",
+      "useLyric": "跟随歌词",
       "modeLabel": "设置方式",
       "modeHint": "下方所有字段统一使用该方式",
       "modeSelect": "手动选择",
@@ -1406,6 +1437,10 @@
       "fields": {
         "global": "全局",
         "lyric": "歌词",
+        "lyricChinese": "中文歌词",
+        "lyricJapanese": "日语歌词",
+        "lyricKorean": "韩语歌词",
+        "lyricLatin": "英语 / 拉丁文字歌词",
         "desktopLyric": "桌面歌词",
         "dynamicIsland": "灵动岛歌词",
         "taskbarLyric": "任务栏歌词"
@@ -1551,19 +1586,68 @@
       "label": "监听端口",
       "description": "外部 API 服务监听的端口（1024–65535）"
     },
-    "externalApiPanel": {
-      "label": "",
-      "description": ""
-    },
     "externalApi": {
       "restart": "重启服务",
-      "restartHint": "修改端口或局域网访问开关后需重启服务",
       "restarted": "服务已重启",
       "portInUse": "端口 {port} 已被占用，请换一个",
-      "pendingChange": "待重启",
-      "pendingChangeHint": "配置已变更，重启服务后生效",
-      "endpoint": "服务地址",
+      "running": "服务运行中",
       "stopped": "服务未运行"
+    },
+    "mcpEnabled": {
+      "label": "启用 MCP 服务",
+      "description": "启用本地 MCP 服务，让 AI Agent 接入应用生态，按需扩展能力"
+    },
+    "aiModelConfig": {
+      "label": "AI 模型",
+      "description": "配置应用使用的 AI 模型"
+    },
+    "aiModel": {
+      "hint": "AI 模型配置",
+      "hintDetail": "可为项目中的部分 AI 功能提供支持",
+      "add": "添加模型",
+      "editModel": "编辑模型",
+      "empty": "暂未配置 AI 模型",
+      "emptyHint": "添加一个 AI 模型配置以供应用使用",
+      "protocol": "接口协议",
+      "name": "配置名称",
+      "namePlaceholder": "例如：OpenAI",
+      "baseUrl": "API 地址",
+      "apiKey": "API Key",
+      "apiKeyPlaceholder": "输入 API Key",
+      "apiKeySavedPlaceholder": "已保存，留空则保持不变",
+      "model": "模型 ID",
+      "added": "模型已添加",
+      "updated": "模型已更新",
+      "removed": "模型已删除",
+      "activated": "已切换启用模型",
+      "deleteConfirmTitle": "删除 AI 模型？",
+      "deleteConfirm": "确定删除“{name}”吗？保存的 API Key 也会一并移除。",
+      "errors": {
+        "nameEmpty": "请填写配置名称",
+        "urlInvalid": "请输入以 http:// 或 https:// 开头的 API 地址",
+        "modelEmpty": "请填写模型 ID",
+        "apiKeyEmpty": "请填写 API Key"
+      }
+    },
+    "mcpPort": {
+      "label": "监听端口",
+      "description": "修改端口后需要点击“重启服务”生效（1024–65535）"
+    },
+    "mcpConfigDetails": {
+      "label": "MCP 配置详情",
+      "description": "查看并复制 AI Agent 连接所需的 MCP 配置"
+    },
+    "mcp": {
+      "restart": "重启服务",
+      "restarted": "MCP 服务已重启",
+      "portInUse": "端口 {port} 已被占用，请换一个",
+      "running": "MCP 服务运行中",
+      "stopped": "MCP 服务未运行",
+      "detectHint": "检测到以下 AI Agent 应用，支持的平台可一键写入 MCP 配置",
+      "inject": "一键配置",
+      "notSupported": "暂不支持",
+      "injected": "已配置",
+      "injectSuccess": "配置成功"
     },
     "closeAction": {
       "label": "关闭按钮行为",
@@ -1641,8 +1725,6 @@
       "importFailed": "插件导入失败",
       "empty": "暂无已安装的插件",
       "emptyHint": "从本地或在线导入插件以启用扩展能力",
-      "enable": "启用",
-      "enabled": "已启用",
       "uninstall": "卸载",
       "configSubtitle": "插件配置",
       "uninstallConfirmTitle": "卸载插件",

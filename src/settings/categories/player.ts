@@ -56,6 +56,11 @@ const playerCategory: SettingCategory = {
           defaultValue: false,
           tag: { text: "Beta" },
         },
+      ],
+    },
+    {
+      id: "audioSource",
+      items: [
         {
           key: "songLevel",
           type: "select",
@@ -73,6 +78,12 @@ const playerCategory: SettingCategory = {
           key: "allowTrialPlay",
           type: "switch",
           binding: { store: "settings", path: "player.allowTrialPlay" },
+          defaultValue: false,
+        },
+        {
+          key: "preloadNextTrack",
+          type: "switch",
+          binding: { store: "settings", path: "player.preloadNextTrack" },
           defaultValue: false,
         },
       ],

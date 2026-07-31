@@ -27,12 +27,14 @@ export const startDevicePolling = (): void => {
 
       // 设备恢复或切换时重建音频输出
       if (current !== null) {
-        try {
-          getPlayer().reinitOutput();
-          playerLog.info("音频输出已重建");
-        } catch (error) {
-          playerLog.warn("重建音频输出失败:", error);
-        }
+        getPlayer()
+          .reinitOutput()
+          .then(() => {
+            playerLog.info("音频输出已重建");
+          })
+          .catch((error) => {
+            playerLog.warn("重建音频输出失败:", error);
+          });
       }
 
       sendToMain("player:event", {

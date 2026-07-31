@@ -90,10 +90,7 @@ pub fn read_tags(path: &str) -> Result<TrackTags> {
         genre: tag.genre().map(|v| v.into_owned()),
         track_number: tag.track(),
         disc_number: tag.disk(),
-        lyrics: tag
-            .get_string(ItemKey::UnsyncLyrics)
-            .or_else(|| tag.get_string(ItemKey::Lyrics))
-            .map(str::to_string),
+        lyrics: read_lyrics_from_tag(tag),
         has_cover: !tag.pictures().is_empty(),
     })
 }
@@ -104,6 +101,33 @@ fn read_year(tag: &Tag) -> Option<u32> {
         .or_else(|| tag.get_string(ItemKey::RecordingDate))
         .and_then(|raw| raw.get(..4).or(Some(raw)))
         .and_then(|raw| raw.parse::<u32>().ok())
+}
+
+/// 从 tag 读取歌词，优先使用 ItemKey，回退时对未知/自定义 key 进行归一化匹配（如 "UNSYNCED LYRICS"）
+fn read_lyrics_from_tag(tag: &Tag) -> Option<String> {
+    if let Some(lyrics) = tag
+        .get_string(ItemKey::UnsyncLyrics)
+        .or_else(|| tag.get_string(ItemKey::Lyrics))
+    {
+        return Some(lyrics.to_string());
+    }
+
+    // 遍历所有 items 寻找最优歌词标签
+    tag.items()
+        .filter_map(|item| {
+            let key_str = format!("{:?}", item.key());
+            let norm = crate::normalize_tag_key(&key_str);
+            if crate::is_lyric_field_key(&norm) {
+                if let Some(val) = item.value().text() {
+                    if !val.is_empty() {
+                        return Some((val.to_string(), crate::get_lyric_priority(&norm)));
+                    }
+                }
+            }
+            None
+        })
+        .max_by_key(|(_, priority)| *priority)
+        .map(|(val, _)| val)
 }
 
 /// 文本字段语义：None 不动，空串清除，非空覆盖
@@ -253,6 +277,40 @@ mod tests {
         let path = dir.join(name);
         make_wav(&path);
         path
+    }
+
+    #[test]
+    fn read_lyrics_from_custom_unsynced_lyrics_key() {
+        let path = temp_wav("custom_unsynced_lyrics.wav");
+        let mut tagged = open_tagged(&path).unwrap();
+        let tag_type = editing_tag_type(tagged.file_type());
+
+        // 保证 tag 存在，WAV 空文件没有 ID3v2 标签段，需要先 insert
+        if tagged.tag(tag_type).is_none() {
+            tagged.insert_tag(Tag::new(tag_type));
+        }
+        let tag = tagged.tag_mut(tag_type).unwrap();
+
+        // 写入歌词标签项
+        tag.insert_text(ItemKey::UnsyncLyrics, "[00:01.23]测试歌词内容".into());
+        tagged.save_to_path(&path, WriteOptions::default()).unwrap();
+
+        let tags = read_tags(&path.to_string_lossy()).unwrap();
+        assert_eq!(tags.lyrics.as_deref(), Some("[00:01.23]测试歌词内容"));
+    }
+
+    #[test]
+    fn test_is_lyric_field_key() {
+        use crate::is_lyric_field_key;
+        // 合法的各种歌词标签变体
+        assert!(is_lyric_field_key("lyrics"));
+        assert!(is_lyric_field_key("unsyncedlyrics"));
+        assert!(is_lyric_field_key("syncedlyrics"));
+        assert!(is_lyric_field_key("lyricseng")); // 带语言后缀如 ENG
+        assert!(is_lyric_field_key("unsyncedlyricszho")); // 带语言后缀如 ZHO
+        assert!(is_lyric_field_key("uslt"));
+        assert!(is_lyric_field_key("sylt"));
+        assert!(is_lyric_field_key("lyric"));
     }
 
     #[test]

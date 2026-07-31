@@ -13,6 +13,7 @@ import { fetchBytes } from "@main/utils/fetchBytes";
 import { logsDir } from "@main/utils/paths";
 import { consumePendingOrpheusUrl } from "@main/services/orpheus";
 import { testNetworkProxy } from "@main/utils/proxy";
+import { store } from "@main/store";
 
 /**
  * 注册系统相关的 IPC 事件
@@ -72,6 +73,7 @@ export const registerSystemIpc = (): void => {
 
   // 重启应用
   ipcMain.handle("system:relaunch", () => {
+    store.flushImmediate();
     app.relaunch();
     app.exit(0);
   });
