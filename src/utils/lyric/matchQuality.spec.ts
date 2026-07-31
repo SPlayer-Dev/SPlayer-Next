@@ -1,5 +1,4 @@
-import { describe, it } from "node:test";
-import assert from "node:assert/strict";
+import { describe, expect, it } from "vitest";
 
 import { evaluateLyricMatch } from "./matchQuality";
 
@@ -32,8 +31,8 @@ describe("evaluateLyricMatch", () => {
       121_000,
     );
 
-    assert.equal(result.status, "accepted");
-    assert.equal(result.reason, "matched");
+    expect(result.status).toBe("accepted");
+    expect(result.reason).toBe("matched");
   });
 
   it("拒绝 3:11 新版匹配到 3:53 旧版", () => {
@@ -46,8 +45,8 @@ describe("evaluateLyricMatch", () => {
       233_000,
     );
 
-    assert.equal(result.status, "rejected");
-    assert.equal(result.reason, "duration_mismatch");
+    expect(result.status).toBe("rejected");
+    expect(result.reason).toBe("duration_mismatch");
   });
 
   it("拒绝同名但正文不同的歌词", () => {
@@ -61,8 +60,8 @@ describe("evaluateLyricMatch", () => {
       120_000,
     );
 
-    assert.equal(result.status, "rejected");
-    assert.equal(result.reason, "content_mismatch");
+    expect(result.status).toBe("rejected");
+    expect(result.reason).toBe("content_mismatch");
   });
 
   it("拒绝正文相同但演唱速度明显不同的版本", () => {
@@ -75,8 +74,8 @@ describe("evaluateLyricMatch", () => {
       120_000,
     );
 
-    assert.equal(result.status, "rejected");
-    assert.equal(result.reason, "timeline_mismatch");
+    expect(result.status).toBe("rejected");
+    expect(result.reason).toBe("timeline_mismatch");
   });
 
   it("允许相邻两行在另一平台合并为一行", () => {
@@ -92,6 +91,6 @@ describe("evaluateLyricMatch", () => {
       120_000,
     );
 
-    assert.equal(result.status, "accepted");
+    expect(result.status).toBe("accepted");
   });
 });
