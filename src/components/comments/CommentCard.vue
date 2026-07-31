@@ -78,7 +78,7 @@ withDefaults(defineProps<Props>(), {
           <div
             v-for="reply in item.reply"
             :key="reply.id"
-            class="text-xs leading-5"
+            class="break-words text-xs leading-5"
             :class="cover ? 'text-cover/60' : 'text-on-surface-variant'"
           >
             <span class="font-medium" :class="cover ? 'text-cover/85' : 'text-on-surface'">

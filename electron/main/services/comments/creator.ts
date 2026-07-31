@@ -9,6 +9,8 @@ const NETEASE_RESOURCE_TYPE = "R_SO_4_";
 const HOT_LIMIT = 20;
 /** 首屏前两页未命中时，最多额外翻页数 */
 const MAX_EXTRA_PAGES = 3;
+/** 普通评论队列扫描最大页数，主创发布初期评论多在靠前页 */
+const MAX_NEW_PAGES = 5;
 const ARTIST_ACCOUNT_CACHE_LIMIT = 200;
 const CREATOR_COMMENTS_CACHE_LIMIT = 100;
 
@@ -71,6 +73,22 @@ const fetchHotPage = async (
   return { items: normalized.list, hasMore };
 };
 
+/** 拉取一页普通评论（归一化后返回），用于补充主创低赞评论 */
+const fetchNewPage = async (
+  songId: string,
+  page: number,
+): Promise<{ items: MusicCommentItem[]; hasMore: boolean }> => {
+  const { body } = await callNetease("comment_music", {
+    id: songId,
+    type: NETEASE_RESOURCE_TYPE,
+    limit: HOT_LIMIT,
+    offset: (page - 1) * HOT_LIMIT,
+  });
+  const normalized = normalizeNeteaseCommentPage(body, "new", page, HOT_LIMIT);
+  const hasMore = Boolean(body?.hasMore ?? body?.data?.hasMore ?? false);
+  return { items: normalized.list, hasMore };
+};
+
 /**
  * 解析歌手列表对应的网易云账号 → 歌手名映射
  * 多歌手多账号匹配并去重；accountId 为 0 或不存在视为未绑定（负缓存）
@@ -111,8 +129,9 @@ const resolveArtistAccountIds = async (artistIds: string[]): Promise<Map<string,
 };
 
 /**
- * 获取「主创说」评论：歌曲关联歌手在网易云绑定的账号，在该歌曲热门评论中的发言
- * 仅网易云内建源启用；前两页必拉，未命中且 hasMore 时额外翻页最多 MAX_EXTRA_PAGES 页
+ * 获取「主创说」评论：歌曲关联歌手在网易云绑定的账号，在该歌曲热门评论与普通评论中的发言
+ * 仅网易云内建源启用；热评前两页必拉，未命中且 hasMore 时额外翻页最多 MAX_EXTRA_PAGES 页；
+ * 随后扫描普通评论队列最多 MAX_NEW_PAGES 页补充低赞主创评论，按 commentId 去重后按 likedCount 降序
  */
 export const getCreatorComments = async (
   args: MusicCommentCreatorQuery,
@@ -150,6 +169,24 @@ export const getCreatorComments = async (
       if (hits.length > 0) break;
     }
   }
+
+  // 扫描普通评论队列补充主创低赞评论，按 commentId 去重（热评优先保留）
+  const seenIds = new Set(result.map((c) => c.id));
+  let newHasMore = true;
+  for (let page = 1; page <= MAX_NEW_PAGES && newHasMore; page++) {
+    const { items, hasMore: hm } = await fetchNewPage(songId, page);
+    const hits = scanCreatorComments(items, accountMap);
+    for (const hit of hits) {
+      if (!seenIds.has(hit.id)) {
+        seenIds.add(hit.id);
+        result.push(hit);
+      }
+    }
+    newHasMore = hm;
+  }
+
+  // 合并后按 likedCount 降序，无该字段的沉底
+  result.sort((a, b) => (b.likedCount ?? -Infinity) - (a.likedCount ?? -Infinity));
 
   creatorCommentsCache.set(songId, result);
   return result;
