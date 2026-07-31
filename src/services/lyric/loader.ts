@@ -1,5 +1,5 @@
 /**
- * 歌词加载服务
+ * 当前歌曲歌词加载服务
  */
 
 import type { Track, TrackDetail } from "@shared/types/player";
@@ -14,12 +14,13 @@ import {
   resolveLocalRepoLyric,
   resolveOnlineByPreference,
   resolvePluginLyric,
-  resolveStreamingServerLyric,
+  resolveStreamingLyric,
   resolveTTMLOverlay,
   type LocalLyric,
   type OnlineResult,
   type ResolvedLyric,
-} from "@/services/lyricResolve";
+} from "@/services/lyric/resolve";
+import { consumePreloadedLyric } from "@/services/lyric/preload";
 
 /** 竞态 token */
 let currentToken = 0;
@@ -146,7 +147,7 @@ const loadStreamingLyric = async (
   track: Track,
   detail: TrackDetail | null,
 ): Promise<void> => {
-  const serverLyric = await resolveStreamingServerLyric(track);
+  const serverLyric = await resolveStreamingLyric(track);
   if (token !== currentToken) return;
   const embeddedFallback = embeddedLyricFromDetail(detail);
   if (serverLyric) {
@@ -216,6 +217,11 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
     if (!track) {
       commit(token, null, null);
       return;
+    }
+    const preloaded = await consumePreloadedLyric(track);
+    if (token !== currentToken) return;
+    if (preloaded.hit) {
+      if (commitResolvedAndHasParsed(token, preloaded.lyric)) return;
     }
     // 本地 TTML 歌词库最高优先
     if (await tryLocalRepo(token, track)) return;

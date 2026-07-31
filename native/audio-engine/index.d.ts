@@ -5,7 +5,7 @@ export declare class AudioPlayer {
   /** 创建新的播放器实例 */
   constructor()
   /** 重新初始化音频输出设备（系统休眠唤醒后调用） */
-  reinitOutput(): void
+  reinitOutput(): Promise<void>
   /** 设置封面缓存目录（在 load 前调用一次即可） */
   setCoverCacheDir(dir: string): void
   /** 注册事件回调，Rust 侧会在状态变化、位置更新、播放结束时主动调用 */
@@ -16,8 +16,8 @@ export declare class AudioPlayer {
    *
    * 异步三段式：
    * 1. 主线程持锁瞬间（微秒级）：take 旧解码线程 handle + 拿参数（cover_dir / 归一化开关）
-   * 2. spawn_blocking 工作线程（**不持有 inner 引用**）：join 旧线程 + ffmpeg 打开 URL（耗时大头）
-   * 3. 主线程持锁瞬间：构造 sink + attach + emit stateChanged
+   * 2. spawn_blocking 工作线程（**不持有 inner 引用**）：读取音源采样率、协商输出流并启动解码
+   * 3. 主线程持锁瞬间：提交输出流、构造 sink + attach + emit stateChanged
    * 持锁阶段都是纯内存操作，主线程其它同步 NAPI 调用最多等几微秒，不会被 IO 卡住
    */
   load(source: string, autoPlay?: boolean): Promise<JsMusicMetadata>
@@ -83,7 +83,7 @@ export declare class AudioPlayer {
   /** 获取系统默认输出设备名称 */
   getDefaultDeviceName(): string | null
   /** 切换输出设备（传 None/undefined 使用系统默认） */
-  setOutputDevice(deviceName?: string | undefined | null): void
+  setOutputDevice(deviceName?: string | undefined | null): Promise<void>
   /** 获取当前选择的输出设备名称（None = 系统默认） */
   getSelectedDeviceName(): string | null
   /** 设置播放速度（自动 clamp 到 [0.5, 2.0]） */

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Artist, Track, TrackSource } from "@shared/types/player";
 import type { CollectionType } from "@/types/collection";
+import type { SortField } from "@/types/list";
 import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
 import { useSettingsStore } from "@/stores/settings";
@@ -121,24 +122,7 @@ const goAlbum = (item: Track): void => {
 };
 
 /** 排序字段 */
-type SortField =
-  | "none"
-  | "title"
-  | "artist"
-  | "album"
-  | "path"
-  | "duration"
-  | "size"
-  | "mtime"
-  | "ctime"
-  | "track";
-/** 排序方向 */
-type SortOrder = "asc" | "desc";
-
-/** 排序字段 */
-const sortField = ref<SortField>("none");
-/** 排序方向 */
-const sortOrder = ref<SortOrder>("asc");
+const { sortField, sortOrder } = storeToRefs(status);
 
 /** 字段文案 key 映射 */
 const sortFieldLabelKeyMap: Record<SortField, string> = {

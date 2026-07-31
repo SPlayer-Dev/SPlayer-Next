@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
-import type { TaskbarLyricSettings } from "@shared/types/settings";
+import type { ExternalApiStatus, McpStatus, TaskbarLyricSettings } from "@shared/types/settings";
 import type {
   PluginInfo,
   PluginResolveUrlArgs,
@@ -16,6 +16,7 @@ import type { TagEditRequest } from "@shared/types/tagEditor";
 import type { UpdateEvent } from "@shared/types/update";
 import type { CloudUploadProgress } from "@shared/types/cloudUpload";
 import type { MusicCommentQuery } from "@shared/types/comment";
+import type { AiModelSaveInput } from "@shared/types/ai";
 
 /** 订阅主进程推送的事件 */
 const subscribe = <T>(channel: string, callback: (data: T) => void): (() => void) => {
@@ -262,6 +263,7 @@ const api = {
     saveState: () => ipcRenderer.send("dynamicIsland:saveState"),
     // 渲染端上报目标宽度，主进程立即 resize
     resize: (width: number) => ipcRenderer.send("dynamicIsland:resize", width),
+    setShape: (width: number | null) => ipcRenderer.send("dynamicIsland:setShape", width),
     // 渲染端上报目标高度
     setHeight: (height: number) => ipcRenderer.send("dynamicIsland:setHeight", height),
     // 查询当前吸附模式
@@ -274,6 +276,7 @@ const api = {
       subscribe<boolean>("dynamicIsland:cursorInside", callback),
   },
   taskbarLyric: {
+    setContentWidth: (width: number) => ipcRenderer.send("taskbarLyric:setContentWidth", width),
     // 订阅布局变化（锚定方向、是否居中、系统类型、任务栏主题）
     onLayout: (
       callback: (data: {
@@ -281,6 +284,7 @@ const api = {
         systemType: string;
         isLight: boolean;
         anchor: "left" | "right";
+        maxWidth: number;
       }) => void,
     ) =>
       subscribe<{
@@ -288,6 +292,7 @@ const api = {
         systemType: string;
         isLight: boolean;
         anchor: "left" | "right";
+        maxWidth: number;
       }>("taskbarLyric:layout", callback),
     // 订阅任务栏歌词配置变化
     onConfigChange: (callback: (config: TaskbarLyricSettings) => void) =>
@@ -477,6 +482,35 @@ const api = {
     restart: () => ipcRenderer.invoke("externalApi:restart"),
     // 查询当前运行状态
     getStatus: () => ipcRenderer.invoke("externalApi:getStatus"),
+    // 订阅外部 API 服务状态变化
+    onStatus: (callback: (status: ExternalApiStatus) => void) => {
+      ipcRenderer.removeAllListeners("externalApi:status");
+      return subscribe<ExternalApiStatus>("externalApi:status", callback);
+    },
+  },
+  mcp: {
+    // 重启 MCP 服务
+    restart: () => ipcRenderer.invoke("mcp:restart"),
+    // 查询 MCP 服务状态
+    getStatus: () => ipcRenderer.invoke("mcp:getStatus"),
+    // 获取生成 AI 客户端配置所需的动态参数
+    getClientConfigParams: () => ipcRenderer.invoke("mcp:getClientConfigParams"),
+    // 检测 Agent
+    detectAgents: () => ipcRenderer.invoke("mcp:detectAgents"),
+    // 注入 Agent 配置
+    injectAgentConfig: (agentId: string, params: any) =>
+      ipcRenderer.invoke("mcp:injectAgentConfig", agentId, params),
+    // 订阅 MCP 服务状态变化
+    onStatus: (callback: (status: McpStatus) => void) => {
+      ipcRenderer.removeAllListeners("mcp:status");
+      return subscribe<McpStatus>("mcp:status", callback);
+    },
+  },
+  aiModel: {
+    list: () => ipcRenderer.invoke("aiModel:list"),
+    save: (input: AiModelSaveInput) => ipcRenderer.invoke("aiModel:save", input),
+    remove: (id: string) => ipcRenderer.invoke("aiModel:remove", id),
+    setActive: (id: string | null) => ipcRenderer.invoke("aiModel:setActive", id),
   },
   update: {
     // 检查更新

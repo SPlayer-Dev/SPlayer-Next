@@ -52,10 +52,15 @@ const parseEslrcWords = (content: string): LyricWord[] | null => {
   const words: LyricWord[] = [];
   let match: RegExpExecArray | null;
   while ((match = ANGLE_TIME_RE.exec(content)) !== null) {
+    const startTime = parseTime(match[1], match[2], match[3] ?? "0");
     const wordText = match[4];
-    if (!wordText) continue;
+    if (!wordText) {
+      const lastWord = words[words.length - 1];
+      if (lastWord && startTime >= lastWord.startTime) lastWord.endTime = startTime;
+      continue;
+    }
     words.push({
-      startTime: parseTime(match[1], match[2], match[3] ?? "0"),
+      startTime,
       endTime: 0,
       word: wordText,
     });
@@ -63,7 +68,9 @@ const parseEslrcWords = (content: string): LyricWord[] | null => {
   if (words.length === 0) return null;
   // 每个单词的结束时间 = 下一个单词的开始时间
   for (let i = 0; i < words.length - 1; i++) {
-    words[i].endTime = words[i + 1].startTime;
+    if (words[i].endTime <= words[i].startTime) {
+      words[i].endTime = words[i + 1].startTime;
+    }
   }
   return words;
 };
@@ -122,7 +129,20 @@ export const parseLRC = (text: string, detectBackground = true): LyricLine[] => 
     if (times.length === 0) continue;
     // 提取行内容
     const content = trimmed.slice(textStart);
-    if (!content.trim()) continue;
+    if (!content.trim()) {
+      for (const t of times) {
+        lines.push({
+          words: [],
+          translatedLyric: "",
+          romanLyric: "",
+          startTime: t,
+          endTime: 0,
+          isBG: false,
+          isDuet: false,
+        });
+      }
+      continue;
+    }
     // 尝试 ESLRC 逐字
     const eslrcWords = parseEslrcWords(content);
     if (eslrcWords) {

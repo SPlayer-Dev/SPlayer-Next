@@ -42,6 +42,7 @@ const isChildrenActive = computed(() => {
 });
 
 const isDisabled = computed(() => props.item.disabled?.() ?? false);
+const isVisible = computed(() => props.item.visible?.() ?? true);
 
 const descriptionText = computed(() =>
   t(props.item.descriptionKey ?? `settings.${props.item.key}.description`),
@@ -49,7 +50,7 @@ const descriptionText = computed(() =>
 </script>
 
 <template>
-  <div :id="`setting-${item.key}`">
+  <div v-if="isVisible" :id="`setting-${item.key}`">
     <!-- fullWidth custom：只渲染组件，不套标签与卡片 -->
     <component
       :is="item.component"

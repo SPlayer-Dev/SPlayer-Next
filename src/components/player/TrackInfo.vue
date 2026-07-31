@@ -16,7 +16,7 @@ withDefaults(
 const status = useStatusStore();
 const media = useMediaStore();
 const settings = useSettingsStore();
-const { isExpanded, isPlaying } = storeToRefs(status);
+const { isPlayerExpanded, isPlaying } = storeToRefs(status);
 
 /** 主歌词行 */
 const mainLines = computed(() => media.parsedLyric.filter((l) => !l.isBG));
@@ -51,7 +51,7 @@ const isArtistLinkable = (artist: Artist): boolean => {
     <div
       class="relative shrink-0 rounded-lg overflow-hidden cursor-pointer group"
       :class="compact ? 'size-10 shadow-sm' : 'size-14'"
-      @click="isExpanded = true"
+      @click="isPlayerExpanded = true"
     >
       <SImg :src="media.track?.cover" class="size-full" />
       <div

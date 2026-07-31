@@ -105,7 +105,7 @@ impl Iterator for DecoderSource {
                 // 将 FFT 样本推送给分析器
                 PopResult::Chunk(chunk) => {
                     if self.fft.is_enabled() {
-                        self.fft.push_interleaved_samples(&chunk.player_samples);
+                        self.fft.push_interleaved_samples(&chunk.fft_samples);
                     }
 
                     // 填充本地缓冲，一次性批量计数（而非逐采样）
@@ -179,6 +179,7 @@ mod tests {
         let shared = Shared::new(48000, 2);
         shared.push(AudioChunk {
             player_samples: vec![0.8, -0.8],
+            fft_samples: vec![],
         });
 
         let equalizer = Arc::new(Mutex::new(Equalizer::new(48000)));
@@ -190,7 +191,7 @@ mod tests {
 
         let mut source = DecoderSource::new(
             shared,
-            Arc::new(FftAnalyzer::new(48000)),
+            Arc::new(FftAnalyzer::new()),
             equalizer,
             Arc::new(Mutex::new(StretchProcessor::new(2, 48000))),
             48000,
@@ -206,11 +207,12 @@ mod tests {
         let shared = Shared::new(48000, 2);
         shared.push(AudioChunk {
             player_samples: vec![0.1, -0.1, 2.0, -2.0],
+            fft_samples: vec![],
         });
 
         let mut source = DecoderSource::new(
             shared,
-            Arc::new(FftAnalyzer::new(48000)),
+            Arc::new(FftAnalyzer::new()),
             Arc::new(Mutex::new(Equalizer::new(48000))),
             Arc::new(Mutex::new(StretchProcessor::new(2, 48000))),
             48000,
@@ -228,7 +230,7 @@ mod tests {
         let shared = Shared::new(1000, 2);
         let mut source = DecoderSource::new(
             Arc::clone(&shared),
-            Arc::new(FftAnalyzer::new(1000)),
+            Arc::new(FftAnalyzer::new()),
             Arc::new(Mutex::new(Equalizer::new(1000))),
             Arc::new(Mutex::new(StretchProcessor::new(2, 1000))),
             1000,
@@ -238,6 +240,7 @@ mod tests {
         assert_eq!(source.next(), Some(0.0));
         shared.push(AudioChunk {
             player_samples: vec![0.25, -0.25],
+            fft_samples: vec![],
         });
         for _ in 0..39 {
             assert_eq!(source.next(), Some(0.0));

@@ -41,6 +41,17 @@ let uiaWatcher: UiaWatcher | null = null;
 let trayWatcher: TrayWatcher | null = null;
 let taskbarCreatedWatcher: TaskbarCreatedWatcher | null = null;
 
+interface ActiveWindowRegion {
+  x: number;
+  y: number;
+  maxWidth: number;
+  height: number;
+  anchor: AnchorSide;
+}
+
+let activeWindowRegion: ActiveWindowRegion | null = null;
+let contentWidth: number | null = null;
+
 /** 从设置读取当前歌词宽度（Win10 据此从 tasklist 划空间，Win11 忽略） */
 const resolveLyricWidth = (): number => {
   const width = store.get("taskbarLyric.maxWidth");
@@ -67,6 +78,35 @@ const MIN_LYRIC_WIDTH_DIP = 120;
 /** 获取任务栏歌词窗口实例（未创建或已销毁时返回 null） */
 export const getTaskbarLyricWindow = (): BrowserWindow | null =>
   taskbarLyricWindow && !taskbarLyricWindow.isDestroyed() ? taskbarLyricWindow : null;
+
+/** 根据内容宽度调整真实窗口边界，右侧布局始终固定右边缘 */
+const applyContentBounds = (): void => {
+  const win = getTaskbarLyricWindow();
+  const region = activeWindowRegion;
+  if (!win || !region) return;
+  const adjustOccupiedSpace =
+    (store.get("taskbarLyric.autoMaxWidth") ?? true) &&
+    (store.get("taskbarLyric.autoAdjustOccupiedSpace") ?? false);
+  const width = Math.min(
+    region.maxWidth,
+    Math.max(
+      MIN_LYRIC_WIDTH_DIP,
+      Math.round(adjustOccupiedSpace ? (contentWidth ?? region.maxWidth) : region.maxWidth),
+    ),
+  );
+  const x = region.anchor === "right" ? region.x + region.maxWidth - width : region.x;
+  win.setBounds({ x, y: region.y, width, height: region.height });
+};
+
+/**
+ * 接收渲染端测得的内容目标宽度
+ * @param width - 内容宽度（DIP）
+ */
+export const updateTaskbarLyricContentWidth = (width: number): void => {
+  if (!Number.isFinite(width) || width <= 0) return;
+  contentWidth = width;
+  applyContentBounds();
+};
 
 /** 根据设置和任务栏对齐方式选择使用哪侧空间以及锚定方向 */
 const pickSpace = (layout: JsTaskbarLayout): PickedSpace | null => {
@@ -135,7 +175,14 @@ const applyLayout = (layout: JsTaskbarLayout): void => {
   const windowWidth = autoMaxWidth ? availWidth : Math.min(maxWidth, availWidth);
   const windowX = anchor === "right" ? availX + availWidth - windowWidth : availX;
 
-  win.setBounds({ x: windowX, y: availY, width: windowWidth, height: availHeight });
+  activeWindowRegion = {
+    x: windowX,
+    y: availY,
+    maxWidth: windowWidth,
+    height: availHeight,
+    anchor,
+  };
+  applyContentBounds();
 
   if (!firstLayoutDone) {
     firstLayoutDone = true;
@@ -149,6 +196,7 @@ const applyLayout = (layout: JsTaskbarLayout): void => {
     systemType: layout.extra.systemType,
     isLight: layout.extra.isLight,
     anchor,
+    maxWidth: windowWidth,
   });
 };
 
@@ -279,7 +327,6 @@ export const createTaskbarLyricWindow = (): BrowserWindow | null => {
     taskbarLog.info(`嵌入窗口 hwnd=${hwndPtr}`);
     svc.embedWindowByPtr(hwndPtr);
     svc.update(resolveLyricWidth());
-
     startWatchers(mod);
     taskbarCreatedWatcher = tryStart(
       "TaskbarCreatedWatcher",
@@ -290,6 +337,8 @@ export const createTaskbarLyricWindow = (): BrowserWindow | null => {
   taskbarLyricWindow.on("closed", () => {
     taskbarLyricWindow = null;
     firstLayoutDone = false;
+    activeWindowRegion = null;
+    contentWidth = null;
     cleanupWatchers();
     setTrayTaskbarLyric(false);
     broadcast("taskbarLyric:visibilityChange", false);

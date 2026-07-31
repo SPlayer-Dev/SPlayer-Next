@@ -46,14 +46,6 @@ pub fn extract_stream_info(info: &SourceAudioInfo) -> StreamInfo {
     }
 }
 
-/// 大小写不敏感查找：原 ffmpeg-next 的 Dictionary::get 默认 case-insensitive，
-/// 而 ffmpeg_audio 把 dict 转成普通 HashMap 后丢了这个语义，这里补回来
-fn dict_get<'a>(dict: &'a HashMap<String, String>, key: &str) -> Option<&'a str> {
-    dict.iter()
-        .find(|(k, _)| k.eq_ignore_ascii_case(key))
-        .map(|(_, v)| v.as_str())
-}
-
 /// 从容器 metadata 提取常见 tag
 pub fn extract_tags(dict: &HashMap<String, String>) -> Tags {
     let title = dict_get(dict, "title").map(ToString::to_string);
@@ -70,6 +62,23 @@ pub fn extract_tags(dict: &HashMap<String, String>) -> Tags {
         track,
         comment,
     }
+}
+
+/// 大小写不敏感查找：原 ffmpeg-next 的 Dictionary::get 默认 case-insensitive，
+/// 而 ffmpeg_audio 把 dict 转成普通 HashMap 后丢了这个语义，这里补回来
+fn dict_get<'a>(dict: &'a HashMap<String, String>, key: &str) -> Option<&'a str> {
+    let target = crate::normalize_tag_key(key);
+    dict.iter()
+        .find(|(k, _)| crate::normalize_tag_key(k) == target)
+        .map(|(_, v)| v.as_str())
+}
+
+/// 从容器 metadata 提取内嵌歌词（兼容 LYRICS、UNSYNCED LYRICS、SYNCED LYRICS、USLT、SYLT 等标签，支持各类语言代码后缀如 -ENG）
+pub fn extract_embedded_lyric(dict: &HashMap<String, String>) -> Option<String> {
+    dict.iter()
+        .filter(|(k, v)| !v.is_empty() && crate::is_lyric_field_key(&crate::normalize_tag_key(k)))
+        .max_by_key(|(k, _)| crate::get_lyric_priority(&crate::normalize_tag_key(k)))
+        .map(|(_, v)| v.to_string())
 }
 
 /// 从容器 metadata 提取 ReplayGain / R128 增益值（dB）
@@ -158,14 +167,6 @@ pub fn generate_cover_thumbnail(
     let thumb = img.thumbnail(THUMB_SIZE, THUMB_SIZE);
     thumb.save_with_format(output_path, image::ImageFormat::Jpeg)?;
     Ok(())
-}
-
-/// 从容器 metadata 提取内嵌歌词
-pub fn extract_embedded_lyric(dict: &HashMap<String, String>) -> Option<String> {
-    dict_get(dict, "lyrics")
-        .or_else(|| dict_get(dict, "UNSYNCEDLYRICS"))
-        .map(ToString::to_string)
-        .filter(|s| !s.is_empty())
 }
 
 /// 查找同目录下的所有歌词文件

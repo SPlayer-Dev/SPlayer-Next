@@ -136,6 +136,9 @@ export interface DesktopLyricSettings {
   useCSSDrag: boolean;
 }
 
+/** 灵动岛歌词切换动画 */
+export type DynamicIslandTransition = "bounce" | "smooth";
+
 /** 灵动岛歌词配置 */
 export interface DynamicIslandSettings {
   /** 缩放比例（0.5 ~ 2.0），1 = 100%；实际窗口高度由渲染端按基准高度 × 缩放算出 */
@@ -146,6 +149,8 @@ export interface DynamicIslandSettings {
   fontFamily: string;
   /** 逐字高亮 */
   wordByWord: boolean;
+  /** 歌词行切换动画 */
+  transition: DynamicIslandTransition;
   /** 已播放颜色 */
   playedColor: string;
   /** 未播放颜色 */
@@ -180,6 +185,8 @@ export interface TaskbarLyricSettings {
   position: TaskbarLyricPosition;
   /** 宽度自动：开启时占满可用空间，关闭时按 maxWidth 限制 */
   autoMaxWidth: boolean;
+  /** 根据当前歌词与悬浮控件动态调整真实窗口宽度 */
+  autoAdjustOccupiedSpace: boolean;
   /** 最大宽度（逻辑像素）；仅在 autoMaxWidth 关闭时生效；超出可用空间时仍以可用空间为准 */
   maxWidth: number;
   /** 左边距（逻辑像素），从可用空间左侧扣除 */
@@ -188,6 +195,8 @@ export interface TaskbarLyricSettings {
   rightMargin: number;
   /** 配色模式 */
   colorMode: TaskbarLyricColorMode;
+  /** 获焦时显示半透明背景 */
+  showBackground: boolean;
   /** 双行显示（歌词 + 翻译 / 下一行） */
   doubleLine: boolean;
   /** 显示翻译（doubleLine 开启时，副行优先显示翻译，没有翻译则回退到下一行） */
@@ -198,6 +207,8 @@ export interface TaskbarLyricSettings {
   wordByWord: boolean;
   /** 字号（逻辑像素） */
   fontSize: number;
+  /** 字重 */
+  fontWeight: number;
   /** 字体 */
   fontFamily: string;
 }
@@ -226,6 +237,16 @@ export interface ExternalApiSettings {
   port: number;
 }
 
+/** MCP 服务配置 */
+export interface McpSettings {
+  /** 服务开关 */
+  enabled: boolean;
+  /** 仅本机监听的端口 */
+  port: number;
+  /** 本机客户端连接密钥，由主进程首次使用时生成 */
+  accessKey: string;
+}
+
 /** 网络代理协议 */
 export type NetworkProxyProtocol = "off" | "http" | "https" | "socks5";
 
@@ -251,6 +272,38 @@ export interface ExternalApiStatus {
   port: number | null;
   /** 上次启动失败的错误 */
   error: { code: string; message: string } | null;
+}
+
+/** MCP 服务运行时状态 */
+export interface McpStatus {
+  /** 是否正在监听 */
+  listening: boolean;
+  /** 实际监听端口 */
+  port: number | null;
+  /** 上次启动失败的错误 */
+  error: { code: string; message: string } | null;
+}
+
+/** 生成 AI 客户端配置所需的动态参数 */
+export interface McpClientConfigParams {
+  /** MCP 服务实际使用或即将使用的端口 */
+  port: number;
+  /** 本机客户端连接密钥 */
+  accessKey: string;
+}
+
+/** 外部 AI Agent MCP 客户端应用 */
+export interface McpAgentApp {
+  /** 客户端应用标识 */
+  id: string;
+  /** 外部 AI Agent MCP 客户端应用显示名称 */
+  name: string;
+  /** 配置文件路径 */
+  configPath: string;
+  /** 是否已配置 splayer-next */
+  configured: boolean;
+  /** 是否支持自动写入配置 */
+  injectable: boolean;
 }
 
 /** 在线歌词服务配置 */
@@ -394,6 +447,8 @@ export interface SystemConfig {
   lastfm: LastfmSettings;
   /** 外部 API 服务（HTTP + WS） */
   externalApi: ExternalApiSettings;
+  /** AI 集成使用的 MCP 服务 */
+  mcp: McpSettings;
   /** 应用更新配置 */
   update: AppUpdateSettings;
   /** 系统配置 */

@@ -16,9 +16,11 @@ import {
   saveDynamicIslandState,
   applyDynamicIslandWidth,
   applyDynamicIslandHeight,
+  applyDynamicIslandShape,
   toggleTaskbarLyricWindow,
   closeTaskbarLyricWindow,
   getTaskbarLyricWindow,
+  updateTaskbarLyricContentWidth,
   minimizeMainWindow,
   toggleMaximizeMainWindow,
   isMainWindowMaximized,
@@ -81,6 +83,9 @@ export const registerWindowIpc = (): void => {
   ipcMain.on("dynamicIsland:resize", (_event, width: number) => {
     applyDynamicIslandWidth(width);
   });
+  ipcMain.on("dynamicIsland:setShape", (_event, width: number | null) => {
+    applyDynamicIslandShape(width);
+  });
 
   // 灵动岛高度变化
   ipcMain.on("dynamicIsland:setHeight", (_event, height: number) => {
@@ -101,6 +106,9 @@ export const registerWindowIpc = (): void => {
     ipcMain.handle("window:closeTaskbarLyric", () => closeTaskbarLyricWindow());
     // 查询任务栏歌词窗口是否打开
     ipcMain.handle("window:isTaskbarLyricOpen", () => !!getTaskbarLyricWindow());
+    ipcMain.on("taskbarLyric:setContentWidth", (_event, width: number) => {
+      updateTaskbarLyricContentWidth(width);
+    });
   } else {
     ipcMain.handle("window:toggleTaskbarLyric", () => false);
     ipcMain.handle("window:closeTaskbarLyric", () => undefined);

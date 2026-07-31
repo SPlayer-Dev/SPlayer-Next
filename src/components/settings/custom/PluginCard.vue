@@ -129,7 +129,7 @@ const onMenuSelect = (key: string): void => {
               <IconLucideCircleCheck v-if="info.enabled" class="size-4" />
               <IconLucidePower v-else class="size-4" />
             </template>
-            {{ info.enabled ? t("settings.plugins.enabled") : t("settings.plugins.enable") }}
+            {{ info.enabled ? t("common.enabled") : t("common.enable") }}
           </SButton>
           <SButton
             v-if="settings.length > 0"

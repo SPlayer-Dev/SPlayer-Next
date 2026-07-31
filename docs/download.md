@@ -17,4 +17,20 @@ title: 下载
 
 - **Windows**：提供安装版（含自动更新）与单文件便携版，按需选择。
 - **macOS**：首次打开若提示「应用已损坏」或无法验证，请参考 [Mac 应用显示已损坏](/troubleshooting/macos-damaged)。
-- **Linux**：提供 AppImage / deb / rpm / tar.gz 等格式，按发行版选择；启动异常可参考 [Ubuntu 沙箱启动失败](/troubleshooting/ubuntu-sandbox)。
+- **Linux**：不确定发行版格式时优先选择 AppImage；启动异常可参考 [Ubuntu 沙箱启动失败](/troubleshooting/ubuntu-sandbox)。
+
+### Linux 安装包选择
+
+| 格式     | 适用发行版                       |
+| -------- | -------------------------------- |
+| AppImage | 通用 Linux，无需安装             |
+| deb      | Debian、Ubuntu、Linux Mint       |
+| rpm      | Fedora、RHEL、openSUSE           |
+| pacman   | Arch Linux、Manjaro、EndeavourOS |
+| tar.gz   | 通用压缩包，适合手动解压运行     |
+
+Arch 系发行版从 GitHub Releases 下载 `.pacman` 文件后，可在文件所在目录安装：
+
+```bash
+sudo pacman -U ./splayer-next-*.pacman
+```

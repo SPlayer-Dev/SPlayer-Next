@@ -614,7 +614,7 @@ export const useStreamingStore = defineStore("streaming", () => {
     fetchArtistAlbums,
     fetchArtistSongs,
     search,
-    // for player.ts / lyricLoader.ts
+    // 供播放器与歌词加载服务调用
     getStreamUrl,
     getLyrics,
   };

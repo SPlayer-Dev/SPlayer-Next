@@ -5,7 +5,7 @@ import type { Platform } from "./platform";
 export type PlayerState = "idle" | "loading" | "playing" | "paused" | "stopped";
 
 /** 循环模式 */
-export type RepeatMode = "off" | "list" | "one";
+export type RepeatMode = "list" | "one";
 
 /** 随机模式 */
 export type ShuffleMode = "off" | "on";
@@ -178,8 +178,10 @@ export type PlayerEvent =
   | { type: "pause" }
   | { type: "next" }
   | { type: "prev" }
+  | { type: "playTrack"; data: { track: Track } }
   | { type: "setShuffle"; data: { mode: ShuffleMode } }
   | { type: "setRepeat"; data: { mode: RepeatMode } }
+  | { type: "addToQueue"; data: { tracks: Track[]; position: "next" | "end" } }
   | { type: "toggleLike" }
   | { type: "fftData"; data: FftData }
   | { type: "error"; error: string }

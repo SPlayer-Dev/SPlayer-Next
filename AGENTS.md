@@ -82,7 +82,7 @@ Don't reimplement these inside individual windows.
 - `shared/types/player.ts` — `Track`, `TrackDetail`, `Artist`, `Album`, `AudioQuality`, `PlayerState`, `PlayerStatus`, `PlayerEvent`, `LoadOptions`, `LoadResult`, `IpcResponse`
 - `shared/types/lyrics.ts` — `LyricFormat`, `LyricSource (external | embedded | online)`, `LyricData`, `LyricLine`, `LyricWord`, `LyricSpan`
 - `shared/types/platform.ts` — `Platform (netease | qqmusic | kugou)`
-- `shared/types/streaming.ts` — `StreamingServerType`, `StreamingServerConfig`, `StreamingPingResult`, `StreamingAuthResult` 等
+- `shared/types/streaming.ts` — `StreamingServerType`, `StreamingServerConfig`, `StreamingPingResult`, `StreamingAuthResult`, etc.
 
 `Track` is for queue storage (no heavy data); `TrackDetail` loads on demand.
 
@@ -93,7 +93,7 @@ Declarative — defined in `src/settings/schema.ts`, types in `src/types/setting
 ### Data Storage
 
 ```
-{userData}/app-data/        # 统一数据目录（与 Chromium 的 Cache/ 等隔开，便携版整体迁移此目录）
+{userData}/app-data/        # Unified data directory, separate from Chromium cache data
 ├── config/
 │   ├── settings.json       # Main config (electron/main/store/)
 │   ├── streaming.json      # Streaming credentials (safeStorage encrypted)
@@ -103,7 +103,7 @@ Declarative — defined in `src/settings/schema.ts`, types in `src/types/setting
 ├── logs/                   # App logs + native/
 └── plugins/                # scripts/ data/ logs/
 
-# 全部路径集中定义于 electron/main/utils/paths.ts，改一处即可整体迁移
+# All paths are defined centrally in electron/main/utils/paths.ts
 ```
 
 Renderer IndexedDB (localforage): `splayer/library`, `splayer/queue`, `splayer/playlists`, `splayer/streaming-cache`.
@@ -136,13 +136,14 @@ Renderer uses `vue-i18n` with `src/i18n/locales/{zh-CN,en-US}.json`. Main proces
 
 ### Comments — Chinese, with JSDoc
 
-All comments in Chinese. Methods use standard JSDoc with `@param 名 - 说明` and `@returns` when meaningful:
+All comments in Chinese. Methods use standard JSDoc with `@param name - description` and
+`@returns` when meaningful:
 
 ```ts
 /**
- * 取或生成 PlaySessionId，trackId 不变则复用
- * @param trackId - Track 全局 id
- * @returns PlaySessionId（UUID）
+ * <Chinese method description>
+ * @param trackId - <Chinese parameter description>
+ * @returns <Chinese return description>
  */
 ```
 
@@ -154,7 +155,9 @@ Split logic into files rather than separator comments. Don't extract a helper fo
 
 ### Memory Discipline
 
-Memory is a hard requirement. Main process logs `内存占用:` (`app.getAppMetrics()`, 60s after launch then every 10 min); when a change touches rendering, caching, or IPC, verify before/after with these samples.
+Memory is a hard requirement. The main process logs memory usage through `app.getAppMetrics()`
+60 seconds after launch and then every 10 minutes. When a change touches rendering, caching, or
+IPC, verify before and after with these samples.
 
 - **Images by display size** — anything blurred, sampled, or rendered small uses the 300px `cover` thumbnail (player blur background, color extraction, lists). `coverOriginal` only for the visible large cover and poster export. Large `<img>`: add `decoding="async"`; preload with `img.decode()` before fading in.
 - **Compositing layers are budgeted** — never put `will-change` in CSS on unbounded element collections; promote dynamically and only near the viewport (lyric engine `lineWillChange` pattern). New full-screen `filter: blur` / `backdrop-filter` layers need justification.
@@ -195,4 +198,6 @@ Put cross-process types (`LocaleCode / SystemConfig / StreamingServerType`, etc.
 
 ### Commit Messages
 
-Single-line title in Chinese; no body/bullets unless explicitly requested.
+Use Conventional Commits with a Chinese summary: `<type>: <summary>`. Keep the title on one line;
+do not add a body or bullets unless explicitly requested. Use the type that matches the change,
+such as `feat`, `fix`, `refactor`, `perf`, `docs`, `test`, `build`, `ci`, `style`, or `chore`.

@@ -66,6 +66,9 @@ export const buildLineElements = (
     const mainDiv = document.createElement("div");
     mainDiv.className = "lp-main";
 
+    // 为主歌词行设置 lang 属性，便于浏览器选择正确字体与排版
+    if (line.language) mainDiv.lang = line.language;
+
     // 行歌词是否静态（≤1 个单词，无逐字动画）
     const isStatic = line.words.length === 0 || (line.words.length === 1 && !hasMultiWordLine);
 

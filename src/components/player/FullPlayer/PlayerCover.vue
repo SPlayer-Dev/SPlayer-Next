@@ -19,7 +19,7 @@ const coverSrc = computed(() =>
 
 watchEffect(async () => {
   const id = media.track?.id;
-  if (!status.isExpanded || status.trackLoading || !id) return;
+  if (!status.isPlayerExpanded || status.trackLoading || !id) return;
   if (media.track?.source !== "local" || hdCache.value?.id === id) return;
   const r = await window.api.player.getCoverRaw();
   if (media.track?.id !== id || !r.success || !r.data) return;
