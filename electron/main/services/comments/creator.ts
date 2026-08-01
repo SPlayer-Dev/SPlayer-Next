@@ -146,13 +146,12 @@ export const getCreatorComments = async (
   }
 
   // 并发扫描普通评论队列补充主创低赞评论，按 commentId 去重（热评优先保留）；
-  // 某页已无更多时丢弃其后各页结果
+  // hasMore=false 的页仍有数据须先处理，处理完再丢弃其后的页
   const seenIds = new Set(result.map((c) => c.id));
   const newPages = await Promise.all(
     Array.from({ length: MAX_NEW_PAGES }, (_, i) => fetchNewPage(songId, i + 1)),
   );
   for (const { items, hasMore: pageHasMore } of newPages) {
-    if (!pageHasMore) break;
     const hits = scanCreatorComments(items, accountMap);
     for (const hit of hits) {
       if (!seenIds.has(hit.id)) {
@@ -160,6 +159,7 @@ export const getCreatorComments = async (
         result.push(hit);
       }
     }
+    if (!pageHasMore) break;
   }
 
   // 合并后按 likedCount 降序，无该字段的沉底
