@@ -157,7 +157,58 @@ export const parseLRC = (text: string, detectBackground = true): LyricLine[] => 
     }
     // 回退标准整行模式
     const lineWords = [{ startTime: 0, endTime: 0, word: content.trim() }];
-    const isBG = detectBackgroundLine(lineWords, detectBackground);
+    let isBG = detectBackgroundLine(lineWords, detectBackground);
+
+    // 尝试提取行内括号作为背景歌词（例如："Popular (Uh-huh)"）
+    if (!isBG && detectBackground) {
+      const mainWord = lineWords[0].word;
+      // 匹配括号内容：左括号 + 可选空格 + 任意内容（不含右括号）+ 可选空格 + 右括号
+      const match = mainWord.match(/[（(]\s*([^)]*)\s*[）)]/);
+      if (match) {
+        const inner = match[1].trim();
+        const bracketFull = match[0];
+        // 简单的纯假名检测
+        const KANA_ONLY_RE = /^[\p{Script=Hiragana}\p{Script=Katakana}ー\s]+$/u;
+        const cleanedForCheck = inner.replace(/[()\s]/g, '');
+        const isPureKana = cleanedForCheck.length > 0 && KANA_ONLY_RE.test(cleanedForCheck);
+
+        if (!isPureKana && inner) {
+          // 从主词中移除括号部分
+          const newMainWord = mainWord.replace(bracketFull, '').trim();
+
+          // 更新主歌词
+          lineWords[0].word = newMainWord;
+          isBG = detectBackgroundLine(lineWords, detectBackground);
+
+          // 生成主歌词行和背景行
+          for (const t of times) {
+            // 主歌词行
+            lines.push({
+              words: [{ startTime: t, endTime: 0, word: newMainWord }],
+              translatedLyric: "",
+              romanLyric: "",
+              startTime: t,
+              endTime: 0,
+              isBG: false,
+              isDuet: false,
+            });
+            // 背景行 - startTime +1ms 避免与主行合并，endTime 由后续填充确定
+            lines.push({
+              words: [{ word: inner, startTime: t + 1, endTime: 0 }],
+              translatedLyric: "",
+              romanLyric: "",
+              startTime: t + 1,
+              endTime: 0,
+              isBG: true,
+              isDuet: false,
+            });
+          }
+          continue;
+        }
+      }
+    }
+
+    // 常规单行生成
     for (const t of times) {
       lines.push({
         words: [{ startTime: t, endTime: 0, word: lineWords[0].word }],
