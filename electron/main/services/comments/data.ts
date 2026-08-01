@@ -104,15 +104,24 @@ export const optionalString = (value: unknown): string | undefined => {
   return text || undefined;
 };
 
-/** 转换网易云评论项 */
-export const normalizeNeteaseComment = (raw: NeteaseComment): MusicCommentItem | null => {
-  const id = toStringId(raw.commentId ?? raw.beRepliedCommentId);
+/**
+ * 转换网易云评论项
+ * @param raw - 原始评论数据
+ * @param fallbackId - 回复项缺自身 commentId 时的 id 兜底（父 id + 序号），避免多条回复共享父 id 造成 key 冲突
+ */
+export const normalizeNeteaseComment = (
+  raw: NeteaseComment,
+  fallbackId?: { parentId: string; index: number },
+): MusicCommentItem | null => {
+  const id =
+    toStringId(raw.commentId ?? raw.beRepliedCommentId) ||
+    (fallbackId ? `${fallbackId.parentId}_reply_${fallbackId.index}` : "");
   const text = optionalString(raw.content);
   if (!id || !text) return null;
 
   const userId = toStringId(raw.user?.userId);
   const reply = (raw.beReplied ?? [])
-    .map((item) => normalizeNeteaseComment(item))
+    .map((item, index) => normalizeNeteaseComment(item, { parentId: id, index }))
     .filter((item): item is MusicCommentItem => item !== null);
 
   const item: MusicCommentItem = {
@@ -267,8 +276,8 @@ export const scanCreatorComments = (
   for (const item of items) {
     const userId = item.userId;
     if (!userId || !accountMap.has(userId)) continue;
-    const creatorName = accountMap.get(userId);
-    result.push(creatorName ? { ...item, creatorName } : item);
+    // 歌手名为空时 creatorName 为空串，徽章回退默认文案
+    result.push({ ...item, creatorName: accountMap.get(userId) ?? "" });
   }
   return result;
 };
