@@ -30,6 +30,7 @@ const {
   activeTab,
   creatorComments,
   creatorIds,
+  creatorLoading,
   loading,
   page,
   sourceOptions,
@@ -153,7 +154,16 @@ onBeforeUnmount(() => {
         :class="immersive && !scrolling ? '[&::-webkit-scrollbar-thumb]:bg-transparent' : ''"
         @scroll="handleScroll"
       >
-        <div v-if="creatorComments.length" class="mb-6">
+        <div v-if="creatorLoading && !creatorComments.length" class="mb-6">
+          <div class="mb-3 flex items-center gap-2">
+            <span class="h-4 w-0.5 rounded-full bg-cover/70" />
+            <h3 class="m-0 text-sm font-semibold text-cover/85">{{ t("comments.creator") }}</h3>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div v-for="n in 4" :key="n" class="h-20 rounded-xl bg-cover/8 animate-pulse" />
+          </div>
+        </div>
+        <div v-else-if="creatorComments.length" class="mb-6">
           <div class="mb-3 flex items-center gap-2">
             <span class="h-4 w-0.5 rounded-full bg-cover/70" />
             <h3 class="m-0 text-sm font-semibold text-cover/85">{{ t("comments.creator") }}</h3>
@@ -166,7 +176,10 @@ onBeforeUnmount(() => {
           />
         </div>
 
-        <div v-if="!sources.length" class="flex min-h-64 items-center justify-center text-cover/35">
+        <div
+          v-if="!sources.length && !error"
+          class="flex min-h-64 items-center justify-center text-cover/35"
+        >
           <div class="text-center">
             <IconLucideMessageCircleOff class="mx-auto mb-4 size-14 opacity-30" />
             <div class="text-sm">{{ t("comments.noSource") }}</div>
@@ -177,7 +190,7 @@ onBeforeUnmount(() => {
           class="flex min-h-64 flex-col items-center justify-center gap-3"
         >
           <div class="text-sm text-cover/55">{{ error }}</div>
-          <SButton type="cover" variant="outline" @click="comments.loadPage(activeTab, 1)">
+          <SButton type="cover" variant="outline" @click="comments.retry">
             {{ t("common.retry") }}
           </SButton>
         </div>

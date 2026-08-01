@@ -117,7 +117,8 @@ const coverCentered = computed(() => {
 /** 全屏内嵌评论布局模式：off 关闭 / half 左半屏 / full 全屏 */
 const fullCommentMode = computed<"off" | "half" | "full">(() => {
   if (!status.fullCommentsOpen) return "off";
-  return hasLyric.value && showLyric.value ? "half" : "full";
+  // 用实际就绪歌词判定，避免歌词加载中/失败导致面板宽度来回切换
+  return media.parsedLyric.length > 0 && showLyric.value ? "half" : "full";
 });
 
 const handleLyricSeek = async (timeMs: number): Promise<void> => {
