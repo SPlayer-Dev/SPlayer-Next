@@ -16,7 +16,14 @@ const router = useRouter();
 const media = useMediaStore();
 
 const source = route.params.source as TrackSource;
-const id = decodeURIComponent(route.params.id as string);
+const rawId = route.params.id as string;
+/** 非法 URL 编码时回退原始字符串，避免 URIError 崩溃页面 */
+let id: string;
+try {
+  id = decodeURIComponent(rawId);
+} catch {
+  id = rawId;
+}
 
 /** 构建独立页使用的冻结曲目快照 */
 const buildSnapshot = (): Track | null => {
@@ -47,6 +54,7 @@ const {
   activeTab,
   creatorComments,
   creatorIds,
+  creatorLoading,
   loading,
   page,
   sourceOptions,
@@ -167,13 +175,19 @@ onBeforeUnmount(() => loadMoreObserver?.disconnect());
       class="min-h-0 flex-1 overflow-y-auto px-5 pb-4 [scrollbar-gutter:stable]"
       @scroll="handleListScroll"
     >
-      <div v-if="creatorComments.length" class="mb-5">
+      <div v-if="creatorLoading && !creatorComments.length" class="mb-5">
+        <h3 class="text-sm font-semibold mb-3 text-on-surface">{{ t("comments.creator") }}</h3>
+        <div class="grid grid-cols-2 gap-3">
+          <div v-for="n in 4" :key="n" class="h-20 rounded-xl bg-on-surface/5 animate-pulse" />
+        </div>
+      </div>
+      <div v-else-if="creatorComments.length" class="mb-5">
         <h3 class="text-sm font-semibold mb-3 text-on-surface">{{ t("comments.creator") }}</h3>
         <CommentList :items="creatorComments" :creator-ids="creatorIds" :column-min-width="360" />
       </div>
 
       <div
-        v-if="!sources.length"
+        v-if="!sources.length && !error"
         class="flex items-center justify-center py-16 text-on-surface-variant/60"
       >
         <div class="text-center">
@@ -186,7 +200,7 @@ onBeforeUnmount(() => loadMoreObserver?.disconnect());
         class="flex flex-col items-center justify-center gap-3 py-16"
       >
         <div class="text-sm text-on-surface-variant">{{ error }}</div>
-        <SButton variant="outline" @click="comments.loadPage(activeTab, 1)">
+        <SButton variant="outline" @click="comments.retry">
           {{ t("common.retry") }}
         </SButton>
       </div>

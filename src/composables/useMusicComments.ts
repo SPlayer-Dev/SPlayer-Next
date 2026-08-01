@@ -51,6 +51,8 @@ export const useMusicComments = (
   const sourceId = ref("");
   const activeTab = ref<CommentTab>("hot");
   const loadingCount = ref(0);
+  /** 评论源加载失败信息（loadSources reject 时兜底，避免静默空状态） */
+  const sourceError = ref("");
 
   const pages = reactive<Record<CommentTab, CommentTabState>>({
     hot: createTabState(),
@@ -76,19 +78,26 @@ export const useMusicComments = (
 
   const loading = computed(() => loadingCount.value > 0);
   const page = computed(() => pages[activeTab.value]);
-  const error = computed(() => page.value.initialError);
+  const error = computed(() => sourceError.value || page.value.initialError);
   const creatorIds = computed(() => new Set(creatorComments.value.map((comment) => comment.id)));
   const dedupedList = computed(() =>
     page.value.list.filter((item) => !creatorIds.value.has(item.id)),
   );
 
-  /** 加载可用评论源，确保 sourceId 有效 */
+  /** 加载可用评论源，确保 sourceId 有效；失败时记录 sourceError 供 UI 重试 */
   const loadSources = async (): Promise<void> => {
-    const availableSources = await window.api.comments.sources();
-    if (disposed) return;
-    sources.value = availableSources;
-    if (!sources.value.some((source) => source.id === sourceId.value)) {
-      sourceId.value = sources.value[0]?.id ?? "";
+    try {
+      const availableSources = await window.api.comments.sources();
+      if (disposed) return;
+      sources.value = availableSources;
+      sourceError.value = "";
+      if (!sources.value.some((source) => source.id === sourceId.value)) {
+        sourceId.value = sources.value[0]?.id ?? "";
+      }
+    } catch (err) {
+      if (disposed) return;
+      sources.value = [];
+      sourceError.value = err instanceof Error ? err.message : String(err);
     }
   };
 
@@ -242,6 +251,21 @@ export const useMusicComments = (
     scrollRef.value?.scrollTo({ top: 0 });
   };
 
+  /** 评论源加载失败后的整体重试：重新加载源，成功后再刷新评论 */
+  const retryInit = async (): Promise<void> => {
+    await loadSources();
+    if (!sourceError.value) await refresh();
+  };
+
+  /** 统一重试：源加载失败走 retryInit，否则重拉当前 Tab 首页 */
+  const retry = async (): Promise<void> => {
+    if (sourceError.value) {
+      await retryInit();
+    } else {
+      await loadPage(activeTab.value, 1);
+    }
+  };
+
   const setSource = (id: string): void => {
     sourceId.value = id;
   };
@@ -261,7 +285,7 @@ export const useMusicComments = (
   });
 
   void loadSources().then(async () => {
-    if (!disposed) await refresh();
+    if (!disposed && !sourceError.value) await refresh();
   });
 
   onScopeDispose(() => {
@@ -292,6 +316,8 @@ export const useMusicComments = (
     loadMore,
     loadCreator,
     refresh,
+    retry,
+    retryInit,
     setSource,
     setTab,
   };
