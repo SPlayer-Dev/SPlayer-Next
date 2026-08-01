@@ -1,6 +1,7 @@
 import { callNetease } from "@main/apis/netease";
 import { coreLog } from "@main/utils/logger";
 import type { MusicCommentCreatorQuery, MusicCommentItem } from "@shared/types/comment";
+import { BoundedMap } from "./cache";
 import { normalizeNeteaseCommentPage, optionalString, scanCreatorComments } from "./data";
 import { findNeteaseSongMeta } from "./index";
 
@@ -13,38 +14,6 @@ const MAX_EXTRA_PAGES = 3;
 const MAX_NEW_PAGES = 5;
 const ARTIST_ACCOUNT_CACHE_LIMIT = 200;
 const CREATOR_COMMENTS_CACHE_LIMIT = 100;
-
-/**
- * 简易有界 LRU Map
- * Map 保持插入顺序，访问时移到末尾，超限时删除首项
- */
-class BoundedMap<K, V> {
-  private readonly map = new Map<K, V>();
-  constructor(private readonly limit: number) {}
-
-  has(key: K): boolean {
-    return this.map.has(key);
-  }
-
-  get(key: K): V | undefined {
-    const v = this.map.get(key);
-    if (v !== undefined && this.map.size > 1) {
-      this.map.delete(key);
-      this.map.set(key, v);
-    }
-    return v;
-  }
-
-  set(key: K, value: V): void {
-    if (this.map.has(key)) this.map.delete(key);
-    this.map.set(key, value);
-    while (this.map.size > this.limit) {
-      const first = this.map.keys().next().value;
-      if (first === undefined) break;
-      this.map.delete(first);
-    }
-  }
-}
 
 type ArtistAccountInfo = { accountId: string; artistName: string };
 
@@ -97,34 +66,36 @@ const fetchNewPage = async (
  */
 const resolveArtistAccountIds = async (artistIds: string[]): Promise<Map<string, string>> => {
   const accountToName = new Map<string, string>();
-  for (const artistId of artistIds) {
-    if (!artistId) continue;
-    const cached = artistAccountIdCache.get(artistId);
-    if (cached !== undefined) {
-      if (cached) accountToName.set(cached.accountId, cached.artistName);
-      continue;
-    }
-    try {
-      const { body } = await callNetease("artists", { id: artistId });
-      const rawAccountId = body?.artist?.accountId;
-      const accountId =
-        typeof rawAccountId === "number" && rawAccountId > 0
-          ? String(rawAccountId)
-          : typeof rawAccountId === "string" && rawAccountId
-            ? rawAccountId
-            : null;
-      const artistName = optionalString(body?.artist?.name) ?? "";
-      if (accountId) {
-        artistAccountIdCache.set(artistId, { accountId, artistName });
-        accountToName.set(accountId, artistName);
-      } else {
+  const uniqueIds = [...new Set(artistIds.filter((id) => !!id))];
+  await Promise.all(
+    uniqueIds.map(async (artistId) => {
+      const cached = artistAccountIdCache.get(artistId);
+      if (cached !== undefined) {
+        if (cached) accountToName.set(cached.accountId, cached.artistName);
+        return;
+      }
+      try {
+        const { body } = await callNetease("artists", { id: artistId });
+        const rawAccountId = body?.artist?.accountId;
+        const accountId =
+          typeof rawAccountId === "number" && rawAccountId > 0
+            ? String(rawAccountId)
+            : typeof rawAccountId === "string" && rawAccountId
+              ? rawAccountId
+              : null;
+        const artistName = optionalString(body?.artist?.name) ?? "";
+        if (accountId) {
+          artistAccountIdCache.set(artistId, { accountId, artistName });
+          accountToName.set(accountId, artistName);
+        } else {
+          artistAccountIdCache.set(artistId, null);
+        }
+      } catch (err) {
+        coreLog.warn(`[comments] resolve artist ${artistId} accountId failed:`, err);
         artistAccountIdCache.set(artistId, null);
       }
-    } catch (err) {
-      coreLog.warn(`[comments] resolve artist ${artistId} accountId failed:`, err);
-      artistAccountIdCache.set(artistId, null);
-    }
-  }
+    }),
+  );
   return accountToName;
 };
 
@@ -152,12 +123,16 @@ export const getCreatorComments = async (
   }
 
   const result: MusicCommentItem[] = [];
-  let hasMore = true;
-  // 前两页必拉，收集全部命中
-  for (let page = 1; page <= 2 && hasMore; page++) {
-    const { items, hasMore: hm } = await fetchHotPage(songId, page);
-    result.push(...scanCreatorComments(items, accountMap));
-    hasMore = hm;
+  // 前两页并发拉取；第 1 页已无更多时丢弃第 2 页结果，保持与顺序拉取一致
+  const [firstPage, secondPage] = await Promise.all([
+    fetchHotPage(songId, 1),
+    fetchHotPage(songId, 2),
+  ]);
+  result.push(...scanCreatorComments(firstPage.items, accountMap));
+  let hasMore = firstPage.hasMore;
+  if (hasMore) {
+    result.push(...scanCreatorComments(secondPage.items, accountMap));
+    hasMore = secondPage.hasMore;
   }
   // 前两页无命中 + 还有更多 → 额外翻页，命中即停
   if (result.length === 0 && hasMore) {
@@ -170,11 +145,14 @@ export const getCreatorComments = async (
     }
   }
 
-  // 扫描普通评论队列补充主创低赞评论，按 commentId 去重（热评优先保留）
+  // 并发扫描普通评论队列补充主创低赞评论，按 commentId 去重（热评优先保留）；
+  // 某页已无更多时丢弃其后各页结果
   const seenIds = new Set(result.map((c) => c.id));
-  let newHasMore = true;
-  for (let page = 1; page <= MAX_NEW_PAGES && newHasMore; page++) {
-    const { items, hasMore: hm } = await fetchNewPage(songId, page);
+  const newPages = await Promise.all(
+    Array.from({ length: MAX_NEW_PAGES }, (_, i) => fetchNewPage(songId, i + 1)),
+  );
+  for (const { items, hasMore: pageHasMore } of newPages) {
+    if (!pageHasMore) break;
     const hits = scanCreatorComments(items, accountMap);
     for (const hit of hits) {
       if (!seenIds.has(hit.id)) {
@@ -182,7 +160,6 @@ export const getCreatorComments = async (
         result.push(hit);
       }
     }
-    newHasMore = hm;
   }
 
   // 合并后按 likedCount 降序，无该字段的沉底
