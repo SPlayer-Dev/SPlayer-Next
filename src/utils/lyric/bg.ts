@@ -14,7 +14,7 @@ const KANA_ONLY_RE = /^[\p{Script=Hiragana}\p{Script=Katakana}\u30fc\s]+$/u;
 
 /** 判断字符串是否主要由日文假名组成（用于排除日语注音） */
 const isPureKana = (text: string): boolean => {
-  const cleaned = text.replace(/[()\s]/g, '');
+  const cleaned = text.replace(/[()\s]/g, "");
   if (cleaned.length === 0) return false;
   return KANA_ONLY_RE.test(cleaned);
 };
@@ -52,8 +52,8 @@ export const detectBackgroundLine = (words: LyricWord[], enabled = true): boolea
   const unwrapSingleWord = (word: string): string | null => {
     const trimmed = word.trim();
     if (trimmed.length < 2) return null;
-    const startOpen = trimmed[0] === '(' || trimmed[0] === '（';
-    const endClose = trimmed[trimmed.length - 1] === ')' || trimmed[trimmed.length - 1] === '）';
+    const startOpen = trimmed[0] === "(" || trimmed[0] === "（";
+    const endClose = trimmed[trimmed.length - 1] === ")" || trimmed[trimmed.length - 1] === "）";
     if (startOpen && endClose) {
       return trimmed.slice(1, -1).trim();
     }
@@ -118,8 +118,9 @@ export const splitParentheticalBackground = (line: LyricLine, enabled = true): L
   if (openIndex === 0) return null;
 
   // 检查括号内容是否主要是日文假名，如果是则跳过（避免将日语注音误认为背景歌词）
-  const bracketContent = words.slice(openIndex, closeIndex + 1)
-    .map(w => w.word.replace(OPEN_PAREN_RE, "").replace(CLOSE_PAREN_RE, "").trim())
+  const bracketContent = words
+    .slice(openIndex, closeIndex + 1)
+    .map((w) => w.word.replace(OPEN_PAREN_RE, "").replace(CLOSE_PAREN_RE, "").trim())
     .join("");
 
   if (isPureKana(bracketContent)) {

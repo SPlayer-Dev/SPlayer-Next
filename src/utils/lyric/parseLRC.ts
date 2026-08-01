@@ -169,12 +169,12 @@ export const parseLRC = (text: string, detectBackground = true): LyricLine[] => 
         const bracketFull = match[0];
         // 简单的纯假名检测
         const KANA_ONLY_RE = /^[\p{Script=Hiragana}\p{Script=Katakana}ー\s]+$/u;
-        const cleanedForCheck = inner.replace(/[()\s]/g, '');
+        const cleanedForCheck = inner.replace(/[()\s]/g, "");
         const isPureKana = cleanedForCheck.length > 0 && KANA_ONLY_RE.test(cleanedForCheck);
 
         if (!isPureKana && inner) {
           // 从主词中移除括号部分
-          const newMainWord = mainWord.replace(bracketFull, '').trim();
+          const newMainWord = mainWord.replace(bracketFull, "").trim();
 
           // 更新主歌词
           lineWords[0].word = newMainWord;
