@@ -138,9 +138,7 @@
     "page": "Page {page} / {total}",
     "creator": "Creator Says",
     "creatorBadge": "Creator",
-    "playTrack": "Play Track",
-    "back": "Back",
-    "pageTitle": "Song Comments"
+    "playTrack": "Play Track"
   },
   "equalizer": {
     "title": "Equalizer",
