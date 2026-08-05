@@ -79,9 +79,7 @@ const measureTextWidth = (text: string, sizePx: number = fontSize.value): number
 };
 
 /* 艺术家显示文本 */
-const artistsText = computed<string>(
-  () => formatArtists(track.value?.artists) || "未知艺术家",
-);
+const artistsText = computed<string>(() => formatArtists(track.value?.artists) || "未知艺术家");
 
 /* 当前行 */
 const currentLine = computed<LyricLine | null>(() => {

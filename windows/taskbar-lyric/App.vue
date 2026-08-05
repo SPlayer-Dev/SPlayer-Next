@@ -125,9 +125,7 @@ const currentLine = computed<LyricLine | null>(() => {
 const hasLyric = computed(() => lyric.value.length > 0 && primaryIndex.value >= 0);
 
 const titleText = computed<string>(() => track.value?.title ?? "SPlayer Next");
-const artistsText = computed<string>(
-  () => formatArtists(track.value?.artists) || "未知艺术家",
-);
+const artistsText = computed<string>(() => formatArtists(track.value?.artists) || "未知艺术家");
 
 const effectiveTheme = computed<"light" | "dark">(() => {
   if (config.colorMode === "light") return "light";
