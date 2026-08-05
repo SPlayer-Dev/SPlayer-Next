@@ -50,6 +50,8 @@ const NON_CACHEABLE: ReadonlySet<string> = new Set([
   "playlist_detail",
   "user_playlist",
   "user_subcount",
+  "daily_signin",
+  "signin_progress",
   "user_cloud",
   "user_cloud_del",
   "cloud_upload_check",

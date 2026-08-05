@@ -2,10 +2,12 @@
 import { useUserStore } from "@/stores/user";
 import { dialog } from "@/composables/useDialog";
 import { toast } from "@/composables/useToast";
+import { dailySignin, fetchSigninStatus } from "@/apis/user/netease";
 import vipImg from "@/assets/images/vip.png";
 import IconLucideListMusic from "~icons/lucide/list-music";
 import IconLucideDisc3 from "~icons/lucide/disc-3";
 import IconLucideUserRound from "~icons/lucide/user-round";
+import IconLucideDatabase from "~icons/lucide/database";
 
 const { t } = useI18n();
 const router = useRouter();
@@ -13,12 +15,55 @@ const user = useUserStore();
 
 const loginOpen = ref(false);
 const popoverOpen = ref(false);
+const signinLoading = ref(false);
+/** 今日是否已签到 */
+const signed = ref(false);
+/** 连续签到天数（签到进度接口不可用时为 undefined，隐藏徽章） */
+const signinDays = ref<number>();
+
+/** 本地签到日期记录 key（值为 YYYY-MM-DD，跨天自动失效） */
+const SIGNIN_DATE_KEY = "splayer/netease-signin-date";
+
+/** 本地日期字符串（YYYY-MM-DD） */
+const todayStr = (): string => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
+};
+
+/** 写入/清除本地签到记录 */
+const persistSigned = (): void => {
+  localStorage.setItem(SIGNIN_DATE_KEY, todayStr());
+};
+
+/** 本地记录今天已签到（接口拿不到状态时兜底） */
+const locallySigned = (): boolean => localStorage.getItem(SIGNIN_DATE_KEY) === todayStr();
+
+/** 拉取签到状态（今日签到 + 连续天数），失败时静默保留旧值 */
+const refreshSigninStatus = async (): Promise<void> => {
+  try {
+    const status = await fetchSigninStatus();
+    if (status.signed === true) signed.value = true;
+    if (status.days !== undefined) signinDays.value = status.days;
+  } catch {
+    // 状态仅为展示性信息，失败不打扰用户
+  }
+};
 
 /** 启动时校验登录态（cookie 仍有效就刷新 profile） */
 onMounted(() => {
   if (user.profile) {
     user.fetchStatus().catch(() => undefined);
   }
+});
+
+/** 每次展开面板时重置签到状态，再以本地记录 + 接口为准 */
+watch(popoverOpen, (open) => {
+  if (!open || !user.isLoggedIn) return;
+  signed.value = false;
+  if (locallySigned()) signed.value = true;
+  refreshSigninStatus();
 });
 
 const isVip = computed(() => !!user.profile?.vipType && user.profile.vipType !== 0);
@@ -54,6 +99,32 @@ const onTriggerClick = (): void => {
 const handleStatClick = (key: "playlist" | "album" | "artist"): void => {
   popoverOpen.value = false;
   router.push({ path: "/favorites", query: { tab: key } });
+};
+
+const handleSignin = async (): Promise<void> => {
+  if (signinLoading.value) return;
+  signinLoading.value = true;
+  try {
+    const { point } = await dailySignin(1);
+    toast.success(t("login.signinSuccess", { point }));
+    signed.value = true;
+    persistSigned();
+    refreshSigninStatus();
+  } catch (err) {
+    const code = (err as Error & { code?: number }).code;
+    if (code === -2) {
+      // 服务端确认今日已签到
+      toast.info(t("login.signinRepeat"));
+      signed.value = true;
+      persistSigned();
+    } else if (code === 301) {
+      toast.warning(t("login.signinNeedLogin"));
+    } else {
+      toast.error(t("login.signinFailed"));
+    }
+  } finally {
+    signinLoading.value = false;
+  }
 };
 
 const handleLogout = async (): Promise<void> => {
@@ -159,6 +230,23 @@ const handleLogout = async (): Promise<void> => {
         </div>
       </div>
       <SDivider class="w-full" />
+      <SButton
+        variant="secondary"
+        size="small"
+        block
+        :loading="signinLoading"
+        :disabled="signed"
+        @click="handleSignin"
+      >
+        <template #icon><IconLucideDatabase /></template>
+        {{ signed ? t("login.signed") : t("login.signin") }}
+        <span
+          v-if="signinDays !== undefined"
+          class="ml-0.5 inline-flex items-center px-1 py-0.5 rounded-md bg-primary/15 text-primary text-[10px] font-semibold leading-none tabular-nums"
+        >
+          {{ signinDays }}
+        </span>
+      </SButton>
       <SButton variant="secondary" size="small" block @click="handleLogout">
         <template #icon><IconLucideLogOut /></template>
         {{ t("login.logout") }}

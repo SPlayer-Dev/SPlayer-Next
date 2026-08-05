@@ -38,6 +38,8 @@ import user_level from "./user_level";
 import user_playlist from "./user_playlist";
 import user_record from "./user_record";
 import user_subcount from "./user_subcount";
+import daily_signin from "./daily_signin";
+import signin_progress from "./signin_progress";
 
 // 搜索
 import cloudsearch from "./cloudsearch";
@@ -132,6 +134,8 @@ export const modules: Record<string, NeteaseModule> = {
   user_playlist,
   user_record,
   user_subcount,
+  daily_signin,
+  signin_progress,
 
   cloudsearch,
   search,

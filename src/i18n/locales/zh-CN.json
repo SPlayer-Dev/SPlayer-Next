@@ -331,7 +331,13 @@
     "logout": "退出登录",
     "logoutConfirmTitle": "退出登录",
     "logoutConfirmDesc": "确认退出当前账号？",
-    "logoutDone": "已退出登录"
+    "logoutDone": "已退出登录",
+    "signin": "签到",
+    "signed": "已签到",
+    "signinSuccess": "签到成功，经验 +{point}",
+    "signinRepeat": "今日已签到",
+    "signinNeedLogin": "登录已失效，请重新登录",
+    "signinFailed": "签到失败，请稍后重试"
   },
   "search": {
     "title": "搜索",
