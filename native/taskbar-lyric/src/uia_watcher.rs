@@ -5,7 +5,7 @@
 
 use std::{
     sync::{Mutex, mpsc},
-    thread,
+    thread::{self, JoinHandle},
     time::Duration,
 };
 
@@ -79,16 +79,18 @@ impl IUIAutomationStructureChangedEventHandler_Impl for TaskbarEventHandler_Impl
 
 pub struct UiaWatcher {
     thread_id: Option<u32>,
+    message_thread: Option<JoinHandle<()>>,
+    debounce_thread: Option<JoinHandle<()>>,
 }
 
 impl UiaWatcher {
     pub fn new(callback: LayoutChangedCallback) -> Result<Self> {
-        let (tid_tx, tid_rx) = mpsc::channel::<u32>();
+        let (tid_tx, tid_rx) = mpsc::channel::<Result<u32>>();
         let (pulse_tx, pulse_rx) = mpsc::channel::<()>();
 
         // 去抖线程：DEBOUNCE_MS 窗口内的多次 pulse 聚合成一次 callback
         // 不能在 COM 事件 handler 里直接 sleep——会阻塞 UIA 事件循环
-        thread::spawn(move || {
+        let debounce_thread = thread::spawn(move || {
             while pulse_rx.recv().is_ok() {
                 loop {
                     match pulse_rx.recv_timeout(Duration::from_millis(DEBOUNCE_MS)) {
@@ -101,39 +103,52 @@ impl UiaWatcher {
             }
         });
 
-        thread::spawn(move || unsafe {
-            // 进入 MTA apartment，作用域结束自动配对 CoUninitialize；失败时把当前线程 ID 透出后退出
+        // SAFETY: COM apartment、UIA handler 和消息循环都在同一线程建立并配对清理。
+        let message_thread = thread::spawn(move || unsafe {
+            // 进入 MTA apartment，作用域结束自动配对 CoUninitialize
             let Some(_com_guard) = ComApartmentGuard::try_init() else {
-                let _ = tid_tx.send(GetCurrentThreadId());
+                let _ = tid_tx.send(Err(anyhow!("初始化 UIA COM apartment 失败")));
                 return;
             };
 
             let thread_id = GetCurrentThreadId();
-            // 下方 UIA 注册可耗时数百 ms，必须先建队列再透出 tid
             ensure_thread_message_queue();
-            let _ = tid_tx.send(thread_id);
 
-            let automation_res: WinResult<IUIAutomation> =
-                CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER);
-
-            let _handlers_guard = if let Ok(ref automation) = automation_res
-                && let Some(hwnd) = find_taskbar_hwnd()
-                && let Ok(root_element) = automation.ElementFromHandle(hwnd)
-            {
-                let struct_handler: IUIAutomationStructureChangedEventHandler =
-                    TaskbarEventHandler::new(pulse_tx).into();
-
-                let _ = automation.AddStructureChangedEventHandler(
+            let automation: IUIAutomation =
+                match CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER) {
+                    Ok(automation) => automation,
+                    Err(_) => {
+                        let _ = tid_tx.send(Err(anyhow!("创建 UIA automation 失败")));
+                        return;
+                    }
+                };
+            let Some(hwnd) = find_taskbar_hwnd() else {
+                let _ = tid_tx.send(Err(anyhow!("找不到任务栏窗口")));
+                return;
+            };
+            let root_element = match automation.ElementFromHandle(hwnd) {
+                Ok(element) => element,
+                Err(_) => {
+                    let _ = tid_tx.send(Err(anyhow!("获取任务栏 UIA 根元素失败")));
+                    return;
+                }
+            };
+            let struct_handler: IUIAutomationStructureChangedEventHandler =
+                TaskbarEventHandler::new(pulse_tx).into();
+            if automation
+                .AddStructureChangedEventHandler(
                     &root_element,
                     TreeScope_Descendants,
                     None,
                     &struct_handler,
-                );
-
-                Some(struct_handler)
-            } else {
-                None
-            };
+                )
+                .is_err()
+            {
+                let _ = tid_tx.send(Err(anyhow!("注册 UIA 结构变化事件失败")));
+                return;
+            }
+            let _handlers_guard = struct_handler;
+            let _ = tid_tx.send(Ok(thread_id));
 
             let mut msg = MSG::default();
             while GetMessageW(&raw mut msg, None, 0, 0).as_bool() {
@@ -141,29 +156,35 @@ impl UiaWatcher {
                 let _ = DispatchMessageW(&raw const msg);
             }
 
-            if let Ok(automation) = automation_res {
-                let _ = automation.RemoveAllEventHandlers();
-            }
-
+            let _ = automation.RemoveAllEventHandlers();
             drop(_handlers_guard);
             // _com_guard 在 closure 结束时 drop 配对 CoUninitialize
         });
 
         let thread_id = tid_rx
             .recv()
-            .map_err(|error| anyhow!("获取线程 ID 失败: {error}"))?;
+            .map_err(|error| anyhow!("获取线程 ID 失败: {error}"))??;
 
         Ok(Self {
             thread_id: Some(thread_id),
+            message_thread: Some(message_thread),
+            debounce_thread: Some(debounce_thread),
         })
     }
 
     pub fn stop(&mut self) {
         if let Some(tid) = self.thread_id {
+            // SAFETY: tid 来自已经建立消息队列的 UIA watcher 线程。
             unsafe {
                 let _ = PostThreadMessageW(tid, WM_QUIT, WPARAM(0), LPARAM(0));
             }
             self.thread_id = None;
+            if let Some(thread) = self.message_thread.take() {
+                let _ = thread.join();
+            }
+            if let Some(thread) = self.debounce_thread.take() {
+                let _ = thread.join();
+            }
         }
     }
 }

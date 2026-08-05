@@ -1,7 +1,7 @@
 use std::{
     io::Write,
     process,
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex, RwLock, mpsc as std_mpsc},
     thread,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -15,8 +15,9 @@ use napi::threadsafe_function::ThreadsafeFunctionCallMode;
 use tempfile::NamedTempFile;
 use tokio::{
     runtime::Runtime,
-    sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
+    sync::mpsc::{Receiver, Sender, channel},
 };
+use tracing::{error, warn};
 
 use super::{MediaThreadsafeFunction, SystemMediaControls};
 use crate::model::{
@@ -38,33 +39,88 @@ enum MprisCommand {
 }
 
 pub struct LinuxImpl {
-    sender: UnboundedSender<MprisCommand>,
+    sender: Mutex<Option<Sender<MprisCommand>>>,
+    thread: Mutex<Option<thread::JoinHandle<()>>>,
 }
 
 impl LinuxImpl {
     pub fn new() -> Self {
-        let (tx, rx) = unbounded_channel();
+        Self {
+            sender: Mutex::new(None),
+            thread: Mutex::new(None),
+        }
+    }
 
-        thread::spawn(move || {
+    fn start(&self) -> Result<()> {
+        let mut sender = self
+            .sender
+            .lock()
+            .map_err(|e| anyhow::anyhow!("MPRIS sender 锁失败: {e}"))?;
+        if sender.is_some() {
+            return Ok(());
+        }
+
+        let (tx, rx) = channel(32);
+        let (ready_tx, ready_rx) = std_mpsc::channel();
+
+        let thread = thread::spawn(move || {
             let rt = match Runtime::new() {
                 Ok(r) => r,
                 Err(e) => {
-                    eprintln!("[media-ctrl] 无法创建 MPRIS Tokio Runtime: {e:?}");
+                    let _ = ready_tx.send(Err(format!("无法创建 MPRIS Tokio Runtime: {e:?}")));
                     return;
                 }
             };
             rt.block_on(async move {
-                if let Err(e) = run_mpris_loop(rx).await {
-                    eprintln!("[media-ctrl] MPRIS 循环异常退出: {e:?}");
+                if let Err(e) = run_mpris_loop(rx, ready_tx).await {
+                    error!(error = %e, "MPRIS 循环异常退出");
                 }
             });
         });
 
-        Self { sender: tx }
+        match ready_rx.recv() {
+            Ok(Ok(())) => {
+                *sender = Some(tx);
+                if let Ok(mut current) = self.thread.lock() {
+                    *current = Some(thread);
+                }
+                Ok(())
+            }
+            Ok(Err(error)) => {
+                let _ = thread.join();
+                Err(anyhow::anyhow!(error))
+            }
+            Err(error) => {
+                let _ = thread.join();
+                Err(anyhow::anyhow!("MPRIS ready 握手失败: {error}"))
+            }
+        }
     }
 
     fn send_cmd(&self, cmd: MprisCommand) {
-        let _ = self.sender.send(cmd);
+        if let Ok(sender) = self.sender.lock()
+            && let Some(sender) = sender.as_ref()
+        {
+            // 控制、元数据和状态是低频且不可丢的，队列满时等待 actor 接收。
+            let _ = sender.blocking_send(cmd);
+        }
+    }
+
+    fn send_timeline(&self, timeline: TimelineParam) {
+        if let Ok(sender) = self.sender.lock()
+            && let Some(sender) = sender.as_ref()
+        {
+            // 时间轴是高频快照；有界队列繁忙时允许下一次位置覆盖本次更新。
+            let _ = sender.try_send(MprisCommand::UpdateTimeline(timeline));
+        }
+    }
+
+    fn send_shutdown(&self) {
+        if let Ok(mut sender) = self.sender.lock()
+            && let Some(sender) = sender.take()
+        {
+            let _ = sender.blocking_send(MprisCommand::Shutdown);
+        }
     }
 }
 
@@ -136,9 +192,13 @@ async fn process_metadata(
         match tempfile::Builder::new().suffix(".jpg").tempfile() {
             Ok(mut file) => {
                 if file.write_all(&data).is_ok() {
-                    let url = format!("file://{}", file.path().to_string_lossy());
-                    *cover_guard = Some(file);
-                    Some(url)
+                    match url::Url::from_file_path(file.path()) {
+                        Ok(url) => {
+                            *cover_guard = Some(file);
+                            Some(url.to_string())
+                        }
+                        Err(()) => None,
+                    }
                 } else {
                     None
                 }
@@ -177,7 +237,9 @@ async fn process_metadata(
         mb = mb.art_url(url);
     }
 
-    player.set_metadata(mb.build()).await.ok();
+    if let Err(error) = player.set_metadata(mb.build()).await {
+        warn!(%error, "更新 MPRIS metadata 失败");
+    }
     player.set_position(Time::from_millis(0));
 }
 
@@ -201,19 +263,27 @@ async fn handle_cmd(
                 PlaybackStatus::Playing => MprisPlaybackStatus::Playing,
                 PlaybackStatus::Paused => MprisPlaybackStatus::Paused,
             };
-            player.set_playback_status(status).await.ok();
+            if let Err(error) = player.set_playback_status(status).await {
+                warn!(%error, "更新 MPRIS 播放状态失败");
+            }
         }
         MprisCommand::UpdatePlaybackRate(rate) => {
-            player.set_rate(rate).await.ok();
+            if let Err(error) = player.set_rate(rate).await {
+                warn!(%error, "更新 MPRIS 倍速失败");
+            }
         }
         MprisCommand::UpdateVolume(vol) => {
-            player.set_volume(vol).await.ok();
+            if let Err(error) = player.set_volume(vol).await {
+                warn!(%error, "更新 MPRIS 音量失败");
+            }
         }
         MprisCommand::UpdateTimeline(p) => {
             let pos = Time::from_millis(p.current_ms as i64);
             player.set_position(pos);
             if p.seeked.unwrap_or(false) {
-                player.seeked(pos).await.ok();
+                if let Err(error) = player.seeked(pos).await {
+                    warn!(%error, "发送 MPRIS seeked 失败");
+                }
             }
         }
         MprisCommand::UpdatePlayMode(p) => {
@@ -222,30 +292,41 @@ async fn handle_cmd(
                 RepeatMode::Track => MprisLoopStatus::Track,
                 RepeatMode::List => MprisLoopStatus::Playlist,
             };
-            player.set_loop_status(loop_status).await.ok();
-            player.set_shuffle(p.shuffle).await.ok();
+            if let Err(error) = player.set_loop_status(loop_status).await {
+                warn!(%error, "更新 MPRIS 循环状态失败");
+            }
+            if let Err(error) = player.set_shuffle(p.shuffle).await {
+                warn!(%error, "更新 MPRIS 随机状态失败");
+            }
         }
         MprisCommand::Enable => {}
         MprisCommand::Disable => {
-            player
+            if let Err(error) = player
                 .set_playback_status(MprisPlaybackStatus::Stopped)
                 .await
-                .ok();
-            player.set_metadata(Metadata::new()).await.ok();
+            {
+                warn!(%error, "停止 MPRIS 状态失败");
+            }
+            if let Err(error) = player.set_metadata(Metadata::new()).await {
+                warn!(%error, "清空 MPRIS metadata 失败");
+            }
         }
     }
     true
 }
 
 #[allow(clippy::future_not_send)]
-async fn run_mpris_loop(mut rx: UnboundedReceiver<MprisCommand>) -> Result<()> {
+async fn run_mpris_loop(
+    mut rx: Receiver<MprisCommand>,
+    ready_tx: std_mpsc::Sender<Result<(), String>>,
+) -> Result<()> {
     let handler = Arc::new(RwLock::new(None::<MediaThreadsafeFunction>));
     let mut cover_guard: Option<NamedTempFile> = None;
 
     let pid = process::id();
     let identity = format!("splayer-next.instance{pid}");
 
-    let player = Player::builder(&identity)
+    let player = match Player::builder(&identity)
         .can_play(true)
         .can_pause(true)
         .can_go_next(true)
@@ -259,9 +340,17 @@ async fn run_mpris_loop(mut rx: UnboundedReceiver<MprisCommand>) -> Result<()> {
         .desktop_entry("top.imsyy.splayer_next")
         .build()
         .await
-        .map_err(|e| anyhow::anyhow!("MPRIS 初始化失败: {e}"))?;
+    {
+        Ok(player) => player,
+        Err(error) => {
+            let message = format!("MPRIS 初始化失败: {error}");
+            let _ = ready_tx.send(Err(message.clone()));
+            return Err(anyhow::anyhow!(message));
+        }
+    };
 
     setup_signals(&player, handler.clone());
+    let _ = ready_tx.send(Ok(()));
 
     let server = player.run();
     tokio::pin!(server);
@@ -283,7 +372,7 @@ async fn run_mpris_loop(mut rx: UnboundedReceiver<MprisCommand>) -> Result<()> {
 
 impl SystemMediaControls for LinuxImpl {
     fn initialize(&self) -> Result<()> {
-        Ok(())
+        self.start()
     }
     fn enable(&self) -> Result<()> {
         self.send_cmd(MprisCommand::Enable);
@@ -294,7 +383,12 @@ impl SystemMediaControls for LinuxImpl {
         Ok(())
     }
     fn shutdown(&self) -> Result<()> {
-        self.send_cmd(MprisCommand::Shutdown);
+        self.send_shutdown();
+        if let Ok(mut thread) = self.thread.lock()
+            && let Some(thread) = thread.take()
+        {
+            let _ = thread.join();
+        }
         Ok(())
     }
     fn register_event_handler(&self, cb: MediaThreadsafeFunction) -> Result<()> {
@@ -314,7 +408,7 @@ impl SystemMediaControls for LinuxImpl {
         self.send_cmd(MprisCommand::UpdateVolume(v));
     }
     fn update_timeline(&self, p: TimelineParam) {
-        self.send_cmd(MprisCommand::UpdateTimeline(p));
+        self.send_timeline(p);
     }
     fn update_play_mode(&self, p: PlayModeParam) {
         self.send_cmd(MprisCommand::UpdatePlayMode(p));

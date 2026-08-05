@@ -3,11 +3,11 @@ use std::{fs, path::PathBuf, sync::OnceLock};
 use tracing::trace;
 use tracing_appender::{non_blocking::WorkerGuard, rolling::RollingFileAppender};
 use tracing_subscriber::{
+    Layer,
     filter::{LevelFilter, Targets},
     fmt::{self, time::LocalTime},
     layer::SubscriberExt,
     util::SubscriberInitExt,
-    Layer,
 };
 
 static LOG_GUARD: OnceLock<WorkerGuard> = OnceLock::new();

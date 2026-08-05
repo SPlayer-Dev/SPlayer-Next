@@ -8,16 +8,21 @@ import defaultCoverPath from "../../../public/images/song.jpg?asset";
 type ThumbnailNative = typeof import("@splayer/taskbar-thumbnail");
 
 let native: ThumbnailNative | null = null;
-let enabled = false;
+let service: InstanceType<ThumbnailNative["ThumbnailService"]> | null = null;
 /** 主窗引用，供运行时开关重新启用 */
 let mainWin: BrowserWindow | null = null;
-/** 最近一次封面 */
-let lastCover: Buffer | string | null = null;
+interface PreparedCover {
+  variants: Array<{ bgra: Buffer; width: number; height: number }>;
+}
+
+/** 最近一次封面；远端原图只保留 256px BGRA，不长期持有原始 Buffer */
+let lastCover: PreparedCover | string | null = null;
 /** 默认封面图（无封面时回退），懒加载一次 */
 let defaultImg: NativeImage | null = null;
 
 /** 封面缩放目标边长：DWM 缩略图 / Peek 都不大，256 足够且省内存 */
 const COVER_SIZE = 256;
+const COVER_VARIANT_EDGES = [16, 24, 32, 48, 64, 96, 128, 160, 192, COVER_SIZE] as const;
 
 /** 懒加载原生模块 */
 const load = (): ThumbnailNative | null => {
@@ -33,39 +38,64 @@ const getDefaultImg = (): NativeImage => {
 };
 
 /**
- * 取主窗 HWND 指针（JS number）
+ * 取主窗 HWND 原始字节，避免用 JS number 丢失 64 位句柄精度。
  * @param win - 主窗口
- * @returns 指针数值，超出安全整数或失败返回 null
+ * @returns 原始句柄字节，失败返回 null
  */
-const getHwndPtr = (win: BrowserWindow): number | null => {
+const getHwndPtr = (win: BrowserWindow): Buffer | null => {
   try {
-    const big = win.getNativeWindowHandle().readBigUInt64LE(0);
-    if (big > BigInt(Number.MAX_SAFE_INTEGER)) return null;
-    return Number(big);
+    const handle = win.getNativeWindowHandle();
+    return handle.length === 8 || handle.length === 4 ? handle : null;
   } catch {
     return null;
   }
 };
 
 /** 解码封面（路径或字节，无则回退默认图）为 BGRA 并下发给原生模块 */
-const pushCover = (cover: Buffer | string | null): void => {
-  if (!native) return;
+const pushCover = (cover: PreparedCover | string | null): void => {
+  if (!service) return;
   try {
+    if (cover && typeof cover !== "string") {
+      service.setCoverVariants(cover.variants);
+      return;
+    }
     let img: NativeImage;
     if (typeof cover === "string") img = nativeImage.createFromPath(cover);
-    else if (cover && cover.length) img = nativeImage.createFromBuffer(cover);
     else img = getDefaultImg();
     if (img.isEmpty()) return;
-    const { width: ow, height: oh } = img.getSize();
-    // 等比缩放，长边限制到 COVER_SIZE，避免拉伸变形
-    const resized =
-      ow >= oh ? img.resize({ width: COVER_SIZE }) : img.resize({ height: COVER_SIZE });
-    const { width, height } = resized.getSize();
-    // Windows 上 toBitmap 返回 BGRA，正好对应 DWM 的 32bpp DIBSection
-    native.setCover(resized.toBitmap(), width, height);
+    const prepared = prepareNativeImage(img);
+    if (prepared) service.setCoverVariants(prepared.variants);
   } catch (error) {
     nativeLog.warn("更新任务栏缩略图封面失败", error);
   }
+};
+
+/** 将在线原图压缩成任务栏所需的有界 BGRA 快照 */
+const prepareBufferCover = (cover: Buffer): PreparedCover | null => {
+  const img = nativeImage.createFromBuffer(cover);
+  return prepareNativeImage(img);
+};
+
+/** 在 Electron 侧预生成有界 BGRA buckets，Rust/WndProc 只创建和选择 DIB。 */
+const prepareNativeImage = (img: NativeImage): PreparedCover | null => {
+  if (img.isEmpty()) return null;
+  const { width: originalWidth, height: originalHeight } = img.getSize();
+  if (originalWidth <= 0 || originalHeight <= 0) return null;
+  const variants: PreparedCover["variants"] = [];
+  let previousSize = "";
+  for (const edge of COVER_VARIANT_EDGES) {
+    const resized =
+      originalWidth >= originalHeight ? img.resize({ width: edge }) : img.resize({ height: edge });
+    const { width, height } = resized.getSize();
+    if (width <= 0 || height <= 0 || width > COVER_SIZE || height > COVER_SIZE) continue;
+    const sizeKey = `${width}x${height}`;
+    if (sizeKey === previousSize) continue;
+    const bgra = resized.toBitmap();
+    if (bgra.length !== width * height * 4) continue;
+    variants.push({ bgra, width, height });
+    previousSize = sizeKey;
+  }
+  return variants.length > 0 ? { variants } : null;
 };
 
 /**
@@ -74,28 +104,41 @@ const pushCover = (cover: Buffer | string | null): void => {
  */
 export const enableTaskbarThumbnail = (win: BrowserWindow): void => {
   if (!isWin) return;
+  if (mainWin && mainWin !== win) disableTaskbarThumbnail();
   // 记住主窗，供设置开关运行时重新启用
   mainWin = win;
-  if (enabled) return;
+  if (service) return;
   // 设置关闭则不接管任务栏缩略图（保留系统默认的实时窗口预览）
   if (!store.get("system.taskbarThumbnailCover")) return;
   const mod = load();
   if (!mod) return;
   const ptr = getHwndPtr(win);
   if (ptr === null) return;
-  enabled = mod.enable(ptr);
-  if (enabled) {
+  try {
+    service = new mod.ThumbnailService(ptr);
     nativeLog.debug("任务栏缩略图自定义已启用");
     // 无歌曲时先显示默认封面，避免空白
     pushCover(lastCover);
+    win.once("closed", () => {
+      if (mainWin !== win) return;
+      disableTaskbarThumbnail();
+      mainWin = null;
+    });
+  } catch (error) {
+    service = null;
+    nativeLog.warn("启用任务栏缩略图自定义失败", error);
   }
 };
 
 /** 关闭自定义任务栏缩略图，恢复系统默认的实时窗口预览 */
 export const disableTaskbarThumbnail = (): void => {
-  if (!isWin || !enabled || !native) return;
-  native.disable();
-  enabled = false;
+  if (!isWin || !service) return;
+  try {
+    service.disable();
+  } catch (error) {
+    nativeLog.warn("关闭任务栏缩略图自定义失败", error);
+  }
+  service = null;
   nativeLog.debug("任务栏缩略图自定义已关闭");
 };
 
@@ -119,6 +162,10 @@ export const setTaskbarThumbnailEnabled = (on: boolean): void => {
 export const setTaskbarThumbnailCover = (cover: Buffer | string | undefined): void => {
   if (!isWin) return;
   const has = typeof cover === "string" ? cover.length > 0 : !!cover && cover.length > 0;
-  lastCover = has ? cover! : null;
-  if (enabled) pushCover(lastCover);
+  lastCover = !has
+    ? null
+    : typeof cover === "string"
+      ? cover
+      : (prepareBufferCover(cover!) ?? null);
+  if (service) pushCover(lastCover);
 };

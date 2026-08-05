@@ -12,7 +12,7 @@ const settings = useSettingsStore();
 // 系统默认
 const SYSTEM_DEFAULT = "system-default";
 
-const current = computed(() => settings.player.outputDevice ?? SYSTEM_DEFAULT);
+const current = computed(() => settings.player.outputDeviceId ?? SYSTEM_DEFAULT);
 
 const options = computed(() => {
   const defaultName = status.outputDevices.find((d) => d.isDefault)?.name;
@@ -21,7 +21,7 @@ const options = computed(() => {
     : t("settings.outputDevice.default");
   return [
     { value: SYSTEM_DEFAULT, label: defaultLabel },
-    ...status.outputDevices.map((d) => ({ value: d.name, label: d.name })),
+    ...status.outputDevices.map((d) => ({ value: d.id, label: `${d.name} · ${d.host}` })),
   ];
 });
 

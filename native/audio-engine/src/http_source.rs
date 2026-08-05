@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use parking_lot::Mutex;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, warn};
@@ -61,7 +61,7 @@ pub struct HttpRangeSource {
     agent: ureq::Agent,
     total_size: u64,
     pos: u64,
-    stream: Option<Box<dyn Read + Send + Sync>>,
+    stream: Option<Box<dyn Read + Send>>,
     interrupt: HttpInterrupt,
 }
 
@@ -172,7 +172,10 @@ impl Read for HttpRangeSource {
                     }
                 }
             }
-            let result = self.stream.as_mut().expect("stream 应已建立").read(buf);
+            let result = match self.stream.as_mut() {
+                Some(stream) => stream.read(buf),
+                None => Err(io::Error::other("HTTP 流状态无效")),
+            };
             match result {
                 Ok(0) if self.pos < self.total_size => {
                     self.stream = None;
@@ -327,12 +330,12 @@ mod tests {
         let mut source = HttpRangeSource::new(server.url("/audio")).unwrap();
         source.seek(SeekFrom::Start(1024)).unwrap();
         source.seek(SeekFrom::Start(2048)).unwrap();
-        initial.assert_hits(1);
-        seek.assert_hits(0);
+        initial.assert_calls(1);
+        seek.assert_calls(0);
 
         let mut output = [0_u8; 16];
         source.read_exact(&mut output).unwrap();
-        seek.assert_hits(1);
+        seek.assert_calls(1);
         assert_eq!(output, data[2048..2064]);
     }
 
@@ -408,8 +411,8 @@ mod tests {
         let mut output = vec![0_u8; 256];
         source.read_exact(&mut output).unwrap();
 
-        initial.assert_hits(1);
-        resumed.assert_hits(1);
+        initial.assert_calls(1);
+        resumed.assert_calls(1);
         assert_eq!(output, data[..256]);
     }
 

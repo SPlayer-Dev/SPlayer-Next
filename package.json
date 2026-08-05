@@ -39,6 +39,8 @@
     "test:web": "vitest run --config vitest.config.ts",
     "test:web:watch": "vitest --config vitest.config.ts",
     "test:native": "cargo test --workspace",
+    "stress:native": "tsx scripts/native-audio-stress.ts",
+    "soak:native": "tsx scripts/native-audio-stress.ts --soak",
     "test:all": "pnpm test && pnpm test:native",
     "build:native": "tsx scripts/build-native.ts",
     "start": "electron-vite preview",

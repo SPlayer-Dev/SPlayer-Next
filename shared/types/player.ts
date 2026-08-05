@@ -163,7 +163,9 @@ export interface PlayerStatus {
 
 /** 音频输出设备 */
 export interface AudioDevice {
+  id: string;
   name: string;
+  host: string;
   isDefault: boolean;
 }
 
@@ -185,7 +187,16 @@ export type PlayerEvent =
   | { type: "toggleLike" }
   | { type: "fftData"; data: FftData }
   | { type: "error"; error: string }
-  | { type: "deviceChanged"; data: { defaultDevice: string | null } };
+  | { type: "outputDeviceUnavailable"; data: { deviceId: string | null } }
+  | {
+      type: "deviceChanged";
+      data: {
+        kind: string;
+        deviceId: string | null;
+        defaultDeviceId: string | null;
+        defaultDeviceName: string | null;
+      };
+    };
 
 /** FFT 数据 */
 export interface FftData {
@@ -252,9 +263,9 @@ export interface PlayerApi {
   /** 获取系统默认输出设备名称 */
   getDefaultDeviceName: () => Promise<IpcResponse<string | null>>;
   /** 切换输出设备（传 null 使用系统默认） */
-  setOutputDevice: (deviceName: string | null) => Promise<IpcResponse>;
-  /** 获取当前选择的输出设备名称 */
-  getSelectedDeviceName: () => Promise<IpcResponse<string | null>>;
+  setOutputDevice: (deviceId: string | null) => Promise<IpcResponse>;
+  /** 获取当前选择的输出设备 ID */
+  getSelectedDeviceId: () => Promise<IpcResponse<string | null>>;
   /** 同步播放模式到托盘 */
   syncPlayMode: (repeatMode: string, shuffleMode: string) => void;
   /** 同步当前歌曲喜欢状态到托盘 */

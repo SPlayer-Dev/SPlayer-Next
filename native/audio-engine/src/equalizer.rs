@@ -196,7 +196,8 @@ impl Equalizer {
             return;
         }
         let preamp = self.preamp_linear;
-        for frame in samples.chunks_exact_mut(EQ_CHANNEL_COUNT) {
+        let (frames, _remainder) = samples.as_chunks_mut::<EQ_CHANNEL_COUNT>();
+        for frame in frames {
             let mut left = frame[0] * preamp;
             let mut right = frame[1] * preamp;
             for band in 0..EQ_BAND_COUNT {

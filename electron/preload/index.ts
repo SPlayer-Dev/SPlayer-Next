@@ -96,10 +96,10 @@ const api = {
     // 获取系统默认输出设备名称
     getDefaultDeviceName: () => ipcRenderer.invoke("player:getDefaultDeviceName"),
     // 切换输出设备（传 null 使用系统默认）
-    setOutputDevice: (deviceName: string | null) =>
-      ipcRenderer.invoke("player:setOutputDevice", deviceName),
-    // 获取当前选择的输出设备名称
-    getSelectedDeviceName: () => ipcRenderer.invoke("player:getSelectedDeviceName"),
+    setOutputDevice: (deviceId: string | null) =>
+      ipcRenderer.invoke("player:setOutputDevice", deviceId),
+    // 获取当前选择的输出设备 ID
+    getSelectedDeviceId: () => ipcRenderer.invoke("player:getSelectedDeviceId"),
     // 获取当前歌曲的原始高清封面（base64 data URL）
     getCoverRaw: () => ipcRenderer.invoke("player:getCoverRaw"),
     // 按需读取外部歌词文件内容

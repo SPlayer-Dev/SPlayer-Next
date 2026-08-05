@@ -315,17 +315,9 @@ export const createTaskbarLyricWindow = (): BrowserWindow | null => {
     const mod = nativeModule;
     if (!win || !svc || !mod) return;
 
-    // Windows 上 HWND 可能是 64 位值，先保留为 BigInt，避免直接转成 number 产生静默精度丢失
-    const hwndPtrBigInt = win.getNativeWindowHandle().readBigUInt64LE(0);
-    if (hwndPtrBigInt > BigInt(Number.MAX_SAFE_INTEGER)) {
-      taskbarLog.error(
-        `嵌入窗口失败：hwnd=${hwndPtrBigInt.toString()} 超出 JS Number 安全整数范围`,
-      );
-      return;
-    }
-    const hwndPtr = Number(hwndPtrBigInt);
-    taskbarLog.info(`嵌入窗口 hwnd=${hwndPtr}`);
-    svc.embedWindowByPtr(hwndPtr);
+    const hwndBuffer = win.getNativeWindowHandle();
+    taskbarLog.info("嵌入窗口 hwnd=" + hwndBuffer.toString("hex"));
+    svc.embedWindowByPtr(hwndBuffer);
     svc.update(resolveLyricWidth());
     startWatchers(mod);
     taskbarCreatedWatcher = tryStart(

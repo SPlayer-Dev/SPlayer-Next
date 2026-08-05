@@ -58,6 +58,7 @@ const syncCueTracks = async (
   cueFiles: string[],
   dirs: string[],
   unavailableDirs: string[] = [],
+  allowDelete = true,
 ): Promise<number> => {
   const allTracks = getAllTracks();
   // 真实音频文件
@@ -132,31 +133,42 @@ const syncCueTracks = async (
   }
 
   if (upserts.length > 0) upsertTracks(upserts);
-  const stalePaths = getCueTrackPathsByDirs(dirs).filter((trackPath) => {
-    if (nextPaths.has(trackPath)) return false;
-    // 不可达目录下的分轨不删除：从虚拟路径提取真实 cuePath 做目录判断
-    const realCuePath = extractCuePath(trackPath);
-    if (!realCuePath) return true;
-    return !unavailableDirs.some((dir) => realCuePath.startsWith(dir));
-  });
-  if (stalePaths.length > 0) deleteTracksByPaths(stalePaths);
+  if (allowDelete) {
+    const stalePaths = getCueTrackPathsByDirs(dirs).filter((trackPath) => {
+      if (nextPaths.has(trackPath)) return false;
+      // 不可达目录下的分轨不删除：从虚拟路径提取真实 cuePath 做目录判断
+      const realCuePath = extractCuePath(trackPath);
+      if (!realCuePath) return true;
+      return !unavailableDirs.some((dir) => realCuePath.startsWith(dir));
+    });
+    if (stalePaths.length > 0) deleteTracksByPaths(stalePaths);
+  }
   return nextPaths.size;
 };
 
 /** 完成 Rust 扫描后的收尾同步 */
 const finishScan = async (dirs: string[], event: JsScanEvent): Promise<void> => {
-  if (event.removedPaths && event.removedPaths.length > 0) {
+  const allowDelete = event.complete === true;
+  if (allowDelete && event.removedPaths && event.removedPaths.length > 0) {
     deleteTracksByPaths(event.removedPaths);
     libraryLog.info(`清理 ${event.removedPaths.length} 个已删除文件`);
   }
-  const cueCount = await syncCueTracks(event.cueFiles ?? [], dirs, event.unavailableDirs ?? []);
+  const cueCount = await syncCueTracks(
+    event.cueFiles ?? [],
+    dirs,
+    event.unavailableDirs ?? [],
+    allowDelete,
+  );
   scanning = false;
   broadcast("library:scanProgress", {
     phase: "done",
     total: event.total,
     scanned: event.scanned,
   });
-  libraryLog.info(`扫描完成: ${event.scanned}/${event.total} 个文件，CUE 分轨 ${cueCount} 首`);
+  const result = allowDelete ? "完整" : "不完整，已跳过删除";
+  libraryLog.info(
+    `扫描完成: ${event.scanned}/${event.total} 个文件，CUE 分轨 ${cueCount} 首（${result}，状态=${event.status ?? "unknown"}，错误=${event.errorCount ?? 0}）`,
+  );
 };
 
 /** 是否正在扫描 */

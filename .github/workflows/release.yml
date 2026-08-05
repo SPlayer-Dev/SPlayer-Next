@@ -64,7 +64,7 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "native/audio-engine -> target\nnative/media-ctrl -> target"
+          workspaces: ". -> target"
 
       # 校验 tag 与 package.json 版本一致
       - name: Verify tag matches version
@@ -83,7 +83,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libdbus-1-dev pkg-config clang \
+            libasound2-dev libpipewire-0.3-dev libdbus-1-dev pkg-config clang \
             rpm libarchive-tools
 
       # 清理旧构建产物

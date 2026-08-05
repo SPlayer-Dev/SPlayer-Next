@@ -3,7 +3,8 @@
 //! 单后台线程接收 NAPI 命令，按 win10/win11 策略管理任务栏嵌入和 UIA 重扫，
 //! 自带去抖（聚合连续 Update）和 UIA 冷启动重试
 
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
@@ -23,18 +24,19 @@ type LayoutTsfn =
 enum TaskbarCommand {
     Embed {
         hwnd_ptr: usize,
+        reply: Option<std::sync::mpsc::Sender<Result<bool, String>>>,
     },
-    Update {
-        width: i32,
-    },
+    Update,
     /// explorer 重启后重新初始化策略并用最近的 hwnd/width 恢复
     Reinit,
-    Stop,
+    Stop(Option<std::sync::mpsc::Sender<()>>),
 }
 
 #[napi]
 pub struct TaskbarService {
-    sender: Sender<TaskbarCommand>,
+    sender: SyncSender<TaskbarCommand>,
+    latest_width: Arc<Mutex<Option<i32>>>,
+    thread: Option<thread::JoinHandle<()>>,
 }
 
 #[napi]
@@ -49,29 +51,67 @@ impl TaskbarService {
             .build_threadsafe_function::<JsTaskbarLayout>()
             .build_callback(|ctx| Ok(ctx.value))?;
 
-        let (tx, rx) = mpsc::channel();
+        let (tx, rx) = mpsc::sync_channel(8);
+        let (ready_tx, ready_rx) = mpsc::channel();
+        let latest_width = Arc::new(Mutex::new(None));
+        let latest_for_worker = Arc::clone(&latest_width);
 
-        thread::spawn(move || {
-            worker_loop(&rx, &tsfn);
-        });
+        let thread = thread::Builder::new()
+            .name("taskbar-lyric-owner".to_string())
+            .spawn(move || worker_loop(&rx, &tsfn, latest_for_worker, ready_tx))
+            .map_err(|error| {
+                napi::Error::from_reason(format!("启动任务栏歌词线程失败: {error}"))
+            })?;
 
-        Ok(Self { sender: tx })
+        match ready_rx.recv() {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => {
+                let _ = thread.join();
+                return Err(napi::Error::from_reason(error));
+            }
+            Err(error) => {
+                let _ = thread.join();
+                return Err(napi::Error::from_reason(format!(
+                    "任务栏歌词 ready 握手失败: {error}"
+                )));
+            }
+        }
+
+        Ok(Self {
+            sender: tx,
+            latest_width,
+            thread: Some(thread),
+        })
     }
 
     /// 嵌入窗口到任务栏。传入 Electron BrowserWindow 的 native handle (Buffer → usize)
     #[napi]
-    pub fn embed_window_by_ptr(&self, hwnd_ptr: f64) {
-        let _ = self.sender.send(TaskbarCommand::Embed {
-            hwnd_ptr: hwnd_ptr as usize,
-        });
+    pub fn embed_window_by_ptr(
+        &self,
+        hwnd_buffer: napi::bindgen_prelude::Buffer,
+    ) -> napi::Result<bool> {
+        let hwnd_ptr = crate::hwnd_from_buffer(hwnd_buffer.as_ref())
+            .ok_or_else(|| napi::Error::from_reason("HWND Buffer 长度或数值无效"))?;
+        let (reply_tx, reply_rx) = mpsc::channel();
+        self.sender
+            .send(TaskbarCommand::Embed {
+                hwnd_ptr,
+                reply: Some(reply_tx),
+            })
+            .map_err(|error| napi::Error::from_reason(format!("任务栏 owner 已停止: {error}")))?;
+        reply_rx
+            .recv()
+            .map_err(|error| napi::Error::from_reason(format!("任务栏嵌入响应失败: {error}")))?
+            .map_err(napi::Error::from_reason)
     }
 
     /// 更新歌词显示宽度，触发重新计算布局
     #[napi]
     pub fn update(&self, lyric_width: i32) {
-        let _ = self
-            .sender
-            .send(TaskbarCommand::Update { width: lyric_width });
+        if let Ok(mut latest) = self.latest_width.lock() {
+            *latest = Some(lyric_width);
+        }
+        let _ = self.sender.try_send(TaskbarCommand::Update);
     }
 
     /// 通知服务重建策略（explorer.exe 重启时由 JS 层调用）
@@ -83,52 +123,84 @@ impl TaskbarService {
     /// 停止服务并恢复任务栏原始状态
     #[napi]
     pub fn stop(&self) {
-        let _ = self.sender.send(TaskbarCommand::Stop);
+        let (ack_tx, ack_rx) = mpsc::channel();
+        if self.sender.send(TaskbarCommand::Stop(Some(ack_tx))).is_ok() {
+            let _ = ack_rx.recv();
+        }
     }
 }
 
-fn worker_loop(rx: &Receiver<TaskbarCommand>, tsfn: &LayoutTsfn) {
+impl Drop for TaskbarService {
+    fn drop(&mut self) {
+        let _ = self.sender.send(TaskbarCommand::Stop(None));
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+
+fn worker_loop(
+    rx: &Receiver<TaskbarCommand>,
+    tsfn: &LayoutTsfn,
+    latest_width: Arc<Mutex<Option<i32>>>,
+    ready: std::sync::mpsc::Sender<Result<(), String>>,
+) {
     // 进入 MTA apartment，作用域结束自动配对 CoUninitialize；失败直接退出线程
     let Some(_com_guard) = ComApartmentGuard::try_init() else {
+        let _ = ready.send(Err("任务栏歌词 COM apartment 初始化失败".to_string()));
         return;
     };
 
     let mut strategy = create_strategy();
+    if strategy.is_none() {
+        let _ = ready.send(Err("任务栏歌词 Win10/Win11 策略均初始化失败".to_string()));
+        return;
+    }
+    let _ = ready.send(Ok(()));
     // 记忆最近的 hwnd/width，explorer 重启后 Reinit 据此恢复
     let mut last_hwnd: Option<usize> = None;
     let mut last_width: i32 = 0;
 
     while let Ok(msg) = rx.recv() {
         match msg {
-            TaskbarCommand::Embed { hwnd_ptr } => {
-                if let Some(hwnd) = take_valid_hwnd(hwnd_ptr) {
-                    last_hwnd = Some(hwnd_ptr);
-                    if let Some(s) = strategy.as_ref() {
-                        s.embed_window(hwnd);
-                    }
+            TaskbarCommand::Embed { hwnd_ptr, reply } => {
+                let result = embed_window(&mut strategy, &mut last_hwnd, hwnd_ptr);
+                if let Some(reply) = reply {
+                    let _ = reply.send(result);
                 }
             }
 
-            TaskbarCommand::Update { width } => {
+            TaskbarCommand::Update => {
+                let width = latest_width.lock().ok().and_then(|mut value| value.take());
+                let Some(width) = width else {
+                    continue;
+                };
                 let mut final_width = width;
                 let mut stop_signal = false;
                 let mut reinit_requested = false;
 
                 while let Ok(next_msg) = rx.try_recv() {
                     match next_msg {
-                        TaskbarCommand::Update { width: w } => final_width = w,
-                        TaskbarCommand::Embed { hwnd_ptr } => {
-                            if let Some(hwnd) = take_valid_hwnd(hwnd_ptr) {
-                                last_hwnd = Some(hwnd_ptr);
-                                if let Some(s) = strategy.as_ref() {
-                                    s.embed_window(hwnd);
-                                }
+                        TaskbarCommand::Update => {
+                            if let Ok(mut latest) = latest_width.lock()
+                                && let Some(width) = latest.take()
+                            {
+                                final_width = width;
+                            }
+                        }
+                        TaskbarCommand::Embed { hwnd_ptr, reply } => {
+                            let result = embed_window(&mut strategy, &mut last_hwnd, hwnd_ptr);
+                            if let Some(reply) = reply {
+                                let _ = reply.send(result);
                             }
                         }
                         TaskbarCommand::Reinit => {
                             reinit_requested = true;
                         }
-                        TaskbarCommand::Stop => {
+                        TaskbarCommand::Stop(ack) => {
+                            if let Some(ack) = ack {
+                                let _ = ack.send(());
+                            }
                             stop_signal = true;
                             break;
                         }
@@ -145,27 +217,48 @@ fn worker_loop(rx: &Receiver<TaskbarCommand>, tsfn: &LayoutTsfn) {
                     do_reinit(&mut strategy, last_hwnd);
                 }
 
-                if !run_update_with_retry(&mut strategy, final_width, tsfn, rx) {
+                if !run_update_with_retry(&mut strategy, final_width, tsfn, rx, &latest_width) {
                     break;
                 }
             }
 
             TaskbarCommand::Reinit => {
                 do_reinit(&mut strategy, last_hwnd);
-                if last_width > 0 && !run_update_with_retry(&mut strategy, last_width, tsfn, rx) {
+                if last_width > 0
+                    && !run_update_with_retry(&mut strategy, last_width, tsfn, rx, &latest_width)
+                {
                     break;
                 }
             }
 
-            TaskbarCommand::Stop => {
+            TaskbarCommand::Stop(ack) => {
+                if let Some(ack) = ack {
+                    let _ = ack.send(());
+                }
                 break;
             }
         }
     }
 
-    if let Some(s) = strategy.as_ref() {
+    if let Some(s) = strategy.as_mut() {
         s.restore();
     }
+}
+
+fn embed_window(
+    strategy: &mut Option<Box<dyn TaskbarStrategy>>,
+    last_hwnd: &mut Option<usize>,
+    hwnd_ptr: usize,
+) -> Result<bool, String> {
+    let hwnd = take_valid_hwnd(hwnd_ptr).ok_or_else(|| "任务栏歌词 HWND 无效".to_string())?;
+    let strategy = strategy
+        .as_mut()
+        .ok_or_else(|| "任务栏歌词策略未初始化".to_string())?;
+    if !strategy.embed_window(hwnd) {
+        return Err("任务栏歌词窗口嵌入失败，原窗口状态已回滚".to_string());
+    }
+    *last_hwnd = Some(hwnd_ptr);
+    Ok(true)
 }
 
 /// Drop 旧策略（自动 restore），新建策略并用最近的 hwnd 重新嵌入
@@ -173,8 +266,10 @@ fn do_reinit(strategy: &mut Option<Box<dyn TaskbarStrategy>>, last_hwnd: Option<
     debug!("TaskbarCreated → 重建策略");
     *strategy = None;
     *strategy = create_strategy();
-    if let (Some(s), Some(hwnd)) = (strategy.as_ref(), last_hwnd.and_then(take_valid_hwnd)) {
-        s.embed_window(hwnd);
+    if let (Some(s), Some(hwnd)) = (strategy.as_mut(), last_hwnd.and_then(take_valid_hwnd))
+        && !s.embed_window(hwnd)
+    {
+        warn!("任务栏歌词窗口重新嵌入失败");
     }
 }
 
@@ -192,6 +287,7 @@ fn run_update_with_retry(
     initial_width: i32,
     tsfn: &LayoutTsfn,
     rx: &Receiver<TaskbarCommand>,
+    latest_width: &Arc<Mutex<Option<i32>>>,
 ) -> bool {
     const DELAYS_MS: &[u64] = &[0, 50, 150, 300, 600];
     let mut current_width = initial_width;
@@ -199,19 +295,30 @@ fn run_update_with_retry(
     for &delay_ms in DELAYS_MS {
         if delay_ms > 0 {
             match rx.recv_timeout(Duration::from_millis(delay_ms)) {
-                Ok(TaskbarCommand::Update { width }) => current_width = width,
-                Ok(TaskbarCommand::Embed { hwnd_ptr }) => {
-                    if let Some(hwnd) = take_valid_hwnd(hwnd_ptr)
-                        && let Some(s) = strategy.as_ref()
+                Ok(TaskbarCommand::Update) => {
+                    if let Ok(mut latest) = latest_width.lock()
+                        && let Some(width) = latest.take()
                     {
-                        s.embed_window(hwnd);
+                        current_width = width;
+                    }
+                }
+                Ok(TaskbarCommand::Embed { hwnd_ptr, reply }) => {
+                    let mut ignored_last_hwnd = None;
+                    let result = embed_window(strategy, &mut ignored_last_hwnd, hwnd_ptr);
+                    if let Some(reply) = reply {
+                        let _ = reply.send(result);
                     }
                 }
                 Ok(TaskbarCommand::Reinit) => {
                     // 重试期间 explorer 重启，策略彻底重建，退出本轮重试由外层走新一轮
                     return true;
                 }
-                Ok(TaskbarCommand::Stop) => return false,
+                Ok(TaskbarCommand::Stop(ack)) => {
+                    if let Some(ack) = ack {
+                        let _ = ack.send(());
+                    }
+                    return false;
+                }
                 Err(RecvTimeoutError::Timeout) => {}
                 Err(RecvTimeoutError::Disconnected) => return false,
             }

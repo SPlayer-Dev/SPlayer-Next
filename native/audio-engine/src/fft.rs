@@ -1,7 +1,7 @@
 use parking_lot::Mutex;
-use rustfft::{num_complex::Complex, Fft, FftPlanner};
-use std::sync::atomic::{AtomicBool, Ordering};
+use rustfft::{Fft, FftPlanner, num_complex::Complex};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// 每次 FFT 的样本数
 const FFT_SIZE: usize = 2048;

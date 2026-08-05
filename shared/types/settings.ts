@@ -46,8 +46,8 @@ export interface PlayerSettings {
   fadeEnabled: boolean;
   /** 渐入渐出时长（毫秒） */
   fadeDuration: number;
-  /** 输出设备名称，null 为系统默认 */
-  outputDevice: string | null;
+  /** 输出设备 ID，null 为系统默认 */
+  outputDeviceId: string | null;
   /** 默认音量（0.0 ~ 1.0） */
   volume: number;
   /** 音量均衡（响度归一化） */

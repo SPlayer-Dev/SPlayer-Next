@@ -1,4 +1,6 @@
 import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import process from "node:process";
 
 interface NativeModule {
@@ -79,6 +81,8 @@ const parseArgs = () => {
 };
 
 const napiArgs = ["--no-const-enum"];
+const napiCli = join(process.cwd(), "node_modules", "@napi-rs", "cli", "dist", "cli.js");
+const generatedDts = "index.generated.d.ts";
 const options = parseArgs();
 
 if (!options.isDev) napiArgs.push("--release");
@@ -89,15 +93,26 @@ for (const mod of modules) {
     continue;
   }
   const cwd = `native/${mod.name}`;
+  const generatedDtsPath = join(cwd, generatedDts);
+  const finalDtsPath = join(cwd, "index.d.ts");
+  if (existsSync(generatedDtsPath)) unlinkSync(generatedDtsPath);
 
   const buildType = options.isDev ? "debug" : "release";
   console.log(`[BuildNative] 构建 ${mod.name} (${buildType})`);
 
-  const result = spawnSync("napi", ["build", ...napiArgs], {
-    stdio: "inherit",
-    shell: process.platform === "win32",
-    cwd,
-  });
+  const result = spawnSync(
+    process.execPath,
+    [napiCli, "build", ...napiArgs, "--dts", generatedDts],
+    {
+      encoding: "utf8",
+      maxBuffer: 32 * 1024 * 1024,
+      stdio: "pipe",
+      shell: false,
+      cwd,
+    },
+  );
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
 
   if (result.error) {
     console.error("[BuildNative] 模块构建失败，进程启动失败", result.error);
@@ -111,4 +126,28 @@ for (const mod of modules) {
     console.error("[BuildNative] 模块构建失败，进程异常退出", result.status);
     process.exit(result.status ?? 1);
   }
+  if (!existsSync(generatedDtsPath)) {
+    console.error(`[BuildNative] ${mod.name} 未生成类型声明，拒绝把退出码 0 视为成功`);
+    process.exit(1);
+  }
+  const typeDefinition = readFileSync(generatedDtsPath);
+  if (typeDefinition.length === 0) {
+    console.error(`[BuildNative] ${mod.name} 生成了空类型声明`);
+    process.exit(1);
+  }
+  let written = false;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      writeFileSync(finalDtsPath, typeDefinition);
+      written = true;
+      break;
+    } catch (error) {
+      if (attempt === 4) {
+        console.error(`[BuildNative] ${mod.name} 类型声明替换失败`, error);
+        process.exit(1);
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50 * (attempt + 1));
+    }
+  }
+  if (written) unlinkSync(generatedDtsPath);
 }

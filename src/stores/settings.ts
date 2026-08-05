@@ -60,7 +60,7 @@ export const useSettingsStore = defineStore(
       autoCenterCover: true,
       followCoverColor: true,
       autoImmersive: true,
-      outputDevice: null,
+      outputDeviceId: null,
       pauseOnDeviceSwitch: false,
       enableSpectrum: false,
       spectrumBarWidth: 4,

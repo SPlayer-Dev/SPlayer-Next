@@ -7,13 +7,20 @@ members = [
 ]
 resolver = "3"
 
+[workspace.package]
+edition = "2024"
+rust-version = "1.89"
+license = "AGPL-3.0-only"
+
 [workspace.lints.clippy]
 all = { level = "deny", priority = -1 }
 redundant_clone = "deny"
 needless_collect = "warn"
 large_enum_variant = "warn"
-collapsible_if = "allow"
-redundant_pattern_matching = "allow"
+undocumented_unsafe_blocks = "deny"
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
 
 [profile.release]
 lto = true

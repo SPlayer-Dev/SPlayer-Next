@@ -141,13 +141,17 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
       refreshDevices();
       const settings = useSettingsStore();
       if (
+        ["defaultChanged", "routeChanged"].includes(event.data.kind) &&
         settings.player.pauseOnDeviceSwitch &&
-        settings.player.outputDevice === null &&
+        settings.player.outputDeviceId === null &&
         status.state === "playing"
       ) {
         await pause();
       }
       break;
     }
+    case "outputDeviceUnavailable":
+      refreshDevices();
+      break;
   }
 };

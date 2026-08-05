@@ -4,36 +4,29 @@ use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use ffmpeg_audio::{sys, AudioError, AudioReader, ResampleOptions, Resampler, SeekMode};
-use tracing::debug;
+use ffmpeg_audio::{AudioError, AudioReader, ResampleOptions, Resampler, SeekMode, sys};
+use tracing::{debug, error};
 
 use crate::http_source::{HttpInterrupt, HttpRangeSource};
 use crate::loudness::LoudnessAnalyzer;
 use crate::metadata;
-use crate::priority;
 use crate::shared::{AudioChunk, AudioMetadata, Shared};
 
-/// 播放输出目标格式（重采样后送入 rodio）
+/// 播放输出目标格式（重采样后送入 CPAL ring）
 pub const TARGET_CHANNELS: u16 = 2;
 
 /// 播放输出默认采样率
 pub const DEFAULT_TARGET_SAMPLE_RATE: u32 = 48_000;
-
-/// FFT 计算所需的目标采样率
-pub const FFT_TARGET_SAMPLE_RATE: u32 = 48_000;
 
 /// 自定义 File IO 读取失败时，ffmpeg_audio 的 read 回调可能映射为此错误码
 const AVERROR_EIO: i32 = sys::averror(libc::EIO);
 
 /// 解码会话所需的资源（跨 seek 复用，避免重建 ffmpeg_audio 上下文）
 ///
-/// 此处必须进行 1-to-N 分发，因为需要两个可能存在采样率差异的音源
-///  - 播放重采样器输出设备采样率的 stereo f32
-///  - FFT 重采样器输出 48kHz 的 stereo f32
+/// 音频只按实际输出 stream 配置做一次重采样；FFT 在 DSP 输出线程消费同一份 PCM。
 pub struct DecoderData {
     reader: AudioReader,
     player_resampler: Resampler,
-    fft_resampler: Resampler,
     /// 网络中断句柄仅由远端源持有，stop() 取消后可在 seek 前重置
     interrupt: Option<HttpInterrupt>,
 }
@@ -46,17 +39,10 @@ pub struct PreparedDecoder {
     interrupt: Option<HttpInterrupt>,
 }
 
-impl PreparedDecoder {
-    /// 音源声明的原始采样率，用于协商输出流配置
-    pub fn original_sample_rate(&self) -> u32 {
-        self.metadata.original_sample_rate
-    }
-}
-
 impl DecoderData {
     /// 在已有 reader 上 seek，失败时调用方应回退到完整 load
     ///
-    /// seek 后两个重采样器要 flush 掉残留样本，否则播放/FFT会带上上一段尾巴
+    /// seek 后要 flush 掉重采样器残留样本，否则播放会带上上一段尾巴
     pub fn seek(&mut self, position_secs: f64) -> bool {
         if let Some(interrupt) = &self.interrupt {
             interrupt.reset();
@@ -68,7 +54,6 @@ impl DecoderData {
             return false;
         }
         let _ = self.player_resampler.flush();
-        let _ = self.fft_resampler.flush();
         true
     }
 
@@ -96,9 +81,10 @@ pub fn prepare_decode(
 
     let raw_metadata = reader.metadata();
     let tags = metadata::extract_tags(&raw_metadata);
-    let cover =
-        cover_cache_dir.and_then(|dir| metadata::extract_cover_thumbnail(&reader, source, dir));
-    let cover_raw = metadata::read_attached_pic(&reader);
+    let cover_raw = reader.cover().map(|cover| cover.data);
+    let cover = cover_raw.as_deref().and_then(|data| {
+        cover_cache_dir.and_then(|dir| metadata::cache_cover_thumbnail(data, source, dir))
+    });
     let embedded_lyric = metadata::extract_embedded_lyric(&raw_metadata);
     let external_lyrics = metadata::find_all_external_lyrics(source);
     let replay_gain_db = metadata::extract_replay_gain(&raw_metadata);
@@ -141,7 +127,7 @@ pub fn start_prepared_decode(
         interrupt,
     } = prepared;
     let target_rate = shared.sample_rate();
-    let (player_resampler, fft_resampler) = build_resamplers(&reader, target_rate)?;
+    let player_resampler = build_resampler(&reader, target_rate)?;
     metadata.sample_rate = target_rate;
 
     if let Some(db) = replay_gain_db {
@@ -154,20 +140,21 @@ pub fn start_prepared_decode(
     let data = DecoderData {
         reader,
         player_resampler,
-        fft_resampler,
         interrupt,
     };
 
     let handle = thread::Builder::new()
         .name("audio-decoder".to_string())
         .spawn(move || {
-            priority::boost_current_audio_thread("audio-decoder");
             let mut data = data;
-            // panic 兜底：让 mark_eof 一定被调到，避免前端永远收不到 ended 卡死
-            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 run_decoding_loop(&mut data, &shared);
             }));
-            shared.mark_eof();
+            if let Err(payload) = result {
+                report_decoder_panic(payload, &shared);
+            } else if !shared.is_decode_failed() && !shared.is_stopping() {
+                shared.mark_eof();
+            }
             data
         })
         .context("启动解码线程失败")?;
@@ -183,12 +170,15 @@ pub fn resume_decode(data: DecoderData, shared: Arc<Shared>) -> Result<JoinHandl
     thread::Builder::new()
         .name("audio-decoder".to_string())
         .spawn(move || {
-            priority::boost_current_audio_thread("audio-decoder");
             let mut data = data;
-            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 run_decoding_loop(&mut data, &shared);
             }));
-            shared.mark_eof();
+            if let Err(payload) = result {
+                report_decoder_panic(payload, &shared);
+            } else if !shared.is_decode_failed() && !shared.is_stopping() {
+                shared.mark_eof();
+            }
             data
         })
         .context("启动解码线程失败")
@@ -215,27 +205,37 @@ fn open_source(
     Ok((reader, cancel))
 }
 
-fn build_resamplers(reader: &AudioReader, target_rate: u32) -> Result<(Resampler, Resampler)> {
+fn build_resampler(reader: &AudioReader, target_rate: u32) -> Result<Resampler> {
     let player_opts = ResampleOptions::new()
         .sample_rate(target_rate as i32)
         .channels(i32::from(TARGET_CHANNELS))
         .format::<f32>();
-    let player_resampler = reader
+    reader
         .build_resampler(player_opts)
-        .with_context(|| "构建播放重采样器失败")?;
-
-    let fft_opts = ResampleOptions::new()
-        .sample_rate(FFT_TARGET_SAMPLE_RATE as i32)
-        .channels(i32::from(TARGET_CHANNELS))
-        .format::<f32>();
-    let fft_resampler = reader
-        .build_resampler(fft_opts)
-        .with_context(|| "构建 FFT 重采样器失败")?;
-
-    Ok((player_resampler, fft_resampler))
+        .with_context(|| "构建播放重采样器失败")
 }
 
-/// 核心解码循环：每帧解码一次，零拷贝分发到播放 + FFT 两个重采样器
+/// panic 只转换成内部故障，不允许沿正常 EOF 路径发出 ended。
+fn report_decoder_panic(payload: Box<dyn std::any::Any + Send>, shared: &Shared) {
+    let message = payload
+        .downcast_ref::<&str>()
+        .copied()
+        .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
+        .unwrap_or("non-string panic payload");
+    error!(message, "解码线程发生内部 panic");
+    shared.mark_internal_failed();
+}
+
+/// 将 resampler 的借用输出复制进受控回收池缓冲，避免每个音频 frame 调用 `to_vec()`。
+fn take_resampled_output(data: &DecoderData, shared: &Shared) -> Vec<f32> {
+    let output = data.player_resampler.output_as::<f32>();
+    let mut samples = shared.take_recycled_buffer();
+    samples.clear();
+    samples.extend_from_slice(output);
+    samples
+}
+
+/// 核心解码循环：每帧只经过一次输出重采样，FFT 使用同一输出 PCM。
 fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
     // 响度归一化：有 ReplayGain 标签时用固定增益，否则用实时分析
     let has_replay_gain = (shared.normalization_gain() - 1.0).abs() > f32::EPSILON;
@@ -253,23 +253,15 @@ fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
 
         match data.reader.receive_frame() {
             Ok(Some(frame)) => {
-                // 1-to-N: 同一帧顺序喂两个重采样器
                 if data.player_resampler.process::<f32>(Some(&frame)).is_err() {
                     debug!("player resampler 处理失败，结束解码");
                     shared.mark_decode_failed();
                     return;
                 }
-                let mut player_samples = data.player_resampler.output_as::<f32>().to_vec();
-
-                if data.fft_resampler.process::<f32>(Some(&frame)).is_err() {
-                    debug!("fft resampler 处理失败，结束解码");
-                    shared.mark_decode_failed();
-                    return;
-                }
-                let fft_samples = data.fft_resampler.output_as::<f32>().to_vec();
+                let mut player_samples = take_resampled_output(data, shared);
 
                 // 重采样可能还在攒样本，本轮没出数据就跳过
-                if player_samples.is_empty() && fft_samples.is_empty() {
+                if player_samples.is_empty() {
                     continue;
                 }
                 had_success = true;
@@ -287,22 +279,14 @@ fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
                     }
                 }
 
-                shared.push(AudioChunk {
-                    player_samples,
-                    fft_samples,
-                });
+                shared.push(AudioChunk { player_samples });
             }
             Ok(None) | Err(AudioError::Eof) => {
-                // EOF flush：把两个重采样器内部残留挤出来，否则最后几十毫秒丢
+                // EOF flush：把重采样器内部残留挤出来，否则最后几十毫秒丢失
                 let _ = data.player_resampler.process::<f32>(None);
-                let _ = data.fft_resampler.process::<f32>(None);
-                let player_samples = data.player_resampler.output_as::<f32>().to_vec();
-                let fft_samples = data.fft_resampler.output_as::<f32>().to_vec();
-                if !player_samples.is_empty() || !fft_samples.is_empty() {
-                    shared.push(AudioChunk {
-                        player_samples,
-                        fft_samples,
-                    });
+                let player_samples = take_resampled_output(data, shared);
+                if !player_samples.is_empty() {
+                    shared.push(AudioChunk { player_samples });
                 }
                 return;
             }

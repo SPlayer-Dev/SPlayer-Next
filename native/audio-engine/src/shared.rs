@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, Ordering};
 
 use crate::http_source::HttpInterrupt;
 use crate::metadata::ExternalLyric;
@@ -10,8 +10,6 @@ use parking_lot::{Condvar, Mutex};
 pub struct AudioChunk {
     /// 交错排列的 f32 播放样本（L R L R ...）
     pub player_samples: Vec<f32>,
-    /// 交错排列的 f32 FFT 样本（L R L R ...）
-    pub fft_samples: Vec<f32>,
 }
 
 /// 非阻塞弹出缓冲区的结果
@@ -21,23 +19,22 @@ pub enum PopResult {
     Finished,
 }
 
+const DECODE_RUNNING: u8 = 0;
+const DECODE_EOF: u8 = 1;
+const DECODE_FAILED: u8 = 2;
+const DECODE_INTERNAL_FAILED: u8 = 3;
+
 /// 解码线程与播放迭代器之间的共享状态
 pub struct Shared {
     buffer: Mutex<VecDeque<AudioChunk>>,
+    /// 解码输出块回收池，只在 decoder/DSP 工作线程间使用，避免每个 FFmpeg frame 重新分配。
+    recycled_buffers: Mutex<Vec<Vec<f32>>>,
     condvar: Condvar,
-    is_eof: AtomicBool,
+    decode_state: AtomicU8,
     is_stopping: AtomicBool,
-    /// 已被 rodio 消费的交错采样数（含所有声道，即 stereo 时每帧 +2）
-    samples_consumed: AtomicU64,
     /// 输出采样率（创建时确定，不可变）
     sample_rate: u32,
-    /// 输出声道数（创建时确定，不可变）
-    channels: u16,
-    /// 所有数据已被消费完毕（DecoderSource 返回 None 时设置）
-    /// 比 is_done() 更准确：is_done 只表示缓冲区空，all_consumed 表示 rodio 侧已消费完
-    all_consumed: AtomicBool,
     /// 解码线程因读取失败（网络中断 / URL 失效）中止，区别于正常 EOF
-    decode_failed: AtomicBool,
     /// 音量归一化增益因子（线性值，1.0 = 无增益）
     /// 使用 AtomicU32 + f32::to_bits/from_bits 实现原子 f32
     normalization_gain: AtomicU32,
@@ -59,14 +56,11 @@ impl Shared {
         );
         Arc::new(Self {
             buffer: Mutex::new(VecDeque::with_capacity(FRAME_BUFFER_CAPACITY)),
+            recycled_buffers: Mutex::new(Vec::with_capacity(4)),
             condvar: Condvar::new(),
-            is_eof: AtomicBool::new(false),
+            decode_state: AtomicU8::new(DECODE_RUNNING),
             is_stopping: AtomicBool::new(false),
-            samples_consumed: AtomicU64::new(0),
             sample_rate,
-            channels,
-            all_consumed: AtomicBool::new(false),
-            decode_failed: AtomicBool::new(false),
             normalization_gain: AtomicU32::new(1.0_f32.to_bits()),
             normalization_enabled: AtomicBool::new(false),
             interrupt: Mutex::new(None),
@@ -104,29 +98,14 @@ impl Shared {
         f32::from_bits(self.normalization_gain.load(Ordering::Relaxed))
     }
 
-    /// 批量累加已消费的采样数（由 DecoderSource 按 chunk 调用）
-    pub fn advance_consumed(&self, count: u64) {
-        self.samples_consumed.fetch_add(count, Ordering::Relaxed);
-    }
-
-    /// 已消费采样的原始计数（用于停滞检测，不做单位换算）
-    pub fn samples_consumed_count(&self) -> u64 {
-        self.samples_consumed.load(Ordering::Relaxed)
-    }
-
     /// 缓冲区是否为空（true 表示解码 underrun，sink 不消费可能是正常等待数据）
     pub fn is_buffer_empty(&self) -> bool {
         self.buffer.lock().is_empty()
     }
 
-    /// 标记所有数据已被消费完毕（DecoderSource 迭代结束时调用）
-    /// stop 引发的迭代结束不算播放完成，否则 position timer 在停止窗口期
-    /// 会把切歌/停止误报成 Ended，导致前端队列跳两首
-    pub fn mark_all_consumed(&self) {
-        if self.is_stopping.load(Ordering::Acquire) {
-            return;
-        }
-        self.all_consumed.store(true, Ordering::Release);
+    /// 当前等待 DSP 消费的解码块数，仅用于低频诊断快照。
+    pub fn buffered_chunks(&self) -> usize {
+        self.buffer.lock().len()
     }
 
     /// 是否已收到停止信号
@@ -134,25 +113,46 @@ impl Shared {
         self.is_stopping.load(Ordering::Acquire)
     }
 
-    /// 检查是否所有数据已被 rodio 消费完毕
-    pub fn is_all_consumed(&self) -> bool {
-        self.all_consumed.load(Ordering::Acquire)
-    }
-
     /// 标记解码因读取失败中止（网络中断 / URL 失效）
     pub fn mark_decode_failed(&self) {
-        self.decode_failed.store(true, Ordering::Release);
+        self.decode_state.store(DECODE_FAILED, Ordering::Release);
+        self.condvar.notify_all();
+    }
+
+    /// 标记解码器发生 panic 等内部故障；此状态不得被当作正常 EOF。
+    pub fn mark_internal_failed(&self) {
+        self.decode_state
+            .store(DECODE_INTERNAL_FAILED, Ordering::Release);
+        self.condvar.notify_all();
     }
 
     /// 解码是否因读取失败中止
     pub fn is_decode_failed(&self) -> bool {
-        self.decode_failed.load(Ordering::Acquire)
+        self.decode_state.load(Ordering::Acquire) == DECODE_FAILED
     }
 
-    /// 基于实际消费采样数的精确播放位置（秒）
-    pub fn consumed_position(&self) -> f64 {
-        let samples = self.samples_consumed.load(Ordering::Relaxed);
-        samples as f64 / self.sample_rate as f64 / self.channels as f64
+    /// 解码器是否因内部故障停止。
+    pub fn is_internal_failed(&self) -> bool {
+        self.decode_state.load(Ordering::Acquire) == DECODE_INTERNAL_FAILED
+    }
+
+    /// 取得一个可复用 PCM 缓冲。回收池为空时才分配新的 Vec header/buffer。
+    pub fn take_recycled_buffer(&self) -> Vec<f32> {
+        self.recycled_buffers.lock().pop().unwrap_or_default()
+    }
+
+    /// 回收已清空的 PCM 缓冲，并限制池大小和单块高水位，避免异常帧永久抬高常驻内存。
+    pub fn recycle_buffer(&self, mut buffer: Vec<f32>) {
+        const MAX_RECYCLED_BUFFERS: usize = 4;
+        const MAX_RECYCLED_SAMPLES: usize = 1_048_576;
+        if buffer.capacity() > MAX_RECYCLED_SAMPLES {
+            return;
+        }
+        buffer.clear();
+        let mut recycled = self.recycled_buffers.lock();
+        if recycled.len() < MAX_RECYCLED_BUFFERS {
+            recycled.push(buffer);
+        }
     }
 
     /// 阻塞等待缓冲区有空间或收到停止信号，返回 false 表示应停止
@@ -184,7 +184,9 @@ impl Shared {
             self.condvar.notify_one();
             return PopResult::Chunk(chunk);
         }
-        if self.is_eof.load(Ordering::Acquire) || self.is_stopping.load(Ordering::Acquire) {
+        if self.decode_state.load(Ordering::Acquire) != DECODE_RUNNING
+            || self.is_stopping.load(Ordering::Acquire)
+        {
             PopResult::Finished
         } else {
             PopResult::Pending
@@ -193,7 +195,12 @@ impl Shared {
 
     /// 标记解码完成
     pub fn mark_eof(&self) {
-        self.is_eof.store(true, Ordering::Release);
+        let _ = self.decode_state.compare_exchange(
+            DECODE_RUNNING,
+            DECODE_EOF,
+            Ordering::AcqRel,
+            Ordering::Acquire,
+        );
         self.condvar.notify_all();
     }
 
@@ -212,12 +219,9 @@ impl Shared {
         let mut buf = self.buffer.lock();
         buf.clear();
         buf.shrink_to_fit();
-    }
-
-    /// 检查播放是否已结束（EOF 且缓冲区为空）
-    pub fn is_done(&self) -> bool {
-        let buf = self.buffer.lock();
-        self.is_eof.load(Ordering::Acquire) && buf.is_empty()
+        let mut recycled = self.recycled_buffers.lock();
+        recycled.clear();
+        recycled.shrink_to_fit();
     }
 }
 
@@ -249,4 +253,29 @@ pub struct AudioMetadata {
     pub cover: Option<String>,
     /// 原始封面数据（load 时一次性提取，供 SMTC 等使用，避免重复打开文件）
     pub cover_raw: Option<Vec<u8>>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PopResult, Shared};
+
+    #[test]
+    fn decode_failure_terminates_empty_consumer() {
+        let shared = Shared::new(48_000, 2);
+        shared.mark_decode_failed();
+        assert!(shared.is_decode_failed());
+        assert!(matches!(shared.try_pop(), PopResult::Finished));
+    }
+
+    #[test]
+    fn recycles_pcm_buffer_without_retaining_abnormal_capacity() {
+        let shared = Shared::new(48_000, 2);
+        let mut normal = Vec::with_capacity(4096);
+        normal.extend_from_slice(&[1.0, 2.0]);
+        shared.recycle_buffer(normal);
+        assert!(shared.take_recycled_buffer().capacity() >= 4096);
+
+        shared.recycle_buffer(Vec::with_capacity(1_048_577));
+        assert_eq!(shared.take_recycled_buffer().capacity(), 0);
+    }
 }

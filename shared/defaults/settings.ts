@@ -17,7 +17,7 @@ export const defaultSystemConfig: SystemConfig = {
     rememberLastTrack: true,
     fadeEnabled: true,
     fadeDuration: 200,
-    outputDevice: null,
+    outputDeviceId: null,
     volume: 1,
     loudnessNormalization: false,
     equalizer: {

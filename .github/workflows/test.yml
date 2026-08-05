@@ -2,9 +2,9 @@ name: Test
 
 on:
   push:
-    branches: [dev]
+    branches: [dev, "dev/rust"]
   pull_request:
-    branches: [dev]
+    branches: [dev, main]
   workflow_dispatch:
 
 permissions:
@@ -64,6 +64,11 @@ jobs:
           node-version: 22.19.0
           cache: pnpm
 
+      - name: Setup stable Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
         with:
@@ -74,3 +79,99 @@ jobs:
 
       - name: Test Rust workspace
         run: pnpm test:native
+
+      - name: Clippy Rust workspace
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Build N-API modules
+        run: pnpm build:native --dev
+
+  native-msrv:
+    name: Native MSRV 1.89
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup MSRV
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.89.0
+          components: clippy
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: native-msrv
+
+      - name: Check Rust workspace on MSRV
+        run: cargo check --workspace --all-targets
+
+  native-supply-chain:
+    name: Native dependency policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check RustSec advisories, licenses, sources and bans
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+
+      - name: Record duplicate dependency graph
+        run: cargo tree --duplicates
+
+  native-unix:
+    name: Native audio and media on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: native-${{ matrix.os }}
+
+      - name: Install Linux native dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libasound2-dev libpipewire-0.3-dev libdbus-1-dev pkg-config clang
+
+      - name: Test native modules
+        run: cargo test -p audio-engine -p media-ctrl --all-targets
+
+      - name: Clippy native modules
+        run: cargo clippy -p audio-engine -p media-ctrl --all-targets --all-features -- -D warnings
+
+      - name: Build native crates
+        run: cargo build -p audio-engine -p media-ctrl --all-features
+
+  native-format:
+    name: Native rustfmt
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check

@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { extname } from "node:path";
-import { app, ipcMain, powerMonitor } from "electron";
+import { ipcMain, powerMonitor } from "electron";
 import { sendToMain } from "@main/utils/broadcast";
 import { wsBroadcast } from "@main/server/broadcast";
 import { toCacheUrl } from "@main/utils/protocol";
@@ -11,7 +11,7 @@ import * as lastfm from "@main/services/lastfm";
 import * as neteaseScrobble from "@main/services/neteaseScrobble";
 import { fetchBytes } from "@main/utils/fetchBytes";
 import { getPlayer, resetPlayer, onPlayerCreated } from "@main/services/engine";
-import { startDevicePolling, stopDevicePolling } from "@main/services/device";
+import { handleNativeDeviceEvent } from "@main/services/device";
 import { getThumbar } from "@main/services/thumbar";
 import {
   setTraySongName,
@@ -67,6 +67,12 @@ const toEnginePositionMs = (positionMs: number): number =>
 const fail = (code: ErrorCode, error?: unknown) => {
   if (error) playerLog.error(`${code}:`, error);
   return { success: false as const, error: code };
+};
+
+/** 从原生错误的稳定前缀读取分类，不依赖平台错误文案 */
+const getNativeErrorCode = (error: unknown): string | null => {
+  const message = error instanceof Error ? error.message : String(error);
+  return /^\[([A-Z_]+)\]/.exec(message)?.[1] ?? null;
 };
 
 /**
@@ -131,6 +137,15 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
         setTaskbarProgress(-1);
         break;
       }
+      case "internalError": {
+        playerLog.error("原生音频解码线程发生内部错误，已停止当前播放");
+        const errorEvent = { type: "error", error: "INTERNAL_ERROR" } as const;
+        sendToMain("player:event", errorEvent);
+        wsBroadcast(errorEvent);
+        mediaService.setPlayState({ status: "Paused" });
+        setTaskbarProgress(-1);
+        break;
+      }
       case "position": {
         const posMs = toDisplayPositionMs(toMs(event.position ?? 0));
         const durMs = toDisplayDurationMs(toMs(event.duration ?? 0));
@@ -159,9 +174,21 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
         if (now - lastReinitAt < REINIT_COOLDOWN_MS) break;
         lastReinitAt = now;
         playerLog.warn("检测到音频输出停滞，自动重建");
-        inst.reinitOutput().catch((error) => {
+        inst.recoverOutput().catch((error) => {
           playerLog.error("自动重建音频输出失败:", error);
         });
+        break;
+      }
+      case "outputDeviceUnavailable": {
+        playerLog.warn("指定输出设备不可用，已临时回退系统默认:", event.deviceId ?? "");
+        sendToMain("player:event", {
+          type: "outputDeviceUnavailable",
+          data: { deviceId: event.deviceId ?? null },
+        });
+        break;
+      }
+      case "deviceChanged": {
+        handleNativeDeviceEvent(inst, event);
         break;
       }
     }
@@ -175,7 +202,6 @@ let loadSeq = 0;
 export const registerPlayerIpc = (): void => {
   // 注册实例创建/重建时的回调
   onPlayerCreated(registerNativeEvents);
-  onPlayerCreated(() => startDevicePolling());
   // 加载音频文件
   ipcMain.handle("player:load", async (_event, source: string, options: LoadOptions = {}) => {
     const autoPlay = options.autoPlay ?? true;
@@ -306,19 +332,19 @@ export const registerPlayerIpc = (): void => {
       return { success: true, data };
     } catch (error) {
       if (seq === loadSeq) activeCueRange = null;
-      const msg = error instanceof Error ? error.message : String(error);
-      // 被更新的 load/stop 取代是正常竞态结果，不能按源类型误判为网络/解码错误
-      //（那两类是可跳曲错误，会让用户的停止操作变成自动跳下一曲）
-      if (msg.includes("已被更新的 load 取代")) {
+      const nativeCode = getNativeErrorCode(error);
+      if (nativeCode === "LOAD_SUPERSEDED" || nativeCode === "CANCELLED") {
         return fail(ErrorCode.LOAD_SUPERSEDED);
       }
-      const isDeviceError = /output device|NoDevice|DeviceNotAvailable/i.test(msg);
       const isNetwork = source.startsWith("http://") || source.startsWith("https://");
-      const code = isDeviceError
-        ? ErrorCode.DEVICE_NOT_FOUND
-        : isNetwork
-          ? ErrorCode.NETWORK_ERROR
-          : ErrorCode.FILE_DECODE_ERROR;
+      const code =
+        nativeCode === "OUTPUT_ERROR"
+          ? ErrorCode.DEVICE_NOT_FOUND
+          : nativeCode === "INTERNAL_ERROR" || nativeCode === "INVALID_ARGUMENT"
+            ? ErrorCode.UNKNOWN
+            : nativeCode === "SOURCE_ERROR" && isNetwork
+              ? ErrorCode.NETWORK_ERROR
+              : ErrorCode.FILE_DECODE_ERROR;
       // 解码失败的源指向歌曲缓存目录 → 文件已损坏，把这条缓存项作废
       if (code === ErrorCode.FILE_DECODE_ERROR && source.startsWith(getSongCacheDir())) {
         void songCache.invalidate(source);
@@ -577,19 +603,19 @@ export const registerPlayerIpc = (): void => {
   });
 
   // 切换输出设备（传 null 使用系统默认）
-  ipcMain.handle("player:setOutputDevice", async (_event, deviceName: string | null) => {
+  ipcMain.handle("player:setOutputDevice", async (_event, deviceId: string | null) => {
     try {
-      await getPlayer().setOutputDevice(deviceName ?? undefined);
+      await getPlayer().setOutputDevice(deviceId ?? undefined);
       return { success: true };
     } catch (error) {
       return fail(ErrorCode.UNKNOWN, error);
     }
   });
 
-  // 获取当前选择的输出设备名称
-  ipcMain.handle("player:getSelectedDeviceName", () => {
+  // 获取当前选择的输出设备 ID
+  ipcMain.handle("player:getSelectedDeviceId", () => {
     try {
-      return { success: true, data: getPlayer().getSelectedDeviceName() ?? null };
+      return { success: true, data: getPlayer().getSelectedDeviceId() ?? null };
     } catch (error) {
       return fail(ErrorCode.UNKNOWN, error);
     }
@@ -672,7 +698,6 @@ export const registerPlayerIpc = (): void => {
     // 全部重试失败，销毁损坏的实例
     playerLog.error("重建音频输出全部失败，销毁播放器实例");
     resetPlayer();
-    stopDevicePolling();
     const stoppedEvent = {
       type: "status",
       data: { state: "stopped", position: 0, duration: 0, volume: 1, isFinished: false },
@@ -681,6 +706,4 @@ export const registerPlayerIpc = (): void => {
     wsBroadcast(stoppedEvent);
   };
   powerMonitor.on("resume", resumeHandler);
-  // 退出前停止设备轮询
-  app.on("before-quit", stopDevicePolling);
 };

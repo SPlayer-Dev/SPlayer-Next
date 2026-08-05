@@ -1,79 +1,92 @@
-//! 业务错误枚举，用于在 NAPI 边界把内部 anyhow::Error 分类成 JS 可识别的类型。
-//!
-//! 内部代码继续用 anyhow，只在 IntoNapiResult 转换时按错误链文本做启发式分类。
-//! 这层不是完整的 typed error 体系，而是 JS 侧可以 `if (err.code === "NetworkUnreachable")` 的薄封装
+//! 音频引擎在 N-API 边界使用的稳定错误类别。
 
+use std::io;
+
+use ffmpeg_audio::AudioError;
 use thiserror::Error;
 
-/// 暴露给 JS 侧的错误分类
-#[derive(Error, Debug)]
+/// 暴露给 JS 侧的稳定错误分类。
+#[derive(Clone, Error, Debug)]
 pub enum AudioEngineError {
-    /// 网络不可达：DNS 失败、连接超时、socket 错误等
-    #[error("network unreachable: {0}")]
-    NetworkUnreachable(String),
-
-    /// 音源不存在：404、本地文件不存在等
-    #[error("source not found: {0}")]
-    SourceNotFound(String),
-
-    /// 解码失败：FFmpeg 报错、格式不支持、文件损坏
-    #[error("decode failed: {0}")]
-    DecodeFailed(String),
-
-    /// 音频输出设备故障
-    #[error("audio device error: {0}")]
-    Device(String),
-
-    /// 取消（cancel flag 被设置）
+    #[error("load superseded by a newer operation")]
+    LoadSuperseded,
     #[error("operation cancelled")]
     Cancelled,
-
-    /// 其它未分类错误
-    #[error("{0}")]
-    Other(String),
+    #[error("source error: {0}")]
+    Source(String),
+    #[error("decode error: {0}")]
+    Decode(String),
+    #[error("output error: {0}")]
+    Output(String),
+    #[error("invalid argument: {0}")]
+    InvalidArgument(String),
+    #[error("internal error: {0}")]
+    Internal(String),
 }
 
 impl AudioEngineError {
-    /// 错误码，给 JS 侧用于分支判断
+    /// 返回不会随平台文案变化的 N-API 错误码。
     pub fn code(&self) -> &'static str {
         match self {
-            Self::NetworkUnreachable(_) => "NetworkUnreachable",
-            Self::SourceNotFound(_) => "SourceNotFound",
-            Self::DecodeFailed(_) => "DecodeFailed",
-            Self::Device(_) => "Device",
-            Self::Cancelled => "Cancelled",
-            Self::Other(_) => "Other",
+            Self::LoadSuperseded => "LOAD_SUPERSEDED",
+            Self::Cancelled => "CANCELLED",
+            Self::Source(_) => "SOURCE_ERROR",
+            Self::Decode(_) => "DECODE_ERROR",
+            Self::Output(_) => "OUTPUT_ERROR",
+            Self::InvalidArgument(_) => "INVALID_ARGUMENT",
+            Self::Internal(_) => "INTERNAL_ERROR",
         }
     }
 
-    /// 启发式分类：从 anyhow 错误链的拼接文本里猜分类。
-    /// 不能精确，但比纯 stringify 多一层信号，避免大改全部错误站点
+    /// 根据错误链中的具体类型分类，不解析展示文案。
     pub fn classify(err: &anyhow::Error) -> Self {
-        let full = format!("{err:#}").to_ascii_lowercase();
-        if full.contains("cancel") || full.contains("interrupted") {
-            Self::Cancelled
-        } else if full.contains("404")
-            || full.contains("not found")
-            || full.contains("no such file")
-        {
-            Self::SourceNotFound(full)
-        } else if full.contains("network")
-            || full.contains("dns")
-            || full.contains("connect")
-            || full.contains("timeout")
-            || full.contains("transport")
-        {
-            Self::NetworkUnreachable(full)
-        } else if full.contains("decode")
-            || full.contains("ffmpeg")
-            || full.contains("invalid data")
-        {
-            Self::DecodeFailed(full)
-        } else if full.contains("device") || full.contains("audio output") || full.contains("cpal")
-        {
-            Self::Device(full)
-        } else {
-            Self::Other(full)
+        for cause in err.chain() {
+            if let Some(engine_error) = cause.downcast_ref::<Self>() {
+                return engine_error.clone();
+            }
+            if let Some(io_error) = cause.downcast_ref::<io::Error>() {
+                return match io_error.kind() {
+                    io::ErrorKind::Interrupted => Self::Cancelled,
+                    io::ErrorKind::NotFound => Self::Source(io_error.to_string()),
+                    _ => Self::Source(io_error.to_string()),
+                };
+            }
+            if cause.downcast_ref::<AudioError>().is_some() {
+                return Self::Decode(cause.to_string());
+            }
+            if cause.downcast_ref::<cpal::Error>().is_some() {
+                return Self::Output(cause.to_string());
+            }
+            if cause.downcast_ref::<ureq::Error>().is_some() {
+                return Self::Source(cause.to_string());
+            }
         }
+        Self::Internal(err.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io;
+
+    use super::AudioEngineError;
+
+    #[test]
+    fn classifies_cancelled_io_without_matching_message_text() {
+        let error = anyhow::Error::new(io::Error::from(io::ErrorKind::Interrupted));
+        assert_eq!(AudioEngineError::classify(&error).code(), "CANCELLED");
+    }
+
+    #[test]
+    fn classifies_missing_file_as_source_error() {
+        let error = anyhow::Error::new(io::Error::from(io::ErrorKind::NotFound));
+        assert_eq!(AudioEngineError::classify(&error).code(), "SOURCE_ERROR");
+    }
+
+    #[test]
+    fn preserves_engine_error_code_through_anyhow_context() {
+        let error =
+            anyhow::Error::new(AudioEngineError::LoadSuperseded).context("load transaction");
+        assert_eq!(AudioEngineError::classify(&error).code(), "LOAD_SUPERSEDED");
     }
 }

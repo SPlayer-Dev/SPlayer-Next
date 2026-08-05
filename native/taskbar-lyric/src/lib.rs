@@ -103,6 +103,19 @@ pub(crate) fn take_valid_hwnd(hwnd_ptr: usize) -> Option<HWND> {
     }
 }
 
+/// 从 Electron 原始句柄 Buffer 读取平台宽度的 HWND。
+pub(crate) fn hwnd_from_buffer(buffer: &[u8]) -> Option<usize> {
+    let width = size_of::<usize>();
+    if buffer.len() != width {
+        return None;
+    }
+    if width == 8 {
+        usize::try_from(u64::from_le_bytes(buffer.try_into().ok()?)).ok()
+    } else {
+        usize::try_from(u32::from_le_bytes(buffer.try_into().ok()?)).ok()
+    }
+}
+
 // --- NAPI Watcher 绑定 ---
 
 #[napi(js_name = "UiaWatcher")]

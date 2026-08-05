@@ -68,6 +68,12 @@ pub enum ScanEvent {
         cue_files: Vec<String>,
         /// 不可达的扫描目录
         unavailable_dirs: Vec<String>,
+        /// 是否完整遍历了所有扫描根目录
+        complete: bool,
+        /// complete | partial | cancelled
+        status: &'static str,
+        /// 遍历、stat 或元数据解析失败数
+        error_count: u32,
     },
 }
 
@@ -185,20 +191,62 @@ pub fn scan_directories(
     let mut scanned_paths: Vec<String> = Vec::new();
     let mut cue_files: Vec<String> = Vec::new();
     // 本轮不可达的目录（NAS 掉线 / 移动硬盘未挂载），其下已有记录不得报告为已删除
-    let mut unavailable_dirs: Vec<&str> = Vec::new();
+    let mut unavailable_dirs: Vec<String> = Vec::new();
+    let mut traversal_incomplete = false;
+    let mut error_count = 0_u32;
 
     for dir in dirs {
         if cancel.load(Ordering::Relaxed) {
             info!("扫描已取消（文件收集阶段）");
+            callback(ScanEvent::Done {
+                scanned: 0,
+                total: audio_files.len() as u32,
+                removed_paths: Vec::new(),
+                cue_files: std::mem::take(&mut cue_files),
+                unavailable_dirs: unavailable_dirs.clone(),
+                complete: false,
+                status: "cancelled",
+                error_count,
+            });
             return;
         }
         let dir_path = Path::new(dir);
         if !dir_path.is_dir() {
             warn!("跳过无效目录: {dir}");
-            unavailable_dirs.push(dir.as_str());
+            unavailable_dirs.push(dir.clone());
+            traversal_incomplete = true;
+            error_count = error_count.saturating_add(1);
             continue;
         }
-        for entry in WalkDir::new(dir).follow_links(true).into_iter().flatten() {
+        for entry in WalkDir::new(dir).follow_links(true).into_iter() {
+            if cancel.load(Ordering::Relaxed) {
+                info!("扫描已取消（文件收集阶段）");
+                callback(ScanEvent::Done {
+                    scanned: 0,
+                    total: audio_files.len() as u32,
+                    removed_paths: Vec::new(),
+                    cue_files: std::mem::take(&mut cue_files),
+                    unavailable_dirs: unavailable_dirs.clone(),
+                    complete: false,
+                    status: "cancelled",
+                    error_count,
+                });
+                return;
+            }
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(error) => {
+                    traversal_incomplete = true;
+                    error_count = error_count.saturating_add(1);
+                    if let Some(path) = error.path() {
+                        unavailable_dirs.push(path.to_string_lossy().into_owned());
+                    } else {
+                        unavailable_dirs.push(dir.clone());
+                    }
+                    warn!(root = %dir, error = %error, "目录遍历不完整，本轮禁止删除记录");
+                    continue;
+                }
+            };
             let path = entry.path();
             if !path.is_file() {
                 continue;
@@ -214,14 +262,32 @@ pub fn scan_directories(
             if let Some((mtime, ctime, size)) = file_stat(path) {
                 scanned_paths.push(path_str.clone());
                 // 增量比对：mtime 和 size 都未变化则跳过
-                if let Some(&(old_mtime, old_size)) = existing.get(path_str.as_str()) {
-                    if old_mtime == mtime && old_size == size {
-                        continue;
-                    }
+                if let Some(&(old_mtime, old_size)) = existing.get(path_str.as_str())
+                    && old_mtime == mtime
+                    && old_size == size
+                {
+                    continue;
                 }
                 audio_files.push((path_str, mtime, ctime, size));
+            } else {
+                error_count = error_count.saturating_add(1);
             }
         }
+    }
+
+    if cancel.load(Ordering::Relaxed) {
+        info!("扫描已取消（文件收集完成后）");
+        callback(ScanEvent::Done {
+            scanned: 0,
+            total: audio_files.len() as u32,
+            removed_paths: Vec::new(),
+            cue_files: std::mem::take(&mut cue_files),
+            unavailable_dirs: unavailable_dirs.clone(),
+            complete: false,
+            status: "cancelled",
+            error_count,
+        });
+        return;
     }
 
     let total = audio_files.len() as u32;
@@ -246,7 +312,10 @@ pub fn scan_directories(
                 total,
                 removed_paths: Vec::new(),
                 cue_files: std::mem::take(&mut cue_files),
-                unavailable_dirs: unavailable_dirs.iter().map(|s| s.to_string()).collect(),
+                unavailable_dirs: unavailable_dirs.clone(),
+                complete: false,
+                status: "cancelled",
+                error_count,
             });
             return;
         }
@@ -263,6 +332,7 @@ pub fn scan_directories(
                 batch.push(track);
             }
             None => {
+                error_count = error_count.saturating_add(1);
                 debug!("跳过文件 {path_str}: FFmpeg 无法解析");
             }
         }
@@ -280,20 +350,39 @@ pub fn scan_directories(
         }
     }
 
+    if cancel.load(Ordering::Relaxed) {
+        info!("扫描已取消（删除计算前，已处理 {scanned}/{total}）");
+        callback(ScanEvent::Done {
+            scanned,
+            total,
+            removed_paths: Vec::new(),
+            cue_files: std::mem::take(&mut cue_files),
+            unavailable_dirs: unavailable_dirs.clone(),
+            complete: false,
+            status: "cancelled",
+            error_count,
+        });
+        return;
+    }
+
     // 计算已删除的文件（在 existing 中但不在 scanned_paths 中）
     // 不可达目录下的记录排除在外：目录只是暂时离线，报告删除会导致一次扫描清空曲库
     let scanned_set: std::collections::HashSet<&str> =
         scanned_paths.iter().map(String::as_str).collect();
-    let removed_paths: Vec<String> = existing
-        .keys()
-        .filter(|path| !scanned_set.contains(**path))
-        .filter(|path| {
-            !unavailable_dirs
-                .iter()
-                .any(|dir| Path::new(**path).starts_with(dir))
-        })
-        .map(|&path| path.to_string())
-        .collect();
+    let removed_paths: Vec<String> = if traversal_incomplete {
+        Vec::new()
+    } else {
+        existing
+            .keys()
+            .filter(|path| !scanned_set.contains(**path))
+            .filter(|path| {
+                !unavailable_dirs
+                    .iter()
+                    .any(|dir| Path::new(**path).starts_with(dir))
+            })
+            .map(|&path| path.to_string())
+            .collect()
+    };
 
     if !removed_paths.is_empty() {
         info!("发现 {} 个已删除文件", removed_paths.len());
@@ -321,6 +410,80 @@ pub fn scan_directories(
         total,
         removed_paths,
         cue_files,
-        unavailable_dirs: unavailable_dirs.iter().map(|s| s.to_string()).collect(),
+        unavailable_dirs,
+        complete: !traversal_incomplete,
+        status: if error_count == 0 {
+            "complete"
+        } else {
+            "partial"
+        },
+        error_count,
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::RefCell;
+
+    use super::*;
+
+    #[test]
+    fn unavailable_root_never_reports_existing_tracks_as_removed() {
+        let missing =
+            std::env::temp_dir().join(format!("splayer-missing-scan-root-{}", std::process::id()));
+        let existing_path = missing.join("existing.flac").to_string_lossy().into_owned();
+        let records = [FileRecord {
+            path: existing_path,
+            mtime: 1,
+            size: 1,
+        }];
+        let events = RefCell::new(Vec::new());
+        scan_directories(
+            &[missing.to_string_lossy().into_owned()],
+            None,
+            Some(&records),
+            &AtomicBool::new(false),
+            &|event| events.borrow_mut().push(event),
+        );
+        let events = events.into_inner();
+        let ScanEvent::Done {
+            removed_paths,
+            complete,
+            status,
+            error_count,
+            ..
+        } = events.last().unwrap()
+        else {
+            panic!("最后一个扫描事件必须是 Done");
+        };
+        assert!(removed_paths.is_empty());
+        assert!(!complete);
+        assert_eq!(*status, "partial");
+        assert_eq!(*error_count, 1);
+    }
+
+    #[test]
+    fn pre_cancelled_scan_reports_cancelled_without_removals() {
+        let events = RefCell::new(Vec::new());
+        scan_directories(
+            &[std::env::temp_dir().to_string_lossy().into_owned()],
+            None,
+            None,
+            &AtomicBool::new(true),
+            &|event| events.borrow_mut().push(event),
+        );
+        let events = events.into_inner();
+        let ScanEvent::Done {
+            status,
+            removed_paths,
+            complete,
+            ..
+        } = events.last().unwrap()
+        else {
+            panic!("取消扫描必须以 Done 结束");
+        };
+        assert_eq!(*status, "cancelled");
+        assert!(removed_paths.is_empty());
+        assert!(!complete);
+    }
 }

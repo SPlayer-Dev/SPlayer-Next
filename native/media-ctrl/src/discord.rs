@@ -1,7 +1,7 @@
 use std::{
     sync::{
         OnceLock,
-        mpsc::{self, Receiver, Sender},
+        mpsc::{self, Receiver, SyncSender},
     },
     thread,
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -12,6 +12,7 @@ use discord_rich_presence::{
     activity::{Activity, ActivityType, Assets, Button, StatusDisplayType, Timestamps},
 };
 use tracing::{debug, info};
+use url::Url;
 
 use crate::model::{
     DiscordConfig, DiscordDisplayMode, MetadataPayload, PlayStateParam, PlaybackStatus,
@@ -32,7 +33,12 @@ enum Msg {
     Config(DiscordConfig),
 }
 
-static SENDER: OnceLock<Sender<Msg>> = OnceLock::new();
+static ACTOR: OnceLock<std::sync::Mutex<Option<ActorHandle>>> = OnceLock::new();
+
+struct ActorHandle {
+    sender: SyncSender<Msg>,
+    join: Option<thread::JoinHandle<()>>,
+}
 
 #[derive(Clone, PartialEq)]
 struct ActivityData {
@@ -60,16 +66,21 @@ impl ActivityData {
     }
 
     fn process_cover(url: Option<&str>) -> String {
-        url.map_or_else(
-            || ICON_KEY.to_string(),
-            |u| {
-                if !u.starts_with("http") {
-                    return ICON_KEY.to_string();
-                }
-                let u = u.replace("http://", "https://");
-                u.split('?').next().unwrap_or(&u).to_string()
-            },
-        )
+        let Some(raw) = url else {
+            return ICON_KEY.to_string();
+        };
+        let Ok(mut parsed) = Url::parse(raw) else {
+            return ICON_KEY.to_string();
+        };
+        if !matches!(parsed.scheme(), "http" | "https") {
+            return ICON_KEY.to_string();
+        }
+        if parsed.scheme() == "http" && parsed.set_scheme("https").is_err() {
+            return ICON_KEY.to_string();
+        }
+        parsed.set_query(None);
+        parsed.set_fragment(None);
+        parsed.to_string()
     }
 }
 
@@ -153,10 +164,10 @@ impl Worker {
     }
 
     fn connect(&mut self) {
-        if let Some(t) = self.next_retry_at {
-            if std::time::Instant::now() < t {
-                return;
-            }
+        if let Some(t) = self.next_retry_at
+            && std::time::Instant::now() < t
+        {
+            return;
         }
         let mut client = DiscordIpcClient::new(APP_ID);
         match client.connect() {
@@ -195,17 +206,17 @@ impl Worker {
             self.connect();
         }
 
-        if let (Some(client), Some(data)) = (&mut self.client, &self.data) {
-            if !Self::do_update(
+        if let (Some(client), Some(data)) = (&mut self.client, &self.data)
+            && !Self::do_update(
                 client,
                 data,
                 &mut self.last_end_ts,
                 &mut self.dirty,
                 self.show_paused,
                 self.display_mode,
-            ) {
-                self.disconnect();
-            }
+            )
+        {
+            self.disconnect();
         }
     }
 
@@ -273,10 +284,10 @@ impl Worker {
                     && dur > 0.0
                 {
                     let (s, e) = playing_timestamps(data.current_ms, dur);
-                    if let Some(prev) = last_end {
-                        if (*prev - e).abs() < TIMESTAMP_THRESHOLD_MS {
-                            return true;
-                        }
+                    if let Some(prev) = last_end
+                        && (*prev - e).abs() < TIMESTAMP_THRESHOLD_MS
+                    {
+                        return true;
                     }
                     activity = activity.timestamps(Timestamps::new().start(s).end(e));
                     *last_end = Some(e);
@@ -324,7 +335,7 @@ fn paused_timestamps(current: f64, duration: f64) -> (i64, i64) {
     (start, start + duration as i64)
 }
 
-fn background_loop(rx: &Receiver<Msg>) {
+fn background_loop(rx: Receiver<Msg>) {
     let mut worker = Worker::default();
     loop {
         match rx.recv_timeout(Duration::from_secs(1)) {
@@ -342,27 +353,74 @@ fn background_loop(rx: &Receiver<Msg>) {
     }
 }
 
-pub fn init() {
-    let (tx, rx) = mpsc::channel();
-    if SENDER.set(tx).is_err() {
-        // 重复初始化无害，直接忽略；前次的 background_loop 仍在运行
-        return;
+pub fn init() -> anyhow::Result<()> {
+    let actor = ACTOR.get_or_init(|| std::sync::Mutex::new(None));
+    let mut actor = actor
+        .lock()
+        .map_err(|error| anyhow::anyhow!("Discord actor 锁失败: {error}"))?;
+    if actor.is_some() {
+        return Ok(());
     }
-    thread::spawn(move || background_loop(&rx));
+    let (tx, rx) = mpsc::sync_channel(32);
+    let join = thread::Builder::new()
+        .name("discord-rpc-actor".to_string())
+        .spawn(move || background_loop(rx))?;
+    *actor = Some(ActorHandle {
+        sender: tx,
+        join: Some(join),
+    });
     info!("Discord RPC 后台线程已启动");
+    Ok(())
 }
 
 fn send(msg: Msg) {
-    if let Some(tx) = SENDER.get() {
-        let _ = tx.send(msg);
+    let Some(actor) = ACTOR.get() else {
+        return;
+    };
+    let sender = actor
+        .lock()
+        .ok()
+        .and_then(|actor| actor.as_ref().map(|actor| actor.sender.clone()));
+    if let Some(sender) = sender {
+        // 配置、元数据和播放状态必须按序送达；队列有界，满时通过背压限制生产者。
+        let _ = sender.send(msg);
+    }
+}
+
+fn send_timeline(msg: Msg) {
+    let Some(actor) = ACTOR.get() else {
+        return;
+    };
+    let sender = actor
+        .lock()
+        .ok()
+        .and_then(|actor| actor.as_ref().map(|actor| actor.sender.clone()));
+    if let Some(sender) = sender {
+        // 时间轴是高频快照，队列繁忙时下一次更新会取代本次，无需阻塞播放主链路。
+        let _ = sender.try_send(msg);
+    }
+}
+
+/// 停止 Discord actor 并等待线程退出，下一次 initialize 可以重新创建。
+pub fn shutdown() {
+    let Some(actor) = ACTOR.get() else {
+        return;
+    };
+    let Ok(mut actor) = actor.lock() else {
+        return;
+    };
+    let Some(mut actor_handle) = actor.take() else {
+        return;
+    };
+    let _ = actor_handle.sender.send(Msg::Disable);
+    drop(actor_handle.sender);
+    if let Some(join) = actor_handle.join.take() {
+        let _ = join.join();
     }
 }
 
 pub fn enable() {
     send(Msg::Enable);
-}
-pub fn disable() {
-    send(Msg::Disable);
 }
 pub fn update_config(c: DiscordConfig) {
     send(Msg::Config(c));
@@ -374,5 +432,35 @@ pub fn update_play_state(p: PlayStateParam) {
     send(Msg::PlayState(p));
 }
 pub fn update_timeline(p: TimelineParam) {
-    send(Msg::Timeline(p));
+    send_timeline(Msg::Timeline(p));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ActivityData, ICON_KEY};
+
+    #[test]
+    fn cover_url_removes_credentials_query_and_fragment_from_presence() {
+        let cover = ActivityData::process_cover(Some(
+            "https://cdn.example/cover.jpg?token=secret#fragment",
+        ));
+        assert_eq!(cover, "https://cdn.example/cover.jpg");
+    }
+
+    #[test]
+    fn cover_url_rejects_non_http_protocols() {
+        assert_eq!(
+            ActivityData::process_cover(Some("file:///tmp/cover.jpg")),
+            ICON_KEY
+        );
+        assert_eq!(ActivityData::process_cover(Some("not a url")), ICON_KEY);
+    }
+
+    #[test]
+    fn http_cover_is_upgraded_without_string_slicing() {
+        assert_eq!(
+            ActivityData::process_cover(Some("http://cdn.example/cover.jpg")),
+            "https://cdn.example/cover.jpg"
+        );
+    }
 }

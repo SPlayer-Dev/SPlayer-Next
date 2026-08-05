@@ -11,6 +11,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use anyhow::{Context, Result};
 use lofty::config::WriteOptions;
@@ -20,6 +21,8 @@ use lofty::picture::{Picture, PictureType};
 use lofty::prelude::*;
 use lofty::probe::Probe;
 use lofty::tag::{ItemKey, Tag, TagType};
+
+static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// 可编辑标签的读取结果
 #[derive(Debug, Default, PartialEq)]
@@ -112,17 +115,18 @@ fn read_lyrics_from_tag(tag: &Tag) -> Option<String> {
         return Some(lyrics.to_string());
     }
 
-    // 遍历所有 items 寻找最优歌词标签
+    // 遍历所有已知歌词 ItemKey，避免用 Debug 文本推断业务语义
     tag.items()
         .filter_map(|item| {
-            let key_str = format!("{:?}", item.key());
-            let norm = crate::normalize_tag_key(&key_str);
-            if crate::is_lyric_field_key(&norm) {
-                if let Some(val) = item.value().text() {
-                    if !val.is_empty() {
-                        return Some((val.to_string(), crate::get_lyric_priority(&norm)));
-                    }
-                }
+            let priority = match item.key() {
+                ItemKey::UnsyncLyrics => 3,
+                ItemKey::Lyrics => 2,
+                _ => 0,
+            };
+            if priority > 0
+                && let Some(val) = item.value().text().filter(|value| !value.is_empty())
+            {
+                return Some((val.to_string(), priority));
             }
             None
         })
@@ -150,7 +154,7 @@ fn apply_to_file(path: &Path, request: &TagWriteRequest) -> Result<()> {
     if tagged.tag(tag_type).is_none() {
         tagged.insert_tag(Tag::new(tag_type));
     }
-    let tag = tagged.tag_mut(tag_type).expect("tag 必然存在");
+    let tag = tagged.tag_mut(tag_type).context("创建可编辑标签容器失败")?;
 
     match request.title {
         None => {}
@@ -216,14 +220,62 @@ fn apply_to_file(path: &Path, request: &TagWriteRequest) -> Result<()> {
     Ok(())
 }
 
-/// 同目录临时文件路径：{文件名}.tagedit.tmp
+/// 生成同目录唯一临时文件路径，避免并发编辑复用固定文件名。
 fn temp_path(original: &Path) -> PathBuf {
     let mut name = original
         .file_name()
         .map(|n| n.to_os_string())
         .unwrap_or_default();
-    name.push(".tagedit.tmp");
+    name.push(format!(
+        ".tagedit.tmp.{}.{}",
+        std::process::id(),
+        TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)
+    ));
     original.with_file_name(name)
+}
+
+#[cfg(target_os = "windows")]
+fn atomic_replace(temp: &Path, original: &Path) -> Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+
+    use windows::Win32::Storage::FileSystem::{
+        MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
+    };
+    use windows::core::PCWSTR;
+
+    let temp_wide = temp
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    let original_wide = original
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    // SAFETY: 两个 UTF-16 缓冲在调用期间有效且以 NUL 结尾；flag 要求原子替换并同步落盘。
+    unsafe {
+        MoveFileExW(
+            PCWSTR(temp_wide.as_ptr()),
+            PCWSTR(original_wide.as_ptr()),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    }
+    .context("原子覆盖原文件失败")
+}
+
+#[cfg(unix)]
+fn atomic_replace(temp: &Path, original: &Path) -> Result<()> {
+    fs::rename(temp, original).context("覆盖原文件失败")?;
+    let parent = original.parent().unwrap_or_else(|| Path::new("."));
+    fs::File::open(parent)
+        .and_then(|directory| directory.sync_all())
+        .context("同步父目录失败")
+}
+
+#[cfg(not(any(target_os = "windows", unix)))]
+fn atomic_replace(temp: &Path, original: &Path) -> Result<()> {
+    fs::rename(temp, original).context("覆盖原文件失败")
 }
 
 /// 写入标签（temp + rename，崩溃不损坏原文件）
@@ -234,9 +286,23 @@ pub fn write_tags(request: &TagWriteRequest) -> Result<()> {
     let temp = temp_path(original);
     fs::copy(original, &temp).context("创建临时副本失败")?;
 
-    let applied = apply_to_file(&temp, request)
-        // Windows 下 rename 可原子覆盖已存在目标（MOVEFILE_REPLACE_EXISTING）
-        .and_then(|()| fs::rename(&temp, original).context("覆盖原文件失败"));
+    let original_meta = fs::metadata(original).context("读取源文件状态失败")?;
+
+    let applied = apply_to_file(&temp, request).and_then(|()| {
+        let file = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&temp)
+            .context("打开临时文件失败")?;
+        file.sync_all().context("同步临时文件失败")?;
+        let current_meta = fs::metadata(original).context("确认源文件状态失败")?;
+        anyhow::ensure!(
+            current_meta.len() == original_meta.len()
+                && current_meta.modified().ok() == original_meta.modified().ok(),
+            "源文件在编辑期间发生变化，已取消替换"
+        );
+        atomic_replace(&temp, original)
+    });
     if applied.is_err() {
         let _ = fs::remove_file(&temp);
     }
@@ -473,6 +539,43 @@ mod tests {
             .unwrap()
             .flatten()
             .filter(|e| e.file_name().to_string_lossy().contains("not-audio.wav."))
+            .count();
+        assert_eq!(leftovers, 0);
+    }
+
+    #[test]
+    fn concurrent_edits_never_corrupt_source_or_reuse_temp_name() {
+        let path = temp_wav("concurrent.wav");
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
+        let handles = ["并发标题甲", "并发标题乙"].map(|title| {
+            let path = path.clone();
+            let barrier = std::sync::Arc::clone(&barrier);
+            std::thread::spawn(move || {
+                barrier.wait();
+                write_tags(&TagWriteRequest {
+                    path: path.to_string_lossy().into_owned(),
+                    title: Some(title.to_string()),
+                    ..Default::default()
+                })
+            })
+        });
+        barrier.wait();
+        let outcomes = handles.map(|handle| handle.join().unwrap());
+        assert!(outcomes.iter().any(Result::is_ok));
+        let tags = read_tags(&path.to_string_lossy()).unwrap();
+        assert!(matches!(
+            tags.title.as_deref(),
+            Some("并发标题甲" | "并发标题乙")
+        ));
+        let leftovers = std::fs::read_dir(path.parent().unwrap())
+            .unwrap()
+            .flatten()
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .contains("concurrent.wav.tagedit")
+            })
             .count();
         assert_eq!(leftovers, 0);
     }

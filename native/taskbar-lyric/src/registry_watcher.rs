@@ -2,9 +2,13 @@
 //!
 //! 主要用于监听任务栏深浅色主题切换（SystemUsesLightTheme / AppsUseLightTheme）
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread;
+use std::sync::{Arc, Mutex};
+use std::thread::{self, JoinHandle};
+use std::{
+    ffi::c_void,
+    os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle},
+};
 
 use napi::{
     Status,
@@ -14,7 +18,7 @@ use napi::{
 use napi_derive::napi;
 use windows::{
     Win32::{
-        Foundation::{CloseHandle, HANDLE, WAIT_OBJECT_0},
+        Foundation::{HANDLE, WAIT_OBJECT_0},
         System::{
             Registry::{
                 HKEY, HKEY_CURRENT_USER, KEY_NOTIFY, REG_NOTIFY_CHANGE_LAST_SET, RegCloseKey,
@@ -28,25 +32,11 @@ use windows::{
 
 type VoidTsfn = ThreadsafeFunction<(), UnknownReturnValue, (), Status, false>;
 
-struct EventHandle(HANDLE);
-
-impl Drop for EventHandle {
-    fn drop(&mut self) {
-        // SAFETY: handle 由 CreateEventW 创建，仅在 Drop 时关闭
-        unsafe {
-            let _ = CloseHandle(self.0);
-        }
-    }
-}
-
-// SAFETY: HANDLE 是 Win32 不透明指针，跨线程读 + 单线程关闭安全
-unsafe impl Send for EventHandle {}
-unsafe impl Sync for EventHandle {}
-
 #[napi]
 pub struct RegistryWatcher {
-    stop_event: Arc<EventHandle>,
+    stop_event: Arc<OwnedHandle>,
     is_running: Arc<AtomicBool>,
+    thread: Mutex<Option<JoinHandle<()>>>,
 }
 
 #[napi]
@@ -64,17 +54,19 @@ impl RegistryWatcher {
         let raw_event = unsafe { CreateEventW(None, true, false, None) }
             .map_err(|e| napi::Error::from_reason(format!("创建停止事件失败: {e}")))?;
 
-        let stop_event = Arc::new(EventHandle(raw_event));
+        // SAFETY: CreateEventW 成功返回独占 HANDLE，立即交给 OwnedHandle 管理。
+        let stop_event = Arc::new(unsafe { OwnedHandle::from_raw_handle(raw_event.0) });
         let is_running = Arc::new(AtomicBool::new(true));
         let thread_event = stop_event.clone();
 
-        thread::spawn(move || {
+        let thread = thread::spawn(move || {
             registry_watch_loop(&thread_event, &tsfn, &sub_key);
         });
 
         Ok(Self {
             stop_event,
             is_running,
+            thread: Mutex::new(Some(thread)),
         })
     }
 
@@ -85,9 +77,14 @@ impl RegistryWatcher {
         }
         // SAFETY: stop_event 在 self 生命周期内一直有效（Arc 持有）
         unsafe {
-            let _ = SetEvent(self.stop_event.0);
+            let _ = SetEvent(owned_handle_value(&self.stop_event));
         }
         self.is_running.store(false, Ordering::SeqCst);
+        if let Ok(mut thread) = self.thread.lock()
+            && let Some(thread) = thread.take()
+        {
+            let _ = thread.join();
+        }
     }
 }
 
@@ -98,8 +95,12 @@ impl Drop for RegistryWatcher {
     }
 }
 
-fn registry_watch_loop(stop_event_wrapper: &Arc<EventHandle>, tsfn: &VoidTsfn, sub_key: &str) {
-    let stop_event = stop_event_wrapper.0;
+fn owned_handle_value(handle: &OwnedHandle) -> HANDLE {
+    HANDLE(handle.as_raw_handle().cast::<c_void>())
+}
+
+fn registry_watch_loop(stop_event_wrapper: &Arc<OwnedHandle>, tsfn: &VoidTsfn, sub_key: &str) {
+    let stop_event = owned_handle_value(stop_event_wrapper);
     let mut h_key = HKEY::default();
     let sub_key_wide = HSTRING::from(sub_key);
 
@@ -120,8 +121,12 @@ fn registry_watch_loop(stop_event_wrapper: &Arc<EventHandle>, tsfn: &VoidTsfn, s
 
     // SAFETY: 创建一个自动重置的通知事件，失败时关闭已打开的注册表 handle
     let reg_event = match unsafe { CreateEventW(None, false, false, None) } {
-        Ok(evt) => evt,
+        Ok(evt) => {
+            // SAFETY: CreateEventW 成功返回独占 HANDLE，立即交给 OwnedHandle 管理。
+            unsafe { OwnedHandle::from_raw_handle(evt.0) }
+        }
         Err(_) => {
+            // SAFETY: h_key 已由 RegOpenKeyExW 成功打开，当前分支尚未转移所有权。
             unsafe {
                 let _ = RegCloseKey(h_key);
             }
@@ -136,7 +141,7 @@ fn registry_watch_loop(stop_event_wrapper: &Arc<EventHandle>, tsfn: &VoidTsfn, s
                 h_key,
                 true,
                 REG_NOTIFY_CHANGE_LAST_SET,
-                Some(reg_event),
+                Some(owned_handle_value(&reg_event)),
                 true,
             )
         };
@@ -144,7 +149,7 @@ fn registry_watch_loop(stop_event_wrapper: &Arc<EventHandle>, tsfn: &VoidTsfn, s
             break;
         }
 
-        let handles = [stop_event, reg_event];
+        let handles = [stop_event, owned_handle_value(&reg_event)];
         // SAFETY: handles 栈上有效，stop_event / reg_event 由调用方/本函数持有
         let wait_result = unsafe { WaitForMultipleObjects(&handles, false, INFINITE) };
         let index = wait_result.0.wrapping_sub(WAIT_OBJECT_0.0);
@@ -157,9 +162,8 @@ fn registry_watch_loop(stop_event_wrapper: &Arc<EventHandle>, tsfn: &VoidTsfn, s
         }
     }
 
-    // SAFETY: 释放在本函数中创建/打开的两个 handle
+    // SAFETY: h_key 由 RegOpenKeyExW 成功打开，通知事件由 OwnedHandle 自动释放。
     unsafe {
-        let _ = CloseHandle(reg_event);
         let _ = RegCloseKey(h_key);
     }
 }

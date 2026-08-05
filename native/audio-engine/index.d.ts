@@ -4,8 +4,10 @@
 export declare class AudioPlayer {
   /** 创建新的播放器实例 */
   constructor()
-  /** 重新初始化音频输出设备（系统休眠唤醒后调用） */
+  /** 重新初始化音频输出设备（系统休眠唤醒后调用）。 */
   reinitOutput(): Promise<void>
+  /** 输出失效时恢复；指定设备无法重开则临时使用系统默认，同时保留用户设置。 */
+  recoverOutput(): Promise<void>
   /** 设置封面缓存目录（在 load 前调用一次即可） */
   setCoverCacheDir(dir: string): void
   /** 注册事件回调，Rust 侧会在状态变化、位置更新、播放结束时主动调用 */
@@ -51,6 +53,8 @@ export declare class AudioPlayer {
   getDuration(): number
   /** 获取当前播放状态快照 */
   getStatus(): JsPlayerStatus
+  /** 获取低频诊断快照；不得在渲染帧循环中调用。 */
+  getDiagnostics(): JsAudioDiagnostics
   /** 启用/禁用 FFT 频谱推送（前端需要显示频谱时启用，不显示时禁用以节省性能） */
   setFftEnabled(enabled: boolean): void
   /** 获取 FFT 推送开关状态 */
@@ -83,9 +87,9 @@ export declare class AudioPlayer {
   /** 获取系统默认输出设备名称 */
   getDefaultDeviceName(): string | null
   /** 切换输出设备（传 None/undefined 使用系统默认） */
-  setOutputDevice(deviceName?: string | undefined | null): Promise<void>
-  /** 获取当前选择的输出设备名称（None = 系统默认） */
-  getSelectedDeviceName(): string | null
+  setOutputDevice(deviceId?: string | undefined | null): Promise<void>
+  /** 获取当前选择的输出设备 ID（None = 系统默认） */
+  getSelectedDeviceId(): string | null
   /** 设置播放速度（自动 clamp 到 [0.5, 2.0]） */
   setSpeed(speed: number): void
   /** 设置音调偏移（半音，自动 clamp 到 [-12, 12]） */
@@ -115,9 +119,35 @@ export declare function initLogger(logDir: string, isDev: boolean): void
 
 /** 音频输出设备信息 */
 export interface JsAudioDevice {
+  /** CPAL 提供的稳定设备 ID，用于持久化选择 */
+  id: string
   name: string
+  /** CPAL host 标识 */
+  host: string
   /** 是否为系统默认设备 */
   isDefault: boolean
+}
+
+/** 原生音频链路的只读诊断快照。 */
+export interface JsAudioDiagnostics {
+  state: string
+  sourceSampleRate: number
+  outputSampleRate: number
+  outputChannels: number
+  bufferedChunks: number
+  submittedSamples: number
+  underrunSamples: number
+  xrunCount: number
+  realtimeDeniedCount: number
+  callbackAllocationCount: number
+  callbackMaxDurationUs: number
+  ringCapacityFrames: number
+  ringFillFrames: number
+  rebuildAttempts: number
+  rebuildFailures: number
+  clockQuality: string
+  selectedDeviceId?: string
+  activeDeviceId?: string
 }
 
 /** 一条外部歌词，返回给 JS 侧（仅格式和路径，内容按需加载） */
@@ -165,7 +195,7 @@ export interface JsMusicMetadata {
 
 /** 播放器事件，推送给 JS 侧 */
 export interface JsPlayerEvent {
-  /** 事件类型："stateChanged" | "ended" | "sourceError" | "position" | "fftData" | "outputStalled" */
+  /** 事件类型："stateChanged" | "ended" | "sourceError" | "internalError" | "position" | "fftData" | "outputStalled" | "outputDeviceUnavailable" | "deviceChanged" */
   type: string
   /** 状态（仅 stateChanged 时有值） */
   state?: string
@@ -175,6 +205,10 @@ export interface JsPlayerEvent {
   duration?: number
   /** FFT 频谱数据（仅 fftData 时有值，128 个频段，值域 0.0 ~ 1.0） */
   fftData?: JsFftData
+  /** 原生设备事件类型（仅 deviceChanged 时有值） */
+  deviceEvent?: string
+  /** 发生变化的 CPAL DeviceId（仅 deviceChanged 且系统提供 ID 时有值） */
+  deviceId?: string
 }
 
 /** 播放器状态快照 */
@@ -209,6 +243,12 @@ export interface JsScanEvent {
   cueFiles?: Array<string>
   /** 不可达的扫描目录 */
   unavailableDirs?: Array<string>
+  /** done 是否完整遍历；false 时数据库不得执行删除 */
+  complete?: boolean
+  /** complete | partial | cancelled */
+  status?: string
+  /** 遍历、stat 或元数据解析失败数 */
+  errorCount?: number
 }
 
 /** 扫描到的曲目信息 */

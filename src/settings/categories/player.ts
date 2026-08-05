@@ -269,7 +269,7 @@ const playerCategory: SettingCategory = {
       id: "device",
       items: [
         {
-          key: "outputDevice",
+          key: "outputDeviceId",
           type: "custom",
           component: DeviceSelector,
         },

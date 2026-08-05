@@ -1,8 +1,9 @@
-//! FFmpeg 音频解码 + rodio 播放 + FFT 频谱分析。
+//! FFmpeg 音频解码 + CPAL 输出 + FFT 频谱分析。
 //! 通过 NAPI-RS 暴露给 Node.js，作为 Electron 主进程的原生模块。
 
 mod audio_output;
 mod decoder;
+mod device_watcher;
 mod equalizer;
 mod error;
 mod fft;
@@ -11,14 +12,14 @@ mod logger;
 mod loudness;
 mod metadata;
 mod player;
-mod priority;
 mod scanner;
 mod shared;
 mod source;
 mod tag_editor;
 mod tempo;
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::mpsc::{self, SyncSender};
 use std::sync::{Arc, Once};
 use std::thread::{self, JoinHandle};
 
@@ -28,7 +29,8 @@ use napi_derive::napi;
 use parking_lot::Mutex;
 use tracing::{info, warn};
 
-use player::{InnerPlayer, PlayerEvent, PlayerState, SeekTake};
+use crate::equalizer::EQ_BAND_COUNT;
+use player::{InnerPlayer, PlayerController, PlayerEvent, PlayerState, SeekTake};
 
 /// async seek 阶段 2 的输出
 enum SeekOutcome {
@@ -44,16 +46,37 @@ enum SeekOutcome {
 /// 全局扫描取消标志
 static SCAN_CANCEL: Mutex<Option<Arc<AtomicBool>>> = Mutex::new(None);
 
-/// load 被更新的 load/stop 取代时的错误文案
-/// 主进程 IPC 按此文案识别并映射为 LOAD_SUPERSEDED（正常竞态，前端静默），改动需同步
-const LOAD_SUPERSEDED_REASON: &str = "load 已被更新的 load 取代";
+const LOAD_SUPERSEDED_CODE: &str = "LOAD_SUPERSEDED";
 
 /// anyhow::Error → napi::Error 统一转换。
 ///
-/// 经 `AudioEngineError::classify` 启发式分类，错误消息附带 `[CODE]` 前缀，
-/// JS 侧可解析 code 走分支（网络中断 vs 解码失败 vs 取消等）
+/// 经 `AudioEngineError::classify` 按错误链中的具体类型分类，错误消息附带 `[CODE]` 前缀，
+/// JS 侧可解析稳定 code 走分支。
 trait IntoNapiResult<T> {
     fn into_napi(self) -> napi::Result<T>;
+}
+
+fn invalid_argument(message: &str) -> Error {
+    let error = crate::error::AudioEngineError::InvalidArgument(message.to_string());
+    Error::from_reason(format!("[{}] {error}", error.code()))
+}
+
+fn load_superseded_error() -> Error {
+    let error = crate::error::AudioEngineError::LoadSuperseded;
+    Error::from_reason(format!("[{}] {error}", error.code()))
+}
+
+fn internal_error(message: impl Into<String>) -> Error {
+    let error = crate::error::AudioEngineError::Internal(message.into());
+    Error::from_reason(format!("[{}] {error}", error.code()))
+}
+
+fn is_load_superseded(error: &Error) -> bool {
+    error
+        .reason
+        .strip_prefix('[')
+        .and_then(|reason| reason.split_once(']'))
+        .is_some_and(|(code, _)| code == LOAD_SUPERSEDED_CODE)
 }
 
 impl<T> IntoNapiResult<T> for anyhow::Result<T> {
@@ -72,7 +95,6 @@ pub fn init_logger(log_dir: String, is_dev: bool) {
     INIT.call_once(|| {
         logger::init_logger(&log_dir, is_dev);
         ffmpeg_audio::log::set_log_level(ffmpeg_audio::sys::LogLevel::Fatal);
-        priority::configure_process_priority();
         info!(log_dir, is_dev, "audio-engine 日志系统已初始化");
     });
 }
@@ -119,7 +141,11 @@ pub struct JsMusicMetadata {
 /// 音频输出设备信息
 #[napi(object)]
 pub struct JsAudioDevice {
+    /// CPAL 提供的稳定设备 ID，用于持久化选择
+    pub id: String,
     pub name: String,
+    /// CPAL host 标识
+    pub host: String,
     /// 是否为系统默认设备
     pub is_default: bool,
 }
@@ -135,7 +161,7 @@ pub struct JsFftData {
 #[napi(object)]
 #[derive(Default)]
 pub struct JsPlayerEvent {
-    /// 事件类型："stateChanged" | "ended" | "sourceError" | "position" | "fftData" | "outputStalled"
+    /// 事件类型："stateChanged" | "ended" | "sourceError" | "internalError" | "position" | "fftData" | "outputStalled" | "outputDeviceUnavailable" | "deviceChanged"
     #[napi(js_name = "type")]
     pub event_type: String,
     /// 状态（仅 stateChanged 时有值）
@@ -146,6 +172,33 @@ pub struct JsPlayerEvent {
     pub duration: Option<f64>,
     /// FFT 频谱数据（仅 fftData 时有值，128 个频段，值域 0.0 ~ 1.0）
     pub fft_data: Option<JsFftData>,
+    /// 原生设备事件类型（仅 deviceChanged 时有值）
+    pub device_event: Option<String>,
+    /// 发生变化的 CPAL DeviceId（仅 deviceChanged 且系统提供 ID 时有值）
+    pub device_id: Option<String>,
+}
+
+/// 原生音频链路的只读诊断快照。
+#[napi(object)]
+pub struct JsAudioDiagnostics {
+    pub state: String,
+    pub source_sample_rate: u32,
+    pub output_sample_rate: u32,
+    pub output_channels: u32,
+    pub buffered_chunks: u32,
+    pub submitted_samples: f64,
+    pub underrun_samples: f64,
+    pub xrun_count: f64,
+    pub realtime_denied_count: f64,
+    pub callback_allocation_count: f64,
+    pub callback_max_duration_us: f64,
+    pub ring_capacity_frames: f64,
+    pub ring_fill_frames: f64,
+    pub rebuild_attempts: f64,
+    pub rebuild_failures: f64,
+    pub clock_quality: String,
+    pub selected_device_id: Option<String>,
+    pub active_device_id: Option<String>,
 }
 
 /// 播放器状态快照
@@ -172,10 +225,176 @@ fn state_to_str(state: PlayerState) -> &'static str {
         PlayerState::Stopped => "stopped",
     }
 }
+
+enum EventPumpCommand {
+    Critical(PlayerEvent),
+    WakeLatest,
+    Shutdown,
+}
+
+#[derive(Default)]
+struct LatestPlayerEvents {
+    position: Option<PlayerEvent>,
+    fft: Option<PlayerEvent>,
+}
+
+struct EventPumpHandle {
+    sender: SyncSender<EventPumpCommand>,
+    stopping: Arc<AtomicBool>,
+    thread: Option<JoinHandle<()>>,
+}
+
+impl Drop for EventPumpHandle {
+    fn drop(&mut self) {
+        self.stopping.store(true, Ordering::Release);
+        let _ = self.sender.send(EventPumpCommand::Shutdown);
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+
+fn player_event_to_js(event: PlayerEvent) -> JsPlayerEvent {
+    match event {
+        PlayerEvent::StateChanged { state } => JsPlayerEvent {
+            event_type: "stateChanged".into(),
+            state: Some(state_to_str(state).into()),
+            ..Default::default()
+        },
+        PlayerEvent::Ended => JsPlayerEvent {
+            event_type: "ended".into(),
+            ..Default::default()
+        },
+        PlayerEvent::SourceError => JsPlayerEvent {
+            event_type: "sourceError".into(),
+            ..Default::default()
+        },
+        PlayerEvent::InternalError => JsPlayerEvent {
+            event_type: "internalError".into(),
+            ..Default::default()
+        },
+        PlayerEvent::Position { position, duration } => JsPlayerEvent {
+            event_type: "position".into(),
+            position: Some(position),
+            duration: Some(duration),
+            ..Default::default()
+        },
+        PlayerEvent::FftData { ldata, rdata } => JsPlayerEvent {
+            event_type: "fftData".into(),
+            fft_data: Some(JsFftData {
+                ldata: ldata.into_iter().map(f64::from).collect(),
+                rdata: rdata.into_iter().map(f64::from).collect(),
+            }),
+            ..Default::default()
+        },
+        PlayerEvent::OutputStalled => JsPlayerEvent {
+            event_type: "outputStalled".into(),
+            ..Default::default()
+        },
+        PlayerEvent::OutputDeviceUnavailable { device_id } => JsPlayerEvent {
+            event_type: "outputDeviceUnavailable".into(),
+            device_id: Some(device_id),
+            ..Default::default()
+        },
+        PlayerEvent::DeviceChanged { kind, device_id } => JsPlayerEvent {
+            event_type: "deviceChanged".into(),
+            device_event: Some(kind.into()),
+            device_id,
+            ..Default::default()
+        },
+    }
+}
+
+fn create_event_pump(
+    callback: Function<JsPlayerEvent, ()>,
+) -> Result<(player::EventEmitter, EventPumpHandle)> {
+    let tsfn = callback
+        .build_threadsafe_function()
+        .max_queue_size::<32>()
+        .build()?;
+    let (sender, receiver) = mpsc::sync_channel(32);
+    let latest = Arc::new(Mutex::new(LatestPlayerEvents::default()));
+    let pump_latest = Arc::clone(&latest);
+    let stopping = Arc::new(AtomicBool::new(false));
+    let pump_stopping = Arc::clone(&stopping);
+    let thread = thread::Builder::new()
+        .name("audio-event-pump".to_string())
+        .spawn(move || {
+            while let Ok(command) = receiver.recv() {
+                match command {
+                    EventPumpCommand::Critical(event) => {
+                        while !pump_stopping.load(Ordering::Acquire) {
+                            let status = tsfn.call(
+                                player_event_to_js(event.clone()),
+                                ThreadsafeFunctionCallMode::NonBlocking,
+                            );
+                            if status != napi::Status::QueueFull {
+                                break;
+                            }
+                            thread::yield_now();
+                        }
+                    }
+                    EventPumpCommand::WakeLatest => {
+                        let (position, fft) = {
+                            let mut latest = pump_latest.lock();
+                            (latest.position.take(), latest.fft.take())
+                        };
+                        if let Some(event) = position {
+                            tsfn.call(
+                                player_event_to_js(event),
+                                ThreadsafeFunctionCallMode::NonBlocking,
+                            );
+                        }
+                        if let Some(event) = fft {
+                            tsfn.call(
+                                player_event_to_js(event),
+                                ThreadsafeFunctionCallMode::NonBlocking,
+                            );
+                        }
+                    }
+                    EventPumpCommand::Shutdown => break,
+                }
+            }
+        })
+        .map_err(|error| internal_error(format!("启动音频事件泵失败: {error}")))?;
+
+    let emitter_sender = sender.clone();
+    let emitter_latest = Arc::clone(&latest);
+    let emitter: player::EventEmitter = Arc::new(move |event| match event {
+        event @ (PlayerEvent::Position { .. } | PlayerEvent::FftData { .. }) => {
+            let mut latest = emitter_latest.lock();
+            match event {
+                event @ PlayerEvent::Position { .. } => latest.position = Some(event),
+                event @ PlayerEvent::FftData { .. } => latest.fft = Some(event),
+                _ => unreachable!(),
+            }
+            drop(latest);
+            let _ = emitter_sender.try_send(EventPumpCommand::WakeLatest);
+        }
+        event => {
+            let _ = emitter_sender.send(EventPumpCommand::Critical(event));
+        }
+    });
+
+    Ok((
+        emitter,
+        EventPumpHandle {
+            sender,
+            stopping,
+            thread: Some(thread),
+        },
+    ))
+}
+
 /// 音频播放器，通过 napi-rs 暴露给 Node.js
 #[napi]
 pub struct AudioPlayer {
-    inner: Arc<Mutex<InnerPlayer>>,
+    inner: PlayerController,
+    device_event_callback: Arc<parking_lot::RwLock<Option<player::EventEmitter>>>,
+    _device_watcher: device_watcher::DeviceWatcher,
+    rebuild_attempts: AtomicU64,
+    rebuild_failures: AtomicU64,
+    event_pump: Mutex<Option<EventPumpHandle>>,
 }
 
 #[napi]
@@ -183,36 +402,107 @@ impl AudioPlayer {
     /// 创建新的播放器实例
     #[napi(constructor)]
     pub fn new() -> Result<Self> {
-        let inner = InnerPlayer::new().into_napi()?;
+        let inner = PlayerController::new().into_napi()?;
+        let device_event_callback = Arc::new(parking_lot::RwLock::new(None));
+        let device_watcher =
+            device_watcher::DeviceWatcher::new(Arc::clone(&device_event_callback)).into_napi()?;
         info!("AudioPlayer 实例已创建");
         Ok(Self {
-            inner: Arc::new(Mutex::new(inner)),
+            inner,
+            device_event_callback,
+            _device_watcher: device_watcher,
+            rebuild_attempts: AtomicU64::new(0),
+            rebuild_failures: AtomicU64::new(0),
+            event_pump: Mutex::new(None),
         })
     }
 
-    /// 重新初始化音频输出设备（系统休眠唤醒后调用）
+    /// 重新初始化音频输出设备（系统休眠唤醒后调用）。
     #[napi]
     pub async fn reinit_output(&self) -> Result<()> {
         info!("重新初始化音频输出设备");
+        let selected_device_id = self
+            .inner
+            .call(|player| player.selected_device_id().map(String::from))
+            .into_napi()?;
+        self.rebuild_output(selected_device_id.clone(), selected_device_id)
+            .await
+    }
 
-        let (take, position, was_playing, current_source) = {
-            let mut player = self.inner.lock();
-            let position = player.position();
-            let was_playing = player.state() == PlayerState::Playing;
-            let current_source = player.current_source();
-
-            let take = player.take_for_async_seek();
-
-            if let Err(e) = player.recreate_output_device() {
-                warn!("重建输出设备失败: {}", e);
+    /// 输出失效时恢复；指定设备无法重开则临时使用系统默认，同时保留用户设置。
+    #[napi]
+    pub async fn recover_output(&self) -> Result<()> {
+        let selected_device_id = self
+            .inner
+            .call(|player| player.selected_device_id().map(String::from))
+            .into_napi()?;
+        match self
+            .rebuild_output(selected_device_id.clone(), selected_device_id.clone())
+            .await
+        {
+            Ok(()) => Ok(()),
+            Err(error) if selected_device_id.is_some() => {
+                let Some(device_id) = selected_device_id else {
+                    return Err(error);
+                };
+                warn!(device = %device_id, reason = %error, "指定输出设备不可用，临时回退系统默认");
+                self.inner
+                    .call(move |player| player.emit_output_device_unavailable(device_id))
+                    .into_napi()?;
+                let expected_selection = self
+                    .inner
+                    .call(|player| player.selected_device_id().map(String::from))
+                    .into_napi()?;
+                self.rebuild_output(None, expected_selection).await
             }
+            Err(error) => Err(error),
+        }
+    }
 
-            let take = take.map(|mut t| {
-                t.output_sample_rate = player.output_sample_rate();
-                t
-            });
+    async fn rebuild_output(
+        &self,
+        build_device_id: Option<String>,
+        expected_selected_device_id: Option<String>,
+    ) -> Result<()> {
+        self.rebuild_attempts.fetch_add(1, Ordering::Relaxed);
+        let output_device_id = build_device_id.clone();
+        let output_result = tokio::task::spawn_blocking(move || {
+            audio_output::AudioOutput::new(build_device_id.as_deref())
+        })
+        .await
+        .map_err(|e| {
+            self.rebuild_failures.fetch_add(1, Ordering::Relaxed);
+            internal_error(format!("reinit output task join error: {e}"))
+        })?;
+        let new_output = match output_result {
+            Ok(output) => output,
+            Err(error) => {
+                self.rebuild_failures.fetch_add(1, Ordering::Relaxed);
+                return Err(error).into_napi();
+            }
+        };
 
-            (take, position, was_playing, current_source)
+        let transaction = self
+            .inner
+            .call(move |player| {
+                if player.selected_device_id() != expected_selected_device_id.as_deref() {
+                    return None;
+                }
+                let position = player.position();
+                let was_playing = player.state() == PlayerState::Playing;
+                let current_source = player.current_source();
+                let take = player.take_for_async_seek();
+                player.replace_output_device(new_output, output_device_id);
+                let take = take.map(|mut value| {
+                    value.output_sample_rate = player.output_sample_rate();
+                    value
+                });
+                Some((take, position, was_playing, current_source))
+            })
+            .into_napi()?;
+        let Some((take, position, was_playing, current_source)) = transaction else {
+            info!("输出设备选择已变化，丢弃过期的重建结果");
+            return Ok(());
         };
 
         let Some(take) = take else {
@@ -253,13 +543,14 @@ impl AudioPlayer {
             SeekOutcome::Resumed { shared, handle }
         })
         .await
-        .map_err(|e| Error::from_reason(format!("reinit task join error: {e}")))?;
+        .map_err(|e| internal_error(format!("reinit task join error: {e}")))?;
 
         match outcome {
             SeekOutcome::Resumed { shared, handle } => {
-                let mut player = self.inner.lock();
-                let committed = player
-                    .commit_seeked(token, position, shared, handle)
+                let committed = self
+                    .inner
+                    .call(move |player| player.commit_seeked(token, position, shared, handle))
+                    .into_napi()?
                     .into_napi()?;
                 if !committed {
                     info!("reinit 已被更新的 load/seek/stop 取代，丢弃结果");
@@ -267,17 +558,23 @@ impl AudioPlayer {
                 Ok(())
             }
             SeekOutcome::Fallback => {
-                if !self.inner.lock().is_load_token_current(token) {
+                if !self
+                    .inner
+                    .call(move |player| player.is_load_token_current(token))
+                    .into_napi()?
+                {
                     return Ok(());
                 }
                 if let Some(src) = current_source {
                     let is_remote = src.starts_with("http://") || src.starts_with("https://");
                     if let Err(e) = self.load(src, Some(was_playing)).await {
-                        if e.reason == LOAD_SUPERSEDED_REASON {
+                        if is_load_superseded(&e) {
                             return Ok(());
                         }
                         if is_remote {
-                            self.inner.lock().emit_source_error();
+                            self.inner
+                                .call(|player| player.emit_source_error())
+                                .into_napi()?;
                             return Ok(());
                         }
                         return Err(e);
@@ -292,54 +589,22 @@ impl AudioPlayer {
 
     /// 设置封面缓存目录（在 load 前调用一次即可）
     #[napi]
-    pub fn set_cover_cache_dir(&self, dir: String) {
-        self.inner.lock().set_cover_cache_dir(dir);
+    pub fn set_cover_cache_dir(&self, dir: String) -> Result<()> {
+        self.inner
+            .call(move |player| player.set_cover_cache_dir(dir))
+            .into_napi()
     }
 
     /// 注册事件回调，Rust 侧会在状态变化、位置更新、播放结束时主动调用
     #[napi(ts_args_type = "callback: (event: JsPlayerEvent) => void")]
     pub fn on_event(&self, callback: Function<JsPlayerEvent, ()>) -> Result<()> {
-        let tsfn = callback.build_threadsafe_function().build()?;
+        let (emitter, event_pump) = create_event_pump(callback)?;
 
-        // 用闭包包裹 tsfn，在内部做 PlayerEvent → JsPlayerEvent 转换
-        let emitter: player::EventEmitter = Arc::new(move |event: PlayerEvent| {
-            let js_event = match event {
-                PlayerEvent::StateChanged { state } => JsPlayerEvent {
-                    event_type: "stateChanged".into(),
-                    state: Some(state_to_str(state).into()),
-                    ..Default::default()
-                },
-                PlayerEvent::Ended => JsPlayerEvent {
-                    event_type: "ended".into(),
-                    ..Default::default()
-                },
-                PlayerEvent::SourceError => JsPlayerEvent {
-                    event_type: "sourceError".into(),
-                    ..Default::default()
-                },
-                PlayerEvent::Position { position, duration } => JsPlayerEvent {
-                    event_type: "position".into(),
-                    position: Some(position),
-                    duration: Some(duration),
-                    ..Default::default()
-                },
-                PlayerEvent::FftData { ldata, rdata } => JsPlayerEvent {
-                    event_type: "fftData".into(),
-                    fft_data: Some(JsFftData {
-                        ldata: ldata.into_iter().map(|v| v as f64).collect(),
-                        rdata: rdata.into_iter().map(|v| v as f64).collect(),
-                    }),
-                    ..Default::default()
-                },
-                PlayerEvent::OutputStalled => JsPlayerEvent {
-                    event_type: "outputStalled".into(),
-                    ..Default::default()
-                },
-            };
-            tsfn.call(js_event, ThreadsafeFunctionCallMode::NonBlocking);
-        });
-
-        self.inner.lock().set_event_callback(emitter);
+        *self.device_event_callback.write() = Some(Arc::clone(&emitter));
+        self.inner
+            .call(move |player| player.set_event_callback(emitter))
+            .into_napi()?;
+        *self.event_pump.lock() = Some(event_pump);
         Ok(())
     }
 
@@ -363,6 +628,7 @@ impl AudioPlayer {
         info!(source = %source, auto_play, "加载音频源");
 
         let interrupt = crate::http_source::HttpInterrupt::new();
+        let player_interrupt = interrupt.clone();
         let (
             old_threads,
             old_output,
@@ -370,20 +636,22 @@ impl AudioPlayer {
             load_token,
             cover_dir,
             normalization_enabled,
-            device_name,
-        ) = {
-            let mut player = self.inner.lock();
-            let (old_threads, old_output, token) = player.take_for_async_load(interrupt.clone());
-            (
-                old_threads,
-                old_output,
-                token,
-                player.load_token_handle(),
-                player.cover_cache_dir().map(String::from),
-                player.is_normalization_enabled(),
-                player.selected_device_name().map(String::from),
-            )
-        };
+            device_id,
+        ) = self
+            .inner
+            .call(move |player| {
+                let (old_threads, old_output, token) = player.take_for_async_load(player_interrupt);
+                (
+                    old_threads,
+                    old_output,
+                    token,
+                    player.load_token_handle(),
+                    player.cover_cache_dir().map(String::from),
+                    player.is_normalization_enabled(),
+                    player.selected_device_id().map(String::from),
+                )
+            })
+            .into_napi()?;
 
         let source_for_decoder = source.clone();
 
@@ -395,35 +663,44 @@ impl AudioPlayer {
             let prepared =
                 decoder::prepare_decode(&source_for_decoder, cover_dir.as_deref(), interrupt)?;
             if load_token.load(std::sync::atomic::Ordering::Acquire) != token {
-                anyhow::bail!(LOAD_SUPERSEDED_REASON);
+                return Err(anyhow::Error::new(
+                    crate::error::AudioEngineError::LoadSuperseded,
+                ));
             }
-            let requested_rate = prepared.original_sample_rate();
-            let output = audio_output::AudioOutput::new(device_name.as_deref(), requested_rate)?;
+            let output = audio_output::AudioOutput::new(device_id.as_deref())?;
             let shared = Shared::new(output.sample_rate(), decoder::TARGET_CHANNELS);
             shared.set_normalization_enabled(normalization_enabled);
             let (metadata, decode_handle) =
                 decoder::start_prepared_decode(prepared, Arc::clone(&shared))?;
-            Ok::<_, anyhow::Error>((metadata, decode_handle, shared, output))
+            Ok::<_, anyhow::Error>((metadata, decode_handle, shared, output, device_id))
         })
         .await
-        .map_err(|e| Error::from_reason(format!("load task join error: {e}")))?;
+        .map_err(|e| internal_error(format!("load task join error: {e}")))?;
 
-        let (metadata, decode_handle, shared, output) = match result {
+        let (metadata, decode_handle, shared, output, output_device_id) = match result {
             Ok(result) => result,
             Err(error) => {
-                let mut player = self.inner.lock();
-                if !player.is_load_token_current(token) {
-                    return Err(Error::from_reason(LOAD_SUPERSEDED_REASON));
+                let current = self
+                    .inner
+                    .call(move |player| {
+                        let current = player.is_load_token_current(token);
+                        if current {
+                            player.clear_pending_load(token);
+                        }
+                        current
+                    })
+                    .into_napi()?;
+                if !current {
+                    return Err(load_superseded_error());
                 }
-                player.clear_pending_load(token);
                 return Err(error).into_napi();
             }
         };
 
-        let returned_meta = {
-            let mut player = self.inner.lock();
-            player
-                .commit_loaded(
+        let returned_meta = self
+            .inner
+            .call(move |player| {
+                player.commit_loaded(
                     token,
                     &source,
                     auto_play,
@@ -432,14 +709,16 @@ impl AudioPlayer {
                         decode_handle,
                         shared,
                         output,
+                        output_device_id,
                     },
                 )
-                .into_napi()?
-        };
+            })
+            .into_napi()?
+            .into_napi()?;
 
         match returned_meta {
             Some(meta) => Ok(Self::meta_to_js(meta)),
-            None => Err(Error::from_reason(LOAD_SUPERSEDED_REASON)),
+            None => Err(load_superseded_error()),
         }
     }
 
@@ -473,17 +752,23 @@ impl AudioPlayer {
     /// 恢复播放。如果已停止或播放结束，自动从头重新加载
     #[napi]
     pub async fn play(&self) -> Result<()> {
-        let revival_source = self.inner.lock().play().into_napi()?;
+        let revival_source = self
+            .inner
+            .call(InnerPlayer::play)
+            .into_napi()?
+            .into_napi()?;
         if let Some(source) = revival_source {
             let is_remote = source.starts_with("http://") || source.starts_with("https://");
             if let Err(e) = self.load(source, Some(true)).await {
                 // 复活加载被更新的 load/stop 取代不是错误：已有更新的操作接管播放
-                if e.reason == LOAD_SUPERSEDED_REASON {
+                if is_load_superseded(&e) {
                     return Ok(());
                 }
                 // 远端源复活失败（多半 URL 过期）：发 sourceError 交 JS 重解析（命中本地缓存 / 拿新 URL）
                 if is_remote {
-                    self.inner.lock().emit_source_error();
+                    self.inner
+                        .call(|player| player.emit_source_error())
+                        .into_napi()?;
                     return Ok(());
                 }
                 return Err(e);
@@ -494,14 +779,14 @@ impl AudioPlayer {
 
     /// 暂停播放
     #[napi]
-    pub fn pause(&self) {
-        self.inner.lock().pause();
+    pub fn pause(&self) -> Result<()> {
+        self.inner.call(InnerPlayer::pause).into_napi()
     }
 
     /// 停止播放并释放资源
     #[napi]
-    pub fn stop(&self) {
-        self.inner.lock().stop();
+    pub fn stop(&self) -> Result<()> {
+        self.inner.call(InnerPlayer::stop).into_napi()
     }
 
     /// 跳转到指定播放位置（秒）
@@ -513,12 +798,15 @@ impl AudioPlayer {
     /// seek 失败时 fallback 到完整 load
     #[napi]
     pub async fn seek(&self, position: f64) -> Result<()> {
+        if !position.is_finite() || position < 0.0 {
+            return Err(invalid_argument("播放位置必须是有限的非负数"));
+        }
         use crate::shared::Shared;
 
-        let take = {
-            let mut player = self.inner.lock();
-            player.take_for_async_seek()
-        };
+        let take = self
+            .inner
+            .call(InnerPlayer::take_for_async_seek)
+            .into_napi()?;
         // 无解码线程：空闲 / 已停止 / 正在异步加载（句柄被 load 取走）。
         // 此时 seek 无意义，且绝不能走回退重载——current_source 仍指向旧曲，
         // 重载会顶掉在途的新歌加载、复活旧曲
@@ -559,13 +847,14 @@ impl AudioPlayer {
             SeekOutcome::Resumed { shared, handle }
         })
         .await
-        .map_err(|e| Error::from_reason(format!("seek task join error: {e}")))?;
+        .map_err(|e| internal_error(format!("seek task join error: {e}")))?;
 
         match outcome {
             SeekOutcome::Resumed { shared, handle } => {
-                let mut player = self.inner.lock();
-                let committed = player
-                    .commit_seeked(token, position, shared, handle)
+                let committed = self
+                    .inner
+                    .call(move |player| player.commit_seeked(token, position, shared, handle))
+                    .into_napi()?
                     .into_napi()?;
                 if !committed {
                     info!(position, "seek 已被更新的 load/seek/stop 取代，丢弃结果");
@@ -574,26 +863,32 @@ impl AudioPlayer {
             }
             SeekOutcome::Fallback => {
                 // seek 期间已被新的 load/stop 取代时不再回退重载，避免复活旧源
-                if !self.inner.lock().is_load_token_current(token) {
+                if !self
+                    .inner
+                    .call(move |player| player.is_load_token_current(token))
+                    .into_napi()?
+                {
                     info!(position, "seek 失败且已被取代，跳过回退重载");
                     return Ok(());
                 }
                 if let Some(src) = current_source {
                     let is_remote = src.starts_with("http://") || src.starts_with("https://");
                     if let Err(e) = self.load(src, Some(was_playing)).await {
-                        if e.reason == LOAD_SUPERSEDED_REASON {
+                        if is_load_superseded(&e) {
                             return Ok(());
                         }
                         // 远端源回退重开失败（多半 URL 过期）：发 sourceError 交 JS 重解析
                         if is_remote {
-                            self.inner.lock().emit_source_error();
+                            self.inner
+                                .call(|player| player.emit_source_error())
+                                .into_napi()?;
                             return Ok(());
                         }
                         return Err(e);
                     }
                     Ok(())
                 } else {
-                    Err(Error::from_reason("seek 失败且无 current_source"))
+                    Err(internal_error("seek 失败且无 current_source"))
                 }
             }
         }
@@ -601,135 +896,217 @@ impl AudioPlayer {
 
     /// 设置音量（0.0 ~ 1.0）
     #[napi]
-    pub fn set_volume(&self, volume: f64) {
-        self.inner.lock().set_volume(volume as f32);
+    pub fn set_volume(&self, volume: f64) -> Result<()> {
+        if !volume.is_finite() || !(0.0..=1.0).contains(&volume) {
+            return Err(invalid_argument("音量必须在 0 到 1 之间"));
+        }
+        self.inner
+            .call(move |player| player.set_volume(volume as f32))
+            .into_napi()
     }
 
     /// 获取当前音量（0.0 ~ 1.0）
     #[napi]
-    pub fn get_volume(&self) -> f64 {
-        self.inner.lock().volume() as f64
+    pub fn get_volume(&self) -> Result<f64> {
+        self.inner.call(|player| player.volume() as f64).into_napi()
     }
 
     /// 设置暂停/恢复时的渐变时长（毫秒），0 表示禁用渐变
     #[napi]
-    pub fn set_fade_duration(&self, duration_ms: f64) {
-        self.inner.lock().set_fade_duration(duration_ms as u64);
+    pub fn set_fade_duration(&self, duration_ms: f64) -> Result<()> {
+        if !duration_ms.is_finite() || !(0.0..=60_000.0).contains(&duration_ms) {
+            return Err(invalid_argument("渐变时长必须在 0 到 60000 毫秒之间"));
+        }
+        self.inner
+            .call(move |player| player.set_fade_duration(duration_ms as u64))
+            .into_napi()
     }
 
     /// 获取当前渐变时长（毫秒）
     #[napi]
-    pub fn get_fade_duration(&self) -> f64 {
-        self.inner.lock().fade_duration() as f64
+    pub fn get_fade_duration(&self) -> Result<f64> {
+        self.inner
+            .call(|player| player.fade_duration() as f64)
+            .into_napi()
     }
 
     /// 获取当前播放位置（秒）
     #[napi]
-    pub fn get_position(&self) -> f64 {
-        self.inner.lock().position()
+    pub fn get_position(&self) -> Result<f64> {
+        self.inner.call(|player| player.position()).into_napi()
     }
 
     /// 获取总时长（秒）
     #[napi]
-    pub fn get_duration(&self) -> f64 {
-        self.inner.lock().duration()
+    pub fn get_duration(&self) -> Result<f64> {
+        self.inner.call(|player| player.duration()).into_napi()
     }
 
     /// 获取当前播放状态快照
     #[napi]
-    pub fn get_status(&self) -> JsPlayerStatus {
-        let player = self.inner.lock();
-        JsPlayerStatus {
-            state: state_to_str(player.state()).to_string(),
-            position: player.position(),
-            duration: player.duration(),
-            volume: player.volume() as f64,
-            is_finished: player.is_finished(),
-        }
+    pub fn get_status(&self) -> Result<JsPlayerStatus> {
+        self.inner
+            .call(|player| JsPlayerStatus {
+                state: state_to_str(player.state()).to_string(),
+                position: player.position(),
+                duration: player.duration(),
+                volume: player.volume() as f64,
+                is_finished: player.is_finished(),
+            })
+            .into_napi()
+    }
+
+    /// 获取低频诊断快照；不得在渲染帧循环中调用。
+    #[napi]
+    pub fn get_diagnostics(&self) -> Result<JsAudioDiagnostics> {
+        let diagnostics = self.inner.call(|player| player.diagnostics()).into_napi()?;
+        Ok(JsAudioDiagnostics {
+            state: state_to_str(diagnostics.state).to_string(),
+            source_sample_rate: diagnostics.source_sample_rate,
+            output_sample_rate: diagnostics.output_sample_rate,
+            output_channels: u32::from(diagnostics.output_channels),
+            buffered_chunks: u32::try_from(diagnostics.buffered_chunks).unwrap_or(u32::MAX),
+            submitted_samples: diagnostics.submitted_samples as f64,
+            underrun_samples: diagnostics.underrun_samples as f64,
+            xrun_count: diagnostics.xrun_count as f64,
+            realtime_denied_count: diagnostics.realtime_denied_count as f64,
+            callback_allocation_count: diagnostics.callback_allocation_count as f64,
+            callback_max_duration_us: diagnostics.callback_max_duration_us as f64,
+            ring_capacity_frames: if diagnostics.output_channels == 0 {
+                0.0
+            } else {
+                diagnostics.ring_capacity_samples as f64 / f64::from(diagnostics.output_channels)
+            },
+            ring_fill_frames: if diagnostics.output_channels == 0 {
+                0.0
+            } else {
+                diagnostics.ring_fill_samples as f64 / f64::from(diagnostics.output_channels)
+            },
+            rebuild_attempts: self.rebuild_attempts.load(Ordering::Relaxed) as f64,
+            rebuild_failures: self.rebuild_failures.load(Ordering::Relaxed) as f64,
+            clock_quality: match diagnostics.clock_quality {
+                audio_output::ClockQuality::Hardware => "hardware",
+                audio_output::ClockQuality::Estimated => "estimated",
+            }
+            .to_string(),
+            selected_device_id: diagnostics.selected_device_id,
+            active_device_id: diagnostics.active_device_id,
+        })
     }
 
     /// 启用/禁用 FFT 频谱推送（前端需要显示频谱时启用，不显示时禁用以节省性能）
     #[napi]
-    pub fn set_fft_enabled(&self, enabled: bool) {
-        self.inner.lock().set_fft_enabled(enabled);
+    pub fn set_fft_enabled(&self, enabled: bool) -> Result<()> {
+        self.inner
+            .call(move |player| player.set_fft_enabled(enabled))
+            .into_napi()
     }
 
     /// 获取 FFT 推送开关状态
     #[napi]
-    pub fn get_fft_enabled(&self) -> bool {
-        self.inner.lock().fft_enabled()
+    pub fn get_fft_enabled(&self) -> Result<bool> {
+        self.inner.call(|player| player.fft_enabled()).into_napi()
     }
 
     /// 启用/禁用音量归一化（实时响度均衡）
     #[napi]
-    pub fn set_normalization_enabled(&self, enabled: bool) {
-        self.inner.lock().set_normalization_enabled(enabled);
+    pub fn set_normalization_enabled(&self, enabled: bool) -> Result<()> {
+        self.inner
+            .call(move |player| player.set_normalization_enabled(enabled))
+            .into_napi()
     }
 
     /// 获取音量归一化开关状态
     #[napi]
-    pub fn get_normalization_enabled(&self) -> bool {
-        self.inner.lock().normalization_enabled()
+    pub fn get_normalization_enabled(&self) -> Result<bool> {
+        self.inner
+            .call(|player| player.normalization_enabled())
+            .into_napi()
     }
 
     /// 启用/禁用 10 频段均衡器
     #[napi]
-    pub fn set_equalizer_enabled(&self, enabled: bool) {
-        self.inner.lock().set_equalizer_enabled(enabled);
+    pub fn set_equalizer_enabled(&self, enabled: bool) -> Result<()> {
+        self.inner
+            .call(move |player| player.set_equalizer_enabled(enabled))
+            .into_napi()
     }
 
     /// 获取均衡器开关状态
     #[napi]
-    pub fn get_equalizer_enabled(&self) -> bool {
-        self.inner.lock().equalizer_enabled()
+    pub fn get_equalizer_enabled(&self) -> Result<bool> {
+        self.inner
+            .call(|player| player.equalizer_enabled())
+            .into_napi()
     }
 
     /// 更新均衡器各频段增益（dB），长度必须为 10，范围 [-15, 15]
     #[napi]
-    pub fn set_equalizer_bands(&self, gains_db: Vec<f64>) {
+    pub fn set_equalizer_bands(&self, gains_db: Vec<f64>) -> Result<()> {
+        if gains_db.len() != EQ_BAND_COUNT
+            || gains_db
+                .iter()
+                .any(|value| !value.is_finite() || !(-15.0..=15.0).contains(value))
+        {
+            return Err(invalid_argument(
+                "均衡器增益必须是 10 个 [-15, 15] 的有限数",
+            ));
+        }
         let bands: Vec<f32> = gains_db.into_iter().map(|v| v as f32).collect();
-        self.inner.lock().set_equalizer_bands(&bands);
+        self.inner
+            .call(move |player| player.set_equalizer_bands(&bands))
+            .into_napi()
     }
 
     /// 获取均衡器各频段当前增益（dB）
     #[napi]
-    pub fn get_equalizer_bands(&self) -> Vec<f64> {
+    pub fn get_equalizer_bands(&self) -> Result<Vec<f64>> {
         self.inner
-            .lock()
-            .equalizer_bands()
-            .iter()
-            .map(|v| *v as f64)
-            .collect()
+            .call(|player| {
+                player
+                    .equalizer_bands()
+                    .iter()
+                    .map(|value| f64::from(*value))
+                    .collect()
+            })
+            .into_napi()
     }
 
     /// 设置前级增益（dB），范围 [-12, 12]
     #[napi]
-    pub fn set_preamp_gain(&self, preamp_db: f64) {
-        self.inner.lock().set_preamp_gain(preamp_db as f32);
+    pub fn set_preamp_gain(&self, preamp_db: f64) -> Result<()> {
+        if !preamp_db.is_finite() || !(-12.0..=12.0).contains(&preamp_db) {
+            return Err(invalid_argument("前级增益必须在 -12 到 12 dB 之间"));
+        }
+        self.inner
+            .call(move |player| player.set_preamp_gain(preamp_db as f32))
+            .into_napi()
     }
 
     /// 获取前级增益（dB）
     #[napi]
-    pub fn get_preamp_gain(&self) -> f64 {
-        self.inner.lock().preamp_gain() as f64
+    pub fn get_preamp_gain(&self) -> Result<f64> {
+        self.inner
+            .call(|player| f64::from(player.preamp_gain()))
+            .into_napi()
     }
 
     /// 获取 FFT 频谱数据（128 个频段，值域 0.0 ~ 1.0）
     #[napi]
-    pub fn get_fft_data(&self) -> JsFftData {
-        let (ldata, rdata) = self.inner.lock().fft_data();
+    pub fn get_fft_data(&self) -> Result<JsFftData> {
+        let (ldata, rdata) = self.inner.call(|player| player.fft_data()).into_napi()?;
         let ldata = ldata.into_iter().map(|v| v as f64).collect();
         let rdata = rdata.into_iter().map(|v| v as f64).collect();
-        JsFftData { ldata, rdata }
+        Ok(JsFftData { ldata, rdata })
     }
 
     /// 返回 load 时缓存的原始封面数据（用于 SMTC / 全屏播放器）。
     /// 封面在 load 阶段从已打开的 FFmpeg 上下文一次性提取，不再重复打开文件。
     #[napi]
-    pub fn get_cover_raw(&self) -> Option<napi::bindgen_prelude::Buffer> {
-        let player = self.inner.lock();
-        let data = player.cover_raw()?;
-        Some(data.to_vec().into())
+    pub fn get_cover_raw(&self) -> Result<Option<napi::bindgen_prelude::Buffer>> {
+        self.inner
+            .call(|player| player.cover_raw().map(|data| data.to_vec().into()))
+            .into_napi()
     }
 
     /// 获取所有音频输出设备列表
@@ -737,7 +1114,12 @@ impl AudioPlayer {
     pub fn get_output_devices(&self) -> Vec<JsAudioDevice> {
         audio_output::list_output_devices()
             .into_iter()
-            .map(|(name, is_default)| JsAudioDevice { name, is_default })
+            .map(|(id, name, host, is_default)| JsAudioDevice {
+                id,
+                name,
+                host,
+                is_default,
+            })
             .collect()
     }
 
@@ -749,52 +1131,81 @@ impl AudioPlayer {
 
     /// 切换输出设备（传 None/undefined 使用系统默认）
     #[napi]
-    pub async fn set_output_device(&self, device_name: Option<String>) -> Result<()> {
-        info!(device = ?device_name, "切换输出设备");
-        self.inner.lock().set_output_device(device_name);
-        self.reinit_output().await
+    pub async fn set_output_device(&self, device_id: Option<String>) -> Result<()> {
+        info!(device = ?device_id, "切换输出设备");
+        let requested_device_id = device_id.clone();
+        self.inner
+            .call(move |player| player.set_output_device(requested_device_id))
+            .into_napi()?;
+        let result = self.reinit_output().await;
+        if result.is_err() {
+            self.inner
+                .call(move |player| {
+                    if player.selected_device_id() == device_id.as_deref() {
+                        let active = player.active_device_id().map(String::from);
+                        player.set_output_device(active);
+                    }
+                })
+                .into_napi()?;
+        }
+        result
     }
 
-    /// 获取当前选择的输出设备名称（None = 系统默认）
+    /// 获取当前选择的输出设备 ID（None = 系统默认）
     #[napi]
-    pub fn get_selected_device_name(&self) -> Option<String> {
-        self.inner.lock().selected_device_name().map(String::from)
+    pub fn get_selected_device_id(&self) -> Result<Option<String>> {
+        self.inner
+            .call(|player| player.selected_device_id().map(String::from))
+            .into_napi()
     }
 
     /// 设置播放速度（自动 clamp 到 [0.5, 2.0]）
     #[napi]
-    pub fn set_speed(&self, speed: f64) {
-        self.inner.lock().set_speed(speed as f32);
+    pub fn set_speed(&self, speed: f64) -> Result<()> {
+        if !speed.is_finite() || !(0.5..=2.0).contains(&speed) {
+            return Err(invalid_argument("播放速度必须在 0.5 到 2 之间"));
+        }
+        self.inner
+            .call(move |player| player.set_speed(speed as f32))
+            .into_napi()
     }
 
     /// 设置音调偏移（半音，自动 clamp 到 [-12, 12]）
     #[napi]
-    pub fn set_pitch(&self, semitones: i32) {
-        self.inner.lock().set_pitch(semitones.clamp(-12, 12) as i8);
+    pub fn set_pitch(&self, semitones: i32) -> Result<()> {
+        self.inner
+            .call(move |player| player.set_pitch(semitones.clamp(-12, 12) as i8))
+            .into_napi()
     }
 
     /// 设置"音调同步"开关（true = 变速保音调）
     #[napi]
-    pub fn set_pitch_sync(&self, sync: bool) {
-        self.inner.lock().set_pitch_sync(sync);
+    pub fn set_pitch_sync(&self, sync: bool) -> Result<()> {
+        self.inner
+            .call(move |player| player.set_pitch_sync(sync))
+            .into_napi()
     }
 
     /// 获取当前播放速度
     #[napi]
-    pub fn get_speed(&self) -> f64 {
-        self.inner.lock().speed() as f64
+    pub fn get_speed(&self) -> Result<f64> {
+        self.inner
+            .call(|player| f64::from(player.speed()))
+            .into_napi()
     }
 
     /// 获取当前音调（半音）
     #[napi]
-    pub fn get_pitch(&self) -> i32 {
-        self.inner.lock().pitch() as i32
+    pub fn get_pitch(&self) -> Result<i32> {
+        self.inner
+            .call(|player| i32::from(player.pitch()))
+            .into_napi()
     }
 
     /// 获取"音调同步"开关状态
     #[napi]
-    pub fn get_pitch_sync(&self) -> bool {
-        self.inner.lock().pitch_sync()
+    pub fn get_pitch_sync(&self) -> Result<bool> {
+        self.inner.call(|player| player.pitch_sync()).into_napi()
     }
 }
 
@@ -874,6 +1285,12 @@ pub struct JsScanEvent {
     pub cue_files: Option<Vec<String>>,
     /// 不可达的扫描目录
     pub unavailable_dirs: Option<Vec<String>>,
+    /// done 是否完整遍历；false 时数据库不得执行删除
+    pub complete: Option<bool>,
+    /// complete | partial | cancelled
+    pub status: Option<String>,
+    /// 遍历、stat 或元数据解析失败数
+    pub error_count: Option<u32>,
 }
 
 /// 批量扫描目录，通过回调推送进度和结果
@@ -889,7 +1306,10 @@ pub fn scan_dirs(
     cover_cache_dir: Option<String>,
     incremental_data: Option<Vec<FileRecord>>,
 ) -> Result<()> {
-    let tsfn = callback.build_threadsafe_function().build()?;
+    let tsfn = callback
+        .build_threadsafe_function()
+        .max_queue_size::<4>()
+        .build()?;
 
     // 将 JS FileRecord 转为内部类型
     let records: Option<Vec<scanner::FileRecord>> = incremental_data.map(|data| {
@@ -928,6 +1348,9 @@ pub fn scan_dirs(
                     removed_paths,
                     cue_files,
                     unavailable_dirs,
+                    complete,
+                    status,
+                    error_count,
                 } => JsScanEvent {
                     event_type: "done".into(),
                     scanned,
@@ -935,10 +1358,14 @@ pub fn scan_dirs(
                     removed_paths: Some(removed_paths),
                     cue_files: Some(cue_files),
                     unavailable_dirs: Some(unavailable_dirs),
+                    complete: Some(complete),
+                    status: Some(status.to_string()),
+                    error_count: Some(error_count),
                     ..Default::default()
                 },
             };
-            tsfn.call(js_event, ThreadsafeFunctionCallMode::NonBlocking);
+            // 扫描结果承载数据库写入，后台扫描线程允许等待 JS 消费，不能丢批次。
+            tsfn.call(js_event, ThreadsafeFunctionCallMode::Blocking);
         };
 
         scanner::scan_directories(
@@ -1018,7 +1445,7 @@ pub async fn make_image_thumbnail(data: Buffer, max_size: u32) -> Result<Buffer>
     let thumb =
         tokio::task::spawn_blocking(move || metadata::make_thumbnail_jpeg(&bytes, max_size))
             .await
-            .map_err(|e| Error::from_reason(format!("缩略图任务失败: {e}")))?
+            .map_err(|e| internal_error(format!("缩略图任务失败: {e}")))?
             .into_napi()?;
     Ok(thumb.into())
 }
@@ -1028,7 +1455,7 @@ pub async fn make_image_thumbnail(data: Buffer, max_size: u32) -> Result<Buffer>
 pub async fn read_track_tags(path: String) -> Result<JsTrackTags> {
     let tags = tokio::task::spawn_blocking(move || tag_editor::read_tags(&path))
         .await
-        .map_err(|e| Error::from_reason(format!("读取标签任务失败: {e}")))?
+        .map_err(|e| internal_error(format!("读取标签任务失败: {e}")))?
         .into_napi()?;
     Ok(JsTrackTags {
         title: tags.title,
@@ -1094,11 +1521,10 @@ pub async fn write_track_tags(
                     };
                 }
                 // 封面已替换：删除旧缩略图，probe 时按新封面重新生成
-                if request.cover.is_some() {
-                    if let Some(ref dir) = cover_cache_dir {
-                        let _ =
-                            std::fs::remove_file(metadata::cover_thumb_path(&request.path, dir));
-                    }
+                if request.cover.is_some()
+                    && let Some(ref dir) = cover_cache_dir
+                {
+                    let _ = std::fs::remove_file(metadata::cover_thumb_path(&request.path, dir));
                 }
                 info!(path = %request.path, "标签写入成功");
                 JsTagWriteResult {
@@ -1111,7 +1537,7 @@ pub async fn write_track_tags(
             .collect()
     })
     .await
-    .map_err(|e| Error::from_reason(format!("标签写入任务失败: {e}")))
+    .map_err(|e| internal_error(format!("标签写入任务失败: {e}")))
 }
 
 /// 归一化键名：转小写并过滤非英文字母与数字（去除空格、下划线、连字符等标点）

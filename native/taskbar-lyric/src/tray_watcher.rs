@@ -1,9 +1,10 @@
 use std::{
+    collections::HashMap,
     sync::{Arc, LazyLock, Mutex},
-    thread,
+    thread::{self, JoinHandle},
 };
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use windows::Win32::{
     Foundation::{HWND, LPARAM, WPARAM},
     System::Threading::GetCurrentThreadId,
@@ -20,11 +21,13 @@ use crate::utils::{ensure_thread_message_queue, find_taskbar_hwnd};
 
 pub type TrayChangedCallback = Box<dyn Fn() + Send + Sync + 'static>;
 
-static GLOBAL_CALLBACK: LazyLock<Mutex<Option<Arc<TrayChangedCallback>>>> =
-    LazyLock::new(|| Mutex::new(None));
+/// WinEvent callback 没有 user-data 参数，只能通过回传的 hook handle 查找实例上下文。
+/// 每个 hook 独立注册/注销，避免旧实例调用新实例的单一全局 callback slot。
+static CALLBACKS: LazyLock<Mutex<HashMap<isize, Arc<TrayChangedCallback>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 unsafe extern "system" fn win_event_proc(
-    _h_win_event_hook: HWINEVENTHOOK,
+    h_win_event_hook: HWINEVENTHOOK,
     event: u32,
     hwnd: HWND,
     id_object: i32,
@@ -34,15 +37,16 @@ unsafe extern "system" fn win_event_proc(
 ) {
     if event == EVENT_OBJECT_LOCATIONCHANGE && id_object == 0 {
         let mut buffer = [0u16; 64];
+        // SAFETY: hwnd 来自系统 WinEvent 回调，buffer 是有效可写切片。
         let len = unsafe { GetClassNameW(hwnd, &mut buffer) };
         if len > 0 {
             let name = String::from_utf16_lossy(&buffer[..len as usize]);
             if name == "TrayNotifyWnd" {
-                // 先 clone Arc 再释放锁，避免回调执行期间阻塞其它 GLOBAL_CALLBACK 访问
-                let callback = GLOBAL_CALLBACK
+                // 先 clone Arc 再释放锁，避免回调执行期间阻塞 hook 注册与注销。
+                let callback = CALLBACKS
                     .lock()
                     .ok()
-                    .and_then(|guard| guard.as_ref().cloned());
+                    .and_then(|guard| guard.get(&(h_win_event_hook.0 as isize)).cloned());
                 if let Some(cb) = callback {
                     cb();
                 }
@@ -53,71 +57,81 @@ unsafe extern "system" fn win_event_proc(
 
 pub struct TrayWatcher {
     thread_id: Option<u32>,
-    /// 本实例注册的回调，stop 时用 ptr_eq 比对，避免误清后建实例的全局回调
-    callback: Arc<TrayChangedCallback>,
+    thread: Option<JoinHandle<()>>,
 }
 
 impl TrayWatcher {
     pub fn new(callback: TrayChangedCallback) -> Result<Self> {
         let callback_arc = Arc::new(callback);
 
-        if let Ok(mut guard) = GLOBAL_CALLBACK.lock() {
-            *guard = Some(Arc::clone(&callback_arc));
-        }
+        let (tx, rx) = std::sync::mpsc::channel::<Result<u32>>();
 
-        let (tx, rx) = std::sync::mpsc::channel();
-
-        thread::spawn(move || unsafe {
+        // SAFETY: hook 和消息队列均在该线程创建、使用并在退出前释放。
+        let thread = thread::spawn(move || unsafe {
             let current_tid = GetCurrentThreadId();
             ensure_thread_message_queue();
-            let _ = tx.send(current_tid);
 
             let mut pid = 0;
-            let explorer_tid = find_taskbar_hwnd()
-                .map_or(0, |hwnd| GetWindowThreadProcessId(hwnd, Some(&raw mut pid)));
-
-            let mut hook_handle = HWINEVENTHOOK(std::ptr::null_mut());
-
-            if explorer_tid != 0 {
-                hook_handle = SetWinEventHook(
-                    EVENT_OBJECT_LOCATIONCHANGE,
-                    EVENT_OBJECT_LOCATIONCHANGE,
-                    None,
-                    Some(win_event_proc),
-                    pid,
-                    explorer_tid,
-                    WINEVENT_OUTOFCONTEXT,
-                );
+            let Some(taskbar_hwnd) = find_taskbar_hwnd() else {
+                let _ = tx.send(Err(anyhow!("找不到任务栏窗口")));
+                return;
+            };
+            let explorer_tid = GetWindowThreadProcessId(taskbar_hwnd, Some(&raw mut pid));
+            if explorer_tid == 0 {
+                let _ = tx.send(Err(anyhow!("获取任务栏线程失败")));
+                return;
             }
+
+            let hook_handle = SetWinEventHook(
+                EVENT_OBJECT_LOCATIONCHANGE,
+                EVENT_OBJECT_LOCATIONCHANGE,
+                None,
+                Some(win_event_proc),
+                pid,
+                explorer_tid,
+                WINEVENT_OUTOFCONTEXT,
+            );
+            if hook_handle.0.is_null() {
+                let _ = tx.send(Err(anyhow!("注册任务栏 WinEventHook 失败")));
+                return;
+            }
+            if let Ok(mut callbacks) = CALLBACKS.lock() {
+                callbacks.insert(hook_handle.0 as isize, Arc::clone(&callback_arc));
+            } else {
+                let _ = UnhookWinEvent(hook_handle);
+                let _ = tx.send(Err(anyhow!("注册任务栏 callback 上下文失败")));
+                return;
+            }
+            let _ = tx.send(Ok(current_tid));
 
             let mut msg = MSG::default();
             while GetMessageW(&raw mut msg, None, 0, 0).as_bool() {}
 
             if !hook_handle.0.is_null() {
                 let _ = UnhookWinEvent(hook_handle);
+                if let Ok(mut callbacks) = CALLBACKS.lock() {
+                    callbacks.remove(&(hook_handle.0 as isize));
+                }
             }
         });
 
-        let thread_id = rx.recv()?;
+        let thread_id = rx.recv()??;
 
         Ok(Self {
             thread_id: Some(thread_id),
-            callback: callback_arc,
+            thread: Some(thread),
         })
     }
 
     pub fn stop(&mut self) {
         if let Some(tid) = self.thread_id {
+            // SAFETY: tid 来自成功建立消息队列并安装 hook 的 watcher 线程。
             unsafe {
                 let _ = PostThreadMessageW(tid, WM_QUIT, WPARAM(0), LPARAM(0));
             }
             self.thread_id = None;
-            if let Ok(mut guard) = GLOBAL_CALLBACK.lock()
-                && guard
-                    .as_ref()
-                    .is_some_and(|cur| Arc::ptr_eq(cur, &self.callback))
-            {
-                *guard = None;
+            if let Some(thread) = self.thread.take() {
+                let _ = thread.join();
             }
         }
     }

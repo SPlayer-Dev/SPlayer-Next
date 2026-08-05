@@ -75,6 +75,20 @@ pub struct MetadataPayload {
     pub duration_ms: Option<f64>,
 }
 
+impl MetadataPayload {
+    /// 构造 Discord 专用元数据，避免复制系统媒体所需的封面字节。
+    pub fn without_cover(&self) -> Self {
+        Self {
+            title: self.title.clone(),
+            artist: self.artist.clone(),
+            album: self.album.clone(),
+            cover_data: None,
+            cover_url: self.cover_url.clone(),
+            duration_ms: self.duration_ms,
+        }
+    }
+}
+
 impl fmt::Debug for MetadataPayload {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MetadataPayload")

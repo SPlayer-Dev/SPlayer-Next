@@ -8,8 +8,8 @@ use windows::{
 
 use crate::{
     strategy::{
-        AvailableSpace, ExtraLayoutInfo, LayoutParams, Rect, SystemType, TaskbarLayout,
-        TaskbarStrategy,
+        AvailableSpace, EmbeddedWindow, ExtraLayoutInfo, LayoutParams, Rect, SystemType,
+        TaskbarLayout, TaskbarStrategy,
     },
     uia::TaskbarScanner,
     utils::{BRIDGE_CLASS, check_registry_value, find_taskbar_hwnd, read_system_uses_light_theme},
@@ -18,6 +18,7 @@ use crate::{
 pub struct Win11Strategy {
     h_taskbar: HWND,
     scanner: Option<TaskbarScanner>,
+    embedded: Option<EmbeddedWindow>,
 }
 
 impl Win11Strategy {
@@ -25,6 +26,7 @@ impl Win11Strategy {
         Self {
             h_taskbar: HWND::default(),
             scanner: None,
+            embedded: None,
         }
     }
 
@@ -40,6 +42,7 @@ impl TaskbarStrategy for Win11Strategy {
             return false;
         };
 
+        // SAFETY: hwnd 是已验证的任务栏窗口，BRIDGE_CLASS 是静态类名。
         let h_bridge =
             unsafe { FindWindowExW(Some(hwnd), None, BRIDGE_CLASS, None) }.unwrap_or_default();
 
@@ -53,8 +56,18 @@ impl TaskbarStrategy for Win11Strategy {
         true
     }
 
-    fn embed_window(&self, child_wnd: HWND) -> bool {
-        super::embed_child_window(child_wnd, self.h_taskbar)
+    fn embed_window(&mut self, child_wnd: HWND) -> bool {
+        self.embedded = None;
+        match EmbeddedWindow::attach(child_wnd, self.h_taskbar) {
+            Ok(embedded) => {
+                self.embedded = Some(embedded);
+                true
+            }
+            Err(_error) => {
+                error!("任务栏歌词窗口嵌入失败: {_error}");
+                false
+            }
+        }
     }
 
     fn update_layout(&mut self, _params: LayoutParams) -> Option<TaskbarLayout> {
@@ -63,17 +76,21 @@ impl TaskbarStrategy for Win11Strategy {
         }
 
         let mut tb_rect = RECT::default();
+        // SAFETY: h_taskbar 在 init 中通过 explorer 进程校验，RECT 是有效出参。
         unsafe {
-            let _ = GetWindowRect(self.h_taskbar, &raw mut tb_rect);
+            if GetWindowRect(self.h_taskbar, &raw mut tb_rect).is_err() {
+                return None;
+            }
         }
 
+        // SAFETY: 只枚举 h_taskbar 的已知系统子窗口并读取其矩形。
         let tray_rect = unsafe {
             let h_notify = FindWindowExW(Some(self.h_taskbar), None, w!("TrayNotifyWnd"), None)
                 .unwrap_or_default();
 
             let mut rc = RECT::default();
-            if !h_notify.0.is_null() {
-                let _ = GetWindowRect(h_notify, &raw mut rc);
+            if !h_notify.0.is_null() && GetWindowRect(h_notify, &raw mut rc).is_err() {
+                return None;
             }
 
             Rect {
@@ -161,7 +178,9 @@ impl TaskbarStrategy for Win11Strategy {
         })
     }
 
-    fn restore(&self) {}
+    fn restore(&mut self) {
+        self.embedded = None;
+    }
 }
 
 impl Drop for Win11Strategy {

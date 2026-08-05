@@ -1,7 +1,9 @@
 [package]
 name = "taskbar-lyric"
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
 
 [lib]
 crate-type = ["cdylib"]
@@ -31,3 +33,6 @@ features = [
 
 [build-dependencies]
 napi-build = "2.3"
+
+[lints]
+workspace = true

@@ -553,13 +553,13 @@ export const refreshDevices = async (): Promise<void> => {
 
 /**
  * 切换音频输出设备
- * @param deviceName - 设备名称，传 null 跟随系统默认
+ * @param deviceId - 设备 ID，传 null 跟随系统默认
  */
-export const switchDevice = async (deviceName: string | null): Promise<void> => {
-  const result = await window.api.player.setOutputDevice(deviceName);
+export const switchDevice = async (deviceId: string | null): Promise<void> => {
+  const result = await window.api.player.setOutputDevice(deviceId);
   if (!result.success) return;
   const settings = useSettingsStore();
-  settings.player.outputDevice = deviceName;
+  settings.player.outputDeviceId = deviceId;
   // 是否暂停播放
   if (settings.player.pauseOnDeviceSwitch && useStatusStore().state === "playing") await pause();
 };
@@ -984,9 +984,29 @@ export const initPlayer = async (): Promise<void> => {
     await window.api.player.setEqualizerEnabled(equalizer.enabled);
   }
   // 刷新设备列表并恢复上次选择的输出设备
+  const legacyPlayer = settings.player as typeof settings.player & {
+    outputDevice?: string | null;
+  };
+  const legacyDeviceName = legacyPlayer.outputDevice;
   await refreshDevices();
-  if (settings.player.outputDevice) {
-    await window.api.player.setOutputDevice(settings.player.outputDevice);
+  if (legacyDeviceName !== undefined) {
+    const matches =
+      typeof legacyDeviceName === "string" && legacyDeviceName.length > 0
+        ? status.outputDevices.filter((device) => device.name === legacyDeviceName)
+        : [];
+    if (settings.player.outputDeviceId === null && legacyDeviceName) {
+      if (matches.length === 1) {
+        settings.player.outputDeviceId = matches[0].id;
+      } else if (matches.length !== 0) {
+        console.warn("[player] 旧输出设备名称匹配到多个设备，已回退系统默认", legacyDeviceName);
+      } else {
+        console.warn("[player] 旧输出设备已不存在，已回退系统默认", legacyDeviceName);
+      }
+    }
+    delete legacyPlayer.outputDevice;
+  }
+  if (settings.player.outputDeviceId) {
+    await window.api.player.setOutputDevice(settings.player.outputDeviceId);
   }
   // 先订阅事件，确保 load 触发播放后 position 事件能被接收
   if (unsubscribe) unsubscribe();

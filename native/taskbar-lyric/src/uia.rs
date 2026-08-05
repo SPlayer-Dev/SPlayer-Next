@@ -49,10 +49,12 @@ impl TaskbarScanner {
     }
 
     pub fn get_element_from_handle(&self, hwnd: HWND) -> Result<IUIAutomationElement> {
+        // SAFETY: automation 的 COM apartment guard 由 self 持有，hwnd 由调用方先验证。
         unsafe { Ok(self.automation.ElementFromHandle(hwnd)?) }
     }
 
     pub fn scan_taskbar(&self, taskbar_hwnd: HWND) -> Result<TaskbarContentBounds> {
+        // SAFETY: 整个 UIA 查询在构造时建立的 COM apartment 内执行，所有 COM 对象由 Retained 接管。
         unsafe {
             let mut child_hwnd = HWND::default();
             let true_condition = self.automation.CreateTrueCondition()?;

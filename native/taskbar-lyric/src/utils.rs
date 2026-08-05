@@ -9,8 +9,7 @@ use windows::{
             },
         },
         UI::WindowsAndMessaging::{
-            FindWindowExW, GetWindowLongPtrW, GetWindowThreadProcessId, MSG, PM_NOREMOVE,
-            PeekMessageW, SetWindowLongPtrW, WINDOW_LONG_PTR_INDEX, WM_USER,
+            FindWindowExW, GetWindowThreadProcessId, MSG, PM_NOREMOVE, PeekMessageW, WM_USER,
         },
     },
     core::w,
@@ -34,19 +33,10 @@ pub const REG_KEY_PERSONALIZE: &str =
 /// 存在前会失败，WM_QUIT 丢失导致线程连同钩子/窗口永久泄漏
 pub fn ensure_thread_message_queue() {
     let mut msg = MSG::default();
+    // SAFETY: msg 是有效出参，PM_NOREMOVE 只促使系统为当前线程创建消息队列。
     unsafe {
         let _ = PeekMessageW(&raw mut msg, None, WM_USER, WM_USER, PM_NOREMOVE);
     }
-}
-
-pub unsafe fn modify_window_long(
-    hwnd: HWND,
-    index: WINDOW_LONG_PTR_INDEX,
-    f: impl FnOnce(u32) -> u32,
-) {
-    let current = unsafe { GetWindowLongPtrW(hwnd, index) };
-    let new_value = f(current as u32);
-    unsafe { SetWindowLongPtrW(hwnd, index, new_value as isize) };
 }
 
 pub fn check_registry_value<F>(value_name: &str, predicate: F, default: bool) -> bool
@@ -62,6 +52,7 @@ where
 /// 第三方任务栏（StartAllBack/ExplorerPatcher/Start11/YASB/Zebar）也会创建 Shell_TrayWnd
 /// 类窗口；只接受 explorer.exe 创建的那个，避免错误嵌入到第三方任务栏
 pub fn find_taskbar_hwnd() -> Option<HWND> {
+    // SAFETY: 只枚举顶层窗口并对候选句柄执行只读校验。
     unsafe {
         let mut prev: Option<HWND> = None;
         loop {
@@ -79,16 +70,19 @@ pub fn find_taskbar_hwnd() -> Option<HWND> {
 
 unsafe fn is_explorer_window(hwnd: HWND) -> bool {
     let mut pid: u32 = 0;
+    // SAFETY: hwnd 是枚举得到的窗口，pid 是有效出参。
     unsafe { GetWindowThreadProcessId(hwnd, Some(&raw mut pid)) };
     if pid == 0 {
         return false;
     }
+    // SAFETY: pid 由系统窗口查询返回，仅申请只读的有限查询权限。
     let Ok(process) = (unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) })
     else {
         return false;
     };
     let mut buf = [0u16; 260];
     let mut size: u32 = buf.len() as u32;
+    // SAFETY: process 具备查询权限，buf 和 size 是匹配的可写出参。
     let query_result = unsafe {
         QueryFullProcessImageNameW(
             process,
@@ -97,6 +91,7 @@ unsafe fn is_explorer_window(hwnd: HWND) -> bool {
             &raw mut size,
         )
     };
+    // SAFETY: process 由本函数 OpenProcess 成功创建，只在此处关闭一次。
     let _ = unsafe { CloseHandle(process) };
     if query_result.is_err() || size == 0 {
         return false;
