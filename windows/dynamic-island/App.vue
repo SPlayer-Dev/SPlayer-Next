@@ -8,6 +8,7 @@ import { pickAdvanceOnEndIndex } from "@shared/utils/lyricSync";
 import { useNowPlayingSync } from "@windows/shared/composables/useNowPlayingSync";
 import { useDragWindow } from "./composables/useDragWindow";
 import { isMac } from "@/utils/config";
+import { formatArtists } from "@shared/utils/track";
 
 const config = reactive<DynamicIslandSettings>({
   scale: 1,
@@ -79,7 +80,7 @@ const measureTextWidth = (text: string, sizePx: number = fontSize.value): number
 
 /* 艺术家显示文本 */
 const artistsText = computed<string>(
-  () => track.value?.artists?.map((a) => a.name).join(" / ") ?? "",
+  () => formatArtists(track.value?.artists) || "未知艺术家",
 );
 
 /* 当前行 */

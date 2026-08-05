@@ -1,110 +1,97 @@
-/**
- * 流媒体相关 IPC：
- * - loadServers / saveServers：服务器配置持久化
- */
-import fs from "node:fs";
-import path from "node:path";
-import { ipcMain, safeStorage } from "electron";
-import { writeFileSync as atomicWriteSync } from "atomically";
-import { streamingLog } from "@main/utils/logger";
-import { configDir } from "@main/utils/paths";
-import type { StreamingServerConfig } from "@shared/types/streaming";
+import { ipcMain } from "electron";
+import { isDbOpen } from "@main/database";
+import {
+  deleteLibraryByServer,
+  getLibrarySnapshot,
+  searchLibrary,
+} from "@main/services/streaming/library";
+import {
+  addStreamingServer,
+  getStreamingConfig,
+  getStreamingServer,
+  removeStreamingServer,
+  setActiveStreamingServer,
+  updateStreamingServer,
+} from "@main/services/streaming/config";
+import {
+  connectStreamingServer,
+  testStreamingConnection,
+  withStreamingAdapter,
+} from "@main/services/streaming/connection";
+import { registerStreamingCoverProtocol } from "@main/services/streaming/coverProtocol";
+import { invalidateStreamingSession } from "@main/services/streaming/adapters/resolve";
+import { cancelStreamingSync, queueStreamingSync } from "@main/services/streaming/sync";
+import type { StreamingServerInput } from "@shared/types/streaming";
 
-const STORAGE_FILE = path.join(configDir, "streaming.json");
-
-/** 持久化形态：密码加密、accessToken/userId 不持久化（每次会话重新登录） */
-interface PersistedServer extends Omit<
-  StreamingServerConfig,
-  "password" | "accessToken" | "userId"
-> {
-  encryptedPassword: string;
-}
-
-interface PersistedState {
-  servers: PersistedServer[];
-  activeServerId: string | null;
-}
-
-const readPersisted = (): PersistedState => {
-  try {
-    const raw = JSON.parse(fs.readFileSync(STORAGE_FILE, "utf-8")) as PersistedState;
-    if (!Array.isArray(raw?.servers)) return { servers: [], activeServerId: null };
-    return { servers: raw.servers, activeServerId: raw.activeServerId ?? null };
-  } catch {
-    return { servers: [], activeServerId: null };
-  }
-};
-
-const writePersisted = (data: PersistedState): void => {
-  try {
-    const dir = path.dirname(STORAGE_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    atomicWriteSync(STORAGE_FILE, JSON.stringify(data, null, 2));
-  } catch (err) {
-    streamingLog.error("写入 streaming.json 失败:", err);
-  }
-};
-
-/**
- * 加密密码
- * @param plain 明文密码
- * @returns 加密后的密码
- */
-const encryptPassword = (plain: string): string => {
-  if (!plain) return "";
-  if (!safeStorage.isEncryptionAvailable()) {
-    streamingLog.warn("系统安全存储不可用（缺少 keyring），流媒体密码将以 base64 形式明文落盘");
-    return Buffer.from(plain, "utf-8").toString("base64");
-  }
-  return safeStorage.encryptString(plain).toString("base64");
-};
-
-/**
- * 解密密码
- * @param encrypted 加密后的密码
- * @returns 明文密码
- */
-const decryptPassword = (encrypted: string): string => {
-  if (!encrypted) return "";
-  try {
-    const buf = Buffer.from(encrypted, "base64");
-    if (!safeStorage.isEncryptionAvailable()) {
-      return buf.toString("utf-8");
-    }
-    return safeStorage.decryptString(buf);
-  } catch {
-    return "";
-  }
-};
-
+/** 注册流媒体 IPC 和封面协议 */
 export const registerStreamingIpc = (): void => {
-  ipcMain.handle("streaming:loadServers", () => {
-    const persisted = readPersisted();
-    const servers: StreamingServerConfig[] = persisted.servers.map((s) => ({
-      id: s.id,
-      name: s.name,
-      type: s.type,
-      url: s.url,
-      username: s.username,
-      password: decryptPassword(s.encryptedPassword),
-      lastConnected: s.lastConnected,
-    }));
-    return { servers, activeServerId: persisted.activeServerId };
-  });
+  registerStreamingCoverProtocol();
 
+  ipcMain.handle("streaming:loadServers", getStreamingConfig);
+  ipcMain.handle("streaming:addServer", (_event, input: StreamingServerInput) =>
+    addStreamingServer(input),
+  );
   ipcMain.handle(
-    "streaming:saveServers",
-    (_e, payload: { servers: StreamingServerConfig[]; activeServerId: string | null }): void => {
-      const servers: PersistedServer[] = (payload?.servers ?? []).map((s) => ({
-        id: s.id,
-        name: s.name,
-        type: s.type,
-        url: s.url,
-        username: s.username,
-        encryptedPassword: encryptPassword(s.password),
-        lastConnected: s.lastConnected,
-      }));
-      writePersisted({ servers, activeServerId: payload?.activeServerId ?? null });
+    "streaming:updateServer",
+    (_event, serverId: string, input: StreamingServerInput) => {
+      invalidateStreamingSession(serverId);
+      cancelStreamingSync(serverId);
+      return updateStreamingServer(serverId, input);
     },
+  );
+  ipcMain.handle("streaming:removeServer", (_event, serverId: string) => {
+    invalidateStreamingSession(serverId);
+    cancelStreamingSync(serverId);
+    removeStreamingServer(serverId);
+    if (isDbOpen()) deleteLibraryByServer(serverId);
+  });
+  ipcMain.handle("streaming:setActiveServer", (_event, serverId: string | null) =>
+    setActiveStreamingServer(serverId),
+  );
+  ipcMain.handle(
+    "streaming:testConnection",
+    (_event, input: StreamingServerInput, serverId?: string) =>
+      testStreamingConnection(input, serverId),
+  );
+  ipcMain.handle("streaming:connect", (_event, serverId: string) =>
+    connectStreamingServer(serverId),
+  );
+  ipcMain.handle("streaming:disconnect", (_event, serverId: string) =>
+    invalidateStreamingSession(serverId),
+  );
+  ipcMain.handle("streaming:getSnapshot", (_event, serverId: string) =>
+    getLibrarySnapshot(serverId),
+  );
+  ipcMain.handle("streaming:sync", (_event, serverId: string, force = false) =>
+    queueStreamingSync(getStreamingServer(serverId), force),
+  );
+  ipcMain.handle("streaming:search", (_event, serverId: string, query: string) =>
+    searchLibrary(serverId, query.slice(0, 200)),
+  );
+  ipcMain.handle("streaming:getAlbumSongs", (_event, serverId: string, albumId: string) =>
+    withStreamingAdapter(serverId, (config, adapter) => adapter.getAlbumSongs(config, albumId)),
+  );
+  ipcMain.handle("streaming:getPlaylistSongs", (_event, serverId: string, playlistId: string) =>
+    withStreamingAdapter(serverId, (config, adapter) =>
+      adapter.getPlaylistSongs(config, playlistId),
+    ),
+  );
+  ipcMain.handle("streaming:getArtistAlbums", (_event, serverId: string, artistId: string) =>
+    withStreamingAdapter(serverId, (config, adapter) => adapter.getArtistAlbums(config, artistId)),
+  );
+  ipcMain.handle("streaming:getArtistSongs", (_event, serverId: string, artistId: string) =>
+    withStreamingAdapter(serverId, (config, adapter) => adapter.getArtistSongs(config, artistId)),
+  );
+  ipcMain.handle(
+    "streaming:getStreamUrl",
+    (_event, serverId: string, trackId: string, playSessionId?: string) =>
+      withStreamingAdapter(serverId, (config, adapter) =>
+        adapter.getStreamUrl(config, trackId, playSessionId),
+      ),
+  );
+  ipcMain.handle(
+    "streaming:getLyrics",
+    (_event, serverId: string, trackId: string, hint?: { artist?: string; title?: string }) =>
+      withStreamingAdapter(serverId, (config, adapter) => adapter.getLyrics(config, trackId, hint)),
   );
 };

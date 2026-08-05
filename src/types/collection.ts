@@ -1,25 +1,10 @@
 import type { Track, Artist, TrackSource } from "@shared/types/player";
 
-/** 合集类型 */
-export type CollectionType = "album" | "playlist" | "radio" | "cloud";
-
-/** 内容范畴：本地 / 在线 */
+/** 本地与在线内容范围 */
 export type ContentScope = "local" | "online";
 
-/** 歌单持久化结构 */
-export interface PlaylistRecord {
-  id: string;
-  type: CollectionType;
-  source: TrackSource;
-  title: string;
-  description?: string;
-  /** 歌曲 ID 列表 */
-  trackIds: string[];
-  trackCount?: number;
-  cover?: string;
-  createTime?: number;
-  updateTime?: number;
-}
+/** 合集类型 */
+export type CollectionType = "album" | "playlist" | "radio" | "cloud";
 
 /** 合集信息 */
 export interface Collection {

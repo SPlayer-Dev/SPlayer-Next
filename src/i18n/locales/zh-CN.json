@@ -86,6 +86,7 @@
     "configure": "配置",
     "more": "更多",
     "save": "保存",
+    "add": "添加",
     "edit": "编辑",
     "delete": "删除",
     "enable": "启用",
@@ -184,7 +185,7 @@
     "download": "下载管理",
     "favorites": "我的收藏",
     "cloud": "我的云盘",
-    "streaming": "流媒体",
+    "streaming": "媒体源",
     "reload": "热重载",
     "devtools": "开发者工具",
     "globalSettings": "全局设置",
@@ -347,8 +348,8 @@
     }
   },
   "streaming": {
-    "hint": "连接到流媒体平台",
-    "hintDetail": "服务器配置经系统加密后保存在本地，不上传任何远端服务",
+    "hint": "连接到媒体源",
+    "hintDetail": "添加个人流媒体服务器，配置内容全程加密",
     "errorCode": {
       "auth": "鉴权失败",
       "network": "网络错误",
@@ -369,8 +370,8 @@
       "noResults": "没有找到内容"
     },
     "server": {
-      "type": "服务器类型",
-      "name": "服务器名称",
+      "type": "类型",
+      "name": "名称",
       "namePlaceholder": "用于识别的别名",
       "url": "服务器地址",
       "username": "用户名",
@@ -378,9 +379,9 @@
       "test": "测试连接",
       "testOk": "连接成功",
       "testFail": "连接失败",
-      "add": "添加服务器",
-      "added": "服务器已添加",
+      "add": "添加媒体源",
       "edit": "编辑服务器",
+      "added": "服务器已添加",
       "updated": "服务器已更新",
       "removed": "服务器已删除",
       "deleteConfirmTitle": "删除服务器",
@@ -714,10 +715,11 @@
       "systemConfig": "系统配置",
       "pluginManage": "导入插件",
       "pluginsList": "插件管理",
-      "streaming": "流媒体管理",
+      "streaming": "媒体源配置",
+      "mediaServerManagement": "媒体源管理",
       "songCache": "歌曲缓存",
-      "cache": "缓存",
-      "database": "数据库",
+      "cache": "缓存管理",
+      "database": "数据库管理",
       "downloadLocation": "下载配置",
       "downloadGeneral": "下载选项",
       "downloadTags": "写入内容",
@@ -1568,7 +1570,7 @@
     },
     "streamingEnabled": {
       "label": "启用流媒体",
-      "description": "关闭后将隐藏侧边栏的流媒体入口"
+      "description": "关闭后将隐藏侧边栏的媒体源入口"
     },
     "externalApiEnabled": {
       "label": "允许外部控制",
@@ -1835,6 +1837,10 @@
       "label": "歌曲缓存",
       "description": "播放在线歌曲时缓存至本地，提升加载速度"
     },
+    "cacheStreaming": {
+      "label": "缓存流媒体",
+      "description": "播放个人流媒体服务器歌曲时缓存至本地"
+    },
     "songCacheSizeLimit": {
       "label": "缓存上限",
       "description": "缓存达到上限后将自动清理，∞ 表示不限制"
@@ -1933,6 +1939,7 @@
     "subscribed": "收藏的{type}",
     "localPlaylist": "本地歌单",
     "onlinePlaylist": "在线歌单",
+    "playlistNamePlaceholder": "输入歌单名称",
     "create": "新建{type}",
     "name": "{type}名称",
     "description": "{type}描述",

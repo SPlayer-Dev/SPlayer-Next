@@ -8,21 +8,24 @@ const media = useMediaStore();
 const status = useStatusStore();
 const { isPlaying } = storeToRefs(status);
 
+/** 加载中的歌曲使用队列当前项作为封面兜底。 */
+const displayTrack = computed(() => media.track ?? status.currentTrack);
+
 /** 高清封面缓存 */
 const hdCache = shallowRef<{ id: string; data: string } | null>(null);
 
 const coverSrc = computed(() =>
-  hdCache.value && hdCache.value.id === media.track?.id
+  hdCache.value && hdCache.value.id === displayTrack.value?.id
     ? hdCache.value.data
-    : media.track?.coverOriginal || media.track?.cover,
+    : displayTrack.value?.coverOriginal || displayTrack.value?.cover,
 );
 
 watchEffect(async () => {
-  const id = media.track?.id;
+  const id = displayTrack.value?.id;
   if (!status.isPlayerExpanded || status.trackLoading || !id) return;
-  if (media.track?.source !== "local" || hdCache.value?.id === id) return;
+  if (displayTrack.value?.source !== "local" || hdCache.value?.id === id) return;
   const r = await window.api.player.getCoverRaw();
-  if (media.track?.id !== id || !r.success || !r.data) return;
+  if (displayTrack.value?.id !== id || !r.success || !r.data) return;
   hdCache.value = { id, data: r.data };
 });
 </script>

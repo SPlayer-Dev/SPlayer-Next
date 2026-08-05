@@ -215,6 +215,41 @@ export const resolveTTMLOverlay = async (
 };
 
 /**
+ * 按歌词来源偏好解析流媒体歌词
+ * @param track - 流媒体歌曲
+ * @param shouldContinue - 竞态检查
+ * @returns 最终歌词候选，不存在则返回 null
+ */
+export const resolveStreamingByPreference = async (
+  track: Track,
+  shouldContinue: () => boolean = () => true,
+): Promise<ResolvedLyric | null> => {
+  const preference = useSettingsStore().lyric.lyricSourcePreference;
+  let serverLyric: ResolvedLyric | null = null;
+
+  if (preference === "self" || preference === "auto") {
+    serverLyric = await resolveStreamingLyric(track);
+    if (!shouldContinue()) return null;
+    if (preference === "self") return serverLyric;
+  }
+
+  const online = await resolveOnlineByPreference(track, {
+    hasLocal: !!serverLyric,
+    localFormat: serverLyric?.source.format ?? null,
+    shouldContinue,
+  });
+  if (!shouldContinue()) return null;
+  if (online) {
+    const ttml = await resolveTTMLOverlay(track, online);
+    if (!shouldContinue()) return null;
+    return ttml ?? { source: online.source, input: online.input };
+  }
+  if (serverLyric || preference === "auto") return serverLyric;
+
+  return resolveStreamingLyric(track);
+};
+
+/**
  * 从本地 TTML 仓库解析歌词
  * @param track - 歌曲信息
  * @returns 本地仓库歌词，不存在则返回 null
@@ -277,9 +312,11 @@ export const resolveLyricForPreload = async (
   if (localRepo) return localRepo;
 
   if (track.source === "streaming") {
-    const serverLyric = await resolveStreamingLyric(track);
+    const streaming = await resolveStreamingByPreference(track, shouldContinue);
     if (!shouldContinue()) return null;
-    if (serverLyric) return serverLyric;
+    if (streaming) return streaming;
+    const plugin = await resolvePluginLyric(track);
+    return shouldContinue() ? plugin : null;
   }
 
   const online = await resolveOnlineByPreference(track, {

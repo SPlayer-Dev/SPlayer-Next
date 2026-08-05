@@ -44,19 +44,19 @@ export const getQualityLevel = (quality: AudioQuality | undefined): QualityLevel
 
 /**
  * 取音质等级短码文案
- * @param quality - AudioQuality；未知时返回空串（避免加载中误显示 LQ）
+ * @param quality - 音质信息；缺少信息时使用默认 LQ
  * @returns 短码文案（LQ / SQ / HQ / Lossless / Hi-Res）
  */
 export const getQualityLabel = (quality: AudioQuality | undefined): string =>
-  quality ? QUALITY_LABELS[getQualityLevel(quality)] : "";
+  QUALITY_LABELS[getQualityLevel(quality)];
 
 /**
  * 取音质等级完整文案
- * @param quality - AudioQuality；未知时返回空串
+ * @param quality - 音质信息；缺少信息时使用默认 Low Quality
  * @returns 完整文案（Low Quality / Standard Quality / High Quality / Lossless / Hi-Res）
  */
 export const getQualityFullLabel = (quality: AudioQuality | undefined): string =>
-  quality ? QUALITY_FULL_LABELS[getQualityLevel(quality)] : "";
+  QUALITY_FULL_LABELS[getQualityLevel(quality)];
 
 /** 是否为无损级别（hi-res 或 lossless） */
 export const isLosslessQuality = (quality: AudioQuality | undefined): boolean => {

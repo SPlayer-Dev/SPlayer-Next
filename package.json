@@ -62,6 +62,7 @@
     "better-sqlite3": "^12.8.0",
     "electron-log": "^5.4.3",
     "electron-updater": "^6.8.3",
+    "fast-xml-parser": "^5.10.1",
     "font-list": "^2.0.2",
     "hono": "^4.12.25",
     "undici": "^8.7.0",

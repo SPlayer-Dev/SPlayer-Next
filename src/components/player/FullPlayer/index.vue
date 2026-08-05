@@ -48,8 +48,10 @@ const lyricRef = ref<InstanceType<typeof Lyrics> | InstanceType<typeof AMLLLyric
 const lyricMounted = ref(false);
 const initialLyricTimeMs = ref(0);
 
+/** 加载中的歌曲使用队列当前项兜底，避免全屏播放器出现空白。 */
+const displayTrack = computed(() => media.track ?? status.currentTrack);
 const hasLyric = computed(() => media.parsedLyric.length > 0 || media.lyricLoading);
-const hasTrack = computed(() => !!media.track);
+const hasTrack = computed(() => !!displayTrack.value);
 
 /** 精确播放时间（毫秒） */
 const { start: startTick, stop: stopTick } = usePlaybackTime((currentMs) => {
@@ -134,7 +136,10 @@ const { immersive, onPlayerMouseEnter, onPlayerMouseLeave, onMainMove, onBarEnte
 const { isFullscreen, toggleFullscreen } = useWindowControls();
 
 const canDownload = computed(
-  () => !!media.track && media.track.source !== "local" && settings.system.download.enabled,
+  () =>
+    !!displayTrack.value &&
+    displayTrack.value.source !== "local" &&
+    settings.system.download.enabled,
 );
 
 const downloadQualityItems = computed(() =>
@@ -142,8 +147,8 @@ const downloadQualityItems = computed(() =>
 );
 
 const onDownloadSelect = (key: string): void => {
-  if (!media.track) return;
-  void enqueueDownload(media.track, key ? { quality: key as QualityLevel } : {});
+  if (!displayTrack.value) return;
+  void enqueueDownload(displayTrack.value, key ? { quality: key as QualityLevel } : {});
 };
 
 const collapse = (): void => {
@@ -176,7 +181,7 @@ const toggleLyric = (): void => {
 };
 
 const showComments = (): void => {
-  if (media.track) status.showComments(media.track);
+  if (displayTrack.value) status.showComments(displayTrack.value);
 };
 </script>
 
@@ -261,7 +266,7 @@ const showComments = (): void => {
           >
             <div class="relative w-[clamp(200px,85%,50vh)] -translate-y-[11vh]">
               <Transition name="scale-switch" mode="out-in">
-                <div :key="media.track?.id">
+                <div :key="displayTrack?.id">
                   <PlayerCover />
                   <div class="absolute top-full left-0 w-full pt-6">
                     <PlayerData align="left" />
@@ -413,10 +418,10 @@ const showComments = (): void => {
               size="large"
               circle
               :disabled="!hasTrack"
-              @click="fav.toggle(media.track)"
+              @click="fav.toggle(displayTrack)"
             >
               <template #icon>
-                <SIconSwap :active="fav.isLiked(media.track)">
+                <SIconSwap :active="fav.isLiked(displayTrack)">
                   <template #on><IconFavorite /></template>
                   <template #off><IconFavoriteOutline /></template>
                 </SIconSwap>
@@ -433,12 +438,12 @@ const showComments = (): void => {
               <template #icon><IconLucideMessageCircle /></template>
             </SButton>
             <SButton
-              v-if="media.track?.source === 'local' || media.track?.source === 'netease'"
+              v-if="displayTrack?.source === 'local' || displayTrack?.source === 'netease'"
               type="cover"
               variant="ghost"
               size="large"
               circle
-              @click="media.track && openPicker([media.track])"
+              @click="displayTrack && openPicker([displayTrack])"
             >
               <template #icon><IconLucideListPlus /></template>
             </SButton>

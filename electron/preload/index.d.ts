@@ -29,6 +29,7 @@ import { UpdateApi } from "@shared/types/update";
 import { CloudUploadApi } from "@shared/types/cloudUpload";
 import { CommentsApi } from "@shared/types/comment";
 import { AiModelApi } from "@shared/types/ai";
+import { PlaylistApi } from "@shared/types/playlist";
 
 declare global {
   interface Window {
@@ -58,6 +59,7 @@ declare global {
         consumePendingProtocolUrl: () => Promise<string | null>;
       };
       library: LibraryApi;
+      playlist: PlaylistApi;
       window: WindowApi;
       desktopLyric: DesktopLyricApi;
       dynamicIsland: DynamicIslandApi;

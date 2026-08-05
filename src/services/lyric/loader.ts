@@ -14,7 +14,7 @@ import {
   resolveLocalRepoLyric,
   resolveOnlineByPreference,
   resolvePluginLyric,
-  resolveStreamingLyric,
+  resolveStreamingByPreference,
   resolveTTMLOverlay,
   type LocalLyric,
   type OnlineResult,
@@ -137,7 +137,7 @@ const tryPluginFallback = async (token: number, track: Track): Promise<boolean> 
 };
 
 /**
- * 流媒体歌词加载：优先服务端歌词，失败后复用在线平台匹配与插件兜底
+ * 流媒体歌词加载：按来源偏好解析，失败后使用插件和内嵌歌词兜底
  * @param token - 竞态 token
  * @param track - 歌曲信息
  * @param detail - 歌曲详细信息
@@ -147,24 +147,11 @@ const loadStreamingLyric = async (
   track: Track,
   detail: TrackDetail | null,
 ): Promise<void> => {
-  const serverLyric = await resolveStreamingLyric(track);
+  const resolved = await resolveStreamingByPreference(track, () => token === currentToken);
   if (token !== currentToken) return;
   const embeddedFallback = embeddedLyricFromDetail(detail);
-  if (serverLyric) {
-    const hasParsed = commitResolvedAndHasParsed(token, serverLyric);
-    // 解析后无有效行
-    if (hasParsed || token !== currentToken) return;
-  }
-  const online = await resolveOnlineByPreference(track, {
-    hasLocal: false,
-    localFormat: null,
-    shouldContinue: () => token === currentToken,
-  });
+  if (resolved && commitResolvedAndHasParsed(token, resolved)) return;
   if (token !== currentToken) return;
-  if (online) {
-    await applyOnline(token, track, online, embeddedFallback);
-    return;
-  }
   if (await tryPluginFallback(token, track)) return;
   if (embeddedFallback) {
     commit(token, embeddedFallback.source, { content: embeddedFallback.content });
