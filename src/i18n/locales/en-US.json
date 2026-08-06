@@ -6,6 +6,7 @@
     "downloading": "Downloading",
     "installNow": "Restart & Install",
     "goDownload": "Go to Download",
+    "goStore": "Update in Store",
     "upToDate": "You're on the latest version",
     "readyToast": "Update ready — restart to install",
     "failed": "Update failed, please try again later"
@@ -87,9 +88,10 @@
     }
   },
   "agreementUpdate": {
-    "title": "User Agreement Updated",
+    "title": "User Agreement & Disclaimer Updated",
     "subtitle": "The agreement has changed. Please re-read and accept to continue",
-    "accept": "I've read and agree, continue"
+    "accept": "I've read and agree, continue",
+    "reject": "Decline & Exit"
   },
   "common": {
     "confirm": "Confirm",
@@ -98,6 +100,7 @@
     "configure": "Configure",
     "more": "More",
     "save": "Save",
+    "add": "Add",
     "edit": "Edit",
     "delete": "Delete",
     "enable": "Enable",
@@ -196,7 +199,7 @@
     "download": "Downloads",
     "favorites": "Favorites",
     "cloud": "My Cloud",
-    "streaming": "Streaming",
+    "streaming": "Media Sources",
     "reload": "Reload",
     "devtools": "Developer Tools",
     "globalSettings": "Global Settings",
@@ -359,8 +362,8 @@
     }
   },
   "streaming": {
-    "hint": "Connect to a streaming platform",
-    "hintDetail": "Server credentials are encrypted by the OS and stored locally; nothing is uploaded",
+    "hint": "Connect to Media Source",
+    "hintDetail": "Add a personal streaming server with encrypted configuration",
     "errorCode": {
       "auth": "Authentication failed",
       "network": "Network error",
@@ -381,8 +384,8 @@
       "noResults": "No results"
     },
     "server": {
-      "type": "Server type",
-      "name": "Server name",
+      "type": "Type",
+      "name": "Name",
       "namePlaceholder": "Friendly name for this server",
       "url": "Server URL",
       "username": "Username",
@@ -390,9 +393,9 @@
       "test": "Test connection",
       "testOk": "Connection succeeded",
       "testFail": "Connection failed",
-      "add": "Add server",
-      "added": "Server added",
+      "add": "Add media source",
       "edit": "Edit server",
+      "added": "Server added",
       "updated": "Server updated",
       "removed": "Server removed",
       "deleteConfirmTitle": "Delete server",
@@ -726,16 +729,18 @@
       "systemConfig": "System",
       "pluginManage": "Import Plugins",
       "pluginsList": "Plugin Management",
-      "streaming": "Streaming",
+      "streaming": "Media Source Config",
+      "mediaServerManagement": "Media Source Management",
       "songCache": "Song Cache",
       "downloadLocation": "Download Settings",
       "downloadGeneral": "Download Options",
       "downloadTags": "What to Write",
-      "cache": "Caches",
-      "database": "Database",
+      "cache": "Cache Management",
+      "database": "Database Management",
       "backupReset": "Backup & Reset",
       "debug": "Debug",
-      "preset": "OCD Settings"
+      "preset": "OCD Settings",
+      "envInfo": "Environment Info"
     },
     "about": {
       "checkUpdate": "Check for Updates",
@@ -744,8 +749,11 @@
       "openLogs": "Open Logs",
       "officialSite": "Official Site",
       "showMore": "More Contributors",
-      "collapse": "Collapse"
+      "collapse": "Collapse",
+      "commit": "Commit",
+      "date": "Date"
     },
+    "storeVersion": "Store",
     "language": {
       "label": "Language",
       "description": "Switch the display language"
@@ -849,6 +857,10 @@
     "spectrumBarWidth": {
       "label": "Bar Width",
       "description": "Smaller values give thinner, denser bars"
+    },
+    "reverseSpectrum": {
+      "label": "Reverse Spectrum",
+      "description": "When enabled, the frequency of the bars decreases from the center toward the sides; otherwise it increases."
     },
     "lyricSourcePreference": {
       "label": "Lyric Source Preference",
@@ -954,7 +966,8 @@
         "openPlayer": "Open player view",
         "closePlayer": "Close player view",
         "togglePlaylist": "Show / hide playlist",
-        "openSearch": "Open search"
+        "openSearch": "Open search",
+        "searchInPage": "Search in page"
       }
     },
     "engine": {
@@ -1580,7 +1593,7 @@
     },
     "streamingEnabled": {
       "label": "Enable streaming",
-      "description": "When disabled, the streaming entry is hidden from the sidebar"
+      "description": "When disabled, the media sources entry is hidden from the sidebar"
     },
     "externalApiEnabled": {
       "label": "Allow external control",
@@ -1847,6 +1860,10 @@
       "label": "Song Cache",
       "description": "Cache online tracks locally to improve loading speed"
     },
+    "cacheStreaming": {
+      "label": "Cache Streaming Tracks",
+      "description": "Cache tracks from personal media servers locally during playback"
+    },
     "songCacheSizeLimit": {
       "label": "Size Limit",
       "description": "When the limit is reached, entries are evicted automatically; ∞ means unlimited"
@@ -1945,6 +1962,7 @@
     "subscribed": "Subscribed {type}s",
     "localPlaylist": "Local Playlists",
     "onlinePlaylist": "Online Playlists",
+    "playlistNamePlaceholder": "Enter a playlist name",
     "create": "New {type}",
     "name": "{type} Name",
     "description": "Description",

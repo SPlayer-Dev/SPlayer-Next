@@ -1,3 +1,4 @@
+import os from "os";
 import { contextBridge, ipcRenderer } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
 import type { ExternalApiStatus, McpStatus, TaskbarLyricSettings } from "@shared/types/settings";
@@ -10,19 +11,36 @@ import type {
 } from "@shared/types/plugin";
 import type { HotkeyActionId, HotkeyBinding, HotkeyConflict } from "@shared/types/hotkey";
 import type { LoadOptions, TrackSource } from "@shared/types/player";
-import type { StreamingServerConfig } from "@shared/types/streaming";
+import type { StreamingServerInput } from "@shared/types/streaming";
 import type { PlayEventInput, FavoriteEventInput } from "@shared/types/stats";
 import type { TagEditRequest } from "@shared/types/tagEditor";
 import type { UpdateEvent } from "@shared/types/update";
 import type { CloudUploadProgress } from "@shared/types/cloudUpload";
 import type { MusicCommentQuery } from "@shared/types/comment";
 import type { AiModelSaveInput } from "@shared/types/ai";
+import type {
+  LegacyPlaylistRecord,
+  PlaylistCreateInput,
+  PlaylistUpdateInput,
+} from "@shared/types/playlist";
 
 /** 订阅主进程推送的事件 */
 const subscribe = <T>(channel: string, callback: (data: T) => void): (() => void) => {
   const handler = (_event: Electron.IpcRendererEvent, data: T): void => callback(data);
   ipcRenderer.on(channel, handler);
   return () => ipcRenderer.removeListener(channel, handler);
+};
+
+/**
+ * 推断安装类型
+ * @returns nsis | portable | appx | dmg | appimage
+ */
+const getInstallType = (): "nsis" | "portable" | "appx" | "dmg" | "appimage" => {
+  if (process.env.PORTABLE_EXECUTABLE_DIR) return "portable";
+  if (process.execPath.includes("WindowsApps")) return "appx";
+  if (process.platform === "darwin") return "dmg";
+  if (process.platform === "linux") return "appimage";
+  return "nsis";
 };
 
 // 暴露给渲染进程的自定义 API
@@ -110,6 +128,13 @@ const api = {
     onEvent: (callback: (event: unknown) => void) => subscribe("player:event", callback),
   },
   system: {
+    installType: getInstallType(),
+    platform: process.platform,
+    osInfo: {
+      type: os.type(),
+      arch: os.arch(),
+      release: os.release(),
+    },
     // 打开开发者工具
     toggleDevTools: () => ipcRenderer.invoke("system:toggleDevTools"),
     // 在文件管理器中显示文件
@@ -195,6 +220,21 @@ const api = {
     // 订阅扫描进度事件
     onScanProgress: (callback: (progress: unknown) => void) =>
       subscribe("library:scanProgress", callback),
+  },
+  playlist: {
+    list: () => ipcRenderer.invoke("playlist:list"),
+    get: (id: string) => ipcRenderer.invoke("playlist:get", id),
+    create: (input: PlaylistCreateInput) => ipcRenderer.invoke("playlist:create", input),
+    update: (id: string, input: PlaylistUpdateInput) =>
+      ipcRenderer.invoke("playlist:update", id, input),
+    remove: (id: string) => ipcRenderer.invoke("playlist:remove", id),
+    addTracks: (id: string, trackIds: string[]) =>
+      ipcRenderer.invoke("playlist:addTracks", id, trackIds),
+    removeTracks: (id: string, trackIds: string[]) =>
+      ipcRenderer.invoke("playlist:removeTracks", id, trackIds),
+    importLegacy: (records: LegacyPlaylistRecord[]) =>
+      ipcRenderer.invoke("playlist:importLegacy", records),
+    clear: () => ipcRenderer.invoke("playlist:clear"),
   },
   window: {
     // 切换桌面歌词窗口
@@ -453,13 +493,95 @@ const api = {
     },
   },
   streaming: {
-    // 加载服务器配置（密码已解密）
+    /** 读取不包含凭据的服务器视图 */
     loadServers: () => ipcRenderer.invoke("streaming:loadServers"),
-    // 持久化服务器配置（密码经 safeStorage 加密）
-    saveServers: (payload: {
-      servers: StreamingServerConfig[];
-      activeServerId: string | null;
-    }): Promise<void> => ipcRenderer.invoke("streaming:saveServers", payload),
+    /**
+     * 新增服务器
+     * @param input - 服务器表单
+     * @returns 新服务器视图
+     */
+    addServer: (input: StreamingServerInput) => ipcRenderer.invoke("streaming:addServer", input),
+    /**
+     * 更新服务器
+     * @param serverId - 服务器 ID
+     * @param input - 服务器表单
+     * @returns 更新后的服务器视图
+     */
+    updateServer: (serverId: string, input: StreamingServerInput) =>
+      ipcRenderer.invoke("streaming:updateServer", serverId, input),
+    /**
+     * 删除服务器
+     * @param serverId - 服务器 ID
+     * @returns 删除完成
+     */
+    removeServer: (serverId: string) => ipcRenderer.invoke("streaming:removeServer", serverId),
+    /**
+     * 保存激活服务器
+     * @param serverId - 激活服务器 ID
+     * @returns 保存完成
+     */
+    setActiveServer: (serverId: string | null) =>
+      ipcRenderer.invoke("streaming:setActiveServer", serverId),
+    /**
+     * 测试服务器连接
+     * @param input - 服务器表单
+     * @param serverId - 编辑服务器 ID
+     * @returns 连通性结果
+     */
+    testConnection: (input: StreamingServerInput, serverId?: string) =>
+      ipcRenderer.invoke("streaming:testConnection", input, serverId),
+    /**
+     * 连接服务器
+     * @param serverId - 服务器 ID
+     * @returns 连接结果
+     */
+    connect: (serverId: string) => ipcRenderer.invoke("streaming:connect", serverId),
+    /**
+     * 断开服务器会话
+     * @param serverId - 服务器 ID
+     * @returns 断开完成
+     */
+    disconnect: (serverId: string) => ipcRenderer.invoke("streaming:disconnect", serverId),
+    getSnapshot: (serverId: string) => ipcRenderer.invoke("streaming:getSnapshot", serverId),
+    sync: (serverId: string, force?: boolean): Promise<boolean> =>
+      ipcRenderer.invoke("streaming:sync", serverId, force),
+    /**
+     * 订阅媒体库更新
+     * @param callback - 收到更新的服务器 ID
+     * @returns 取消订阅函数
+     */
+    onLibraryUpdated: (callback: (serverId: string) => void) => {
+      ipcRenderer.removeAllListeners("streaming:libraryUpdated");
+      return subscribe<string>("streaming:libraryUpdated", callback);
+    },
+    search: (serverId: string, query: string) =>
+      ipcRenderer.invoke("streaming:search", serverId, query),
+    getAlbumSongs: (serverId: string, albumId: string) =>
+      ipcRenderer.invoke("streaming:getAlbumSongs", serverId, albumId),
+    getPlaylistSongs: (serverId: string, playlistId: string) =>
+      ipcRenderer.invoke("streaming:getPlaylistSongs", serverId, playlistId),
+    getArtistAlbums: (serverId: string, artistId: string) =>
+      ipcRenderer.invoke("streaming:getArtistAlbums", serverId, artistId),
+    getArtistSongs: (serverId: string, artistId: string) =>
+      ipcRenderer.invoke("streaming:getArtistSongs", serverId, artistId),
+    /**
+     * 请求主进程生成播放地址
+     * @param serverId - 服务器 ID
+     * @param trackId - 服务端歌曲 ID
+     * @param playSessionId - 播放会话 ID
+     * @returns 播放地址
+     */
+    getStreamUrl: (serverId: string, trackId: string, playSessionId?: string) =>
+      ipcRenderer.invoke("streaming:getStreamUrl", serverId, trackId, playSessionId),
+    /**
+     * 请求主进程读取歌词
+     * @param serverId - 服务器 ID
+     * @param trackId - 服务端歌曲 ID
+     * @param hint - 旧 Subsonic 歌词端点使用的歌曲信息
+     * @returns 原始歌词文本
+     */
+    getLyrics: (serverId: string, trackId: string, hint?: { artist?: string; title?: string }) =>
+      ipcRenderer.invoke("streaming:getLyrics", serverId, trackId, hint),
   },
   lastfm: {
     // 发起授权

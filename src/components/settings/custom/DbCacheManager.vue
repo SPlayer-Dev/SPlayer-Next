@@ -13,7 +13,7 @@ import { useCacheStats } from "@/composables/useCacheStats";
 defineOptions({ inheritAttrs: false });
 
 const { t } = useI18n();
-const { stats, loading, clearingId, clearingKind, refresh } = useCacheStats();
+const { stats, loading, clearingId, clearingKind, load, refresh } = useCacheStats();
 
 const iconMap: Record<string, Component> = {
   lyric: IconLucideMic2,
@@ -24,9 +24,7 @@ const iconMap: Record<string, Component> = {
 const dbStats = computed(() => stats.value.filter((stat) => stat.kind === "db"));
 const totalSize = computed(() => dbStats.value.reduce((sum, stat) => sum + stat.size, 0));
 
-onMounted(() => {
-  if (stats.value.length === 0) void refresh();
-});
+onMounted(load);
 
 const requestClear = async (id: string): Promise<void> => {
   const confirmed = await dialog.confirm({
@@ -98,7 +96,7 @@ const requestClearAll = async (): Promise<void> => {
             <div class="flex-1 min-w-0">
               <div class="text-sm">{{ t(`settings.cacheCategory.${stat.id}`) }}</div>
               <div class="text-xs text-on-surface-variant/60 truncate font-mono" :title="stat.path">
-                {{ stat.path }}
+                {{ stat.path || "—" }}
               </div>
             </div>
             <div class="shrink-0 w-24 text-right text-sm text-on-surface-variant tabular-nums">

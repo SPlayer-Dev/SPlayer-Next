@@ -35,7 +35,7 @@ pnpm build:native         # Rust only; add `--dev` for debug
 
 Three `.node` modules in `native/`, built via `scripts/build-native.ts`, lazy-loaded by `electron/main/utils/nativeLoader.ts`. NAPI-RS auto-generates `index.d.ts`, imported via path aliases `@splayer/audio-engine`, `@splayer/media-ctrl`, `@splayer/taskbar-lyric`.
 
-- `audio-engine` — `ffmpeg_audio` decode (static FFmpeg) + rodio playback + FFT + cover extraction. URLs wrapped as `Read + Seek` via `HttpRangeSource` (ureq + rustls) — TLS handled in Rust, cross-platform with no system deps. Pushes events (state/position/ended/outputStalled) via ThreadsafeFunction. Has load_token race protection and a cancel flag (injected into `HttpRangeSource`) for instant stop on blocking IO.
+- `audio-engine` — `ffmpeg_audio` decode (static FFmpeg) + rodio playback + FFT + cover extraction. URLs wrapped as `Read + Seek` via `ffmpeg_audio::HttpAudioSource` (using `HttpCancelHandle` for cancellation/reset) — TLS handled in Rust (`reqwest` + `rustls`), cross-platform with no system deps. Pushes events (state/position/ended/outputStalled) via ThreadsafeFunction. Has load_token race protection and an `HttpCancelHandle` handle injected into `HttpAudioSource` for instant stop and reset.
 - `media-ctrl` — Cross-platform system media controls (Windows SMTC / Linux MPRIS / macOS MPNowPlaying) + Discord RPC.
 - `taskbar-lyric` — Windows taskbar lyric text rendering with RegistryWatcher / UiaWatcher / TrayWatcher.
 
@@ -60,12 +60,15 @@ Two-tier position tracking — high-frequency animation vs. low-frequency UI:
 
 ### Streaming Subsystem
 
-Server protocol clients live in renderer (`src/services/streaming/`): subsonic / jellyfin / emby clients + unified dispatcher (`index.ts`). Subsonic family (Navidrome / OpenSubsonic / Airsonic / Gonic / LMS) shares `subsonic.ts`; types differ only as UI labels.
+Server protocol clients live in the main process (`electron/main/services/streaming/`): Subsonic / Jellyfin / Emby adapters, safeStorage-backed config, Jellyfin/Emby session management, SQLite synchronization, and the authenticated cover protocol. Subsonic family (Navidrome / OpenSubsonic / Airsonic / Gonic / LMS) shares one adapter; types differ only as UI labels.
 
-- `services/streaming/transform.ts` — Server response → unified `Track / Album / Artist / Playlist`. Trusts server's artist field; no client-side splitting.
+- `electron/main/services/streaming/config.ts` — encrypted config and secret-free renderer views.
+- `electron/main/services/streaming/connection.ts` — connection tests, connect, and authenticated adapter requests.
+- `electron/main/services/streaming/coverProtocol.ts` — `streaming-cover://` proxy registered for the default and `persist:main` sessions.
+- `electron/main/services/streaming/adapters/` — Server response → unified `Track / Album / Artist / Playlist`. Trusts server's artist field; no client-side splitting.
 - `services/streaming/session.ts` — Jellyfin/Emby `/Sessions/Playing` heartbeat + PlaySessionId state machine; called from `core/player.ts`.
-- `stores/streaming.ts` — Server list, active state, connection, browse cache (IndexedDB via localforage `streaming-cache`). `fetchSongs` returns first batch then keeps fetching in background.
-- Credentials — main process `electron/main/ipc/streaming.ts` encrypts via Electron `safeStorage` to `{userData}/app-data/config/streaming.json`. `accessToken / userId` not persisted; re-acquired on connect.
+- `stores/streaming.ts` — Server list, active state, and complete shallowRef arrays; main-process update events trigger SQLite snapshot reloads, with no polling or direct media-server access.
+- Credentials — `electron/main/services/streaming/config.ts` encrypts via Electron `safeStorage` to `{userData}/app-data/config/streaming.json`. `accessToken / userId` remain in the bounded main-process session cache and are re-acquired on connect.
 
 ### Lyric Windows
 
@@ -106,11 +109,12 @@ Declarative — defined in `src/settings/schema.ts`, types in `src/types/setting
 # All paths are defined centrally in electron/main/utils/paths.ts
 ```
 
-Renderer IndexedDB (localforage): `splayer/library`, `splayer/queue`, `splayer/playlists`, `splayer/streaming-cache`.
+Renderer IndexedDB (localforage): `splayer/library`, `splayer/queue`. Local playlists are stored in
+SQLite through the main-process playlist service; the old `splayer/playlists` store is migration-only.
 
 ### Cover Image
 
-Rust extracts 300x300 JPEG thumbnail to `{userData}/app-data/cache/covers/` during decode; renderer reads via `cover://{filename}` protocol. Original via `getCoverRaw()` for SMTC, never cached. Streaming covers use remote URLs directly (browser cache).
+Rust extracts 300x300 JPEG thumbnail to `{userData}/app-data/cache/covers/` during decode; renderer reads via `cover://{filename}` protocol. Original via `getCoverRaw()` for SMTC, never cached. Authenticated streaming covers use the main-process `streaming-cover://` proxy.
 
 ### Config Store (Main)
 

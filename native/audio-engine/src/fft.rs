@@ -1,10 +1,12 @@
 use parking_lot::Mutex;
 use rustfft::{num_complex::Complex, Fft, FftPlanner};
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 /// 每次 FFT 的样本数
 const FFT_SIZE: usize = 2048;
+/// FFT 输入采样率
+const FFT_SAMPLE_RATE: u32 = 48_000;
 /// 输出频段数
 const OUTPUT_BINS: usize = 128;
 /// 分析频率范围
@@ -17,8 +19,6 @@ const MAX_BUFFER_SIZE: usize = 8192;
 pub struct FftAnalyzer {
     /// 双声道样本环形缓冲区（由播放线程写入）
     sample_buffer: Mutex<StereoSampleBuffer>,
-    /// FFT 输入采样率
-    sample_rate: AtomicU32,
     /// 是否接收样本并执行频谱分析
     enabled: AtomicBool,
     /// 缓存的 FFT 计划（避免每次分析时重建）
@@ -45,7 +45,7 @@ struct FftWorkBuffers {
 }
 
 impl FftAnalyzer {
-    pub fn new(sample_rate: u32) -> Self {
+    pub fn new() -> Self {
         let mut planner = FftPlanner::<f32>::new();
         let fft_plan = planner.plan_fft_forward(FFT_SIZE);
         let window = (0..FFT_SIZE)
@@ -62,7 +62,6 @@ impl FftAnalyzer {
                 write_pos: 0,
                 len: 0,
             }),
-            sample_rate: AtomicU32::new(sample_rate),
             enabled: AtomicBool::new(false),
             fft_plan,
             window,
@@ -98,11 +97,6 @@ impl FftAnalyzer {
     /// 是否启用频谱分析
     pub fn is_enabled(&self) -> bool {
         self.enabled.load(Ordering::Relaxed)
-    }
-
-    /// 更新输入 PCM 采样率
-    pub fn set_sample_rate(&self, sample_rate: u32) {
-        self.sample_rate.store(sample_rate, Ordering::Relaxed);
     }
 
     /// 应用预计算的 Hamming 窗
@@ -143,7 +137,7 @@ impl FftAnalyzer {
         self.fft_plan.process(&mut work.windowed_r);
 
         // 将频率段映射到输出频段
-        let freq_per_bin = self.sample_rate.load(Ordering::Relaxed) as f32 / FFT_SIZE as f32;
+        let freq_per_bin = FFT_SAMPLE_RATE as f32 / FFT_SIZE as f32;
         let min_bin = (MIN_FREQ / freq_per_bin).floor() as usize;
         let max_bin = ((MAX_FREQ / freq_per_bin).ceil() as usize).min(FFT_SIZE / 2);
 
@@ -204,7 +198,7 @@ mod tests {
 
     #[test]
     fn interleaved_samples_wrap_without_mixing_channels() {
-        let analyzer = FftAnalyzer::new(48_000);
+        let analyzer = FftAnalyzer::new();
         let samples: Vec<f32> = (0..MAX_BUFFER_SIZE + 16)
             .flat_map(|i| [i as f32, -(i as f32)])
             .collect();
@@ -221,7 +215,7 @@ mod tests {
 
     #[test]
     fn reset_discards_buffered_samples() {
-        let analyzer = FftAnalyzer::new(48_000);
+        let analyzer = FftAnalyzer::new();
         analyzer.push_interleaved_samples(&[0.5, -0.5, 0.25, -0.25]);
 
         analyzer.reset();
@@ -229,5 +223,36 @@ mod tests {
         let buffer = analyzer.sample_buffer.lock();
         assert_eq!(buffer.len, 0);
         assert_eq!(buffer.write_pos, 0);
+    }
+
+    #[test]
+    fn fixed_sample_rate_maps_tone_to_expected_band() {
+        let analyzer = FftAnalyzer::new();
+        let frequency = 1_000.0;
+        let samples: Vec<f32> = (0..FFT_SIZE)
+            .flat_map(|i| {
+                let phase =
+                    2.0 * std::f32::consts::PI * frequency * i as f32 / FFT_SAMPLE_RATE as f32;
+                let sample = phase.sin();
+                [sample, sample]
+            })
+            .collect();
+
+        analyzer.push_interleaved_samples(&samples);
+        let (left, right) = analyzer.analyze();
+        let peak = left
+            .iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| a.total_cmp(b))
+            .map(|(index, _)| index)
+            .unwrap();
+        let expected = ((frequency.ln() - MIN_FREQ.ln()) / (MAX_FREQ.ln() - MIN_FREQ.ln())
+            * OUTPUT_BINS as f32) as usize;
+
+        assert!(
+            peak.abs_diff(expected) <= 1,
+            "peak={peak}, expected={expected}"
+        );
+        assert_eq!(left, right);
     }
 }

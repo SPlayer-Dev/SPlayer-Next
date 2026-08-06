@@ -7,16 +7,16 @@ const IMMERSIVE_IDLE_MS = 3000;
 /**
  * 全屏播放器沉浸模式
  * 闲置指定时间后自动隐藏顶栏/底栏，鼠标移动时恢复
- * @param isExpanded - 播放器是否展开
+ * @param isPlayerExpanded - 播放器是否展开
  */
-export const useImmersiveMode = (isExpanded: Ref<boolean>) => {
+export const useImmersiveMode = (isPlayerExpanded: Ref<boolean>) => {
   const settings = useSettingsStore();
 
   const immersive = ref(false);
   const barHovered = ref(false);
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
 
-  const enabled = computed(() => settings.player.autoImmersive && isExpanded.value);
+  const enabled = computed(() => settings.player.autoImmersive && isPlayerExpanded.value);
 
   const armIdle = (): void => {
     clearTimeout(idleTimer);

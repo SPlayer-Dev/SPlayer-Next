@@ -102,9 +102,15 @@ const draw = (): void => {
   }
   // 直接写入预分配缓冲区，避免 RAF 热路径产生临时数组
   const channelLength = FFT_SIZE - SKIP_LOW;
+  const reverse = settings.player.reverseSpectrum;
   for (let i = 0; i < channelLength; i++) {
-    stereoDisplay[i] = display[0][FFT_SIZE - 1 - i];
-    stereoDisplay[channelLength + i] = display[1][SKIP_LOW + i];
+    if (reverse) {
+      stereoDisplay[channelLength + i] = display[0][FFT_SIZE - 1 - i];
+      stereoDisplay[i] = display[1][SKIP_LOW + i];
+    } else {
+      stereoDisplay[i] = display[0][FFT_SIZE - 1 - i];
+      stereoDisplay[channelLength + i] = display[1][SKIP_LOW + i];
+    }
   }
 
   const cssWidth = canvas.clientWidth;

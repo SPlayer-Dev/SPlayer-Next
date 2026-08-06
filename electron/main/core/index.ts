@@ -107,14 +107,14 @@ export const initApp = (): void => {
     });
     // 注册 IPC
     registerIpcHandlers();
+    // 初始化数据库
+    initDatabase();
     // 创建主窗口
     createMainWindow();
     // 注册 orpheus 协议并处理冷启动唤起
     initOrpheusRegistration();
     const coldOrpheusUrl = extractOrpheusUrl(process.argv);
     if (coldOrpheusUrl) captureOrpheusUrl(coldOrpheusUrl);
-    // 初始化数据库
-    initDatabase();
     // 启动歌曲缓存
     void initSongCache();
     // 启动下载服务

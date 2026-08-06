@@ -117,8 +117,7 @@ const handleEnter = (event: KeyboardEvent): void => {
 };
 
 const handleEscape = (event: KeyboardEvent): void => {
-  if (props.updateOn !== "blur") return;
-  rollbackValue();
+  if (props.updateOn === "blur") rollbackValue();
   (event.currentTarget as HTMLInputElement).blur();
 };
 </script>

@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import type { LyricLine } from "@shared/types/lyrics";
 import { applyLyricLanguages } from "./language";
 
-const createLine = (content: string): LyricLine => ({
+const createLine = (content: string, options: Partial<LyricLine> = {}): LyricLine => ({
   words: [{ word: content, startTime: 0, endTime: 1000 }],
   translatedLyric: "",
   romanLyric: "",
@@ -11,6 +11,7 @@ const createLine = (content: string): LyricLine => ({
   endTime: 1000,
   isBG: false,
   isDuet: false,
+  ...options,
 });
 
 describe("applyLyricLanguages", () => {
@@ -22,6 +23,17 @@ describe("applyLyricLanguages", () => {
     assert.deepEqual(
       lines.map((line) => line.language),
       ["ja", "ja"],
+    );
+  });
+
+  it("通过翻译推断双语混合歌曲的纯汉字行", () => {
+    const lines = [createLine("爱"), createLine("君が好き", { translatedLyric: "我喜欢你" })];
+
+    applyLyricLanguages(lines);
+
+    assert.deepEqual(
+      lines.map((line) => line.language),
+      ["zh-CN", "ja"],
     );
   });
 

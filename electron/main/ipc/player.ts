@@ -204,7 +204,12 @@ export const registerPlayerIpc = (): void => {
         authoritative && authoritative.source !== "local"
           ? (authoritative.coverOriginal ?? authoritative.cover)
           : undefined;
-      const coverUrl = remoteCover && /^https?:\/\//i.test(remoteCover) ? remoteCover : undefined;
+      const coverFetchUrl =
+        remoteCover && /^(https?|streaming-cover):\/\//i.test(remoteCover)
+          ? remoteCover
+          : undefined;
+      const coverUrl =
+        coverFetchUrl && /^https?:\/\//i.test(coverFetchUrl) ? coverFetchUrl : undefined;
       // 写一次 SMTC/托盘/标题
       const applyDisplay = (
         title: string,
@@ -263,8 +268,8 @@ export const registerPlayerIpc = (): void => {
       });
       neteaseScrobble.onTrackLoaded(authoritative, durationMs, autoPlay);
       // 远端高清封面
-      if (coverUrl) {
-        void fetchBytes(coverUrl).then((buf) => {
+      if (coverFetchUrl) {
+        void fetchBytes(coverFetchUrl).then((buf) => {
           if (!buf) return;
           if (seq !== loadSeq) return;
           mediaService.setMetadata({

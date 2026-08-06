@@ -19,7 +19,7 @@ const bgReady = ref(false);
 let bgReadyTimer: ReturnType<typeof setTimeout> | undefined;
 
 watch(
-  () => status.isExpanded,
+  () => status.isPlayerExpanded,
   (expanded) => {
     clearTimeout(bgReadyTimer);
     if (expanded) {
@@ -43,7 +43,7 @@ onBeforeUnmount(() => clearTimeout(bgReadyTimer));
 
 // 流体背景播放态
 const bgPlaying = computed(() => {
-  if (!status.isExpanded) return false;
+  if (!status.isPlayerExpanded) return false;
   if (!status.isPlaying && settings.player.playerBgFreezeOnPause) return false;
   return true;
 });
@@ -59,7 +59,7 @@ let preloadImg: HTMLImageElement | null = null;
 let switchToken = 0;
 
 watch(
-  [() => media.track?.cover || media.track?.coverOriginal, () => status.isExpanded],
+  [() => media.track?.cover || media.track?.coverOriginal, () => status.isPlayerExpanded],
   ([newCover, expanded]) => {
     if (!expanded) return;
     const token = ++switchToken;

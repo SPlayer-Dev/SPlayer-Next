@@ -2,6 +2,8 @@
 import type { LyricLine } from "@shared/types/lyrics";
 import { LyricPlayer as CoreLyricPlayer } from "@applemusic-like-lyrics/core";
 import { useSettingsStore } from "@/stores/settings";
+import { useStatusStore } from "@/stores/status";
+import { getCurrentTime } from "@/services/playback";
 import "@applemusic-like-lyrics/core/style.css";
 import "./renderer.css";
 
@@ -49,15 +51,19 @@ interface Emits {
 const emit = defineEmits<Emits>();
 
 const settings = useSettingsStore();
+const status = useStatusStore();
 const wrapperRef = ref<HTMLDivElement | null>(null);
 const playerRef = ref<CoreLyricPlayer>();
 const bottomLineEl = ref<HTMLElement>();
 const clockInitialized = ref(false);
-
-// 是否被父组件冻结
+// 父组件的冻结标志（由 FullPlayer 的 freeze/resume 控制）
 const isFrozen = ref(false);
 // 冻结期间缓存的待应用歌词
 let pendingLyrics: LyricLine[] | null = null;
+// 页面隐藏状态的响应式跟踪
+const isPageHidden = ref(false);
+// 之前隐藏的标记，用于检测从隐藏恢复的时刻
+const isPreviousHidden = ref(false);
 
 // 处理多语言显隐及音译偏好的本地高效清洗
 const processedLyrics = computed(() => {
@@ -119,18 +125,20 @@ const { resume: resumeRaf, pause: pauseRaf } = useRafFn(
   { immediate: false },
 );
 
-// 页面隐藏时停止渲染循环
+// 页面隐藏时停止渲染循环，恢复时校准时间线
 const handleVisibility = () => {
-  if (document.hidden) {
+  const hidden = document.hidden;
+  isPageHidden.value = hidden; // 更新响应式隐藏状态
+  if (hidden) {
     pauseRaf();
     playerRef.value?.pause();
-  } else if (!isFrozen.value) {
-    if (props.playing) {
-      playerRef.value?.resume();
-    } else {
-      playerRef.value?.pause();
-    }
-    resumeRaf();
+    isPreviousHidden.value = true;
+  } else if (isPreviousHidden.value && !isFrozen.value && playerRef.value) {
+    // 从隐藏恢复：校准 Core 内部时钟到当前播放位置，避免逐词效果从头开始
+    const currentTime = getCurrentTime() + status.lyricOffsetMs;
+    playerRef.value.setCurrentTime(currentTime, true);
+    isPreviousHidden.value = false;
+    // 恢复后根据当前状态决定 resume/pause（由 watchEffect 处理，这里只需确保 state sync）
   }
 };
 
@@ -176,22 +184,29 @@ onUnmounted(() => {
   }
 });
 
-// 播放/暂停/冻结状态变化时同步渲染循环与 Core 内部时钟
+// 同步播放/冻结状态到 Core 及渲染循环
 watchEffect(() => {
   const player = playerRef.value;
   if (!player) return;
+
+  // 首次运行时校准一次（避免重复）
   if (!clockInitialized.value) {
-    player.resume();
     player.update(0);
     clockInitialized.value = true;
   }
-  if (!isFrozen.value && !document.hidden) {
-    if (props.playing) {
+
+  const playing = props.playing;
+  const frozen = isFrozen.value;
+  const hidden = isPageHidden.value; // 使用响应式隐藏状态
+
+  if (!frozen && !hidden) {
+    // 只要未冻结且可见，就持续运行 RAF 维持渲染（即使暂停也要保持画面）
+    resumeRaf();
+    if (playing) {
       player.resume();
     } else {
       player.pause();
     }
-    resumeRaf();
   } else {
     pauseRaf();
     player.pause();

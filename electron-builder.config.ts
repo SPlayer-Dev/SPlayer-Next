@@ -112,6 +112,19 @@ const config: Configuration = {
   appImage: {
     artifactName: "${name}-${version}-${arch}.${ext}",
   },
+  pacman: {
+    artifactName: "${name}-${version}-${arch}.${ext}",
+    depends: [
+      "gtk3",
+      "libnotify",
+      "nss",
+      "libxss",
+      "libxtst",
+      "xdg-utils",
+      "at-spi2-core",
+      "libsecret",
+    ],
+  },
   npmRebuild: false,
   electronDownload: {
     mirror: "https://npmmirror.com/mirrors/electron/",

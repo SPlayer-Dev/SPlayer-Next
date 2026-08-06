@@ -6,13 +6,10 @@ import { initThumbar } from "@main/services/thumbar";
 import { enableTaskbarThumbnail } from "@main/services/thumbnail";
 import { initTray } from "@main/services/tray";
 import { store } from "@main/store";
-import { handleCacheProtocolOnPartition } from "@main/utils/protocol";
+import { handleCacheProtocolOnPartition, MAIN_PARTITION } from "@main/utils/protocol";
 import { isAppQuitting } from "@main/utils/lifecycle";
 import { broadcast } from "@main/utils/broadcast";
 import { CURRENT_AGREEMENT_VERSION } from "@shared/constants/agreement";
-
-/** 主窗口 session */
-const MAIN_PARTITION = "persist:main";
 
 /** 判断是否应用内部导航 */
 const isInternalNavigation = (url: string): boolean => {

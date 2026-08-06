@@ -29,8 +29,8 @@ export const useStatusStore = defineStore(
     const outputDevices = ref<AudioDevice[]>([]);
     /** 歌曲加载 */
     const trackLoading = ref(false);
-    /** 菜单折叠状态 */
-    const isExpanded = ref(false);
+    /** 全屏播放器展开状态 */
+    const isPlayerExpanded = ref(false);
     /** 外层播放队列 */
     const outerQueueOpen = ref(false);
     /** 播放器播放队列 */
@@ -119,7 +119,7 @@ export const useStatusStore = defineStore(
       isLoading,
       progress,
       trackLoading,
-      isExpanded,
+      isPlayerExpanded,
       outerQueueOpen,
       fullQueueOpen,
       searchOpen,
@@ -151,20 +151,19 @@ export const useStatusStore = defineStore(
   {
     persist: {
       storage: localStorage,
-      omit: [
-        "state",
-        "duration",
-        "currentSource",
-        "outputDevices",
-        "trackLoading",
-        "outerQueueOpen",
-        "fullQueueOpen",
-        "searchOpen",
-        "commentsOpen",
-        "commentsTrack",
-        "autoClose",
-        "abLoop",
-        "lyricOffsetMs",
+      pick: [
+        "playIndex",
+        "repeatMode",
+        "shuffleMode",
+        "heartMode",
+        "volume",
+        "position",
+        "searchPlatform",
+        "myPlaylistSource",
+        "likedPageTab",
+        "settingsCategory",
+        "sortField",
+        "sortOrder",
       ],
     },
   },

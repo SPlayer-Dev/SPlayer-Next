@@ -21,6 +21,12 @@ export const isLinux = process.platform === "linux";
 export const isPortable = !!process.env.PORTABLE_EXECUTABLE_DIR;
 
 /**
+ * 是否为 AppX/MSIX 安装包
+ * AppX 应用安装在 WindowsApps 目录下，路径包含该标识
+ */
+export const isAppX = isWin && process.execPath.includes("WindowsApps");
+
+/**
  * 软件版本
  * @returns string
  */

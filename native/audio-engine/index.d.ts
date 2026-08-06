@@ -16,8 +16,8 @@ export declare class AudioPlayer {
    *
    * 异步三段式：
    * 1. 主线程持锁瞬间（微秒级）：take 旧解码线程 handle + 拿参数（cover_dir / 归一化开关）
-   * 2. spawn_blocking 工作线程（**不持有 inner 引用**）：join 旧线程 + ffmpeg 打开 URL（耗时大头）
-   * 3. 主线程持锁瞬间：构造 sink + attach + emit stateChanged
+   * 2. spawn_blocking 工作线程（**不持有 inner 引用**）：读取音源采样率、协商输出流并启动解码
+   * 3. 主线程持锁瞬间：提交输出流、构造 sink + attach + emit stateChanged
    * 持锁阶段都是纯内存操作，主线程其它同步 NAPI 调用最多等几微秒，不会被 IO 卡住
    */
   load(source: string, autoPlay?: boolean): Promise<JsMusicMetadata>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { marked } from "marked";
 import { useUpdateStore } from "@/stores/update";
-import { APP_VERSION } from "@/utils/config";
+import { APP_VERSION, IS_APPX } from "@/utils/config";
 import { formatFileSize } from "@/utils/format";
 
 const { t } = useI18n();
@@ -62,16 +62,16 @@ const releaseDateText = computed(() => {
 
     <template #footer="{ close }">
       <SButton variant="secondary" @click="close">{{ t("update.later") }}</SButton>
-      <SButton
-        variant="secondary"
-        @click="
-          update.openDownloadPage();
-          close();
-        "
-      >
-        {{ t("update.goDownload") }}
-      </SButton>
       <template v-if="update.canInstall">
+        <SButton
+          variant="secondary"
+          @click="
+            update.openDownloadPage();
+            close();
+          "
+        >
+          {{ t("update.goDownload") }}
+        </SButton>
         <SButton v-if="update.phase === 'downloaded'" type="primary" @click="update.install()">
           {{ t("update.installNow") }}
         </SButton>
@@ -82,6 +82,16 @@ const releaseDateText = computed(() => {
           {{ t("update.download") }}
         </SButton>
       </template>
+      <SButton
+        v-else
+        type="primary"
+        @click="
+          update.openDownloadPage();
+          close();
+        "
+      >
+        {{ IS_APPX ? t("update.goStore") : t("update.goDownload") }}
+      </SButton>
     </template>
   </SDialog>
 </template>
