@@ -164,13 +164,7 @@ watch(() => config.fontSize, pushWindowHeight);
 /** 顶栏按钮 */
 const onHeaderAction = (
   action:
-    | "focus-main"
-    | "prev"
-    | "next"
-    | "toggle-play"
-    | "open-settings"
-    | "toggle-locked"
-    | "close",
+    "focus-main" | "prev" | "next" | "toggle-play" | "open-settings" | "toggle-locked" | "close",
 ): void => {
   switch (action) {
     case "focus-main":

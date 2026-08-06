@@ -2,14 +2,7 @@ import type { Component } from "vue";
 
 /** 设置项控件类型 */
 export type SettingWidgetType =
-  | "switch"
-  | "select"
-  | "slider"
-  | "color"
-  | "button"
-  | "custom"
-  | "text"
-  | "number";
+  "switch" | "select" | "slider" | "color" | "button" | "custom" | "text" | "number";
 
 /** 选择项 */
 export interface SettingOption {

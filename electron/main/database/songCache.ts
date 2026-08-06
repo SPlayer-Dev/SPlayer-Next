@@ -41,8 +41,7 @@ const toRow = (raw: RawRow): SongCacheRow => ({
  */
 export const findByKey = (cacheKey: string): SongCacheRow | null => {
   const raw = getDb().prepare("SELECT * FROM song_cache WHERE cache_key = ?").get(cacheKey) as
-    | RawRow
-    | undefined;
+    RawRow | undefined;
   return raw ? toRow(raw) : null;
 };
 
@@ -53,8 +52,7 @@ export const findByKey = (cacheKey: string): SongCacheRow | null => {
  */
 export const findByFilename = (filename: string): SongCacheRow | null => {
   const raw = getDb().prepare("SELECT * FROM song_cache WHERE filename = ?").get(filename) as
-    | RawRow
-    | undefined;
+    RawRow | undefined;
   return raw ? toRow(raw) : null;
 };
 
@@ -101,8 +99,7 @@ export const deleteByKey = (cacheKey: string): void => {
  */
 export const totalSize = (): number => {
   const row = getDb().prepare("SELECT SUM(size) AS total FROM song_cache").get() as
-    | { total: number | null }
-    | undefined;
+    { total: number | null } | undefined;
   return row?.total ?? 0;
 };
 

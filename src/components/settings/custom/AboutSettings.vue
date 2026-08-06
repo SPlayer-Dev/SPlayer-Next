@@ -274,7 +274,11 @@ onMounted(async () => {
         radius="xl"
         class="break-all select-text space-y-1.5"
       >
-        <div v-for="item in envItems" :key="item.label" class="flex flex-col sm:flex-row sm:items-baseline gap-0.5 sm:gap-2">
+        <div
+          v-for="item in envItems"
+          :key="item.label"
+          class="flex flex-col sm:flex-row sm:items-baseline gap-0.5 sm:gap-2"
+        >
           <span class="text-on-surface/60 shrink-0">{{ item.label }}:</span>
           <a
             v-if="item.url"

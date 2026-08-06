@@ -32,13 +32,7 @@ export type RouteTransition = "none" | "fade" | "slide" | "zoom";
 
 /** 弹簧动画预设 */
 export type SpringPreset =
-  | "default"
-  | "smooth"
-  | "responsive"
-  | "jello"
-  | "heavy"
-  | "noBounce"
-  | "custom";
+  "default" | "smooth" | "responsive" | "jello" | "heavy" | "noBounce" | "custom";
 
 /** 歌词混合模式 */
 export type LyricBlendMode = "normal" | "screen" | "plus-lighter";

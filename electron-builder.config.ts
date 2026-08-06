@@ -26,7 +26,6 @@ const config: Configuration = {
     "!**/*.{d.ts,map,md}",
     "!**/{CHANGELOG,LICENSE,license,README,readme}*",
     "!**/node_modules/better-sqlite3/deps/**",
-    "!**/node_modules/better-sqlite3/prebuilds/**",
   ],
   // 保留的语言
   electronLanguages: ["zh-CN", "en-US"],
