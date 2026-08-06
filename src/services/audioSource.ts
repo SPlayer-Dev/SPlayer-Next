@@ -21,6 +21,10 @@ export interface ResolveTrackSourceOptions {
   skipPluginIds?: readonly string[];
   /** 是否跳过官方在线接口，直接进入插件兜底 */
   skipOfficialOnline?: boolean;
+  /** 是否静默解析 */
+  silent?: boolean;
+  /** 流媒体 PlaySessionId，用于预载时隔离当前播放会话 */
+  streamingPlaySessionId?: string;
 }
 
 /**
@@ -176,6 +180,15 @@ export interface ResolvedTrackSource {
 }
 
 /**
+ * 记录解析错误，支持静默模式抑制
+ * @param err - 错误信息或错误码
+ * @param silent - 是否开启静默模式
+ */
+const reportLoadError = (err: ErrorCode | string, silent?: boolean): void => {
+  if (!silent) handleError(err);
+};
+
+/**
  * 根据 track 信息解析出最终的音频源 URL
  * @param track - 要解析的 track
  */
@@ -200,13 +213,18 @@ export const resolveTrackSource = async (
   if (track.source === "streaming") {
     try {
       const store = useStreamingStore();
-      const streamUrl = await store.getStreamUrl(track);
+      const streamUrl = await store.getStreamUrl(
+        track,
+        options.streamingPlaySessionId
+          ? { playSessionId: options.streamingPlaySessionId }
+          : undefined,
+      );
       const result: ResolvedTrackSource = {
         source: streamUrl,
         fromCache: false,
         provider: "streaming",
       };
-      if (cacheEnabled) {
+      if (cacheEnabled && settings.system.cache.songCache.cacheStreaming) {
         // 缓存下载用独立 PlaySessionId
         result.cacheRequest = async () => {
           try {
@@ -221,7 +239,7 @@ export const resolveTrackSource = async (
       }
       return result;
     } catch (err) {
-      handleError(err instanceof Error ? err.message : String(err));
+      reportLoadError(err instanceof Error ? err.message : String(err), options.silent);
       return null;
     }
   }
@@ -230,7 +248,7 @@ export const resolveTrackSource = async (
     try {
       const resolved = await resolveOnlineUrl(track, songLevel, options);
       if (!resolved.ok) {
-        handleError(resolved.errorCode);
+        reportLoadError(resolved.errorCode, options.silent);
         return null;
       }
       const url = resolved.url;
@@ -247,7 +265,7 @@ export const resolveTrackSource = async (
       }
       return result;
     } catch (err) {
-      handleError(err instanceof Error ? err.message : String(err));
+      reportLoadError(err instanceof Error ? err.message : String(err), options.silent);
       return null;
     }
   }

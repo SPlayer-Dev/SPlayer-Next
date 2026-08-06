@@ -2,7 +2,14 @@
 import { getContributors, type Contributor } from "@/apis/github";
 import { useUpdateStore } from "@/stores/update";
 import { openExternal } from "@/utils/url";
-import { APP_VERSION, REPO_URL, REPO_NAME, HOMEPAGE_URL, COPYRIGHT_HOLDER } from "@/utils/config";
+import {
+  APP_VERSION,
+  REPO_URL,
+  REPO_NAME,
+  HOMEPAGE_URL,
+  COPYRIGHT_HOLDER,
+  IS_APPX,
+} from "@/utils/config";
 import IconLucideRefreshCw from "~icons/lucide/refresh-cw";
 import IconLucideGithub from "~icons/lucide/github";
 import IconLucideRss from "~icons/lucide/rss";
@@ -86,6 +93,9 @@ onMounted(async () => {
         <div class="flex items-center gap-2 mr-auto">
           <span class="text-lg font-logo text-on-surface">{{ REPO_NAME }}</span>
           <STag type="primary" size="small" round>v{{ APP_VERSION }}</STag>
+          <STag v-if="IS_APPX" type="primary" size="small" round>
+            {{ t("settings.storeVersion") }}
+          </STag>
         </div>
         <div class="flex items-center gap-2">
           <SButton variant="secondary" :loading="checking" @click="handleCheckUpdate">

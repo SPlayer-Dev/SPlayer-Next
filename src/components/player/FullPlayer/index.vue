@@ -10,6 +10,7 @@ import { useDownload, buildDownloadQualityItems } from "@/composables/useDownloa
 import { usePlaylistPicker } from "@/composables/usePlaylistPicker";
 import { useImmersiveMode } from "@/composables/useImmersiveMode";
 import { useTimeFormat } from "@/composables/useTimeFormat";
+import { useProgressLyric } from "@/composables/useProgressLyric";
 import Lyrics from "@/components/player/Lyrics/index.vue";
 import AMLLLyrics from "@/components/player/Lyrics/AMLLLyrics.vue";
 import PlaylistPickerDialog from "@/components/modals/PlaylistPickerDialog.vue";
@@ -32,7 +33,7 @@ const {
   isLoading,
   position,
   duration,
-  isExpanded,
+  isPlayerExpanded,
   repeatMode,
   shuffleMode,
   heartMode,
@@ -41,13 +42,16 @@ const {
 } = storeToRefs(status);
 
 const { timeDisplay, toggleTimeFormat } = useTimeFormat();
+const { snapToNearestLyric } = useProgressLyric();
 
 const lyricRef = ref<InstanceType<typeof Lyrics> | InstanceType<typeof AMLLLyrics>>();
 const lyricMounted = ref(false);
 const initialLyricTimeMs = ref(0);
 
+/** 加载中的歌曲使用队列当前项兜底，避免全屏播放器出现空白。 */
+const displayTrack = computed(() => media.track ?? status.currentTrack);
 const hasLyric = computed(() => media.parsedLyric.length > 0 || media.lyricLoading);
-const hasTrack = computed(() => !!media.track);
+const hasTrack = computed(() => !!displayTrack.value);
 
 /** 精确播放时间（毫秒） */
 const { start: startTick, stop: stopTick } = usePlaybackTime((currentMs) => {
@@ -127,12 +131,15 @@ const lyricFontSize = computed(() =>
 );
 
 const { immersive, onPlayerMouseEnter, onPlayerMouseLeave, onMainMove, onBarEnter, onBarLeave } =
-  useImmersiveMode(isExpanded);
+  useImmersiveMode(isPlayerExpanded);
 
 const { isFullscreen, toggleFullscreen } = useWindowControls();
 
 const canDownload = computed(
-  () => !!media.track && media.track.source !== "local" && settings.system.download.enabled,
+  () =>
+    !!displayTrack.value &&
+    displayTrack.value.source !== "local" &&
+    settings.system.download.enabled,
 );
 
 const downloadQualityItems = computed(() =>
@@ -140,16 +147,16 @@ const downloadQualityItems = computed(() =>
 );
 
 const onDownloadSelect = (key: string): void => {
-  if (!media.track) return;
-  void enqueueDownload(media.track, key ? { quality: key as QualityLevel } : {});
+  if (!displayTrack.value) return;
+  void enqueueDownload(displayTrack.value, key ? { quality: key as QualityLevel } : {});
 };
 
 const collapse = (): void => {
-  isExpanded.value = false;
+  isPlayerExpanded.value = false;
 };
 
 const onSeekDragEnd = (value: number): void => {
-  player.seek(value);
+  player.seek(snapToNearestLyric(value));
 };
 
 const {
@@ -174,7 +181,7 @@ const toggleLyric = (): void => {
 };
 
 const showComments = (): void => {
-  if (media.track) status.showComments(media.track);
+  if (displayTrack.value) status.showComments(displayTrack.value);
 };
 </script>
 
@@ -190,7 +197,7 @@ const showComments = (): void => {
       @after-leave="onAfterLeave"
     >
       <div
-        v-show="isExpanded"
+        v-show="isPlayerExpanded"
         class="fixed inset-0 z-200 overflow-hidden text-cover"
         :class="immersive ? 'cursor-none [&_*]:!cursor-none' : ''"
         style="--lp-color: rgb(var(--s-cover))"
@@ -205,7 +212,7 @@ const showComments = (): void => {
         </div>
         <!-- 底部频谱 -->
         <BottomSpectrum
-          v-if="isExpanded && settings.player.enableSpectrum"
+          v-if="isPlayerExpanded && settings.player.enableSpectrum"
           :show="isPlaying && immersive"
         />
         <!-- 顶/底栏渐变遮罩（全屏封面模式） -->
@@ -259,7 +266,7 @@ const showComments = (): void => {
           >
             <div class="relative w-[clamp(200px,85%,50vh)] -translate-y-[11vh]">
               <Transition name="scale-switch" mode="out-in">
-                <div :key="media.track?.id">
+                <div :key="displayTrack?.id">
                   <PlayerCover />
                   <div class="absolute top-full left-0 w-full pt-6">
                     <PlayerData align="left" />
@@ -293,6 +300,10 @@ const showComments = (): void => {
                 fontSize: lyricFontSize,
                 fontWeight: String(settings.lyric.fontWeight),
                 fontFamily: settings.lyric.fontFamily || undefined,
+                '--lyric-font-zh': settings.lyric.fontFamilyChinese || undefined,
+                '--lyric-font-ja': settings.lyric.fontFamilyJapanese || undefined,
+                '--lyric-font-ko': settings.lyric.fontFamilyKorean || undefined,
+                '--lyric-font-latin': settings.lyric.fontFamilyLatin || undefined,
                 mixBlendMode: settings.lyric.lyricBlendMode,
               }"
             >
@@ -407,10 +418,10 @@ const showComments = (): void => {
               size="large"
               circle
               :disabled="!hasTrack"
-              @click="fav.toggle(media.track)"
+              @click="fav.toggle(displayTrack)"
             >
               <template #icon>
-                <SIconSwap :active="fav.isLiked(media.track)">
+                <SIconSwap :active="fav.isLiked(displayTrack)">
                   <template #on><IconFavorite /></template>
                   <template #off><IconFavoriteOutline /></template>
                 </SIconSwap>
@@ -427,12 +438,12 @@ const showComments = (): void => {
               <template #icon><IconLucideMessageCircle /></template>
             </SButton>
             <SButton
-              v-if="media.track?.source === 'local' || media.track?.source === 'netease'"
+              v-if="displayTrack?.source === 'local' || displayTrack?.source === 'netease'"
               type="cover"
               variant="ghost"
               size="large"
               circle
-              @click="media.track && openPicker([media.track])"
+              @click="displayTrack && openPicker([displayTrack])"
             >
               <template #icon><IconLucideListPlus /></template>
             </SButton>
@@ -502,7 +513,7 @@ const showComments = (): void => {
                 variant="ghost"
                 circle
                 :disabled="!hasTrack"
-                @click="player.nextTrack(true)"
+                @click="player.nextTrack()"
               >
                 <template #icon><IconLucideSkipForward /></template>
               </SButton>
@@ -511,7 +522,7 @@ const showComments = (): void => {
                 variant="ghost"
                 circle
                 :disabled="fmMode"
-                :class="fmMode || repeatMode === 'off' ? 'opacity-40' : 'opacity-100'"
+                :class="fmMode ? 'opacity-40' : 'opacity-100'"
                 @click="player.cycleRepeatMode()"
               >
                 <template #icon>

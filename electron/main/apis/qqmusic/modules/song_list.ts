@@ -23,12 +23,13 @@ interface CdSongItem {
 interface CdListResp {
   code?: number;
   cdlist?: Array<{
-    disstid?: number;
+    disstid?: string | number;
     dissname?: string;
     desc?: string;
     nickname?: string;
     logo?: string;
     visitnum?: number;
+    songnum?: number;
     songlist?: CdSongItem[];
   }>;
 }
@@ -39,9 +40,18 @@ const SONGLIST_URL =
 const songList: QMModule = async (params) => {
   const { id } = params;
 
-  const url = `${SONGLIST_URL}&disstid=${id}`;
-  const res = await fetch(url, { headers: QM_HEADERS });
-  const data = (await res.json()) as CdListResp;
+  const url = `${SONGLIST_URL}&disstid=${encodeURIComponent(String(id ?? ""))}`;
+  const res = await fetch(url, {
+    headers: { ...QM_HEADERS, Referer: "https://y.qq.com/" },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) throw new Error(`QM 歌单请求失败: HTTP ${res.status}`);
+  const text = await res.text();
+  const json = text
+    .trim()
+    .replace(/^jsonCallback\s*\(/, "")
+    .replace(/\)\s*;?$/, "");
+  const data = JSON.parse(json) as CdListResp;
 
   const cd = data.cdlist?.[0];
   if (!cd) return { code: 404, message: "歌单不存在" };
@@ -51,6 +61,7 @@ const songList: QMModule = async (params) => {
     mid: item.songmid ?? "",
     name: item.songname ?? "",
     artist: formatSingerName(item.singer),
+    artists: item.singer ?? [],
     album: item.albumname ?? "",
     albumMid: item.albummid ?? "",
     duration: (item.interval ?? 0) * 1000,
@@ -64,6 +75,7 @@ const songList: QMModule = async (params) => {
     creator: cd.nickname ?? "",
     cover: cd.logo ?? "",
     playCount: cd.visitnum ?? 0,
+    total: cd.songnum ?? songs.length,
     songs,
   };
 };

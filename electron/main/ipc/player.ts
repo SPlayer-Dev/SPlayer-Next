@@ -149,7 +149,7 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
         break;
       }
       case "fftData": {
-        const fftEvent = { type: "fftData", data: event.fftData ?? [] };
+        const fftEvent = { type: "fftData", data: event.fftData ?? { ldata: [], rdata: [] } };
         if (getMainWindow()?.isVisible()) sendToMain("player:event", fftEvent);
         wsBroadcast(fftEvent);
         break;
@@ -159,11 +159,9 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
         if (now - lastReinitAt < REINIT_COOLDOWN_MS) break;
         lastReinitAt = now;
         playerLog.warn("检测到音频输出停滞，自动重建");
-        try {
-          inst.reinitOutput();
-        } catch (error) {
+        inst.reinitOutput().catch((error) => {
           playerLog.error("自动重建音频输出失败:", error);
-        }
+        });
         break;
       }
     }
@@ -206,7 +204,12 @@ export const registerPlayerIpc = (): void => {
         authoritative && authoritative.source !== "local"
           ? (authoritative.coverOriginal ?? authoritative.cover)
           : undefined;
-      const coverUrl = remoteCover && /^https?:\/\//i.test(remoteCover) ? remoteCover : undefined;
+      const coverFetchUrl =
+        remoteCover && /^(https?|streaming-cover):\/\//i.test(remoteCover)
+          ? remoteCover
+          : undefined;
+      const coverUrl =
+        coverFetchUrl && /^https?:\/\//i.test(coverFetchUrl) ? coverFetchUrl : undefined;
       // 写一次 SMTC/托盘/标题
       const applyDisplay = (
         title: string,
@@ -265,8 +268,8 @@ export const registerPlayerIpc = (): void => {
       });
       neteaseScrobble.onTrackLoaded(authoritative, durationMs, autoPlay);
       // 远端高清封面
-      if (coverUrl) {
-        void fetchBytes(coverUrl).then((buf) => {
+      if (coverFetchUrl) {
+        void fetchBytes(coverFetchUrl).then((buf) => {
           if (!buf) return;
           if (seq !== loadSeq) return;
           mediaService.setMetadata({
@@ -419,9 +422,9 @@ export const registerPlayerIpc = (): void => {
   });
 
   // 重建音频输出设备
-  ipcMain.handle("player:reinit", () => {
+  ipcMain.handle("player:reinit", async () => {
     try {
-      getPlayer().reinitOutput();
+      await getPlayer().reinitOutput();
       return { success: true };
     } catch (error) {
       return fail(ErrorCode.UNKNOWN, error);
@@ -574,9 +577,9 @@ export const registerPlayerIpc = (): void => {
   });
 
   // 切换输出设备（传 null 使用系统默认）
-  ipcMain.handle("player:setOutputDevice", (_event, deviceName: string | null) => {
+  ipcMain.handle("player:setOutputDevice", async (_event, deviceName: string | null) => {
     try {
-      getPlayer().setOutputDevice(deviceName ?? undefined);
+      await getPlayer().setOutputDevice(deviceName ?? undefined);
       return { success: true };
     } catch (error) {
       return fail(ErrorCode.UNKNOWN, error);
@@ -659,7 +662,7 @@ export const registerPlayerIpc = (): void => {
     for (let i = 0; i < MAX_RETRIES; i++) {
       await new Promise((r) => setTimeout(r, RETRY_DELAYS[i]));
       try {
-        inst.reinitOutput();
+        await inst.reinitOutput();
         playerLog.info(`唤醒后重建音频输出成功（第 ${i + 1} 次尝试）`);
         return;
       } catch (error) {

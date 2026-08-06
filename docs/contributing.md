@@ -77,7 +77,9 @@ shared/             跨进程共享的类型与默认配置
 - **格式**：遵循 Prettier 配置（双引号、分号、100 列、尾随逗号）；提交前请运行 `pnpm format`。
 - **类型检查**：提交前确保 `pnpm typecheck` 与 `pnpm lint` 通过。
 - **原生类型**：从 `@splayer/*` 导入，切勿手写 `native/*/index.d.ts`。
-- **提交信息**：使用单行中文标题，无特殊说明不附正文。
+- **提交信息**：使用 Conventional Commits，格式为 `<类型>: <中文摘要>`；标题保持单行，
+  无特殊说明不附正文。类型按改动选择，如
+  `feat`、`fix`、`refactor`、`perf`、`docs`、`test`、`build`、`ci`、`style`、`chore`。
 
 ## 国际化
 

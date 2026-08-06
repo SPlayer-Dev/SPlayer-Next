@@ -234,7 +234,6 @@ onMounted(async () => {
     <PlaylistCreateDialog
       v-model:open="createOpen"
       mode="local"
-      lock-type
       :initial-name="selectedFolder?.name"
       @created="handleCreated"
     />

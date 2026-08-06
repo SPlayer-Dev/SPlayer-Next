@@ -118,15 +118,15 @@ export const setSpeed = (value: number): void => {
 };
 
 /** 最新 FFT 频谱帧 */
-let fftFrame: number[] = [];
+let fftFrame: [number[], number[]] = [[], []];
 
 /** 主进程推送 FFT 数据时调用 */
-export const setFftFrame = (data: number[]): void => {
-  fftFrame = data;
+export const setFftFrame = (ldata: number[], rdata: number[]): void => {
+  fftFrame = [ldata, rdata];
 };
 
 /** RAF 循环读取最新频谱帧 */
-export const getFftFrame = (): readonly number[] => fftFrame;
+export const getFftFrame = (): readonly [number[], number[]] => fftFrame;
 
 /** 重置位置/时长/播放标志 */
 export const reset = (): void => {

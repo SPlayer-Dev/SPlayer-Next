@@ -62,4 +62,4 @@ SPlayer-Next 内置插件系统，可通过脚本扩展音源与控制等能力�
 
 ## 外部控制
 
-应用提供可选的外部 API（HTTP + WebSocket），可供其他程序远程查询状态与控制播放，详见 [外部 API](/api) 与 [WebSocket API](/socket)。
+应用提供可选的外部 API（HTTP + WebSocket）以及独立的本机 MCP 服务，可供其他程序或 AI 查询状态与控制播放，详见 [外部 API](/api)、[WebSocket API](/socket) 与 [MCP 接口](/mcp)。

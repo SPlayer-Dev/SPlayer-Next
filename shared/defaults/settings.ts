@@ -65,6 +65,7 @@ export const defaultSystemConfig: SystemConfig = {
     fontWeight: 500,
     fontFamily: "",
     wordByWord: true,
+    transition: "bounce",
     playedColor: "rgba(255, 255, 255, 1)",
     unplayedColor: "rgba(255, 255, 255, 0.5)",
     backgroundColor: "rgba(0, 0, 0, 1)",
@@ -79,15 +80,18 @@ export const defaultSystemConfig: SystemConfig = {
   taskbarLyric: {
     position: "auto",
     autoMaxWidth: true,
+    autoAdjustOccupiedSpace: false,
     maxWidth: 400,
     leftMargin: 0,
     rightMargin: 0,
     colorMode: "taskbar",
+    showBackground: false,
     doubleLine: true,
     showTranslation: true,
     showCover: true,
     wordByWord: true,
     fontSize: 14,
+    fontWeight: 400,
     fontFamily: "",
   },
   lyric: {
@@ -102,6 +106,7 @@ export const defaultSystemConfig: SystemConfig = {
     dir: null,
     songCache: {
       enabled: false,
+      cacheStreaming: false,
       sizeLimitGb: 10,
     },
   },
@@ -134,6 +139,11 @@ export const defaultSystemConfig: SystemConfig = {
     wsEnabled: false,
     allowLan: false,
     port: 14558,
+  },
+  mcp: {
+    enabled: false,
+    port: 14559,
+    accessKey: "",
   },
   update: {
     autoCheck: true,

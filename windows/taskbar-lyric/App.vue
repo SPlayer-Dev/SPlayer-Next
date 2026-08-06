@@ -9,25 +9,107 @@ import IconPause from "~icons/lucide/pause";
 import TaskbarLyricLine from "./components/TaskbarLyricLine.vue";
 import { pickPrimaryIndex } from "@shared/utils/lyricSync";
 import { useNowPlayingSync } from "@windows/shared/composables/useNowPlayingSync";
+import { formatArtists } from "@shared/utils/track";
 
 const config = reactive<TaskbarLyricSettings>({
   position: "auto",
   autoMaxWidth: true,
+  autoAdjustOccupiedSpace: false,
   maxWidth: 400,
   leftMargin: 0,
   rightMargin: 0,
   colorMode: "taskbar",
+  showBackground: false,
   doubleLine: true,
   showTranslation: true,
   showCover: true,
   wordByWord: true,
   fontSize: 14,
+  fontWeight: 400,
   fontFamily: "",
 });
 
 const anchor = ref<"left" | "right">("left");
 const taskbarIsLight = ref(false);
 const isHovered = ref(false);
+const maxLayoutWidth = ref(400);
+const wrapperRef = ref<HTMLElement | null>(null);
+let hoverLeaveTimer: number | null = null;
+let widthReportRaf = 0;
+let lastReportedWidth = 0;
+
+/** 给字体亚像素取整和逐字渐变预留空间，避免临界宽度误触发滚动 */
+const LYRIC_WIDTH_GUARD = 8;
+
+/** 按歌词行动画结束后的字号换算文字宽度，避免副行升为主行时低估空间 */
+const measureTargetTextWidth = (element: HTMLElement): number => {
+  const line = element.closest<HTMLElement>(".lyric-line");
+  if (!line) return element.scrollWidth;
+
+  const currentFontSize = Number.parseFloat(getComputedStyle(line).fontSize);
+  const targetFontSize =
+    line.dataset.role === "secondary" ? config.fontSize * 0.82 : config.fontSize;
+  if (!Number.isFinite(currentFontSize) || currentFontSize <= 0) return element.scrollWidth;
+  return element.scrollWidth * (targetFontSize / currentFontSize);
+};
+
+/** 测量当前内容的自然宽度，不受已经收窄的窗口反向限制 */
+const reportContentWidth = (): void => {
+  widthReportRaf = 0;
+  const wrapper = wrapperRef.value;
+  if (!wrapper) return;
+  if (isHovered.value) {
+    const targetWidth = Math.ceil(maxLayoutWidth.value);
+    if (targetWidth === lastReportedWidth) return;
+    lastReportedWidth = targetWidth;
+    window.api.taskbarLyric.setContentWidth(targetWidth);
+    return;
+  }
+
+  const wrapperStyle = getComputedStyle(wrapper);
+  const horizontalPadding =
+    Number.parseFloat(wrapperStyle.paddingLeft) + Number.parseFloat(wrapperStyle.paddingRight);
+  const coverWidth = config.showCover
+    ? (wrapper.querySelector<HTMLElement>(".cover-wrapper")?.offsetWidth ?? 0)
+    : 0;
+  const lyricArea = wrapper.querySelector<HTMLElement>(".lyric-area");
+  const lyricStyle = lyricArea ? getComputedStyle(lyricArea) : null;
+  const lyricMargins = lyricStyle
+    ? Number.parseFloat(lyricStyle.marginLeft) + Number.parseFloat(lyricStyle.marginRight)
+    : 0;
+  const textElements = wrapper.querySelectorAll<HTMLElement>(".lyric-line .scroll-content");
+  const naturalTextWidth = Math.max(0, ...Array.from(textElements, measureTargetTextWidth));
+  const fixedWidth = horizontalPadding + coverWidth + lyricMargins;
+  const availableTextWidth = Math.max(0, maxLayoutWidth.value - fixedWidth);
+  const preferredTextWidth = naturalTextWidth + LYRIC_WIDTH_GUARD;
+  const textWidth = Math.min(preferredTextWidth, availableTextWidth);
+  const targetWidth = Math.ceil(Math.min(maxLayoutWidth.value, fixedWidth + textWidth));
+  if (targetWidth === lastReportedWidth) return;
+  lastReportedWidth = targetWidth;
+  window.api.taskbarLyric.setContentWidth(targetWidth);
+};
+
+const scheduleContentWidthReport = (): void => {
+  if (widthReportRaf) return;
+  widthReportRaf = requestAnimationFrame(reportContentWidth);
+};
+
+const setContentHovered = (hovered: boolean): void => {
+  if (hoverLeaveTimer !== null) {
+    window.clearTimeout(hoverLeaveTimer);
+    hoverLeaveTimer = null;
+  }
+  if (hovered) {
+    isHovered.value = true;
+    nextTick(scheduleContentWidthReport);
+    return;
+  }
+  hoverLeaveTimer = window.setTimeout(() => {
+    hoverLeaveTimer = null;
+    isHovered.value = false;
+    nextTick(scheduleContentWidthReport);
+  }, 40);
+};
 
 const { track, lyric, primaryIndex, playing } = useNowPlayingSync({
   pickIndex: pickPrimaryIndex,
@@ -43,9 +125,7 @@ const currentLine = computed<LyricLine | null>(() => {
 const hasLyric = computed(() => lyric.value.length > 0 && primaryIndex.value >= 0);
 
 const titleText = computed<string>(() => track.value?.title ?? "SPlayer Next");
-const artistsText = computed<string>(
-  () => track.value?.artists?.map((a) => a.name).join(" / ") || "未知艺术家",
-);
+const artistsText = computed<string>(() => formatArtists(track.value?.artists) || "未知艺术家");
 
 const effectiveTheme = computed<"light" | "dark">(() => {
   if (config.colorMode === "light") return "light";
@@ -101,6 +181,7 @@ const items = computed<RenderItem[]>(() => {
 
 const rootStyle = computed(() => ({
   "--tbl-font-size": `${config.fontSize}px`,
+  fontWeight: config.fontWeight,
   fontFamily: config.fontFamily || undefined,
 }));
 
@@ -117,6 +198,8 @@ onMounted(async () => {
   try {
     const saved = (await window.api.config.get("taskbarLyric")) as TaskbarLyricSettings | null;
     if (saved) Object.assign(config, saved);
+    await nextTick();
+    scheduleContentWidthReport();
   } catch (error) {
     console.error("[taskbar-lyric] load config failed", error);
   }
@@ -125,28 +208,52 @@ onMounted(async () => {
     window.api.taskbarLyric.onLayout((data) => {
       anchor.value = data.anchor;
       taskbarIsLight.value = data.isLight;
+      maxLayoutWidth.value = data.maxWidth;
+      nextTick(scheduleContentWidthReport);
     }),
     window.api.taskbarLyric.onConfigChange((next) => {
       Object.assign(config, next);
+      nextTick(scheduleContentWidthReport);
     }),
   );
 });
 
+watch(items, () => nextTick(scheduleContentWidthReport));
+watch(
+  () => [
+    config.showCover,
+    config.doubleLine,
+    config.fontSize,
+    config.fontWeight,
+    config.fontFamily,
+  ],
+  () => nextTick(scheduleContentWidthReport),
+);
+
 onBeforeUnmount(() => {
+  if (widthReportRaf) cancelAnimationFrame(widthReportRaf);
+  if (hoverLeaveTimer !== null) {
+    window.clearTimeout(hoverLeaveTimer);
+    hoverLeaveTimer = null;
+  }
   for (const off of unsubscribers) off();
 });
 </script>
 
 <template>
-  <div class="wrapper" :data-align="anchor">
+  <div
+    ref="wrapperRef"
+    class="wrapper"
+    :data-align="anchor"
+    @mouseenter="setContentHovered(true)"
+    @mouseleave="setContentHovered(false)"
+  >
     <div
       class="container"
-      :class="{ 'is-hovered': isHovered }"
+      :class="{ 'is-hovered': isHovered, 'shows-background': config.showBackground }"
       :data-theme="effectiveTheme"
       :data-align="anchor"
       :style="rootStyle"
-      @mouseenter="isHovered = true"
-      @mouseleave="isHovered = false"
       @dblclick="handleFocusMain"
     >
       <div v-if="config.showCover" class="cover-wrapper">
@@ -177,7 +284,12 @@ onBeforeUnmount(() => {
       <!-- 文本区 -->
       <div class="lyric-area">
         <!-- 歌词层 -->
-        <TransitionGroup tag="div" name="line" class="lyric-column">
+        <TransitionGroup
+          tag="div"
+          name="line"
+          class="lyric-column"
+          @after-leave="scheduleContentWidthReport"
+        >
           <div v-for="item in items" :key="item.key" class="lyric-line" :data-role="item.role">
             <TaskbarLyricLine
               :line="item.line"
@@ -189,7 +301,9 @@ onBeforeUnmount(() => {
         </TransitionGroup>
         <!-- 歌曲信息 -->
         <div class="song-info">
-          <div class="song-title">{{ titleText }}</div>
+          <div class="song-title">
+            {{ titleText }}
+          </div>
           <div v-if="config.doubleLine" class="song-artist">
             {{ artistsText }}
           </div>
@@ -203,11 +317,11 @@ onBeforeUnmount(() => {
 .wrapper {
   width: 100vw;
   height: 100vh;
-  padding: 4px 6px;
+  padding: 0 6px;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  pointer-events: none;
+  pointer-events: auto;
 }
 .wrapper[data-align="right"] {
   justify-content: flex-end;
@@ -221,13 +335,13 @@ onBeforeUnmount(() => {
   --tbl-unplayed: var(--tbl-text-secondary);
   position: relative;
   width: 100%;
-  height: 100%;
+  height: calc(100% - 8px);
   display: flex;
   align-items: center;
   border-radius: 8px;
   background: transparent;
   overflow: hidden;
-  pointer-events: auto;
+  pointer-events: none;
   color: var(--tbl-text-primary);
   transition: background 0.3s;
 }
@@ -239,7 +353,7 @@ onBeforeUnmount(() => {
   --tbl-text-secondary: rgba(0, 0, 0, 0.62);
   --tbl-hover-bg: rgba(0, 0, 0, 0.08);
 }
-.container:hover {
+.container.shows-background.is-hovered {
   background: var(--tbl-hover-bg);
 }
 /* 封面 */
@@ -249,6 +363,7 @@ onBeforeUnmount(() => {
   aspect-ratio: 1 / 1;
   padding: 4px;
   overflow: hidden;
+  pointer-events: auto;
 }
 .cover {
   width: 100%;
@@ -397,23 +512,26 @@ onBeforeUnmount(() => {
 }
 .container.is-hovered .song-info {
   opacity: 1;
-  pointer-events: auto;
   transition-delay: 0.08s;
 }
 .song-title {
+  width: fit-content;
   font-size: var(--tbl-font-size);
   color: var(--tbl-text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+  pointer-events: auto;
 }
 .song-artist {
+  width: fit-content;
   font-size: calc(var(--tbl-font-size) * 0.82);
   color: var(--tbl-text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+  pointer-events: auto;
 }
 </style>

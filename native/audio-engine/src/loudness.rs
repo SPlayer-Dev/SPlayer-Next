@@ -49,7 +49,7 @@ pub struct LoudnessAnalyzer {
 }
 
 impl LoudnessAnalyzer {
-    /// 按目标采样率/声道数推算窗口尺寸，避免硬编码与 TARGET_SAMPLE_RATE 解耦后失配
+    /// 按目标采样率/声道数推算窗口尺寸
     pub fn new(sample_rate: u32, channels: u16) -> Self {
         let samples_per_sec = sample_rate as f32 * channels as f32;
         Self {

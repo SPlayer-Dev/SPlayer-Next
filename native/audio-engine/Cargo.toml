@@ -9,8 +9,10 @@ crate-type = ["cdylib"]
 [dependencies]
 napi = { version = "3.8", features = ["napi9", "serde-json", "tokio_rt"] }
 napi-derive = "3.5"
-ffmpeg_audio = { git = "https://github.com/SPlayer-Dev/ffmpeg-audio", tag = "v3.0.0", default-features = false }
-ureq = { version = "2", default-features = false, features = ["tls"] }
+ffmpeg_audio = { version = "0.3.1", default-features = false, features = [
+  "http",
+  "tracing",
+] }
 libc = "0.2"
 rodio = { version = "0.20", default-features = false }
 cpal = "0.15"
@@ -35,6 +37,7 @@ tracing-appender = "0.2"
 time = { version = "0.3", features = ["macros", "formatting"] }
 walkdir = "2"
 tokio = { version = "1", features = ["rt"] }
+tokio-util = "0.7"
 
 [target.'cfg(target_os = "windows")'.dependencies.windows]
 version = "0.62"

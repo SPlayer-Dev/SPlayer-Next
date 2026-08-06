@@ -27,7 +27,7 @@ export const buildRegistry = (): void => {
   // 播放/暂停
   handlers.set("player.togglePlay", () => player.togglePlay());
   // 下一曲
-  handlers.set("player.next", () => player.nextTrack(true));
+  handlers.set("player.next", () => player.nextTrack());
   // 上一曲
   handlers.set("player.prev", () => player.prevTrack());
   // 快进
@@ -70,19 +70,19 @@ export const buildRegistry = (): void => {
   });
   // 打开播放器
   handlers.set("view.openPlayer", () => {
-    useStatusStore().isExpanded = true;
+    useStatusStore().isPlayerExpanded = true;
   });
   // 关闭播放器
   handlers.set("view.closePlayer", (): boolean => {
     const status = useStatusStore();
-    if (!status.isExpanded) return false;
-    status.isExpanded = false;
+    if (!status.isPlayerExpanded) return false;
+    status.isPlayerExpanded = false;
     return true;
   });
   // 切换播放列表
   handlers.set("view.togglePlaylist", () => {
     const status = useStatusStore();
-    if (status.isExpanded) {
+    if (status.isPlayerExpanded) {
       status.fullQueueOpen = !status.fullQueueOpen;
     } else {
       status.outerQueueOpen = !status.outerQueueOpen;

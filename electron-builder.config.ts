@@ -105,12 +105,25 @@ const config: Configuration = {
     artifactName: "${name}-${version}-${arch}.${ext}",
     maintainer: "imsyy.top",
     category: "Audio;Music;AudioVideo;",
-    target: ["AppImage", "deb", "rpm", "tar.gz"],
+    target: ["AppImage", "deb", "rpm", "tar.gz", "pacman"],
     syncDesktopName: true,
     desktop: { entry: { MimeType: "x-scheme-handler/orpheus;" } },
   },
   appImage: {
     artifactName: "${name}-${version}-${arch}.${ext}",
+  },
+  pacman: {
+    artifactName: "${name}-${version}-${arch}.${ext}",
+    depends: [
+      "gtk3",
+      "libnotify",
+      "nss",
+      "libxss",
+      "libxtst",
+      "xdg-utils",
+      "at-spi2-core",
+      "libsecret",
+    ],
   },
   npmRebuild: false,
   electronDownload: {

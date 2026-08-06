@@ -50,7 +50,9 @@
           :href="mirrored(asset.url)"
         >
           <span class="dl-name">{{ asset.fileName }}</span>
-          <span class="dl-meta">{{ asset.arch }} · {{ formatSize(asset.size) }}</span>
+          <span class="dl-meta">
+            {{ asset.label }} · {{ asset.arch }} · {{ formatSize(asset.size) }}
+          </span>
         </a>
       </div>
 
@@ -64,18 +66,14 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import {
+  parseDownloadAsset,
+  selectRecommendedAssets,
+  type DownloadAsset,
+} from "../utils/downloadAssets";
 
 const GITHUB_REPO = "SPlayer-Dev/SPlayer-Next";
 const releasesUrl = `https://github.com/${GITHUB_REPO}/releases`;
-
-interface Asset {
-  fileName: string;
-  label: string;
-  url: string;
-  size: number;
-  platform: string;
-  arch: string;
-}
 
 interface Release {
   tag_name: string;
@@ -93,7 +91,7 @@ const mirrors = [
 const loading = ref(true);
 const error = ref("");
 const release = ref<Release | null>(null);
-const assets = ref<Asset[]>([]);
+const assets = ref<DownloadAsset[]>([]);
 const mirror = ref("");
 const userPlatform = ref("");
 const userArch = ref("");
@@ -102,33 +100,6 @@ const mirrored = (url: string): string => (mirror.value ? mirror.value + url : u
 
 const formatSize = (bytes: number): string =>
   bytes ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : "";
-
-/** 识别单个资源的平台、架构与展示标签；非安装包返回 null */
-const parseAsset = (name: string, url: string, size: number): Asset | null => {
-  const lower = name.toLowerCase();
-  if (lower.endsWith(".blockmap") || lower.endsWith(".yml") || lower.includes("debug")) {
-    return null;
-  }
-  let platform = "";
-  let label = "";
-  if (lower.endsWith(".exe")) {
-    platform = "Windows";
-    label = lower.includes("portable") ? "Windows 便携版" : "Windows 安装版";
-  } else if (lower.endsWith(".dmg") || lower.endsWith(".zip")) {
-    platform = "macOS";
-    label = "macOS";
-  } else if (/\.(appimage|deb|rpm|pacman)$/.test(lower) || lower.endsWith(".tar.gz")) {
-    platform = "Linux";
-    label = "Linux";
-  } else {
-    return null;
-  }
-  let arch = "通用";
-  if (lower.includes("arm64") || lower.includes("aarch64")) arch = "ARM64";
-  else if (lower.includes("x64") || lower.includes("amd64") || lower.includes("x86_64"))
-    arch = "x64";
-  return { fileName: name, label, url, size, platform, arch };
-};
 
 const PLATFORM_ORDER = ["Windows", "macOS", "Linux"];
 
@@ -142,12 +113,7 @@ const grouped = computed(() =>
 
 /** 当前系统的推荐下载：匹配平台，并尽量匹配架构 */
 const recommended = computed(() => {
-  if (!userPlatform.value) return [];
-  const samePlatform = assets.value.filter((asset) => asset.platform === userPlatform.value);
-  const matched = userArch.value
-    ? samePlatform.filter((asset) => asset.arch === userArch.value || asset.arch === "通用")
-    : samePlatform;
-  return (matched.length ? matched : samePlatform).slice(0, 2);
+  return selectRecommendedAssets(assets.value, userPlatform.value, userArch.value);
 });
 
 const detectEnvironment = (): void => {
@@ -166,8 +132,8 @@ const fetchRelease = async (): Promise<void> => {
     const data = (await response.json()) as Release;
     release.value = data;
     assets.value = data.assets
-      .map((item) => parseAsset(item.name, item.browser_download_url, item.size))
-      .filter((item): item is Asset => item !== null);
+      .map((item) => parseDownloadAsset(item.name, item.browser_download_url, item.size))
+      .filter((item): item is DownloadAsset => item !== null);
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err);
   } finally {

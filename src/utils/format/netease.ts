@@ -22,12 +22,12 @@ export const ensureOk = <T>(body: T): T => {
 
 /**
  *  fee → 应用层 TrackFee
- *  fee：0=免费 1=VIP 4=购买专辑 8=会员高音质（视作 VIP）
+ *  fee：0=免费 1=VIP 4=购买专辑 8=会员高音质（视作免费）
  * @param fee - 原始 fee
  */
 const toTrackFee = (fee: number | undefined): TrackFee | undefined => {
-  if (fee === 0) return 0;
-  if (fee === 1 || fee === 8) return 1;
+  if (fee === 0 || fee === 8) return 0;
+  if (fee === 1) return 1;
   if (fee === 4) return 2;
   return undefined;
 };

@@ -3,7 +3,7 @@ export interface SCardProps {
   /** 卡片标题 */
   title?: string;
   /** 背景变体 */
-  variant?: "default" | "primary";
+  variant?: "default" | "primary" | "settings";
   /** 是否显示边框 */
   bordered?: boolean;
   /** 内边距尺寸 */
@@ -27,6 +27,7 @@ withDefaults(defineProps<SCardProps>(), {
 const variantClass: Record<NonNullable<SCardProps["variant"]>, { bg: string; border: string }> = {
   default: { bg: "bg-surface-panel", border: "border-primary/20" },
   primary: { bg: "bg-primary/5", border: "border-primary/25" },
+  settings: { bg: "bg-on-surface/5", border: "border-primary/20" },
 };
 
 const sizePadding: Record<NonNullable<SCardProps["size"]>, string> = {

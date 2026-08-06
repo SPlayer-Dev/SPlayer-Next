@@ -80,6 +80,8 @@ export interface SettingItem {
   fullWidth?: boolean;
   /** 搜索用额外关键词（i18n keys） */
   keywords?: string[];
+  /** 是否参与设置搜索，默认 true */
+  searchable?: boolean;
   /** 子项 */
   children?: SettingItem[];
   /** 子项展开条件 */

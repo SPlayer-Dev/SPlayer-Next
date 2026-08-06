@@ -137,7 +137,7 @@ const handleResetAll = async (): Promise<void> => {
   settingsStore.$reset();
   await window.api.config.reset();
   const playlistStore = usePlaylistStore();
-  await playlistStore.load();
+  await playlistStore.clear();
   toast.success(t("settings.resetAll.done"));
 };
 

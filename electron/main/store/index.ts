@@ -131,4 +131,7 @@ export const store = {
     data = deepMerge(defaultSystemConfig, raw);
     flushImmediate(data);
   },
+
+  /** 立即将设置写入磁盘 */
+  flushImmediate: () => flushImmediate(data),
 };

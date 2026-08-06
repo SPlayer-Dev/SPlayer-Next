@@ -6,7 +6,7 @@ import { searchSongs, searchAlbums, searchArtists, searchPlaylists } from "@/api
 import SongList from "@/components/list/SongList.vue";
 import CoverList from "@/components/list/CoverList.vue";
 import { useStatusStore } from "@/stores/status";
-import { navigateToAlbum, navigateToPlaylist } from "@/utils/navigate";
+import { navigateToAlbum, navigateToArtist, navigateToPlaylist } from "@/utils/navigate";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -273,6 +273,10 @@ const isEmptyResult = computed(() => {
         :padding-bottom="20"
         :has-more="states.artists.hasMore"
         :loading-more="states.artists.loadingMore"
+        @click="
+          (item) =>
+            navigateToArtist(item.title, { source: status.searchPlatform, artistId: item.id })
+        "
         @reach-bottom="onReachBottom('artists')"
       />
       <CoverList

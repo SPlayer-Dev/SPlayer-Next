@@ -8,12 +8,14 @@ import { pickAdvanceOnEndIndex } from "@shared/utils/lyricSync";
 import { useNowPlayingSync } from "@windows/shared/composables/useNowPlayingSync";
 import { useDragWindow } from "./composables/useDragWindow";
 import { isMac } from "@/utils/config";
+import { formatArtists } from "@shared/utils/track";
 
 const config = reactive<DynamicIslandSettings>({
   scale: 1,
   fontWeight: 500,
   fontFamily: "",
   wordByWord: true,
+  transition: "bounce",
   playedColor: "rgba(255, 255, 255, 1)",
   unplayedColor: "rgba(255, 255, 255, 0.5)",
   backgroundColor: "rgba(0, 0, 0, 1)",
@@ -65,6 +67,7 @@ const mode = ref<"snapped" | "floating">("snapped");
 const viewportWidth = ref(Math.max(MIN_SHAPE_WIDTH, window.innerWidth || MIN_SHAPE_WIDTH));
 const viewportHeight = ref(Math.max(NOTCH_HEIGHT, window.innerHeight || NOTCH_HEIGHT));
 const animatedShapeWidth = ref(viewportWidth.value);
+let smoothShapeWidth = viewportWidth.value;
 const notchFusionEnabled = computed(() => isMac && config.notchFusion && mode.value === "snapped");
 
 /* 文本测量：优先使用 config.fontFamily，确保与渲染一致 */
@@ -76,9 +79,7 @@ const measureTextWidth = (text: string, sizePx: number = fontSize.value): number
 };
 
 /* 艺术家显示文本 */
-const artistsText = computed<string>(
-  () => track.value?.artists?.map((a) => a.name).join(" / ") ?? "",
-);
+const artistsText = computed<string>(() => formatArtists(track.value?.artists) || "未知艺术家");
 
 /* 当前行 */
 const currentLine = computed<LyricLine | null>(() => {
@@ -118,6 +119,7 @@ const windowHeight = computed(
 // 回弹 easing cubic-bezier(0.34, 1.56, 0.64, 1) 峰值约 1.10
 // 15% 留安全余量避免文本被裁
 const BOUNCE_OVERSHOOT = 0.15;
+const SMOOTH_OVERSHOOT = 0.15;
 
 /* 歌词宽度 */
 const rawLyricWidth = ref(measureTextWidth(displayFallback.value));
@@ -178,16 +180,47 @@ const getLyricSlotWidth = (lyricPx: number): number =>
 
 /* 计算窗口宽度 */
 const computeWindowWidth = (lyricPx: number): number => {
-  const bounceExtra = Math.ceil(lyricPx * BOUNCE_OVERSHOOT);
+  const overshoot =
+    config.transition === "bounce"
+      ? BOUNCE_OVERSHOOT
+      : config.transition === "smooth" && !notchFusionEnabled.value
+        ? SMOOTH_OVERSHOOT
+        : 0;
+  const overshootExtra = Math.ceil(lyricPx * overshoot);
   return Math.max(
     notchFusionEnabled.value ? MIN_SHAPE_WIDTH : 1,
-    fixedContentWidth.value + lyricPx + bounceExtra + shapeExtraWidth.value,
+    fixedContentWidth.value + lyricPx + overshootExtra + shapeExtraWidth.value,
   );
 };
 
 /* 调整窗口宽度 */
 const resizeWindow = (lyricPx: number): void => {
   const targetWidth = computeWindowWidth(lyricPx);
+  if (config.transition === "smooth" && !notchFusionEnabled.value) {
+    if (pendingWindowShrinkTimer !== null) {
+      window.clearTimeout(pendingWindowShrinkTimer);
+      pendingWindowShrinkTimer = null;
+    }
+    const currentWidth = Math.max(1, viewportWidth.value);
+    if (targetWidth >= currentWidth) {
+      window.api.dynamicIsland.resize(targetWidth);
+    }
+    if (targetWidth >= smoothShapeWidth) {
+      smoothShapeWidth = targetWidth;
+      window.api.dynamicIsland.setShape(targetWidth);
+    } else {
+      pendingWindowShrinkTimer = window.setTimeout(() => {
+        pendingWindowShrinkTimer = null;
+        if (config.transition === "smooth" && !notchFusionEnabled.value) {
+          smoothShapeWidth = targetWidth;
+          window.api.dynamicIsland.setShape(targetWidth);
+        }
+      }, 520);
+    }
+    return;
+  }
+  smoothShapeWidth = viewportWidth.value;
+  window.api.dynamicIsland.setShape(null);
   if (!notchFusionEnabled.value) {
     if (pendingWindowShrinkTimer !== null) {
       window.clearTimeout(pendingWindowShrinkTimer);
@@ -268,6 +301,16 @@ const startSwapAnimation = (): void => {
   lyricOpacity.value = 0;
 };
 
+/* 平滑模式直接换行并朝新宽度过渡，歌词层独立向上翻页 */
+const startSmoothAnimation = (): void => {
+  displayLine.value = currentLine.value;
+  displayFallback.value = fallbackText.value;
+  displayIndex.value = primaryIndex.value;
+  displaySubText.value = computeSubText(primaryIndex.value, currentLine.value);
+  applyMeasuredWidth(measureTarget());
+  phase = "idle";
+};
+
 /* 歌词过渡结束 */
 const onLyricTransitionEnd = (event: TransitionEvent): void => {
   if (event.propertyName !== "width") return;
@@ -323,6 +366,10 @@ watch([currentLine, fallbackText], () => {
     ? displayIndex.value !== primaryIndex.value
     : displayFallback.value !== fallbackText.value;
   if (!changed) return;
+  if (config.transition === "smooth") {
+    startSmoothAnimation();
+    return;
+  }
   // 正在缩，等 transitionend 时自然会用最新数据
   if (phase === "shrinking") return;
   // 首次 paint 尚未完成或 lyricWidth 已经为 0 → 跳过 shrink 直接展开
@@ -332,6 +379,16 @@ watch([currentLine, fallbackText], () => {
   }
   startSwapAnimation();
 });
+
+watch(
+  () => config.transition,
+  () => {
+    shrinking.value = false;
+    lyricOpacity.value = 1;
+    phase = "idle";
+    startSmoothAnimation();
+  },
+);
 
 const lyricScale = computed(() => {
   if (!notchFusionEnabled.value) return 1;
@@ -346,6 +403,10 @@ const lyricLayoutWidth = computed(() =>
 
 const displayMainText = computed(() =>
   displayLine.value ? lineText(displayLine.value) : displayFallback.value,
+);
+
+const lyricContentKey = computed(() =>
+  displayLine.value ? `line-${displayIndex.value}` : `fallback-${displayFallback.value}`,
 );
 
 const fittedMainText = computed(() =>
@@ -519,6 +580,7 @@ onBeforeUnmount(() => {
       {
         'is-hidden': config.nonOcclusive && hovering,
         'is-notch-fusion': notchFusionEnabled,
+        'is-smooth': config.transition === 'smooth',
       },
     ]"
     :style="rootStyle"
@@ -557,21 +619,25 @@ onBeforeUnmount(() => {
               : {}
           "
         >
-          <div class="main-line">
-            <IslandLyricLine
-              v-if="fittedDisplayLine"
-              :line="fittedDisplayLine"
-              :font-size="fontSize"
-              :font-weight="config.fontWeight"
-              :word-by-word="config.wordByWord && !mainTextTruncated"
-            />
-            <div v-else class="fallback" :style="{ fontSize: `${fontSize}px` }">
-              {{ fittedMainText }}
+          <Transition name="lyric-roll">
+            <div :key="lyricContentKey" class="lyric-content">
+              <div class="main-line">
+                <IslandLyricLine
+                  v-if="fittedDisplayLine"
+                  :line="fittedDisplayLine"
+                  :font-size="fontSize"
+                  :font-weight="config.fontWeight"
+                  :word-by-word="config.wordByWord && !mainTextTruncated"
+                />
+                <div v-else class="fallback" :style="{ fontSize: `${fontSize}px` }">
+                  {{ fittedMainText }}
+                </div>
+              </div>
+              <div v-if="showSubLine" class="sub-line" :style="{ fontSize: `${subFontSize}px` }">
+                {{ fittedSubText }}
+              </div>
             </div>
-          </div>
-          <div v-if="showSubLine" class="sub-line" :style="{ fontSize: `${subFontSize}px` }">
-            {{ fittedSubText }}
-          </div>
+          </Transition>
         </div>
       </div>
     </div>
@@ -612,6 +678,23 @@ onBeforeUnmount(() => {
   background: var(--di-bg);
   border-radius: 999px;
 }
+.root.is-smooth:not(.is-notch-fusion) {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  background: transparent;
+}
+.root.is-smooth:not(.is-notch-fusion) .content {
+  flex: 0 0 auto;
+  width: fit-content;
+  background: var(--di-bg);
+}
+.root.is-smooth.is-snapped:not(.is-notch-fusion) .content {
+  border-radius: 0 0 var(--di-snap-radius) var(--di-snap-radius);
+}
+.root.is-smooth.is-floating:not(.is-notch-fusion) .content {
+  border-radius: 999px;
+}
 .notch-shape {
   position: absolute;
   top: 0;
@@ -621,6 +704,9 @@ onBeforeUnmount(() => {
   transform: translateX(-50%);
   pointer-events: none;
   transition: width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.root.is-smooth .notch-shape {
+  transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .content {
   position: relative;
@@ -647,6 +733,9 @@ onBeforeUnmount(() => {
   height: var(--di-content-height);
   transform: translateX(-50%);
   transition: width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.root.is-smooth.is-snapped.is-notch-fusion .content {
+  transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .cover {
   flex: 0 0 auto;
@@ -680,10 +769,39 @@ onBeforeUnmount(() => {
     width 0.25s ease-in,
     opacity 0.25s ease-in;
 }
+.root.is-smooth .lyric {
+  transition:
+    width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.25s ease-out;
+}
 .lyric-scale {
+  position: relative;
   flex: 0 0 auto;
   min-width: 0;
   transform-origin: center center;
+}
+.lyric-content {
+  width: 100%;
+  transform: translateY(0);
+}
+.root.is-smooth .lyric-roll-enter-active,
+.root.is-smooth .lyric-roll-leave-active {
+  will-change: transform, opacity;
+  transition:
+    transform 0.5s cubic-bezier(0.33, 1, 0.68, 1),
+    opacity 0.25s ease-out;
+}
+.root.is-smooth .lyric-roll-leave-active {
+  position: absolute;
+  inset: 0;
+}
+.root.is-smooth .lyric-roll-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.root.is-smooth .lyric-roll-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 .main-line {
   display: flex;

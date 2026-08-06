@@ -2,17 +2,23 @@ import electronUpdater, { type UpdateInfo } from "electron-updater";
 import { shell } from "electron";
 import { sendToMain } from "@main/utils/broadcast";
 import { store } from "@main/store";
-import { isDev, isMac, isPortable } from "@main/utils/config";
+import { isDev, isMac, isPortable, isAppX } from "@main/utils/config";
 import { updaterLog } from "@main/utils/logger";
 import type { UpdateEvent, UpdateMeta } from "@shared/types/update";
 
 const { autoUpdater } = electronUpdater;
 
-/** 是否支持内置下载安装 */
-const canSelfInstall = !isMac && !isPortable;
+/**
+ * 是否支持内置下载安装
+ * AppX 由 Store 管理更新，Mac/Portable 无自动安装能力
+ */
+const canSelfInstall = !isMac && !isPortable && !isAppX;
 
-/** Releases 页：手动下载与兜底跳转 */
+/** Releases 页 */
 const RELEASES_URL = "https://github.com/SPlayer-Dev/SPlayer-Next/releases/latest";
+
+/** Microsoft Store 更新页 */
+const STORE_UPDATES_URL = "ms-windows-store://updates";
 
 /** 定时检查间隔（6 小时） */
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
@@ -117,9 +123,9 @@ export const quitAndInstall = (): void => {
   autoUpdater.quitAndInstall();
 };
 
-/** 打开 Releases 下载页 */
+/** 打开下载页：AppX 引导 Store 更新，其余跳 Releases */
 export const openDownloadPage = (): void => {
-  void shell.openExternal(RELEASES_URL);
+  void shell.openExternal(isAppX ? STORE_UPDATES_URL : RELEASES_URL);
 };
 
 /** 初始化更新器 */

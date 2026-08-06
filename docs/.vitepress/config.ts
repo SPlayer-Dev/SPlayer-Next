@@ -33,10 +33,18 @@ export default defineConfig({
           { text: "原生模块", link: "/native" },
           { text: "插件开发", link: "/plugins/" },
           { text: "外部 API", link: "/api" },
+          { text: "MCP 接口", link: "/mcp" },
           { text: "贡献指南", link: "/contributing" },
         ],
       },
       { text: "类型参考", link: "/types" },
+      {
+        text: "关于",
+        items: [
+          { text: "用户协议", link: "/agreement" },
+          { text: "隐私策略", link: "/privacy" },
+        ],
+      },
       { text: "GitHub", link: "https://github.com/SPlayer-Dev/SPlayer-Next" },
     ],
 
@@ -48,6 +56,8 @@ export default defineConfig({
           { text: "使用指南", link: "/guide" },
           { text: "流媒体服务", link: "/streaming" },
           { text: "插件使用", link: "/plugins-usage" },
+          { text: "用户协议", link: "/agreement" },
+          { text: "隐私策略", link: "/privacy" },
         ],
       },
       {
@@ -55,6 +65,7 @@ export default defineConfig({
         items: [
           { text: "外部 API（HTTP）", link: "/api" },
           { text: "WebSocket API", link: "/socket" },
+          { text: "MCP 接口", link: "/mcp" },
         ],
       },
       {
@@ -95,7 +106,8 @@ export default defineConfig({
     socialLinks: [{ icon: "github", link: "https://github.com/SPlayer-Dev/SPlayer-Next" }],
 
     footer: {
-      message: "基于 AGPL-3.0 许可发布",
+      message:
+        '基于 AGPL-3.0 许可发布 | <a href="/agreement">用户协议</a> | <a href="/privacy">隐私策略</a>',
       copyright: "Copyright © 2025-present imsyy",
     },
 

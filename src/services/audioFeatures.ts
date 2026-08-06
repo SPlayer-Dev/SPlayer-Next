@@ -57,11 +57,11 @@ const bassRange = getFftBinRange(BASS_MIN_FREQ, BASS_MAX_FREQ);
 
 /**
  * 从 native FFT 帧中提取低频脉冲强度
- * @param data - 128 段对数频谱
+ * @param data - 双声道 128 段对数频谱
  * @returns 低频脉冲强度，范围 0..1
  */
-export const getBassPulse = (data: readonly number[]): number => {
-  if (data.length === 0 || bassRange.start >= bassRange.end) return 0;
+export const getBassPulse = (data: readonly [number[], number[]]): number => {
+  if (data[0].length === 0 || data[1].length === 0 || bassRange.start >= bassRange.end) return 0;
 
   let sum = 0;
   let peak = 0;
@@ -71,7 +71,7 @@ export const getBassPulse = (data: readonly number[]): number => {
   for (let i = bassRange.start; i < bassRange.end; i++) {
     const position = count <= 1 ? 0 : (i - bassRange.start) / (count - 1);
     const weight = 1 - position * (1 - BASS_HIGH_BIN_WEIGHT);
-    const value = data[i] ?? 0;
+    const value = ((data[0][i] ?? 0) + (data[1][i] ?? 0)) / 2;
     sum += value * value * weight;
     peak = Math.max(peak, value);
     weightSum += weight;

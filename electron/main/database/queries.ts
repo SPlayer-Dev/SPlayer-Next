@@ -199,9 +199,17 @@ export const getCueTrackPathsByDirs = (dirs: string[]): string[] => {
 export const deleteTracksByPaths = (paths: string[]): void => {
   if (paths.length === 0) return;
   const d = getDb();
+  const removeMemberships = d.prepare(
+    `DELETE FROM playlist_tracks
+     WHERE playlist_id IN (SELECT id FROM playlists WHERE type = 'local')
+       AND track_id IN (
+         SELECT id FROM tracks WHERE path = ? OR cue_audio_path = ? OR cue_path = ?
+       )`,
+  );
   const stmt = d.prepare("DELETE FROM tracks WHERE path = ? OR cue_audio_path = ? OR cue_path = ?");
   const tx = d.transaction(() => {
     for (const p of paths) {
+      removeMemberships.run(p, p, p);
       stmt.run(p, p, p);
     }
   });
@@ -223,9 +231,22 @@ export const searchTracks = (query: string): Track[] => {
 /** 删除指定目录下的所有曲目 */
 export const deleteTracksByDir = (dir: string): void => {
   const prefix = dir.endsWith("/") || dir.endsWith("\\") ? dir : dir + path.sep;
-  getDb()
-    .prepare("DELETE FROM tracks WHERE path LIKE ? OR cue_path LIKE ? OR cue_audio_path LIKE ?")
-    .run(prefix + "%", prefix + "%", prefix + "%");
+  const patterns = [prefix + "%", prefix + "%", prefix + "%"];
+  const database = getDb();
+  database.transaction(() => {
+    database
+      .prepare(
+        `DELETE FROM playlist_tracks
+         WHERE playlist_id IN (SELECT id FROM playlists WHERE type = 'local')
+           AND track_id IN (
+             SELECT id FROM tracks WHERE path LIKE ? OR cue_path LIKE ? OR cue_audio_path LIKE ?
+           )`,
+      )
+      .run(...patterns);
+    database
+      .prepare("DELETE FROM tracks WHERE path LIKE ? OR cue_path LIKE ? OR cue_audio_path LIKE ?")
+      .run(...patterns);
+  })();
 };
 
 /** 专辑列表 */
