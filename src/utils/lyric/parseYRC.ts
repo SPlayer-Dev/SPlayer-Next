@@ -8,13 +8,49 @@
  */
 
 import type { LyricLine, LyricWord } from "@shared/types/lyrics";
-import { detectBackgroundLine, splitTrailingBackground } from "./bg";
+import { splitTrailingBackground, extractParentheticalBackground } from "./bg";
 
 /** 行头：[起始毫秒, 时长毫秒] */
 const LINE_HEADER_RE = /^\[(\d+),(\d+)\]/;
 
 /** 字级：(起始毫秒, 时长毫秒, 0)文字 */
 const WORD_RE = /\((\d+),(\d+),\d+\)([^(]*)/g;
+
+/**
+ * 解析 YRC 逐字
+ * 格式：文字(start,dur,0)文字(start,dur,0)...
+ * @param content 去掉行首时间戳后的内容
+ * @returns 解析出的单词数组
+ */
+const parseYrcWords = (content: string): LyricWord[] => {
+  const words: LyricWord[] = [];
+
+  WORD_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = WORD_RE.exec(content)) !== null) {
+    const start = parseInt(match[1], 10);
+    const dur = parseInt(match[2], 10);
+    const word = match[3];
+
+    if (word) {
+      words.push({ word, startTime: start, endTime: start + dur });
+    }
+  }
+
+  if (words.length === 0) return [];
+
+  // 填充每个单词的 endTime
+  for (let i = 0; i < words.length - 1; i++) {
+    if (words[i].endTime <= words[i].startTime) {
+      words[i].endTime = words[i + 1].startTime;
+    }
+  }
+  if (words.length > 0 && words[words.length - 1].endTime <= words[words.length - 1].startTime) {
+    words[words.length - 1].endTime = words[words.length - 1].startTime + 100;
+  }
+
+  return words;
+};
 
 /** 解析 YRC 歌词 */
 export const parseYRC = (text: string, detectBackground = true): LyricLine[] => {
@@ -31,31 +67,32 @@ export const parseYRC = (text: string, detectBackground = true): LyricLine[] => 
     const lineDur = parseInt(header[2], 10);
     const rest = trimmed.slice(header[0].length);
 
-    WORD_RE.lastIndex = 0;
-    const words: LyricWord[] = [];
-    let match: RegExpExecArray | null;
-    while ((match = WORD_RE.exec(rest)) !== null) {
-      const start = parseInt(match[1], 10);
-      const dur = parseInt(match[2], 10);
-      words.push({ word: match[3], startTime: start, endTime: start + dur });
-    }
+    const words = parseYrcWords(rest);
 
     if (words.length === 0) continue;
 
+    // 检测行内括号背景
+    const { main, bg } = extractParentheticalBackground(words, { skipPureKana: true });
+
+    // 添加背景行（如果有）
+    if (bg) {
+      lines.push(bg);
+    }
+
     const line: LyricLine = {
-      words,
+      words: main.words,
       translatedLyric: "",
       romanLyric: "",
       startTime: lineStart,
       endTime: lineStart + lineDur,
-      isBG: detectBackgroundLine(words, detectBackground),
+      isBG: false,
       isDuet: false,
     };
     lines.push(line);
     // 行内尾随和声「主歌词（和声）」拆成紧随的背景行
     if (!line.isBG) {
-      const bg = splitTrailingBackground(line, detectBackground);
-      if (bg) lines.push(bg);
+      const trailingBg = splitTrailingBackground(line, detectBackground);
+      if (trailingBg) lines.push(trailingBg);
     }
   }
 

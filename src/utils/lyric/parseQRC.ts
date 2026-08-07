@@ -10,7 +10,7 @@
  */
 
 import type { LyricLine, LyricWord } from "@shared/types/lyrics";
-import { detectBackgroundLine, splitTrailingBackground } from "./bg";
+import { splitTrailingBackground, extractParentheticalBackground } from "./bg";
 
 /** 行头：[起始毫秒, 时长毫秒] */
 const LINE_HEADER_RE = /^\[(\d+),(\d+)\]/;
@@ -19,25 +19,25 @@ const LINE_HEADER_RE = /^\[(\d+),(\d+)\]/;
 const TIMING_RE = /\((\d+),(\d+)\)/;
 
 /**
- * 逐字符解析单行 QRC 字级歌词
- *
- * QRC 格式中文本与时间标记交替出现：`text(start,dur)text(start,dur)...`
- * 文本可包含任意字符（含 `(` 和 `)`），只有 `(` 后紧跟数字才是时间标记
+ * 解析 QRC 逐字
+ * 格式：文字(start,dur)文字(start,dur)...
+ * @param content 去掉行首时间戳后的内容
+ * @returns 解析出的单词数组，非逐字格式返回 null
  */
-const parseWords = (rest: string): LyricWord[] => {
+const parseQrcWords = (content: string): LyricWord[] | null => {
   const words: LyricWord[] = [];
   let pos = 0;
 
-  while (pos < rest.length) {
+  while (pos < content.length) {
     // 查找下一个时间标记 `(\d`，跳过作为文本的 `(`（后跟非数字）
-    let timingIdx = rest.indexOf("(", pos);
-    while (timingIdx !== -1 && timingIdx + 1 < rest.length && !/\d/.test(rest[timingIdx + 1])) {
-      timingIdx = rest.indexOf("(", timingIdx + 1);
+    let timingIdx = content.indexOf("(", pos);
+    while (timingIdx !== -1 && timingIdx + 1 < content.length && !/\d/.test(content[timingIdx + 1])) {
+      timingIdx = content.indexOf("(", timingIdx + 1);
     }
-    if (timingIdx === -1 || timingIdx + 1 >= rest.length) break;
+    if (timingIdx === -1 || timingIdx + 1 >= content.length) break;
 
     // 提取时间标记
-    const timingSub = rest.slice(timingIdx);
+    const timingSub = content.slice(timingIdx);
     const timingMatch = TIMING_RE.exec(timingSub);
     if (!timingMatch) break;
 
@@ -46,13 +46,13 @@ const parseWords = (rest: string): LyricWord[] => {
 
     // 被跳过的 `(` 是文本中的括号，作为独立字保留
     for (let i = pos; i < timingIdx; i++) {
-      if (rest[i] === "(") {
+      if (content[i] === "(") {
         words.push({ word: "(", startTime: start, endTime: start + dur });
       }
     }
 
     // 时间标记前的文本作为 word 内容（排除已处理的 `(`）
-    const wordText = rest.slice(pos, timingIdx).replace(/\(/g, "");
+    const wordText = content.slice(pos, timingIdx).replace(/\(/g, "");
     if (wordText) {
       words.push({ word: wordText, startTime: start, endTime: start + dur });
     }
@@ -60,10 +60,22 @@ const parseWords = (rest: string): LyricWord[] => {
     pos = timingIdx + timingMatch[0].length;
 
     // 时间标记后紧跟的 `)` 是文本括号的闭合，保留为独立字
-    if (pos < rest.length && rest[pos] === ")") {
+    if (pos < content.length && content[pos] === ")") {
       words.push({ word: ")", startTime: start, endTime: start + dur });
       pos++;
     }
+  }
+
+  if (words.length === 0) return null;
+
+  // 填充每个单词的 endTime
+  for (let i = 0; i < words.length - 1; i++) {
+    if (words[i].endTime <= words[i].startTime) {
+      words[i].endTime = words[i + 1].startTime;
+    }
+  }
+  if (words.length > 0 && words[words.length - 1].endTime <= words[words.length - 1].startTime) {
+    words[words.length - 1].endTime = words[words.length - 1].startTime + 100;
   }
 
   return words;
@@ -97,24 +109,32 @@ export const parseQRC = (text: string, detectBackground = true): LyricLine[] => 
     const lineDur = parseInt(header[2], 10);
     const rest = trimmed.slice(header[0].length);
 
-    const words = parseWords(rest);
+    const words = parseQrcWords(rest);
 
-    if (words.length === 0) continue;
+    if (!words) continue;
+
+    // 检测行内括号背景
+    const { main, bg } = extractParentheticalBackground(words!, { skipPureKana: true });
+
+    // 添加背景行（如果有）
+    if (bg) {
+      lines.push(bg);
+    }
 
     const line: LyricLine = {
-      words,
+      words: main.words,
       translatedLyric: "",
       romanLyric: "",
       startTime: lineStart,
       endTime: lineStart + lineDur,
-      isBG: detectBackgroundLine(words, detectBackground),
+      isBG: false,
       isDuet: false,
     };
     lines.push(line);
     // 行内尾随和声「主歌词（和声）」拆成紧随的背景行
     if (!line.isBG) {
-      const bg = splitTrailingBackground(line, detectBackground);
-      if (bg) lines.push(bg);
+      const trailingBg = splitTrailingBackground(line, detectBackground);
+      if (trailingBg) lines.push(trailingBg);
     }
   }
 

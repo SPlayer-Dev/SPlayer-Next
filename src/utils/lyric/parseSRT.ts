@@ -78,8 +78,84 @@ export const parseSRT = (text: string): LyricLine[] => {
     const translatedLyric = count >= 2 ? textLines[count - 2] : "";
     const romanLyric = count >= 3 ? textLines[count - 3] : "";
 
+    // 检测行内括号背景
+    const words: LyricLine["words"] = [{ startTime, endTime, word: mainText }];
+    if (words.length < 2) {
+      lines.push({
+        words,
+        translatedLyric,
+        romanLyric,
+        startTime,
+        endTime,
+        isBG: false,
+        isDuet: false,
+      });
+      continue;
+    }
+
+    // 检测行内括号背景（非行尾尾随）
+    if (!words[0].word.startsWith("(") && !words[0].word.startsWith("（") && !words[words.length - 1].word.endsWith(")") && !words[words.length - 1].word.endsWith(")")) {
+      // 从后向前查找配对括号
+      let closeIndex = -1;
+      let openIndex = -1;
+      for (let i = words.length - 1; i >= 0; i--) {
+        if (words[i].word.endsWith(")") || words[i].word.endsWith(")")) {
+          closeIndex = i;
+          // 向前寻找配对的开括号
+          for (let j = i - 1; j >= 0; j--) {
+            if (words[j].word.startsWith("(") || words[j].word.startsWith("（")) {
+              openIndex = j;
+              break;
+            }
+          }
+          if (openIndex >= 0) break;
+        }
+      }
+
+      if (openIndex >= 0 && closeIndex >= openIndex) {
+        // 检查括号内容是否主要是日文假名，如果是则跳过
+        const bracketContent = words
+          .slice(openIndex, closeIndex + 1)
+          .map((w) => w.word.replace(/^[（(]/, "").replace(/[）)]$/, "").trim())
+          .join("");
+        const KANA_ONLY_RE = /^[\p{Script=Hiragana}\p{Script=Katakana}ー\s]+$/u;
+        const cleanedForCheck = bracketContent.replace(/[()\s]/g, "");
+
+        // 空括号直接跳过
+        if (!cleanedForCheck) continue;
+
+        const isPureKana = cleanedForCheck.length > 0 && KANA_ONLY_RE.test(cleanedForCheck);
+
+        if (!isPureKana) {
+          // 克隆括号段（含开闭括号单词），剥离括号内容
+          const bgWords: LyricLine["words"] = [];
+          for (let k = openIndex; k <= closeIndex; k++) {
+            const w = { ...words[k] };
+            bgWords.push(w);
+          }
+          bgWords[0].word = bgWords[0].word.replace(/^[（(]/, "");
+          bgWords[bgWords.length - 1].word = bgWords[bgWords.length - 1].word.replace(/[）)]$/, "");
+          const cleaned = bgWords.filter((w) => w.word.trim() !== "");
+          if (cleaned.length > 0) {
+            // 主行裁掉括号段
+            words.splice(openIndex, closeIndex - openIndex + 1);
+            // 添加背景行
+            lines.push({
+              words: cleaned,
+              translatedLyric: "",
+              romanLyric: "",
+              startTime: cleaned[0].startTime,
+              endTime: cleaned[cleaned.length - 1].endTime,
+              isBG: true,
+              isDuet: false,
+            });
+          }
+        }
+      }
+    }
+
     lines.push({
-      words: [{ startTime, endTime, word: mainText }],
+      words,
       translatedLyric,
       romanLyric,
       startTime,

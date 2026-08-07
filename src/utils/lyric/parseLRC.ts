@@ -230,15 +230,30 @@ export const parseLRC = (text: string, detectBackground = true): LyricLine[] => 
 
     // 常规单行生成
     for (const t of times) {
-      lines.push({
-        words: [{ startTime: t, endTime: 0, word: lineWords[0].word }],
-        translatedLyric: "",
-        romanLyric: "",
-        startTime: t,
-        endTime: 0,
-        isBG,
-        isDuet: false,
-      });
+      const hasTranslation = lines.length > 0 && lines[lines.length - 1].translatedLyric;
+      if (hasTranslation) {
+        // 如果是翻译行，跳过括号检测
+        lines.push({
+          words: [{ startTime: t, endTime: 0, word: lineWords[0].word }],
+          translatedLyric: "",
+          romanLyric: "",
+          startTime: t,
+          endTime: 0,
+          isBG: false,
+          isDuet: false,
+        });
+      } else {
+        // 主歌词行，检测括号背景
+        lines.push({
+          words: [{ startTime: t, endTime: 0, word: lineWords[0].word }],
+          translatedLyric: "",
+          romanLyric: "",
+          startTime: t,
+          endTime: 0,
+          isBG,
+          isDuet: false,
+        });
+      }
     }
   }
   // 按起始时间排序

@@ -200,3 +200,167 @@ export const splitTrailingBackground = (line: LyricLine, enabled = true): LyricL
     isDuet: false,
   };
 };
+
+/**
+ * 提取行内括号背景并返回主行和背景行
+ * 支持格式：主词(背景词) 和 行尾(和声)
+ * 注意：会跳过纯日文假名为主的括号内容（如日语注音），避免误判。
+ * @param words - 单词数组（会被原地修改）
+ * @param options - 选项
+ * @param options.skipPureKana - 是否跳过纯日文假名（默认 true）
+ * @returns { main: LyricLine, bg?: LyricLine } - 主行和背景行
+ */
+export const extractParentheticalBackground = (
+  words: LyricWord[],
+  options: { skipPureKana?: boolean } = {},
+): { main: LyricLine; bg?: LyricLine } => {
+  if (words.length < 2) {
+    const lineWords = [{ ...words[0] }];
+    return {
+      main: {
+        words: lineWords,
+        translatedLyric: "",
+        romanLyric: "",
+        startTime: words[0]?.startTime ?? 0,
+        endTime: words[0]?.endTime ?? 0,
+        isBG: false,
+        isDuet: false,
+      },
+    };
+  }
+
+  // 检测行内括号背景（非行尾尾随）
+  if (OPEN_PAREN_RE.test(words[0].word) || CLOSE_PAREN_RE.test(words[words.length - 1].word)) {
+    const lineWords = words.map((w) => ({ ...w }));
+    return {
+      main: {
+        words: lineWords,
+        translatedLyric: "",
+        romanLyric: "",
+        startTime: words[0].startTime,
+        endTime: words[words.length - 1].endTime,
+        isBG: false,
+        isDuet: false,
+      },
+    };
+  }
+
+  // 从后向前查找配对括号
+  let closeIndex = -1;
+  let openIndex = -1;
+  for (let i = words.length - 1; i >= 0; i--) {
+    if (CLOSE_PAREN_RE.test(words[i].word)) {
+      closeIndex = i;
+      // 向前寻找配对的开括号
+      for (let j = i - 1; j >= 0; j--) {
+        if (OPEN_PAREN_RE.test(words[j].word)) {
+          openIndex = j;
+          break;
+        }
+      }
+      if (openIndex >= 0) break;
+    }
+  }
+
+  if (openIndex < 0 || closeIndex < openIndex) {
+    const lineWords = words.map((w) => ({ ...w }));
+    return {
+      main: {
+        words: lineWords,
+        translatedLyric: "",
+        romanLyric: "",
+        startTime: words[0].startTime,
+        endTime: words[words.length - 1].endTime,
+        isBG: false,
+        isDuet: false,
+      },
+    };
+  }
+
+  // 检查括号内容是否主要是日文假名
+  const bracketContent = words
+    .slice(openIndex, closeIndex + 1)
+    .map((w) => w.word.replace(OPEN_PAREN_RE, "").replace(CLOSE_PAREN_RE, "").trim())
+    .join("");
+  const cleanedForCheck = bracketContent.replace(/[()\s]/g, "");
+
+  // 空括号直接跳过
+  if (!cleanedForCheck) {
+    const lineWords = words.map((w) => ({ ...w }));
+    return {
+      main: {
+        words: lineWords,
+        translatedLyric: "",
+        romanLyric: "",
+        startTime: words[0].startTime,
+        endTime: words[words.length - 1].endTime,
+        isBG: false,
+        isDuet: false,
+      },
+    };
+  }
+
+  const shouldSkipKana = options.skipPureKana !== false;
+  if (shouldSkipKana && isPureKana(cleanedForCheck)) {
+    const lineWords = words.map((w) => ({ ...w }));
+    return {
+      main: {
+        words: lineWords,
+        translatedLyric: "",
+        romanLyric: "",
+        startTime: words[0].startTime,
+        endTime: words[words.length - 1].endTime,
+        isBG: false,
+        isDuet: false,
+      },
+    };
+  }
+
+  // 克隆括号段（含开闭括号单词），剥离括号内容
+  const bgWords: LyricWord[] = [];
+  for (let k = openIndex; k <= closeIndex; k++) {
+    const w = { ...words[k] };
+    bgWords.push(w);
+  }
+  bgWords[0].word = bgWords[0].word.replace(OPEN_PAREN_RE, "");
+  bgWords[bgWords.length - 1].word = bgWords[bgWords.length - 1].word.replace(CLOSE_PAREN_RE, "");
+  const cleaned = bgWords.filter((w) => w.word.trim() !== "");
+  if (cleaned.length === 0) {
+    const lineWords = words.map((w) => ({ ...w }));
+    return {
+      main: {
+        words: lineWords,
+        translatedLyric: "",
+        romanLyric: "",
+        startTime: words[0].startTime,
+        endTime: words[words.length - 1].endTime,
+        isBG: false,
+        isDuet: false,
+      },
+    };
+  }
+
+  // 主行裁掉括号段（克隆一份避免修改原数组）
+  const mainWords = words.slice(0, openIndex).concat(words.slice(closeIndex + 1));
+
+  return {
+    main: {
+      words: mainWords,
+      translatedLyric: "",
+      romanLyric: "",
+      startTime: mainWords[0]?.startTime ?? 0,
+      endTime: mainWords[mainWords.length - 1]?.endTime ?? 0,
+      isBG: false,
+      isDuet: false,
+    },
+    bg: {
+      words: cleaned,
+      translatedLyric: "",
+      romanLyric: "",
+      startTime: cleaned[0].startTime,
+      endTime: cleaned[cleaned.length - 1].endTime,
+      isBG: true,
+      isDuet: false,
+    },
+  };
+};

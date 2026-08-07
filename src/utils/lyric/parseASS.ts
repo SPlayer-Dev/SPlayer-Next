@@ -10,6 +10,7 @@
  */
 
 import type { LyricLine, LyricWord } from "@shared/types/lyrics";
+import { splitTrailingBackground, extractParentheticalBackground } from "./bg";
 
 /** 匹配 Dialogue 行各字段 */
 const DIALOGUE_RE = /^Dialogue:\s*\d+,(\d+:\d{2}:\d{2}\.\d{2}),(\d+:\d{2}:\d{2}\.\d{2}),([^,]*),/;
@@ -134,10 +135,19 @@ export const parseASS = (text: string): LyricLine[] => {
     if (!source) continue;
 
     // 尝试解析卡拉OK 逐字标签
-    const karaokeWords = parseKaraokeWords(source.text, source.startTime);
-    const words: LyricWord[] = karaokeWords ?? [
+    let karaokeWords = parseKaraokeWords(source.text, source.startTime);
+    let words: LyricWord[] = karaokeWords ?? [
       { startTime: source.startTime, endTime: source.endTime, word: stripAssTags(source.text) },
     ];
+
+    // 检测行内括号背景
+    extractParentheticalBackground(words);
+
+    // 添加背景行（如果有）
+    const bg = extractParentheticalBackground(words).bg;
+    if (bg) {
+      lines.push(bg);
+    }
 
     const translatedLyric = group.ts ? stripAssTags(group.ts.text).trim() : "";
     const romanLyric = group.roma ? stripAssTags(group.roma.text).trim() : "";
@@ -155,5 +165,18 @@ export const parseASS = (text: string): LyricLine[] => {
 
   // 按时间排序
   lines.sort((a, b) => a.startTime - b.startTime);
+
+  // 后处理：处理行尾括号背景（主歌词（和声））
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.isBG) continue;
+
+    const trailingBg = splitTrailingBackground(line, true);
+    if (trailingBg) {
+      lines.splice(i + 1, 0, trailingBg);
+      i++;
+    }
+  }
+
   return lines;
 };

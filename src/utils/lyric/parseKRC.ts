@@ -12,7 +12,7 @@
 
 import type { LyricLine, LyricWord } from "@shared/types/lyrics";
 import { parseTime } from "./timestamp";
-import { detectBackgroundLine } from "./bg";
+import { splitTrailingBackground, extractParentheticalBackground } from "./bg";
 
 /** 行头：[mm:ss.xxx] / [mm:ss:xxx]，支持 1~3 位毫秒 */
 const LINE_HEADER_RE = /^\[(\d+):(\d+)[.:](\d{1,3})\]/;
@@ -51,15 +51,35 @@ export const parseKRC = (text: string, detectBackground = true): LyricLine[] => 
 
     if (words.length === 0) continue;
 
+    // 检测行内括号背景
+    const { main, bg } = extractParentheticalBackground(words, { skipPureKana: true });
+
+    // 添加背景行（如果有）
+    if (bg) {
+      lines.push(bg);
+    }
+
     lines.push({
-      words,
+      words: main.words,
       translatedLyric: "",
       romanLyric: "",
       startTime: lineStart,
       endTime: lastEnd,
-      isBG: detectBackgroundLine(words, detectBackground),
+      isBG: false,
       isDuet: false,
     });
+  }
+
+  // 后处理：处理行尾括号背景（主歌词（和声））
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.isBG) continue;
+
+    const trailingBg = splitTrailingBackground(line, detectBackground);
+    if (trailingBg) {
+      lines.splice(i + 1, 0, trailingBg);
+      i++;
+    }
   }
 
   return lines;

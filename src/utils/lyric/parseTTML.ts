@@ -50,6 +50,41 @@ const getWordText = (el: Element): string => {
 };
 
 /**
+ * 递归提取 span 中的逐字时间戳
+ * @param el 目标元素
+ * @param words 存储解析出的单词
+ */
+const getWordSpans = (el: Element, words: LyricWord[]): void => {
+  for (const node of Array.from(el.childNodes)) {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const span = node as Element;
+      if (span.localName !== "span") {
+        getWordSpans(span, words);
+        continue;
+      }
+
+      const role = getAttr(span, "role");
+      if (role === "x-bg") {
+        getWordSpans(span, words);
+      } else if (role === "x-translation" || role === "x-roman") {
+        // 跳过翻译和音译子 span
+      } else {
+        // 逐字 span
+        const wb = getAttr(span, "begin");
+        const we = getAttr(span, "end");
+        if (wb && we) {
+          words.push({
+            word: getWordText(span),
+            startTime: parseTTMLTime(wb),
+            endTime: parseTTMLTime(we),
+          });
+        }
+      }
+    }
+  }
+};
+
+/**
  * 收集所有演唱者 agent：建立 id→type 映射，并取第一个 type="person" 的 agent 作为主唱
  * @param doc XML 文档
  * @returns 主唱 agent id 与 id→type 映射
@@ -392,6 +427,7 @@ export const parseTTML = (text: string, preferredLang = ""): LyricLine[] => {
       } else if (node.nodeType === Node.ELEMENT_NODE) {
         const span = node as Element;
         if (span.localName !== "span") continue;
+
         const role = getAttr(span, "role");
 
         if (role === "x-bg") {

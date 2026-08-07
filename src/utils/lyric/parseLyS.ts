@@ -21,6 +21,42 @@ const PROP_RE = /^\[(\d)\]/;
 const WORD_RE = /([^(]+)\((\d+),(\d+)\)/g;
 
 /**
+ * 解析 LyS 逐字
+ * 格式：文字(起始ms,时长ms)文字(起始ms,时长ms)
+ * @param content 去掉行首属性码后的内容
+ * @returns 解析出的单词数组，非逐字格式返回 null
+ */
+const parseLySWords = (content: string): LyricWord[] | null => {
+  const words: LyricWord[] = [];
+  let match: RegExpExecArray | null;
+
+  WORD_RE.lastIndex = 0;
+  while ((match = WORD_RE.exec(content)) !== null) {
+    const wordStart = parseInt(match[2]);
+    const wordDur = parseInt(match[3]);
+    words.push({
+      word: match[1],
+      startTime: wordStart,
+      endTime: wordStart + wordDur,
+    });
+  }
+
+  if (words.length === 0) return null;
+
+  // 填充每个单词的 endTime
+  for (let i = 0; i < words.length - 1; i++) {
+    if (words[i].endTime <= words[i].startTime) {
+      words[i].endTime = words[i + 1].startTime;
+    }
+  }
+  if (words.length > 0 && words[words.length - 1].endTime <= words[words.length - 1].startTime) {
+    words[words.length - 1].endTime = words[words.length - 1].startTime + 100;
+  }
+
+  return words;
+};
+
+/**
  * 解析属性码为 isBG 和 isDuet
  * @param code 属性码（0~8）
  */
@@ -59,20 +95,9 @@ export const parseLyS = (text: string): LyricLine[] => {
     const rest = trimmed.slice(propMatch[0].length);
 
     // 解析逐字时间戳
-    WORD_RE.lastIndex = 0;
-    const words: LyricWord[] = [];
-    let match: RegExpExecArray | null;
-    while ((match = WORD_RE.exec(rest)) !== null) {
-      const wordStart = parseInt(match[2]);
-      const wordDur = parseInt(match[3]);
-      words.push({
-        word: match[1],
-        startTime: wordStart,
-        endTime: wordStart + wordDur,
-      });
-    }
+    const words = parseLySWords(rest);
 
-    if (words.length === 0) continue;
+    if (!words) continue;
 
     lines.push({
       words,
