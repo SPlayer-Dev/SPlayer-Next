@@ -68,8 +68,7 @@ export const upsert = (task: DownloadTask): void => {
 /** 按 id 查 */
 export const findById = (taskId: string): DownloadTask | null => {
   const raw = getDb().prepare("SELECT * FROM download_tasks WHERE task_id = ?").get(taskId) as
-    | RawRow
-    | undefined;
+    RawRow | undefined;
   return raw ? toTask(raw) : null;
 };
 

@@ -14,6 +14,7 @@ import { pickPrimaryIndex } from "@shared/utils/lyricSync";
 import { useNowPlayingSync } from "@windows/shared/composables/useNowPlayingSync";
 import { useDragWindow } from "./composables/useDragWindow";
 import { useHoverState } from "./composables/useHoverState";
+import { formatArtists } from "@shared/utils/track";
 
 const config = reactive<DesktopLyricSettings>({
   fontSize: 24,
@@ -76,9 +77,7 @@ const placeholder = (key: string, mainText: string, subText?: string): DisplayIt
 };
 
 /** 艺术家显示文本 */
-const artistsText = computed<string>(
-  () => track.value?.artists?.map((a) => a.name).join(" / ") ?? "",
-);
+const artistsText = computed<string>(() => formatArtists(track.value?.artists) || "未知艺术家");
 
 /** 实际渲染的歌词列表 */
 const displayItems = computed<DisplayItem[]>(() => {
@@ -165,13 +164,7 @@ watch(() => config.fontSize, pushWindowHeight);
 /** 顶栏按钮 */
 const onHeaderAction = (
   action:
-    | "focus-main"
-    | "prev"
-    | "next"
-    | "toggle-play"
-    | "open-settings"
-    | "toggle-locked"
-    | "close",
+    "focus-main" | "prev" | "next" | "toggle-play" | "open-settings" | "toggle-locked" | "close",
 ): void => {
   switch (action) {
     case "focus-main":

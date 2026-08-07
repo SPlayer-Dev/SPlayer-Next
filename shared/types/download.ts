@@ -14,12 +14,7 @@ export type DownloadFolderScheme = "none" | "artist" | "artist-album";
 
 /** 下载任务状态 */
 export type DownloadStatus =
-  | "queued"
-  | "downloading"
-  | "done"
-  | "failed"
-  | "canceled"
-  | "interrupted";
+  "queued" | "downloading" | "done" | "failed" | "canceled" | "interrupted";
 
 /** 写入选项 */
 export interface DownloadTagOptions {

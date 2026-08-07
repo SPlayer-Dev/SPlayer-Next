@@ -224,7 +224,7 @@ export const resolveTrackSource = async (
         fromCache: false,
         provider: "streaming",
       };
-      if (cacheEnabled) {
+      if (cacheEnabled && settings.system.cache.songCache.cacheStreaming) {
         // 缓存下载用独立 PlaySessionId
         result.cacheRequest = async () => {
           try {

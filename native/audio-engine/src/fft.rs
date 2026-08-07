@@ -224,4 +224,35 @@ mod tests {
         assert_eq!(buffer.len, 0);
         assert_eq!(buffer.write_pos, 0);
     }
+
+    #[test]
+    fn fixed_sample_rate_maps_tone_to_expected_band() {
+        let analyzer = FftAnalyzer::new();
+        let frequency = 1_000.0;
+        let samples: Vec<f32> = (0..FFT_SIZE)
+            .flat_map(|i| {
+                let phase =
+                    2.0 * std::f32::consts::PI * frequency * i as f32 / FFT_SAMPLE_RATE as f32;
+                let sample = phase.sin();
+                [sample, sample]
+            })
+            .collect();
+
+        analyzer.push_interleaved_samples(&samples);
+        let (left, right) = analyzer.analyze();
+        let peak = left
+            .iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| a.total_cmp(b))
+            .map(|(index, _)| index)
+            .unwrap();
+        let expected = ((frequency.ln() - MIN_FREQ.ln()) / (MAX_FREQ.ln() - MIN_FREQ.ln())
+            * OUTPUT_BINS as f32) as usize;
+
+        assert!(
+            peak.abs_diff(expected) <= 1,
+            "peak={peak}, expected={expected}"
+        );
+        assert_eq!(left, right);
+    }
 }

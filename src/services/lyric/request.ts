@@ -1,7 +1,6 @@
 import type { Track } from "@shared/types/player";
 import type { LyricMatchResult } from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
-import { useStreamingStore } from "@/stores/streaming";
 
 /**
  * 向指定平台请求歌词
@@ -27,8 +26,18 @@ export const requestPlatformLyric = async (
  * @param track - 歌曲信息
  * @returns 服务端歌词，不存在则返回 null
  */
-export const requestStreamingLyric = (track: Track): Promise<string | null> =>
-  useStreamingStore().getLyrics(track);
+export const requestStreamingLyric = async (track: Track): Promise<string | null> => {
+  if (track.source !== "streaming" || !track.serverId || !track.originalId) return null;
+  try {
+    return await window.api.streaming.getLyrics(track.serverId, track.originalId, {
+      artist: track.artists[0]?.name,
+      title: track.title,
+    });
+  } catch (err) {
+    console.warn("[streaming] getLyrics failed:", err);
+    return null;
+  }
+};
 
 /**
  * 请求指定平台的 TTML 覆盖歌词

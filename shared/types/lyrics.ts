@@ -104,8 +104,7 @@ export interface LyricMatchResult extends LyricInput {
 
 /** 歌词匹配 IPC 响应 */
 export type LyricMatchResponse =
-  | { ok: true; data: LyricMatchResult | null }
-  | { ok: false; error: string };
+  { ok: true; data: LyricMatchResult | null } | { ok: false; error: string };
 
 /** TTML 抓取 IPC 响应 */
 export type LyricTTMLResponse = { ok: true; data: string | null } | { ok: false; error: string };

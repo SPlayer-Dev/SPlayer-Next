@@ -4,6 +4,7 @@ import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
 import { navigateToArtist } from "@/utils/navigate";
+import { getValidArtists } from "@shared/utils/track";
 
 withDefaults(
   defineProps<{
@@ -17,6 +18,9 @@ const status = useStatusStore();
 const media = useMediaStore();
 const settings = useSettingsStore();
 const { isPlayerExpanded, isPlaying } = storeToRefs(status);
+
+/** 当前歌曲中可展示的歌手 */
+const artists = computed(() => getValidArtists(media.track?.artists));
 
 /** 主歌词行 */
 const mainLines = computed(() => media.parsedLyric.filter((l) => !l.isBG));
@@ -93,8 +97,8 @@ const isArtistLinkable = (artist: Artist): boolean => {
             class="text-on-surface-variant truncate"
             :class="compact ? 'text-xs leading-tight mt-0.5' : 'text-sm mt-1'"
           >
-            <template v-if="media.track.artists.length">
-              <template v-for="(artist, i) in media.track.artists" :key="artist.id ?? i">
+            <template v-if="artists.length">
+              <template v-for="(artist, i) in artists" :key="artist.id ?? i">
                 <span
                   :class="
                     isArtistLinkable(artist)
@@ -111,7 +115,7 @@ const isArtistLinkable = (artist: Artist): boolean => {
                 >
                   {{ artist.name }}
                 </span>
-                <span v-if="i < media.track.artists.length - 1" class="mx-0.5 opacity-50">/</span>
+                <span v-if="i < artists.length - 1" class="mx-0.5 opacity-50">/</span>
               </template>
             </template>
             <span v-else class="opacity-50">{{ $t("playlist.unknownArtist") }}</span>

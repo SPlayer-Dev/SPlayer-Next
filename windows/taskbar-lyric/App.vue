@@ -9,6 +9,7 @@ import IconPause from "~icons/lucide/pause";
 import TaskbarLyricLine from "./components/TaskbarLyricLine.vue";
 import { pickPrimaryIndex } from "@shared/utils/lyricSync";
 import { useNowPlayingSync } from "@windows/shared/composables/useNowPlayingSync";
+import { formatArtists } from "@shared/utils/track";
 
 const config = reactive<TaskbarLyricSettings>({
   position: "auto",
@@ -124,9 +125,7 @@ const currentLine = computed<LyricLine | null>(() => {
 const hasLyric = computed(() => lyric.value.length > 0 && primaryIndex.value >= 0);
 
 const titleText = computed<string>(() => track.value?.title ?? "SPlayer Next");
-const artistsText = computed<string>(
-  () => track.value?.artists?.map((a) => a.name).join(" / ") || "未知艺术家",
-);
+const artistsText = computed<string>(() => formatArtists(track.value?.artists) || "未知艺术家");
 
 const effectiveTheme = computed<"light" | "dark">(() => {
   if (config.colorMode === "light") return "light";

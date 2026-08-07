@@ -13,3 +13,6 @@ minimumReleaseAgeExclude:
   - electron-builder-squirrel-windows@26.15.3
   - electron-builder@26.15.3
   - electron-publish@26.15.3
+
+overrides:
+  node-abi: ^4.33.0

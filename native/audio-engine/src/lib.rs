@@ -6,7 +6,6 @@ mod decoder;
 mod equalizer;
 mod error;
 mod fft;
-mod http_source;
 mod logger;
 mod loudness;
 mod metadata;
@@ -22,6 +21,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Once};
 use std::thread::{self, JoinHandle};
 
+use ffmpeg_audio::HttpCancelHandle;
 use napi::bindgen_prelude::*;
 use napi::threadsafe_function::ThreadsafeFunctionCallMode;
 use napi_derive::napi;
@@ -348,8 +348,8 @@ impl AudioPlayer {
     ///
     /// 异步三段式：
     /// 1. 主线程持锁瞬间（微秒级）：take 旧解码线程 handle + 拿参数（cover_dir / 归一化开关）
-    /// 2. spawn_blocking 工作线程（**不持有 inner 引用**）：join 旧线程 + ffmpeg 打开 URL（耗时大头）
-    /// 3. 主线程持锁瞬间：构造 sink + attach + emit stateChanged
+    /// 2. spawn_blocking 工作线程（**不持有 inner 引用**）：读取音源采样率、协商输出流并启动解码
+    /// 3. 主线程持锁瞬间：提交输出流、构造 sink + attach + emit stateChanged
     /// 持锁阶段都是纯内存操作，主线程其它同步 NAPI 调用最多等几微秒，不会被 IO 卡住
     #[napi]
     pub async fn load(
@@ -362,43 +362,79 @@ impl AudioPlayer {
         let auto_play = auto_play.unwrap_or(true);
         info!(source = %source, auto_play, "加载音频源");
 
-        let (old_threads, token, cover_dir, normalization_enabled, output_sample_rate) = {
+        let handle = HttpCancelHandle::new();
+        let (
+            old_threads,
+            old_output,
+            token,
+            load_token,
+            cover_dir,
+            normalization_enabled,
+            device_name,
+        ) = {
             let mut player = self.inner.lock();
-            let (old_threads, token) = player.take_for_async_load();
-            player.ensure_output_pub().into_napi()?;
+            let (old_threads, old_output, token) = player.take_for_async_load(handle.clone());
             (
                 old_threads,
+                old_output,
                 token,
+                player.load_token_handle(),
                 player.cover_cache_dir().map(String::from),
                 player.is_normalization_enabled(),
-                player.output_sample_rate(),
+                player.selected_device_name().map(String::from),
             )
         };
 
-        // 用设备原生采样率创建 Shared，其 sample_rate 即解码侧播放重采样目标
-        let shared = Shared::new(output_sample_rate, decoder::TARGET_CHANNELS);
-        shared.set_normalization_enabled(normalization_enabled);
-        let shared_for_decoder = Arc::clone(&shared);
         let source_for_decoder = source.clone();
 
-        let (metadata, decode_handle) = tokio::task::spawn_blocking(move || {
+        let result = tokio::task::spawn_blocking(move || {
             if let Some(h) = old_threads.join_aux() {
                 let _ = h.join();
             }
-            decoder::start_decode(
-                &source_for_decoder,
-                shared_for_decoder,
-                cover_dir.as_deref(),
-            )
+            drop(old_output);
+            let prepared =
+                decoder::prepare_decode(&source_for_decoder, cover_dir.as_deref(), handle)?;
+            if load_token.load(std::sync::atomic::Ordering::Acquire) != token {
+                anyhow::bail!(LOAD_SUPERSEDED_REASON);
+            }
+            let requested_rate = prepared.original_sample_rate();
+            let output = audio_output::AudioOutput::new(device_name.as_deref(), requested_rate)?;
+            let shared = Shared::new(output.sample_rate(), decoder::TARGET_CHANNELS);
+            shared.set_normalization_enabled(normalization_enabled);
+            let (metadata, decode_handle, cancel) =
+                decoder::start_prepared_decode(prepared, Arc::clone(&shared))?;
+            Ok::<_, anyhow::Error>((metadata, decode_handle, shared, output, cancel))
         })
         .await
-        .map_err(|e| Error::from_reason(format!("load task join error: {e}")))?
-        .into_napi()?;
+        .map_err(|e| Error::from_reason(format!("load task join error: {e}")))?;
+
+        let (metadata, decode_handle, shared, output, cancel) = match result {
+            Ok(result) => result,
+            Err(error) => {
+                let mut player = self.inner.lock();
+                if !player.is_load_token_current(token) {
+                    return Err(Error::from_reason(LOAD_SUPERSEDED_REASON));
+                }
+                player.clear_pending_load(token);
+                return Err(error).into_napi();
+            }
+        };
 
         let returned_meta = {
             let mut player = self.inner.lock();
             player
-                .commit_loaded(token, &source, auto_play, metadata, decode_handle, shared)
+                .commit_loaded(
+                    token,
+                    &source,
+                    auto_play,
+                    crate::player::LoadedPlayback {
+                        metadata,
+                        decode_handle,
+                        shared,
+                        output,
+                        cancel,
+                    },
+                )
                 .into_napi()?
         };
 
@@ -510,7 +546,7 @@ impl AudioPlayer {
             if !decoder_data.seek(position) {
                 return SeekOutcome::Fallback;
             }
-            // 沿用设备原生采样率，与复用的 DecoderData 重采样器目标一致
+            // 沿用实际输出流采样率，与复用的 DecoderData 重采样器目标一致
             let shared = Shared::new(output_sample_rate, decoder::TARGET_CHANNELS);
             shared.set_normalization_enabled(normalization_enabled);
             shared.set_normalization_gain(normalization_gain);

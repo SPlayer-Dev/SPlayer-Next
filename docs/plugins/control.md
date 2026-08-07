@@ -55,9 +55,7 @@ splayer.player.on("playStateChange", ({ state, position }) => {
 splayer.register({
   events: ["trackChange", "lyricChange", "lineChange", "playStateChange"],
   controls: true,
-  settings: [
-    /* PluginSettingItem[] */
-  ],
+  settings: [/* PluginSettingItem[] */],
 });
 ```
 

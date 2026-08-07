@@ -133,6 +133,12 @@ export const HOTKEY_ACTIONS: HotkeyActionMeta[] = [
     defaultBinding: { inApp: "CommandOrControl+F", global: null },
     allowGlobal: false,
   },
+  {
+    id: "view.searchInPage",
+    labelKey: "settings.hotkeys.actions.searchInPage",
+    defaultBinding: { inApp: "/", global: null },
+    allowGlobal: false,
+  },
 ];
 
 /** 默认绑定表（HotkeyBindingsMap） */

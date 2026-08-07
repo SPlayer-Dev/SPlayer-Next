@@ -4,6 +4,7 @@ use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
+use ffmpeg_audio::HttpCancelHandle;
 use parking_lot::Mutex;
 use rodio::Sink;
 use tracing::{debug, info};
@@ -123,6 +124,8 @@ pub struct InnerPlayer {
     /// commit_loaded 比对 token 与最新值，不一致则该次加载已被新加载取代，需丢弃
     /// 用于防止快速切歌时旧 IO 完成后覆盖新音频的竞态
     load_token: Arc<AtomicU64>,
+    /// 正在打开的网络音源中断句柄，确保切歌和 stop 能取消元数据探测
+    pending_load_handle: Option<HttpCancelHandle>,
 }
 
 /// 切换/seek 时要 join 的旧线程集合，全部挪到 spawn_blocking 工作线程 join，
@@ -166,6 +169,15 @@ pub struct SeekTake {
     pub token: u64,
 }
 
+/// 完成音源准备后一次性提交给播放器的资源
+pub struct LoadedPlayback {
+    pub metadata: AudioMetadata,
+    pub decode_handle: JoinHandle<decoder::DecoderData>,
+    pub shared: Arc<Shared>,
+    pub output: AudioOutput,
+    pub cancel: Option<HttpCancelHandle>,
+}
+
 /// 编译期保证 `InnerPlayer: Send`：cpal::Stream（!Send）已通过 AudioOutput 隔离到专用线程，
 /// 此处不再需要 `unsafe impl Send`。如果未来有人加了 !Send 字段，这条断言会编译失败提醒。
 const _: fn() = || {
@@ -191,14 +203,22 @@ impl InnerPlayer {
     /// 设备失效时的重建由 `reinit_output` 显式处理，不在此函数内自动恢复
     fn ensure_output(&mut self) -> Result<&AudioOutput> {
         if self.output.is_none() {
-            self.output = Some(AudioOutput::new(self.selected_device_name.as_deref())?);
+            let requested_rate = if self.audio_sample_rate == 0 {
+                decoder::DEFAULT_TARGET_SAMPLE_RATE
+            } else {
+                self.audio_sample_rate
+            };
+            self.output = Some(AudioOutput::new(
+                self.selected_device_name.as_deref(),
+                requested_rate,
+            )?);
         }
         self.output
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("ensure_output 后置条件违反"))
     }
 
-    /// 当前输出设备的原生采样率（播放重采样目标）
+    /// 当前实际输出流采样率（播放重采样目标）
     pub fn output_sample_rate(&self) -> u32 {
         self.output
             .as_ref()
@@ -217,13 +237,8 @@ impl InnerPlayer {
 
     pub fn new() -> Result<Self> {
         // 延迟初始化：构造时不要求有音频设备，load 时再打开
-        let output = AudioOutput::new(None).ok();
-        // EQ / stretch 须按播放采样率建系数；无设备时退化到 TARGET_SAMPLE_RATE，
-        // load 时 configure_dsp_sample_rate 会按当时设备率纠正
-        let initial_rate = output
-            .as_ref()
-            .map(|out| out.sample_rate())
-            .unwrap_or(decoder::DEFAULT_TARGET_SAMPLE_RATE);
+        let output = None;
+        let initial_rate = decoder::DEFAULT_TARGET_SAMPLE_RATE;
         debug!("InnerPlayer 已创建");
 
         Ok(Self {
@@ -258,6 +273,7 @@ impl InnerPlayer {
                 initial_rate,
             ))),
             load_token: Arc::new(AtomicU64::new(0)),
+            pending_load_handle: None,
         })
     }
 
@@ -468,8 +484,16 @@ impl InnerPlayer {
     /// 此函数仅替换输出设备，真正的状态恢复交由 `lib.rs` 层的 `reinit_output` 异步完成。
     pub fn recreate_output_device(&mut self) -> Result<()> {
         info!(device = ?self.selected_device_name, "开始重建音频输出");
-        // 旧 AudioOutput 在赋值时被 drop，其 owner 线程随之退出并 drop 旧 cpal::Stream
-        self.output = Some(AudioOutput::new(self.selected_device_name.as_deref())?);
+        let requested_rate = if self.audio_sample_rate == 0 {
+            decoder::DEFAULT_TARGET_SAMPLE_RATE
+        } else {
+            self.audio_sample_rate
+        };
+        self.output.take();
+        self.output = Some(AudioOutput::new(
+            self.selected_device_name.as_deref(),
+            requested_rate,
+        )?);
         Ok(())
     }
 
@@ -488,17 +512,18 @@ impl InnerPlayer {
         self.normalization_enabled
     }
 
-    /// 暴露给 lib.rs：确保输出设备已就绪（不返回引用，避免借用冲突）
-    pub fn ensure_output_pub(&mut self) -> Result<()> {
-        self.ensure_output().map(|_| ())
-    }
-
     /// 给 lib.rs async load 用：原子地发出停止信号 + take 所有旧线程 handle
     /// 调用方负责在工作线程 join 这些 handle，主线程持锁阶段不阻塞
-    /// 返回的 token 用于在 commit_loaded 时校验本次 load 是否已被更新的 load 取代
-    pub fn take_for_async_load(&mut self) -> (OldThreads, u64) {
+    /// 返回旧输出流供工作线程在打开新流前释放；token 用于校验本次 load 是否已被取代
+    pub fn take_for_async_load(
+        &mut self,
+        handle: HttpCancelHandle,
+    ) -> (OldThreads, Option<AudioOutput>, u64) {
         // 自增 token：本次 load 的标识；任何并发的更早 commit_loaded 比较时会发现不匹配
         let token = self.load_token.fetch_add(1, Ordering::AcqRel) + 1;
+        if let Some(previous) = self.pending_load_handle.replace(handle) {
+            previous.cancel();
+        }
 
         // 发停止信号（原子写，纳秒级）
         if let Some(flag) = self.fade_cancel.take() {
@@ -533,12 +558,24 @@ impl InnerPlayer {
             fft_timer: self.fft_timer_handle.take(),
             fade_handle: self.fade_handle.take(),
         };
-        (old_threads, token)
+        (old_threads, self.output.take(), token)
     }
 
     /// token 是否仍是最新值（seek 失败回退到 load 前校验，避免复活已被取代的旧源）
     pub fn is_load_token_current(&self, token: u64) -> bool {
         token == self.load_token.load(Ordering::Acquire)
+    }
+
+    /// 获取加载代次，用于工作线程在创建输出流前快速放弃已过期任务
+    pub fn load_token_handle(&self) -> Arc<AtomicU64> {
+        Arc::clone(&self.load_token)
+    }
+
+    /// 清理仍属于指定 load 的网络中断句柄
+    pub fn clear_pending_load(&mut self, token: u64) {
+        if self.is_load_token_current(token) {
+            self.pending_load_handle = None;
+        }
     }
 
     /// 给 lib.rs async seek 用：原子发出停止信号 + take 所有旧线程 handle（不 join）
@@ -674,12 +711,20 @@ impl InnerPlayer {
         token: u64,
         source: &str,
         auto_play: bool,
-        mut metadata: AudioMetadata,
-        decode_handle: JoinHandle<decoder::DecoderData>,
-        shared: Arc<Shared>,
+        loaded: LoadedPlayback,
     ) -> Result<Option<AudioMetadata>> {
+        let LoadedPlayback {
+            mut metadata,
+            decode_handle,
+            shared,
+            output,
+            cancel,
+        } = loaded;
         // 抢占检查：比对最新 token，不等说明已有更新的 load 在路上 / 已 commit
         if token != self.load_token.load(Ordering::Acquire) {
+            if let Some(h) = cancel {
+                h.cancel();
+            }
             // 停止新解码线程（它会写入 shared 但没人消费），让 join 能尽快返回
             shared.stop();
             // shared / sink / decode_handle 在此函数返回时 drop；解码线程读到 stop 信号后退出
@@ -687,6 +732,9 @@ impl InnerPlayer {
             drop(decode_handle);
             return Ok(None);
         }
+
+        self.pending_load_handle = cancel;
+        self.output = Some(output);
 
         let sink = {
             let output = self.ensure_output()?;
@@ -815,6 +863,9 @@ impl InnerPlayer {
     pub fn stop(&mut self) {
         // 使在途的 async load/seek 在 commit 时被拒绝，防止 stop 后被复活
         self.load_token.fetch_add(1, Ordering::AcqRel);
+        if let Some(handle) = self.pending_load_handle.take() {
+            handle.cancel();
+        }
         self.stop_internal();
         self.current_source = None;
         self.state = PlayerState::Stopped;

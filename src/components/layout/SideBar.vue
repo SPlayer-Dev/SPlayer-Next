@@ -14,7 +14,7 @@ import IconLucideMusic from "~icons/lucide/music";
 import IconLucideUser from "~icons/lucide/user";
 import IconLucideDisc3 from "~icons/lucide/disc-3";
 import IconLucideFolder from "~icons/lucide/folder";
-import IconLucideServer from "~icons/lucide/server";
+import IconLucideLibrary from "~icons/lucide/library";
 import IconLucideListMusic from "~icons/lucide/list-music";
 import IconMaterialSymbolsFavoriteOutline from "~icons/material-symbols/favorite-outline-rounded";
 import IconLucideStar from "~icons/lucide/star";
@@ -58,6 +58,7 @@ const handleCreate = (): void => {
 
 /** 新建成功后跳转到该歌单 */
 const handleCreated = (playlistId: string, scope: ContentScope): void => {
+  status.myPlaylistSource = scope;
   router.push(`/collection/${scope === "local" ? "local" : "netease"}/playlist/${playlistId}`);
 };
 
@@ -71,7 +72,7 @@ const renderMyHeader = () =>
         options: sourceOptions.value,
         side: "bottom",
         align: "start",
-        "onUpdate:modelValue": (v) => (status.myPlaylistSource = v as ContentScope),
+        "onUpdate:modelValue": (value) => (status.myPlaylistSource = value as ContentScope),
       },
       {
         trigger: () =>
@@ -109,7 +110,7 @@ const renderSubscribedHeader = () =>
 const myPlaylistItems = computed<SMenuItem[]>(() => {
   const showCover = appearance.sidebarPlaylistCover;
   if (status.myPlaylistSource === "local") {
-    return playlistStore.playlists.map((pl) => ({
+    return playlistStore.localPlaylists.map((pl) => ({
       key: `/collection/local/playlist/${pl.id}`,
       label: pl.title,
       icon: markRaw(IconLucideListMusic),
@@ -193,7 +194,7 @@ const menuItems = computed<SMenuItem[]>(() => [
     : []),
   ...(systemSettings.streaming.enabled
     ? ([
-        { key: "/streaming", label: t("nav.streaming"), icon: markRaw(IconLucideServer) },
+        { key: "/streaming", label: t("nav.streaming"), icon: markRaw(IconLucideLibrary) },
       ] satisfies SMenuItem[])
     : []),
   { key: "/history", label: t("nav.history"), icon: markRaw(IconLucideHistory) },
@@ -212,7 +213,7 @@ const menuItems = computed<SMenuItem[]>(() => [
 ]);
 
 const activeKey = computed(() => {
-  // 流媒体
+  // 媒体源
   if (route.path.startsWith("/streaming")) return "/streaming";
   if (route.path.startsWith("/collection/streaming/")) return "/streaming";
   if (route.path.startsWith("/artist/streaming/")) return "/streaming";

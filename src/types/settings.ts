@@ -32,13 +32,7 @@ export type RouteTransition = "none" | "fade" | "slide" | "zoom";
 
 /** 弹簧动画预设 */
 export type SpringPreset =
-  | "default"
-  | "smooth"
-  | "responsive"
-  | "jello"
-  | "heavy"
-  | "noBounce"
-  | "custom";
+  "default" | "smooth" | "responsive" | "jello" | "heavy" | "noBounce" | "custom";
 
 /** 歌词混合模式 */
 export type LyricBlendMode = "normal" | "screen" | "plus-lighter";
@@ -182,6 +176,8 @@ export interface PlayerSettings {
   enableSpectrum: boolean;
   /** 频谱单条宽度（px） */
   spectrumBarWidth: number;
+  /** 是否反转频谱方向（启用后低频位于频谱两端） */
+  reverseSpectrum: boolean;
   /** 在线歌曲音质偏好；实际可用级别取决于账号权限 */
   songLevel: QualityLevel;
   /** 允许完整音源不可用时播放试听片段 */

@@ -51,8 +51,7 @@ export interface MusicCommentQuery {
 
 /** 评论 IPC 响应 */
 export type MusicCommentResponse =
-  | { ok: true; data: MusicCommentPage }
-  | { ok: false; error: string };
+  { ok: true; data: MusicCommentPage } | { ok: false; error: string };
 
 /** 渲染端评论 API */
 export interface CommentsApi {
