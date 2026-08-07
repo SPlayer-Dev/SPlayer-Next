@@ -94,7 +94,12 @@ export const parseSRT = (text: string): LyricLine[] => {
     }
 
     // 检测行内括号背景（非行尾尾随）
-    if (!words[0].word.startsWith("(") && !words[0].word.startsWith("（") && !words[words.length - 1].word.endsWith(")") && !words[words.length - 1].word.endsWith(")")) {
+    if (
+      !words[0].word.startsWith("(") &&
+      !words[0].word.startsWith("（") &&
+      !words[words.length - 1].word.endsWith(")") &&
+      !words[words.length - 1].word.endsWith(")")
+    ) {
       // 从后向前查找配对括号
       let closeIndex = -1;
       let openIndex = -1;
@@ -116,7 +121,12 @@ export const parseSRT = (text: string): LyricLine[] => {
         // 检查括号内容是否主要是日文假名，如果是则跳过
         const bracketContent = words
           .slice(openIndex, closeIndex + 1)
-          .map((w) => w.word.replace(/^[（(]/, "").replace(/[）)]$/, "").trim())
+          .map((w) =>
+            w.word
+              .replace(/^[（(]/, "")
+              .replace(/[）)]$/, "")
+              .trim(),
+          )
           .join("");
         const KANA_ONLY_RE = /^[\p{Script=Hiragana}\p{Script=Katakana}ー\s]+$/u;
         const cleanedForCheck = bracketContent.replace(/[()\s]/g, "");

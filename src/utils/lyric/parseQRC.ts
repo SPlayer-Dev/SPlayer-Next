@@ -31,7 +31,11 @@ const parseQrcWords = (content: string): LyricWord[] | null => {
   while (pos < content.length) {
     // 查找下一个时间标记 `(\d`，跳过作为文本的 `(`（后跟非数字）
     let timingIdx = content.indexOf("(", pos);
-    while (timingIdx !== -1 && timingIdx + 1 < content.length && !/\d/.test(content[timingIdx + 1])) {
+    while (
+      timingIdx !== -1 &&
+      timingIdx + 1 < content.length &&
+      !/\d/.test(content[timingIdx + 1])
+    ) {
       timingIdx = content.indexOf("(", timingIdx + 1);
     }
     if (timingIdx === -1 || timingIdx + 1 >= content.length) break;
