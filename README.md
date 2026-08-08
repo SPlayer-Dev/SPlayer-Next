@@ -73,8 +73,7 @@ pnpm build:mac     # Package for macOS
 pnpm build:linux   # Package for Linux (AppImage / deb / rpm / tar.gz / pacman)
 ```
 
-> By default a build targets the current architecture only. To target specific
-> architectures, append them, e.g. `pnpm build:win --x64 --arm64`.
+> By default a build targets the current architecture only. Cross-compilation is not supported.
 
 ### Other Scripts
 
@@ -83,16 +82,6 @@ pnpm typecheck        # tsc + vue-tsc (node + web targets)
 pnpm lint             # ESLint
 pnpm format           # Prettier
 pnpm build:native     # Build the Rust native modules only (add `--dev` for debug)
-```
-
-## Install
-
-### Arch Linux / Manjaro / EndeavourOS
-
-Download the `.pacman` package from the release page and install it with `pacman`:
-
-```bash
-sudo pacman -U ./splayer-next-*.pacman
 ```
 
 ## Acknowledgements

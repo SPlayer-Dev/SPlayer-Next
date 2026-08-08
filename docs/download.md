@@ -29,8 +29,24 @@ title: 下载
 | pacman   | Arch Linux、Manjaro、EndeavourOS |
 | tar.gz   | 通用压缩包，适合手动解压运行     |
 
-Arch 系发行版从 GitHub Releases 下载 `.pacman` 文件后，可在文件所在目录安装：
-
 ```bash
+# AppImage
+chmod +x ./splayer-next-*.AppImage
+./splayer-next-*.AppImage # 直接运行
+./splayer-next-*.AppImage --appimage-extract # 或解压到 squashfs-root 目录
+
+# deb
+sudo apt install ./splayer-next-*.deb
+
+# rpm
+sudo dnf install ./splayer-next-*.rpm # Fedora
+sudo zypper install ./splayer-next-*.rpm # openSUSE
+
+# pacman
 sudo pacman -U ./splayer-next-*.pacman
+
+# 压缩包
+tar -xzf ./splayer-next-*.tar.gz
+cd splayer-next-*/
+./SPlayer-Next
 ```

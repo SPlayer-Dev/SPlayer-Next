@@ -7,7 +7,7 @@ body:
         ---
         在此之前，我们默认你已经知道该如何提问。简而言之，**你要精确地描述问题并提供充足的信息**
 
-        此外，如果需要，你可以使用 <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd> 打开开发者工具为我们提供信息
+        此外，如果需要，你可以在右上角的齿轮图标中打开**开发者工具**为我们提供信息
 
   - type: checkboxes
     validations:
@@ -33,20 +33,13 @@ body:
 
   - type: input
     validations:
-      required: false
-    attributes:
-      label: "当前 Node.js 及 npm 版本"
-      placeholder: "如：v24.13.0 / v9.6.7 (选填)"
-
-  - type: input
-    validations:
       required: true
     attributes:
       label: "当前版本"
       description: |
         填写关于软件里的或 Releases 中版本号即可 <br />
         如果是自行构建或从 GitHub Actions 下载的开发版，还需要提供 Commit ID
-      placeholder: "如：v1.0.0"
+      placeholder: "如：v1.0.0 或 ad045f5"
 
   - type: textarea
     id: other
@@ -56,9 +49,10 @@ body:
         请填写完整的复现步骤和遇到的问题，还请尽量提供所有可能的信息，提供包括但不限于：
 
          - 分步的复现步骤，可以使用 `1. xxx` (换行) `2. xxx` 的格式
+         - 哪里出现了问题（实际行为），正常应该是什么样的（预期行为）
          - 截图（如果结合复现步骤还是无法详细表述，甚至可以录屏）
-         - 开发者工具中的：控制台输出报错、网络请求等
+         - 开发者工具中的控制台输出报错、程序的日志文件
          - 出现问题的在线歌曲链接、出现问题的文件（本地歌曲、歌词等）的下载链接
 
-        等信息，以更好地帮助我们解决你的问题
+        等信息，以更好地帮助我们解决你的问题。更多详见 [调试模式与错误排查](https://splayer-next.imsyy.top/troubleshooting/debug.html)
       placeholder: "请填写具体的复现步骤和遇到的问题"

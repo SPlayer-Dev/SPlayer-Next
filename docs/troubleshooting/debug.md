@@ -4,7 +4,11 @@
 
 ## 开发者工具
 
-在客户端中按 `Ctrl + Shift + I`（Windows / Linux）或 `Cmd + Option + I`（macOS）打开开发者工具：
+在右上角的齿轮图标中打开 **开发者工具**。
+
+> [!TIP]
+>
+> 开发环境中也可以按 `Ctrl + Shift + I`（Windows / Linux）或 `Cmd + Option + I`（macOS）
 
 | 面板            | 用途                   |
 | --------------- | ---------------------- |
