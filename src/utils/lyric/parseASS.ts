@@ -10,7 +10,11 @@
  */
 
 import type { LyricLine, LyricWord } from "@shared/types/lyrics";
-import { detectBackgroundLine, splitTrailingBackground, extractParentheticalBackground } from "./bg";
+import {
+  detectBackgroundLine,
+  splitTrailingBackground,
+  extractParentheticalBackground,
+} from "./bg";
 
 /** 匹配 Dialogue 行各字段 */
 const DIALOGUE_RE = /^Dialogue:\s*\d+,(\d+:\d{2}:\d{2}\.\d{2}),(\d+:\d{2}:\d{2}\.\d{2}),([^,]*),/;
@@ -136,7 +140,7 @@ export const parseASS = (text: string): LyricLine[] => {
     if (!source) continue;
 
     // 尝试解析卡拉OK 逐字标签
-    let karaokeWords = parseKaraokeWords(source.text, source.startTime);
+    const karaokeWords = parseKaraokeWords(source.text, source.startTime);
     let words: LyricWord[] = karaokeWords ?? [
       { startTime: source.startTime, endTime: source.endTime, word: stripAssTags(source.text) },
     ];

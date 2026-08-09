@@ -82,7 +82,7 @@ export const parseSRT = (text: string): LyricLine[] => {
     const words: LyricLine["words"] = [{ startTime, endTime, word: mainText }];
 
     // 查找行尾括号内容作为背景（先 push 主行，再 push 背景行）
-    const trailingParenMatch = mainText.match(/\([^\(\)]+\)$/);
+    const trailingParenMatch = mainText.match(/[()[^()]+$/);
     let bgLine: LyricLine | null = null;
     if (trailingParenMatch) {
       const bgText = trailingParenMatch[0].slice(1, -1).trim();

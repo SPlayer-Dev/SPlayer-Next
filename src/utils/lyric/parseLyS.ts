@@ -134,7 +134,13 @@ export const parseLyS = (text: string): LyricLine[] => {
 
     // 如果有提取到的背景词，添加为背景行
     if (backgroundWord) {
-      const bgWords: LyricWord[] = [{ word: backgroundWord, startTime: words[0].startTime, endTime: words[words.length - 1].endTime }];
+      const bgWords: LyricWord[] = [
+        {
+          word: backgroundWord,
+          startTime: words[0].startTime,
+          endTime: words[words.length - 1].endTime,
+        },
+      ];
       lines.push({
         words: bgWords,
         translatedLyric: "",

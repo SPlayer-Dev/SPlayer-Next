@@ -10,7 +10,7 @@
  */
 
 import type { LyricLine, LyricWord } from "@shared/types/lyrics";
-import { splitTrailingBackground, extractParentheticalBackground } from "./bg";
+import { splitTrailingBackground } from "./bg";
 
 /** 行头：[起始毫秒, 时长毫秒] */
 const LINE_HEADER_RE = /^\[(\d+),(\d+)\]/;
@@ -153,7 +153,9 @@ export const parseQRC = (text: string, detectBackground = true): LyricLine[] => 
 
     // 如果有提取到的背景词，添加为背景行
     if (backgroundWord) {
-      const bgWords: LyricWord[] = [{ word: backgroundWord, startTime: lineStart, endTime: lineStart + lineDur }];
+      const bgWords: LyricWord[] = [
+        { word: backgroundWord, startTime: lineStart, endTime: lineStart + lineDur },
+      ];
       lines.push({
         words: bgWords,
         translatedLyric: "",

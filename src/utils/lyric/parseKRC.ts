@@ -12,7 +12,11 @@
 
 import type { LyricLine, LyricWord } from "@shared/types/lyrics";
 import { parseTime } from "./timestamp";
-import { detectBackgroundLine, splitTrailingBackground, extractParentheticalBackground } from "./bg";
+import {
+  detectBackgroundLine,
+  splitTrailingBackground,
+  extractParentheticalBackground,
+} from "./bg";
 
 /** 行头：[mm:ss.xxx] / [mm:ss:xxx]，支持 1~3 位毫秒 */
 const LINE_HEADER_RE = /^\[(\d+):(\d+)[.:](\d{1,3})\]/;
