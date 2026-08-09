@@ -14,6 +14,7 @@ import IconLucideMusic from "~icons/lucide/music";
 import IconLucideUser from "~icons/lucide/user";
 import IconLucideDisc3 from "~icons/lucide/disc-3";
 import IconLucideFolder from "~icons/lucide/folder";
+import IconLucideChartPie from "~icons/lucide/chart-pie";
 import IconLucideLibrary from "~icons/lucide/library";
 import IconLucideListMusic from "~icons/lucide/list-music";
 import IconMaterialSymbolsFavoriteOutline from "~icons/material-symbols/favorite-outline-rounded";
@@ -147,6 +148,7 @@ const menuItems = computed<SMenuItem[]>(() => [
   { key: "/artists/local", label: t("artist.label"), icon: markRaw(IconLucideUser) },
   { key: "/albums/local", label: t("album.label"), icon: markRaw(IconLucideDisc3) },
   { key: "/folders", label: t("folder.label"), icon: markRaw(IconLucideFolder) },
+  { key: "/stats", label: t("stats.label"), icon: markRaw(IconLucideChartPie) },
   // 个人歌曲
   { key: "divider-personal", type: "divider" },
   {

@@ -310,7 +310,6 @@ onBeforeUnmount(() => {
       </div>
     </div>
     <Transition name="fade" mode="out-in" :duration="150">
-      <!-- 歌曲列表（首批到位即渲染，剩余批次会自动追加） -->
       <div
         v-if="collection && collection.tracks.length > 0"
         :key="collection.id"

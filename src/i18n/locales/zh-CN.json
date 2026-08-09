@@ -188,6 +188,7 @@
     "favorites": "我的收藏",
     "cloud": "我的云盘",
     "streaming": "媒体源",
+    "stats": "统计",
     "reload": "热重载",
     "devtools": "开发者工具",
     "globalSettings": "全局设置",
@@ -1979,6 +1980,24 @@
   "folder": {
     "label": "文件夹",
     "totalFolders": "共 {count} 个"
+  },
+  "stats": {
+    "label": "统计",
+    "songs": "歌曲",
+    "albums": "专辑",
+    "artists": "歌手",
+    "totalDuration": "总时长",
+    "totalSize": "总大小",
+    "topSongs": "最常听的歌曲",
+    "topAlbums": "最常听的专辑",
+    "topArtists": "最常听的歌手",
+    "plays": "{count} 次播放",
+    "playsUnit": "次播放",
+    "noData": "暂无播放数据",
+    "noDataHint": "暂无数据，去听一些歌吧",
+    "unknown": "未知",
+    "less": "少",
+    "more": "多"
   },
   "errors": {
     "dialogTitle": "出错了",

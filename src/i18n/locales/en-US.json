@@ -200,6 +200,7 @@
     "favorites": "Favorites",
     "cloud": "My Cloud",
     "streaming": "Media Sources",
+    "stats": "Stats",
     "reload": "Reload",
     "devtools": "Developer Tools",
     "globalSettings": "Global Settings",
@@ -1991,6 +1992,24 @@
   "folder": {
     "label": "Folders",
     "totalFolders": "{count} folders"
+  },
+  "stats": {
+    "label": "Stats",
+    "songs": "Songs",
+    "albums": "Albums",
+    "artists": "Artists",
+    "totalDuration": "Total Duration",
+    "totalSize": "Total Size",
+    "topSongs": "Most Played Songs",
+    "topAlbums": "Most Played Albums",
+    "topArtists": "Most Played Artists",
+    "plays": "{count} plays",
+    "playsUnit": "plays",
+    "noData": "No play data yet",
+    "noDataHint": "No data yet, go listen to some songs",
+    "unknown": "Unknown",
+    "less": "Less",
+    "more": "More"
   },
   "errors": {
     "dialogTitle": "Something went wrong",
