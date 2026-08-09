@@ -12,7 +12,7 @@
 
 import type { LyricLine, LyricWord } from "@shared/types/lyrics";
 import { parseTime } from "./timestamp";
-import { splitTrailingBackground, extractParentheticalBackground } from "./bg";
+import { detectBackgroundLine, splitTrailingBackground, extractParentheticalBackground } from "./bg";
 
 /** 行头：[mm:ss.xxx] / [mm:ss:xxx]，支持 1~3 位毫秒 */
 const LINE_HEADER_RE = /^\[(\d+):(\d+)[.:](\d{1,3})\]/;
@@ -49,16 +49,34 @@ export const parseKRC = (text: string, detectBackground = true): LyricLine[] => 
       lastEnd = Math.max(lastEnd, end);
     }
 
-    if (words.length === 0) continue;
-
-    // 检测行内括号背景
-    const { main, bg } = extractParentheticalBackground(words, { skipPureKana: true });
-
-    // 添加背景行（如果有）
-    if (bg) {
-      lines.push(bg);
+    // 如果没有逐字时间戳，将整个 rest 作为单个单词处理
+    if (words.length === 0 && rest.trim()) {
+      const startTime = lineStart;
+      const endTime = lineStart + 1000; // 默认 1 秒
+      words.push({ word: rest.trim(), startTime, endTime });
+      lastEnd = endTime;
     }
 
+    if (words.length === 0) continue;
+
+    // 检测整行背景（如 "(Yeah)"）
+    if (detectBackground && detectBackgroundLine(words, detectBackground)) {
+      lines.push({
+        words,
+        translatedLyric: "",
+        romanLyric: "",
+        startTime: lineStart,
+        endTime: lastEnd,
+        isBG: true,
+        isDuet: false,
+      });
+      continue;
+    }
+
+    // 检测行内括号背景（如 "主 (和声)" 或 "(和声) 主"）
+    const { main, bg } = extractParentheticalBackground(words, { skipPureKana: true });
+
+    // 先 push main，再 push bg（保证 main 在前）
     lines.push({
       words: main.words,
       translatedLyric: "",
@@ -68,6 +86,9 @@ export const parseKRC = (text: string, detectBackground = true): LyricLine[] => 
       isBG: false,
       isDuet: false,
     });
+    if (bg) {
+      lines.push(bg);
+    }
   }
 
   // 后处理：处理行尾括号背景（主歌词（和声））

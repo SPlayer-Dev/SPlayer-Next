@@ -180,10 +180,12 @@ export const parseLRC = (text: string, detectBackground = true): LyricLine[] => 
     let isBG = detectBackgroundLine(lineWords, detectBackground);
 
     // 尝试提取行内括号作为背景歌词（例如："Popular (Uh-huh)"）
-    if (!isBG && detectBackground) {
+    // 只在非翻译行时检测
+    const hasPrevTranslation = lines.length > 0 && lines[lines.length - 1].translatedLyric;
+    if (!isBG && detectBackground && !hasPrevTranslation) {
       const mainWord = lineWords[0].word;
-      // 匹配括号内容：左括号 + 可选空格 + 任意内容（不含右括号）+ 可选空格 + 右括号
-      const match = mainWord.match(/[（(]\s*([^)]*)\s*[）)]/);
+      // 用非全局正则匹配第一个括号对（提取第一个括号内容作为背景）
+      const match = mainWord.match(/[（(]\s*([^）)]+)\s*[）)]/);
       if (match) {
         const inner = match[1].trim();
         const bracketFull = match[0];
@@ -193,7 +195,7 @@ export const parseLRC = (text: string, detectBackground = true): LyricLine[] => 
         const isPureKana = cleanedForCheck.length > 0 && KANA_ONLY_RE.test(cleanedForCheck);
 
         if (!isPureKana && inner) {
-          // 从主词中移除括号部分
+          // 从主词中移除第一个括号部分（使用 replace，只替换第一个匹配）
           const newMainWord = mainWord.replace(bracketFull, "").trim();
 
           // 更新主歌词

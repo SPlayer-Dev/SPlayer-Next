@@ -10,7 +10,7 @@
  */
 
 import type { LyricLine, LyricWord } from "@shared/types/lyrics";
-import { splitTrailingBackground, extractParentheticalBackground } from "./bg";
+import { detectBackgroundLine, splitTrailingBackground, extractParentheticalBackground } from "./bg";
 
 /** 匹配 Dialogue 行各字段 */
 const DIALOGUE_RE = /^Dialogue:\s*\d+,(\d+:\d{2}:\d{2}\.\d{2}),(\d+:\d{2}:\d{2}\.\d{2}),([^,]*),/;
@@ -100,8 +100,9 @@ export const parseASS = (text: string): LyricLine[] => {
     if (!match) continue;
     // 提取 Text 字段（最后一个逗号后的所有内容）
     const parts = trimmed.split(",");
-    // Dialogue 格式有 10 个字段，Text 是最后一个（可能含逗号）
-    const dialogueText = parts.slice(9).join(",");
+    // Dialogue 格式：Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Efx,Text
+    // Text 是第 10 个字段（索引 9），但 Dialogue 本身是前缀，所以实际索引是 8
+    const dialogueText = parts.slice(8).join(",").replace(/^,/, "");
     dialogues.push({
       startTime: parseAssTime(match[1]),
       endTime: parseAssTime(match[2]),
@@ -141,10 +142,10 @@ export const parseASS = (text: string): LyricLine[] => {
     ];
 
     // 检测行内括号背景
-    extractParentheticalBackground(words);
+    const { bg, main } = extractParentheticalBackground(words);
+    words = main?.words ?? words;
 
     // 添加背景行（如果有）
-    const bg = extractParentheticalBackground(words).bg;
     if (bg) {
       lines.push(bg);
     }
@@ -152,13 +153,16 @@ export const parseASS = (text: string): LyricLine[] => {
     const translatedLyric = group.ts ? stripAssTags(group.ts.text).trim() : "";
     const romanLyric = group.roma ? stripAssTags(group.roma.text).trim() : "";
 
+    // 检测整行背景（如 "(Yeah)" 单独成行）
+    const isBG = detectBackgroundLine(words, true);
+
     lines.push({
       words,
       translatedLyric,
       romanLyric,
       startTime: source.startTime,
       endTime: source.endTime,
-      isBG: false,
+      isBG,
       isDuet: false,
     });
   }

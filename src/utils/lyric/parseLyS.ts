@@ -94,6 +94,29 @@ export const parseLyS = (text: string): LyricLine[] => {
     const { isBG, isDuet } = parseProperty(parseInt(propMatch[1]));
     const rest = trimmed.slice(propMatch[0].length);
 
+    // 在逐字解析之前，从原始 rest 提取最后一个时间戳后的括号内容作为背景
+    let lastTimingEnd = -1;
+    let timingMatch: RegExpExecArray | null;
+    const timingReLys = /\(\d+,\d+\)/g;
+    while ((timingMatch = timingReLys.exec(rest)) !== null) {
+      lastTimingEnd = timingMatch.index + timingMatch[0].length;
+    }
+    let backgroundWord = "";
+    if (lastTimingEnd !== -1 && lastTimingEnd < rest.length) {
+      const afterLastTiming = rest.slice(lastTimingEnd).trim();
+      // 过滤空括号，保留有效背景
+      const filtered = afterLastTiming.replace(/\(\s*\)/g, "").trim();
+      if (filtered) {
+        const parenMatch = filtered.match(/^[（(]\s*([^）)]+)\s*[）)]$/);
+        if (parenMatch) {
+          const candidate = parenMatch[1].trim();
+          if (candidate) {
+            backgroundWord = candidate;
+          }
+        }
+      }
+    }
+
     // 解析逐字时间戳
     const words = parseLySWords(rest);
 
@@ -108,6 +131,20 @@ export const parseLyS = (text: string): LyricLine[] => {
       isBG,
       isDuet,
     });
+
+    // 如果有提取到的背景词，添加为背景行
+    if (backgroundWord) {
+      const bgWords: LyricWord[] = [{ word: backgroundWord, startTime: words[0].startTime, endTime: words[words.length - 1].endTime }];
+      lines.push({
+        words: bgWords,
+        translatedLyric: "",
+        romanLyric: "",
+        startTime: words[0].startTime,
+        endTime: words[words.length - 1].endTime,
+        isBG: true,
+        isDuet: false,
+      });
+    }
   }
 
   return lines;

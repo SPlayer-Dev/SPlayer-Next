@@ -101,6 +101,11 @@ export const splitParentheticalBackground = (line: LyricLine, enabled = true): L
   for (let i = words.length - 1; i >= 0; i--) {
     if (CLOSE_PAREN_RE.test(words[i].word)) {
       closeIndex = i;
+      // 检查同一单词是否已包含完整括号对
+      if (OPEN_PAREN_RE.test(words[i].word)) {
+        openIndex = i;
+        break;
+      }
       // 向前寻找配对的开括号
       for (let j = i - 1; j >= 0; j--) {
         if (OPEN_PAREN_RE.test(words[j].word)) {
@@ -114,8 +119,8 @@ export const splitParentheticalBackground = (line: LyricLine, enabled = true): L
 
   if (openIndex < 0 || closeIndex < openIndex) return null;
 
-  // 确保开括号前至少有一个非背景的主歌词单词
-  if (openIndex === 0) return null;
+  // 整行都是括号的情况（那归 detectBackgroundLine）
+  if (openIndex === 0 && closeIndex === words.length - 1 && openIndex === closeIndex) return null;
 
   // 检查括号内容是否主要是日文假名，如果是则跳过（避免将日语注音误认为背景歌词）
   const bracketContent = words
@@ -167,7 +172,7 @@ export const splitParentheticalBackground = (line: LyricLine, enabled = true): L
 export const splitTrailingBackground = (line: LyricLine, enabled = true): LyricLine | null => {
   if (!enabled) return null;
   const words = line.words;
-  if (words.length < 2) return null;
+  if (!words || words.length < 2) return null;
   // 整行包裹交给 detectBackgroundLine，这里只管行内尾随
   if (OPEN_PAREN_RE.test(words[0].word)) return null;
   if (!CLOSE_PAREN_RE.test(words[words.length - 1].word)) return null;
@@ -229,20 +234,44 @@ export const extractParentheticalBackground = (
     };
   }
 
-  // 检测行内括号背景（非行尾尾随）
-  if (OPEN_PAREN_RE.test(words[0].word) || CLOSE_PAREN_RE.test(words[words.length - 1].word)) {
-    const lineWords = words.map((w) => ({ ...w }));
-    return {
-      main: {
-        words: lineWords,
-        translatedLyric: "",
-        romanLyric: "",
-        startTime: words[0].startTime,
-        endTime: words[words.length - 1].endTime,
-        isBG: false,
-        isDuet: false,
-      },
-    };
+  // 行首( 且行尾) 已归属 detectBackgroundLine，此处继续走括号提取逻辑
+
+  // 特殊处理：独立括号单词（如 ASS 卡拉OK标签产生的 `(和声)`）作为背景行
+  // 要求：首词是纯文本（非括号包裹），确保 `主词 + (和声)` 格式
+  if (words.length === 2) {
+    const first = words[0];
+    const last = words[1];
+    if (OPEN_PAREN_RE.test(first.word) || CLOSE_PAREN_RE.test(first.word)) {
+      // 首词本身是括号包裹，走正常逻辑或跳过
+    } else {
+      const lastUnwrapped = last.word.replace(OPEN_PAREN_RE, "").replace(CLOSE_PAREN_RE, "").trim();
+      if (OPEN_PAREN_RE.test(last.word) && CLOSE_PAREN_RE.test(last.word) && lastUnwrapped) {
+        const cleanedForCheck = lastUnwrapped.replace(/[()\s]/g, "");
+        const shouldSkipKana = options.skipPureKana !== false;
+        if (cleanedForCheck && !(shouldSkipKana && isPureKana(cleanedForCheck))) {
+          return {
+            main: {
+              words: [first],
+              translatedLyric: "",
+              romanLyric: "",
+              startTime: first.startTime,
+              endTime: first.endTime,
+              isBG: false,
+              isDuet: false,
+            },
+            bg: {
+              words: [{ ...last, word: lastUnwrapped }],
+              translatedLyric: "",
+              romanLyric: "",
+              startTime: last.startTime,
+              endTime: last.endTime,
+              isBG: true,
+              isDuet: false,
+            },
+          };
+        }
+      }
+    }
   }
 
   // 从后向前查找配对括号
@@ -251,6 +280,11 @@ export const extractParentheticalBackground = (
   for (let i = words.length - 1; i >= 0; i--) {
     if (CLOSE_PAREN_RE.test(words[i].word)) {
       closeIndex = i;
+      // 检查同一单词是否已包含完整括号对
+      if (OPEN_PAREN_RE.test(words[i].word)) {
+        openIndex = i;
+        break;
+      }
       // 向前寻找配对的开括号
       for (let j = i - 1; j >= 0; j--) {
         if (OPEN_PAREN_RE.test(words[j].word)) {
