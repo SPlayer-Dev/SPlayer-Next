@@ -37,6 +37,18 @@ export const computeHorizontalScrollRange = (
 };
 
 /**
+ * 从元素布局尺寸读取横向滚动范围，避免祖先 transform 缩放测量结果
+ * @param container - 可见容器
+ * @param content - 完整内容元素
+ * @returns 滚动起点与距离
+ */
+export const measureHorizontalScrollRange = (
+  container: Pick<HTMLElement, "clientWidth">,
+  content: Pick<HTMLElement, "scrollWidth" | "offsetLeft">,
+): HorizontalScrollRange =>
+  computeHorizontalScrollRange(container.clientWidth, content.scrollWidth, content.offsetLeft);
+
+/**
  * 是否带真实逐字时间
  * @param line 歌词行
  */

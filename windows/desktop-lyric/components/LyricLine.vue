@@ -3,7 +3,7 @@ import type { LyricLine } from "@shared/types/lyrics";
 import type { DesktopLyricAlign } from "@shared/types/settings";
 import { getWordSweepProgress } from "@shared/utils/lyricSync";
 import { getNowPlayingCurrentMs } from "@windows/shared/composables/useNowPlayingSync";
-import { computeHorizontalScrollRange } from "../utils";
+import { measureHorizontalScrollRange } from "../utils";
 
 const props = defineProps<{
   line: LyricLine;
@@ -79,7 +79,7 @@ const getScrollTransform = (currentMs: number): string => {
 
 /**
  * 测量内容溢出量
- * 使用 getBoundingClientRect().width 保留亚像素精度，避免滚动终点误差。
+ * 使用布局宽度避免下一行的 0.8 缩放影响测量结果。
  */
 const measure = (): void => {
   const outer = containerRef.value;
@@ -89,11 +89,7 @@ const measure = (): void => {
     scrollStartPx.value = 0;
     return;
   }
-  const range = computeHorizontalScrollRange(
-    outer.getBoundingClientRect().width,
-    inner.getBoundingClientRect().width,
-    inner.offsetLeft,
-  );
+  const range = measureHorizontalScrollRange(outer, inner);
   overflowPx.value = range.distance;
   scrollStartPx.value = range.startOffset;
 };

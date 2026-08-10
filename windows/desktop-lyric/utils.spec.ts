@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeHorizontalScrollRange } from "./utils";
+import { computeHorizontalScrollRange, measureHorizontalScrollRange } from "./utils";
 
 describe("桌面歌词横向滚动范围", () => {
   it("左对齐文本从容器左侧滚动到内容末尾", () => {
@@ -28,6 +28,27 @@ describe("桌面歌词横向滚动范围", () => {
     expect(computeHorizontalScrollRange(100, 100.5, 12)).toEqual({
       startOffset: 0,
       distance: 0,
+    });
+  });
+
+  it("读取不受父级缩放影响的布局宽度", () => {
+    const container = {
+      clientWidth: 100,
+      getBoundingClientRect: () => ({ width: 80 }),
+    };
+    const content = {
+      scrollWidth: 160,
+      offsetLeft: -30,
+      getBoundingClientRect: () => ({ width: 128 }),
+    };
+
+    expect(content.getBoundingClientRect().width - container.getBoundingClientRect().width).toBe(
+      48,
+    );
+
+    expect(measureHorizontalScrollRange(container, content)).toEqual({
+      startOffset: 30,
+      distance: 60,
     });
   });
 });
