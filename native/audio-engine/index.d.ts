@@ -10,6 +10,10 @@ export declare class AudioPlayer {
   setCoverCacheDir(dir: string): void
   /** 注册事件回调，Rust 侧会在状态变化、位置更新、播放结束时主动调用 */
   onEvent(callback: (event: JsPlayerEvent) => void): void
+  /** 注册系统音频设备变化回调。Windows 使用 IMMNotificationClient，其它平台由主进程轮询 */
+  onDeviceChange(callback: () => void): void
+  /** 停止系统音频设备变化监听 */
+  stopDeviceWatcher(): void
   /**
    * 加载音频源，返回完整元信息（含封面路径和歌词）
    * @param auto_play - 是否自动播放，false 时加载后立即暂停

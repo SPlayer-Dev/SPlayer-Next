@@ -3,6 +3,8 @@
 
 mod audio_output;
 mod decoder;
+#[cfg(target_os = "windows")]
+mod device_watcher;
 mod equalizer;
 mod error;
 mod fft;
@@ -175,6 +177,8 @@ fn state_to_str(state: PlayerState) -> &'static str {
 #[napi]
 pub struct AudioPlayer {
     inner: Arc<Mutex<InnerPlayer>>,
+    #[cfg(target_os = "windows")]
+    device_watcher: Mutex<Option<device_watcher::WindowsDeviceWatcher>>,
 }
 
 #[napi]
@@ -186,6 +190,8 @@ impl AudioPlayer {
         info!("AudioPlayer 实例已创建");
         Ok(Self {
             inner: Arc::new(Mutex::new(inner)),
+            #[cfg(target_os = "windows")]
+            device_watcher: Mutex::new(None),
         })
     }
 
@@ -350,6 +356,38 @@ impl AudioPlayer {
 
         self.inner.lock().set_event_callback(emitter);
         Ok(())
+    }
+
+    /// 注册系统音频设备变化回调。Windows 使用 IMMNotificationClient，其它平台由主进程轮询
+    #[napi(ts_args_type = "callback: () => void")]
+    pub fn on_device_change(&self, callback: Function<(), ()>) -> Result<()> {
+        #[cfg(target_os = "windows")]
+        {
+            let tsfn = callback.build_threadsafe_function().build()?;
+            let watcher = device_watcher::WindowsDeviceWatcher::new(Box::new(move || {
+                tsfn.call((), ThreadsafeFunctionCallMode::NonBlocking);
+            }))
+            .into_napi()?;
+            *self.device_watcher.lock() = Some(watcher);
+            info!("Windows 音频设备监听已启动");
+            Ok(())
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = callback;
+            Err(Error::from_reason("当前平台不支持原生音频设备监听"))
+        }
+    }
+
+    /// 停止系统音频设备变化监听
+    #[napi]
+    pub fn stop_device_watcher(&self) {
+        #[cfg(target_os = "windows")]
+        if let Some(mut watcher) = self.device_watcher.lock().take() {
+            watcher.stop();
+            info!("Windows 音频设备监听已停止");
+        }
     }
 
     /// 加载音频源，返回完整元信息（含封面路径和歌词）

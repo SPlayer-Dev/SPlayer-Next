@@ -227,6 +227,7 @@ dependencies = [
  "tracing-subscriber",
  "walkdir",
  "windows",
+ "windows-core",
 ]
 
 [[package]]
