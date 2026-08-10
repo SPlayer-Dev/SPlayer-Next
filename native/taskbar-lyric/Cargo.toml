@@ -7,8 +7,8 @@ edition = "2024"
 crate-type = ["cdylib"]
 
 [dependencies]
-napi = { version = "3.8", features = ["napi9", "serde-json"] }
-napi-derive = "3.5"
+napi = { version = "3.12.1", features = ["napi9", "serde-json"] }
+napi-derive = "3.6.3"
 anyhow = "1"
 winreg = "0.55"
 windows-core = "0.62.2"
@@ -30,4 +30,4 @@ features = [
 ]
 
 [build-dependencies]
-napi-build = "2.3"
+napi-build = "2.4.1"

@@ -7,8 +7,8 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-napi = { version = "3.8", features = ["napi9", "serde-json", "tokio_rt"] }
-napi-derive = "3.5"
+napi = { version = "3.12.1", features = ["napi9", "serde-json", "tokio_rt"] }
+napi-derive = "3.6.3"
 ffmpeg_audio = { version = "0.3.1", default-features = false, features = [
   "http",
   "tracing",
@@ -43,7 +43,7 @@ version = "0.62"
 features = ["Win32_Foundation", "Win32_System_Threading"]
 
 [build-dependencies]
-napi-build = "2.3"
+napi-build = "2.4.1"
 
 [dev-dependencies]
 httpmock = "0.8.3"
