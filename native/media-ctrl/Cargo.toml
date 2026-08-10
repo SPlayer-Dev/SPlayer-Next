@@ -9,9 +9,8 @@ crate-type = ["cdylib"]
 [dependencies]
 napi = { version = "3.8", features = ["tokio_rt", "napi9"] }
 napi-derive = "3.5"
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }
 anyhow = "1.0"
-serde = { version = "1.0", features = ["derive"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = [
   "env-filter",
