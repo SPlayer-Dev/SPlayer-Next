@@ -11,6 +11,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use anyhow::{Context, Result};
 use lofty::config::WriteOptions;
@@ -216,13 +217,16 @@ fn apply_to_file(path: &Path, request: &TagWriteRequest) -> Result<()> {
     Ok(())
 }
 
-/// 同目录临时文件路径：{文件名}.tagedit.tmp
+static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// 生成同目录且进程内唯一的临时文件路径
 fn temp_path(original: &Path) -> PathBuf {
     let mut name = original
         .file_name()
         .map(|n| n.to_os_string())
         .unwrap_or_default();
-    name.push(".tagedit.tmp");
+    let sequence = TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
+    name.push(format!(".{}.{}.tagedit.tmp", std::process::id(), sequence));
     original.with_file_name(name)
 }
 
@@ -277,6 +281,28 @@ mod tests {
         let path = dir.join(name);
         make_wav(&path);
         path
+    }
+
+    #[test]
+    fn temp_paths_are_unique_for_concurrent_edits() {
+        let original = Path::new("album").join("track.flac");
+        let handles: [_; 32] = std::array::from_fn(|_| {
+            let original = original.clone();
+            std::thread::spawn(move || temp_path(&original))
+        });
+        let paths: std::collections::HashSet<_> = handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .collect();
+
+        assert_eq!(paths.len(), 32);
+        assert!(paths.iter().all(|path| path.parent() == original.parent()));
+        assert!(paths.iter().all(|path| {
+            path.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .ends_with(".tagedit.tmp")
+        }));
     }
 
     #[test]

@@ -37,6 +37,16 @@ pub enum PlayerEvent {
 /// 事件发射器类型（跨线程安全）
 pub type EventEmitter = Arc<dyn Fn(PlayerEvent) + Send + Sync>;
 
+/// 根据解码结束原因与当前位置决定对外完成事件
+fn playback_completion_event(shared: &Shared, duration: f64, position: f64) -> PlayerEvent {
+    let mid_stream = duration <= 0.0 || duration - position > 3.0;
+    if shared.is_decode_failed() && mid_stream {
+        PlayerEvent::SourceError
+    } else {
+        PlayerEvent::Ended
+    }
+}
+
 /// 渐变步数
 const FADE_STEPS: u32 = 20;
 
@@ -115,9 +125,9 @@ pub struct InnerPlayer {
     selected_device_name: Option<String>,
     /// 音量归一化开关
     normalization_enabled: bool,
-    /// 跨曲目共享的均衡器（load/seek 时 Arc::clone 给 DecoderSource）
+    /// 跨曲目共享的均衡器（load/seek 时交给 DSP 线程）
     equalizer: Arc<Mutex<Equalizer>>,
-    /// 跨曲目共享的变速变调处理器（load/seek 时 Arc::clone 给 DecoderSource，
+    /// 跨曲目共享的变速变调处理器（load/seek 时交给 DSP 线程，
     /// set_speed/set_pitch/set_pitch_sync 直接锁此字段更新参数）
     tempo: Arc<Mutex<StretchProcessor>>,
     /// load 单调递增 token：每次 take_for_async_load 自增一次
@@ -167,6 +177,9 @@ pub struct SeekTake {
     pub output_sample_rate: u32,
     /// 本次 seek 的 token，commit_seeked 时比对最新值，不一致说明已被新 load/seek/stop 取代
     pub token: u64,
+    /// 解码侧 DSP 共享实例
+    pub equalizer: Arc<Mutex<Equalizer>>,
+    pub tempo: Arc<Mutex<StretchProcessor>>,
 }
 
 /// 完成音源准备后一次性提交给播放器的资源
@@ -203,15 +216,7 @@ impl InnerPlayer {
     /// 设备失效时的重建由 `reinit_output` 显式处理，不在此函数内自动恢复
     fn ensure_output(&mut self) -> Result<&AudioOutput> {
         if self.output.is_none() {
-            let requested_rate = if self.audio_sample_rate == 0 {
-                decoder::DEFAULT_TARGET_SAMPLE_RATE
-            } else {
-                self.audio_sample_rate
-            };
-            self.output = Some(AudioOutput::new(
-                self.selected_device_name.as_deref(),
-                requested_rate,
-            )?);
+            self.output = Some(AudioOutput::new(self.selected_device_name.as_deref())?);
         }
         self.output
             .as_ref()
@@ -224,15 +229,6 @@ impl InnerPlayer {
             .as_ref()
             .map(|out| out.sample_rate())
             .unwrap_or(decoder::DEFAULT_TARGET_SAMPLE_RATE)
-    }
-
-    /// 把 EQ / stretch 的采样率对齐到当前输出设备率
-    /// 设备切换（reinit_output → load）后纠正系数，避免 EQ 频点 / 变调音高偏移
-    /// 调用前须保证 output 已就绪
-    fn configure_dsp_sample_rate(&self) {
-        let rate = self.output_sample_rate();
-        self.equalizer.lock().set_sample_rate(rate);
-        self.tempo.lock().set_sample_rate(rate);
     }
 
     pub fn new() -> Result<Self> {
@@ -381,12 +377,7 @@ impl InnerPlayer {
                     // 距末尾 3s 内的失败按正常结束处理——Content-Length 偏大的转码源
                     // 在曲尾必然提前 EOF，整曲重载只会带来一轮无意义抖动。
                     // duration 未知（直播流等）时无"末尾"概念，失败一律上报
-                    let mid_stream = duration <= 0.0 || duration - position > 3.0;
-                    if shared.is_decode_failed() && mid_stream {
-                        cb(PlayerEvent::SourceError);
-                    } else {
-                        cb(PlayerEvent::Ended);
-                    }
+                    cb(playback_completion_event(&shared, duration, position));
                     cb(PlayerEvent::StateChanged {
                         state: PlayerState::Stopped,
                     });
@@ -484,16 +475,8 @@ impl InnerPlayer {
     /// 此函数仅替换输出设备，真正的状态恢复交由 `lib.rs` 层的 `reinit_output` 异步完成。
     pub fn recreate_output_device(&mut self) -> Result<()> {
         info!(device = ?self.selected_device_name, "开始重建音频输出");
-        let requested_rate = if self.audio_sample_rate == 0 {
-            decoder::DEFAULT_TARGET_SAMPLE_RATE
-        } else {
-            self.audio_sample_rate
-        };
         self.output.take();
-        self.output = Some(AudioOutput::new(
-            self.selected_device_name.as_deref(),
-            requested_rate,
-        )?);
+        self.output = Some(AudioOutput::new(self.selected_device_name.as_deref())?);
         Ok(())
     }
 
@@ -571,6 +554,16 @@ impl InnerPlayer {
         Arc::clone(&self.load_token)
     }
 
+    /// 获取解码侧共享均衡器
+    pub fn equalizer_handle(&self) -> Arc<Mutex<Equalizer>> {
+        Arc::clone(&self.equalizer)
+    }
+
+    /// 获取解码侧共享变速处理器
+    pub fn tempo_handle(&self) -> Arc<Mutex<StretchProcessor>> {
+        Arc::clone(&self.tempo)
+    }
+
     /// 清理仍属于指定 load 的网络中断句柄
     pub fn clear_pending_load(&mut self, token: u64) {
         if self.is_load_token_current(token) {
@@ -631,6 +624,8 @@ impl InnerPlayer {
             was_playing: self.state == PlayerState::Playing,
             output_sample_rate: self.output_sample_rate(),
             token,
+            equalizer: Arc::clone(&self.equalizer),
+            tempo: Arc::clone(&self.tempo),
         })
     }
 
@@ -657,18 +652,11 @@ impl InnerPlayer {
             Arc::new(Sink::try_new(output.handle()).context("Failed to create audio sink")?)
         };
 
-        // 设备切换后输出采样率可能变化，须按新率重建 EQ/tempo 系数；
-        // seek 路径设备不变时 set_sample_rate 内部短路，无额外开销
-        self.configure_dsp_sample_rate();
-        self.equalizer.lock().reset_state();
-        self.tempo.lock().reset();
-
+        let sample_rate = shared.sample_rate();
         let decoder_source = DecoderSource::new(
             Arc::clone(&shared),
             Arc::clone(&self.fft),
-            Arc::clone(&self.equalizer),
-            Arc::clone(&self.tempo),
-            self.audio_sample_rate,
+            sample_rate,
             self.audio_channels,
         );
 
@@ -682,6 +670,7 @@ impl InnerPlayer {
         self.sink = Some(sink);
         self.shared = Some(shared);
         self.decoder_thread = Some(handle);
+        self.audio_sample_rate = sample_rate;
         self.seek_base = position_secs;
 
         if was_paused {
@@ -741,13 +730,9 @@ impl InnerPlayer {
             Arc::new(Sink::try_new(output.handle()).context("Failed to create audio sink")?)
         };
 
-        self.configure_dsp_sample_rate();
-
         let decoder_source = DecoderSource::new(
             Arc::clone(&shared),
             Arc::clone(&self.fft),
-            Arc::clone(&self.equalizer),
-            Arc::clone(&self.tempo),
             metadata.sample_rate,
             metadata.channels,
         );
@@ -1032,5 +1017,43 @@ impl InnerPlayer {
     /// 获取"音调同步"开关
     pub fn pitch_sync(&self) -> bool {
         self.tempo.lock().pitch_sync()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decode_failure_mid_stream_emits_source_error() {
+        let shared = Shared::new(48_000, 2);
+        shared.mark_decode_failed();
+
+        assert!(matches!(
+            playback_completion_event(&shared, 120.0, 30.0),
+            PlayerEvent::SourceError
+        ));
+    }
+
+    #[test]
+    fn decode_failure_near_end_is_treated_as_ended() {
+        let shared = Shared::new(48_000, 2);
+        shared.mark_decode_failed();
+
+        assert!(matches!(
+            playback_completion_event(&shared, 120.0, 118.0),
+            PlayerEvent::Ended
+        ));
+    }
+
+    #[test]
+    fn unknown_duration_failure_emits_source_error() {
+        let shared = Shared::new(48_000, 2);
+        shared.mark_decode_failed();
+
+        assert!(matches!(
+            playback_completion_event(&shared, 0.0, 30.0),
+            PlayerEvent::SourceError
+        ));
     }
 }

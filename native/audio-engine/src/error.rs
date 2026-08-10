@@ -1,34 +1,60 @@
-//! 业务错误枚举，用于在 NAPI 边界把内部 anyhow::Error 分类成 JS 可识别的类型。
+//! NAPI 边界错误分类。
 //!
-//! 内部代码继续用 anyhow，只在 IntoNapiResult 转换时按错误链文本做启发式分类。
-//! 这层不是完整的 typed error 体系，而是 JS 侧可以 `if (err.code === "NetworkUnreachable")` 的薄封装
+//! 分类只读取显式业务标记和稳定的错误类型，不依赖第三方错误文案。
 
+use std::io::ErrorKind;
+
+use ffmpeg_audio::error::HttpError;
+use ffmpeg_audio::AudioError;
 use thiserror::Error;
+
+/// 原生层内部使用的稳定错误类别
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AudioErrorKind {
+    NetworkUnreachable,
+    SourceNotFound,
+    DecodeFailed,
+    Device,
+    Cancelled,
+    Other,
+}
+
+/// 附加在 anyhow 错误链中的显式业务分类
+#[derive(Error, Debug)]
+#[error("audio error kind: {kind:?}")]
+struct AudioErrorContext {
+    kind: AudioErrorKind,
+}
+
+/// 为 anyhow 结果附加稳定业务分类
+pub trait AudioResultExt<T> {
+    fn with_audio_kind(self, kind: AudioErrorKind) -> anyhow::Result<T>;
+}
+
+impl<T> AudioResultExt<T> for anyhow::Result<T> {
+    fn with_audio_kind(self, kind: AudioErrorKind) -> anyhow::Result<T> {
+        self.map_err(|error| error.context(AudioErrorContext { kind }))
+    }
+}
 
 /// 暴露给 JS 侧的错误分类
 #[derive(Error, Debug)]
 pub enum AudioEngineError {
-    /// 网络不可达：DNS 失败、连接超时、socket 错误等
     #[error("network unreachable: {0}")]
     NetworkUnreachable(String),
 
-    /// 音源不存在：404、本地文件不存在等
     #[error("source not found: {0}")]
     SourceNotFound(String),
 
-    /// 解码失败：FFmpeg 报错、格式不支持、文件损坏
     #[error("decode failed: {0}")]
     DecodeFailed(String),
 
-    /// 音频输出设备故障
     #[error("audio device error: {0}")]
     Device(String),
 
-    /// 取消（cancel flag 被设置）
     #[error("operation cancelled")]
     Cancelled,
 
-    /// 其它未分类错误
     #[error("{0}")]
     Other(String),
 }
@@ -46,34 +72,142 @@ impl AudioEngineError {
         }
     }
 
-    /// 启发式分类：从 anyhow 错误链的拼接文本里猜分类。
-    /// 不能精确，但比纯 stringify 多一层信号，避免大改全部错误站点
-    pub fn classify(err: &anyhow::Error) -> Self {
-        let full = format!("{err:#}").to_ascii_lowercase();
-        if full.contains("cancel") || full.contains("interrupted") {
-            Self::Cancelled
-        } else if full.contains("404")
-            || full.contains("not found")
-            || full.contains("no such file")
-        {
-            Self::SourceNotFound(full)
-        } else if full.contains("network")
-            || full.contains("dns")
-            || full.contains("connect")
-            || full.contains("timeout")
-            || full.contains("transport")
-        {
-            Self::NetworkUnreachable(full)
-        } else if full.contains("decode")
-            || full.contains("ffmpeg")
-            || full.contains("invalid data")
-        {
-            Self::DecodeFailed(full)
-        } else if full.contains("device") || full.contains("audio output") || full.contains("cpal")
-        {
-            Self::Device(full)
-        } else {
-            Self::Other(full)
+    /// 从显式标记或错误源类型取得稳定分类
+    pub fn classify(error: &anyhow::Error) -> Self {
+        let kind = error
+            .downcast_ref::<AudioErrorContext>()
+            .map(|context| context.kind)
+            .or_else(|| error.chain().find_map(Self::classify_source))
+            .unwrap_or(AudioErrorKind::Other);
+        Self::from_kind(kind, format!("{error:#}"))
+    }
+
+    fn classify_source(source: &(dyn std::error::Error + 'static)) -> Option<AudioErrorKind> {
+        if let Some(context) = source.downcast_ref::<AudioErrorContext>() {
+            return Some(context.kind);
         }
+        if let Some(error) = source.downcast_ref::<std::io::Error>() {
+            return Some(match error.kind() {
+                ErrorKind::NotFound => AudioErrorKind::SourceNotFound,
+                ErrorKind::Interrupted => AudioErrorKind::Cancelled,
+                ErrorKind::TimedOut
+                | ErrorKind::ConnectionRefused
+                | ErrorKind::ConnectionReset
+                | ErrorKind::ConnectionAborted
+                | ErrorKind::NotConnected
+                | ErrorKind::AddrNotAvailable
+                | ErrorKind::BrokenPipe => AudioErrorKind::NetworkUnreachable,
+                _ => return None,
+            });
+        }
+        if let Some(error) = source.downcast_ref::<AudioError>() {
+            return Some(Self::classify_audio_error(error));
+        }
+        if source.downcast_ref::<cpal::BuildStreamError>().is_some()
+            || source
+                .downcast_ref::<cpal::DefaultStreamConfigError>()
+                .is_some()
+            || source.downcast_ref::<cpal::DevicesError>().is_some()
+            || source.downcast_ref::<cpal::DeviceNameError>().is_some()
+            || source.downcast_ref::<rodio::StreamError>().is_some()
+            || source.downcast_ref::<rodio::PlayError>().is_some()
+        {
+            return Some(AudioErrorKind::Device);
+        }
+        None
+    }
+
+    fn classify_audio_error(error: &AudioError) -> AudioErrorKind {
+        match error {
+            AudioError::Http(HttpError::Status(404 | 410)) => AudioErrorKind::SourceNotFound,
+            AudioError::Http(HttpError::Cancelled) => AudioErrorKind::Cancelled,
+            AudioError::Http(HttpError::Timeout | HttpError::Transport(_)) => {
+                AudioErrorKind::NetworkUnreachable
+            }
+            AudioError::Http(_)
+            | AudioError::FFmpeg(_, _)
+            | AudioError::FormatMismatch
+            | AudioError::InvalidData(_) => AudioErrorKind::DecodeFailed,
+            AudioError::Io(error) => match error.kind() {
+                ErrorKind::NotFound => AudioErrorKind::SourceNotFound,
+                ErrorKind::Interrupted => AudioErrorKind::Cancelled,
+                ErrorKind::TimedOut
+                | ErrorKind::ConnectionRefused
+                | ErrorKind::ConnectionReset
+                | ErrorKind::ConnectionAborted
+                | ErrorKind::NotConnected
+                | ErrorKind::AddrNotAvailable
+                | ErrorKind::BrokenPipe => AudioErrorKind::NetworkUnreachable,
+                _ => AudioErrorKind::DecodeFailed,
+            },
+            AudioError::Eof
+            | AudioError::Eagain
+            | AudioError::InvalidParameter(_)
+            | AudioError::AllocationFailed(_) => AudioErrorKind::Other,
+        }
+    }
+
+    fn from_kind(kind: AudioErrorKind, message: String) -> Self {
+        match kind {
+            AudioErrorKind::NetworkUnreachable => Self::NetworkUnreachable(message),
+            AudioErrorKind::SourceNotFound => Self::SourceNotFound(message),
+            AudioErrorKind::DecodeFailed => Self::DecodeFailed(message),
+            AudioErrorKind::Device => Self::Device(message),
+            AudioErrorKind::Cancelled => Self::Cancelled,
+            AudioErrorKind::Other => Self::Other(message),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anyhow::anyhow;
+
+    #[test]
+    fn explicit_kind_wins_over_misleading_message() {
+        let error = Err::<(), _>(anyhow!("network timeout in decoder text"))
+            .with_audio_kind(AudioErrorKind::DecodeFailed)
+            .unwrap_err();
+
+        assert!(matches!(
+            AudioEngineError::classify(&error),
+            AudioEngineError::DecodeFailed(_)
+        ));
+    }
+
+    #[test]
+    fn arbitrary_message_is_not_classified_by_keywords() {
+        let error = anyhow!("network timeout not found");
+
+        assert!(matches!(
+            AudioEngineError::classify(&error),
+            AudioEngineError::Other(_)
+        ));
+    }
+
+    #[test]
+    fn io_not_found_is_source_not_found() {
+        let error = anyhow::Error::new(std::io::Error::from(ErrorKind::NotFound));
+
+        assert!(matches!(
+            AudioEngineError::classify(&error),
+            AudioEngineError::SourceNotFound(_)
+        ));
+    }
+
+    #[test]
+    fn typed_http_errors_have_stable_categories() {
+        let missing = anyhow::Error::new(AudioError::Http(HttpError::Status(404)));
+        let transport = anyhow::Error::new(AudioError::Http(HttpError::Transport("x".into())));
+
+        assert!(matches!(
+            AudioEngineError::classify(&missing),
+            AudioEngineError::SourceNotFound(_)
+        ));
+        assert!(matches!(
+            AudioEngineError::classify(&transport),
+            AudioEngineError::NetworkUnreachable(_)
+        ));
     }
 }

@@ -4,7 +4,7 @@
 //! 支持增量扫描：比对文件 mtime/size 跳过未变化的文件。
 //! 使用 FFmpeg 提取元数据，无需额外依赖 lofty。
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -83,6 +83,25 @@ fn is_cue_file(path: &Path) -> bool {
     path.extension()
         .and_then(|ext| ext.to_str())
         .is_some_and(|ext| ext.eq_ignore_ascii_case("cue"))
+}
+
+/// 根据本轮可见路径计算已删除文件；遍历不完整的目录必须整体排除
+fn collect_removed_paths(
+    existing: &HashMap<&str, (u64, u64)>,
+    scanned_paths: &[String],
+    unavailable_dirs: &[String],
+) -> Vec<String> {
+    let scanned_set: HashSet<&str> = scanned_paths.iter().map(String::as_str).collect();
+    existing
+        .keys()
+        .filter(|path| !scanned_set.contains(**path))
+        .filter(|path| {
+            !unavailable_dirs
+                .iter()
+                .any(|dir| Path::new(**path).starts_with(dir))
+        })
+        .map(|&path| path.to_string())
+        .collect()
 }
 
 /// 使用 ffmpeg_audio 打开音频文件并读取元数据
@@ -185,7 +204,7 @@ pub fn scan_directories(
     let mut scanned_paths: Vec<String> = Vec::new();
     let mut cue_files: Vec<String> = Vec::new();
     // 本轮不可达的目录（NAS 掉线 / 移动硬盘未挂载），其下已有记录不得报告为已删除
-    let mut unavailable_dirs: Vec<&str> = Vec::new();
+    let mut unavailable_dirs: Vec<String> = Vec::new();
 
     for dir in dirs {
         if cancel.load(Ordering::Relaxed) {
@@ -195,12 +214,21 @@ pub fn scan_directories(
         let dir_path = Path::new(dir);
         if !dir_path.is_dir() {
             warn!("跳过无效目录: {dir}");
-            unavailable_dirs.push(dir.as_str());
+            unavailable_dirs.push(dir.clone());
             continue;
         }
-        for entry in WalkDir::new(dir).follow_links(true).into_iter().flatten() {
+        let mut had_traversal_error = false;
+        for entry in WalkDir::new(dir).follow_links(true) {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(error) => {
+                    had_traversal_error = true;
+                    warn!(directory = dir, error = %error, "目录遍历不完整，本轮不计算该目录下的删除项");
+                    continue;
+                }
+            };
             let path = entry.path();
-            if !path.is_file() {
+            if !entry.file_type().is_file() {
                 continue;
             }
             if is_cue_file(path) {
@@ -211,16 +239,22 @@ pub fn scan_directories(
                 continue;
             }
             let path_str = path.to_string_lossy().into_owned();
-            if let Some((mtime, ctime, size)) = file_stat(path) {
-                scanned_paths.push(path_str.clone());
-                // 增量比对：mtime 和 size 都未变化则跳过
-                if let Some(&(old_mtime, old_size)) = existing.get(path_str.as_str()) {
-                    if old_mtime == mtime && old_size == size {
-                        continue;
-                    }
+            let Some((mtime, ctime, size)) = file_stat(path) else {
+                had_traversal_error = true;
+                warn!(path = %path.display(), "无法读取文件状态，本轮不计算所属目录下的删除项");
+                continue;
+            };
+            scanned_paths.push(path_str.clone());
+            // 增量比对：mtime 和 size 都未变化则跳过
+            if let Some(&(old_mtime, old_size)) = existing.get(path_str.as_str()) {
+                if old_mtime == mtime && old_size == size {
+                    continue;
                 }
-                audio_files.push((path_str, mtime, ctime, size));
             }
+            audio_files.push((path_str, mtime, ctime, size));
+        }
+        if had_traversal_error {
+            unavailable_dirs.push(dir.clone());
         }
     }
 
@@ -246,7 +280,7 @@ pub fn scan_directories(
                 total,
                 removed_paths: Vec::new(),
                 cue_files: std::mem::take(&mut cue_files),
-                unavailable_dirs: unavailable_dirs.iter().map(|s| s.to_string()).collect(),
+                unavailable_dirs,
             });
             return;
         }
@@ -282,18 +316,7 @@ pub fn scan_directories(
 
     // 计算已删除的文件（在 existing 中但不在 scanned_paths 中）
     // 不可达目录下的记录排除在外：目录只是暂时离线，报告删除会导致一次扫描清空曲库
-    let scanned_set: std::collections::HashSet<&str> =
-        scanned_paths.iter().map(String::as_str).collect();
-    let removed_paths: Vec<String> = existing
-        .keys()
-        .filter(|path| !scanned_set.contains(**path))
-        .filter(|path| {
-            !unavailable_dirs
-                .iter()
-                .any(|dir| Path::new(**path).starts_with(dir))
-        })
-        .map(|&path| path.to_string())
-        .collect();
+    let removed_paths = collect_removed_paths(&existing, &scanned_paths, &unavailable_dirs);
 
     if !removed_paths.is_empty() {
         info!("发现 {} 个已删除文件", removed_paths.len());
@@ -321,6 +344,51 @@ pub fn scan_directories(
         total,
         removed_paths,
         cue_files,
-        unavailable_dirs: unavailable_dirs.iter().map(|s| s.to_string()).collect(),
+        unavailable_dirs,
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn traversal_error_suppresses_removals_for_the_whole_root() {
+        let root = Path::new("music");
+        let visible = root.join("visible.mp3").to_string_lossy().into_owned();
+        let hidden = root.join("restricted").join("hidden.flac");
+        let outside = Path::new("other").join("removed.ogg");
+        let hidden = hidden.to_string_lossy().into_owned();
+        let outside = outside.to_string_lossy().into_owned();
+        let existing = HashMap::from([
+            (visible.as_str(), (1, 1)),
+            (hidden.as_str(), (1, 1)),
+            (outside.as_str(), (1, 1)),
+        ]);
+
+        let removed = collect_removed_paths(
+            &existing,
+            std::slice::from_ref(&visible),
+            &[root.to_string_lossy().into_owned()],
+        );
+
+        assert_eq!(removed, vec![outside]);
+    }
+
+    #[test]
+    fn complete_scan_reports_missing_paths() {
+        let present = Path::new("music")
+            .join("present.mp3")
+            .to_string_lossy()
+            .into_owned();
+        let missing = Path::new("music")
+            .join("missing.mp3")
+            .to_string_lossy()
+            .into_owned();
+        let existing = HashMap::from([(present.as_str(), (1, 1)), (missing.as_str(), (1, 1))]);
+
+        let removed = collect_removed_paths(&existing, std::slice::from_ref(&present), &[]);
+
+        assert_eq!(removed, vec![missing]);
+    }
 }

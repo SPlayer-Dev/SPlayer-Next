@@ -1,6 +1,7 @@
 use std::{
     sync::{
-        OnceLock,
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver, Sender},
     },
     thread,
@@ -30,9 +31,16 @@ enum Msg {
     Enable,
     Disable,
     Config(DiscordConfig),
+    Shutdown,
 }
 
-static SENDER: OnceLock<Sender<Msg>> = OnceLock::new();
+struct DiscordHandle {
+    sender: Sender<Msg>,
+    thread: thread::JoinHandle<()>,
+    shutdown: Arc<AtomicBool>,
+}
+
+static HANDLE: Mutex<Option<DiscordHandle>> = Mutex::new(None);
 
 #[derive(Clone, PartialEq)]
 struct ActivityData {
@@ -141,6 +149,7 @@ impl Worker {
                     d.current_ms = t.current_ms;
                 }
             }
+            Msg::Shutdown => {}
         }
     }
 
@@ -324,11 +333,18 @@ fn paused_timestamps(current: f64, duration: f64) -> (i64, i64) {
     (start, start + duration as i64)
 }
 
-fn background_loop(rx: &Receiver<Msg>) {
+fn background_loop(rx: &Receiver<Msg>, shutdown: &AtomicBool) {
     let mut worker = Worker::default();
     loop {
+        if shutdown.load(Ordering::Acquire) {
+            break;
+        }
         match rx.recv_timeout(Duration::from_secs(1)) {
+            Ok(Msg::Shutdown) => break,
             Ok(msg) => {
+                if shutdown.load(Ordering::Acquire) {
+                    break;
+                }
                 worker.handle(msg);
                 worker.sync();
             }
@@ -340,21 +356,48 @@ fn background_loop(rx: &Receiver<Msg>) {
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
         }
     }
+    worker.disconnect();
 }
 
 pub fn init() {
-    let (tx, rx) = mpsc::channel();
-    if SENDER.set(tx).is_err() {
-        // 重复初始化无害，直接忽略；前次的 background_loop 仍在运行
+    let mut guard = HANDLE.lock().unwrap_or_else(|error| error.into_inner());
+    if guard.is_some() {
         return;
     }
-    thread::spawn(move || background_loop(&rx));
+    let (tx, rx) = mpsc::channel();
+    let shutdown = Arc::new(AtomicBool::new(false));
+    let thread_shutdown = Arc::clone(&shutdown);
+    let thread = thread::spawn(move || background_loop(&rx, &thread_shutdown));
+    *guard = Some(DiscordHandle {
+        sender: tx,
+        thread,
+        shutdown,
+    });
     info!("Discord RPC 后台线程已启动");
 }
 
 fn send(msg: Msg) {
-    if let Some(tx) = SENDER.get() {
-        let _ = tx.send(msg);
+    let sender = HANDLE
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .as_ref()
+        .map(|handle| handle.sender.clone());
+    if let Some(sender) = sender {
+        let _ = sender.send(msg);
+    }
+}
+
+pub fn shutdown() {
+    let handle = HANDLE
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .take();
+    if let Some(handle) = handle {
+        handle.shutdown.store(true, Ordering::Release);
+        let _ = handle.sender.send(Msg::Shutdown);
+        drop(handle.sender);
+        let _ = handle.thread.join();
+        info!("Discord RPC 后台线程已停止");
     }
 }
 
@@ -375,4 +418,32 @@ pub fn update_play_state(p: PlayStateParam) {
 }
 pub fn update_timeline(p: TimelineParam) {
     send(Msg::Timeline(p));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shutdown_joins_thread_and_allows_restart() {
+        shutdown();
+        init();
+        assert!(
+            HANDLE
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .is_some()
+        );
+
+        shutdown();
+        assert!(
+            HANDLE
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .is_none()
+        );
+
+        init();
+        shutdown();
+    }
 }

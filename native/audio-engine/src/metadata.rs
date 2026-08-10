@@ -135,10 +135,7 @@ pub fn extract_cover_thumbnail(
     let cover = reader.cover()?;
     std::fs::create_dir_all(cache_dir).ok()?;
 
-    if generate_cover_thumbnail(&cover.data, &thumb_file).is_err() {
-        // 缩略图生成失败，直接写入原始数据作为回退
-        std::fs::write(&thumb_file, &cover.data).ok()?;
-    }
+    generate_cover_thumbnail(&cover.data, &thumb_file).ok()?;
 
     Some(thumb_file.to_string_lossy().into_owned())
 }
@@ -185,4 +182,44 @@ pub fn find_all_external_lyrics(source: &str) -> Vec<ExternalLyric> {
     }
 
     lyrics
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static TEST_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    fn test_output_path(name: &str) -> std::path::PathBuf {
+        let sequence = TEST_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
+        std::env::temp_dir().join(format!(
+            "splayer-metadata-{}-{sequence}-{name}",
+            std::process::id()
+        ))
+    }
+
+    #[test]
+    fn invalid_cover_does_not_create_fake_jpeg() {
+        let output = test_output_path("invalid.jpg");
+        let _ = std::fs::remove_file(&output);
+
+        assert!(generate_cover_thumbnail(b"not an image", &output).is_err());
+        assert!(!output.exists());
+    }
+
+    #[test]
+    fn png_cover_is_encoded_as_jpeg() {
+        let output = test_output_path("converted.jpg");
+        let mut png = Cursor::new(Vec::new());
+        image::DynamicImage::new_rgb8(2, 2)
+            .write_to(&mut png, image::ImageFormat::Png)
+            .unwrap();
+
+        generate_cover_thumbnail(png.get_ref(), &output).unwrap();
+
+        let cached = std::fs::read(&output).unwrap();
+        assert!(cached.starts_with(&[0xff, 0xd8, 0xff]));
+        let _ = std::fs::remove_file(output);
+    }
 }

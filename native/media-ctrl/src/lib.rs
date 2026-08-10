@@ -44,7 +44,7 @@ pub fn initialize() -> Result<()> {
 #[napi]
 pub fn shutdown() {
     info!("关闭媒体控件和 Discord RPC");
-    discord::disable();
+    discord::shutdown();
     let _ = sys_media::get_platform_controls().shutdown();
 }
 

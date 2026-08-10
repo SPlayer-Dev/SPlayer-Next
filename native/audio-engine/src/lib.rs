@@ -72,7 +72,6 @@ pub fn init_logger(log_dir: String, is_dev: bool) {
     INIT.call_once(|| {
         logger::init_logger(&log_dir, is_dev);
         ffmpeg_audio::log::set_log_level(ffmpeg_audio::sys::LogLevel::Fatal);
-        priority::configure_process_priority();
         info!(log_dir, is_dev, "audio-engine 日志系统已初始化");
     });
 }
@@ -227,6 +226,8 @@ impl AudioPlayer {
             was_playing: _,
             output_sample_rate,
             token,
+            equalizer,
+            tempo,
         } = take;
 
         let outcome: SeekOutcome = tokio::task::spawn_blocking(move || {
@@ -242,14 +243,22 @@ impl AudioPlayer {
                 crate::shared::Shared::new(output_sample_rate, crate::decoder::TARGET_CHANNELS);
             shared.set_normalization_enabled(normalization_enabled);
             shared.set_normalization_gain(normalization_gain);
-            let handle =
-                match crate::decoder::resume_decode(decoder_data, std::sync::Arc::clone(&shared)) {
-                    Ok(handle) => handle,
-                    Err(err) => {
-                        warn!(error = %err, "重建输出后启动解码线程失败，回退到重新加载");
-                        return SeekOutcome::Fallback;
-                    }
-                };
+            equalizer.lock().set_sample_rate(output_sample_rate);
+            equalizer.lock().reset_state();
+            tempo.lock().set_sample_rate(output_sample_rate);
+            tempo.lock().reset();
+            let handle = match crate::decoder::resume_decode(
+                decoder_data,
+                std::sync::Arc::clone(&shared),
+                equalizer,
+                tempo,
+            ) {
+                Ok(handle) => handle,
+                Err(err) => {
+                    warn!(error = %err, "重建输出后启动解码线程失败，回退到重新加载");
+                    return SeekOutcome::Fallback;
+                }
+            };
             SeekOutcome::Resumed { shared, handle }
         })
         .await
@@ -371,6 +380,8 @@ impl AudioPlayer {
             cover_dir,
             normalization_enabled,
             device_name,
+            equalizer,
+            tempo,
         ) = {
             let mut player = self.inner.lock();
             let (old_threads, old_output, token) = player.take_for_async_load(handle.clone());
@@ -382,6 +393,8 @@ impl AudioPlayer {
                 player.cover_cache_dir().map(String::from),
                 player.is_normalization_enabled(),
                 player.selected_device_name().map(String::from),
+                player.equalizer_handle(),
+                player.tempo_handle(),
             )
         };
 
@@ -397,12 +410,15 @@ impl AudioPlayer {
             if load_token.load(std::sync::atomic::Ordering::Acquire) != token {
                 anyhow::bail!(LOAD_SUPERSEDED_REASON);
             }
-            let requested_rate = prepared.original_sample_rate();
-            let output = audio_output::AudioOutput::new(device_name.as_deref(), requested_rate)?;
+            let output = audio_output::AudioOutput::new(device_name.as_deref())?;
             let shared = Shared::new(output.sample_rate(), decoder::TARGET_CHANNELS);
             shared.set_normalization_enabled(normalization_enabled);
+            equalizer.lock().set_sample_rate(output.sample_rate());
+            equalizer.lock().reset_state();
+            tempo.lock().set_sample_rate(output.sample_rate());
+            tempo.lock().reset();
             let (metadata, decode_handle, cancel) =
-                decoder::start_prepared_decode(prepared, Arc::clone(&shared))?;
+                decoder::start_prepared_decode(prepared, Arc::clone(&shared), equalizer, tempo)?;
             Ok::<_, anyhow::Error>((metadata, decode_handle, shared, output, cancel))
         })
         .await
@@ -535,6 +551,8 @@ impl AudioPlayer {
             was_playing,
             output_sample_rate,
             token,
+            equalizer,
+            tempo,
         } = take;
 
         let outcome: SeekOutcome = tokio::task::spawn_blocking(move || {
@@ -550,13 +568,18 @@ impl AudioPlayer {
             let shared = Shared::new(output_sample_rate, decoder::TARGET_CHANNELS);
             shared.set_normalization_enabled(normalization_enabled);
             shared.set_normalization_gain(normalization_gain);
-            let handle = match decoder::resume_decode(decoder_data, Arc::clone(&shared)) {
-                Ok(handle) => handle,
-                Err(err) => {
-                    warn!(error = %err, "seek 后启动解码线程失败，回退到重新加载");
-                    return SeekOutcome::Fallback;
-                }
-            };
+            equalizer.lock().set_sample_rate(output_sample_rate);
+            equalizer.lock().reset_state();
+            tempo.lock().set_sample_rate(output_sample_rate);
+            tempo.lock().reset();
+            let handle =
+                match decoder::resume_decode(decoder_data, Arc::clone(&shared), equalizer, tempo) {
+                    Ok(handle) => handle,
+                    Err(err) => {
+                        warn!(error = %err, "seek 后启动解码线程失败，回退到重新加载");
+                        return SeekOutcome::Fallback;
+                    }
+                };
             SeekOutcome::Resumed { shared, handle }
         })
         .await
