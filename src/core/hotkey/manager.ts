@@ -17,7 +17,7 @@ import { buildRegistry, dispatch } from "./registry";
 /**
  * 焦点元素是否吃掉快捷键
  * - input/textarea/select/contenteditable：拦截所有按键
- * - button / role=button：仅在按 Space / Enter 时拦截
+ * - button / role=button：保留 Enter 激活；Space 命中应用快捷键时由快捷键优先处理
  */
 const isInputFocused = (event: KeyboardEvent): boolean => {
   const el = document.activeElement as HTMLElement | null;
@@ -25,7 +25,7 @@ const isInputFocused = (event: KeyboardEvent): boolean => {
   if (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT") return true;
   if (el.isContentEditable) return true;
   if (el.tagName === "BUTTON" || el.getAttribute("role") === "button") {
-    return event.code === "Space" || event.code === "Enter";
+    return event.code === "Enter";
   }
   return false;
 };
