@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { DailyPlayStats, HourlyPlayStats, LibraryStats } from "@shared/types/stats";
 import { isLosslessCodec } from "@/utils/quality";
+import StatsDonutChart from "./StatsDonutChart.vue";
 import IconLucideMusic from "~icons/lucide/music";
 
 const props = defineProps<{
@@ -10,6 +11,8 @@ const props = defineProps<{
   hourly: HourlyPlayStats[];
   /** 曲库统计概览（取格式分布） */
   stats: LibraryStats | null;
+  /** 数据是否仍在加载 */
+  loading: boolean;
 }>();
 
 const { t, locale } = useI18n();
@@ -29,10 +32,10 @@ interface ChartPoint {
 }
 
 interface CodecVisual {
+  id: string;
   codec: string;
   count: number;
   percent: number;
-  offset: number;
   opacity: number;
 }
 
@@ -178,18 +181,12 @@ const totalCodecCount = computed(() =>
 
 /** 圆环分段数据 */
 const codecVisuals = computed<CodecVisual[]>(() => {
-  let offset = 0;
-  return chartCodecs.value.map((item, index) => {
-    const percent = totalCodecCount.value ? (item.count / totalCodecCount.value) * 100 : 0;
-    const visual = {
-      ...item,
-      percent,
-      offset,
-      opacity: Math.max(0.24, 0.92 - index * 0.14),
-    };
-    offset += percent;
-    return visual;
-  });
+  return chartCodecs.value.map((item, index) => ({
+    ...item,
+    id: item.codec,
+    percent: totalCodecCount.value ? (item.count / totalCodecCount.value) * 100 : 0,
+    opacity: Math.max(0.24, 0.92 - index * 0.14),
+  }));
 });
 
 const losslessCount = computed(() =>
@@ -290,26 +287,28 @@ const codecLabel = (codec: string): string => {
 
       <div class="relative min-h-0 flex-1">
         <svg class="absolute inset-0 size-full" viewBox="0 0 240 128" preserveAspectRatio="none">
-          <path :d="hourlyAreaPath" fill="rgb(var(--s-primary) / 0.08)" />
-          <path
-            :d="hourlyLinePath"
-            fill="none"
-            stroke="rgb(var(--s-primary))"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            vector-effect="non-scaling-stroke"
-          />
-          <circle
-            v-if="hourlyTotal > 0 && peakHour"
-            :cx="hourlyPoints[peakHour.hour].x"
-            :cy="hourlyPoints[peakHour.hour].y"
-            r="3"
-            fill="rgb(var(--s-surface-panel))"
-            stroke="rgb(var(--s-primary))"
-            stroke-width="2"
-            vector-effect="non-scaling-stroke"
-          />
+          <template v-if="!loading && hourlyTotal > 0">
+            <path :d="hourlyAreaPath" fill="rgb(var(--s-primary) / 0.08)" />
+            <path
+              :d="hourlyLinePath"
+              fill="none"
+              stroke="rgb(var(--s-primary))"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              vector-effect="non-scaling-stroke"
+            />
+            <circle
+              v-if="peakHour"
+              :cx="hourlyPoints[peakHour.hour].x"
+              :cy="hourlyPoints[peakHour.hour].y"
+              r="3"
+              fill="rgb(var(--s-surface-panel))"
+              stroke="rgb(var(--s-primary))"
+              stroke-width="2"
+              vector-effect="non-scaling-stroke"
+            />
+          </template>
         </svg>
         <div
           v-if="hourlyTotal > 0 && peakHour"
@@ -327,7 +326,7 @@ const codecLabel = (codec: string): string => {
           </span>
         </div>
         <div
-          v-if="hourlyTotal === 0"
+          v-if="!loading && hourlyTotal === 0"
           class="absolute inset-0 flex items-center justify-center text-sm text-on-surface-variant/40"
         >
           {{ t("stats.noPlayHistory") }}
@@ -358,48 +357,22 @@ const codecLabel = (codec: string): string => {
           {{ t("stats.audioQuality") }}
         </h3>
         <span class="text-xs text-on-surface-variant/45 tabular-nums">
-          {{ t("stats.formatCount", { count: chartCodecs.length }) }}
+          {{ loading ? "--" : t("stats.formatCount", { count: chartCodecs.length }) }}
         </span>
       </div>
 
       <div
-        v-if="chartCodecs.length > 0"
+        v-if="!loading && chartCodecs.length > 0"
         class="mx-auto flex min-h-0 w-full max-w-[520px] flex-1 items-center gap-4"
       >
-        <div class="relative size-32 shrink-0">
-          <svg class="size-full -rotate-90" viewBox="0 0 128 128" aria-hidden="true">
-            <circle
-              cx="64"
-              cy="64"
-              r="46"
-              fill="none"
-              stroke="rgb(var(--s-primary) / 0.08)"
-              stroke-width="16"
-            />
-            <circle
-              v-for="codec in codecVisuals"
-              :key="codec.codec"
-              cx="64"
-              cy="64"
-              r="46"
-              fill="none"
-              stroke="rgb(var(--s-primary))"
-              stroke-width="16"
-              pathLength="100"
-              :stroke-dasharray="`${codec.percent} ${100 - codec.percent}`"
-              :stroke-dashoffset="-codec.offset"
-              :opacity="codec.opacity"
-            />
-          </svg>
-          <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
-            <span class="text-[10px] text-on-surface-variant/55">
-              {{ t("stats.losslessRatio") }}
-            </span>
-            <span class="mt-1 text-xl font-bold leading-none text-on-surface tabular-nums">
-              {{ losslessPercent.toFixed(1) }}%
-            </span>
-          </div>
-        </div>
+        <StatsDonutChart :segments="codecVisuals">
+          <span class="text-[10px] text-on-surface-variant/55">
+            {{ t("stats.losslessRatio") }}
+          </span>
+          <span class="mt-1 text-xl font-bold leading-none text-on-surface tabular-nums">
+            {{ losslessPercent.toFixed(1) }}%
+          </span>
+        </StatsDonutChart>
 
         <div class="grid min-w-0 flex-1 grid-cols-2 gap-x-3 gap-y-3">
           <div
@@ -418,6 +391,10 @@ const codecLabel = (codec: string): string => {
             </div>
           </div>
         </div>
+      </div>
+
+      <div v-else-if="loading" class="flex min-h-0 flex-1 items-center justify-center">
+        <SLoading class="size-6 text-primary/60" />
       </div>
 
       <div

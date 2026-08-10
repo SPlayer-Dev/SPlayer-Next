@@ -1424,6 +1424,10 @@
       "label": "歌单显示封面",
       "description": "侧边栏的歌单项以歌单封面替代默认图标"
     },
+    "showStatsInSidebar": {
+      "label": "显示播放统计入口",
+      "description": "在侧边栏显示播放统计页面入口"
+    },
     "showQualitySwitch": {
       "label": "显示快捷音质切换",
       "description": "在播放栏显示在线音质标签，可点击快速切换音质"

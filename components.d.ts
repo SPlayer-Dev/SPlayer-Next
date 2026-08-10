@@ -258,6 +258,7 @@ declare module 'vue' {
     SSwitch: typeof import('./src/components/ui/SSwitch.vue')['default']
     STabs: typeof import('./src/components/ui/STabs.vue')['default']
     STag: typeof import('./src/components/ui/STag.vue')['default']
+    StatsDonutChart: typeof import('./src/components/stats/StatsDonutChart.vue')['default']
     StatsHeatmap: typeof import('./src/components/stats/StatsHeatmap.vue')['default']
     StatsOverview: typeof import('./src/components/stats/StatsOverview.vue')['default']
     StatsTopList: typeof import('./src/components/stats/StatsTopList.vue')['default']

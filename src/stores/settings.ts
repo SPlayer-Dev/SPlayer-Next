@@ -41,6 +41,7 @@ export const useSettingsStore = defineStore(
       routeTransition: "fade",
       sidebarCollapsed: false,
       sidebarPlaylistCover: false,
+      showStatsInSidebar: true,
       showQualitySwitch: false,
       closeAction: "hide",
       rememberCloseChoice: false,

@@ -141,78 +141,92 @@ const subscribedItems = computed<SMenuItem[]>(() => {
   }));
 });
 
-const menuItems = computed<SMenuItem[]>(() => [
-  // 本地音乐分组
-  { key: "/", label: t("nav.home"), icon: markRaw(IconLucideHome) },
-  { key: "/library", label: t("nav.library"), icon: markRaw(IconLucideMusic) },
-  { key: "/artists/local", label: t("artist.label"), icon: markRaw(IconLucideUser) },
-  { key: "/albums/local", label: t("album.label"), icon: markRaw(IconLucideDisc3) },
-  { key: "/folders", label: t("folder.label"), icon: markRaw(IconLucideFolder) },
-  { key: "/stats", label: t("stats.label"), icon: markRaw(IconLucideChartPie) },
+const menuItems = computed<SMenuItem[]>(() => {
+  const items: SMenuItem[] = [
+    // 本地音乐分组
+    { key: "/", label: t("nav.home"), icon: markRaw(IconLucideHome) },
+    { key: "/library", label: t("nav.library"), icon: markRaw(IconLucideMusic) },
+    { key: "/artists/local", label: t("artist.label"), icon: markRaw(IconLucideUser) },
+    { key: "/albums/local", label: t("album.label"), icon: markRaw(IconLucideDisc3) },
+    { key: "/folders", label: t("folder.label"), icon: markRaw(IconLucideFolder) },
+  ];
+
+  if (appearance.showStatsInSidebar) {
+    items.push({ key: "/stats", label: t("stats.label"), icon: markRaw(IconLucideChartPie) });
+  }
+
   // 个人歌曲
-  { key: "divider-personal", type: "divider" },
-  {
-    key: "/liked",
-    label: t("nav.liked"),
-    icon: markRaw(IconMaterialSymbolsFavoriteOutline),
-    trailing: () =>
-      h(
-        SButton,
-        {
-          type: status.heartMode ? "primary" : "default",
-          variant: "tertiary",
-          size: 26,
-          iconSize: 16,
-          round: true,
-          onClick: toggleHeartMode,
-        },
-        { icon: () => h(IconSpHeartMode) },
-      ),
-  },
-  { key: "/favorites", label: t("nav.favorites"), icon: markRaw(IconLucideStar) },
-  { key: "/cloud", label: t("nav.cloud"), icon: markRaw(IconLucideCloud) },
-  ...(systemSettings.download.enabled
-    ? ([
-        {
-          key: "/download",
-          label: t("nav.download"),
-          icon: markRaw(IconLucideDownload),
-          ...(downloadStore.activeCount > 0
-            ? {
-                trailing: () =>
-                  h(
-                    "span",
-                    {
-                      class:
-                        "inline-flex items-center justify-center h-6 min-w-8.5 px-1.5 rounded-full bg-primary/16 text-primary text-xs font-medium tabular-nums leading-none cursor-pointer",
-                      onClick: () => router.push("/download"),
-                    },
-                    String(downloadStore.activeCount),
-                  ),
-              }
-            : {}),
-        },
-      ] satisfies SMenuItem[])
-    : []),
-  ...(systemSettings.streaming.enabled
-    ? ([
-        { key: "/streaming", label: t("nav.streaming"), icon: markRaw(IconLucideLibrary) },
-      ] satisfies SMenuItem[])
-    : []),
-  { key: "/history", label: t("nav.history"), icon: markRaw(IconLucideHistory) },
-  // 我的歌单
-  { key: "divider-playlist", type: "divider" },
-  { key: "my-playlist-group", type: "group", render: renderMyHeader },
-  ...myPlaylistItems.value,
-  // 收藏的歌单
-  ...(status.myPlaylistSource === "online" && subscribedItems.value.length > 0
-    ? ([
-        { key: "divider-subscribed", type: "divider" },
-        { key: "subscribed-group", type: "group", render: renderSubscribedHeader },
-        ...subscribedItems.value,
-      ] satisfies SMenuItem[])
-    : []),
-]);
+  items.push(
+    { key: "divider-personal", type: "divider" },
+    {
+      key: "/liked",
+      label: t("nav.liked"),
+      icon: markRaw(IconMaterialSymbolsFavoriteOutline),
+      trailing: () =>
+        h(
+          SButton,
+          {
+            type: status.heartMode ? "primary" : "default",
+            variant: "tertiary",
+            size: 26,
+            iconSize: 16,
+            round: true,
+            onClick: toggleHeartMode,
+          },
+          { icon: () => h(IconSpHeartMode) },
+        ),
+    },
+    { key: "/favorites", label: t("nav.favorites"), icon: markRaw(IconLucideStar) },
+    { key: "/cloud", label: t("nav.cloud"), icon: markRaw(IconLucideCloud) },
+  );
+
+  if (systemSettings.download.enabled) {
+    const downloadItem: SMenuItem = {
+      key: "/download",
+      label: t("nav.download"),
+      icon: markRaw(IconLucideDownload),
+    };
+    if (downloadStore.activeCount > 0) {
+      downloadItem.trailing = () =>
+        h(
+          "span",
+          {
+            class:
+              "inline-flex items-center justify-center h-6 min-w-8.5 px-1.5 rounded-full bg-primary/16 text-primary text-xs font-medium tabular-nums leading-none cursor-pointer",
+            onClick: () => router.push("/download"),
+          },
+          String(downloadStore.activeCount),
+        );
+    }
+    items.push(downloadItem);
+  }
+
+  if (systemSettings.streaming.enabled) {
+    items.push({
+      key: "/streaming",
+      label: t("nav.streaming"),
+      icon: markRaw(IconLucideLibrary),
+    });
+  }
+
+  items.push(
+    { key: "/history", label: t("nav.history"), icon: markRaw(IconLucideHistory) },
+    // 我的歌单
+    { key: "divider-playlist", type: "divider" },
+    { key: "my-playlist-group", type: "group", render: renderMyHeader },
+    ...myPlaylistItems.value,
+  );
+
+  if (status.myPlaylistSource === "online" && subscribedItems.value.length > 0) {
+    // 收藏的歌单
+    items.push(
+      { key: "divider-subscribed", type: "divider" },
+      { key: "subscribed-group", type: "group", render: renderSubscribedHeader },
+      ...subscribedItems.value,
+    );
+  }
+  return items;
+});
 
 const activeKey = computed(() => {
   // 媒体源

@@ -1436,6 +1436,10 @@
       "label": "Show Playlist Covers",
       "description": "Show playlist covers instead of default icons in the sidebar"
     },
+    "showStatsInSidebar": {
+      "label": "Show Play Stats Entry",
+      "description": "Show the play statistics page entry in the sidebar"
+    },
     "showQualitySwitch": {
       "label": "Show Quick Quality Switch",
       "description": "Show the online audio quality tag in the player bar for quick switching"

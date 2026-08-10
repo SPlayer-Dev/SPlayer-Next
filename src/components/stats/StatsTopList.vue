@@ -39,6 +39,8 @@ const props = defineProps<{
   albums: TopAlbum[];
   /** 最常听的歌手 */
   artists: TopArtist[];
+  /** 数据是否仍在加载 */
+  loading: boolean;
 }>();
 
 const { t, locale } = useI18n();
@@ -134,13 +136,17 @@ const playSong = (track: Track): void => {
               {{ section.title }}
             </h3>
             <p class="text-xs font-semibold text-on-surface-variant/45">
-              TOP {{ section.items.length }}
+              TOP {{ loading ? "--" : section.items.length }}
             </p>
           </div>
         </div>
       </template>
 
-      <div v-if="section.items.length > 0">
+      <div v-if="loading" class="flex min-h-56 items-center justify-center">
+        <SLoading class="size-6 text-primary/60" />
+      </div>
+
+      <div v-else-if="section.items.length > 0">
         <div
           class="grid w-full cursor-pointer grid-cols-[5rem_minmax(0,1fr)] items-center gap-3 rounded-2xl bg-primary/8 p-3 text-left transition-colors duration-200 hover:bg-primary/11"
           @click="section.onClick(section.items[0])"
