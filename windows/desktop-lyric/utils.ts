@@ -11,6 +11,31 @@ export interface DisplayItem {
   isNext?: boolean;
 }
 
+/** 超长文本的横向滚动范围 */
+export interface HorizontalScrollRange {
+  /** 将文本开头对齐容器左侧所需的平移量 */
+  startOffset: number;
+  /** 从文本开头滚动到末尾的距离 */
+  distance: number;
+}
+
+/**
+ * 计算超长文本在不同对齐方式下的滚动范围
+ * @param containerWidth - 可见容器宽度
+ * @param contentWidth - 完整内容宽度
+ * @param contentLeft - 内容未平移时相对容器的左偏移
+ * @returns 滚动起点与距离
+ */
+export const computeHorizontalScrollRange = (
+  containerWidth: number,
+  contentWidth: number,
+  contentLeft: number,
+): HorizontalScrollRange => {
+  const distance = contentWidth - containerWidth;
+  if (distance <= 0.5) return { startOffset: 0, distance: 0 };
+  return { startOffset: contentLeft === 0 ? 0 : -contentLeft, distance };
+};
+
 /**
  * 是否带真实逐字时间
  * @param line 歌词行

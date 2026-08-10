@@ -3,6 +3,7 @@ import type { LyricLine } from "@shared/types/lyrics";
 import type { DesktopLyricAlign } from "@shared/types/settings";
 import { getWordSweepProgress } from "@shared/utils/lyricSync";
 import { getNowPlayingCurrentMs } from "@windows/shared/composables/useNowPlayingSync";
+import { computeHorizontalScrollRange } from "../utils";
 
 const props = defineProps<{
   line: LyricLine;
@@ -21,6 +22,8 @@ const contentRef = ref<HTMLElement | null>(null);
 const wordRefs: HTMLSpanElement[] = [];
 /** 内容超出容器的像素量 */
 const overflowPx = ref(0);
+/** 将内容开头对齐容器左侧所需的平移量 */
+const scrollStartPx = ref(0);
 
 /** 开始滚动的进度点：前 30% 停在开头 */
 const SCROLL_START_AT = 0.3;
@@ -68,10 +71,10 @@ const getScrollTransform = (currentMs: number): string => {
   const duration = end - startTime;
   if (duration <= 0) return "translateX(0)";
   const progress = Math.max(0, Math.min(1, (currentMs - startTime) / duration));
-  if (progress <= SCROLL_START_AT) return "translateX(0)";
+  if (progress <= SCROLL_START_AT) return `translateX(${scrollStartPx.value.toFixed(3)}px)`;
   const ratio = (progress - SCROLL_START_AT) / (1 - SCROLL_START_AT);
-  const offset = overflow * ratio;
-  return `translateX(-${offset.toFixed(3)}px)`;
+  const offset = scrollStartPx.value - overflow * ratio;
+  return `translateX(${offset.toFixed(3)}px)`;
 };
 
 /**
@@ -83,10 +86,16 @@ const measure = (): void => {
   const inner = contentRef.value;
   if (!outer || !inner) {
     overflowPx.value = 0;
+    scrollStartPx.value = 0;
     return;
   }
-  const diff = inner.getBoundingClientRect().width - outer.getBoundingClientRect().width;
-  overflowPx.value = diff > 0.5 ? diff : 0;
+  const range = computeHorizontalScrollRange(
+    outer.getBoundingClientRect().width,
+    inner.getBoundingClientRect().width,
+    inner.offsetLeft,
+  );
+  overflowPx.value = range.distance;
+  scrollStartPx.value = range.startOffset;
 };
 
 const setWordRef = (el: Element | { $el?: Element } | null, index: number): void => {
@@ -153,14 +162,13 @@ const stopRenderLoop = (): void => {
   }
 };
 
-// 字号变化兜底
 watch(
-  () => props.fontSize,
+  () => [props.fontSize, props.fontWeight, props.align, props.backgroundMask],
   () => nextTick(measure),
 );
 
 watch(
-  () => [props.wordByWord, props.line, overflowPx.value],
+  () => [props.wordByWord, props.line, overflowPx.value, scrollStartPx.value],
   () => {
     resetRenderCache();
     if (needsRaf()) {
@@ -184,6 +192,7 @@ onMounted(() => {
     resizeObs.observe(containerRef.value);
     containerRef.value.addEventListener("transitionend", onTransitionEnd);
   }
+  if (contentRef.value) resizeObs.observe(contentRef.value);
   startRenderLoop();
 });
 
@@ -250,7 +259,7 @@ onBeforeUnmount(() => {
 }
 .dl-line-inner.has-mask {
   line-height: 1;
-  padding: 0.25em 0.4em;
+  padding: 0.25em var(--dl-mask-pad-x, 0.4em);
   border-radius: 6px;
   background-color: var(--dl-mask, transparent);
 }
