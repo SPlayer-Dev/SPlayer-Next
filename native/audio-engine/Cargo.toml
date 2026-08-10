@@ -14,8 +14,10 @@ ffmpeg_audio = { version = "0.3.1", default-features = false, features = [
   "tracing",
 ] }
 libc = "0.2"
-rodio = { version = "0.20", default-features = false }
-cpal = "0.15"
+rodio = { version = "0.22.2", default-features = false, features = [
+  "playback",
+  "tracing",
+] }
 parking_lot = "0.12"
 anyhow = "1"
 thiserror = "2"

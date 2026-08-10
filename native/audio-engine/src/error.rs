@@ -6,6 +6,7 @@ use std::io::ErrorKind;
 
 use ffmpeg_audio::error::HttpError;
 use ffmpeg_audio::AudioError;
+use rodio::cpal;
 use thiserror::Error;
 
 /// 原生层内部使用的稳定错误类别
@@ -109,8 +110,7 @@ impl AudioEngineError {
                 .is_some()
             || source.downcast_ref::<cpal::DevicesError>().is_some()
             || source.downcast_ref::<cpal::DeviceNameError>().is_some()
-            || source.downcast_ref::<rodio::StreamError>().is_some()
-            || source.downcast_ref::<rodio::PlayError>().is_some()
+            || source.downcast_ref::<rodio::DeviceSinkError>().is_some()
         {
             return Some(AudioErrorKind::Device);
         }
@@ -208,6 +208,16 @@ mod tests {
         assert!(matches!(
             AudioEngineError::classify(&transport),
             AudioEngineError::NetworkUnreachable(_)
+        ));
+    }
+
+    #[test]
+    fn rodio_device_sink_errors_are_device_errors() {
+        let error = anyhow::Error::new(rodio::DeviceSinkError::NoDevice);
+
+        assert!(matches!(
+            AudioEngineError::classify(&error),
+            AudioEngineError::Device(_)
         ));
     }
 }

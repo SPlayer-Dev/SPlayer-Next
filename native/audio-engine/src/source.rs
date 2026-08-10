@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use rodio::Source;
+use rodio::{ChannelCount, SampleRate, Source};
 
 use crate::fft::FftAnalyzer;
 use crate::shared::{PopResult, Shared};
@@ -17,8 +17,8 @@ pub struct DecoderSource {
     local_index: usize,
     /// 解码暂时跟不上时输出的短静音垫片，避免阻塞实时输出链路
     underrun_silence_remaining: usize,
-    sample_rate: u32,
-    channels: u16,
+    sample_rate: SampleRate,
+    channels: ChannelCount,
 }
 
 impl DecoderSource {
@@ -34,8 +34,8 @@ impl DecoderSource {
             local_buffer: Vec::new(),
             local_index: 0,
             underrun_silence_remaining: 0,
-            sample_rate,
-            channels,
+            sample_rate: SampleRate::new(sample_rate).expect("采样率必须大于零"),
+            channels: ChannelCount::new(channels).expect("声道数必须大于零"),
         }
     }
 }
@@ -78,8 +78,8 @@ impl Iterator for DecoderSource {
                     self.shared.recycle_player_buffer(chunk.player_samples);
                 }
                 PopResult::Pending => {
-                    let silence_samples = (u64::from(self.sample_rate)
-                        * u64::from(self.channels)
+                    let silence_samples = (u64::from(self.sample_rate.get())
+                        * u64::from(self.channels.get())
                         * u64::from(UNDERRUN_SILENCE_MS)
                         / 1000) as usize;
                     self.underrun_silence_remaining = silence_samples.saturating_sub(1);
@@ -103,15 +103,15 @@ impl Drop for DecoderSource {
 }
 
 impl Source for DecoderSource {
-    fn current_frame_len(&self) -> Option<usize> {
+    fn current_span_len(&self) -> Option<usize> {
         None
     }
 
-    fn channels(&self) -> u16 {
+    fn channels(&self) -> ChannelCount {
         self.channels
     }
 
-    fn sample_rate(&self) -> u32 {
+    fn sample_rate(&self) -> SampleRate {
         self.sample_rate
     }
 

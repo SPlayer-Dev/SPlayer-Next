@@ -3,10 +3,10 @@ use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use ffmpeg_audio::HttpCancelHandle;
 use parking_lot::Mutex;
-use rodio::Sink;
+use rodio::Player as RodioPlayer;
 use tracing::{debug, info};
 
 use crate::audio_output::AudioOutput;
@@ -51,7 +51,7 @@ fn playback_completion_event(shared: &Shared, duration: f64, position: f64) -> P
 const FADE_STEPS: u32 = 20;
 
 /// 可取消的渐变：在独立线程中逐步调整音量，cancel 为 true 时提前退出
-fn fade_volume(sink: &Sink, from: f32, to: f32, duration_ms: u64, cancel: &AtomicBool) {
+fn fade_volume(sink: &RodioPlayer, from: f32, to: f32, duration_ms: u64, cancel: &AtomicBool) {
     if duration_ms == 0 {
         sink.set_volume(to);
         return;
@@ -81,10 +81,10 @@ pub enum PlayerState {
 /// 内部播放器，管理音频输出、解码和状态
 pub struct InnerPlayer {
     /// 跨线程安全的音频输出包装：内部专用线程独占 cpal::Stream，
-    /// 此处只持有 Send 的 OutputStreamHandle，保证 InnerPlayer 整体是 Send 的
+    /// 此处只持有 Send 的 Mixer，保证 InnerPlayer 整体是 Send 的
     output: Option<AudioOutput>,
     /// 使用 Arc 包装，允许 fade 线程在 Mutex 外操作音量
-    sink: Option<Arc<Sink>>,
+    sink: Option<Arc<RodioPlayer>>,
     shared: Option<Arc<Shared>>,
     /// 解码线程句柄，join 后可回收 DecoderData 复用于 seek
     decoder_thread: Option<JoinHandle<decoder::DecoderData>>,
@@ -649,7 +649,7 @@ impl InnerPlayer {
 
         let sink = {
             let output = self.ensure_output()?;
-            Arc::new(Sink::try_new(output.handle()).context("Failed to create audio sink")?)
+            Arc::new(RodioPlayer::connect_new(output.mixer()))
         };
 
         let sample_rate = shared.sample_rate();
@@ -727,7 +727,7 @@ impl InnerPlayer {
 
         let sink = {
             let output = self.ensure_output()?;
-            Arc::new(Sink::try_new(output.handle()).context("Failed to create audio sink")?)
+            Arc::new(RodioPlayer::connect_new(output.mixer()))
         };
 
         let decoder_source = DecoderSource::new(
