@@ -115,13 +115,13 @@ export const startDeviceMonitoring = (player: PlayerInstance): void => {
     playerLog.warn("读取默认音频设备失败:", error);
   }
 
-  if (process.platform === "win32") {
+  if (player.supportsDeviceWatcher()) {
     try {
       player.onDeviceChange(scheduleDeviceChange);
-      playerLog.info("已启用 Windows 音频设备事件监听");
+      playerLog.info("已启用原生音频设备事件监听");
       return;
     } catch (error) {
-      playerLog.warn("Windows 音频设备监听启动失败，回退到轮询:", error);
+      playerLog.warn("原生音频设备监听启动失败，回退到轮询:", error);
     }
   }
 
@@ -138,11 +138,11 @@ export const stopDeviceMonitoring = (): void => {
     clearTimeout(debounceTimer);
     debounceTimer = null;
   }
-  if (activePlayer !== null && process.platform === "win32") {
+  if (activePlayer !== null) {
     try {
       activePlayer.stopDeviceWatcher();
     } catch (error) {
-      playerLog.warn("停止 Windows 音频设备监听失败:", error);
+      playerLog.warn("停止原生音频设备监听失败:", error);
     }
   }
 

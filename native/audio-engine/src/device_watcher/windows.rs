@@ -16,7 +16,7 @@ use windows::{
     },
 };
 
-pub type DeviceChangedCallback = Box<dyn Fn() + Send + 'static>;
+use super::{DeviceChangedCallback, PlatformBackend};
 
 enum WatchCommand {
     Changed,
@@ -95,13 +95,15 @@ impl Drop for ComApartmentGuard {
     }
 }
 
-pub struct WindowsDeviceWatcher {
+pub(super) struct Backend {
     commands: SyncSender<WatchCommand>,
     thread: Option<JoinHandle<()>>,
 }
 
-impl WindowsDeviceWatcher {
-    pub fn new(callback: DeviceChangedCallback) -> Result<Self> {
+impl PlatformBackend for Backend {
+    const SUPPORTED: bool = true;
+
+    fn new(callback: DeviceChangedCallback) -> Result<Self> {
         let (command_tx, command_rx) = mpsc::sync_channel(1);
         let notification_tx = command_tx.clone();
         let (ready_tx, ready_rx) = mpsc::sync_channel(1);
@@ -166,7 +168,7 @@ impl WindowsDeviceWatcher {
         }
     }
 
-    pub fn stop(&mut self) {
+    fn stop(&mut self) {
         if self.thread.is_none() {
             return;
         }
@@ -174,12 +176,6 @@ impl WindowsDeviceWatcher {
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }
-    }
-}
-
-impl Drop for WindowsDeviceWatcher {
-    fn drop(&mut self) {
-        self.stop();
     }
 }
 
@@ -243,12 +239,5 @@ mod tests {
                 .unwrap();
         }
         assert!(matches!(receiver.try_recv(), Ok(WatchCommand::Changed)));
-    }
-
-    #[test]
-    fn watcher_can_be_stopped_more_than_once() {
-        let mut watcher = WindowsDeviceWatcher::new(Box::new(|| {})).unwrap();
-        watcher.stop();
-        watcher.stop();
     }
 }
