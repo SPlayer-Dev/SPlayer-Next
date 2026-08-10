@@ -10,7 +10,8 @@ use rodio::Player as RodioPlayer;
 use crate::audio_output::AudioOutput;
 use crate::decoder;
 use crate::equalizer::Equalizer;
-use crate::shared::{AudioMetadata, Shared};
+use crate::metadata::AudioMetadata;
+use crate::shared::Shared;
 use crate::source::DecoderSource;
 use crate::tempo::StretchProcessor;
 

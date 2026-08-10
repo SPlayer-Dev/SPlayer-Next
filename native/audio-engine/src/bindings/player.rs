@@ -443,7 +443,7 @@ impl AudioPlayer {
     }
 
     /// 内部：将 AudioMetadata 转为 JS 结构
-    fn meta_to_js(meta: crate::shared::AudioMetadata) -> JsMusicMetadata {
+    fn meta_to_js(meta: crate::metadata::AudioMetadata) -> JsMusicMetadata {
         JsMusicMetadata {
             title: meta.title,
             artist: meta.artist,

@@ -2,7 +2,7 @@ use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use tracing::{info, warn};
 
-use crate::{metadata, scanner, tag_editor};
+use crate::{metadata, scanner};
 
 use super::scanner::JsScannedTrack;
 use super::IntoNapiResult;
@@ -68,7 +68,7 @@ pub async fn make_image_thumbnail(data: Buffer, max_size: u32) -> Result<Buffer>
 /// 读取文件的可编辑标签（异步，阻塞 IO 在 tokio 阻塞线程执行）
 #[napi]
 pub async fn read_track_tags(path: String) -> Result<JsTrackTags> {
-    let tags = tokio::task::spawn_blocking(move || tag_editor::read_tags(&path))
+    let tags = tokio::task::spawn_blocking(move || metadata::read_tags(&path))
         .await
         .map_err(|e| Error::from_reason(format!("读取标签任务失败: {e}")))?
         .into_napi()?;
@@ -105,9 +105,9 @@ pub async fn write_track_tags(
     cover_cache_dir: Option<String>,
 ) -> Result<Vec<JsTagWriteResult>> {
     // Buffer 数据在进入阻塞线程前拷出
-    let internal: Vec<tag_editor::TagWriteRequest> = requests
+    let internal: Vec<metadata::TagWriteRequest> = requests
         .into_iter()
-        .map(|request| tag_editor::TagWriteRequest {
+        .map(|request| metadata::TagWriteRequest {
             path: request.path,
             title: request.title,
             artist: request.artist,
@@ -126,7 +126,7 @@ pub async fn write_track_tags(
         internal
             .iter()
             .map(|request| {
-                if let Err(error) = tag_editor::write_tags(request) {
+                if let Err(error) = metadata::write_tags(request) {
                     warn!(path = %request.path, "标签写入失败: {error:#}");
                     return JsTagWriteResult {
                         path: request.path.clone(),

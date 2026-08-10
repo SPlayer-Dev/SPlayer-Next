@@ -2,7 +2,6 @@ use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 
-use crate::metadata::ExternalLyric;
 use ffmpeg_audio::HttpCancelHandle;
 use parking_lot::{Condvar, Mutex};
 
@@ -318,36 +317,6 @@ impl Shared {
         let output = self.output_buffer.lock();
         self.output_eof.load(Ordering::Acquire) && output.is_empty()
     }
-}
-
-/// 音频元数据（包含封面路径和歌词）
-#[derive(Clone, Default)]
-pub struct AudioMetadata {
-    pub title: Option<String>,
-    pub artist: Option<String>,
-    pub album: Option<String>,
-    /// 注释/副标题
-    pub comment: Option<String>,
-    pub duration_secs: f64,
-    /// 播放采样率（重采样后，用于音频输出）
-    pub sample_rate: u32,
-    pub channels: u16,
-    /// 原始采样率（解码前，用于前端显示）
-    pub original_sample_rate: u32,
-    /// 位深（bits per sample）
-    pub bits_per_sample: u32,
-    /// 比特率（bps）
-    pub bit_rate: i64,
-    /// 编码格式名称（如 "flac", "mp3", "aac"）
-    pub codec: String,
-    /// 内嵌歌词
-    pub embedded_lyric: Option<String>,
-    /// 同目录所有歌词文件
-    pub external_lyrics: Vec<ExternalLyric>,
-    /// 封面缩略图缓存路径（用于前端日常显示）
-    pub cover: Option<String>,
-    /// 原始封面数据（load 时一次性提取，供 SMTC 等使用，避免重复打开文件）
-    pub cover_raw: Option<Vec<u8>>,
 }
 
 #[cfg(test)]

@@ -16,9 +16,6 @@ mod priority;
 mod scanner;
 mod shared;
 mod source;
-mod tag_editor;
-mod tag_fields;
 mod tempo;
 
 pub use bindings::*;
-pub(crate) use tag_fields::{get_lyric_priority, is_lyric_field_key, normalize_tag_key};

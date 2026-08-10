@@ -14,9 +14,9 @@ use tracing::debug;
 use crate::equalizer::Equalizer;
 use crate::error::{AudioErrorKind, AudioResultExt};
 use crate::loudness::LoudnessAnalyzer;
-use crate::metadata;
+use crate::metadata::{self, AudioMetadata};
 use crate::priority;
-use crate::shared::{AudioChunk, AudioMetadata, Shared};
+use crate::shared::{AudioChunk, Shared};
 use crate::tempo::StretchProcessor;
 
 /// 播放输出目标格式（重采样后送入 rodio）

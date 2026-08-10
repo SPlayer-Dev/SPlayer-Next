@@ -1,3 +1,5 @@
+//! 音频标签键名的归一化与歌词字段识别规则。
+
 /// 归一化键名：转小写并过滤非英文字母与数字（去除空格、下划线、连字符等标点）
 pub fn normalize_tag_key(key: &str) -> String {
     key.chars()
@@ -47,4 +49,37 @@ pub fn get_lyric_priority(norm_key: &str) -> u8 {
         return 1;
     }
     1
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalization_ignores_punctuation_and_case() {
+        assert_eq!(
+            normalize_tag_key("UNSYNCED LYRICS-ENG"),
+            "unsyncedlyricseng"
+        );
+    }
+
+    #[test]
+    fn lyric_field_variants_are_recognized_and_prioritized() {
+        for key in [
+            "lyrics",
+            "unsyncedlyrics",
+            "syncedlyrics",
+            "lyricseng",
+            "unsyncedlyricszho",
+            "uslt",
+            "sylt",
+            "lyric",
+        ] {
+            assert!(is_lyric_field_key(key));
+        }
+
+        assert_eq!(get_lyric_priority("syncedlyricseng"), 2);
+        assert_eq!(get_lyric_priority("unsyncedlyricszho"), 1);
+        assert_eq!(get_lyric_priority("comment"), 0);
+    }
 }
