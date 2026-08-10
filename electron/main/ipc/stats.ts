@@ -5,6 +5,7 @@ import {
   getStatsSummary,
   getTopTracks,
   getPlayHistoryDaily,
+  getPlayHistoryHourly,
   getTopAlbums,
   getTopArtists,
 } from "@main/database/playStats";
@@ -23,6 +24,7 @@ export const registerStatsIpc = (): void => {
   ipcMain.handle("stats:getTopTracks", (_event, limit: number) => getTopTracks(limit));
   ipcMain.handle("stats:getLibraryStats", () => getLibraryStats());
   ipcMain.handle("stats:getPlayHistoryDaily", (_event, days: number) => getPlayHistoryDaily(days));
+  ipcMain.handle("stats:getPlayHistoryHourly", () => getPlayHistoryHourly());
   ipcMain.handle("stats:getTopAlbums", (_event, limit: number) => getTopAlbums(limit));
   ipcMain.handle("stats:getTopArtists", (_event, limit: number) => getTopArtists(limit));
 };

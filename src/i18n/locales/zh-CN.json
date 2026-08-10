@@ -1997,7 +1997,17 @@
     "noDataHint": "暂无数据，去听一些歌吧",
     "unknown": "未知",
     "less": "少",
-    "more": "多"
+    "more": "多",
+    "audioQuality": "音频格式",
+    "formatCount": "{count} 种格式",
+    "losslessRatio": "无损占比",
+    "trackUnit": "首",
+    "listeningHours": "播放时段",
+    "peakListening": "最常播放",
+    "favoriteHour": "你最喜欢在 {hour}:00 听歌，共计 {count} 首",
+    "noPlayHistory": "暂无播放时段数据",
+    "listeningActivity": "聆听足迹",
+    "last90Days": "近 90 天"
   },
   "errors": {
     "dialogTitle": "出错了",

@@ -76,6 +76,14 @@ export interface DailyPlayStats {
   playCount: number;
 }
 
+/** 某小时的播放统计，hour 为本地时区 0-23 */
+export interface HourlyPlayStats {
+  /** 小时 */
+  hour: number;
+  /** 播放次数 */
+  playCount: number;
+}
+
 /** 一张高频专辑及其播放次数 */
 export interface TopAlbum {
   /** 专辑名 */
@@ -112,6 +120,8 @@ export interface StatsApi {
   getLibraryStats: () => Promise<LibraryStats>;
   /** 取最近 N 天（含今天）的每日播放统计（按日期升序） */
   getPlayHistoryDaily: (days: number) => Promise<DailyPlayStats[]>;
+  /** 取各小时的累计播放统计 */
+  getPlayHistoryHourly: () => Promise<HourlyPlayStats[]>;
   /** 取最常播放的专辑（按次数倒序） */
   getTopAlbums: (limit: number) => Promise<TopAlbum[]>;
   /** 取最常播放的歌手（按次数倒序） */

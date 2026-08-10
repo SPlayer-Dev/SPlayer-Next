@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { Component } from "vue";
 import type { Track } from "@shared/types/player";
 import type { TopAlbum, TopArtist, TopTrack } from "@shared/types/stats";
 import * as player from "@/core/player";
@@ -14,10 +15,21 @@ interface RankItem {
   cover?: string;
   /** 标题 */
   title: string;
+  /** 辅助信息 */
+  subtitle?: string;
   /** 累计播放次数 */
   plays: number;
   /** 歌曲：点击封面直接播放 */
   track?: Track;
+}
+
+interface RankSection {
+  id: "songs" | "albums" | "artists";
+  title: string;
+  icon: Component;
+  circle: boolean;
+  items: RankItem[];
+  onClick: (item: RankItem) => void;
 }
 
 const props = defineProps<{
@@ -36,6 +48,7 @@ const songItems = computed<RankItem[]>(() =>
   props.songs.map((item) => ({
     cover: item.track.cover,
     title: item.track.title,
+    subtitle: item.track.artists.map((artist) => artist.name).join(" / "),
     plays: item.playCount,
     track: item.track,
   })),
@@ -43,7 +56,12 @@ const songItems = computed<RankItem[]>(() =>
 
 /** 专辑榜 */
 const albumItems = computed<RankItem[]>(() =>
-  props.albums.map((item) => ({ cover: item.cover, title: item.name, plays: item.playCount })),
+  props.albums.map((item) => ({
+    cover: item.cover,
+    title: item.name,
+    subtitle: item.artist,
+    plays: item.playCount,
+  })),
 );
 
 /** 歌手榜 */
@@ -51,31 +69,31 @@ const artistItems = computed<RankItem[]>(() =>
   props.artists.map((item) => ({ cover: item.cover, title: item.name, plays: item.playCount })),
 );
 
-/** 三个榜单卡片配置：标题 / 封面圆角（歌手圆形）/ 点击行为 / 空态图标 */
-const sections = computed(() => [
+/** 三类榜单配置 */
+const sections = computed<RankSection[]>(() => [
   {
     id: "songs",
     title: t("stats.topSongs"),
+    icon: IconLucideMusic,
     circle: false,
     items: songItems.value,
-    onClick: (item: RankItem) => item.track && playSong(item.track),
-    emptyIcon: IconLucideMusic,
+    onClick: (item) => item.track && playSong(item.track),
   },
   {
     id: "albums",
     title: t("stats.topAlbums"),
+    icon: IconLucideDisc3,
     circle: false,
     items: albumItems.value,
-    onClick: (item: RankItem) => navigateToAlbum(item.title),
-    emptyIcon: IconLucideDisc3,
+    onClick: (item) => navigateToAlbum(item.title),
   },
   {
     id: "artists",
     title: t("stats.topArtists"),
+    icon: IconLucideUser,
     circle: true,
     items: artistItems.value,
-    onClick: (item: RankItem) => navigateToArtist(item.title),
-    emptyIcon: IconLucideUser,
+    onClick: (item) => navigateToArtist(item.title),
   },
 ]);
 
@@ -97,51 +115,116 @@ const playSong = (track: Track): void => {
 
 <template>
   <div class="grid grid-cols-1 items-start gap-5 md:grid-cols-2 xl:grid-cols-3">
-    <SCard v-for="section in sections" :key="section.id" radius="xl" flush class="overflow-hidden">
-      <h3 class="px-5 pt-5 text-lg font-semibold text-on-surface">{{ section.title }}</h3>
+    <SCard
+      v-for="section in sections"
+      :key="section.id"
+      radius="xl"
+      size="small"
+      class="overflow-hidden [&>div:first-child]:py-3 [&>div:last-child]:pb-3"
+    >
+      <template #header>
+        <div class="flex items-center gap-3">
+          <div
+            class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary"
+          >
+            <component :is="section.icon" class="size-5" />
+          </div>
+          <div class="min-w-0 flex-1">
+            <h3 class="truncate text-base font-semibold text-on-surface">
+              {{ section.title }}
+            </h3>
+            <p class="text-xs font-semibold text-on-surface-variant/45">
+              TOP {{ section.items.length }}
+            </p>
+          </div>
+        </div>
+      </template>
 
-      <div v-if="section.items.length > 0" class="flex flex-col px-5 pb-5 pt-3">
+      <div v-if="section.items.length > 0">
         <div
-          v-for="(item, index) in section.items"
-          :key="item.title"
-          class="group flex cursor-pointer items-center gap-3 rounded-xl p-2.5 transition-colors duration-200 hover:bg-on-surface/8"
-          :class="index === 0 ? 'gap-4 p-3' : ''"
-          @click="section.onClick(item)"
+          class="grid w-full cursor-pointer grid-cols-[5rem_minmax(0,1fr)] items-center gap-3 rounded-2xl bg-primary/8 p-3 text-left transition-colors duration-200 hover:bg-primary/11"
+          @click="section.onClick(section.items[0])"
         >
-          <div class="relative shrink-0">
+          <div class="shrink-0">
+            <SImg
+              :src="section.items[0].cover"
+              :alt="section.items[0].title"
+              class="size-20 ring-1 ring-inset ring-black/10 dark:ring-white/10"
+              :class="section.circle ? 'rounded-full' : 'rounded-xl'"
+            />
+          </div>
+
+          <div class="relative h-20 min-w-0">
+            <div class="flex h-full min-w-0 flex-col justify-between py-1.5">
+              <div class="min-w-0 pr-12">
+                <div class="truncate text-base font-semibold leading-tight text-on-surface">
+                  {{ section.items[0].title }}
+                </div>
+                <div
+                  v-if="section.items[0].subtitle"
+                  class="mt-1 truncate text-xs leading-none text-on-surface-variant/60"
+                >
+                  {{ section.items[0].subtitle }}
+                </div>
+              </div>
+              <div class="flex items-baseline gap-1 tabular-nums">
+                <span class="text-3xl font-bold leading-none text-on-surface">
+                  {{ playCountText(section.items[0].plays) }}
+                </span>
+                <span class="text-[11px] font-medium text-on-surface-variant/55">
+                  {{ t("stats.playsUnit") }}
+                </span>
+              </div>
+            </div>
+            <span class="absolute right-0 top-1 text-xs font-bold tracking-wider text-primary">
+              TOP 1
+            </span>
+          </div>
+        </div>
+
+        <div class="mt-2 flex flex-col">
+          <div
+            v-for="(item, index) in section.items.slice(1)"
+            :key="`${item.title}-${index}`"
+            class="group grid min-h-14 w-full cursor-pointer grid-cols-[1.25rem_2.75rem_minmax(0,1fr)_auto] items-center gap-2 rounded-xl p-1.5 text-left transition-colors duration-200 hover:bg-on-surface/6"
+            @click="section.onClick(item)"
+          >
+            <span
+              class="text-center text-xs font-bold text-on-surface-variant/45 tabular-nums transition-colors duration-200 group-hover:text-primary"
+            >
+              {{ String(index + 2).padStart(2, "0") }}
+            </span>
             <SImg
               :src="item.cover"
               :alt="item.title"
-              :class="[
-                section.circle ? 'rounded-full' : 'rounded-lg',
-                index === 0 ? 'size-20' : 'size-14',
-              ]"
+              class="size-11 ring-1 ring-inset ring-black/10 dark:ring-white/10"
+              :class="section.circle ? 'rounded-full' : 'rounded-lg'"
             />
-          </div>
-          <div class="min-w-0 flex-1">
-            <div v-if="index === 0" class="text-[10px] font-bold tracking-wider text-primary">
-              Top
+            <div class="min-w-0">
+              <div class="truncate text-sm font-medium text-on-surface">
+                {{ item.title }}
+              </div>
+              <div v-if="item.subtitle" class="mt-0.5 truncate text-xs text-on-surface-variant/50">
+                {{ item.subtitle }}
+              </div>
             </div>
-            <div class="leading-none text-on-surface tabular-nums">
-              <span class="font-bold" :class="index === 0 ? 'text-3xl' : 'text-xl'">
+            <div class="ml-2 shrink-0 text-right tabular-nums">
+              <div class="text-xl font-bold leading-none text-on-surface">
                 {{ playCountText(item.plays) }}
-              </span>
-              <span class="ml-1 text-xs font-medium text-on-surface-variant/60">
+              </div>
+              <div class="text-[10px] text-on-surface-variant/45">
                 {{ t("stats.playsUnit") }}
-              </span>
-            </div>
-            <div class="mt-1.5 truncate text-sm text-on-surface">
-              {{ item.title }}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       <div
-        v-if="section.items.length === 0"
-        class="flex flex-col items-center justify-center gap-2 py-12 text-on-surface-variant/40"
+        v-else
+        class="flex min-h-56 flex-col items-center justify-center gap-2 rounded-2xl bg-on-surface/3 text-on-surface-variant/40"
       >
-        <component :is="section.emptyIcon" class="size-7" />
+        <component :is="section.icon" class="size-7" />
         <span class="text-sm">{{ t("stats.noData") }}</span>
       </div>
     </SCard>

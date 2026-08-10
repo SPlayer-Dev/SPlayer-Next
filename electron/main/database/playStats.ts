@@ -11,6 +11,7 @@ import type {
   PlayStatsSummary,
   TopTrack,
   DailyPlayStats,
+  HourlyPlayStats,
   TopAlbum,
   TopArtist,
 } from "@shared/types/stats";
@@ -179,7 +180,7 @@ export const getTopTracks = (limit: number): TopTrack[] => {
   }
 };
 
-/** 
+/**
  * 取最近 N 天（含今天）的每日播放统计
  * @param days - 最近 N 天（含今天）
  * @returns 每日播放统计数组
@@ -204,13 +205,40 @@ export const getPlayHistoryDaily = (days: number): DailyPlayStats[] => {
   }
 };
 
-/** 
+/**
+ * 取本地时区各小时的累计播放统计
+ * @returns 0-23 点的播放次数
+ */
+export const getPlayHistoryHourly = (): HourlyPlayStats[] => {
+  try {
+    const rows = getDb()
+      .prepare(
+        `SELECT CAST(strftime('%H', started_at / 1000, 'unixepoch', 'localtime') AS INTEGER) AS hour,
+                COUNT(*) AS playCount
+         FROM play_history
+         GROUP BY hour
+         ORDER BY hour ASC`,
+      )
+      .all() as HourlyPlayStats[];
+    const countByHour = new Map(rows.map((row) => [row.hour, row.playCount]));
+    return Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      playCount: countByHour.get(hour) ?? 0,
+    }));
+  } catch (error) {
+    libraryLog.error("读取分时播放统计失败:", error);
+    return [];
+  }
+};
+
+/**
  * 取最常播放的专辑（含播放次数）
  * @param limit - 取前 N 条
  */
 export const getTopAlbums = (limit: number): TopAlbum[] => {
   try {
-    const rows = getDb()
+    const db = getDb();
+    const rows = db
       .prepare(
         `SELECT name, plays, track_json
          FROM (
@@ -229,12 +257,22 @@ export const getTopAlbums = (limit: number): TopAlbum[] => {
          LIMIT ?`,
       )
       .all(limit) as { name: string; plays: number; track_json: string }[];
+    const currentCover = db.prepare(
+      `SELECT cover
+       FROM tracks
+       WHERE json_extract(album, '$.name') = ?
+         AND cover IS NOT NULL
+         AND TRIM(cover) != ''
+       ORDER BY scanned_at DESC
+       LIMIT 1`,
+    );
     return rows.map((row) => {
       const track = JSON.parse(row.track_json) as Track;
+      const libraryTrack = currentCover.get(row.name) as { cover: string } | undefined;
       return {
         name: row.name,
         artist: track.artists.map((artist) => artist.name).join(" / "),
-        cover: track.album?.cover ?? track.cover,
+        cover: libraryTrack?.cover || track.album?.cover || track.cover,
         playCount: row.plays,
       };
     });
@@ -244,7 +282,7 @@ export const getTopAlbums = (limit: number): TopAlbum[] => {
   }
 };
 
-/** 
+/**
  * 取最常播放的歌手（含播放次数）
  * @param limit - 取前 N 条
  */

@@ -656,6 +656,8 @@ const api = {
     getLibraryStats: () => ipcRenderer.invoke("stats:getLibraryStats"),
     // 取最近 N 天的每日播放统计
     getPlayHistoryDaily: (days: number) => ipcRenderer.invoke("stats:getPlayHistoryDaily", days),
+    // 取各小时的累计播放统计
+    getPlayHistoryHourly: () => ipcRenderer.invoke("stats:getPlayHistoryHourly"),
     // 取最常播放的专辑
     getTopAlbums: (limit: number) => ipcRenderer.invoke("stats:getTopAlbums", limit),
     // 取最常播放的歌手

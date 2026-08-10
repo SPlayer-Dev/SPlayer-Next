@@ -2009,7 +2009,17 @@
     "noDataHint": "No data yet, go listen to some songs",
     "unknown": "Unknown",
     "less": "Less",
-    "more": "More"
+    "more": "More",
+    "audioQuality": "Audio Formats",
+    "formatCount": "{count} formats",
+    "losslessRatio": "Lossless",
+    "trackUnit": "tracks",
+    "listeningHours": "Listening Hours",
+    "peakListening": "Most played",
+    "favoriteHour": "You listen most often at {hour}:00, with {count} tracks in total",
+    "noPlayHistory": "No listening-hour data yet",
+    "listeningActivity": "Listening Activity",
+    "last90Days": "Last 90 days"
   },
   "errors": {
     "dialogTitle": "Something went wrong",

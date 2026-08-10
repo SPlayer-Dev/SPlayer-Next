@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import type { DailyPlayStats, LibraryStats } from "@shared/types/stats";
-import IconLucideHeadphones from "~icons/lucide/headphones";
+import type { DailyPlayStats, HourlyPlayStats, LibraryStats } from "@shared/types/stats";
+import { isLosslessCodec } from "@/utils/quality";
 import IconLucideMusic from "~icons/lucide/music";
 
 const props = defineProps<{
   /** 每日播放统计（近 90 天） */
   daily: DailyPlayStats[];
+  /** 各小时累计播放统计 */
+  hourly: HourlyPlayStats[];
   /** 曲库统计概览（取格式分布） */
   stats: LibraryStats | null;
 }>();
@@ -21,6 +23,19 @@ interface HeatCell {
   date: Date;
 }
 
+interface ChartPoint {
+  x: number;
+  y: number;
+}
+
+interface CodecVisual {
+  codec: string;
+  count: number;
+  percent: number;
+  offset: number;
+  opacity: number;
+}
+
 /**
  * 日期格式化为 YYYY-MM-DD
  * @param value - 月或日数字
@@ -30,10 +45,7 @@ const pad2 = (value: number): string => String(value).padStart(2, "0");
 const dayKey = (d: Date): string =>
   `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 
-/**
- * 按周排列的近 N 天网格，首周不足 7 天用 null 占位
- * @returns 外层周列，内层 7 行（周日至周六）
- */
+/** 按周排列的近 90 天网格 */
 const heatWeeks = computed<(HeatCell | null)[][]>(() => {
   const map = new Map(props.daily.map((item) => [item.day, item.playCount]));
   const today = new Date();
@@ -88,7 +100,7 @@ const weekMonthLabels = computed<(string | null)[]>(() => {
   });
 });
 
-/** 左侧星期标签（周一/周三/周五显示） */
+/** 左侧星期标签 */
 const rowLabels = computed<string[]>(() => {
   const sunday = new Date(2024, 0, 7); // 2024-01-07 是周日
   const fmt = new Intl.DateTimeFormat(locale.value, { weekday: "short" });
@@ -116,57 +128,124 @@ const dayTooltip = (cell: HeatCell | null): string =>
 const cellPlayCount = (week: (HeatCell | null)[], dow: number): number =>
   week[dow - 1]?.playCount ?? 0;
 
-const codecs = computed(() => props.stats?.codecs ?? []);
-const maxCodecCount = computed(() => Math.max(0, ...codecs.value.map((item) => item.count)));
-const totalCodecCount = computed(() => codecs.value.reduce((sum, item) => sum + item.count, 0));
+const hourlyMax = computed(() => Math.max(0, ...props.hourly.map((item) => item.playCount)));
+const hourlyTotal = computed(() => props.hourly.reduce((sum, item) => sum + item.playCount, 0));
+const peakHour = computed(() =>
+  props.hourly.reduce<HourlyPlayStats | null>(
+    (peak, item) => (!peak || item.playCount > peak.playCount ? item : peak),
+    null,
+  ),
+);
+/** 播放时段折线坐标 */
+const hourlyPoints = computed<ChartPoint[]>(() =>
+  Array.from({ length: 24 }, (_, hour) => {
+    const count = props.hourly.find((item) => item.hour === hour)?.playCount ?? 0;
+    const ratio = hourlyMax.value ? count / hourlyMax.value : 0;
+    return {
+      x: (hour / 23) * 240,
+      y: 120 - ratio * 104,
+    };
+  }),
+);
+const peakPoint = computed(() => (peakHour.value ? hourlyPoints.value[peakHour.value.hour] : null));
+const peakLabelX = computed(() => Math.min(212, Math.max(28, peakPoint.value?.x ?? 0)));
+const peakLabelY = computed(() => Math.max(20, (peakPoint.value?.y ?? 0) - 20));
 
-/**
- * 按占比映射进度条背景色
- * @param count - 格式数量
- * @returns 背景色样式
- */
-const codecBarStyle = (count: number): Record<string, string> => {
-  const ratio = maxCodecCount.value ? count / maxCodecCount.value : 0;
-  const alpha = 0.2 + ratio * 0.7;
-  return { backgroundColor: `rgb(var(--s-primary) / ${alpha})` };
-};
+/** 使用 Catmull-Rom 转贝塞尔曲线平滑连接相邻时段 */
+const hourlyLinePath = computed(() => {
+  const points = hourlyPoints.value;
+  if (points.length === 0) return "";
+  let path = `M ${points[0].x} ${points[0].y}`;
+  for (let index = 0; index < points.length - 1; index++) {
+    const p0 = points[Math.max(0, index - 1)];
+    const p1 = points[index];
+    const p2 = points[index + 1];
+    const p3 = points[Math.min(points.length - 1, index + 2)];
+    const control1Y = Math.min(120, Math.max(8, p1.y + (p2.y - p0.y) / 6));
+    const control2Y = Math.min(120, Math.max(8, p2.y - (p3.y - p1.y) / 6));
+    path += ` C ${p1.x + (p2.x - p0.x) / 6} ${control1Y}, ${p2.x - (p3.x - p1.x) / 6} ${control2Y}, ${p2.x} ${p2.y}`;
+  }
+  return path;
+});
+
+const hourlyAreaPath = computed(() => `${hourlyLinePath.value} L 240 124 L 0 124 Z`);
+
+const codecs = computed(() => (props.stats?.codecs ?? []).filter((item) => item.codec.trim()));
+const chartCodecs = computed(() => codecs.value.slice(0, 4));
+const totalCodecCount = computed(() =>
+  chartCodecs.value.reduce((sum, item) => sum + item.count, 0),
+);
+
+/** 圆环分段数据 */
+const codecVisuals = computed<CodecVisual[]>(() => {
+  let offset = 0;
+  return chartCodecs.value.map((item, index) => {
+    const percent = totalCodecCount.value ? (item.count / totalCodecCount.value) * 100 : 0;
+    const visual = {
+      ...item,
+      percent,
+      offset,
+      opacity: Math.max(0.24, 0.92 - index * 0.14),
+    };
+    offset += percent;
+    return visual;
+  });
+});
+
+const losslessCount = computed(() =>
+  chartCodecs.value.reduce((sum, item) => sum + (isLosslessCodec(item.codec) ? item.count : 0), 0),
+);
+
+const losslessPercent = computed(() =>
+  totalCodecCount.value ? (losslessCount.value / totalCodecCount.value) * 100 : 0,
+);
 
 const codecPercent = (count: number): string => {
   if (!totalCodecCount.value) return "0%";
   return `${((count / totalCodecCount.value) * 100).toFixed(1)}%`;
 };
 
-const codecLabel = (codec: string): string => (codec ? codec.toUpperCase() : t("stats.unknown"));
+const codecLabel = (codec: string): string => {
+  return codec ? codec.toUpperCase() : t("stats.unknown");
+};
 </script>
 
 <template>
-  <div class="flex flex-col gap-5 overflow-hidden xl:flex-row xl:items-stretch">
-    <SCard radius="xl" class="flex shrink-0 flex-col gap-4">
-      <div class="relative flex gap-1">
-        <!-- 星期标签 -->
-        <div class="flex flex-col">
-          <div class="h-5" />
+  <div class="grid grid-cols-[300px_minmax(0,1fr)] gap-5 xl:grid-cols-[300px_minmax(0,1fr)_400px]">
+    <!-- 近 90 天热力图 -->
+    <SCard radius="xl" class="flex h-52 min-w-0 flex-col gap-3">
+      <div class="flex items-baseline justify-between gap-3">
+        <h3 class="text-base font-semibold text-on-surface">
+          {{ t("stats.listeningActivity") }}
+        </h3>
+        <span class="text-xs text-on-surface-variant/45">
+          {{ t("stats.last90Days") }}
+        </span>
+      </div>
+
+      <div class="mx-auto flex min-h-0 w-fit flex-1 items-center gap-2">
+        <div class="grid shrink-0 grid-rows-[1.25rem_repeat(7,13px)] gap-y-0.5">
+          <div />
           <div
             v-for="(label, dow) in rowLabels"
             :key="dow"
-            class="flex h-3.5 items-center justify-end whitespace-nowrap pr-1 text-xs leading-none text-on-surface-variant/50"
+            class="flex items-center justify-end whitespace-nowrap text-xs leading-none text-on-surface-variant/50"
           >
             {{ [1, 3, 5].includes(dow) ? label : "" }}
           </div>
         </div>
-        <!-- 热力图网格 -->
+
         <div
-          class="grid gap-0.5"
+          class="grid shrink-0 gap-0.5"
           :style="{
-            gridTemplateColumns: `repeat(${heatWeeks.length}, minmax(0, 12px))`,
-            gridTemplateRows: 'auto repeat(7, 12px)',
+            gridTemplateColumns: `repeat(${heatWeeks.length}, 13px)`,
+            gridTemplateRows: '1.25rem repeat(7, 13px)',
           }"
         >
-          <!-- 月份标签 -->
           <div
             v-for="(label, weekIndex) in weekMonthLabels"
             :key="`m${weekIndex}`"
-            class="mb-1.5 whitespace-nowrap text-center text-xs leading-none text-on-surface-variant/50"
+            class="whitespace-nowrap text-center text-xs leading-none text-on-surface-variant/50"
           >
             {{ label }}
           </div>
@@ -180,23 +259,15 @@ const codecLabel = (codec: string): string => (codec ? codec.toUpperCase() : t("
               align="center"
             >
               <div
-                class="aspect-square w-full rounded-[2px]"
+                class="h-full min-h-0 w-full rounded-[3px]"
                 :class="week[dow - 1] ? 'cursor-default' : 'opacity-0'"
                 :style="cellStyle(cellPlayCount(week, dow))"
               />
             </STooltip>
           </template>
         </div>
-        <!-- 无数据提示 -->
-        <div
-          v-if="daily.length === 0"
-          class="absolute inset-0 flex items-center justify-center gap-2 text-on-surface-variant/40"
-        >
-          <IconLucideHeadphones class="size-7" />
-          <span class="text-sm">{{ t("stats.noDataHint") }}</span>
-        </div>
       </div>
-      <!-- 图例 -->
+
       <div class="flex items-center justify-center gap-2 text-xs text-on-surface-variant/50">
         <span>{{ t("stats.less") }}</span>
         <div
@@ -209,37 +280,149 @@ const codecLabel = (codec: string): string => (codec ? codec.toUpperCase() : t("
       </div>
     </SCard>
 
-    <!-- 格式分布（进度条） -->
-    <SCard radius="xl" class="flex min-w-0 flex-1 flex-col justify-center gap-4">
-      <div v-if="codecs.length > 0" class="flex flex-col gap-4">
-        <div v-for="codec in codecs" :key="codec.codec" class="flex items-center gap-3">
-          <span class="w-20 shrink-0 text-sm text-on-surface">
-            {{ codecLabel(codec.codec) }}
+    <!-- 播放时段分布 -->
+    <SCard radius="xl" class="flex h-52 min-w-0 flex-col gap-2">
+      <div class="flex items-baseline justify-between gap-3">
+        <h3 class="text-base font-semibold text-on-surface">
+          {{ t("stats.listeningHours") }}
+        </h3>
+      </div>
+
+      <div class="relative min-h-0 flex-1">
+        <svg class="absolute inset-0 size-full" viewBox="0 0 240 128" preserveAspectRatio="none">
+          <path :d="hourlyAreaPath" fill="rgb(var(--s-primary) / 0.08)" />
+          <path
+            :d="hourlyLinePath"
+            fill="none"
+            stroke="rgb(var(--s-primary))"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            vector-effect="non-scaling-stroke"
+          />
+          <circle
+            v-if="hourlyTotal > 0 && peakHour"
+            :cx="hourlyPoints[peakHour.hour].x"
+            :cy="hourlyPoints[peakHour.hour].y"
+            r="3"
+            fill="rgb(var(--s-surface-panel))"
+            stroke="rgb(var(--s-primary))"
+            stroke-width="2"
+            vector-effect="non-scaling-stroke"
+          />
+        </svg>
+        <div
+          v-if="hourlyTotal > 0 && peakHour"
+          class="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-md bg-primary px-2 py-1 text-[10px] font-semibold text-on-primary tabular-nums"
+          :style="{
+            left: `${(peakLabelX / 240) * 100}%`,
+            top: `${(peakLabelY / 128) * 100}%`,
+          }"
+        >
+          <span class="block text-[9px] font-medium leading-none text-on-primary/70">
+            {{ t("stats.peakListening") }}
           </span>
-          <div class="h-2.5 flex-1 overflow-hidden rounded-full bg-on-surface/8">
-            <div
-              class="h-full rounded-full transition-[width] duration-500"
-              :style="[
-                codecBarStyle(codec.count),
-                { width: `${(codec.count / maxCodecCount) * 100}%` },
-              ]"
-            />
-          </div>
-          <span
-            class="w-12 shrink-0 text-right text-xs text-on-surface-variant/60 tabular-nums"
-          >
-            {{ codec.count }}
-          </span>
-          <span
-            class="w-12 shrink-0 text-right text-xs text-on-surface-variant/45 tabular-nums"
-          >
-            {{ codecPercent(codec.count) }}
+          <span class="mt-1 block text-xs leading-none">
+            {{ String(peakHour.hour).padStart(2, "0") }}:00
           </span>
         </div>
+        <div
+          v-if="hourlyTotal === 0"
+          class="absolute inset-0 flex items-center justify-center text-sm text-on-surface-variant/40"
+        >
+          {{ t("stats.noPlayHistory") }}
+        </div>
       </div>
+
+      <div class="flex justify-between text-[10px] text-on-surface-variant/40 tabular-nums">
+        <span>00</span>
+        <span>06</span>
+        <span>12</span>
+        <span>18</span>
+        <span>24</span>
+      </div>
+      <p v-if="hourlyTotal > 0 && peakHour" class="text-center text-xs text-on-surface-variant/55">
+        {{
+          t("stats.favoriteHour", {
+            hour: String(peakHour.hour).padStart(2, "0"),
+            count: peakHour.playCount,
+          })
+        }}
+      </p>
+    </SCard>
+
+    <!-- 音质构成 -->
+    <SCard radius="xl" class="col-span-2 flex h-52 min-w-0 flex-col gap-3 xl:col-span-1">
+      <div class="flex items-baseline justify-between gap-3">
+        <h3 class="text-base font-semibold text-on-surface">
+          {{ t("stats.audioQuality") }}
+        </h3>
+        <span class="text-xs text-on-surface-variant/45 tabular-nums">
+          {{ t("stats.formatCount", { count: chartCodecs.length }) }}
+        </span>
+      </div>
+
+      <div
+        v-if="chartCodecs.length > 0"
+        class="mx-auto flex min-h-0 w-full max-w-[520px] flex-1 items-center gap-4"
+      >
+        <div class="relative size-32 shrink-0">
+          <svg class="size-full -rotate-90" viewBox="0 0 128 128" aria-hidden="true">
+            <circle
+              cx="64"
+              cy="64"
+              r="46"
+              fill="none"
+              stroke="rgb(var(--s-primary) / 0.08)"
+              stroke-width="16"
+            />
+            <circle
+              v-for="codec in codecVisuals"
+              :key="codec.codec"
+              cx="64"
+              cy="64"
+              r="46"
+              fill="none"
+              stroke="rgb(var(--s-primary))"
+              stroke-width="16"
+              pathLength="100"
+              :stroke-dasharray="`${codec.percent} ${100 - codec.percent}`"
+              :stroke-dashoffset="-codec.offset"
+              :opacity="codec.opacity"
+            />
+          </svg>
+          <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+            <span class="text-[10px] text-on-surface-variant/55">
+              {{ t("stats.losslessRatio") }}
+            </span>
+            <span class="mt-1 text-xl font-bold leading-none text-on-surface tabular-nums">
+              {{ losslessPercent.toFixed(1) }}%
+            </span>
+          </div>
+        </div>
+
+        <div class="grid min-w-0 flex-1 grid-cols-2 gap-x-3 gap-y-3">
+          <div
+            v-for="codec in codecVisuals"
+            :key="codec.codec"
+            class="grid min-w-0 grid-cols-[0.5rem_minmax(0,1fr)] items-center gap-2"
+          >
+            <span class="size-2 rounded-full bg-primary" :style="{ opacity: codec.opacity }" />
+            <div class="min-w-0">
+              <div class="truncate text-xs font-medium text-on-surface">
+                {{ codecLabel(codec.codec) }}
+              </div>
+              <div class="truncate text-[10px] text-on-surface-variant/50 tabular-nums">
+                {{ codec.count }} {{ t("stats.trackUnit") }} · {{ codecPercent(codec.count) }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div
         v-else
-        class="flex min-h-[150px] flex-col items-center justify-center gap-2 text-on-surface-variant/40"
+        class="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-on-surface-variant/40"
       >
         <IconLucideMusic class="size-7" />
         <span class="text-sm">{{ t("stats.noDataHint") }}</span>
