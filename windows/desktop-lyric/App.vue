@@ -105,6 +105,7 @@ const displayItems = computed<DisplayItem[]>(() => {
       index: primary,
       line: lines[primary],
       align: resolveAlign(primary, config.align),
+      active: true,
     },
   ];
   // 显示翻译行
@@ -113,8 +114,13 @@ const displayItems = computed<DisplayItem[]>(() => {
     items.push({
       key: `t-${primary}`,
       index: primary,
-      line: makePlaceholderLine(current.translatedLyric),
+      line: {
+        ...makePlaceholderLine(current.translatedLyric),
+        startTime: current.startTime,
+        endTime: current.endTime,
+      },
       align: resolveAlign(primary, config.align),
+      active: true,
       isPlaceholder: true,
       isNext: true,
     });
@@ -316,6 +322,7 @@ onBeforeUnmount(() => {
         :font-weight="config.fontWeight"
         :align="item.align"
         :word-by-word="resolveWordByWord(config, item)"
+        :active="!!item.active"
         :is-next="!!item.isNext"
         :background-mask="config.backgroundMask"
         :style="{

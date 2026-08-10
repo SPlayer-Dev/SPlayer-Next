@@ -3,7 +3,7 @@ import type { LyricLine } from "@shared/types/lyrics";
 import type { DesktopLyricAlign } from "@shared/types/settings";
 import { getWordSweepProgress } from "@shared/utils/lyricSync";
 import { getNowPlayingCurrentMs } from "@windows/shared/composables/useNowPlayingSync";
-import { measureHorizontalScrollRange } from "../utils";
+import { computeHorizontalScrollOffset, measureHorizontalScrollRange } from "../utils";
 
 const props = defineProps<{
   line: LyricLine;
@@ -11,6 +11,8 @@ const props = defineProps<{
   fontWeight: number;
   align: DesktopLyricAlign;
   wordByWord: boolean;
+  /** 是否为当前歌词或其翻译 */
+  active: boolean;
   /** 静态模式下作为“下一行”渲染 */
   isNext: boolean;
   /** 是否启用文本背景遮罩 */
@@ -24,11 +26,6 @@ const wordRefs: HTMLSpanElement[] = [];
 const overflowPx = ref(0);
 /** 将内容开头对齐容器左侧所需的平移量 */
 const scrollStartPx = ref(0);
-
-/** 开始滚动的进度点：前 30% 停在开头 */
-const SCROLL_START_AT = 0.3;
-/** 结束提前量：比 endTime 早多少滚到底 */
-const END_MARGIN_MS = 2000;
 
 /** 单词进度对应的 gradient --p 位置 */
 const getWordProgress = (
@@ -59,21 +56,21 @@ const blockStyle = computed(() => ({
 }));
 
 /**
- * 内容横向平移量：溢出才滚，0~30% 不动，30% 后线性滚到终点（endTime-2s）
+ * 内容横向平移量：成为当前行后从开头连续滚动到终点
  * 不做 Math.round，否则在 overflow 小时会出现明显的像素跳动。
  */
 const getScrollTransform = (currentMs: number): string => {
   const overflow = overflowPx.value;
   if (overflow <= 0) return "translateX(0)";
   const { startTime, endTime } = props.line;
-  if (endTime <= startTime) return "translateX(0)";
-  const end = Math.max(startTime + 1, endTime - END_MARGIN_MS);
-  const duration = end - startTime;
-  if (duration <= 0) return "translateX(0)";
-  const progress = Math.max(0, Math.min(1, (currentMs - startTime) / duration));
-  if (progress <= SCROLL_START_AT) return `translateX(${scrollStartPx.value.toFixed(3)}px)`;
-  const ratio = (progress - SCROLL_START_AT) / (1 - SCROLL_START_AT);
-  const offset = scrollStartPx.value - overflow * ratio;
+  const offset = computeHorizontalScrollOffset({
+    currentMs,
+    activatedAtMs: scrollActivatedAtMs,
+    lineStartTime: startTime,
+    lineEndTime: endTime,
+    startOffset: scrollStartPx.value,
+    distance: overflow,
+  });
   return `translateX(${offset.toFixed(3)}px)`;
 };
 
@@ -107,13 +104,31 @@ let resizeObs: ResizeObserver | null = null;
 let rafId = 0;
 let lastTransform = "";
 let lastWordProgress: string[] = [];
+let scrollActivatedAtMs = props.line.startTime;
 
 const resetRenderCache = (): void => {
   lastTransform = "";
   lastWordProgress = [];
 };
 
-const needsRaf = (): boolean => props.wordByWord || overflowPx.value > 0;
+const needsRaf = (): boolean => props.active && (props.wordByWord || overflowPx.value > 0);
+
+/** 将溢出内容恢复到文字开头 */
+const resetScrollPosition = (): void => {
+  const inner = contentRef.value;
+  if (!inner) return;
+  const transform =
+    overflowPx.value > 0 ? `translateX(${scrollStartPx.value.toFixed(3)}px)` : "translateX(0)";
+  lastTransform = transform;
+  inner.style.transform = transform;
+};
+
+/** 从成为当前行的时刻重新开始横向滚动 */
+const activateScroll = (): void => {
+  scrollActivatedAtMs = Math.max(props.line.startTime, getNowPlayingCurrentMs());
+  resetRenderCache();
+  resetScrollPosition();
+};
 
 const renderFrame = (): void => {
   if (!needsRaf()) {
@@ -164,15 +179,44 @@ watch(
 );
 
 watch(
-  () => [props.wordByWord, props.line, overflowPx.value, scrollStartPx.value],
+  () => [props.wordByWord, overflowPx.value, scrollStartPx.value],
   () => {
     resetRenderCache();
     if (needsRaf()) {
       startRenderLoop();
     } else {
       stopRenderLoop();
-      if (contentRef.value) contentRef.value.style.transform = "";
+      resetScrollPosition();
     }
+  },
+);
+
+watch(
+  () => props.active,
+  (active) => {
+    if (active) {
+      activateScroll();
+      startRenderLoop();
+    } else {
+      stopRenderLoop();
+      resetRenderCache();
+      resetScrollPosition();
+    }
+  },
+);
+
+watch(
+  () => props.line,
+  () => {
+    scrollActivatedAtMs = props.active
+      ? Math.max(props.line.startTime, getNowPlayingCurrentMs())
+      : props.line.startTime;
+    resetRenderCache();
+    nextTick(() => {
+      measure();
+      resetScrollPosition();
+      startRenderLoop();
+    });
   },
 );
 
@@ -183,6 +227,10 @@ const onTransitionEnd = (event: TransitionEvent): void => {
 
 onMounted(() => {
   measure();
+  scrollActivatedAtMs = props.active
+    ? Math.max(props.line.startTime, getNowPlayingCurrentMs())
+    : props.line.startTime;
+  resetScrollPosition();
   resizeObs = new ResizeObserver(measure);
   if (containerRef.value) {
     resizeObs.observe(containerRef.value);
