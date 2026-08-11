@@ -260,6 +260,12 @@ const playerCategory: SettingCategory = {
               defaultValue: 4,
               marks: { 1: "1", 4: "4", 8: "8", 12: "12" },
             },
+            {
+              key: "reverseSpectrum",
+              type: "switch",
+              binding: { store: "settings", path: "player.reverseSpectrum" },
+              defaultValue: false,
+            },
           ],
         },
       ],

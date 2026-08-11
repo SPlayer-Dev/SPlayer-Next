@@ -112,7 +112,7 @@ export default defineConfig({
     },
 
     editLink: {
-      pattern: "https://github.com/SPlayer-Dev/SPlayer-Next/edit/dev/docs/:path",
+      pattern: "https://github.com/SPlayer-Dev/SPlayer-Next/blob/dev/docs/:path?plain=1",
       text: "查看或编辑此页",
     },
 

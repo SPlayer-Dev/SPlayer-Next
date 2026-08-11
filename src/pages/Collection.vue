@@ -299,6 +299,7 @@ onBeforeUnmount(() => {
               clearable
               round
               class="w-40 focus-within:w-56"
+              data-search-input
             >
               <template #prefix>
                 <IconLucideSearch class="size-4 text-on-surface-variant/40 shrink-0" />
@@ -309,7 +310,6 @@ onBeforeUnmount(() => {
       </div>
     </div>
     <Transition name="fade" mode="out-in" :duration="150">
-      <!-- 歌曲列表（首批到位即渲染，剩余批次会自动追加） -->
       <div
         v-if="collection && collection.tracks.length > 0"
         :key="collection.id"

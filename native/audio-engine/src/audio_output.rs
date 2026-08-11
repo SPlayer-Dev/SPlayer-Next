@@ -1,6 +1,6 @@
 //! 跨线程安全的音频输出
 //!
-//! `cpal::Stream`（以及包装它的 `rodio::OutputStream`）是 `!Send` 的——
+//! `cpal::Stream`（以及包装它的 `rodio::MixerDeviceSink`）是 `!Send` 的——
 //! cpal 文档明确要求 Stream 的创建、持有和 drop 都在同一线程上完成
 //! （macOS CoreAudio 是真雷区，Windows WASAPI / Linux ALSA 是契约要求）。
 //!
@@ -8,35 +8,36 @@
 //! 可能在任意 worker thread 恢复，原本通过 `unsafe impl Send` 绕过类型系统的
 //! 做法在 macOS 上是真 UB，其它平台属于"现在凑合能跑"的契约违反。
 //!
-//! 本模块的做法：开一个专用 `audio-output-owner` 线程独占持有 `OutputStream`，
-//! 对外只暴露 `Send` 的 `OutputStreamHandle`（rodio 文档承诺该类型跨线程安全）。
+//! 本模块的做法：开一个专用 `audio-output-owner` 线程独占持有 `MixerDeviceSink`，
+//! 对外只暴露可跨线程克隆的 `Mixer`。
 //! Stream 在该线程上创建，在该线程上 drop，永远不会被跨线程访问。
 
 use std::sync::mpsc;
 use std::thread::{self, JoinHandle};
 
 use anyhow::{Context, Result};
-use cpal::traits::{DeviceTrait, HostTrait};
-use rodio::{OutputStream, OutputStreamHandle};
+use rodio::cpal::{self, traits::DeviceTrait, traits::HostTrait};
+use rodio::{mixer::Mixer, DeviceSinkBuilder, MixerDeviceSink};
 use tracing::{debug, info, warn};
 
+use crate::error::{AudioErrorKind, AudioResultExt};
 use crate::priority;
 
 /// 持有音频输出的跨线程句柄。`Send`，可放进 `InnerPlayer` 而不需 `unsafe impl Send`。
 ///
-/// 内部专用线程独占 `OutputStream`，drop 这个结构会通过 channel 通知线程退出，
-/// 线程退出时 drop `OutputStream`——确保 `cpal::Stream` 创建和销毁都在同一线程。
+/// 内部专用线程独占 `MixerDeviceSink`，drop 这个结构会通过 channel 通知线程退出，
+/// 线程退出时 drop `MixerDeviceSink`——确保 `cpal::Stream` 创建和销毁都在同一线程。
 ///
 /// # Examples
 ///
 /// ```ignore
 /// // 走系统默认设备
-/// let output = AudioOutput::new(None, 44_100)?;
-/// let sink = Sink::try_new(output.handle())?;
-/// // sink 可在任意线程上使用；output 持有的 cpal::Stream 始终在专用线程上
+/// let output = AudioOutput::new(None)?;
+/// let player = Player::connect_new(output.mixer());
+/// // player 可在任意线程上使用；output 持有的 cpal::Stream 始终在专用线程上
 /// ```
 pub struct AudioOutput {
-    handle: OutputStreamHandle,
+    mixer: Mixer,
     /// 实际打开的输出流采样率
     sample_rate: u32,
     /// drop 这个 sender 会让 owner 线程的 recv 返回 Err，从而退出并释放 Stream
@@ -56,12 +57,11 @@ impl AudioOutput {
     /// - 找不到指定设备
     /// - 无可用音频设备
     /// - 专用线程 spawn 失败
-    pub fn new(device_name: Option<&str>, requested_sample_rate: u32) -> Result<Self> {
-        priority::configure_process_priority();
+    pub fn new(device_name: Option<&str>) -> Result<Self> {
         let device_name = device_name.map(String::from);
 
         // 把构建结果回传给调用线程；用 sync_channel 容量 1 避免发送方阻塞
-        let (result_tx, result_rx) = mpsc::sync_channel::<Result<(OutputStreamHandle, u32)>>(1);
+        let (result_tx, result_rx) = mpsc::sync_channel::<Result<(Mixer, u32)>>(1);
         // 调用方 drop AudioOutput 时关闭，触发 owner 线程退出
         let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>();
 
@@ -70,44 +70,49 @@ impl AudioOutput {
             .spawn(move || {
                 priority::boost_current_audio_thread("audio-output-owner");
                 debug!(device = ?device_name, "audio-output-owner: starting");
-                let build_result =
-                    build_output_stream(device_name.as_deref(), requested_sample_rate);
+                let build_result = build_output_sink(device_name.as_deref());
                 match build_result {
-                    Ok((stream, handle, sample_rate)) => {
-                        if result_tx.send(Ok((handle, sample_rate))).is_err() {
-                            // 调用方已放弃接收：在本线程 drop stream 后退出
+                    Ok((mut sink, sample_rate)) => {
+                        sink.log_on_drop(false);
+                        if result_tx
+                            .send(Ok((sink.mixer().clone(), sample_rate)))
+                            .is_err()
+                        {
+                            // 调用方已放弃接收：在本线程 drop sink 后退出
                             warn!("audio-output-owner: receiver dropped before handshake");
-                            drop(stream);
+                            drop(sink);
                             return;
                         }
-                        // 持有 stream，等待 shutdown 信号或 channel 关闭
+                        // 持有 sink，等待 shutdown 信号或 channel 关闭
                         let _ = shutdown_rx.recv();
                         debug!("audio-output-owner: shutting down, dropping cpal stream");
-                        drop(stream);
+                        drop(sink);
                     }
                     Err(err) => {
-                        warn!(error = %err, "audio-output-owner: build_output_stream failed");
+                        warn!(error = %err, "audio-output-owner: build_output_sink failed");
                         let _ = result_tx.send(Err(err));
                     }
                 }
             })
-            .context("failed to spawn audio-output-owner thread")?;
+            .context("failed to spawn audio-output-owner thread")
+            .with_audio_kind(AudioErrorKind::Device)?;
 
-        let (handle, sample_rate) = result_rx
+        let (mixer, sample_rate) = result_rx
             .recv()
-            .context("audio output owner thread terminated unexpectedly")??;
+            .context("audio output owner thread terminated unexpectedly")
+            .with_audio_kind(AudioErrorKind::Device)??;
 
         Ok(Self {
-            handle,
+            mixer,
             sample_rate,
             shutdown: Some(shutdown_tx),
             thread: Some(thread),
         })
     }
 
-    /// 借出 `OutputStreamHandle`，用于创建 `Sink` 等
-    pub fn handle(&self) -> &OutputStreamHandle {
-        &self.handle
+    /// 借出输出混音器，用于连接 `Player`
+    pub fn mixer(&self) -> &Mixer {
+        &self.mixer
     }
 
     /// 输出流采样率，作为播放重采样目标
@@ -132,148 +137,62 @@ impl Drop for AudioOutput {
 }
 
 /// 构建 cpal/rodio 输出流；**仅在 `audio-output-owner` 线程内调用**，
-/// 保证 `OutputStream` 的创建、持有和 drop 都发生在同一线程上
+/// 保证 `MixerDeviceSink` 的创建、持有和 drop 都发生在同一线程上
 ///
-/// 优先按音源采样率打开流，设备不支持时才选择最近能力边界或默认配置。
-/// 返回值始终是实际打开的流采样率，供播放重采样器与 DSP 使用。
-fn build_output_stream(
-    device_name: Option<&str>,
-    requested_sample_rate: u32,
-) -> Result<(OutputStream, OutputStreamHandle, u32)> {
+/// 始终使用设备默认配置打开流，返回实际采样率供播放重采样器与 DSP 使用。
+fn build_output_sink(device_name: Option<&str>) -> Result<(MixerDeviceSink, u32)> {
     let host = cpal::default_host();
     match device_name {
         Some(name) => {
             let device = host
                 .output_devices()
                 .context("Failed to enumerate output devices")?
-                .find(|d| d.name().map(|got| got == name).unwrap_or(false))
-                .with_context(|| format!("Output device '{}' not found", name))?;
-            open_device_for_sample_rate(&device, requested_sample_rate)
+                .find(|device| persisted_device_name(device).as_deref() == Some(name))
+                .with_context(|| format!("Output device '{}' not found", name))
+                .with_audio_kind(AudioErrorKind::Device)?;
+            open_device_with_default_config(&device)
         }
-        None => open_default_stream(&host, requested_sample_rate),
-    }
-}
-
-fn open_default_stream(
-    host: &cpal::Host,
-    requested_sample_rate: u32,
-) -> Result<(OutputStream, OutputStreamHandle, u32)> {
-    let default_device = host
-        .default_output_device()
-        .context("No default output device")?;
-    if let Ok(result) = open_device_for_sample_rate(&default_device, requested_sample_rate) {
-        return Ok(result);
-    }
-
-    // 默认设备打不开：遍历其它设备，打开成功的那个用它自身的采样率
-    let devices = host
-        .output_devices()
-        .context("Failed to enumerate output devices")?;
-    for device in devices {
-        if let Ok(result) = open_device_for_sample_rate(&device, requested_sample_rate) {
-            return Ok(result);
+        None => {
+            let sink = DeviceSinkBuilder::open_default_sink()
+                .context("Failed to open default output device")
+                .with_audio_kind(AudioErrorKind::Device)?;
+            let sample_rate = sink.config().sample_rate().get();
+            info!(sample_rate, "使用系统默认音频输出配置");
+            Ok((sink, sample_rate))
         }
     }
-    anyhow::bail!("No usable output device")
 }
 
-/// 使用最接近音源采样率的设备配置创建输出流
-fn open_device_for_sample_rate(
-    device: &cpal::Device,
-    requested_sample_rate: u32,
-) -> Result<(OutputStream, OutputStreamHandle, u32)> {
-    let default_config = device
-        .default_output_config()
-        .context("Failed to get default output config")?;
-    let config = pick_config(device, default_config.clone(), requested_sample_rate);
-    let sample_rate = config.sample_rate().0;
-    info!(requested_sample_rate, sample_rate, "已选择音频输出流采样率");
-    match OutputStream::try_from_device_config(device, config) {
-        Ok((stream, handle)) => Ok((stream, handle, sample_rate)),
-        Err(error) if sample_rate != default_config.sample_rate().0 => {
-            warn!(
-                requested_sample_rate,
-                sample_rate,
-                default_sample_rate = default_config.sample_rate().0,
-                error = %error,
-                "设备拒绝协商采样率，回退到默认输出配置"
-            );
-            let fallback_rate = default_config.sample_rate().0;
-            let (stream, handle) = OutputStream::try_from_device_config(device, default_config)
-                .context("Failed to open output device with fallback config")?;
-            Ok((stream, handle, fallback_rate))
-        }
-        Err(error) => Err(error).context("Failed to open output device"),
-    }
+/// 设备名已被设置持久化为选择键，继续沿用旧 API 的值以避免升级后已有配置失效
+#[allow(deprecated)]
+fn persisted_device_name(device: &cpal::Device) -> Option<String> {
+    device.name().ok()
 }
 
-fn pick_config(
-    device: &cpal::Device,
-    default_config: cpal::SupportedStreamConfig,
-    requested_sample_rate: u32,
-) -> cpal::SupportedStreamConfig {
-    let requested_sample_rate = if requested_sample_rate == 0 {
-        default_config.sample_rate().0
-    } else {
-        requested_sample_rate
-    };
-    let Ok(ranges) = device.supported_output_configs() else {
-        return default_config;
-    };
-    let matching: Vec<_> = ranges
-        .filter(|range| {
-            range.channels() == default_config.channels()
-                && range.sample_format() == default_config.sample_format()
-        })
-        .collect();
-    let Some((index, sample_rate)) = select_sample_rate(
-        requested_sample_rate,
-        default_config.sample_rate().0,
-        &matching
-            .iter()
-            .map(|range| (range.min_sample_rate().0, range.max_sample_rate().0))
-            .collect::<Vec<_>>(),
-    ) else {
-        return default_config;
-    };
-    matching[index].with_sample_rate(cpal::SampleRate(sample_rate))
-}
-
-/// 在设备能力范围内选择最接近音源的采样率
-fn select_sample_rate(
-    requested: u32,
-    default_rate: u32,
-    ranges: &[(u32, u32)],
-) -> Option<(usize, u32)> {
-    if ranges.is_empty() {
-        return None;
-    }
-    let requested = if requested == 0 {
-        default_rate
-    } else {
-        requested
-    };
-    ranges
-        .iter()
-        .enumerate()
-        .map(|(index, &(min, max))| {
-            let rate = requested.clamp(min, max);
-            (index, rate, rate.abs_diff(requested), max - min)
-        })
-        .min_by_key(|&(_, _, distance, width)| (distance, width))
-        .map(|(index, rate, _, _)| (index, rate))
+/// 使用设备默认配置创建输出流
+fn open_device_with_default_config(device: &cpal::Device) -> Result<(MixerDeviceSink, u32)> {
+    let sink = DeviceSinkBuilder::from_device(device.clone())
+        .context("Failed to get default output config")?
+        .open_sink_or_fallback()
+        .context("Failed to open output device")
+        .with_audio_kind(AudioErrorKind::Device)?;
+    let sample_rate = sink.config().sample_rate().get();
+    info!(sample_rate, "使用设备默认音频输出配置");
+    Ok((sink, sample_rate))
 }
 
 /// 枚举所有输出设备，返回 `(name, is_default)` 列表
 /// 纯查询，不涉及 `!Send` 状态，调用方任意线程都能用
 pub fn list_output_devices() -> Vec<(String, bool)> {
     let host = cpal::default_host();
-    let default_name = host.default_output_device().and_then(|d| d.name().ok());
+    let default_name = host
+        .default_output_device()
+        .and_then(|device| persisted_device_name(&device));
     host.output_devices()
         .map(|devices| {
             devices
                 .filter_map(|device| {
-                    let name = device.name().ok()?;
+                    let name = persisted_device_name(&device)?;
                     let is_default = default_name.as_ref() == Some(&name);
                     Some((name, is_default))
                 })
@@ -286,43 +205,5 @@ pub fn list_output_devices() -> Vec<(String, bool)> {
 pub fn default_device_name() -> Option<String> {
     cpal::default_host()
         .default_output_device()
-        .and_then(|d| d.name().ok())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::select_sample_rate;
-
-    #[test]
-    fn selects_exact_source_rate_inside_device_range() {
-        let ranges = [(44_100, 192_000)];
-        for rate in [44_100, 48_000, 96_000, 192_000] {
-            assert_eq!(select_sample_rate(rate, 48_000, &ranges), Some((0, rate)));
-        }
-    }
-
-    #[test]
-    fn selects_nearest_supported_boundary() {
-        let ranges = [(44_100, 48_000), (88_200, 192_000)];
-        assert_eq!(
-            select_sample_rate(96_000, 48_000, &ranges),
-            Some((1, 96_000))
-        );
-        assert_eq!(
-            select_sample_rate(50_000, 48_000, &ranges),
-            Some((0, 48_000))
-        );
-        assert_eq!(
-            select_sample_rate(384_000, 48_000, &ranges),
-            Some((1, 192_000))
-        );
-    }
-
-    #[test]
-    fn uses_default_rate_when_source_rate_is_unknown() {
-        assert_eq!(
-            select_sample_rate(0, 48_000, &[(44_100, 192_000)]),
-            Some((0, 48_000))
-        );
-    }
+        .and_then(|device| persisted_device_name(&device))
 }

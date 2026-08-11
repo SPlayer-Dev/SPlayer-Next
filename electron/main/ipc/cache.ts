@@ -22,13 +22,7 @@ import { defaultCacheDir } from "@main/utils/paths";
 
 /** 已知的缓存类别 */
 export type CacheCategory =
-  | "covers"
-  | "artists"
-  | "backgrounds"
-  | "songs"
-  | "lyric"
-  | "lyricTTML"
-  | "lyricMatch";
+  "covers" | "artists" | "backgrounds" | "songs" | "lyric" | "lyricTTML" | "lyricMatch";
 
 /** 缓存介质 */
 export type CacheKind = "file" | "db";
@@ -100,8 +94,7 @@ const tableSize = (table: string, columns: string[]): number => {
   try {
     const expr = columns.map((c) => `COALESCE(length(${c}), 0)`).join(" + ");
     const row = getDb().prepare(`SELECT SUM(${expr}) AS total FROM ${table}`).get() as
-      | { total: number | null }
-      | undefined;
+      { total: number | null } | undefined;
     return row?.total ?? 0;
   } catch {
     return 0;
@@ -250,9 +243,8 @@ export const registerCacheIpc = (): void => {
   });
 
   /** 歌曲文件级缓存：命中查询 */
-  ipcMain.handle(
-    "cache:song:lookup",
-    (_event, cacheKey: string): Promise<string | null> => songCache.lookup(cacheKey),
+  ipcMain.handle("cache:song:lookup", (_event, cacheKey: string): Promise<string | null> =>
+    songCache.lookup(cacheKey),
   );
 
   /** 歌曲文件级缓存：排队下载 */

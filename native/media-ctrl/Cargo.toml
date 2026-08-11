@@ -7,11 +7,10 @@ edition = "2024"
 crate-type = ["cdylib"]
 
 [dependencies]
-napi = { version = "3.8", features = ["tokio_rt", "napi9"] }
-napi-derive = "3.5"
-tokio = { version = "1", features = ["full"] }
+napi = { version = "3.12.1", features = ["tokio_rt", "napi9"] }
+napi-derive = "3.6.3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }
 anyhow = "1.0"
-serde = { version = "1.0", features = ["derive"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = [
   "env-filter",
@@ -25,7 +24,7 @@ discord-rich-presence = "1.0"
 url = "2.5"
 
 [build-dependencies]
-napi-build = "2.3"
+napi-build = "2.4.1"
 
 # Windows
 [target.'cfg(target_os = "windows")'.dependencies.windows]

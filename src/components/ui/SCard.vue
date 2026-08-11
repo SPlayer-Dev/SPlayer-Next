@@ -27,7 +27,7 @@ withDefaults(defineProps<SCardProps>(), {
 const variantClass: Record<NonNullable<SCardProps["variant"]>, { bg: string; border: string }> = {
   default: { bg: "bg-surface-panel", border: "border-primary/20" },
   primary: { bg: "bg-primary/5", border: "border-primary/25" },
-  settings: { bg: "bg-on-surface/5", border: "border-primary/20" },
+  settings: { bg: "bg-surface-panel dark:bg-on-surface/5", border: "border-primary/20" },
 };
 
 const sizePadding: Record<NonNullable<SCardProps["size"]>, string> = {

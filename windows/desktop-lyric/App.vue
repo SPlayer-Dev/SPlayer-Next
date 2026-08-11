@@ -15,6 +15,7 @@ import { useNowPlayingSync } from "@windows/shared/composables/useNowPlayingSync
 import { useDragWindow } from "./composables/useDragWindow";
 import { useHoverState } from "./composables/useHoverState";
 import { formatArtists } from "@shared/utils/track";
+import { isLinux } from "@/utils/config";
 
 const config = reactive<DesktopLyricSettings>({
   fontSize: 24,
@@ -35,14 +36,15 @@ const config = reactive<DesktopLyricSettings>({
   animation: true,
   alwaysOnTop: true,
   locked: false,
-  useCSSDrag: true,
+  useCSSDrag: false,
 });
 
 const { track, lyric, playing, primaryIndex } = useNowPlayingSync({
   pickIndex: pickPrimaryIndex,
   logTag: "desktop-lyric",
 });
-const { onRootPointerDown } = useDragWindow(() => config.locked);
+const cssDragEnabled = computed(() => config.useCSSDrag && isLinux);
+const { onRootPointerDown } = useDragWindow(() => config.locked || cssDragEnabled.value);
 const { isHovered } = useHoverState();
 
 /**
@@ -103,6 +105,7 @@ const displayItems = computed<DisplayItem[]>(() => {
       index: primary,
       line: lines[primary],
       align: resolveAlign(primary, config.align),
+      active: true,
     },
   ];
   // 显示翻译行
@@ -111,8 +114,13 @@ const displayItems = computed<DisplayItem[]>(() => {
     items.push({
       key: `t-${primary}`,
       index: primary,
-      line: makePlaceholderLine(current.translatedLyric),
+      line: {
+        ...makePlaceholderLine(current.translatedLyric),
+        startTime: current.startTime,
+        endTime: current.endTime,
+      },
       align: resolveAlign(primary, config.align),
+      active: true,
       isPlaceholder: true,
       isNext: true,
     });
@@ -140,9 +148,10 @@ const rootStyle = computed(() => ({
   "--dl-unplayed": config.unplayedColor,
   "--dl-stroke": config.strokeColor,
   "--dl-mask": config.backgroundMaskColor,
+  "--dl-mask-pad-x": `${config.fontSize * 0.4}px`,
   "--dl-anim": config.animation ? "0.4s" : "0s",
   fontFamily: config.fontFamily || undefined,
-  "-webkit-app-region": !config.locked && config.useCSSDrag ? "drag" : "no-drag",
+  "-webkit-app-region": !config.locked && cssDragEnabled.value ? "drag" : "no-drag",
 }));
 
 /** 常驻信息文字对齐 */
@@ -164,13 +173,7 @@ watch(() => config.fontSize, pushWindowHeight);
 /** 顶栏按钮 */
 const onHeaderAction = (
   action:
-    | "focus-main"
-    | "prev"
-    | "next"
-    | "toggle-play"
-    | "open-settings"
-    | "toggle-locked"
-    | "close",
+    "focus-main" | "prev" | "next" | "toggle-play" | "open-settings" | "toggle-locked" | "close",
 ): void => {
   switch (action) {
     case "focus-main":
@@ -319,6 +322,7 @@ onBeforeUnmount(() => {
         :font-weight="config.fontWeight"
         :align="item.align"
         :word-by-word="resolveWordByWord(config, item)"
+        :active="!!item.active"
         :is-next="!!item.isNext"
         :background-mask="config.backgroundMask"
         :style="{
@@ -396,10 +400,11 @@ onBeforeUnmount(() => {
   vertical-align: middle;
   max-width: 100%;
   min-width: 0;
+  box-sizing: border-box;
   line-height: 1.2;
 }
 .info-box.has-mask {
-  padding: 4px 10px;
+  padding: 4px var(--dl-mask-pad-x, 10px);
   border-radius: 6px;
   background-color: var(--dl-mask, transparent);
 }

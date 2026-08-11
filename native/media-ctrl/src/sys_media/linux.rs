@@ -1,7 +1,10 @@
 use std::{
     io::Write,
     process,
-    sync::{Arc, RwLock},
+    sync::{
+        Arc, Mutex, RwLock,
+        atomic::{AtomicBool, Ordering},
+    },
     thread,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -15,7 +18,7 @@ use napi::threadsafe_function::ThreadsafeFunctionCallMode;
 use tempfile::NamedTempFile;
 use tokio::{
     runtime::Runtime,
-    sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
+    sync::mpsc::{Receiver, Sender, channel},
 };
 
 use super::{MediaThreadsafeFunction, SystemMediaControls};
@@ -29,7 +32,7 @@ enum MprisCommand {
     UpdatePlaybackStatus(PlayStateParam),
     UpdatePlaybackRate(f64),
     UpdateVolume(f64),
-    UpdateTimeline(TimelineParam),
+    FlushTimeline,
     UpdatePlayMode(PlayModeParam),
     Enable,
     Disable,
@@ -38,12 +41,44 @@ enum MprisCommand {
 }
 
 pub struct LinuxImpl {
-    sender: UnboundedSender<MprisCommand>,
+    sender: Sender<MprisCommand>,
+    timeline: Arc<TimelineMailbox>,
+}
+
+#[derive(Default)]
+struct TimelineMailbox {
+    latest: Mutex<Option<TimelineParam>>,
+    notification_pending: AtomicBool,
+}
+
+impl TimelineMailbox {
+    fn update(&self, sender: &Sender<MprisCommand>, timeline: TimelineParam) {
+        *self
+            .latest
+            .lock()
+            .unwrap_or_else(|error| error.into_inner()) = Some(timeline);
+        if self.notification_pending.swap(true, Ordering::AcqRel) {
+            return;
+        }
+        if sender.try_send(MprisCommand::FlushTimeline).is_err() {
+            self.notification_pending.store(false, Ordering::Release);
+        }
+    }
+
+    fn take(&self) -> Option<TimelineParam> {
+        self.notification_pending.store(false, Ordering::Release);
+        self.latest
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .take()
+    }
 }
 
 impl LinuxImpl {
     pub fn new() -> Self {
-        let (tx, rx) = unbounded_channel();
+        let (tx, rx) = channel(32);
+        let timeline = Arc::new(TimelineMailbox::default());
+        let loop_timeline = Arc::clone(&timeline);
 
         thread::spawn(move || {
             let rt = match Runtime::new() {
@@ -54,17 +89,20 @@ impl LinuxImpl {
                 }
             };
             rt.block_on(async move {
-                if let Err(e) = run_mpris_loop(rx).await {
+                if let Err(e) = run_mpris_loop(rx, loop_timeline).await {
                     eprintln!("[media-ctrl] MPRIS 循环异常退出: {e:?}");
                 }
             });
         });
 
-        Self { sender: tx }
+        Self {
+            sender: tx,
+            timeline,
+        }
     }
 
     fn send_cmd(&self, cmd: MprisCommand) {
-        let _ = self.sender.send(cmd);
+        let _ = self.sender.blocking_send(cmd);
     }
 }
 
@@ -209,13 +247,7 @@ async fn handle_cmd(
         MprisCommand::UpdateVolume(vol) => {
             player.set_volume(vol).await.ok();
         }
-        MprisCommand::UpdateTimeline(p) => {
-            let pos = Time::from_millis(p.current_ms as i64);
-            player.set_position(pos);
-            if p.seeked.unwrap_or(false) {
-                player.seeked(pos).await.ok();
-            }
-        }
+        MprisCommand::FlushTimeline => {}
         MprisCommand::UpdatePlayMode(p) => {
             let loop_status = match p.repeat {
                 RepeatMode::None => MprisLoopStatus::None,
@@ -238,7 +270,19 @@ async fn handle_cmd(
 }
 
 #[allow(clippy::future_not_send)]
-async fn run_mpris_loop(mut rx: UnboundedReceiver<MprisCommand>) -> Result<()> {
+async fn apply_timeline(player: &Player, timeline: TimelineParam) {
+    let position = Time::from_millis(timeline.current_ms as i64);
+    player.set_position(position);
+    if timeline.seeked.unwrap_or(false) {
+        player.seeked(position).await.ok();
+    }
+}
+
+#[allow(clippy::future_not_send)]
+async fn run_mpris_loop(
+    mut rx: Receiver<MprisCommand>,
+    timeline: Arc<TimelineMailbox>,
+) -> Result<()> {
     let handler = Arc::new(RwLock::new(None::<MediaThreadsafeFunction>));
     let mut cover_guard: Option<NamedTempFile> = None;
 
@@ -273,6 +317,9 @@ async fn run_mpris_loop(mut rx: UnboundedReceiver<MprisCommand>) -> Result<()> {
                 let Some(cmd) = cmd else { break };
                 if !handle_cmd(cmd, &player, &handler, &mut cover_guard).await {
                     break;
+                }
+                if let Some(update) = timeline.take() {
+                    apply_timeline(&player, update).await;
                 }
             }
         }
@@ -314,9 +361,65 @@ impl SystemMediaControls for LinuxImpl {
         self.send_cmd(MprisCommand::UpdateVolume(v));
     }
     fn update_timeline(&self, p: TimelineParam) {
-        self.send_cmd(MprisCommand::UpdateTimeline(p));
+        self.timeline.update(&self.sender, p);
     }
     fn update_play_mode(&self, p: PlayModeParam) {
         self.send_cmd(MprisCommand::UpdatePlayMode(p));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn timeline_mailbox_keeps_only_latest_value() {
+        let (sender, mut receiver) = channel(1);
+        let mailbox = TimelineMailbox::default();
+        mailbox.update(
+            &sender,
+            TimelineParam {
+                current_ms: 10.0,
+                total_ms: 100.0,
+                seeked: None,
+            },
+        );
+        mailbox.update(
+            &sender,
+            TimelineParam {
+                current_ms: 20.0,
+                total_ms: 100.0,
+                seeked: Some(true),
+            },
+        );
+
+        assert!(matches!(
+            receiver.try_recv(),
+            Ok(MprisCommand::FlushTimeline)
+        ));
+        let latest = mailbox.take().unwrap();
+        assert_eq!(latest.current_ms, 20.0);
+        assert_eq!(latest.seeked, Some(true));
+        assert!(mailbox.take().is_none());
+    }
+
+    #[test]
+    fn full_command_queue_still_bounds_timeline_storage() {
+        let (sender, _receiver) = channel(1);
+        sender.try_send(MprisCommand::Enable).unwrap();
+        let mailbox = TimelineMailbox::default();
+
+        for current_ms in 0..100 {
+            mailbox.update(
+                &sender,
+                TimelineParam {
+                    current_ms: f64::from(current_ms),
+                    total_ms: 100.0,
+                    seeked: None,
+                },
+            );
+        }
+
+        assert_eq!(mailbox.take().unwrap().current_ms, 99.0);
     }
 }

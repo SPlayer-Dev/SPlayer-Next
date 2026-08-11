@@ -1,87 +1,41 @@
-use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
 
-use parking_lot::Mutex;
-use rodio::Source;
+use rodio::{ChannelCount, SampleRate, Source};
 
-use crate::equalizer::Equalizer;
 use crate::fft::FftAnalyzer;
 use crate::shared::{PopResult, Shared};
-use crate::tempo::StretchProcessor;
-
-const OUTPUT_CEILING: f32 = 0.98;
-const LIMITER_RELEASE: f32 = 0.0005;
 const UNDERRUN_SILENCE_MS: u32 = 20;
 
-struct OutputLimiter {
-    gain: f32,
-}
-
-impl OutputLimiter {
-    fn new() -> Self {
-        Self { gain: 1.0 }
-    }
-
-    fn process(&mut self, samples: &mut [f32]) {
-        for sample in samples {
-            let peak = sample.abs();
-            let target_gain = if peak > OUTPUT_CEILING {
-                OUTPUT_CEILING / peak
-            } else {
-                1.0
-            };
-            if peak * self.gain >= OUTPUT_CEILING {
-                self.gain = target_gain;
-            } else {
-                self.gain += (1.0 - self.gain) * LIMITER_RELEASE;
-            }
-            *sample *= self.gain;
-            *sample = sample.clamp(-OUTPUT_CEILING, OUTPUT_CEILING);
-        }
-    }
-}
-
 /// rodio 音频源，从共享缓冲区拉取样本。
-/// 使用 condvar 阻塞等待数据，不会返回静音填充。
+/// DSP 已在后台线程完成；这里不获取 DSP 锁、不扩容，欠载时返回短静音垫片。
 pub struct DecoderSource {
     shared: Arc<Shared>,
     fft: Arc<FftAnalyzer>,
-    /// 跨曲目共享的均衡器，load/seek 时通过 Arc::clone 传入
-    equalizer: Arc<Mutex<Equalizer>>,
-    /// 跨曲目共享的变速变调处理器，load/seek 时通过 Arc::clone 传入
-    tempo: Arc<Mutex<StretchProcessor>>,
-    /// 本地缓冲，减少锁竞争
-    local_buffer: VecDeque<f32>,
-    /// stretch 输出复用缓冲（避免每帧分配）
-    tempo_scratch: Vec<f32>,
+    /// DSP 后样本缓冲，直接接管 chunk 的 Vec，不复制也不扩容
+    local_buffer: Vec<f32>,
+    local_index: usize,
     /// 解码暂时跟不上时输出的短静音垫片，避免阻塞实时输出链路
     underrun_silence_remaining: usize,
-    limiter: OutputLimiter,
-    sample_rate: u32,
-    channels: u16,
+    sample_rate: SampleRate,
+    channels: ChannelCount,
 }
 
 impl DecoderSource {
     pub fn new(
         shared: Arc<Shared>,
         fft: Arc<FftAnalyzer>,
-        equalizer: Arc<Mutex<Equalizer>>,
-        tempo: Arc<Mutex<StretchProcessor>>,
         sample_rate: u32,
         channels: u16,
     ) -> Self {
         Self {
             shared,
             fft,
-            equalizer,
-            tempo,
-            local_buffer: VecDeque::new(),
-            tempo_scratch: Vec::new(),
+            local_buffer: Vec::new(),
+            local_index: 0,
             underrun_silence_remaining: 0,
-            limiter: OutputLimiter::new(),
-            sample_rate,
-            channels,
+            sample_rate: SampleRate::new(sample_rate).expect("采样率必须大于零"),
+            channels: ChannelCount::new(channels).expect("声道数必须大于零"),
         }
     }
 }
@@ -90,9 +44,14 @@ impl Iterator for DecoderSource {
     type Item = f32;
 
     fn next(&mut self) -> Option<f32> {
-        // 快速路径：从本地缓冲返回（无原子操作）
-        if let Some(sample) = self.local_buffer.pop_front() {
+        if let Some(sample) = self.local_buffer.get(self.local_index).copied() {
+            self.local_index += 1;
             return Some(sample);
+        }
+        if !self.local_buffer.is_empty() {
+            self.shared
+                .recycle_player_buffer(std::mem::take(&mut self.local_buffer));
+            self.local_index = 0;
         }
         if self.underrun_silence_remaining > 0 {
             self.underrun_silence_remaining -= 1;
@@ -103,39 +62,24 @@ impl Iterator for DecoderSource {
         loop {
             match self.shared.try_pop() {
                 // 将 FFT 样本推送给分析器
-                PopResult::Chunk(chunk) => {
+                PopResult::Chunk(mut chunk) => {
                     if self.fft.is_enabled() {
                         self.fft.push_interleaved_samples(&chunk.fft_samples);
                     }
+                    self.shared
+                        .recycle_fft_buffer(std::mem::take(&mut chunk.fft_samples));
 
-                    // 填充本地缓冲，一次性批量计数（而非逐采样）
+                    self.shared.advance_consumed(chunk.source_sample_count);
                     if !chunk.player_samples.is_empty() {
-                        let mut samples = chunk.player_samples;
-                        // 对整 chunk 应用 EQ：每秒只锁 50~100 次，开销摊到几千个样本上
-                        self.equalizer
-                            .lock()
-                            .process_interleaved_stereo(&mut samples);
-                        // 源时间长度（按输入计数，与 speed 无关；让 consumed_position 反映源进度）
-                        let source_count = samples.len() as u64;
-                        // 变速变调（bypass 时直接 extend，零开销）
-                        self.tempo_scratch.clear();
-                        self.tempo.lock().process(&samples, &mut self.tempo_scratch);
-                        if !self.tempo_scratch.is_empty() {
-                            self.limiter.process(&mut self.tempo_scratch);
-                            self.local_buffer.extend(self.tempo_scratch.drain(..));
-                        }
-                        self.shared.advance_consumed(source_count);
-                        // stretch 在预热期可能本帧没产出，没样本就继续拉下一块
-                        let Some(s) = self.local_buffer.pop_front() else {
-                            continue;
-                        };
-                        return Some(s);
+                        self.local_buffer = chunk.player_samples;
+                        self.local_index = 1;
+                        return self.local_buffer.first().copied();
                     }
-                    // 空数据块（重采样器预热期），继续获取下一个
+                    self.shared.recycle_player_buffer(chunk.player_samples);
                 }
                 PopResult::Pending => {
-                    let silence_samples = (u64::from(self.sample_rate)
-                        * u64::from(self.channels)
+                    let silence_samples = (u64::from(self.sample_rate.get())
+                        * u64::from(self.channels.get())
                         * u64::from(UNDERRUN_SILENCE_MS)
                         / 1000) as usize;
                     self.underrun_silence_remaining = silence_samples.saturating_sub(1);
@@ -151,16 +95,23 @@ impl Iterator for DecoderSource {
     }
 }
 
+impl Drop for DecoderSource {
+    fn drop(&mut self) {
+        self.shared
+            .recycle_player_buffer(std::mem::take(&mut self.local_buffer));
+    }
+}
+
 impl Source for DecoderSource {
-    fn current_frame_len(&self) -> Option<usize> {
+    fn current_span_len(&self) -> Option<usize> {
         None
     }
 
-    fn channels(&self) -> u16 {
+    fn channels(&self) -> ChannelCount {
         self.channels
     }
 
-    fn sample_rate(&self) -> u32 {
+    fn sample_rate(&self) -> SampleRate {
         self.sample_rate
     }
 
@@ -175,72 +126,63 @@ mod tests {
     use crate::shared::AudioChunk;
 
     #[test]
-    fn limits_samples_after_equalizer_preamp() {
-        let shared = Shared::new(48000, 2);
-        shared.push(AudioChunk {
-            player_samples: vec![0.8, -0.8],
-            fft_samples: vec![],
-        });
-
-        let equalizer = Arc::new(Mutex::new(Equalizer::new(48000)));
-        {
-            let mut eq = equalizer.lock();
-            eq.set_enabled(true);
-            eq.set_preamp_db(12.0);
-        }
-
-        let mut source = DecoderSource::new(
-            shared,
-            Arc::new(FftAnalyzer::new()),
-            equalizer,
-            Arc::new(Mutex::new(StretchProcessor::new(2, 48000))),
-            48000,
-            2,
-        );
-
-        assert!(source.next().unwrap().abs() <= 0.980001);
-        assert!(source.next().unwrap().abs() <= 0.980001);
-    }
-
-    #[test]
-    fn keeps_quiet_samples_before_limited_peak() {
-        let shared = Shared::new(48000, 2);
-        shared.push(AudioChunk {
+    fn returns_preprocessed_samples_without_copying() {
+        let shared = Shared::new(48_000, 2);
+        shared.push_output(AudioChunk {
             player_samples: vec![0.1, -0.1, 2.0, -2.0],
             fft_samples: vec![],
+            source_sample_count: 4,
         });
 
-        let mut source = DecoderSource::new(
-            shared,
-            Arc::new(FftAnalyzer::new()),
-            Arc::new(Mutex::new(Equalizer::new(48000))),
-            Arc::new(Mutex::new(StretchProcessor::new(2, 48000))),
-            48000,
-            2,
-        );
+        let mut source = DecoderSource::new(shared, Arc::new(FftAnalyzer::new()), 48_000, 2);
 
         assert!((source.next().unwrap() - 0.1).abs() < 1e-6);
         assert!((source.next().unwrap() + 0.1).abs() < 1e-6);
-        assert!((source.next().unwrap() - 0.98).abs() < 1e-6);
-        assert!((source.next().unwrap() + 0.98).abs() < 1e-6);
+        assert!((source.next().unwrap() - 2.0).abs() < 1e-6);
+        assert!((source.next().unwrap() + 2.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn position_uses_source_sample_count_after_tempo_processing() {
+        let shared = Shared::new(1000, 2);
+        shared.push_output(AudioChunk {
+            player_samples: vec![0.25, -0.25],
+            fft_samples: vec![],
+            source_sample_count: 8,
+        });
+        let mut source =
+            DecoderSource::new(Arc::clone(&shared), Arc::new(FftAnalyzer::new()), 1000, 2);
+
+        assert_eq!(source.next(), Some(0.25));
+        assert!((shared.consumed_position() - 0.004).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn tempo_warmup_without_output_still_advances_source_position() {
+        let shared = Shared::new(1000, 2);
+        shared.push_output(AudioChunk {
+            player_samples: Vec::new(),
+            fft_samples: Vec::new(),
+            source_sample_count: 8,
+        });
+        let mut source =
+            DecoderSource::new(Arc::clone(&shared), Arc::new(FftAnalyzer::new()), 1000, 2);
+
+        assert_eq!(source.next(), Some(0.0));
+        assert!((shared.consumed_position() - 0.004).abs() < f64::EPSILON);
     }
 
     #[test]
     fn returns_short_silence_when_decoder_temporarily_underruns() {
         let shared = Shared::new(1000, 2);
-        let mut source = DecoderSource::new(
-            Arc::clone(&shared),
-            Arc::new(FftAnalyzer::new()),
-            Arc::new(Mutex::new(Equalizer::new(1000))),
-            Arc::new(Mutex::new(StretchProcessor::new(2, 1000))),
-            1000,
-            2,
-        );
+        let mut source =
+            DecoderSource::new(Arc::clone(&shared), Arc::new(FftAnalyzer::new()), 1000, 2);
 
         assert_eq!(source.next(), Some(0.0));
-        shared.push(AudioChunk {
+        shared.push_output(AudioChunk {
             player_samples: vec![0.25, -0.25],
             fft_samples: vec![],
+            source_sample_count: 2,
         });
         for _ in 0..39 {
             assert_eq!(source.next(), Some(0.0));

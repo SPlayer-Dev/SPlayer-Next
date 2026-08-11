@@ -161,6 +161,12 @@ const appearanceCategory: SettingCategory = {
           defaultValue: false,
         },
         {
+          key: "showStatsInSidebar",
+          type: "switch",
+          binding: { store: "settings", path: "appearance.showStatsInSidebar" },
+          defaultValue: true,
+        },
+        {
           key: "showQualitySwitch",
           type: "switch",
           binding: { store: "settings", path: "appearance.showQualitySwitch" },

@@ -140,6 +140,7 @@ const handleMoreMenu = (key: string): void => {
             clearable
             round
             class="w-40 focus-within:w-56"
+            data-search-input
           >
             <template #prefix>
               <IconLucideSearch class="size-4 text-on-surface-variant/40 shrink-0" />

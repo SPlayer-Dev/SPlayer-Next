@@ -200,6 +200,7 @@
     "favorites": "Favorites",
     "cloud": "My Cloud",
     "streaming": "Media Sources",
+    "stats": "Stats",
     "reload": "Reload",
     "devtools": "Developer Tools",
     "globalSettings": "Global Settings",
@@ -739,7 +740,8 @@
       "database": "Database Management",
       "backupReset": "Backup & Reset",
       "debug": "Debug",
-      "preset": "OCD Settings"
+      "preset": "OCD Settings",
+      "envInfo": "Environment Info"
     },
     "about": {
       "checkUpdate": "Check for Updates",
@@ -748,7 +750,9 @@
       "openLogs": "Open Logs",
       "officialSite": "Official Site",
       "showMore": "More Contributors",
-      "collapse": "Collapse"
+      "collapse": "Collapse",
+      "commit": "Commit",
+      "date": "Date"
     },
     "storeVersion": "Store",
     "language": {
@@ -855,6 +859,10 @@
       "label": "Bar Width",
       "description": "Smaller values give thinner, denser bars"
     },
+    "reverseSpectrum": {
+      "label": "Reverse Spectrum",
+      "description": "When enabled, the frequency of the bars decreases from the center toward the sides; otherwise it increases."
+    },
     "lyricSourcePreference": {
       "label": "Lyric Source Preference",
       "description": "Platform priority when matching online lyrics",
@@ -959,7 +967,8 @@
         "openPlayer": "Open player view",
         "closePlayer": "Close player view",
         "togglePlaylist": "Show / hide playlist",
-        "openSearch": "Open search"
+        "openSearch": "Open search",
+        "searchInPage": "Search in page"
       }
     },
     "engine": {
@@ -1426,6 +1435,10 @@
     "sidebarPlaylistCover": {
       "label": "Show Playlist Covers",
       "description": "Show playlist covers instead of default icons in the sidebar"
+    },
+    "showStatsInSidebar": {
+      "label": "Show Play Stats Entry",
+      "description": "Show the play statistics page entry in the sidebar"
     },
     "showQualitySwitch": {
       "label": "Show Quick Quality Switch",
@@ -1983,6 +1996,34 @@
   "folder": {
     "label": "Folders",
     "totalFolders": "{count} folders"
+  },
+  "stats": {
+    "label": "Stats",
+    "songs": "Songs",
+    "albums": "Albums",
+    "artists": "Artists",
+    "totalDuration": "Total Duration",
+    "totalSize": "Total Size",
+    "topSongs": "Most Played Songs",
+    "topAlbums": "Most Played Albums",
+    "topArtists": "Most Played Artists",
+    "plays": "{count} plays",
+    "playsUnit": "plays",
+    "noData": "No play data yet",
+    "noDataHint": "No data yet, go listen to some songs",
+    "unknown": "Unknown",
+    "less": "Less",
+    "more": "More",
+    "audioQuality": "Audio Formats",
+    "formatCount": "{count} formats",
+    "losslessRatio": "Lossless",
+    "trackUnit": "tracks",
+    "listeningHours": "Listening Hours",
+    "peakListening": "Most played",
+    "favoriteHour": "You listen most often at {hour}:00, with {count} tracks in total",
+    "noPlayHistory": "No listening-hour data yet",
+    "listeningActivity": "Listening Activity",
+    "last90Days": "Last 90 days"
   },
   "errors": {
     "dialogTitle": "Something went wrong",

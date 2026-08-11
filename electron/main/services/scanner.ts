@@ -15,7 +15,7 @@ import { broadcast } from "@main/utils/broadcast";
 import { toCacheUrl } from "@main/utils/protocol";
 import { toMs } from "@main/utils/time";
 import { parseArtists, parseAlbum } from "@main/utils/metadata";
-import { getCoverCacheDir } from "@main/utils/config";
+import { getCoverCacheDir, isWin } from "@main/utils/config";
 import { libraryLog } from "@main/utils/logger";
 import { getCueAudioPath, parseCueSheet, extractCuePath } from "./cue";
 
@@ -24,7 +24,7 @@ let scanning = false;
 /** 路径比较键，Windows 下保持大小写不敏感 */
 const pathKey = (value: string): string => {
   const resolved = path.resolve(value);
-  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+  return isWin ? resolved.toLowerCase() : resolved;
 };
 
 /**

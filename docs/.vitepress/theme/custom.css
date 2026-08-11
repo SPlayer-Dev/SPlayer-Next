@@ -15,3 +15,7 @@
   --vp-c-brand-soft: rgba(255, 147, 138, 0.16);
   --vp-c-brand-dimm: rgba(255, 147, 138, 0.1);
 }
+
+summary {
+  cursor: pointer;
+}

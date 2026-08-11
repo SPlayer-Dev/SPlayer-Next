@@ -92,6 +92,16 @@ export const buildRegistry = (): void => {
   handlers.set("view.openSearch", () => {
     useStatusStore().searchOpen = true;
   });
+  // 聚焦页面内搜索框
+  handlers.set("view.searchInPage", (): boolean => {
+    if (useStatusStore().isPlayerExpanded) return false;
+    const el = document.querySelector<HTMLInputElement>("[data-search-input] input");
+    if (!el || el.disabled) return false;
+    el.focus();
+    if (document.activeElement !== el) return false;
+    el.select();
+    return true;
+  });
 };
 
 /**

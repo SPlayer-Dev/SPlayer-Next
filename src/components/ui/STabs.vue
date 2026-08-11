@@ -19,12 +19,7 @@ export interface STabsProps {
   size?: "small" | "medium" | "large";
   /** 主轴排列方式 */
   justifyContent?:
-    | "space-between"
-    | "space-around"
-    | "space-evenly"
-    | "flex-start"
-    | "center"
-    | "flex-end";
+    "space-between" | "space-around" | "space-evenly" | "flex-start" | "center" | "flex-end";
   /** 是否启用动画 */
   animated?: boolean;
   /** 圆角胶囊 */

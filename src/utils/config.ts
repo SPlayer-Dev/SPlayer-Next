@@ -27,3 +27,7 @@ export const COPYRIGHT_HOLDER = __APP_AUTHOR__;
 export const HOMEPAGE_URL = __APP_HOMEPAGE__;
 /** 作者主页 */
 export const AUTHOR_URL = __APP_AUTHOR_URL__;
+/** Git 提交哈希 */
+export const COMMIT_HASH = __COMMIT_HASH__;
+/** Git 提交日期 */
+export const COMMIT_DATE = __COMMIT_DATE__;

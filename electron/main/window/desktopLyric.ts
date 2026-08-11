@@ -105,11 +105,15 @@ export const applyDesktopLyricAlwaysOnTop = (alwaysOnTop: boolean): void => {
   win.setAlwaysOnTop(alwaysOnTop, "screen-saver");
 };
 
-/** 锁定状态下由渲染端切换鼠标事件穿透 */
+/**
+ * 锁定状态下由渲染端切换鼠标事件穿透
+ * @param ignore - 是否请求穿透鼠标事件
+ */
 export const applyDesktopLyricMouseIgnore = (ignore: boolean): void => {
   const win = getDesktopLyricWindow();
   if (!win) return;
-  win.setIgnoreMouseEvents(ignore, { forward: true });
+  const locked = store.get("desktopLyric").locked;
+  win.setIgnoreMouseEvents(ignore && locked, { forward: true });
 };
 
 /**

@@ -5,7 +5,7 @@ const config: Configuration = {
   productName: "SPlayer-Next",
   copyright: "Copyright © imsyy 2025",
   directories: { buildResources: "public" },
-  // afterPack: "./scripts/after-pack.ts",
+  afterPack: "./scripts/after-pack.ts",
   compression: "maximum",
   files: [
     "public/**",
@@ -23,8 +23,9 @@ const config: Configuration = {
     "!{components.d.ts,auto-imports.d.ts}",
     "!{.env,.env.*,.npmrc,pnpm-lock.yaml}",
     "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}",
-    "!**/*.{d.ts,map,md}",
-    "!**/{CHANGELOG,LICENSE,license,README,readme}*",
+    "!**/*.{d.ts,ts,map,md}",
+    "!**/{CHANGELOG,README,readme}*",
+    "!**/node_modules/better-sqlite3/{deps,src}/**",
   ],
   // 保留的语言
   electronLanguages: ["zh-CN", "en-US"],

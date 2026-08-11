@@ -11,7 +11,7 @@ import * as lastfm from "@main/services/lastfm";
 import * as neteaseScrobble from "@main/services/neteaseScrobble";
 import { fetchBytes } from "@main/utils/fetchBytes";
 import { getPlayer, resetPlayer, onPlayerCreated } from "@main/services/engine";
-import { startDevicePolling, stopDevicePolling } from "@main/services/device";
+import { startDeviceMonitoring, stopDeviceMonitoring } from "@main/services/device";
 import { getThumbar } from "@main/services/thumbar";
 import {
   setTraySongName,
@@ -175,7 +175,7 @@ let loadSeq = 0;
 export const registerPlayerIpc = (): void => {
   // 注册实例创建/重建时的回调
   onPlayerCreated(registerNativeEvents);
-  onPlayerCreated(() => startDevicePolling());
+  onPlayerCreated(startDeviceMonitoring);
   // 加载音频文件
   ipcMain.handle("player:load", async (_event, source: string, options: LoadOptions = {}) => {
     const autoPlay = options.autoPlay ?? true;
@@ -672,7 +672,7 @@ export const registerPlayerIpc = (): void => {
     // 全部重试失败，销毁损坏的实例
     playerLog.error("重建音频输出全部失败，销毁播放器实例");
     resetPlayer();
-    stopDevicePolling();
+    stopDeviceMonitoring();
     const stoppedEvent = {
       type: "status",
       data: { state: "stopped", position: 0, duration: 0, volume: 1, isFinished: false },
@@ -681,6 +681,6 @@ export const registerPlayerIpc = (): void => {
     wsBroadcast(stoppedEvent);
   };
   powerMonitor.on("resume", resumeHandler);
-  // 退出前停止设备轮询
-  app.on("before-quit", stopDevicePolling);
+  // 退出前停止设备监听
+  app.on("before-quit", stopDeviceMonitoring);
 };

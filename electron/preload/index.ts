@@ -1,3 +1,4 @@
+import os from "os";
 import { contextBridge, ipcRenderer } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
 import type { ExternalApiStatus, McpStatus, TaskbarLyricSettings } from "@shared/types/settings";
@@ -129,6 +130,11 @@ const api = {
   system: {
     installType: getInstallType(),
     platform: process.platform,
+    osInfo: {
+      type: os.type(),
+      arch: os.arch(),
+      release: os.release(),
+    },
     // 打开开发者工具
     toggleDevTools: () => ipcRenderer.invoke("system:toggleDevTools"),
     // 在文件管理器中显示文件
@@ -646,6 +652,16 @@ const api = {
     getStatsSummary: () => ipcRenderer.invoke("stats:getStatsSummary"),
     // 取最常播放的曲目
     getTopTracks: (limit: number) => ipcRenderer.invoke("stats:getTopTracks", limit),
+    // 取音乐库统计概览
+    getLibraryStats: () => ipcRenderer.invoke("stats:getLibraryStats"),
+    // 取最近 N 天的每日播放统计
+    getPlayHistoryDaily: (days: number) => ipcRenderer.invoke("stats:getPlayHistoryDaily", days),
+    // 取各小时的累计播放统计
+    getPlayHistoryHourly: () => ipcRenderer.invoke("stats:getPlayHistoryHourly"),
+    // 取最常播放的专辑
+    getTopAlbums: (limit: number) => ipcRenderer.invoke("stats:getTopAlbums", limit),
+    // 取最常播放的歌手
+    getTopArtists: (limit: number) => ipcRenderer.invoke("stats:getTopArtists", limit),
   },
   hotkey: {
     getAll: () => ipcRenderer.invoke("hotkey:getAll"),

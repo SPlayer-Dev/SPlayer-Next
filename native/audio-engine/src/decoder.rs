@@ -8,12 +8,16 @@ use ffmpeg_audio::{
     sys, AudioError, AudioReader, HttpAudioSource, HttpCancelHandle, ResampleOptions, Resampler,
     SeekMode,
 };
+use parking_lot::Mutex;
 use tracing::debug;
 
+use crate::equalizer::Equalizer;
+use crate::error::{AudioErrorKind, AudioResultExt};
 use crate::loudness::LoudnessAnalyzer;
-use crate::metadata;
+use crate::metadata::{self, AudioMetadata};
 use crate::priority;
-use crate::shared::{AudioChunk, AudioMetadata, Shared};
+use crate::shared::{AudioChunk, Shared};
+use crate::tempo::StretchProcessor;
 
 /// 播放输出目标格式（重采样后送入 rodio）
 pub const TARGET_CHANNELS: u16 = 2;
@@ -26,6 +30,37 @@ pub const FFT_TARGET_SAMPLE_RATE: u32 = 48_000;
 
 /// 自定义 File IO 读取失败时，ffmpeg_audio 的 read 回调可能映射为此错误码
 const AVERROR_EIO: i32 = sys::averror(libc::EIO);
+
+const OUTPUT_CEILING: f32 = 0.98;
+const LIMITER_RELEASE: f32 = 0.0005;
+
+struct OutputLimiter {
+    gain: f32,
+}
+
+impl OutputLimiter {
+    fn new() -> Self {
+        Self { gain: 1.0 }
+    }
+
+    fn process(&mut self, samples: &mut [f32]) {
+        for sample in samples {
+            let peak = sample.abs();
+            let target_gain = if peak > OUTPUT_CEILING {
+                OUTPUT_CEILING / peak
+            } else {
+                1.0
+            };
+            if peak * self.gain >= OUTPUT_CEILING {
+                self.gain = target_gain;
+            } else {
+                self.gain += (1.0 - self.gain) * LIMITER_RELEASE;
+            }
+            *sample *= self.gain;
+            *sample = sample.clamp(-OUTPUT_CEILING, OUTPUT_CEILING);
+        }
+    }
+}
 
 /// 解码会话所需的资源（跨 seek 复用，避免重建 ffmpeg_audio 上下文）
 ///
@@ -48,11 +83,17 @@ pub struct PreparedDecoder {
     cancel_handle: Option<HttpCancelHandle>,
 }
 
-impl PreparedDecoder {
-    /// 音源声明的原始采样率，用于协商输出流配置
-    pub fn original_sample_rate(&self) -> u32 {
-        self.metadata.original_sample_rate
+/// 统一结束解码线程；panic 属于源错误，但仍需结束 source 迭代
+fn finish_decode_thread(shared: &Shared, panicked: bool) {
+    if panicked {
+        shared.mark_decode_failed();
     }
+    shared.mark_eof();
+}
+
+fn run_decode_safely(shared: &Shared, decode: impl FnOnce()) {
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(decode));
+    finish_decode_thread(shared, result.is_err());
 }
 
 impl DecoderData {
@@ -135,6 +176,8 @@ pub fn prepare_decode(
 pub fn start_prepared_decode(
     prepared: PreparedDecoder,
     shared: Arc<Shared>,
+    equalizer: Arc<Mutex<Equalizer>>,
+    tempo: Arc<Mutex<StretchProcessor>>,
 ) -> Result<(
     AudioMetadata,
     JoinHandle<DecoderData>,
@@ -169,20 +212,37 @@ pub fn start_prepared_decode(
         .spawn(move || {
             priority::boost_current_audio_thread("audio-decoder");
             let mut data = data;
-            // panic 兜底：让 mark_eof 一定被调到，避免前端永远收不到 ended 卡死
-            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let dsp_shared = Arc::clone(&shared);
+            let dsp_handle = thread::Builder::new()
+                .name("audio-dsp".to_string())
+                .spawn(move || run_dsp_safely(dsp_shared, equalizer, tempo));
+            let Ok(dsp_handle) = dsp_handle else {
+                shared.mark_decode_failed();
+                shared.mark_output_eof();
+                return data;
+            };
+            run_decode_safely(&shared, || {
                 run_decoding_loop(&mut data, &shared);
-            }));
-            shared.mark_eof();
+            });
+            if dsp_handle.join().is_err() {
+                shared.mark_decode_failed();
+                shared.mark_output_eof();
+            }
             data
         })
-        .context("启动解码线程失败")?;
+        .context("启动解码线程失败")
+        .with_audio_kind(AudioErrorKind::DecodeFailed)?;
 
     Ok((metadata, handle, cancel_handle))
 }
 
 /// 用已有的 DecoderData 继续解码（seek 后复用）
-pub fn resume_decode(data: DecoderData, shared: Arc<Shared>) -> Result<JoinHandle<DecoderData>> {
+pub fn resume_decode(
+    data: DecoderData,
+    shared: Arc<Shared>,
+    equalizer: Arc<Mutex<Equalizer>>,
+    tempo: Arc<Mutex<StretchProcessor>>,
+) -> Result<JoinHandle<DecoderData>> {
     if let Some(handle) = data.cancel_handle() {
         shared.bind_cancel_handle(handle);
     }
@@ -191,13 +251,79 @@ pub fn resume_decode(data: DecoderData, shared: Arc<Shared>) -> Result<JoinHandl
         .spawn(move || {
             priority::boost_current_audio_thread("audio-decoder");
             let mut data = data;
-            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let dsp_shared = Arc::clone(&shared);
+            let dsp_handle = thread::Builder::new()
+                .name("audio-dsp".to_string())
+                .spawn(move || run_dsp_safely(dsp_shared, equalizer, tempo));
+            let Ok(dsp_handle) = dsp_handle else {
+                shared.mark_decode_failed();
+                shared.mark_output_eof();
+                return data;
+            };
+            run_decode_safely(&shared, || {
                 run_decoding_loop(&mut data, &shared);
-            }));
-            shared.mark_eof();
+            });
+            if dsp_handle.join().is_err() {
+                shared.mark_decode_failed();
+                shared.mark_output_eof();
+            }
             data
         })
         .context("启动解码线程失败")
+        .with_audio_kind(AudioErrorKind::DecodeFailed)
+}
+
+fn process_audio_chunk(
+    mut chunk: AudioChunk,
+    equalizer: &Mutex<Equalizer>,
+    tempo: &Mutex<StretchProcessor>,
+    limiter: &mut OutputLimiter,
+    tempo_scratch: &mut Vec<f32>,
+) -> AudioChunk {
+    if chunk.player_samples.is_empty() {
+        return chunk;
+    }
+
+    equalizer
+        .lock()
+        .process_interleaved_stereo(&mut chunk.player_samples);
+    if tempo.lock().is_bypass() {
+        limiter.process(&mut chunk.player_samples);
+        return chunk;
+    }
+
+    tempo_scratch.clear();
+    tempo.lock().process(&chunk.player_samples, tempo_scratch);
+    limiter.process(tempo_scratch);
+    std::mem::swap(&mut chunk.player_samples, tempo_scratch);
+    chunk
+}
+
+fn run_dsp_loop(shared: &Shared, equalizer: &Mutex<Equalizer>, tempo: &Mutex<StretchProcessor>) {
+    let mut limiter = OutputLimiter::new();
+    let mut tempo_scratch = shared.take_player_buffer();
+    while let Some(chunk) = shared.pop_decoded() {
+        let chunk = process_audio_chunk(chunk, equalizer, tempo, &mut limiter, &mut tempo_scratch);
+        shared.push_output(chunk);
+        if shared.is_stopping() {
+            break;
+        }
+    }
+    shared.recycle_player_buffer(tempo_scratch);
+}
+
+fn run_dsp_safely(
+    shared: Arc<Shared>,
+    equalizer: Arc<Mutex<Equalizer>>,
+    tempo: Arc<Mutex<StretchProcessor>>,
+) {
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        run_dsp_loop(&shared, &equalizer, &tempo);
+    }));
+    if result.is_err() {
+        shared.mark_decode_failed();
+    }
+    shared.mark_output_eof();
 }
 
 /// 根据 source 协议打开音频：http(s) 走延迟 Range 源，其他走本地 File
@@ -241,7 +367,7 @@ fn build_resamplers(reader: &AudioReader, target_rate: u32) -> Result<(Resampler
     Ok((player_resampler, fft_resampler))
 }
 
-/// 核心解码循环：每帧解码一次，零拷贝分发到播放 + FFT 两个重采样器
+/// 核心解码循环：每帧解码一次，使用复用缓冲分发到播放与 FFT 重采样器
 fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
     // 响度归一化：有 ReplayGain 标签时用固定增益，否则用实时分析
     let has_replay_gain = (shared.normalization_gain() - 1.0).abs() > f32::EPSILON;
@@ -265,17 +391,22 @@ fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
                     shared.mark_decode_failed();
                     return;
                 }
-                let mut player_samples = data.player_resampler.output_as::<f32>().to_vec();
+                let mut player_samples = shared.take_player_buffer();
+                player_samples.extend_from_slice(data.player_resampler.output_as::<f32>());
 
                 if data.fft_resampler.process::<f32>(Some(&frame)).is_err() {
                     debug!("fft resampler 处理失败，结束解码");
+                    shared.recycle_player_buffer(player_samples);
                     shared.mark_decode_failed();
                     return;
                 }
-                let fft_samples = data.fft_resampler.output_as::<f32>().to_vec();
+                let mut fft_samples = shared.take_fft_buffer();
+                fft_samples.extend_from_slice(data.fft_resampler.output_as::<f32>());
 
                 // 重采样可能还在攒样本，本轮没出数据就跳过
                 if player_samples.is_empty() && fft_samples.is_empty() {
+                    shared.recycle_player_buffer(player_samples);
+                    shared.recycle_fft_buffer(fft_samples);
                     continue;
                 }
                 had_success = true;
@@ -294,6 +425,7 @@ fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
                 }
 
                 shared.push(AudioChunk {
+                    source_sample_count: player_samples.len() as u64,
                     player_samples,
                     fft_samples,
                 });
@@ -302,13 +434,19 @@ fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
                 // EOF flush：把两个重采样器内部残留挤出来，否则最后几十毫秒丢
                 let _ = data.player_resampler.process::<f32>(None);
                 let _ = data.fft_resampler.process::<f32>(None);
-                let player_samples = data.player_resampler.output_as::<f32>().to_vec();
-                let fft_samples = data.fft_resampler.output_as::<f32>().to_vec();
+                let mut player_samples = shared.take_player_buffer();
+                player_samples.extend_from_slice(data.player_resampler.output_as::<f32>());
+                let mut fft_samples = shared.take_fft_buffer();
+                fft_samples.extend_from_slice(data.fft_resampler.output_as::<f32>());
                 if !player_samples.is_empty() || !fft_samples.is_empty() {
                     shared.push(AudioChunk {
+                        source_sample_count: player_samples.len() as u64,
                         player_samples,
                         fft_samples,
                     });
+                } else {
+                    shared.recycle_player_buffer(player_samples);
+                    shared.recycle_fft_buffer(fft_samples);
                 }
                 return;
             }
@@ -335,5 +473,87 @@ fn run_decoding_loop(data: &mut DecoderData, shared: &Shared) {
                 return;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::shared::PopResult;
+
+    #[test]
+    fn panic_marks_decode_failed_and_finishes_source() {
+        let shared = Shared::new(48_000, TARGET_CHANNELS);
+
+        run_decode_safely(&shared, || panic!("模拟解码 panic"));
+
+        assert!(shared.is_decode_failed());
+        assert!(shared.pop_decoded().is_none());
+        shared.mark_output_eof();
+        assert!(matches!(shared.try_pop(), PopResult::Finished));
+    }
+
+    #[test]
+    fn normal_completion_does_not_mark_decode_failed() {
+        let shared = Shared::new(48_000, TARGET_CHANNELS);
+
+        run_decode_safely(&shared, || {});
+
+        assert!(!shared.is_decode_failed());
+        assert!(shared.pop_decoded().is_none());
+        shared.mark_output_eof();
+        assert!(matches!(shared.try_pop(), PopResult::Finished));
+    }
+
+    #[test]
+    fn dsp_applies_equalizer_and_limiter_before_output() {
+        let equalizer = Mutex::new(Equalizer::new(48_000));
+        equalizer.lock().set_enabled(true);
+        equalizer.lock().set_preamp_db(12.0);
+        let tempo = Mutex::new(StretchProcessor::new(2, 48_000));
+        let mut limiter = OutputLimiter::new();
+        let mut scratch = Vec::new();
+
+        let processed = process_audio_chunk(
+            AudioChunk {
+                player_samples: vec![0.8, -0.8],
+                fft_samples: Vec::new(),
+                source_sample_count: 2,
+            },
+            &equalizer,
+            &tempo,
+            &mut limiter,
+            &mut scratch,
+        );
+
+        assert!(processed
+            .player_samples
+            .iter()
+            .all(|sample| sample.abs() <= OUTPUT_CEILING + 1e-6));
+    }
+
+    #[test]
+    fn tempo_changes_output_length_but_preserves_source_count() {
+        let equalizer = Mutex::new(Equalizer::new(48_000));
+        let tempo = Mutex::new(StretchProcessor::new(2, 48_000));
+        tempo.lock().set_speed(2.0);
+        let mut limiter = OutputLimiter::new();
+        let mut scratch = Vec::new();
+        let input = vec![0.1; 4096];
+
+        let processed = process_audio_chunk(
+            AudioChunk {
+                source_sample_count: input.len() as u64,
+                player_samples: input,
+                fft_samples: Vec::new(),
+            },
+            &equalizer,
+            &tempo,
+            &mut limiter,
+            &mut scratch,
+        );
+
+        assert_eq!(processed.source_sample_count, 4096);
+        assert_eq!(processed.player_samples.len(), 2048);
     }
 }

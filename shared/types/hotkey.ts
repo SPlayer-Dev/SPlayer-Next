@@ -19,7 +19,8 @@ export type HotkeyActionId =
   | "view.openPlayer"
   | "view.closePlayer"
   | "view.togglePlaylist"
-  | "view.openSearch";
+  | "view.openSearch"
+  | "view.searchInPage";
 
 /** 单个动作的两条作用域绑定 */
 export interface HotkeyBinding {

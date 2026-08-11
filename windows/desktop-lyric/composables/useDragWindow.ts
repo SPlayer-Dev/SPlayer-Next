@@ -1,12 +1,16 @@
+/** Windows 原生缩放命中区域需要避开的边缘宽度 */
+const RESIZE_BORDER_WIDTH = 8;
+
 /**
  * 自定义拖拽窗口
  * - 用 clientX/Y 作为鼠标在窗口内的偏移，pointermove 时 targetX = screenX - offsetX
  *   不依赖任何渲染端窗口位置缓存，避开 Windows 高 DPI 下 DIP↔物理像素回环造成的尺寸漂移
  * - setPointerCapture 保证拖拽期间鼠标移出窗口（透明区 / 边界外）也能持续派发事件
  * - rAF 节流降低 IPC 频率
+ * @param isDisabled - 当前是否禁用自定义拖拽
  */
 export const useDragWindow = (
-  isLocked: () => boolean,
+  isDisabled: () => boolean,
 ): {
   onRootPointerDown: (event: PointerEvent) => void;
 } => {
@@ -57,8 +61,14 @@ export const useDragWindow = (
 
   /** 根节点指针按下事件 */
   const onRootPointerDown = (event: PointerEvent): void => {
-    if (isLocked()) return;
+    if (isDisabled()) return;
     if (event.button !== 0) return;
+    const inResizeBorder =
+      event.clientX <= RESIZE_BORDER_WIDTH ||
+      event.clientX >= window.innerWidth - RESIZE_BORDER_WIDTH ||
+      event.clientY <= RESIZE_BORDER_WIDTH ||
+      event.clientY >= window.innerHeight - RESIZE_BORDER_WIDTH;
+    if (inResizeBorder) return;
     const target = event.target as HTMLElement | null;
     if (!target || target.closest(".header-btn")) return;
     dragging = true;

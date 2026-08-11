@@ -11,6 +11,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use anyhow::{Context, Result};
 use lofty::config::WriteOptions;
@@ -116,11 +117,14 @@ fn read_lyrics_from_tag(tag: &Tag) -> Option<String> {
     tag.items()
         .filter_map(|item| {
             let key_str = format!("{:?}", item.key());
-            let norm = crate::normalize_tag_key(&key_str);
-            if crate::is_lyric_field_key(&norm) {
+            let norm = super::tag_fields::normalize_tag_key(&key_str);
+            if super::tag_fields::is_lyric_field_key(&norm) {
                 if let Some(val) = item.value().text() {
                     if !val.is_empty() {
-                        return Some((val.to_string(), crate::get_lyric_priority(&norm)));
+                        return Some((
+                            val.to_string(),
+                            super::tag_fields::get_lyric_priority(&norm),
+                        ));
                     }
                 }
             }
@@ -216,13 +220,16 @@ fn apply_to_file(path: &Path, request: &TagWriteRequest) -> Result<()> {
     Ok(())
 }
 
-/// 同目录临时文件路径：{文件名}.tagedit.tmp
+static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// 生成同目录且进程内唯一的临时文件路径
 fn temp_path(original: &Path) -> PathBuf {
     let mut name = original
         .file_name()
         .map(|n| n.to_os_string())
         .unwrap_or_default();
-    name.push(".tagedit.tmp");
+    let sequence = TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
+    name.push(format!(".{}.{}.tagedit.tmp", std::process::id(), sequence));
     original.with_file_name(name)
 }
 
@@ -280,6 +287,28 @@ mod tests {
     }
 
     #[test]
+    fn temp_paths_are_unique_for_concurrent_edits() {
+        let original = Path::new("album").join("track.flac");
+        let handles: [_; 32] = std::array::from_fn(|_| {
+            let original = original.clone();
+            std::thread::spawn(move || temp_path(&original))
+        });
+        let paths: std::collections::HashSet<_> = handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .collect();
+
+        assert_eq!(paths.len(), 32);
+        assert!(paths.iter().all(|path| path.parent() == original.parent()));
+        assert!(paths.iter().all(|path| {
+            path.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .ends_with(".tagedit.tmp")
+        }));
+    }
+
+    #[test]
     fn read_lyrics_from_custom_unsynced_lyrics_key() {
         let path = temp_wav("custom_unsynced_lyrics.wav");
         let mut tagged = open_tagged(&path).unwrap();
@@ -297,20 +326,6 @@ mod tests {
 
         let tags = read_tags(&path.to_string_lossy()).unwrap();
         assert_eq!(tags.lyrics.as_deref(), Some("[00:01.23]测试歌词内容"));
-    }
-
-    #[test]
-    fn test_is_lyric_field_key() {
-        use crate::is_lyric_field_key;
-        // 合法的各种歌词标签变体
-        assert!(is_lyric_field_key("lyrics"));
-        assert!(is_lyric_field_key("unsyncedlyrics"));
-        assert!(is_lyric_field_key("syncedlyrics"));
-        assert!(is_lyric_field_key("lyricseng")); // 带语言后缀如 ENG
-        assert!(is_lyric_field_key("unsyncedlyricszho")); // 带语言后缀如 ZHO
-        assert!(is_lyric_field_key("uslt"));
-        assert!(is_lyric_field_key("sylt"));
-        assert!(is_lyric_field_key("lyric"));
     }
 
     #[test]

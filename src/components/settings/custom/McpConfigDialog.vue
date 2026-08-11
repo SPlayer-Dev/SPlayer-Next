@@ -79,8 +79,7 @@ const handleInject = async (agent: McpAgentApp) => {
       <div class="relative rounded-lg bg-on-surface/5 overflow-hidden">
         <pre
           class="m-0 px-4 py-3.5 pr-14 overflow-x-auto font-sans text-sm leading-6 text-on-surface-variant tabular-nums"
-          >{{ clientConfig }}</pre
-        >
+          >{{ clientConfig }}</pre>
         <SButton class="absolute right-2 top-2" variant="ghost" circle @click="copy(clientConfig)">
           <template #icon><IconLucideCopy /></template>
         </SButton>

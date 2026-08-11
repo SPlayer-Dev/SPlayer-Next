@@ -6,6 +6,13 @@ export type QualityLevel = "hi-res" | "lossless" | "hq" | "sq" | "lq";
 /** 无损编解码器 */
 const LOSSLESS_CODECS = new Set(["flac", "alac", "ape", "wav", "aiff", "wavpack", "tta"]);
 
+/**
+ * 判断编解码器是否为无损格式
+ * @param codec - 编解码器名称
+ * @returns 是否为无损格式
+ */
+export const isLosslessCodec = (codec: string): boolean => LOSSLESS_CODECS.has(codec.toLowerCase());
+
 /** 等级短码文案 */
 export const QUALITY_LABELS: Record<QualityLevel, string> = {
   "hi-res": "Hi-Res",
@@ -31,7 +38,7 @@ const QUALITY_FULL_LABELS: Record<QualityLevel, string> = {
  */
 export const getQualityLevel = (quality: AudioQuality | undefined): QualityLevel => {
   if (!quality || !quality.codec || quality.codec === "unknown") return "lq";
-  const isLossless = LOSSLESS_CODECS.has(quality.codec.toLowerCase());
+  const isLossless = isLosslessCodec(quality.codec);
   if (isLossless) {
     if (quality.sampleRate >= 96000 && quality.bitsPerSample >= 24) return "hi-res";
     return "lossless";
