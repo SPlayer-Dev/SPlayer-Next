@@ -1,6 +1,7 @@
 import localforage from "localforage";
 import type { Album, Artist, Playlist, Track } from "@shared/types/player";
 import type { UserProfile, UserSubcount } from "@/types/user";
+import type { Podcast } from "@/types/podcast";
 import { clearNeteaseSession, NeteaseApiError } from "@/apis/netease";
 import {
   fetchLoginStatus,
@@ -28,6 +29,11 @@ import {
 } from "@/apis/playlist/netease";
 import { subscribeAlbum } from "@/apis/album/netease";
 import { subscribeArtist } from "@/apis/artist/netease";
+import {
+  fetchCreatedPodcasts,
+  fetchSubscribedPodcasts,
+  subscribePodcast,
+} from "@/apis/podcast/netease";
 import { fetchUserCloud, deleteCloudSongs } from "@/apis/cloud/netease";
 
 /** 登录 cookie 保活间隔 */
@@ -95,6 +101,15 @@ export const useUserStore = defineStore(
     const albums = shallowRef<Album[]>([]);
     /** 收藏歌手 */
     const artists = shallowRef<Artist[]>([]);
+    /** 用户创建的播客 */
+    const createdPodcasts = shallowRef<Podcast[]>([]);
+    /** 用户收藏的播客 */
+    const subscribedPodcasts = shallowRef<Podcast[]>([]);
+    /** 个人播客是否已按需加载 */
+    const podcastsLoaded = ref(false);
+    /** 是否正在拉取个人播客 */
+    const podcastsLoading = ref(false);
+    let podcastLoadPromise: Promise<void> | null = null;
     /** 用户等级 */
     const level = ref<number | undefined>(undefined);
     /** 订阅计数 */
@@ -201,6 +216,11 @@ export const useUserStore = defineStore(
       likedSongIds.value = new Set();
       albums.value = [];
       artists.value = [];
+      createdPodcasts.value = [];
+      subscribedPodcasts.value = [];
+      podcastsLoaded.value = false;
+      podcastsLoading.value = false;
+      podcastLoadPromise = null;
       level.value = undefined;
       subcount.value = EMPTY_SUBCOUNT;
       likedPlaylistAbort?.abort();
@@ -574,6 +594,50 @@ export const useUserStore = defineStore(
       artists.value = await fetchUserArtists();
     };
 
+    /** 刷新用户创建和收藏的播客 */
+    const refreshPodcasts = async (): Promise<void> => {
+      const uid = profile.value?.userId;
+      if (!uid) return;
+      if (podcastLoadPromise) return podcastLoadPromise;
+      podcastsLoading.value = true;
+      const task = (async () => {
+        const [created, subscribed] = await Promise.all([
+          fetchCreatedPodcasts(uid),
+          fetchSubscribedPodcasts(),
+        ]);
+        if (profile.value?.userId !== uid) return;
+        createdPodcasts.value = created;
+        subscribedPodcasts.value = subscribed;
+        podcastsLoaded.value = true;
+      })();
+      podcastLoadPromise = task;
+      try {
+        await task;
+      } finally {
+        if (podcastLoadPromise === task) podcastLoadPromise = null;
+        if (profile.value?.userId === uid) podcastsLoading.value = false;
+      }
+    };
+
+    /** 首次进入相关页面时按需加载播客 */
+    const ensurePodcasts = async (): Promise<void> => {
+      if (podcastsLoaded.value) return;
+      await refreshPodcasts();
+    };
+
+    /** 收藏或取消收藏播客 */
+    const togglePodcastSubscribe = async (podcastId: string, subscribe: boolean): Promise<void> => {
+      await subscribePodcast(podcastId, subscribe);
+      if (!subscribe) {
+        subscribedPodcasts.value = subscribedPodcasts.value.filter(
+          (podcast) => String(podcast.id) !== String(podcastId),
+        );
+        return;
+      }
+      if (podcastLoadPromise) await podcastLoadPromise;
+      await refreshPodcasts();
+    };
+
     /** 同步用户内容 */
     const syncContent = (uid: number | undefined): void => {
       if (uid) void loadContent(uid);
@@ -643,6 +707,10 @@ export const useUserStore = defineStore(
       likedSongIds,
       albums,
       artists,
+      createdPodcasts,
+      subscribedPodcasts,
+      podcastsLoaded,
+      podcastsLoading,
       level,
       subcount,
       likedPlaylistId,
@@ -673,6 +741,9 @@ export const useUserStore = defineStore(
       togglePlaylistSubscribe,
       toggleAlbumSubscribe,
       toggleArtistSubscribe,
+      ensurePodcasts,
+      refreshPodcasts,
+      togglePodcastSubscribe,
     };
   },
   {

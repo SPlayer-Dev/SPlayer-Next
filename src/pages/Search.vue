@@ -2,27 +2,52 @@
 import type { Track } from "@shared/types/player";
 import { ALL_PLATFORMS, PLATFORM_SHORT_NAME, type Platform } from "@shared/types/platform";
 import type { CoverItem } from "@/types/artist";
-import { searchSongs, searchAlbums, searchArtists, searchPlaylists } from "@/apis/search";
+import {
+  searchSongs,
+  searchAlbums,
+  searchArtists,
+  searchPlaylists,
+  searchPodcasts,
+  searchVoices,
+} from "@/apis/search";
 import SongList from "@/components/list/SongList.vue";
 import CoverList from "@/components/list/CoverList.vue";
 import { useStatusStore } from "@/stores/status";
-import { navigateToAlbum, navigateToArtist, navigateToPlaylist } from "@/utils/navigate";
+import {
+  navigateToAlbum,
+  navigateToArtist,
+  navigateToPlaylist,
+  navigateToPodcast,
+} from "@/utils/navigate";
 
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const status = useStatusStore();
 
-type TabKey = "songs" | "albums" | "artists" | "playlists";
+type TabKey = "songs" | "albums" | "artists" | "playlists" | "podcasts" | "voices";
 
-const TAB_KEYS: readonly TabKey[] = ["songs", "albums", "artists", "playlists"];
+const TAB_KEYS: readonly TabKey[] = [
+  "songs",
+  "albums",
+  "artists",
+  "playlists",
+  "podcasts",
+  "voices",
+];
+const NETEASE_ONLY_TABS: readonly TabKey[] = ["podcasts", "voices"];
 
 /** 当前 tab */
 const activeTab = computed<TabKey>(() => {
   const tab = route.query.tab;
-  return typeof tab === "string" && (TAB_KEYS as readonly string[]).includes(tab)
-    ? (tab as TabKey)
-    : "songs";
+  if (typeof tab !== "string" || !(TAB_KEYS as readonly string[]).includes(tab)) return "songs";
+  if (
+    status.searchPlatform !== "netease" &&
+    (NETEASE_ONLY_TABS as readonly string[]).includes(tab)
+  ) {
+    return "songs";
+  }
+  return tab as TabKey;
 });
 
 const PAGE_SIZE = 50;
@@ -33,12 +58,21 @@ const keyword = computed(() => {
   return typeof q === "string" ? q.trim() : "";
 });
 
-const tabs = computed(() => [
-  { key: "songs", label: t("search.tabs.songs") },
-  { key: "albums", label: t("search.tabs.albums") },
-  { key: "artists", label: t("search.tabs.artists") },
-  { key: "playlists", label: t("search.tabs.playlists") },
-]);
+const tabs = computed(() => {
+  const list = [
+    { key: "songs", label: t("search.tabs.songs") },
+    { key: "albums", label: t("search.tabs.albums") },
+    { key: "artists", label: t("search.tabs.artists") },
+    { key: "playlists", label: t("search.tabs.playlists") },
+  ];
+  if (status.searchPlatform === "netease") {
+    list.push(
+      { key: "podcasts", label: t("search.tabs.podcasts") },
+      { key: "voices", label: t("search.tabs.voices") },
+    );
+  }
+  return list;
+});
 
 const platformTabs = ALL_PLATFORMS.map((key) => ({ key, label: PLATFORM_SHORT_NAME[key] }));
 
@@ -65,6 +99,8 @@ const states = reactive({
   albums: createState<CoverItem>(),
   artists: createState<CoverItem>(),
   playlists: createState<CoverItem>(),
+  podcasts: createState<CoverItem>(),
+  voices: createState<Track>(),
 });
 
 const error = ref("");
@@ -75,6 +111,8 @@ const fetchers = {
   albums: searchAlbums,
   artists: searchArtists,
   playlists: searchPlaylists,
+  podcasts: searchPodcasts,
+  voices: searchVoices,
 } as const;
 
 /**
@@ -160,6 +198,12 @@ const onTabSwitch = (key: string): void => {
 
 const onPlatformSwitch = (key: string): void => {
   status.searchPlatform = key as Platform;
+  if (
+    key !== "netease" &&
+    (NETEASE_ONLY_TABS as readonly string[]).includes(String(route.query.tab ?? ""))
+  ) {
+    router.replace({ query: { ...route.query, tab: "songs" } });
+  }
 };
 
 /** 滚动触底加载下一页 */
@@ -242,13 +286,14 @@ const isEmptyResult = computed(() => {
     <!-- 各 tab 内容 -->
     <div v-else class="flex-1 min-h-0">
       <SongList
-        v-if="activeTab === 'songs'"
-        :items="states.songs.items"
+        v-if="activeTab === 'songs' || activeTab === 'voices'"
+        :items="activeTab === 'songs' ? states.songs.items : states.voices.items"
         :source="status.searchPlatform"
+        :related-collection-type="activeTab === 'voices' ? 'radio' : 'album'"
         :show-size="false"
-        :has-more="states.songs.hasMore"
-        :loading-more="states.songs.loadingMore"
-        @reach-bottom="onReachBottom('songs')"
+        :has-more="activeTab === 'songs' ? states.songs.hasMore : states.voices.hasMore"
+        :loading-more="activeTab === 'songs' ? states.songs.loadingMore : states.voices.loadingMore"
+        @reach-bottom="onReachBottom(activeTab)"
       />
       <CoverList
         v-else-if="activeTab === 'albums'"
@@ -280,7 +325,7 @@ const isEmptyResult = computed(() => {
         @reach-bottom="onReachBottom('artists')"
       />
       <CoverList
-        v-else
+        v-else-if="activeTab === 'playlists'"
         :items="states.playlists.items"
         :padding-x="20"
         :padding-top="8"
@@ -291,6 +336,17 @@ const isEmptyResult = computed(() => {
           (item) => navigateToPlaylist(item.id, { source: status.searchPlatform, name: item.title })
         "
         @reach-bottom="onReachBottom('playlists')"
+      />
+      <CoverList
+        v-else
+        :items="states.podcasts.items"
+        :padding-x="20"
+        :padding-top="8"
+        :padding-bottom="20"
+        :has-more="states.podcasts.hasMore"
+        :loading-more="states.podcasts.loadingMore"
+        @click="(item) => navigateToPodcast(item.id, item.title)"
+        @reach-bottom="onReachBottom('podcasts')"
       />
     </div>
   </div>

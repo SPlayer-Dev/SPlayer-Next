@@ -94,6 +94,8 @@
     "reject": "Decline & Exit"
   },
   "common": {
+    "refresh": "Refresh",
+    "refreshFailed": "Refresh failed",
     "confirm": "Confirm",
     "cancel": "Cancel",
     "close": "Close",
@@ -123,7 +125,9 @@
     "totalSongs": "{count} songs",
     "totalAlbums": "{count} albums",
     "totalArtists": "{count} artists",
-    "totalPlaylists": "{count} playlists"
+    "totalPlaylists": "{count} playlists",
+    "totalPodcasts": "{count} podcasts",
+    "totalVoices": "{count} episodes"
   },
   "comments": {
     "name": "Song Comments",
@@ -199,12 +203,13 @@
     "download": "Downloads",
     "favorites": "Favorites",
     "cloud": "My Cloud",
+    "podcasts": "My Podcasts",
     "streaming": "Media Sources",
     "stats": "Stats",
     "reload": "Reload",
     "devtools": "Developer Tools",
     "globalSettings": "Global Settings",
-    "searchPlaceholder": "Search songs, artists or albums",
+    "searchPlaceholder": "Search songs, artists, podcasts or episodes",
     "searchEmpty": "Start typing to search",
     "searchGoto": "Search for \"{keyword}\"",
     "searchSection": {
@@ -359,7 +364,9 @@
       "songs": "Songs",
       "albums": "Albums",
       "artists": "Artists",
-      "playlists": "Playlists"
+      "playlists": "Playlists",
+      "podcasts": "Podcasts",
+      "voices": "Episodes"
     }
   },
   "streaming": {
@@ -474,6 +481,10 @@
   "songList": {
     "title": "Title",
     "album": "Album",
+    "podcast": "Podcast",
+    "updateDate": "Updated",
+    "playCount": "Plays",
+    "likedCount": "Likes",
     "actions": "Actions",
     "size": "Size",
     "duration": "Duration",
@@ -653,6 +664,17 @@
       "playlist": "Playlists",
       "album": "Albums",
       "artist": "Artists"
+    }
+  },
+  "podcasts": {
+    "title": "My Podcasts",
+    "manage": "Manage Podcasts",
+    "manageFailed": "Unable to open the podcast manager. Check your NetEase login status",
+    "empty": "No podcasts here yet",
+    "notLogin": "Sign in to see your podcasts",
+    "tabs": {
+      "created": "Created",
+      "subscribed": "Subscribed"
     }
   },
   "library": {
@@ -1959,10 +1981,14 @@
     "totalDuration": "About {time}",
     "unknownAlbum": "Unknown Album",
     "empty": "No songs",
+    "emptyRadio": "No episodes",
+    "loadFailed": "Failed to load content. Please try again",
     "noDescription": "No description yet~",
+    "expandDescription": "Expand",
+    "collapseDescription": "Collapse",
     "album": "Album",
     "playlist": "Playlist",
-    "radio": "Radio",
+    "radio": "Podcast",
     "my": "My {type}s",
     "subscribed": "Subscribed {type}s",
     "localPlaylist": "Local Playlists",

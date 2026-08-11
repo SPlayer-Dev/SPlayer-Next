@@ -69,3 +69,17 @@ export const navigateToPlaylist = (
     query: options.name ? { name: options.name } : undefined,
   });
 };
+
+/**
+ * 跳转到播客页面
+ * @param podcastId - 播客 ID
+ * @param name - 播客标题兜底
+ */
+export const navigateToPodcast = (podcastId?: string, name?: string): void => {
+  if (!podcastId?.trim()) return;
+  router.push({
+    name: "collection",
+    params: { source: "netease", type: "radio", id: encodeURIComponent(podcastId) },
+    query: name ? { name } : undefined,
+  });
+};

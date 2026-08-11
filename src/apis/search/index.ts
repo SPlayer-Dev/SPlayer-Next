@@ -1,6 +1,6 @@
 /**
  * 在线平台搜索分发
- * 对外暴露 searchSongs / searchAlbums / searchArtists / searchPlaylists
+ * 对外暴露歌曲、专辑、歌手、歌单、播客与声音搜索
  */
 
 import type { Track } from "@shared/types/player";
@@ -71,4 +71,26 @@ export const searchPlaylists = (
   if (platform === "qqmusic") return qqmusic.playlists(keyword, offset, limit);
   if (platform === "kugou") return kugou.playlists(keyword, offset, limit);
   return unsupported(platform, "playlists");
+};
+
+/** 搜索播客 */
+export const searchPodcasts = (
+  platform: Platform,
+  keyword: string,
+  offset: number,
+  limit: number,
+): Promise<SearchResult<CoverItem>> => {
+  if (platform === "netease") return netease.podcasts(keyword, offset, limit);
+  return unsupported(platform, "podcasts");
+};
+
+/** 搜索声音节目 */
+export const searchVoices = (
+  platform: Platform,
+  keyword: string,
+  offset: number,
+  limit: number,
+): Promise<SearchResult<Track>> => {
+  if (platform === "netease") return netease.voices(keyword, offset, limit);
+  return unsupported(platform, "voices");
 };

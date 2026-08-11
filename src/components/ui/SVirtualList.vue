@@ -264,7 +264,12 @@ const getDropInfoByOffset = (offsetY: number): { index: number; position: "top" 
 
 /** 滚动到指定像素位置 */
 const scrollToPosition = (top: number, behavior: ScrollBehavior = "auto"): void => {
-  scrollRef.value?.scrollTo({ top, behavior });
+  const nextTop = Math.max(0, top);
+  scrollRef.value?.scrollTo({ top: nextTop, behavior });
+  if (behavior === "auto") {
+    scrollTop.value = nextTop;
+    calculateVisibleRange(nextTop);
+  }
 };
 
 /** 滚动到指定索引项 */

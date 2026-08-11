@@ -11,10 +11,10 @@ import { useDownload } from "@/composables/useDownload";
 import { useFavorite } from "@/composables/useFavorite";
 import { usePlaylistPicker } from "@/composables/usePlaylistPicker";
 import { PLAYER_BAR_GAP } from "@/composables/useFloatingPlayerBar";
-import { formatTime } from "@/utils/time";
+import { formatDate, formatTime } from "@/utils/time";
 import { formatFileSize } from "@/utils/format";
 import { isLosslessQuality, getQualityLabel } from "@/utils/quality";
-import { navigateToAlbum, navigateToArtist } from "@/utils/navigate";
+import { navigateToAlbum, navigateToArtist, navigateToPodcast } from "@/utils/navigate";
 import type { SVirtualListExposed } from "@/components/ui/SVirtualList.vue";
 import * as player from "@/core/player";
 import IconArrowUpDown from "~icons/lucide/arrow-up-down";
@@ -41,10 +41,16 @@ const props = withDefaults(
     showIndex?: boolean;
     /** 显示专辑 */
     showAlbum?: boolean;
+    /** 关联集合列显示专辑或播客 */
+    relatedCollectionType?: "album" | "radio";
     /** 显示时长 */
     showDuration?: boolean;
     /** 显示文件大小 */
     showSize?: boolean;
+    /** 显示播客节目的更新日期、播放量和点赞数 */
+    showPodcastMetadata?: boolean;
+    /** 显示喜欢按钮 */
+    showFavorite?: boolean;
     /** 是否启用排序交互 */
     enableSort?: boolean;
     /** 列表来源 */
@@ -66,8 +72,11 @@ const props = withDefaults(
     searchQuery: "",
     showIndex: true,
     showAlbum: true,
+    relatedCollectionType: "album",
     showDuration: true,
     showSize: false,
+    showPodcastMetadata: false,
+    showFavorite: true,
     enableSort: false,
     source: "local",
     collectionType: undefined,
@@ -100,9 +109,10 @@ const textCollator = new Intl.Collator(undefined, {
 /** 当前播放歌曲 ID */
 const playingId = computed(() => media.track?.id);
 
-/** 专辑是否可跳转：本地不要求 id，其他源需要 album.id */
-const isAlbumLinkable = (item: Track): boolean => {
+/** 关联集合是否可跳转：本地专辑不要求 id，在线内容需要集合 ID */
+const isRelatedCollectionLinkable = (item: Track): boolean => {
   if (!item.album?.name) return false;
+  if (props.relatedCollectionType === "radio") return !!item.album.id;
   return item.source === "local" || !!item.album.id;
 };
 
@@ -118,11 +128,19 @@ const goArtist = (item: Track, artist: Artist): void => {
   navigateToArtist(artist.name, { source: item.source, artistId: artist.id });
 };
 
-/** 跳转到专辑页 */
-const goAlbum = (item: Track): void => {
-  if (!isAlbumLinkable(item)) return;
+/** 跳转到关联专辑或播客页面 */
+const goRelatedCollection = (item: Track): void => {
+  if (!isRelatedCollectionLinkable(item)) return;
+  if (props.relatedCollectionType === "radio") {
+    navigateToPodcast(item.album?.id, item.album?.name);
+    return;
+  }
   navigateToAlbum(item.album?.name, { source: item.source, albumId: item.album?.id });
 };
+
+const relatedCollectionLabel = computed(() =>
+  t(props.relatedCollectionType === "radio" ? "songList.podcast" : "songList.album"),
+);
 
 /** 排序字段 */
 const { sortField, sortOrder } = storeToRefs(status);
@@ -203,6 +221,14 @@ const playingIndex = computed(() => {
 
 /** 虚拟列表引用 */
 const virtualListRef = shallowRef<SVirtualListExposed | null>(null);
+
+watch(
+  [() => props.searchQuery, () => sortedItems.value.length],
+  ([query, length], [previousQuery, previousLength]) => {
+    if (!query || (query === previousQuery && (previousLength !== 0 || length === 0))) return;
+    void nextTick(() => virtualListRef.value?.scrollTo(0));
+  },
+);
 
 /** 定位到当前播放歌曲 */
 const scrollToPlaying = (): void => {
@@ -316,7 +342,14 @@ defineExpose({
         <!-- 搜索无结果 -->
         <template #empty>
           <div
-            v-if="searchQuery"
+            v-if="searchQuery && loadingMore"
+            class="flex flex-col items-center gap-2 text-on-surface-variant/40"
+          >
+            <SLoading class="size-8 text-primary/70" />
+            <span class="text-sm">{{ t("common.loading") }}</span>
+          </div>
+          <div
+            v-else-if="searchQuery"
             class="flex flex-col items-center gap-2 text-on-surface-variant/40"
           >
             <IconLucideSearchX class="size-8" />
@@ -487,8 +520,15 @@ defineExpose({
                   {{ t("songList.title") }}
                 </div>
               </div>
-              <div v-if="showAlbum" class="flex-1 min-w-0">{{ t("songList.album") }}</div>
-              <div class="w-7 shrink-0 text-center">{{ t("songList.actions") }}</div>
+              <div v-if="showAlbum" class="flex-1 min-w-0">{{ relatedCollectionLabel }}</div>
+              <template v-if="showPodcastMetadata">
+                <div class="w-24 shrink-0 text-center">{{ t("songList.updateDate") }}</div>
+                <div class="w-20 shrink-0 text-center">{{ t("songList.playCount") }}</div>
+                <div class="w-16 shrink-0 text-center">{{ t("songList.likedCount") }}</div>
+              </template>
+              <div v-if="showFavorite" class="w-7 shrink-0 text-center">
+                {{ t("songList.actions") }}
+              </div>
               <div v-if="showDuration" class="w-16 shrink-0 text-center">
                 {{ t("songList.duration") }}
               </div>
@@ -654,15 +694,40 @@ defineExpose({
               >
                 <span
                   class="transition-opacity"
-                  :class="isAlbumLinkable(item) ? 'cursor-pointer hover:opacity-70' : 'opacity-50'"
-                  @click.stop="goAlbum(item)"
+                  :class="
+                    isRelatedCollectionLinkable(item)
+                      ? 'cursor-pointer hover:opacity-70'
+                      : 'opacity-50'
+                  "
+                  @click.stop="goRelatedCollection(item)"
                 >
                   {{ item.album?.name || t("collection.unknownAlbum") }}
                 </span>
               </div>
+              <!-- 播客节目数据 -->
+              <template v-if="showPodcastMetadata">
+                <div
+                  class="w-24 shrink-0 text-center text-sm tabular-nums"
+                  :class="playingId === item.id ? 'text-primary/60' : 'text-on-surface-variant'"
+                >
+                  {{ formatDate(item.publishTime) || "-" }}
+                </div>
+                <div
+                  class="w-20 shrink-0 text-center text-sm tabular-nums"
+                  :class="playingId === item.id ? 'text-primary/60' : 'text-on-surface-variant'"
+                >
+                  {{ item.playCount?.toLocaleString() ?? "-" }}
+                </div>
+                <div
+                  class="w-16 shrink-0 text-center text-sm tabular-nums"
+                  :class="playingId === item.id ? 'text-primary/60' : 'text-on-surface-variant'"
+                >
+                  {{ item.likedCount?.toLocaleString() ?? "-" }}
+                </div>
+              </template>
               <!-- 红心：批量模式下隐藏，其余始终显示 -->
               <div
-                v-if="!batch.active.value"
+                v-if="showFavorite && !batch.active.value"
                 class="w-7 shrink-0 flex items-center justify-center"
                 @click.stop
               >
@@ -682,7 +747,7 @@ defineExpose({
                   </template>
                 </SButton>
               </div>
-              <div v-else class="w-7 shrink-0" />
+              <div v-else-if="showFavorite" class="w-7 shrink-0" />
               <!-- 时长 -->
               <div
                 v-if="showDuration"

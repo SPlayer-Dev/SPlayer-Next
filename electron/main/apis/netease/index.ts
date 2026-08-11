@@ -50,6 +50,7 @@ const NON_CACHEABLE: ReadonlySet<string> = new Set([
   "playlist_detail",
   "user_playlist",
   "user_subcount",
+  "user_audio",
   "user_cloud",
   "user_cloud_del",
   "cloud_upload_check",
@@ -59,10 +60,15 @@ const NON_CACHEABLE: ReadonlySet<string> = new Set([
   "cloud_upload_check_v2",
   "cloud_song_import",
   "album_sub",
+  "dj_sub",
+  "dj_sublist",
+  "dj_detail",
+  "dj_program",
   "playmode_intelligence",
   "personal_fm",
   "fm_trash",
   "recommend_songs",
+  "sso_login_token",
 ]);
 
 /** 国内 IP 前缀池 */

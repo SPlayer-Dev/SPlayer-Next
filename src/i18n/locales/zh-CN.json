@@ -82,6 +82,8 @@
     "reject": "不同意并退出"
   },
   "common": {
+    "refresh": "刷新",
+    "refreshFailed": "刷新失败",
     "confirm": "确认",
     "cancel": "取消",
     "close": "关闭",
@@ -111,7 +113,9 @@
     "totalSongs": "共 {count} 首",
     "totalAlbums": "共 {count} 张专辑",
     "totalArtists": "共 {count} 位歌手",
-    "totalPlaylists": "共 {count} 个歌单"
+    "totalPlaylists": "共 {count} 个歌单",
+    "totalPodcasts": "共 {count} 个播客",
+    "totalVoices": "共 {count} 个声音"
   },
   "comments": {
     "name": "歌曲评论",
@@ -187,12 +191,13 @@
     "download": "下载管理",
     "favorites": "我的收藏",
     "cloud": "我的云盘",
+    "podcasts": "我的播客",
     "streaming": "媒体源",
     "stats": "统计",
     "reload": "热重载",
     "devtools": "开发者工具",
     "globalSettings": "全局设置",
-    "searchPlaceholder": "搜索歌曲、歌手或专辑",
+    "searchPlaceholder": "搜索歌曲、歌手、播客或声音",
     "searchEmpty": "输入关键词开始搜索",
     "searchGoto": "搜索「{keyword}」",
     "searchSection": {
@@ -347,7 +352,9 @@
       "songs": "单曲",
       "albums": "专辑",
       "artists": "歌手",
-      "playlists": "歌单"
+      "playlists": "歌单",
+      "podcasts": "播客",
+      "voices": "声音"
     }
   },
   "streaming": {
@@ -462,6 +469,10 @@
   "songList": {
     "title": "标题",
     "album": "专辑",
+    "podcast": "播客",
+    "updateDate": "更新日期",
+    "playCount": "播放量",
+    "likedCount": "点赞数",
     "actions": "操作",
     "size": "大小",
     "duration": "时长",
@@ -641,6 +652,17 @@
       "playlist": "歌单",
       "album": "专辑",
       "artist": "歌手"
+    }
+  },
+  "podcasts": {
+    "title": "我的播客",
+    "manage": "管理播客",
+    "manageFailed": "无法打开播客管理页，请确认网易云登录状态",
+    "empty": "这里还没有播客",
+    "notLogin": "登录后才能查看我的播客",
+    "tabs": {
+      "created": "创建的播客",
+      "subscribed": "收藏的播客"
     }
   },
   "library": {
@@ -1947,10 +1969,14 @@
     "totalDuration": "约 {time}",
     "unknownAlbum": "未知专辑",
     "empty": "暂无歌曲",
+    "emptyRadio": "暂无声音",
+    "loadFailed": "内容加载失败，请稍后重试",
     "noDescription": "还没有描述哦~",
+    "expandDescription": "展开",
+    "collapseDescription": "收起",
     "album": "专辑",
     "playlist": "歌单",
-    "radio": "电台",
+    "radio": "播客",
     "my": "我的{type}",
     "subscribed": "收藏的{type}",
     "localPlaylist": "本地歌单",

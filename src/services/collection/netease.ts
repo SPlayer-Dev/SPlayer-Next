@@ -2,6 +2,8 @@ import type { Track } from "@shared/types/player";
 import type { Collection, CollectionType } from "@/types/collection";
 import { fetchAlbum } from "@/apis/album/netease";
 import { fetchPlaylist } from "@/apis/playlist/netease";
+import { fetchPodcastDetail, fetchPodcastPrograms } from "@/apis/podcast/netease";
+import { withPicSize } from "@/utils/format/netease";
 import type { LoadCollectionOptions } from "./types";
 
 export const loadNeteaseCollection = async (
@@ -27,6 +29,47 @@ export const loadNeteaseCollection = async (
           }
         : null,
     );
+    return;
+  }
+  if (type === "radio") {
+    const radioId = decodeURIComponent(id);
+    const radio = await fetchPodcastDetail(radioId);
+    if (options.signal?.aborted) return;
+    if (!radio) {
+      options.onUpdate(null);
+      return;
+    }
+    const tracks: Track[] = [];
+    let trackCount = radio.programCount ?? 0;
+    const update = (): void => {
+      options.onUpdate({
+        id,
+        type,
+        source: "netease",
+        title: radio.name,
+        cover: withPicSize(radio.picUrl),
+        description: radio.desc,
+        creator: radio.dj?.nickname,
+        tracks: [...tracks],
+        trackCount: trackCount || tracks.length,
+        createTime: radio.createTime,
+        updateTime: radio.lastProgramCreateTime,
+      });
+    };
+    update();
+    let page = await fetchPodcastPrograms(radioId, 0);
+    if (page.items.length === 0 && trackCount !== 0) {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      if (options.signal?.aborted) return;
+      page = await fetchPodcastPrograms(radioId, 0);
+      if (page.items.length === 0) {
+        throw new Error("podcast programs returned an unexpected empty page");
+      }
+    }
+    if (options.signal?.aborted) return;
+    tracks.push(...page.items);
+    trackCount = page.total || trackCount;
+    update();
     return;
   }
   if (type !== "playlist") {
