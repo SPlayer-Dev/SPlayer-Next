@@ -5,8 +5,9 @@ import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
 import { useSettingsStore } from "@/stores/settings";
 import { getQualityLabel, getQualityLevel } from "@/utils/quality";
-import { navigateToAlbum, navigateToArtist } from "@/utils/navigate";
+import { navigateToAlbum, navigateToArtist, navigateToPodcast } from "@/utils/navigate";
 import { getValidArtists } from "@shared/utils/track";
+import IconLucidePodcast from "~icons/lucide/podcast";
 
 const { t } = useI18n();
 
@@ -30,6 +31,11 @@ const settings = useSettingsStore();
 /** 加载中的歌曲 */
 const displayTrack = computed(() => media.track ?? status.currentTrack);
 const artists = computed(() => getValidArtists(displayTrack.value?.artists));
+const isPodcastVoice = computed(
+  () =>
+    displayTrack.value?.source === "netease" &&
+    (!!displayTrack.value.extId || displayTrack.value.playbackSource?.type === "radio"),
+);
 
 /** 歌词来源偏好下拉选项 */
 const lyricSourceOptions = computed<SSelectOption[]>(() => [
@@ -66,12 +72,16 @@ const goToArtist = (artist: Artist): void => {
   navigateToArtist(artist.name, { source: displayTrack.value?.source, artistId: artist.id });
 };
 
-/** 跳转到专辑页 */
+/** 跳转到专辑或播客页 */
 const goToAlbum = (): void => {
   if (!isAlbumLinkable.value) return;
   const track = displayTrack.value;
   if (!track?.album?.name) return;
   status.isPlayerExpanded = false;
+  if (isPodcastVoice.value) {
+    navigateToPodcast(track.playbackSource?.id ?? track.album.id, track.album.name);
+    return;
+  }
   navigateToAlbum(track.album.name, { source: track.source, albumId: track.album.id });
 };
 
@@ -214,7 +224,8 @@ const alignItems = computed(() => {
     </div>
     <!-- 专辑 -->
     <div v-if="albumText" class="max-w-full flex items-center gap-1.5 text-[1.2em] text-cover/60">
-      <IconLucideDisc3 class="shrink-0 translate-y-px text-cover/40" />
+      <IconLucidePodcast v-if="isPodcastVoice" class="shrink-0 translate-y-px text-cover/40" />
+      <IconLucideDisc3 v-else class="shrink-0 translate-y-px text-cover/40" />
       <span
         class="truncate"
         :class="isAlbumLinkable ? 'cursor-pointer transition-colors hover:text-cover' : ''"

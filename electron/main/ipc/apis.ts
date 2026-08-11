@@ -13,6 +13,7 @@ import { cookieToJson } from "@main/apis/netease/core/cookie";
 import { callQQMusic } from "@main/apis/qqmusic";
 import { callKugou } from "@main/apis/kugou";
 import { openNeteaseLoginWindow } from "@main/window/login";
+import { openNeteasePodcastManager } from "@main/window/neteasePodcastManager";
 import { coreLog } from "@main/utils/logger";
 import type { ApiPlatform } from "@shared/types/apis";
 
@@ -87,5 +88,15 @@ export const registerApisIpc = (): void => {
     if (!parsed.MUSIC_U) return { ok: false, error: "missing MUSIC_U" };
     mergeNeteaseCookies(parsed);
     return { ok: true };
+  });
+
+  ipcMain.handle("apis:openPodcastManager", async (_event, userId: number) => {
+    try {
+      await openNeteasePodcastManager(userId);
+      return { ok: true };
+    } catch (err) {
+      coreLog.warn("[apis] openPodcastManager failed:", err);
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
   });
 };

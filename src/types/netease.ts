@@ -134,6 +134,43 @@ export interface NeteaseSong {
   pc?: NeteasePrivateCloud | null;
 }
 
+/** 网易云播客作者 */
+export interface NeteaseDjUser {
+  userId?: number;
+  nickname?: string;
+  avatarUrl?: string;
+}
+
+/** 网易云播客 */
+export interface NeteaseDjRadio {
+  id: number | string;
+  name: string;
+  picUrl?: string;
+  desc?: string;
+  dj?: NeteaseDjUser;
+  programCount?: number;
+  createTime?: number;
+  lastProgramCreateTime?: number;
+  subed?: boolean;
+}
+
+/** 网易云播客节目 */
+export interface NeteaseDjProgram {
+  id: number | string;
+  name: string;
+  categoryId?: number | string;
+  coverUrl?: string;
+  duration?: number;
+  createTime?: number;
+  listenerCount?: number;
+  likedCount?: number;
+  mainSong?: NeteaseSong;
+  mainTrackId?: number | string;
+  voiceId?: number | string;
+  dj?: NeteaseDjUser;
+  radio?: NeteaseDjRadio;
+}
+
 /** 用户云盘私有信息 */
 export interface NeteasePrivateCloud {
   /** 文件名 */

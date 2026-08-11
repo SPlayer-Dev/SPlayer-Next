@@ -58,6 +58,11 @@ const router = createRouter({
           component: () => import("@/pages/Cloud.vue"),
         },
         {
+          path: "podcasts",
+          name: "podcasts",
+          component: () => import("@/pages/Podcasts.vue"),
+        },
+        {
           path: "collection/:source/:type/:id",
           name: "collection",
           component: () => import("@/pages/Collection.vue"),

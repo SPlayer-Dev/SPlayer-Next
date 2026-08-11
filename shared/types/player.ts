@@ -123,6 +123,12 @@ export interface Track {
   mtime?: number;
   /** 创建时间（Unix ms） */
   ctime?: number;
+  /** 发布或更新时间（Unix ms） */
+  publishTime?: number;
+  /** 在线内容播放量 */
+  playCount?: number;
+  /** 在线内容点赞数 */
+  likedCount?: number;
   /** 音质信息 */
   quality?: AudioQuality;
   /** 付费等级 */
