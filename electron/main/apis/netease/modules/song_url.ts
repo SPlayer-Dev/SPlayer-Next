@@ -21,7 +21,7 @@ const song_url: NeteaseModule = (query, request) => {
     level: query.level ?? "exhigh",
     encodeType: "flac",
   };
-  return request("/api/song/enhance/player/url/v1", data, createOption(query));
+  return request("/api/song/enhance/player/url/v1", data, createOption(query, "xeapi"));
 };
 
 export default song_url;

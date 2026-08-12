@@ -1,7 +1,8 @@
 import localforage from "localforage";
 import type { Album, Artist, Playlist, Track } from "@shared/types/player";
 import type { UserProfile, UserSubcount } from "@/types/user";
-import { clearNeteaseSession, NeteaseApiError } from "@/apis/netease";
+import { clearNeteaseSession, NeteaseApiError, onNeteaseAuthFailure } from "@/apis/netease";
+import { isExplicitNeteaseAuthFailure } from "@/apis/neteaseAuth";
 import {
   fetchLoginStatus,
   refreshLogin as refreshLoginApi,
@@ -33,7 +34,6 @@ import { fetchUserCloud, deleteCloudSongs } from "@/apis/cloud/netease";
 /** 登录 cookie 保活间隔 */
 const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
-/** 用户数据持久化键 */
 /** 「我喜欢的音乐」歌单曲目 */
 const LIKED_PLAYLIST_CACHE_KEY = "liked-playlist";
 /** 用户红心 id 列表 */
@@ -85,6 +85,10 @@ export const useUserStore = defineStore(
     const profile = ref<UserProfile | null>(null);
     /** 上一次 login_refresh 时间戳（毫秒） */
     const lastRefreshAt = ref<number>(0);
+    /** 上一次尝试刷新时间戳（毫秒） */
+    let lastRefreshAttemptAt = 0;
+    let statusRequestId = 0;
+    let invalidationPromise: Promise<void> | null = null;
     /** 是否已登录 */
     const isLoggedIn = computed(() => profile.value !== null);
     /** 全部歌单 */
@@ -180,21 +184,6 @@ export const useUserStore = defineStore(
     const isLikedPlaylistFresh = (): boolean =>
       hasSameLikedSongIds(likedPlaylistTracks.value.map((track) => track.id));
 
-    /**
-     * 是否是明确的登录失效错误
-     * @param err 捕获到的异常
-     */
-    const isAuthExpiredError = (err: unknown): boolean => {
-      const status = err instanceof NeteaseApiError ? err.status : undefined;
-      const body = err instanceof NeteaseApiError ? err.body : undefined;
-      const code = (body as { code?: number | string } | null | undefined)?.code;
-      if (status === 401 || status === 403) return true;
-      if (code === 301 || code === 401 || code === 403) return true;
-      if (code === "301" || code === "401" || code === "403") return true;
-      const message = err instanceof Error ? err.message : String(err ?? "");
-      return /need.?login|not.?login|unauthori[sz]ed|登录|未登录|鉴权|cookie/i.test(message);
-    };
-
     /** 清空所有用户内容 */
     const clearContent = (): void => {
       playlists.value = [];
@@ -213,6 +202,29 @@ export const useUserStore = defineStore(
       cloudSize.value = 0;
       cloudMaxSize.value = 0;
       cloudLoading.value = false;
+    };
+
+    /** 清除渲染端账号状态 */
+    const resetAccountState = (): void => {
+      profile.value = null;
+      lastRefreshAt.value = 0;
+      lastRefreshAttemptAt = 0;
+      clearContent();
+    };
+
+    /** 清除失效凭据并切换到游客会话 */
+    const invalidateSession = async (): Promise<void> => {
+      statusRequestId += 1;
+      resetAccountState();
+      if (invalidationPromise) return invalidationPromise;
+      invalidationPromise = clearNeteaseSession()
+        .catch((err) => {
+          console.warn("[user] clear expired netease session failed:", err);
+        })
+        .finally(() => {
+          invalidationPromise = null;
+        });
+      return invalidationPromise;
     };
 
     /** 从缓存填充喜欢歌单 */
@@ -582,42 +594,53 @@ export const useUserStore = defineStore(
 
     /** 续期 cookie */
     const refresh = async (): Promise<void> => {
+      lastRefreshAttemptAt = Date.now();
       try {
-        await refreshLoginApi();
-        lastRefreshAt.value = Date.now();
-      } catch {}
+        const renewed = await refreshLoginApi();
+        if (renewed) lastRefreshAt.value = Date.now();
+      } catch (err) {
+        console.warn("[user] refresh netease session failed:", err);
+      }
     };
 
     /** 校验 cookie 并同步最新 profile 与用户内容 */
     const fetchStatus = async (): Promise<boolean> => {
+      const requestId = ++statusRequestId;
       try {
         const latest = await fetchLoginStatus();
+        if (requestId !== statusRequestId) return profile.value !== null;
         if (latest) {
           const previousUserId = profile.value?.userId;
           profile.value = latest;
           if (previousUserId && previousUserId !== latest.userId) clearContent();
           syncContent(latest.userId);
-          if (Date.now() - lastRefreshAt.value > REFRESH_INTERVAL_MS) {
-            void refresh();
-          }
+          const lastRefresh = Math.max(lastRefreshAt.value, lastRefreshAttemptAt);
+          if (Date.now() - lastRefresh > REFRESH_INTERVAL_MS) void refresh();
           return true;
         }
-        profile.value = null;
-        lastRefreshAt.value = 0;
-        syncContent(undefined);
+        await invalidateSession();
         return false;
       } catch (err) {
-        if (isAuthExpiredError(err)) {
-          profile.value = null;
-          lastRefreshAt.value = 0;
-          syncContent(undefined);
-          await clearNeteaseSession();
+        if (requestId !== statusRequestId) return profile.value !== null;
+        if (
+          err instanceof NeteaseApiError &&
+          isExplicitNeteaseAuthFailure({
+            status: err.status,
+            body: err.body,
+            message: err.message,
+          })
+        ) {
+          await invalidateSession();
           return false;
         }
         // 网络失败保留缓存的 profile，不强制登出（离线可用性）
         return profile.value !== null;
       }
     };
+
+    onNeteaseAuthFailure(() => {
+      void fetchStatus();
+    });
 
     /** 登出 */
     const logout = async (): Promise<void> => {
@@ -626,10 +649,7 @@ export const useUserStore = defineStore(
       } catch {
         console.error("[user] logout failed");
       }
-      await clearNeteaseSession();
-      profile.value = null;
-      lastRefreshAt.value = 0;
-      syncContent(undefined);
+      await invalidateSession();
     };
 
     return {
@@ -637,6 +657,7 @@ export const useUserStore = defineStore(
       lastRefreshAt,
       isLoggedIn,
       fetchStatus,
+      invalidateSession,
       logout,
 
       playlists,

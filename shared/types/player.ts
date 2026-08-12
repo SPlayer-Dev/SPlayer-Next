@@ -13,6 +13,21 @@ export type ShuffleMode = "off" | "on";
 /** 歌曲来源：本地 / 流媒体 / 在线平台 */
 export type TrackSource = "local" | "streaming" | Platform;
 
+/** 播放来源类型 */
+export type PlaybackOriginType = "track" | "playlist" | "album" | "artist" | "radio" | "page";
+
+/** 本次播放的来源上下文 */
+export interface PlaybackContext {
+  /** 平台资源所属来源 */
+  provider?: TrackSource;
+  /** 来源资源或页面标识 */
+  originId: string;
+  /** 来源资源类型 */
+  originType: PlaybackOriginType;
+  /** 来源资源名称 */
+  originName?: string;
+}
+
 /** 歌手 */
 export interface Artist {
   id?: string;
@@ -57,12 +72,13 @@ export interface AudioQuality {
 }
 
 /**
- * 付费等级
+ * 付费标记，遵循网易云 fee 规范
  * - 0: 免费
  * - 1: VIP
- * - 2: 需购买（数字专辑等）
+ * - 4: 需购买（数字专辑等）
+ * - 8: 受限音质
  */
-export type TrackFee = 0 | 1 | 2;
+export type TrackFee = 0 | 1 | 4 | 8;
 
 /** 歌曲信息 */
 export interface Track {
@@ -110,10 +126,16 @@ export interface Track {
   ctime?: number;
   /** 音质信息 */
   quality?: AudioQuality;
-  /** 付费等级 */
+  /** 付费标记 */
   fee?: TrackFee;
   /** 云盘歌曲 */
   cloud?: boolean;
+}
+
+/** 播放队列项，将曲目元数据与本次播放上下文分离 */
+export interface PlaybackQueueItem {
+  track: Track;
+  context?: PlaybackContext;
 }
 
 /** 歌曲详细信息 */
@@ -150,6 +172,8 @@ export interface LoadOptions {
    * streaming/online 源应当下发；本地源缺省时主进程回退到引擎解析的 tag。
    */
   meta?: Track;
+  /** 本次播放的来源上下文 */
+  context?: PlaybackContext;
 }
 
 /** 播放器状态快照 */

@@ -111,7 +111,7 @@ const onClearHistory = (): void => data.clearSearchHistory();
 /**
  * 建议点击
  * @param kind - 建议类型
- * @param id - 网易云 id
+ * @param id - 歌曲 id
  * @param name - 名称
  */
 const navigateToResource = async (

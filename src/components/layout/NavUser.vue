@@ -14,11 +14,9 @@ const user = useUserStore();
 const loginOpen = ref(false);
 const popoverOpen = ref(false);
 
-/** 启动时校验登录态（cookie 仍有效就刷新 profile） */
+/** 启动时同步登录状态 */
 onMounted(() => {
-  if (user.profile) {
-    user.fetchStatus().catch(() => undefined);
-  }
+  void user.fetchStatus();
 });
 
 const isVip = computed(() => !!user.profile?.vipType && user.profile.vipType !== 0);

@@ -779,6 +779,10 @@
       "label": "播放时显示歌词",
       "description": "底部播放栏播放时将歌手名替换为当前歌词"
     },
+    "showPlaybackSource": {
+      "label": "显示播放来源",
+      "description": "在全屏播放器中显示当前歌曲的来源，点击可跳转到对应页面"
+    },
     "fadeEnabled": {
       "label": "渐入渐出",
       "description": "播放和暂停时音频淡入淡出"
@@ -1948,9 +1952,15 @@
     "unknownAlbum": "未知专辑",
     "empty": "暂无歌曲",
     "noDescription": "还没有描述哦~",
+    "introduction": "{type}简介",
+    "viewIntroduction": "查看完整简介",
     "album": "专辑",
     "playlist": "歌单",
     "radio": "电台",
+    "scope": {
+      "local": "本地",
+      "online": "在线"
+    },
     "my": "我的{type}",
     "subscribed": "收藏的{type}",
     "localPlaylist": "本地歌单",
@@ -1970,6 +1980,29 @@
     "unsubscribe": "取消收藏",
     "privacy": {
       "private": "设为私密"
+    },
+    "context": {
+      "more": "更多操作",
+      "album": {
+        "copyTitle": "复制专辑名称",
+        "copyId": "复制专辑 ID",
+        "copyUrl": "分享专辑链接"
+      },
+      "playlist": {
+        "copyTitle": "复制歌单名称",
+        "copyId": "复制歌单 ID",
+        "copyUrl": "分享歌单链接"
+      },
+      "radio": {
+        "copyTitle": "复制电台名称",
+        "copyId": "复制电台 ID",
+        "copyUrl": "分享电台链接"
+      },
+      "cloud": {
+        "copyTitle": "复制云盘名称",
+        "copyId": "复制云盘 ID",
+        "copyUrl": "分享云盘链接"
+      }
     }
   },
   "artist": {
@@ -2026,6 +2059,10 @@
     "NETWORK_TIMEOUT": "音源响应超时，请检查网络或更换音源",
     "URL_RESOLVE_FAILED": "无法获取播放地址",
     "NO_PLUGIN_AVAILABLE": "未找到支持该平台的插件",
+    "NETEASE_LOGIN_EXPIRED": "登录已失效，已切换为游客模式",
+    "NETEASE_VIP_REQUIRED": "该歌曲需要会员或单独购买",
+    "NETEASE_TRIAL_DISABLED": "该歌曲仅提供试听，请在设置中允许试听播放",
+    "NETEASE_UNAVAILABLE": "该歌曲暂无可用音源",
     "SCAN_NO_DIRS": "未配置扫描目录",
     "SCAN_DIR_EXISTS": "该目录已存在",
     "SCAN_DIR_NOT_FOUND": "目录不存在",

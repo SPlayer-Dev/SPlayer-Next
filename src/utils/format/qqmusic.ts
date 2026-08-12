@@ -57,7 +57,7 @@ export const qqArtistCover = (mid: string, size = 300): string =>
  * @returns 付费等级
  */
 const qqTrackFee = (song: QMSong): TrackFee => {
-  if (song.pay?.payalbum === 1) return 2;
+  if (song.pay?.payalbum === 1) return 4;
   if (song.pay?.payplay === 1) return 1;
   return 0;
 };

@@ -44,7 +44,16 @@ const emit = defineEmits<{
 }>();
 
 /** 显示的项 */
-const visibleItems = computed(() => props.items.filter((item) => item.show !== false));
+const visibleItems = computed(() =>
+  props.items
+    .map((item) => {
+      if (item.children) {
+        return { ...item, children: item.children.filter((child) => child.show !== false) };
+      }
+      return item;
+    })
+    .filter((item) => item.show !== false && (item.children?.length ?? 1) > 0),
+);
 
 const handleSelect = (item: DropdownMenuItem): void => {
   if (item.disabled) return;

@@ -1,4 +1,4 @@
-import type { MediaInfo, Track, TrackDetail } from "@shared/types/player";
+import type { MediaInfo, PlaybackContext, Track, TrackDetail } from "@shared/types/player";
 import type { LyricData, LyricFormat, LyricInput, LyricLine } from "@shared/types/lyrics";
 import { findLyricIndex } from "@shared/utils/lyric";
 import { useSettingsStore } from "@/stores/settings";
@@ -15,6 +15,9 @@ export const useMediaStore = defineStore("media", () => {
 
   /** 当前歌曲轻量信息 */
   const track = shallowRef<Track | null>(null);
+
+  /** 当前播放的来源上下文 */
+  const playbackContext = shallowRef<PlaybackContext>();
 
   /** 当前歌曲详细信息 */
   const detail = shallowRef<TrackDetail | null>(null);
@@ -62,6 +65,14 @@ export const useMediaStore = defineStore("media", () => {
   const setTrack = (newTrack: Track, newDetail?: TrackDetail): void => {
     track.value = newTrack;
     if (newDetail) detail.value = newDetail;
+  };
+
+  /**
+   * 更新当前播放的来源上下文
+   * @param context - 播放来源上下文
+   */
+  const setPlaybackContext = (context?: PlaybackContext): void => {
+    playbackContext.value = context;
   };
 
   /**
@@ -156,6 +167,7 @@ export const useMediaStore = defineStore("media", () => {
   /** 清空所有状态 */
   const clear = (): void => {
     track.value = null;
+    playbackContext.value = undefined;
     detail.value = null;
     activeLyric.value = null;
     lyricContent.value = null;
@@ -168,6 +180,7 @@ export const useMediaStore = defineStore("media", () => {
 
   return {
     track,
+    playbackContext,
     detail,
     activeLyric,
     lyricContent,
@@ -177,6 +190,7 @@ export const useMediaStore = defineStore("media", () => {
     lyricLoading,
     lyricIndex,
     setTrack,
+    setPlaybackContext,
     enrichTrack,
     patchCover,
     resetLyricState,

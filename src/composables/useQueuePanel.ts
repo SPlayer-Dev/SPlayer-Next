@@ -5,7 +5,7 @@ import type { SVirtualListExposed } from "@/components/ui/SVirtualList.vue";
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import { useThemeStore } from "@/stores/theme";
-import { queue, queueLength } from "@/stores/queue";
+import { clearQueue, queue, queueLength } from "@/stores/queue";
 import * as player from "@/core/player";
 
 export interface UseQueuePanelOptions {
@@ -45,7 +45,7 @@ export const useQueuePanel = (options: UseQueuePanelOptions) => {
     if (queueLength.value === 0) return;
     player.stop();
     statusStore.playIndex = -1;
-    queue.value = [];
+    clearQueue();
     mediaStore.clear();
     useThemeStore().coverColor = null;
     clearConfirmOpen.value = false;

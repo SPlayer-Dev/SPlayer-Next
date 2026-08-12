@@ -46,7 +46,7 @@ interface NeteaseSuggestResp {
 const EMPTY: SuggestData = { songs: [], albums: [], artists: [], playlists: [] };
 
 /**
- * 取网易云搜索建议
+ * 获取搜索建议
  * @param keyword - 关键词
  * @returns 分类建议；keyword 空 / 接口失败时返回空集
  */

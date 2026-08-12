@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID as cryptoRandomUUID } from "node:crypto";
 import * as zlib from "node:zlib";
 import { CLIENT_LOG3_DOMAIN } from "./config";
+import { createPlaybackLogContext } from "./playLog";
 import { fetchWithProxy } from "@main/utils/proxy";
 
 interface NeteaseLogRecord {
@@ -41,22 +42,6 @@ interface NcblContext {
   };
   startTime: number;
   processId: number;
-}
-
-interface NcblSong {
-  id: number;
-  name: string;
-  artist: string;
-  bitrate: number;
-  level: string;
-  vip: boolean;
-  time: number;
-}
-
-interface NcblSource {
-  id: string;
-  type: string;
-  name: string;
 }
 
 interface UploadResult {
@@ -224,143 +209,42 @@ const buildRecord = ({ time, action, data }: NeteaseLogRecord): string => {
 export const buildRecords = (records: NeteaseLogRecord[]): string =>
   records.map(buildRecord).join("");
 
-export const buildPlv = (
-  ctx: NcblContext,
-  song: NcblSong,
-  source: NcblSource,
-): Record<string, unknown> => {
-  const now = Date.now();
+export const extractContext = (cookieObj: Record<string, string>): NcblContext => {
+  const playbackLog = createPlaybackLogContext(cookieObj);
   return {
-    mode: "circulation",
-    download: 0,
-    alg: "",
-    status: "front",
-    id: String(song.id),
-    bitrate: song.bitrate,
-    type: "song",
-    is_listentogether: 0,
-    source: source.name,
-    is_heart: 0,
-    resource_ratio: "",
-    resource_time: song.time,
-    musiceffect_id: "",
-    app_mode: 2,
-    bitrate_level: song.level,
-    _addrefer: `[F:63][${now}#933#${ctx.app.version}#${ctx.app.versionCode}#c9156c3][e][2][23][cell_pc_songlist_song:2|page_pc_songlist_songflow|page_mine_like_music][${song.id}:song:x:x|:::|${source.id}:list::]`,
-    _multirefers: [
-      "[F:26][s][18][_ai]",
-      "[F:26][s][12][_ai]",
-      `[F:63][${now}#933#${ctx.app.version}#${ctx.app.versionCode}#c9156c3][e][2][8][cell_pc_main_tab_entrance:6|page_pc_main_tab][我喜欢的音乐:spm::|:::]`,
-      "[F:26][s][5][_ai]",
-      "[F:26][s][0][_ai]",
-    ],
-    vipType: ctx.auth.vipType,
-    fee: 1,
-    file: 4,
-    rightSource: 0,
-    sourceId: source.id,
-    sourcetype: source.type,
-    libra_abt: "",
-    channel: ctx.app.channel,
-    curStartChannel: "",
+    app: {
+      id: cookieObj.appid || "",
+      urs: "",
+      pid: "",
+      nsm: cookieObj.WEVNSM || "1.0.0",
+      cid: cookieObj.WNMCID || `${randomBytes(3).toString("hex")}.${Date.now()}.01.0`,
+      channel: playbackLog.app.channel,
+      version: playbackLog.app.version,
+      versionCode: playbackLog.app.versionCode,
+      buildCode: cookieObj.buildver || "",
+      buildType: "release",
+      packageId: "",
+    },
+    device: {
+      id: cookieObj.deviceId || cookieObj.sDeviceId || "",
+      ti: cookieObj.NMTID || "",
+      sign: cookieObj.clientSign || "",
+      model: cookieObj.mode || cookieObj.mobilename || "",
+      nnid: cookieObj._ntes_nnid || ",",
+      nuid: cookieObj._ntes_nuid || "",
+      csrf: cookieObj.__csrf || "",
+      systemType: cookieObj.os || "pc",
+      systemVersion: cookieObj.osver || "Microsoft-Windows-10-Professional-build-19045-64bit",
+    },
+    auth: {
+      token: cookieObj.MUSIC_U || "",
+      sessionId: cookieObj["JSESSIONID-WYYY"] || "",
+      vipType: playbackLog.auth.vipType,
+    },
+    startTime: Date.now(),
+    processId: Math.floor(Math.random() * 90000) + 10000,
   };
 };
-
-export const buildPld = (
-  ctx: NcblContext,
-  song: NcblSong,
-  source: NcblSource,
-  played: number,
-): Record<string, unknown> => {
-  const now = Date.now();
-  return {
-    mode: "circulation",
-    download: 0,
-    alg: "",
-    status: "front",
-    id: String(song.id),
-    time: played,
-    type: "song",
-    is_listentogether: 0,
-    source: source.name,
-    is_heart: 0,
-    realtime: played,
-    resource_ratio: "",
-    resource_time: song.time,
-    musiceffect_id: "1001",
-    app_mode: 1,
-    lyriceffect: "default",
-    displayMode: "classic",
-    bitrate: song.bitrate,
-    bitrate_level: song.level,
-    _addrefer: `[F:63][${now}#616#${ctx.app.version}#${ctx.app.versionCode}#c9156c3][e][2][92][btn_pc_cover_play|cell_pc_songlist_song:6|page_pc_songlist_songflow|page_mine_like_music][:::|${song.id}:song:x:x|:::|${source.id}:list::]`,
-    _multirefers: [
-      "[F:26][s][87][_ai]",
-      "[F:26][s][81][_ai]",
-      "[F:26][s][75][_ai]",
-      "[F:26][s][69][_ai]",
-      "[F:26][s][63][_ai]",
-    ],
-    vipType: ctx.auth.vipType,
-    fee: 8,
-    file: 4,
-    rightSource: 0,
-    sourceId: source.id,
-    sourcetype: source.type,
-    end: "interrupt",
-    libra_abt: "",
-    channel: ctx.app.channel,
-    curStartChannel: "",
-  };
-};
-
-export const parseCookie = (cookie: unknown): Record<string, string> => {
-  if (cookie && typeof cookie === "object") return cookie as Record<string, string>;
-  if (typeof cookie !== "string") return {};
-  const obj: Record<string, string> = {};
-  for (const part of cookie.split(";")) {
-    const idx = part.indexOf("=");
-    if (idx <= 0) continue;
-    const key = part.substring(0, idx).trim();
-    const val = part.substring(idx + 1).trim();
-    if (key) obj[key] = val;
-  }
-  return obj;
-};
-
-export const extractContext = (cookieObj: Record<string, string>): NcblContext => ({
-  app: {
-    id: cookieObj.appid || "",
-    urs: "",
-    pid: "",
-    nsm: cookieObj.WEVNSM || "1.0.0",
-    cid: cookieObj.WNMCID || `${randomBytes(3).toString("hex")}.${Date.now()}.01.0`,
-    channel: cookieObj.channel || "netease",
-    version: cookieObj.appver || "3.1.35",
-    versionCode: cookieObj.versioncode || "205293",
-    buildCode: cookieObj.buildver || "",
-    buildType: "release",
-    packageId: "",
-  },
-  device: {
-    id: cookieObj.deviceId || cookieObj.sDeviceId || "",
-    ti: cookieObj.NMTID || "",
-    sign: cookieObj.clientSign || "",
-    model: cookieObj.mode || cookieObj.mobilename || "",
-    nnid: cookieObj._ntes_nnid || ",",
-    nuid: cookieObj._ntes_nuid || "",
-    csrf: cookieObj.__csrf || "",
-    systemType: cookieObj.os || "pc",
-    systemVersion: cookieObj.osver || "Microsoft-Windows-10-Professional-build-19045-64bit",
-  },
-  auth: {
-    token: cookieObj.MUSIC_U || "",
-    sessionId: cookieObj["JSESSIONID-WYYY"] || "",
-    vipType: cookieObj.vipType || "",
-  },
-  startTime: Date.now(),
-  processId: Math.floor(Math.random() * 90000) + 10000,
-});
 
 const randomHexId = (): string => cryptoRandomUUID().replace(/-/g, "");
 

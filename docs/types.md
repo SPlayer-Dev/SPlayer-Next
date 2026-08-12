@@ -28,7 +28,7 @@
 | `mtime`         | `number?`                          | 修改时间（Unix 毫秒）                 |
 | `ctime`         | `number?`                          | 创建时间（Unix 毫秒）                 |
 | `quality`       | [`AudioQuality`](#audioquality)`?` | 音质信息                              |
-| `fee`           | [`TrackFee`](#trackfee)`?`         | 付费等级                              |
+| `fee`           | [`TrackFee`](#trackfee)`?`         | 付费标记                              |
 | `cloud`         | `boolean?`                         | 是否云盘歌曲                          |
 
 ### TrackSource
@@ -37,7 +37,7 @@
 
 ### TrackFee
 
-付费等级：`0` 免费、`1` VIP、`2` 需购买（数字专辑等）。
+付费标记遵循网易云 `fee` 规范：`0` 免费、`1` VIP、`4` 需购买（数字专辑等）、`8` 受限音质。
 
 ### Artist
 

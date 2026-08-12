@@ -4,6 +4,7 @@ import type { QualityLevel } from "@/utils/quality";
 import { useStreamingStore } from "@/stores/streaming";
 import { useSettingsStore } from "@/stores/settings";
 import { usePluginsStore } from "@/stores/plugins";
+import { useUserStore } from "@/stores/user";
 import { resolveNeteaseUrl } from "@/apis/song/netease";
 import { ErrorCode } from "@shared/types/errors";
 import { handleError } from "@/utils/errors";
@@ -141,7 +142,7 @@ export const resolveByPlugin = async (
 /**
  * 解析在线音频源 URL
  * @param track - 要解析的 track
- * @param songLevel - 在线歌曲音质档位（仅网易云官方接口生效）
+ * @param songLevel - 在线歌曲音质档位（仅内置官方接口生效）
  */
 const resolveOnlineUrl = async (
   track: Track,
@@ -150,20 +151,34 @@ const resolveOnlineUrl = async (
 ): Promise<OnlineResolveResult> => {
   const settings = useSettingsStore();
   let trialUrl: string | null = null;
-  try {
-    if (track.source === "netease" && !options.skipOfficialOnline) {
-      const resolved = await resolveNeteaseUrl(track, songLevel);
-      if (resolved && !resolved.isTrial) {
+  let officialErrorCode: ErrorCode | null = null;
+  if (track.source === "netease" && !options.skipOfficialOnline) {
+    const user = useUserStore();
+    try {
+      const resolved = await resolveNeteaseUrl(track, songLevel, {
+        authenticated: user.isLoggedIn,
+        validate: () => user.fetchStatus(),
+      });
+      if (!resolved.available) {
+        officialErrorCode = resolved.errorCode;
+      } else if (!resolved.isTrial) {
         return { ok: true, url: resolved.url, isTrial: false, provider: "official" };
+      } else {
+        trialUrl = resolved.url;
       }
-      if (resolved?.isTrial) trialUrl = resolved.url;
+    } catch (err) {
+      console.warn("[audio-source] official URL resolve failed:", err);
+      officialErrorCode = ErrorCode.URL_RESOLVE_FAILED;
     }
-  } catch {
-    // 官方 API 异常回落插件
   }
   const pluginResolved = await resolveByPlugin(track, "hq", options.skipPluginIds ?? []);
-  if (pluginResolved.ok || !trialUrl || !settings.player.allowTrialPlay) return pluginResolved;
-  return { ok: true, url: trialUrl, isTrial: true, provider: "trial" };
+  if (pluginResolved.ok) return pluginResolved;
+  if (trialUrl && settings.player.allowTrialPlay) {
+    return { ok: true, url: trialUrl, isTrial: true, provider: "trial" };
+  }
+  if (trialUrl) return { ok: false, errorCode: ErrorCode.NETEASE_TRIAL_DISABLED };
+  if (officialErrorCode) return { ok: false, errorCode: officialErrorCode };
+  return pluginResolved;
 };
 
 /**

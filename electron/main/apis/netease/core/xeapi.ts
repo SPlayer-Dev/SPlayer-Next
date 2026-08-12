@@ -12,6 +12,8 @@ import { fetchWithProxy } from "@main/utils/proxy";
 let publicKeyState: XeapiPublicKey | null = null;
 let sessionId = "";
 let sessionKey = "";
+let publicKeyPromise: Promise<XeapiPublicKey> | null = null;
+let publicKeyGeneration = 0;
 
 /** 16 位数字 nonce */
 const generateNonce = (): string => {
@@ -71,10 +73,20 @@ const fetchPublicKey = async (
 /** 确保已有公钥（缺失则拉取并缓存），返回当前公钥状态 */
 export const ensureXeapiKey = async (deviceId: string): Promise<XeapiPublicKey> => {
   if (publicKeyState?.sk) return publicKeyState;
-  const key = await fetchPublicKey(deviceId, publicKeyState?.version ?? "");
-  if (!key.sk && publicKeyState?.sk) key.sk = publicKeyState.sk;
-  publicKeyState = key;
-  return key;
+  if (!publicKeyPromise) {
+    const generation = publicKeyGeneration;
+    const promise = fetchPublicKey(deviceId, publicKeyState?.version ?? "")
+      .then((key) => {
+        if (!key.sk && publicKeyState?.sk) key.sk = publicKeyState.sk;
+        if (generation === publicKeyGeneration) publicKeyState = key;
+        return key;
+      })
+      .finally(() => {
+        if (publicKeyPromise === promise) publicKeyPromise = null;
+      });
+    publicKeyPromise = promise;
+  }
+  return publicKeyPromise;
 };
 
 /** 读取当前会话（首次请求为空） */
@@ -91,7 +103,9 @@ export const updateXeapiSession = (id: string, key: string): void => {
 
 /** 失效时清空（下次重新拉取） */
 export const resetXeapiKey = (): void => {
+  publicKeyGeneration += 1;
   publicKeyState = null;
+  publicKeyPromise = null;
   sessionId = "";
   sessionKey = "";
 };

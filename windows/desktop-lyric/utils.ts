@@ -7,7 +7,7 @@ export interface DisplayItem {
   index: number;
   line: LyricLine;
   align: DesktopLyricAlign;
-  active?: boolean;
+  scrollEnabled?: boolean;
   isPlaceholder?: boolean;
   isNext?: boolean;
 }

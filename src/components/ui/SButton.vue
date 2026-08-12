@@ -6,14 +6,14 @@ export interface SButtonProps {
   type?: "default" | "primary" | "cover" | "info" | "success" | "warning" | "error";
   /** 按钮变体 */
   variant?: "filled" | "outline" | "bordered" | "secondary" | "tertiary" | "ghost" | "text";
-  /** 虚线边框（仅 outline / bordered 生效） */
+  /** 虚线边框 */
   dashed?: boolean;
   /** 全圆角胶囊形 */
   round?: boolean;
   /** 纯圆形（等宽高） */
   circle?: boolean;
   /** 尺寸：预设名称或自定义数值（px） */
-  size?: "tiny" | "small" | "medium" | "large" | number;
+  size?: "auto" | "tiny" | "small" | "medium" | "large" | number;
   /** 图标尺寸（px） */
   iconSize?: number;
   /** 禁用 */
@@ -67,7 +67,7 @@ const iconSizePresets: Record<SizePreset, string> = {
 const isNumericSize = computed(() => typeof props.size === "number");
 
 const sizeClass = computed(() => {
-  if (isNumericSize.value) return undefined;
+  if (isNumericSize.value || props.size === "auto") return undefined;
   const preset = props.size as SizePreset;
   return props.circle ? circleSizePresets[preset] : normalSizePresets[preset];
 });
@@ -86,7 +86,7 @@ const numericSizeStyle = computed(() => {
 });
 
 const iconSizeClass = computed(() => {
-  if (isNumericSize.value) return undefined;
+  if (isNumericSize.value || props.size === "auto") return undefined;
   return iconSizePresets[props.size as SizePreset];
 });
 
@@ -213,10 +213,11 @@ const variantClass = computed(() => {
   <button
     v-ripple="enableRipple"
     :disabled="isDisabled"
-    class="s-button inline-flex items-center justify-center gap-1.5 font-sans select-none outline-none cursor-pointer transition-[color,background-color,border-color,opacity,transform] duration-200 disabled:cursor-not-allowed disabled:op-50"
+    class="s-button inline-flex items-center gap-1.5 font-sans select-none outline-none cursor-pointer transition-[color,background-color,border-color,opacity,transform] duration-200 disabled:cursor-not-allowed disabled:op-50"
     :class="[
       block && 'w-full',
       strong && 'font-semibold',
+      size === 'auto' && !circle ? 'justify-start' : 'justify-center',
       circle || round ? 'rounded-full' : 'rounded-1.5',
       pressScale,
       sizeClass,

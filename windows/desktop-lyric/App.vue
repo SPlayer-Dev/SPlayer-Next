@@ -105,7 +105,7 @@ const displayItems = computed<DisplayItem[]>(() => {
       index: primary,
       line: lines[primary],
       align: resolveAlign(primary, config.align),
-      active: true,
+      scrollEnabled: true,
     },
   ];
   // 显示翻译行
@@ -120,7 +120,7 @@ const displayItems = computed<DisplayItem[]>(() => {
         endTime: current.endTime,
       },
       align: resolveAlign(primary, config.align),
-      active: true,
+      scrollEnabled: true,
       isPlaceholder: true,
       isNext: true,
     });
@@ -135,6 +135,7 @@ const displayItems = computed<DisplayItem[]>(() => {
         index: nextIdx,
         line: lines[nextIdx],
         align: resolveAlign(nextIdx, config.align),
+        scrollEnabled: true,
         isNext: true,
       });
     }
@@ -322,7 +323,7 @@ onBeforeUnmount(() => {
         :font-weight="config.fontWeight"
         :align="item.align"
         :word-by-word="resolveWordByWord(config, item)"
-        :active="!!item.active"
+        :scroll-enabled="!!item.scrollEnabled"
         :is-next="!!item.isNext"
         :background-mask="config.backgroundMask"
         :style="{

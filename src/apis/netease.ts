@@ -9,6 +9,15 @@
  */
 
 import type { ApiCallResponse } from "@shared/types/apis";
+import { isExplicitNeteaseAuthFailure } from "@/apis/neteaseAuth";
+
+type AuthFailureListener = (error: NeteaseApiError) => void;
+
+interface NeteaseCallOptions {
+  notifyAuthFailure?: boolean;
+}
+
+let authFailureListener: AuthFailureListener | null = null;
 
 export class NeteaseApiError extends Error {
   readonly status?: number;
@@ -26,14 +35,26 @@ export class NeteaseApiError extends Error {
  * 调用 Netease API，返回原始响应
  * @param name 接口名
  * @param params 接口参数
+ * @param options 调用行为
  * @returns 原始响应（含 status + body）
  */
 export const neteaseRaw = async (
   name: string,
   params?: Record<string, unknown>,
+  options?: NeteaseCallOptions,
 ): Promise<{ status: number; body: unknown }> => {
   const res: ApiCallResponse = await window.api.apis.call("netease", name, params);
-  if (!res.ok) throw new NeteaseApiError(res.error, res.status, res.body);
+  if (!res.ok) {
+    const error = new NeteaseApiError(res.error, res.status, res.body);
+    if (
+      options?.notifyAuthFailure !== false &&
+      name !== "login_status" &&
+      isExplicitNeteaseAuthFailure(error)
+    ) {
+      authFailureListener?.(error);
+    }
+    throw error;
+  }
   return { status: res.status ?? 200, body: res.body };
 };
 
@@ -41,12 +62,14 @@ export const neteaseRaw = async (
  * 调用 Netease API，只返回 body
  * @param name 接口名
  * @param params 接口参数
+ * @param options 调用行为
  */
 export const neteaseCall = async <T = any>(
   name: string,
   params?: Record<string, unknown>,
+  options?: NeteaseCallOptions,
 ): Promise<T> => {
-  const res = await neteaseRaw(name, params);
+  const res = await neteaseRaw(name, params, options);
   return res.body as T;
 };
 
@@ -64,3 +87,15 @@ export const netease: NeteaseProxy = new Proxy({} as NeteaseProxy, {
 
 /** 清空登录态 cookie */
 export const clearNeteaseSession = (): Promise<void> => window.api.apis.clearSession("netease");
+
+/**
+ * 订阅服务端明确返回的登录失效
+ * @param listener - 登录失效回调
+ * @returns 取消订阅函数
+ */
+export const onNeteaseAuthFailure = (listener: AuthFailureListener): (() => void) => {
+  authFailureListener = listener;
+  return () => {
+    if (authFailureListener === listener) authFailureListener = null;
+  };
+};

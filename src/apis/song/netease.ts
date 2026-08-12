@@ -1,11 +1,13 @@
 import type { Track } from "@shared/types/player";
+import { ErrorCode } from "@shared/types/errors";
 import type { QualityLevel } from "@/utils/quality";
-import { netease as neteaseApi } from "@/apis/netease";
+import { netease as neteaseApi, neteaseCall } from "@/apis/netease";
+import { isExplicitNeteaseAuthFailure } from "@/apis/neteaseAuth";
 import { songsToTracks } from "@/utils/format/netease";
 
 /**
  * 按 ID 批量取歌曲详情
- * @param ids - 网易云 songId 列表
+ * @param ids - 平台 songId 列表
  * @returns 与传入 ids 对应的 Track 列表
  */
 export const songsByIds = async (ids: Array<string | number>): Promise<Track[]> => {
@@ -15,7 +17,7 @@ export const songsByIds = async (ids: Array<string | number>): Promise<Track[]> 
   return songsToTracks(body?.songs);
 };
 
-/** 项目音质档位 → 网易云 song/url v1 的 level 参数 */
+/** 项目音质档位 → 官方 song/url v1 的 level 参数 */
 const NETEASE_LEVEL: Record<QualityLevel, string> = {
   lq: "standard",
   sq: "higher",
@@ -24,27 +26,88 @@ const NETEASE_LEVEL: Record<QualityLevel, string> = {
   "hi-res": "hires",
 };
 
-export interface NeteasePlayUrlResult {
-  url: string;
-  isTrial: boolean;
+export type NeteasePlayUrlResult =
+  { available: true; url: string; isTrial: boolean } | { available: false; errorCode: ErrorCode };
+
+export interface NeteaseSessionRecovery {
+  /** 发起请求前是否处于登录状态 */
+  authenticated: boolean;
+  /** 实时校验登录状态 */
+  validate: () => Promise<boolean>;
 }
 
 /**
- * 解析网易云 Track 的可播放 URL
+ * 分类官方播放地址响应
+ * @param item - song/url 返回的单曲数据
+ * @returns 可播放地址或明确的不可播放原因
+ */
+export const classifyNeteasePlayUrl = (item: unknown): NeteasePlayUrlResult => {
+  if (!item || typeof item !== "object") {
+    return { available: false, errorCode: ErrorCode.NETEASE_UNAVAILABLE };
+  }
+  const data = item as { url?: unknown; freeTrialInfo?: unknown; fee?: unknown };
+  if (typeof data.url === "string" && data.url) {
+    return { available: true, url: data.url, isTrial: data.freeTrialInfo != null };
+  }
+  const fee = Number(data.fee);
+  if (fee === 1 || fee === 4) {
+    return { available: false, errorCode: ErrorCode.NETEASE_VIP_REQUIRED };
+  }
+  return { available: false, errorCode: ErrorCode.NETEASE_UNAVAILABLE };
+};
+
+/**
+ * 解析 Track 的播放 URL
  * @param track - track.id 为云端 songId
  * @param songLevel - 音质偏好；实际可用级别取决于账号权限
+ * @param recovery - 登录失效时的确认与恢复方法
+ * @returns 播放地址解析结果
  */
 export const resolveNeteaseUrl = async (
   track: Track,
   songLevel: QualityLevel,
-): Promise<NeteasePlayUrlResult | null> => {
-  const body = await neteaseApi.song_url({ id: track.id, level: NETEASE_LEVEL[songLevel] });
-  const item = body?.data?.[0];
-  if (!item?.url) return null;
-  return { url: item.url, isTrial: !!item.freeTrialInfo };
+  recovery?: NeteaseSessionRecovery,
+): Promise<NeteasePlayUrlResult> => {
+  const request = async (): Promise<NeteasePlayUrlResult> => {
+    const body = await neteaseCall<{ data?: unknown[] }>(
+      "song_url",
+      { id: track.id, level: NETEASE_LEVEL[songLevel] },
+      { notifyAuthFailure: false },
+    );
+    return classifyNeteasePlayUrl(body?.data?.[0]);
+  };
+
+  let result: NeteasePlayUrlResult | null = null;
+  let authFailure = false;
+  try {
+    result = await request();
+  } catch (err) {
+    const failure = err as { status?: number; body?: unknown; message?: string };
+    if (!recovery || !isExplicitNeteaseAuthFailure(failure)) throw err;
+    authFailure = true;
+  }
+
+  const shouldValidate = authFailure || (recovery?.authenticated && !result?.available);
+  if (!recovery || !shouldValidate) return result!;
+
+  const stillAuthenticated = await recovery.validate();
+  if (!authFailure && stillAuthenticated) return result!;
+
+  try {
+    result = await request();
+  } catch (err) {
+    if (!stillAuthenticated && recovery.authenticated) {
+      return { available: false, errorCode: ErrorCode.NETEASE_LOGIN_EXPIRED };
+    }
+    throw err;
+  }
+  if (!stillAuthenticated && recovery.authenticated && !result.available) {
+    return { available: false, errorCode: ErrorCode.NETEASE_LOGIN_EXPIRED };
+  }
+  return result;
 };
 
-/** 网易云下载源（带格式与体积） */
+/** 下载源（带格式与体积） */
 export interface NeteaseDownloadSource {
   url: string;
   /** 文件格式（flac/mp3 等） */
@@ -84,7 +147,7 @@ const fetchNeteasePlaySource = async (
 };
 
 /**
- * 解析网易云 Track 的下载源
+ * 解析 Track 的官方下载源
  * 默认走官方下载接口（客户端下载），无果时回落播放接口；
  * 「模拟播放下载」开启时只用播放接口，避免占用每日下载次数。
  * @param track - track.id 为 songId

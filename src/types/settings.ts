@@ -164,6 +164,8 @@ export interface PlayerSettings {
   coverLayout: CoverLayout;
   /** 无歌词时自动居中封面并隐藏歌词区域 */
   autoCenterCover: boolean;
+  /** 全屏播放器显示当前播放来源 */
+  showPlaybackSource: boolean;
   /** 颜色是否跟随封面 */
   followCoverColor: boolean;
   /** 全屏播放器自动进入沉浸模式（隐藏顶/底栏与鼠标） */

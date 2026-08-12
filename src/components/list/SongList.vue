@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Artist, Track, TrackSource } from "@shared/types/player";
+import type { Artist, PlaybackContext, Track, TrackSource } from "@shared/types/player";
 import type { CollectionType } from "@/types/collection";
 import type { SortField } from "@/types/list";
 import { useMediaStore } from "@/stores/media";
@@ -53,6 +53,8 @@ const props = withDefaults(
     collectionType?: CollectionType;
     /** 集合 ID */
     collectionId?: string;
+    /** 播放来源上下文 */
+    playbackContext?: PlaybackContext;
     /** 是否有权从集合移除曲目 */
     canRemove?: boolean;
     /** 是否还能继续触底加载 */
@@ -70,6 +72,7 @@ const props = withDefaults(
     source: "local",
     collectionType: undefined,
     collectionId: undefined,
+    playbackContext: undefined,
     canRemove: true,
     hasMore: false,
     loadingMore: false,
@@ -223,6 +226,7 @@ const batch = useMultiSelect(sortedItems, {
   collectionType: computed(() => props.collectionType),
   collectionId: computed(() => props.collectionId),
   canRemove: computed(() => props.canRemove),
+  playbackContext: computed(() => props.playbackContext),
   onChanged: (removedIds) => emit("change", removedIds),
 });
 const { deleteConfirmOpen, deleteDialogTitle, deleteDialogContent } = batch;
@@ -247,6 +251,7 @@ const contextTrack = shallowRef<Track | undefined>();
 const { items: contextMenuItems, handleSelect: onContextMenu } = useTrackMenu(contextTrack, {
   collectionType: props.collectionType,
   canRemove: props.canRemove,
+  playbackContext: computed(() => props.playbackContext),
   onAddToPlaylist: (track) => openPicker([track]),
   onRemove: (track) => batch.requestDelete([track], "remove"),
   onDeleteFile: (track) => batch.requestDelete([track], "file"),
@@ -509,7 +514,11 @@ defineExpose({
                     : 'bg-surface-panel border-primary/12 hover:border-primary/30 hover:bg-on-surface/8 active:bg-on-surface/12'
               "
               @click="batch.active.value ? batch.toggle(item.id) : undefined"
-              @dblclick="batch.active.value ? undefined : player.playFrom(sortedItems, index)"
+              @dblclick="
+                batch.active.value
+                  ? undefined
+                  : player.playFrom(sortedItems, index, props.playbackContext)
+              "
               @contextmenu="contextTrack = item"
             >
               <!-- 序号 / 多选 -->
@@ -528,7 +537,7 @@ defineExpose({
                     ? batch.toggle(item.id)
                     : playingId === item.id
                       ? player.togglePlay()
-                      : player.playNow(item)
+                      : player.playNow(item, props.playbackContext)
                 "
               >
                 <!-- 多选模式 -->
@@ -612,7 +621,7 @@ defineExpose({
                       VIP
                     </span>
                     <span
-                      v-else-if="item.fee === 2 && !settings.preset.hideVipTag"
+                      v-else-if="item.fee === 4 && !settings.preset.hideVipTag"
                       class="shrink-0 px-1 rounded text-[10px] leading-[18px] font-bold border border-solid text-red-400 border-red-400/40"
                     >
                       EP

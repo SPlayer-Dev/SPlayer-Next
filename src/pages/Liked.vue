@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Track } from "@shared/types/player";
+import type { PlaybackContext, Track } from "@shared/types/player";
 import type { ContentScope } from "@/types/collection";
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import { useLibraryStore } from "@/stores/library";
@@ -53,20 +53,35 @@ const currentTracks = computed<Track[]>(() =>
   tab.value === "local" ? localTracks.value : user.likedPlaylistTracks,
 );
 
+const playbackContext = computed<PlaybackContext | undefined>(() => {
+  if (tab.value === "local") {
+    return {
+      originId: "liked",
+      originType: "page",
+      originName: t("liked.title"),
+    };
+  }
+  if (!user.likedPlaylistId) return undefined;
+  return {
+    provider: "netease",
+    originId: user.likedPlaylistId,
+    originType: "playlist",
+    originName: t("liked.title"),
+  };
+});
+
 const handlePlayAll = (): void => {
   if (currentTracks.value.length === 0) return;
-  player.playFrom(currentTracks.value, 0);
+  player.playFrom(currentTracks.value, 0, playbackContext.value);
 };
 
-// 直进 /liked（没先访问 Library 页）时本地库未初始化，需要手动触发
 onMounted(() => {
   if (!library.initialized) library.load();
 });
 
-/** SongList 引用：本地 / 在线两个分支共用同一 ref，因为同时只挂载一个 */
 const songListRef = shallowRef<InstanceType<typeof SongList> | null>(null);
 
-/** 更多菜单：刷新仅在线 tab 有意义；批量管理两边都可 */
+/** 更多菜单 */
 const moreMenuItems = computed<DropdownMenuItem[]>(() => {
   const items: DropdownMenuItem[] = [];
   if (tab.value === "online") {
@@ -197,6 +212,7 @@ const handleMoreMenu = (key: string): void => {
           :search-query="searchQuery"
           source="netease"
           :collection-id="user.likedPlaylistId ?? undefined"
+          :playback-context="playbackContext"
           collection-type="playlist"
           enable-sort
         />

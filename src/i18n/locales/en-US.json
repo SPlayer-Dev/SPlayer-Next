@@ -791,6 +791,10 @@
       "label": "Show Lyric While Playing",
       "description": "Replace artist name with current lyric in the bottom player bar"
     },
+    "showPlaybackSource": {
+      "label": "Show Playback Source",
+      "description": "Show the current source in the full player and open its page when clicked"
+    },
     "fadeEnabled": {
       "label": "Fade In/Out",
       "description": "Audio fade on play and pause"
@@ -1960,9 +1964,15 @@
     "unknownAlbum": "Unknown Album",
     "empty": "No songs",
     "noDescription": "No description yet~",
+    "introduction": "{type} Description",
+    "viewIntroduction": "View full description",
     "album": "Album",
     "playlist": "Playlist",
     "radio": "Radio",
+    "scope": {
+      "local": "Local",
+      "online": "Online"
+    },
     "my": "My {type}s",
     "subscribed": "Subscribed {type}s",
     "localPlaylist": "Local Playlists",
@@ -1982,6 +1992,29 @@
     "unsubscribe": "Unsubscribe",
     "privacy": {
       "private": "Make private"
+    },
+    "context": {
+      "more": "More",
+      "album": {
+        "copyTitle": "Copy Album Title",
+        "copyId": "Copy Album ID",
+        "copyUrl": "Share Album Link"
+      },
+      "playlist": {
+        "copyTitle": "Copy Playlist Title",
+        "copyId": "Copy Playlist ID",
+        "copyUrl": "Share Playlist Link"
+      },
+      "radio": {
+        "copyTitle": "Copy Radio Title",
+        "copyId": "Copy Radio ID",
+        "copyUrl": "Share Radio Link"
+      },
+      "cloud": {
+        "copyTitle": "Copy Cloud Title",
+        "copyId": "Copy Cloud ID",
+        "copyUrl": "Share Cloud Link"
+      }
     }
   },
   "artist": {
@@ -2038,6 +2071,10 @@
     "NETWORK_TIMEOUT": "Audio source timed out, check network or try another",
     "URL_RESOLVE_FAILED": "Failed to get playback URL",
     "NO_PLUGIN_AVAILABLE": "No plugin available for this platform",
+    "NETEASE_LOGIN_EXPIRED": "Login expired; switched to guest mode",
+    "NETEASE_VIP_REQUIRED": "This track requires a membership or separate purchase",
+    "NETEASE_TRIAL_DISABLED": "Only a trial is available; enable trial playback in settings",
+    "NETEASE_UNAVAILABLE": "No source is currently available for this track",
     "SCAN_NO_DIRS": "No scan directories configured",
     "SCAN_DIR_EXISTS": "Directory already exists",
     "SCAN_DIR_NOT_FOUND": "Directory not found",

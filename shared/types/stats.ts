@@ -4,7 +4,7 @@
  * 渲染端构造、主进程写入 SQLite。直接带完整 Track,行即自包含、可还原重播。
  */
 
-import type { Track } from "./player";
+import type { Artist, Track } from "./player";
 
 /** 一次播放的统计事件,写入 play_history */
 export interface PlayEventInput {
@@ -86,22 +86,18 @@ export interface HourlyPlayStats {
 
 /** 一张高频专辑及其播放次数 */
 export interface TopAlbum {
-  /** 专辑名 */
-  name: string;
-  /** 专辑歌手 */
-  artist: string;
-  /** 封面 */
-  cover?: string;
+  /** 代表曲目 */
+  track: Track;
   /** 累计播放次数 */
   playCount: number;
 }
 
 /** 一位高频歌手及其播放次数 */
 export interface TopArtist {
-  /** 歌手名 */
-  name: string;
-  /** 封面（该歌手最近播放曲目的封面） */
-  cover?: string;
+  /** 歌手 */
+  artist: Artist;
+  /** 代表曲目 */
+  track: Track;
   /** 累计播放次数 */
   playCount: number;
 }

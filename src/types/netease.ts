@@ -1,3 +1,5 @@
+import type { TrackFee } from "@shared/types/player";
+
 /**
  * 网易云接口原始数据类型
  */
@@ -54,8 +56,8 @@ export interface NeteaseChargeInfo {
 /** 歌曲级权限 */
 export interface NeteasePrivilege {
   id: number;
-  /** 0=免费 1=付费 4=未上架 8=低质 */
-  fee: number;
+  /** 0=免费 1=VIP 4=需购买 8=受限音质 */
+  fee: TrackFee;
   /** 是否已购：0=未购 1=已购 */
   payed: number;
   st: number;
@@ -113,7 +115,7 @@ export interface NeteaseSong {
   /** Hi-Res */
   hr?: NeteaseQuality | null;
   /** 版权 */
-  fee?: number;
+  fee?: TrackFee;
   /** 流行度 0-100 */
   pop?: number;
   /** MV ID，0 表示无 */

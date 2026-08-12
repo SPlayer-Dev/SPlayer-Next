@@ -195,6 +195,12 @@ const playerCategory: SettingCategory = {
           defaultValue: true,
         },
         {
+          key: "showPlaybackSource",
+          type: "switch",
+          binding: { store: "settings", path: "player.showPlaybackSource" },
+          defaultValue: false,
+        },
+        {
           key: "followCoverColor",
           type: "switch",
           binding: { store: "settings", path: "player.followCoverColor" },

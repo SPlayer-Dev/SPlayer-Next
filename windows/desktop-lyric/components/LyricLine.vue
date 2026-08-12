@@ -11,8 +11,8 @@ const props = defineProps<{
   fontWeight: number;
   align: DesktopLyricAlign;
   wordByWord: boolean;
-  /** 是否为当前歌词或其翻译 */
-  active: boolean;
+  /** 是否按歌词时间轴滚动溢出文本 */
+  scrollEnabled: boolean;
   /** 静态模式下作为“下一行”渲染 */
   isNext: boolean;
   /** 是否启用文本背景遮罩 */
@@ -111,7 +111,7 @@ const resetRenderCache = (): void => {
   lastWordProgress = [];
 };
 
-const needsRaf = (): boolean => props.active && (props.wordByWord || overflowPx.value > 0);
+const needsRaf = (): boolean => props.wordByWord || (props.scrollEnabled && overflowPx.value > 0);
 
 /** 将溢出内容恢复到文字开头 */
 const resetScrollPosition = (): void => {
@@ -137,7 +137,7 @@ const renderFrame = (): void => {
   }
   const currentMs = getNowPlayingCurrentMs();
 
-  if (contentRef.value && overflowPx.value > 0) {
+  if (props.scrollEnabled && contentRef.value && overflowPx.value > 0) {
     const transform = getScrollTransform(currentMs);
     if (transform !== lastTransform) {
       lastTransform = transform;
@@ -192,23 +192,23 @@ watch(
 );
 
 watch(
-  () => props.active,
-  (active) => {
-    if (active) {
+  () => props.scrollEnabled,
+  (enabled) => {
+    if (enabled) {
       activateScroll();
-      startRenderLoop();
     } else {
-      stopRenderLoop();
       resetRenderCache();
       resetScrollPosition();
     }
+    if (needsRaf()) startRenderLoop();
+    else stopRenderLoop();
   },
 );
 
 watch(
   () => props.line,
   () => {
-    scrollActivatedAtMs = props.active
+    scrollActivatedAtMs = props.scrollEnabled
       ? Math.max(props.line.startTime, getNowPlayingCurrentMs())
       : props.line.startTime;
     resetRenderCache();
@@ -227,7 +227,7 @@ const onTransitionEnd = (event: TransitionEvent): void => {
 
 onMounted(() => {
   measure();
-  scrollActivatedAtMs = props.active
+  scrollActivatedAtMs = props.scrollEnabled
     ? Math.max(props.line.startTime, getNowPlayingCurrentMs())
     : props.line.startTime;
   resetScrollPosition();

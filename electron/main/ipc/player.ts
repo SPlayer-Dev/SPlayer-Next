@@ -266,7 +266,7 @@ export const registerPlayerIpc = (): void => {
         durationMs,
         autoPlay,
       });
-      neteaseScrobble.onTrackLoaded(authoritative, durationMs, autoPlay);
+      neteaseScrobble.onTrackLoaded(authoritative, options.context, durationMs, autoPlay);
       // 远端高清封面
       if (coverFetchUrl) {
         void fetchBytes(coverFetchUrl).then((buf) => {

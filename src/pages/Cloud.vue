@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { PlaybackContext } from "@shared/types/player";
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import { useUserStore } from "@/stores/user";
 import SongList from "@/components/list/SongList.vue";
@@ -12,6 +13,12 @@ import IconLucideCloudUpload from "~icons/lucide/cloud-upload";
 
 const { t } = useI18n();
 const user = useUserStore();
+
+const playbackContext = computed<PlaybackContext>(() => ({
+  originId: "cloud",
+  originType: "page",
+  originName: t("cloud.title"),
+}));
 
 /** 上传弹窗 */
 const uploadDialogOpen = ref(false);
@@ -34,7 +41,7 @@ const trackCount = computed(() => user.cloudCount || user.cloudTracks.length);
 
 const handlePlayAll = (): void => {
   if (user.cloudTracks.length === 0) return;
-  player.playFrom(user.cloudTracks, 0);
+  player.playFrom(user.cloudTracks, 0, playbackContext.value);
 };
 
 const songListRef = shallowRef<InstanceType<typeof SongList> | null>(null);
@@ -154,6 +161,7 @@ watch(
           ref="songListRef"
           :items="user.cloudTracks"
           :search-query="searchQuery"
+          :playback-context="playbackContext"
           source="netease"
           collection-type="cloud"
           enable-sort

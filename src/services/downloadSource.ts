@@ -36,7 +36,7 @@ export const resolveDownloadSource = async (
       return null;
     }
   }
-  // 网易云官方接口
+  // 官方接口
   if (track.source === "netease") {
     try {
       const usePlayback = useSettingsStore().system.download.usePlaybackForDownload;

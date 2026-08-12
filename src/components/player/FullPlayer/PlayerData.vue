@@ -5,7 +5,11 @@ import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
 import { useSettingsStore } from "@/stores/settings";
 import { getQualityLabel, getQualityLevel } from "@/utils/quality";
-import { navigateToAlbum, navigateToArtist } from "@/utils/navigate";
+import {
+  canNavigateToResource,
+  navigateToResource,
+  type ResourceNavigationTarget,
+} from "@/utils/navigate";
 import { getValidArtists } from "@shared/utils/track";
 
 const { t } = useI18n();
@@ -40,39 +44,37 @@ const lyricSourceOptions = computed<SSelectOption[]>(() => [
   { value: "self", label: t("settings.lyricSourcePreference.self") },
 ]);
 
-/** 非本地源需要真实 id 才能跳转 */
-const needsRealId = computed(() => {
-  const source = displayTrack.value?.source;
-  return source !== undefined && source !== "local";
+/** 生成歌手详情页跳转目标 */
+const artistTarget = (artist: Artist): ResourceNavigationTarget => ({
+  type: "artist",
+  source: displayTrack.value?.source,
+  id: artist.id,
+  name: artist.name,
 });
 
 /** 歌手是否可跳转 */
-const isArtistLinkable = (artist: Artist): boolean => {
-  if (!artist.name) return false;
-  return needsRealId.value ? !!artist.id : true;
-};
+const isArtistLinkable = (artist: Artist): boolean => canNavigateToResource(artistTarget(artist));
 
-/** 专辑是否可跳转 */
-const isAlbumLinkable = computed((): boolean => {
-  const album = displayTrack.value?.album;
-  if (!album?.name) return false;
-  return needsRealId.value ? !!album.id : true;
+/** 当前专辑详情页跳转目标 */
+const albumTarget = computed<ResourceNavigationTarget | null>(() => {
+  const track = displayTrack.value;
+  if (!track?.album?.name) return null;
+  return {
+    type: "album",
+    source: track.source,
+    id: track.album.id,
+    name: track.album.name,
+  };
 });
 
-/** 跳转到歌手页 */
-const goToArtist = (artist: Artist): void => {
-  if (!isArtistLinkable(artist)) return;
-  status.isPlayerExpanded = false;
-  navigateToArtist(artist.name, { source: displayTrack.value?.source, artistId: artist.id });
-};
+/** 专辑是否可跳转 */
+const isAlbumLinkable = computed(() =>
+  albumTarget.value ? canNavigateToResource(albumTarget.value) : false,
+);
 
-/** 跳转到专辑页 */
-const goToAlbum = (): void => {
-  if (!isAlbumLinkable.value) return;
-  const track = displayTrack.value;
-  if (!track?.album?.name) return;
-  status.isPlayerExpanded = false;
-  navigateToAlbum(track.album.name, { source: track.source, albumId: track.album.id });
+/** 跳转成功后收起全屏播放器 */
+const goToResource = (target: ResourceNavigationTarget | null): void => {
+  if (target && navigateToResource(target)) status.isPlayerExpanded = false;
 };
 
 /** 来源标签 */
@@ -108,6 +110,28 @@ const lyricLabel = computed(() => media.activeLyric?.format.toUpperCase() ?? "NO
 
 /** 专辑文本 */
 const albumText = computed(() => displayTrack.value?.album?.name ?? "");
+
+/** 当前实际加载歌曲的播放来源 */
+const playbackSource = computed(() => media.playbackContext);
+const playbackSourceTarget = computed<ResourceNavigationTarget | null>(() => {
+  const context = playbackSource.value;
+  const name = context?.originName?.trim();
+  if (!context || !name || context.originType === "track") return null;
+  if (context.originType === "page") {
+    return { type: "page", id: context.originId, name };
+  }
+  if (!context.provider) return null;
+  return {
+    type: context.originType,
+    source: context.provider,
+    id: context.originId,
+    name,
+  };
+});
+const playbackSourceText = computed(() => playbackSourceTarget.value?.name ?? "");
+const isPlaybackSourceLinkable = computed(() =>
+  playbackSourceTarget.value ? canNavigateToResource(playbackSourceTarget.value) : false,
+);
 
 const alignItems = computed(() => {
   if (props.align === "left") return "items-start";
@@ -202,7 +226,7 @@ const alignItems = computed(() => {
               :class="
                 isArtistLinkable(artist) ? 'cursor-pointer transition-colors hover:text-cover' : ''
               "
-              @click="goToArtist(artist)"
+              @click="goToResource(artistTarget(artist))"
             >
               {{ artist.name }}
             </span>
@@ -218,9 +242,23 @@ const alignItems = computed(() => {
       <span
         class="truncate"
         :class="isAlbumLinkable ? 'cursor-pointer transition-colors hover:text-cover' : ''"
-        @click="goToAlbum"
+        @click="goToResource(albumTarget)"
       >
         {{ albumText }}
+      </span>
+    </div>
+    <!-- 播放来源 -->
+    <div
+      v-if="!simple && settings.player.showPlaybackSource && playbackSourceText"
+      class="max-w-full flex items-center gap-1.5 text-[1.2em] text-cover/60"
+    >
+      <IconLucideLink2 class="shrink-0 translate-y-px text-cover/40" />
+      <span
+        class="truncate"
+        :class="isPlaybackSourceLinkable ? 'cursor-pointer transition-colors hover:text-cover' : ''"
+        @click="goToResource(playbackSourceTarget)"
+      >
+        {{ playbackSourceText }}
       </span>
     </div>
   </div>

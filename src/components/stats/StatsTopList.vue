@@ -5,6 +5,7 @@ import type { TopAlbum, TopArtist, TopTrack } from "@shared/types/stats";
 import * as player from "@/core/player";
 import { navigateToAlbum, navigateToArtist } from "@/utils/navigate";
 import { formatCompact } from "@/utils/format";
+import { useLibraryStore } from "@/stores/library";
 import IconLucideMusic from "~icons/lucide/music";
 import IconLucideDisc3 from "~icons/lucide/disc-3";
 import IconLucideUser from "~icons/lucide/user";
@@ -19,8 +20,10 @@ interface RankItem {
   subtitle?: string;
   /** 累计播放次数 */
   plays: number;
-  /** 歌曲：点击封面直接播放 */
-  track?: Track;
+  /** 代表曲目 */
+  track: Track;
+  /** 在线平台歌手 ID */
+  artistId?: string;
 }
 
 interface RankSection {
@@ -44,6 +47,7 @@ const props = defineProps<{
 }>();
 
 const { t, locale } = useI18n();
+const libraryStore = useLibraryStore();
 
 /** 歌曲榜：保留 track 供点击播放 */
 const songItems = computed<RankItem[]>(() =>
@@ -59,16 +63,26 @@ const songItems = computed<RankItem[]>(() =>
 /** 专辑榜 */
 const albumItems = computed<RankItem[]>(() =>
   props.albums.map((item) => ({
-    cover: item.cover,
-    title: item.name,
-    subtitle: item.artist,
+    cover: item.track.album?.cover ?? item.track.cover,
+    title: item.track.album?.name ?? "",
+    subtitle: item.track.artists.map((artist) => artist.name).join(" / "),
     plays: item.playCount,
+    track: item.track,
   })),
 );
 
 /** 歌手榜 */
 const artistItems = computed<RankItem[]>(() =>
-  props.artists.map((item) => ({ cover: item.cover, title: item.name, plays: item.playCount })),
+  props.artists.map((item) => ({
+    cover:
+      item.track.source === "local"
+        ? (libraryStore.getArtistAvatar(item.artist.name) ?? item.artist.avatar ?? item.track.cover)
+        : (item.artist.avatar ?? item.track.cover),
+    title: item.artist.name,
+    plays: item.playCount,
+    track: item.track,
+    artistId: item.artist.id,
+  })),
 );
 
 /** 三类榜单配置 */
@@ -79,7 +93,7 @@ const sections = computed<RankSection[]>(() => [
     icon: IconLucideMusic,
     circle: false,
     items: songItems.value,
-    onClick: (item) => item.track && playSong(item.track),
+    onClick: (item) => playSong(item.track),
   },
   {
     id: "albums",
@@ -87,7 +101,11 @@ const sections = computed<RankSection[]>(() => [
     icon: IconLucideDisc3,
     circle: false,
     items: albumItems.value,
-    onClick: (item) => navigateToAlbum(item.title),
+    onClick: (item) =>
+      navigateToAlbum(item.title, {
+        source: item.track.source,
+        albumId: item.track.album?.id,
+      }),
   },
   {
     id: "artists",
@@ -95,7 +113,11 @@ const sections = computed<RankSection[]>(() => [
     icon: IconLucideUser,
     circle: true,
     items: artistItems.value,
-    onClick: (item) => navigateToArtist(item.title),
+    onClick: (item) =>
+      navigateToArtist(item.title, {
+        source: item.track.source,
+        artistId: item.artistId,
+      }),
   },
 ]);
 

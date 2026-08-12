@@ -101,6 +101,8 @@ export const useStatusStore = defineStore(
      * media.track 在 load 成功后才更新，用于组件显示已加载完成的歌曲信息
      */
     const currentTrack = computed(() => queue.getTrack(playIndex.value));
+    /** 当前队列项对应的播放来源上下文 */
+    const currentPlaybackContext = computed(() => queue.getQueueItem(playIndex.value)?.context);
 
     /** 打开指定歌曲评论 */
     const showComments = (track: Track): void => {
@@ -145,6 +147,7 @@ export const useStatusStore = defineStore(
       sortField,
       sortOrder,
       currentTrack,
+      currentPlaybackContext,
       showComments,
     };
   },

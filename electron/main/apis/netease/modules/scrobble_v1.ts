@@ -8,18 +8,22 @@ import type { NeteaseModule } from "../core/types";
 import {
   buildCookieStr,
   buildMetaJson,
-  buildPld,
-  buildPlv,
   buildRecords,
   doUpload,
   extractContext,
-  parseCookie,
 } from "../core/ncbl";
+import {
+  buildPld,
+  buildPlv,
+  parseCookie,
+  toNcblSourceType,
+  type PlaybackLogResource,
+} from "../core/playLog";
 
 const scrobbleV1: NeteaseModule = async (query) => {
-  const songId = Number(query.id);
-  if (!songId || Number.isNaN(songId)) {
-    return { status: 400, body: { code: 400, msg: "缺少有效的 id (歌曲ID)" }, cookie: [] };
+  const resourceId = Number(query.id);
+  if (!resourceId || Number.isNaN(resourceId)) {
+    return { status: 400, body: { code: 400, msg: "缺少有效的资源 ID" }, cookie: [] };
   }
   const playTime = Number(query.time);
   if (Number.isNaN(playTime) || playTime <= 0) {
@@ -28,7 +32,11 @@ const scrobbleV1: NeteaseModule = async (query) => {
 
   const totalTime = Number(query.total) || playTime;
   const sourceId = String(query.sourceid || query.sourceId || "");
-  const sourceName = typeof query.source === "string" ? query.source : "list";
+  const resourceType = query.resourceType === "dj" ? "dj" : "song";
+  const sourceType = typeof query.sourceType === "string" ? query.sourceType : "song";
+  const ncblSourceType = toNcblSourceType(resourceType, sourceType);
+  const rawFee = Number(query.fee);
+  const fee = rawFee === 1 || rawFee === 4 || rawFee === 8 ? rawFee : 0;
   const rawCookie = query.cookie || "";
   const cookieObj = parseCookie(rawCookie);
   cookieObj.os = "pc";
@@ -37,27 +45,31 @@ const scrobbleV1: NeteaseModule = async (query) => {
     return { status: 401, body: { code: 401, msg: "缺少 MUSIC_U 鉴权令牌" }, cookie: [] };
   }
 
-  const song = {
-    id: songId,
+  const resource: PlaybackLogResource = {
+    id: resourceId,
+    type: resourceType,
+    categoryId: Number.isFinite(Number(query.categoryId)) ? Number(query.categoryId) : undefined,
     name: typeof query.name === "string" ? query.name : "",
     artist: typeof query.artist === "string" ? query.artist : "",
     bitrate: Number(query.bitrate) || 320,
     level: typeof query.level === "string" ? query.level : "exhigh",
-    vip: query.vip === "true" || query.vip === true,
+    fee,
     time: totalTime,
   };
   const source = {
-    id: sourceId || String(songId),
-    type: "track",
-    name: sourceName,
+    id: sourceId || String(resourceId),
+    type: ncblSourceType,
+    name: ncblSourceType,
   };
   const metaJson = buildMetaJson(ctx);
   const cookieStr = buildCookieStr(ctx);
   const ts = Math.floor(Date.now() / 1000);
   const played = Math.min(playTime, totalTime);
-  const plvBody = buildRecords([{ time: ts, action: "_plv", data: buildPlv(ctx, song, source) }]);
+  const plvBody = buildRecords([
+    { time: ts, action: "_plv", data: buildPlv(ctx, resource, source) },
+  ]);
   const pldBody = buildRecords([
-    { time: ts, action: "_pld", data: buildPld(ctx, song, source, played) },
+    { time: ts, action: "_pld", data: buildPld(ctx, resource, source, played) },
   ]);
 
   try {

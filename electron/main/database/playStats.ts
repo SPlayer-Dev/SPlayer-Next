@@ -4,7 +4,7 @@
 
 import { getDb, isDbOpen } from "./index";
 import { libraryLog } from "@main/utils/logger";
-import type { Track } from "@shared/types/player";
+import type { Artist, Track } from "@shared/types/player";
 import type {
   PlayEventInput,
   FavoriteEventInput,
@@ -165,6 +165,7 @@ export const getTopTracks = (limit: number): TopTrack[] => {
       .prepare(
         `SELECT track_json, COUNT(*) AS plays
          FROM play_history
+         WHERE source != 'streaming'
          GROUP BY source, track_id
          ORDER BY plays DESC, MAX(started_at) DESC
          LIMIT ?`,
@@ -232,50 +233,34 @@ export const getPlayHistoryHourly = (): HourlyPlayStats[] => {
 };
 
 /**
- * 取最常播放的专辑（含播放次数）
+ * 取本地与在线来源中最常播放的专辑
  * @param limit - 取前 N 条
+ * @returns 专辑播放排行
  */
 export const getTopAlbums = (limit: number): TopAlbum[] => {
   try {
-    const db = getDb();
-    const rows = db
+    const rows = getDb()
       .prepare(
-        `SELECT name, plays, track_json
-         FROM (
-           SELECT json_extract(track_json, '$.album.name') AS name,
-                  COUNT(*) OVER (PARTITION BY json_extract(track_json, '$.album.name')) AS plays,
-                  ROW_NUMBER() OVER (
-                    PARTITION BY json_extract(track_json, '$.album.name')
-                    ORDER BY started_at DESC
-                  ) AS rn,
-                  track_json
-           FROM play_history
-           WHERE json_extract(track_json, '$.album.name') IS NOT NULL
-         )
-         WHERE rn = 1
-         ORDER BY plays DESC, name COLLATE NOCASE
+        `SELECT track_json, COUNT(*) AS plays
+         FROM play_history
+         WHERE source != 'streaming'
+           AND TRIM(COALESCE(json_extract(track_json, '$.album.name'), '')) != ''
+         GROUP BY source,
+                  COALESCE(
+                    json_extract(track_json, '$.album.id'),
+                    json_extract(track_json, '$.album.name')
+                  )
+         ORDER BY plays DESC, MAX(started_at) DESC
          LIMIT ?`,
       )
-      .all(limit) as { name: string; plays: number; track_json: string }[];
-    const currentCover = db.prepare(
-      `SELECT cover
-       FROM tracks
-       WHERE json_extract(album, '$.name') = ?
-         AND cover IS NOT NULL
-         AND TRIM(cover) != ''
-       ORDER BY scanned_at DESC
-       LIMIT 1`,
-    );
-    return rows.map((row) => {
-      const track = JSON.parse(row.track_json) as Track;
-      const libraryTrack = currentCover.get(row.name) as { cover: string } | undefined;
-      return {
-        name: row.name,
-        artist: track.artists.map((artist) => artist.name).join(" / "),
-        cover: libraryTrack?.cover || track.album?.cover || track.cover,
-        playCount: row.plays,
-      };
-    });
+      .all(limit) as {
+      plays: number;
+      track_json: string;
+    }[];
+    return rows.map((row) => ({
+      track: JSON.parse(row.track_json) as Track,
+      playCount: row.plays,
+    }));
   } catch (error) {
     libraryLog.error("读取最常播放专辑失败:", error);
     return [];
@@ -283,39 +268,36 @@ export const getTopAlbums = (limit: number): TopAlbum[] => {
 };
 
 /**
- * 取最常播放的歌手（含播放次数）
+ * 取本地与在线来源中最常播放的歌手
  * @param limit - 取前 N 条
+ * @returns 歌手播放排行
  */
 export const getTopArtists = (limit: number): TopArtist[] => {
   try {
     const rows = getDb()
       .prepare(
-        `SELECT name, plays, track_json
-         FROM (
-           SELECT json_extract(a.value, '$.name') AS name,
-                  COUNT(*) OVER (PARTITION BY json_extract(a.value, '$.name')) AS plays,
-                  ROW_NUMBER() OVER (
-                    PARTITION BY json_extract(a.value, '$.name')
-                    ORDER BY started_at DESC
-                  ) AS rn,
-                  track_json
-           FROM play_history, json_each(play_history.track_json, '$.artists') a
-           WHERE json_extract(a.value, '$.name') IS NOT NULL
-             AND TRIM(json_extract(a.value, '$.name')) != ''
-         )
-         WHERE rn = 1
-         ORDER BY plays DESC, name COLLATE NOCASE
+        `SELECT track_json, artist.value AS artist_json, COUNT(*) AS plays
+         FROM play_history, json_each(play_history.track_json, '$.artists') artist
+         WHERE play_history.source != 'streaming'
+           AND TRIM(COALESCE(json_extract(artist.value, '$.name'), '')) != ''
+         GROUP BY play_history.source,
+                  COALESCE(
+                    json_extract(artist.value, '$.id'),
+                    LOWER(json_extract(artist.value, '$.name'))
+                  )
+         ORDER BY plays DESC, MAX(started_at) DESC
          LIMIT ?`,
       )
-      .all(limit) as { name: string; plays: number; track_json: string }[];
-    return rows.map((row) => {
-      const track = JSON.parse(row.track_json) as Track;
-      return {
-        name: row.name,
-        cover: track.cover,
-        playCount: row.plays,
-      };
-    });
+      .all(limit) as {
+      plays: number;
+      track_json: string;
+      artist_json: string;
+    }[];
+    return rows.map((row) => ({
+      artist: JSON.parse(row.artist_json) as Artist,
+      track: JSON.parse(row.track_json) as Track,
+      playCount: row.plays,
+    }));
   } catch (error) {
     libraryLog.error("读取最常播放歌手失败:", error);
     return [];
