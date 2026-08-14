@@ -70,8 +70,7 @@ export interface MusicCommentCreatorQuery {
 
 /** 主创说 IPC 响应 */
 export type MusicCommentCreatorResponse =
-  | { ok: true; data: MusicCommentItem[] }
-  | { ok: false; error: string };
+  { ok: true; data: MusicCommentItem[] } | { ok: false; error: string };
 
 /** 渲染端评论 API */
 export interface CommentsApi {
