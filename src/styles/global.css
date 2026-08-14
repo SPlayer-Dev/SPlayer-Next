@@ -104,6 +104,7 @@ html[data-appearance-style="image"] [role="alertdialog"] .bg-field {
 /* 滚动条 */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {

@@ -80,7 +80,6 @@ const onMenuSelect = (key: string): void => {
       >
         <template #icon><IconLucideChevronRight /></template>
       </SButton>
-      <NavSearch />
       <SButton
         v-if="update.hasUpdate"
         class="app-no-drag"
@@ -94,8 +93,10 @@ const onMenuSelect = (key: string): void => {
         <template #icon><IconLucideCircleArrowUp /></template>
       </SButton>
     </div>
-    <!-- 中间 -->
-    <div class="flex-1 h-full" />
+    <!-- 中间：搜索框，窄窗口下可收缩 -->
+    <div class="flex-1 min-w-0 mx-3">
+      <NavSearch />
+    </div>
     <!-- 右侧 -->
     <div class="flex items-center gap-3 shrink-0">
       <NavUser />
