@@ -652,7 +652,8 @@
     "alreadyQueued": "该歌曲已在下载队列",
     "alreadyDownloaded": "该歌曲已下载",
     "started": "已加入下载：{title}",
-    "enqueued": "已加入 {count} 首下载",
+    "enqueued": "已加入 {total} 首中的 {count} 首到下载",
+    "enqueuing": "已加入 {title} 到下载（{count}/{total}）",
     "status": {
       "queued": "排队中",
       "downloading": "下载中",

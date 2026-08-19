@@ -664,7 +664,8 @@
     "alreadyQueued": "Already in the download queue",
     "alreadyDownloaded": "Already downloaded",
     "started": "Added to downloads: {title}",
-    "enqueued": "Added {count} to downloads",
+    "enqueued": "Added {count} tracks among total of {total} to downloads",
+    "enqueuing": "Added {title} to downloads ({count}/{total})",
     "status": {
       "queued": "Queued",
       "downloading": "Downloading",

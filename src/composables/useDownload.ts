@@ -1,10 +1,5 @@
 import type { Track } from "@shared/types/player";
-import type {
-  DownloadRequest,
-  DownloadTagOptions,
-  DownloadStatus,
-  DownloadTask,
-} from "@shared/types/download";
+import type { DownloadRequest, DownloadTagOptions, DownloadTask } from "@shared/types/download";
 import { QUALITY_LABELS, type QualityLevel } from "@/utils/quality";
 import { useSettingsStore } from "@/stores/settings";
 import { resolveDownloadSource } from "@/services/downloadSource";
@@ -18,13 +13,15 @@ interface EnqueueOptions {
   quality?: QualityLevel;
   /** 复用已有任务 id（重试） */
   taskId?: string;
+  /** 禁用多余提示 */
+  quiet?: boolean;
 }
-
-const isTerminal = (status: DownloadStatus): boolean =>
-  status !== "queued" && status !== "downloading";
 
 /** 可下载音质档位（展示顺序） */
 const DOWNLOAD_QUALITY_LEVELS: QualityLevel[] = ["hi-res", "lossless", "hq", "sq", "lq"];
+
+/** 解析下载地址时间间隔 */
+const BATCH_RESOLVE_INTERVAL_MS = 500;
 
 /**
  * 构建下载音质菜单项
@@ -118,38 +115,32 @@ export const useDownload = () => {
       );
       return false;
     }
-    if (opts.taskId === undefined) toast.success(t("download.started", { title: track.title }));
+    if (opts.taskId === undefined && !opts.quiet)
+      toast.success(t("download.started", { title: track.title }));
     return true;
   };
 
-  /** 解析→下载→等待该任务结束（先订阅终态再发起，避免极快任务漏掉事件） */
-  const downloadAndWait = (track: Track): Promise<void> =>
-    prepareRequest(track, {}).then((req) => {
-      if (!req) return;
-      return new Promise<void>((resolve) => {
-        const off = window.api.download.onState((task) => {
-          if (task.taskId === req.taskId && isTerminal(task.status)) {
-            off();
-            resolve();
-          }
-        });
-        void window.api.download.start(req).then((res) => {
-          if (!res.ok) {
-            off();
-            resolve();
-          }
-        });
-      });
-    });
-
-  /** 批量下载：严格逐首 */
+  /** 批量下载：每秒解析并加入2个曲目防止触碰网易云API频率上限 */
   const enqueueMany = async (tracks: Track[]): Promise<void> => {
     const downloadable = tracks.filter((track) => track.source !== "local");
     if (downloadable.length === 0) return;
-    toast.success(t("download.enqueued", { count: downloadable.length }));
-    for (const track of downloadable) {
-      await downloadAndWait(track);
+    let successCount = 0;
+    for (const [index, track] of downloadable.entries()) {
+      const success = await enqueue(track, { quiet: true });
+      if (success) successCount++;
+      if (index < downloadable.length - 1) {
+        if (success)
+          toast.info(
+            t("download.enqueuing", {
+              title: track.title,
+              count: successCount,
+              total: downloadable.length,
+            }),
+          );
+        await new Promise((resolve) => setTimeout(resolve, BATCH_RESOLVE_INTERVAL_MS));
+      }
     }
+    toast.success(t("download.enqueued", { count: successCount, total: downloadable.length }));
   };
 
   /** 重试：用任务保存的完整 Track 重新解析并入队 */
