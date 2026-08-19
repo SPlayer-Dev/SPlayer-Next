@@ -48,6 +48,7 @@ declare global {
         };
         toggleDevTools: () => Promise<void>;
         showInExplorer: (filePath: string) => Promise<void>;
+        pickDir: (title?: string) => Promise<{ ok: boolean; dir?: string; reason?: "canceled" }>;
         openLogsDir: () => Promise<string>;
         setLocale: (locale: LocaleCode) => void;
         focusMainWindow: () => Promise<void>;
