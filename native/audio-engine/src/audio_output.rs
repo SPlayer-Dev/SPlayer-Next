@@ -147,20 +147,30 @@ fn build_output_sink(device_name: Option<&str>) -> Result<(MixerDeviceSink, u32)
             let device = host
                 .output_devices()
                 .context("Failed to enumerate output devices")?
-                .find(|device| persisted_device_name(device).as_deref() == Some(name))
-                .with_context(|| format!("Output device '{}' not found", name))
-                .with_audio_kind(AudioErrorKind::Device)?;
-            open_device_with_default_config(&device)
+                .find(|device| persisted_device_name(device).as_deref() == Some(name));
+            match device {
+                Some(device) => open_device_with_default_config(&device).or_else(|error| {
+                    warn!(device = name, error = %error, "指定设备打开失败，回退到系统默认设备");
+                    open_default_sink()
+                }),
+                None => {
+                    warn!(device = name, "指定设备不存在，回退到系统默认设备");
+                    open_default_sink()
+                }
+            }
         }
-        None => {
-            let sink = DeviceSinkBuilder::open_default_sink()
-                .context("Failed to open default output device")
-                .with_audio_kind(AudioErrorKind::Device)?;
-            let sample_rate = sink.config().sample_rate().get();
-            info!(sample_rate, "使用系统默认音频输出配置");
-            Ok((sink, sample_rate))
-        }
+        None => open_default_sink(),
     }
+}
+
+/// 使用系统默认设备创建输出流
+fn open_default_sink() -> Result<(MixerDeviceSink, u32)> {
+    let sink = DeviceSinkBuilder::open_default_sink()
+        .context("Failed to open default output device")
+        .with_audio_kind(AudioErrorKind::Device)?;
+    let sample_rate = sink.config().sample_rate().get();
+    info!(sample_rate, "使用系统默认音频输出配置");
+    Ok((sink, sample_rate))
 }
 
 /// 设备名已被设置持久化为选择键，继续沿用旧 API 的值以避免升级后已有配置失效
