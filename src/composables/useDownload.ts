@@ -84,9 +84,9 @@ export const useDownload = () => {
   };
 
   /** 批量下载 */
-  const enqueueMany = async (tracks: Track[]): Promise<void> => {
+  const enqueueMany = async (tracks: Track[], opts: EnqueueOptions = {}): Promise<void> => {
     const requests = tracks
-      .map((track) => prepareRequest(track, {}))
+      .map((track) => prepareRequest(track, opts))
       .filter((req): req is DownloadRequest => req !== null);
     const results = await window.api.download.startMany(requests).catch(() => []);
     const count = results.filter((result) => result?.ok).length;
