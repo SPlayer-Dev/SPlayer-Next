@@ -12,9 +12,9 @@
 import { callKugou } from "@main/apis/kugou";
 import type { KGSong } from "@main/apis/kugou/core/types";
 import { getCachedLyric, setCachedLyric } from "@main/database/lyricCache";
-import { buildFingerprint, getMatchedId, setMatchedId } from "@main/database/lyricMatchCache";
+import { buildFingerprint, getMatchedId } from "@main/database/lyricMatchCache";
 import { coreLog } from "@main/utils/logger";
-import type { LyricMatchResult } from "@shared/types/lyrics";
+import type { LyricMatchQueryOptions, LyricMatchResult } from "@shared/types/lyrics";
 import type { Track } from "@shared/types/player";
 import { buildLyricSearchKeyword, pickBestCandidate, type LyricCandidate } from "./utils";
 
@@ -98,15 +98,36 @@ export const getByPlatformId = (hash: string): Promise<LyricMatchResult | null> 
   fetchLyric({ hash });
 
 /** 按 Track 元数据模糊搜索：search → 挑最佳 → 单次请求歌词 */
-export const getByQuery = async (track: Track): Promise<LyricMatchResult | null> => {
+export const getByQuery = async (
+  track: Track,
+  options: LyricMatchQueryOptions = {},
+): Promise<LyricMatchResult | null> => {
   const fingerprint = buildFingerprint(track);
   const cached = getMatchedId(fingerprint, "kugou");
-  if (cached) {
-    return fetchLyric({
+  if (
+    cached &&
+    options.validationKey &&
+    cached.extra?.validationKey === options.validationKey &&
+    !options.excludedIds?.includes(cached.platformId)
+  ) {
+    const lyric = await fetchLyric({
       hash: cached.platformId,
       name: track.title,
       durationMs: track.duration,
     });
+    if (!lyric) return null;
+    return {
+      ...lyric,
+      candidate: {
+        platformId: cached.platformId,
+        name: track.title,
+        artist: track.artists.map((artist) => artist.name).join(" / "),
+        album: track.album?.name,
+        duration: track.duration,
+        extra: cached.extra,
+        validated: true,
+      },
+    };
   }
 
   const keyword = buildLyricSearchKeyword(track);
@@ -130,15 +151,28 @@ export const getByQuery = async (track: Track): Promise<LyricMatchResult | null>
     return null;
   }
 
-  const best = pickBestCandidate(candidates, track);
+  const best = pickBestCandidate(
+    candidates.filter((candidate) => !options.excludedIds?.includes(candidate.extra.hash)),
+    track,
+  );
   coreLog.info(
     `[lyric:kugou] fuzzy "${keyword}" → ${candidates.length} hits, best=${best?.name ?? "none"}`,
   );
   if (!best) return null;
-  setMatchedId(fingerprint, "kugou", best.extra.hash);
-  return fetchLyric({
+  const lyric = await fetchLyric({
     hash: best.extra.hash,
     name: best.name,
     durationMs: best.duration,
   });
+  if (!lyric) return null;
+  return {
+    ...lyric,
+    candidate: {
+      platformId: best.extra.hash,
+      name: best.name,
+      artist: best.artist,
+      album: best.album,
+      duration: best.duration,
+    },
+  };
 };

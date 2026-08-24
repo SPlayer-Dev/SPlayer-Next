@@ -76,11 +76,46 @@ const durationClose = (leftMs?: number, rightMs?: number, tolMs = 5000): boolean
  * 时长差是否大到能确认"不是同一首"
  * @param leftMs - 左时长（ms）
  * @param rightMs - 右时长（ms）
- * @param tolMs - 容差（ms）
  */
-const durationFar = (leftMs?: number, rightMs?: number, tolMs = 20000): boolean => {
+const durationFar = (leftMs?: number, rightMs?: number): boolean => {
   if (!leftMs || !rightMs) return false;
-  return Math.abs(leftMs - rightMs) > tolMs;
+  return Math.abs(leftMs - rightMs) > Math.max(8000, rightMs * 0.04);
+};
+
+const VERSION_MARKERS: Array<{ key: string; pattern: RegExp }> = [
+  { key: "live", pattern: /\blive\b|现场/i },
+  { key: "remix", pattern: /\bremix\b|混音/i },
+  { key: "instrumental", pattern: /\binstrumental\b|伴奏/i },
+  { key: "acoustic", pattern: /\bacoustic\b|不插电/i },
+  { key: "cover", pattern: /\bcover\b|翻唱/i },
+  { key: "demo", pattern: /\bdemo\b/i },
+  { key: "remaster", pattern: /\bremaster(?:ed)?\b|重制/i },
+  { key: "edit", pattern: /\bedit\b/i },
+  { key: "new", pattern: /新版/i },
+  { key: "old", pattern: /旧版/i },
+];
+
+/** 提取标题中的录音版本标记 */
+const versionMarkers = (text: string): string[] =>
+  VERSION_MARKERS.filter(({ pattern }) => pattern.test(text))
+    .map(({ key }) => key)
+    .sort();
+
+/** 双方显式版本标记必须一致 */
+const versionMatches = (left: string, right: string): boolean => {
+  const leftMarkers = versionMarkers(left);
+  const rightMarkers = versionMarkers(right);
+  if (leftMarkers.length === 0 && rightMarkers.length === 0) return true;
+  return leftMarkers.join("|") === rightMarkers.join("|");
+};
+
+/** 去掉已经单独比较的版本标记，避免中英文标记影响歌名主体 */
+const stripVersionMarkers = (text: string): string => {
+  const stripped = VERSION_MARKERS.reduce(
+    (result, { pattern }) => result.replace(pattern, ""),
+    text,
+  ).trim();
+  return stripped || text;
 };
 
 /** 子串命中时短串占长串的最低长度比，过低视为巧合 */
@@ -91,7 +126,8 @@ const NAME_CONTAIN_MIN_RATIO = 0.34;
  *
  * 硬性条件（不满足直接跳过）
  *  - name 全等，或双向 includes 且短串占长串比例 ≥ NAME_CONTAIN_MIN_RATIO
- *  - 双方都给了 duration 时，差距不能超过 20s
+ *  - 双方都给了 duration 时，差距不能超过 max(8s, 曲长 × 4%)
+ *  - 标题中的现场、混音、伴奏等版本标记必须一致
  *  - track 有 artist 时，候选必须命中至少一个 artist，避免同名异歌手误匹配
  *
  * 打分规则（分数越高越优先）
@@ -104,7 +140,7 @@ export const pickBestCandidate = <E>(
   candidates: LyricCandidate<E>[],
   track: Track,
 ): LyricCandidate<E> | null => {
-  const trackName = normalize(track.title);
+  const trackName = normalize(stripVersionMarkers(track.title));
   const trackArtists = normalizeTrackArtists(track);
   const trackAlbum = normalize(track.album?.name);
   const trackDuration = track.duration;
@@ -113,8 +149,10 @@ export const pickBestCandidate = <E>(
   let bestScore = 0;
 
   for (const candidate of candidates) {
-    const candName = normalize(candidate.name);
+    const candName = normalize(stripVersionMarkers(candidate.name));
     const candAlbum = normalize(candidate.album);
+
+    if (!versionMatches(candidate.name, track.title)) continue;
 
     const nameExact = candName.length > 0 && candName === trackName;
     if (!nameExact) {

@@ -59,6 +59,64 @@ describe("pickBestCandidate", () => {
 
     assert.equal(best?.extra.id, "fallback");
   });
+
+  it("拒绝时长相差 42 秒的同名同歌手版本", () => {
+    const candidates: LyricCandidate<{ id: string }>[] = [
+      {
+        name: "同名歌曲",
+        artist: "目标歌手",
+        duration: 233_000,
+        extra: { id: "old-version" },
+      },
+    ];
+
+    assert.equal(pickBestCandidate(candidates, track({ duration: 191_000 })), null);
+  });
+
+  it("拒绝标题版本标记不一致的候选", () => {
+    const candidates: LyricCandidate<{ id: string }>[] = [
+      {
+        name: "同名歌曲 Live",
+        artist: "目标歌手",
+        duration: 180_000,
+        extra: { id: "live" },
+      },
+    ];
+
+    assert.equal(pickBestCandidate(candidates, track({})), null);
+  });
+
+  it("允许中英文等价的现场版标记", () => {
+    const candidates: LyricCandidate<{ id: string }>[] = [
+      {
+        name: "同名歌曲 Live",
+        artist: "目标歌手",
+        duration: 180_000,
+        extra: { id: "live" },
+      },
+    ];
+
+    assert.equal(
+      pickBestCandidate(candidates, track({ title: "同名歌曲 现场" }))?.extra.id,
+      "live",
+    );
+  });
+
+  it("歌曲名恰好为版本关键字时保留原标题", () => {
+    const candidates: LyricCandidate<{ id: string }>[] = [
+      {
+        name: "Live",
+        artist: "目标歌手",
+        duration: 180_000,
+        extra: { id: "literal-live-title" },
+      },
+    ];
+
+    assert.equal(
+      pickBestCandidate(candidates, track({ title: "Live" }))?.extra.id,
+      "literal-live-title",
+    );
+  });
 });
 
 describe("buildLyricSearchKeyword", () => {

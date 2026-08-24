@@ -6,7 +6,13 @@ import { detectFormat } from "@/utils/lyric/parse";
 import { useSettingsStore } from "@/stores/settings";
 import { usePluginsStore } from "@/stores/plugins";
 import { DEFAULT_LYRIC_FORMAT_ORDER, DEFAULT_LYRIC_SOURCE_ORDER } from "@/types/settings";
-import { requestPlatformLyric, requestStreamingLyric, requestTTMLOverlay } from "./request";
+import { buildLyricValidationKey, evaluateLyricMatch } from "@/utils/lyric/matchQuality";
+import {
+  confirmLyricMatch,
+  requestPlatformLyric,
+  requestStreamingLyric,
+  requestTTMLOverlay,
+} from "./request";
 
 /** 支持 AMLL TTML DB 的平台列表 */
 const TTML_PLATFORMS = ["netease", "qqmusic"] as const;
@@ -15,6 +21,7 @@ const TTML_PLATFORMS = ["netease", "qqmusic"] as const;
 export interface OnlineResult {
   source: { source: "online"; format: LyricFormat; platform: Platform };
   input: LyricInput;
+  candidate?: LyricMatchResult["candidate"];
 }
 
 /** 已解析的歌词候选 */
@@ -36,15 +43,63 @@ const toOnlineResult = (data: LyricMatchResult): OnlineResult => ({
     romaji: data.romaji,
     romajiFormat: data.romajiFormat,
   },
+  candidate: data.candidate,
 });
 
-/** 请求并转换指定平台歌词 */
+/**
+ * 请求并转换指定平台歌词
+ * 模糊搜索时用参照歌词做一致性校验，不合格则排除后重试
+ * @param platform - 目标平台
+ * @param track - 歌曲信息
+ * @param reference - 校验参照歌词
+ */
 const resolvePlatformLyric = async (
   platform: Platform,
   track: Track,
+  reference?: ResolvedLyric,
 ): Promise<OnlineResult | null> => {
-  const result = await requestPlatformLyric(platform, track);
-  return result ? toOnlineResult(result) : null;
+  if (track.source === platform) {
+    const result = await requestPlatformLyric(platform, track);
+    return result ? toOnlineResult(result) : null;
+  }
+
+  const excludedIds: string[] = [];
+  const validationKey = reference
+    ? buildLyricValidationKey(reference.input, reference.source.format)
+    : undefined;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const data = await requestPlatformLyric(platform, track, { excludedIds, validationKey });
+    if (!data) return null;
+    const result = toOnlineResult(data);
+    if (!reference) return result;
+    if (!result.candidate) return null;
+
+    const decision = evaluateLyricMatch(
+      reference.input,
+      reference.source.format,
+      result.input,
+      result.source.format,
+      track.duration,
+      result.candidate.duration,
+    );
+    console.info(
+      `[lyrics] ${platform}:${result.candidate.platformId} ${decision.status}/${decision.reason}`,
+      decision.metrics,
+    );
+    if (decision.status === "accepted") {
+      if (!result.candidate.validated) {
+        await confirmLyricMatch({
+          platform,
+          track: toRaw(track),
+          candidate: result.candidate,
+          validationKey: decision.validationKey,
+        });
+      }
+      return result;
+    }
+    excludedIds.push(result.candidate.platformId);
+  }
+  return null;
 };
 
 /**
@@ -106,6 +161,7 @@ const isOnlineResultUpgrade = (result: OnlineResult, localFormat: LyricFormat): 
 interface OnlinePreferenceOptions {
   hasLocal: boolean;
   localFormat: LyricFormat | null;
+  reference?: ResolvedLyric;
   onCandidate?: (result: OnlineResult) => void;
   shouldContinue?: () => boolean;
 }
@@ -122,57 +178,63 @@ export const resolveOnlineByPreference = async (
   const settings = useSettingsStore();
   const preference = settings.lyric.lyricSourcePreference;
   const isCurrent = options.shouldContinue ?? (() => true);
+  const sourceResult = isPlatform(track.source)
+    ? await resolvePlatformLyric(track.source, track)
+    : null;
+  if (!isCurrent()) return null;
+  const reference: ResolvedLyric | undefined = options.reference ?? sourceResult ?? undefined;
   if (preference === "self") {
-    return isPlatform(track.source) ? resolvePlatformLyric(track.source, track) : null;
+    return sourceResult;
   }
-  if (preference !== "auto") return resolvePlatformLyric(preference, track);
-
-  const order = settings.lyric.lyricSourceOrder ?? DEFAULT_LYRIC_SOURCE_ORDER;
-  const formatOrder = settings.lyric.lyricFormatOrder ?? DEFAULT_LYRIC_FORMAT_ORDER;
-  let candidates: Platform[] = [...order];
-  if (options.hasLocal) {
-    if (!settings.lyric.smartPreferOnline || !options.localFormat) return null;
-    candidates = order.filter((platform) =>
-      platformCanUpgrade(platform, options.localFormat!, formatOrder),
-    );
-    if (candidates.length === 0) return null;
-  }
-
-  if (settings.lyric.smartPreferOnline) {
-    let best: OnlineResult | null = null;
-    const localIdx =
-      options.hasLocal && options.localFormat ? formatOrder.indexOf(options.localFormat) : -1;
-    let bestRank = localIdx === -1 ? Infinity : localIdx;
-    await Promise.all(
-      candidates.map(async (platform) => {
-        const result = await resolvePlatformLyric(platform, track);
-        if (!isCurrent() || !result) return;
-        const idx = formatOrder.indexOf(result.source.format);
-        const rank = idx === -1 ? Infinity : idx;
-        if (rank < bestRank) {
-          best = result;
-          bestRank = rank;
-          options.onCandidate?.(result);
-        }
-      }),
-    );
-    return isCurrent() ? best : null;
-  }
-
-  for (const platform of candidates) {
-    const result = await resolvePlatformLyric(platform, track);
-    if (!isCurrent()) return null;
-    if (!result) continue;
-    if (
-      options.hasLocal &&
-      options.localFormat &&
-      !isOnlineResultUpgrade(result, options.localFormat)
-    ) {
-      continue;
+  if (preference === "auto") {
+    const order = settings.lyric.lyricSourceOrder ?? DEFAULT_LYRIC_SOURCE_ORDER;
+    const formatOrder = settings.lyric.lyricFormatOrder ?? DEFAULT_LYRIC_FORMAT_ORDER;
+    const baselineFormat = options.localFormat ?? sourceResult?.source.format ?? null;
+    let candidates: Platform[] = order.filter((platform) => platform !== track.source);
+    if (options.hasLocal && !settings.lyric.smartPreferOnline) return null;
+    if (settings.lyric.smartPreferOnline && baselineFormat) {
+      candidates = candidates.filter((platform) =>
+        platformCanUpgrade(platform, baselineFormat, formatOrder),
+      );
     }
-    return result;
+    if (candidates.length === 0) return sourceResult;
+    if (settings.lyric.smartPreferOnline) {
+      let best: OnlineResult | null = sourceResult;
+      const baselineIdx = baselineFormat ? formatOrder.indexOf(baselineFormat) : -1;
+      let bestRank = baselineIdx === -1 ? Infinity : baselineIdx;
+      await Promise.all(
+        candidates.map(async (platform) => {
+          const result = await resolvePlatformLyric(platform, track, reference);
+          if (!isCurrent() || !result) return;
+          const idx = formatOrder.indexOf(result.source.format);
+          const rank = idx === -1 ? Infinity : idx;
+          if (rank < bestRank) {
+            best = result;
+            bestRank = rank;
+            options.onCandidate?.(result);
+          }
+        }),
+      );
+      if (!isCurrent()) return null;
+      return best;
+    }
+    for (const platform of candidates) {
+      const result = await resolvePlatformLyric(platform, track, reference);
+      if (!isCurrent()) return null;
+      if (!result) continue;
+      if (
+        options.hasLocal &&
+        options.localFormat &&
+        !isOnlineResultUpgrade(result, options.localFormat)
+      ) {
+        continue;
+      }
+      return result;
+    }
+    return sourceResult;
   }
-  return null;
+  if (preference === track.source) return sourceResult;
+  return (await resolvePlatformLyric(preference, track, reference)) ?? sourceResult;
 };
 
 /** 判断是否应该尝试 TTML 升级 */
@@ -189,6 +251,7 @@ const shouldTryTTMLByFormat = (mainFormat: LyricFormat): boolean => {
 
 /**
  * 拉取在线歌词对应的 TTML 覆盖版本
+ * 命中后与当前在线歌词做一致性校验，避免错误覆盖
  * @param track - 歌曲信息
  * @param online - 在线歌词结果
  */
@@ -208,10 +271,23 @@ export const resolveTTMLOverlay = async (
       candidate.response.ok && !!candidate.response.data,
   );
   if (!match) return null;
-  return {
+  const resolved: ResolvedLyric = {
     source: { source: "online", format: "ttml", platform: match.platform },
     input: { content: match.response.data },
   };
+  const decision = evaluateLyricMatch(
+    online.input,
+    online.source.format,
+    resolved.input,
+    resolved.source.format,
+    track.duration,
+    track.duration,
+  );
+  console.info(
+    `[lyrics] ttml:${match.platform} ${decision.status}/${decision.reason}`,
+    decision.metrics,
+  );
+  return decision.status === "accepted" ? resolved : null;
 };
 
 /**
