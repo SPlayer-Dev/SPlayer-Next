@@ -53,6 +53,7 @@ const readLocal = async (
  */
 const commit = (token: number, source: LyricData, input: LyricInput | null): void => {
   if (token !== currentToken) return;
+  console.info("[lyric-debug] commit", { source, input });
   useMediaStore().setLyric(source, input);
 };
 
