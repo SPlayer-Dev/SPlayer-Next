@@ -868,6 +868,10 @@
       "label": "Preload next track",
       "description": "Fetch the next track's playback info in advance, which may increase network usage"
     },
+    "preventSleep": {
+      "label": "Prevent System Sleep",
+      "description": "Prevent the system from sleeping while the full player is active"
+    },
     "outputDevice": {
       "label": "Output Device",
       "description": "Select audio output device",

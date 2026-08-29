@@ -856,6 +856,10 @@
       "label": "预载下一首歌曲",
       "description": "提前获取下一首的播放信息，可能会增加网络占用"
     },
+    "preventSleep": {
+      "label": "阻止系统息屏",
+      "description": "全屏播放器播放时阻止系统进入息屏状态"
+    },
     "outputDevice": {
       "label": "输出设备",
       "description": "选择音频输出设备",

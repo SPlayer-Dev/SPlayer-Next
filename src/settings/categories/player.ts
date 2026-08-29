@@ -86,6 +86,12 @@ const playerCategory: SettingCategory = {
           binding: { store: "settings", path: "player.preloadNextTrack" },
           defaultValue: false,
         },
+        {
+          key: "preventSleep",
+          type: "switch",
+          binding: { store: "settings", path: "player.preventSleep" },
+          defaultValue: false,
+        },
       ],
     },
     {

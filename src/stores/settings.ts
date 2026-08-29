@@ -75,6 +75,7 @@ export const useSettingsStore = defineStore(
       snapToLyric: false,
       showLyricInBar: true,
       preloadNextTrack: false,
+      preventSleep: false,
     });
 
     /** 强迫症设置 */

@@ -174,6 +174,8 @@ const api = {
     // 拉取冷启动暂存的 orpheus 唤起 URL
     consumePendingProtocolUrl: (): Promise<string | null> =>
       ipcRenderer.invoke("system:consumePendingProtocolUrl"),
+    // 阻止系统息屏
+    preventSleep: (val: boolean) => ipcRenderer.send("system:preventSleep", val),
   },
   library: {
     // 开始扫描（默认增量）
