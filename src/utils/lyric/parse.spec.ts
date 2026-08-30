@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bestExternalIndex, detectFormat, parseLyric } from "./parse";
+import { parseQRC } from "./parseQRC";
 
 describe("lyric parse", () => {
   it("根据内容识别常见歌词格式", () => {
@@ -78,5 +79,15 @@ describe("lyric parse", () => {
       { startTime: 1_000, endTime: 2_000, word: "B" },
     ]);
     expect(line.endTime).toBe(2_000);
+  });
+
+  it("QRC kana 将连续 1 占位拆成独立 token，并移除注音时间戳", () => {
+    const lines = parseQRC(
+      "[kana:11111こ(681,552)1どく]\n[0,10]夜(0,1)空(1,1)坂(2,1)本(3,1)暁(4,1)良(5,1)孤(6,1)独(7,1)",
+    );
+
+    expect(lines[0].words.slice(0, 5).every((word) => !word.ruby)).toBe(true);
+    expect(lines[0].words[5].ruby?.[0]?.word).toBe("こ");
+    expect(lines[0].words[6].ruby?.[0]?.word).toBe("どく");
   });
 });
