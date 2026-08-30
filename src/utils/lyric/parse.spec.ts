@@ -96,4 +96,11 @@ describe("lyric parse", () => {
 
     expect(lines[0].words.map((word) => word.ruby?.[0]?.word)).toEqual(["いち", "ど", "ひ", "び"]);
   });
+
+  it("QRC kana 将同一时间块中的连续数字作为一个注音单元", () => {
+    const lines = parseQRC("[kana:1さんじゅういっ1せ]\n[0,10]31(0,1)世(1,1)");
+
+    expect(lines[0].words[0].ruby?.[0]?.word).toBe("さんじゅういっ");
+    expect(lines[0].words[1].ruby?.[0]?.word).toBe("せ");
+  });
 });
