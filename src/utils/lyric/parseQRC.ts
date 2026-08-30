@@ -24,15 +24,20 @@ const RUBY_TARGET_RE =
 interface KanaToken {
   length: number;
   text: string;
+  startTime?: number;
 }
 
 const parseKanaTokens = (value: string): KanaToken[] => {
-  const clean = value.replace(/\(\d+,\d+\)/g, "");
   const tokens: KanaToken[] = [];
-  const re = /(\d)(\D*)/g;
+  const re = /(\d)((?:[^\d(]|\(\d+,\d+\))*)/g;
   let match: RegExpExecArray | null;
-  while ((match = re.exec(clean))) {
-    tokens.push({ length: Number(match[1]), text: match[2] });
+  while ((match = re.exec(value))) {
+    const timing = match[2].match(/\((\d+),\d+\)/);
+    tokens.push({
+      length: Number(match[1]),
+      text: match[2].replace(/\(\d+,\d+\)/g, ""),
+      startTime: timing ? Number(timing[1]) : undefined,
+    });
   }
   return tokens;
 };
@@ -40,27 +45,32 @@ const parseKanaTokens = (value: string): KanaToken[] => {
 const applyKana = (lines: LyricLine[], tokens: KanaToken[]): void => {
   let tokenIndex = 0;
   let remaining = 0;
-  let reading = "";
+  let currentToken: KanaToken | null = null;
   for (const line of lines) {
     for (const word of line.words) {
       const chars = [...word.word];
       const targetCount = chars.filter((char) => RUBY_TARGET_RE.test(char)).length;
       if (!targetCount) continue;
-      const ruby: LyricSpan[] = [];
-      for (const char of chars) {
-        if (!RUBY_TARGET_RE.test(char)) continue;
-        if (remaining === 0) {
-          const token = tokens[tokenIndex++];
-          if (!token) break;
-          remaining = token.length;
-          reading = token.text;
-        }
-        remaining--;
-        if (remaining === 0 && reading) {
-          ruby.push({ startTime: word.startTime, endTime: word.endTime, word: reading });
-        }
+
+      const anchorIndex = tokens.findIndex(
+        (token, index) => index >= tokenIndex && token.startTime === word.startTime,
+      );
+      if (anchorIndex !== -1) {
+        tokenIndex = anchorIndex;
+        remaining = 0;
+        currentToken = null;
       }
-      if (ruby.some((item) => item.word)) word.ruby = ruby;
+
+      if (remaining <= 0) {
+        currentToken = tokens[tokenIndex++] ?? null;
+        if (!currentToken) break;
+        remaining = currentToken.length;
+      }
+
+      remaining -= Math.min(remaining, targetCount);
+      if (remaining === 0 && currentToken.text) {
+        word.ruby = [{ startTime: word.startTime, endTime: word.endTime, word: currentToken.text }];
+      }
     }
   }
 };
