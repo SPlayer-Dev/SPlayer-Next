@@ -9,7 +9,7 @@
  * 额外支持 XML 包裹：`LyricContent="..."` 属性 或 `<![CDATA[...]]>` 段
  */
 
-import type { LyricLine, LyricWord } from "@shared/types/lyrics";
+import type { LyricLine, LyricWord, LyricSpan } from "@shared/types/lyrics";
 import { detectBackgroundLine, splitTrailingBackground } from "./bg";
 
 /** 行头：[起始毫秒, 时长毫秒] */
@@ -17,6 +17,56 @@ const LINE_HEADER_RE = /^\[(\d+),(\d+)\]/;
 
 /** 时间标记开头：`(` 紧跟数字 */
 const TIMING_RE = /\((\d+),(\d+)\)/;
+const KANJI_RE = /[\p{Unified_Ideograph}\u3400-\u4dbf]/u;
+
+interface KanaToken {
+  length: number;
+  text: string;
+}
+
+const parseKanaTokens = (value: string): KanaToken[] => {
+  const clean = value.replace(/\(\d+,\d+\)/g, "");
+  const tokens: KanaToken[] = [];
+  const re = /(\d+)(\D*)/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(clean))) {
+    const digits = match[1];
+    for (let i = 0; i < digits.length - (digits.length === 1 ? 1 : 0); i++) {
+      tokens.push({ length: Number(digits[i]), text: "" });
+    }
+    if (digits.length === 1) tokens.push({ length: Number(digits[0]), text: match[2] });
+    else if (match[2]) tokens.push({ length: 1, text: match[2] });
+  }
+  return tokens;
+};
+
+const applyKana = (lines: LyricLine[], tokens: KanaToken[]): void => {
+  let tokenIndex = 0;
+  let remaining = 0;
+  let reading = "";
+  for (const line of lines) {
+    for (const word of line.words) {
+      const chars = [...word.word];
+      const kanjiCount = chars.filter((char) => KANJI_RE.test(char)).length;
+      if (!kanjiCount) continue;
+      const ruby: LyricSpan[] = [];
+      for (const char of chars) {
+        if (!KANJI_RE.test(char)) continue;
+        if (remaining === 0) {
+          const token = tokens[tokenIndex++];
+          if (!token) break;
+          remaining = token.length;
+          reading = token.text;
+        }
+        remaining--;
+        if (remaining === 0 && reading) {
+          ruby.push({ startTime: word.startTime, endTime: word.endTime, word: reading });
+        }
+      }
+      if (ruby.some((item) => item.word)) word.ruby = ruby;
+    }
+  }
+};
 
 /**
  * 逐字符解析单行 QRC 字级歌词
@@ -84,6 +134,8 @@ const extractFromXml = (text: string): string => {
 /** 解析 QRC 歌词 */
 export const parseQRC = (text: string, detectBackground = true): LyricLine[] => {
   const content = extractFromXml(text);
+  const kanaLine = content.match(/^\[kana:([^\r\n]*)\]/m);
+  const kanaTokens = kanaLine ? parseKanaTokens(kanaLine[1]) : [];
   const lines: LyricLine[] = [];
 
   for (const raw of content.split("\n")) {
@@ -118,5 +170,6 @@ export const parseQRC = (text: string, detectBackground = true): LyricLine[] => 
     }
   }
 
+  applyKana(lines, kanaTokens);
   return lines;
 };

@@ -147,6 +147,18 @@
   pointer-events: auto;
   overflow: visible;
 
+  ruby {
+    ruby-position: over;
+  }
+
+  rt {
+    font-size: 0.45em;
+    line-height: 1;
+    font-weight: 400;
+    opacity: 0.8;
+    user-select: none;
+  }
+
   & > span {
     display: inline-block;
     white-space: pre-wrap;

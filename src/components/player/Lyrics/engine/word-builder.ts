@@ -40,6 +40,20 @@ export interface BuildResult {
   animTargets: WordAnimTarget[];
 }
 
+const appendWordContent = (span: HTMLSpanElement, word: LyricWord): void => {
+  const rubyText = word.ruby?.map((item) => item.word).join("") ?? "";
+  if (!rubyText) {
+    span.textContent = word.word;
+    return;
+  }
+  const ruby = document.createElement("ruby");
+  ruby.appendChild(document.createTextNode(word.word));
+  const rt = document.createElement("rt");
+  rt.textContent = rubyText;
+  ruby.appendChild(rt);
+  span.appendChild(ruby);
+};
+
 /**
  * 构建单词 span 元素并添加到主容器（纯 DOM 构建，不创建动画）
  */
@@ -83,7 +97,7 @@ export const buildWordSpans = (
           const text = atom.word.trim();
           if (!text) continue;
           const span = document.createElement("span");
-          span.textContent = text;
+          appendWordContent(span, atom);
           mainDiv.appendChild(span);
           measurements.push({ element: span, word: atom, width: 0, fadeWidth: 0 });
           animTargets.push({
@@ -121,7 +135,7 @@ export const buildWordSpans = (
       } else {
         for (const word of chunk) {
           const span = document.createElement("span");
-          span.textContent = word.word;
+          appendWordContent(span, word);
           mainDiv.appendChild(span);
           measurements.push({ element: span, word, width: 0, fadeWidth: 0 });
           animTargets.push({
@@ -158,7 +172,7 @@ export const buildWordSpans = (
         buildEmphasizedChunk([chunk], mainDiv, measurements, animTargets, isLast);
       } else {
         const span = document.createElement("span");
-        span.textContent = text.trim();
+        appendWordContent(span, chunk);
         mainDiv.appendChild(span);
         measurements.push({ element: span, word: chunk, width: 0, fadeWidth: 0 });
         animTargets.push({
