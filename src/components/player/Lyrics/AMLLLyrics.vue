@@ -403,6 +403,11 @@ defineExpose({
   font-family: var(--lyric-font-latin, inherit);
 }
 
+/* AMLL 将含 ruby 行的词正文设为纵向 flex；强调词拆成字符后需恢复横排 */
+:deep(.FmKaba_wordWithRuby.FmKaba_emphasize .FmKaba_wordBody) {
+  flex-direction: row;
+}
+
 :deep(.lp-line.lp-credit) {
   position: absolute !important;
   left: 0 !important;
