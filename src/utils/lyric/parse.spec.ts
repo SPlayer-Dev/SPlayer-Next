@@ -90,4 +90,10 @@ describe("lyric parse", () => {
     expect(lines[0].words[4].ruby?.[0]?.word).toBe("こ");
     expect(lines[0].words[5].ruby?.[0]?.word).toBe("どく");
   });
+
+  it("QRC kana 为全角数字和迭代符号消费注音 token", () => {
+    const lines = parseQRC("[kana:1いち1ど1ひ1び]\n[0,10]１(0,1)度(1,1)日(2,1)々(3,1)");
+
+    expect(lines[0].words.map((word) => word.ruby?.[0]?.word)).toEqual(["いち", "ど", "ひ", "び"]);
+  });
 });

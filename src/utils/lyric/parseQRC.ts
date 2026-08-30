@@ -17,7 +17,9 @@ const LINE_HEADER_RE = /^\[(\d+),(\d+)\]/;
 
 /** 时间标记开头：`(` 紧跟数字 */
 const TIMING_RE = /\((\d+),(\d+)\)/;
-const KANJI_RE = /[\p{Unified_Ideograph}\u3400-\u4dbf]/u;
+/** 可注音字符：汉字、迭代符号、半角/全角数字及编号数字 */
+const RUBY_TARGET_RE =
+  /[\p{Unified_Ideograph}\u3400-\u4dbf\uf900-\ufaff\u3005\u3006\u30070-9０-９\u2160-\u217f\u2460-\u2473]/u;
 
 interface KanaToken {
   length: number;
@@ -42,11 +44,11 @@ const applyKana = (lines: LyricLine[], tokens: KanaToken[]): void => {
   for (const line of lines) {
     for (const word of line.words) {
       const chars = [...word.word];
-      const kanjiCount = chars.filter((char) => KANJI_RE.test(char)).length;
-      if (!kanjiCount) continue;
+      const targetCount = chars.filter((char) => RUBY_TARGET_RE.test(char)).length;
+      if (!targetCount) continue;
       const ruby: LyricSpan[] = [];
       for (const char of chars) {
-        if (!KANJI_RE.test(char)) continue;
+        if (!RUBY_TARGET_RE.test(char)) continue;
         if (remaining === 0) {
           const token = tokens[tokenIndex++];
           if (!token) break;
