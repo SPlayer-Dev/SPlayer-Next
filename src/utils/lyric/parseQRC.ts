@@ -9,7 +9,7 @@
  * 额外支持 XML 包裹：`LyricContent="..."` 属性 或 `<![CDATA[...]]>` 段
  */
 
-import type { LyricLine, LyricWord, LyricSpan } from "@shared/types/lyrics";
+import type { LyricLine, LyricWord } from "@shared/types/lyrics";
 import { detectBackgroundLine, splitTrailingBackground } from "./bg";
 
 /** 行头：[起始毫秒, 时长毫秒] */
@@ -68,7 +68,7 @@ const applyKana = (lines: LyricLine[], tokens: KanaToken[]): void => {
       }
 
       remaining -= Math.min(remaining, targetCount);
-      if (remaining === 0 && currentToken.text) {
+      if (remaining === 0 && currentToken?.text) {
         word.ruby = [{ startTime: word.startTime, endTime: word.endTime, word: currentToken.text }];
       }
     }
