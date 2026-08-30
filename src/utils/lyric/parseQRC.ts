@@ -27,15 +27,10 @@ interface KanaToken {
 const parseKanaTokens = (value: string): KanaToken[] => {
   const clean = value.replace(/\(\d+,\d+\)/g, "");
   const tokens: KanaToken[] = [];
-  const re = /(\d+)(\D*)/g;
+  const re = /(\d)(\D*)/g;
   let match: RegExpExecArray | null;
   while ((match = re.exec(clean))) {
-    const digits = match[1];
-    for (let i = 0; i < digits.length - (digits.length === 1 ? 1 : 0); i++) {
-      tokens.push({ length: Number(digits[i]), text: "" });
-    }
-    if (digits.length === 1) tokens.push({ length: Number(digits[0]), text: match[2] });
-    else if (match[2]) tokens.push({ length: 1, text: match[2] });
+    tokens.push({ length: Number(match[1]), text: match[2] });
   }
   return tokens;
 };
