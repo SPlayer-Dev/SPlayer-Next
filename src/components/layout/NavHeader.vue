@@ -57,11 +57,11 @@ const onMenuSelect = (key: string): void => {
 </script>
 
 <template>
-  <div class="flex items-center flex-1 h-full app-drag-region">
+  <div class="flex items-center justify-between flex-1 h-full min-w-0 app-drag-region">
     <!-- 左侧 -->
-    <div class="flex items-center gap-3 shrink-0">
+    <div class="flex items-center gap-2 sm:gap-3 min-w-0 shrink-0">
       <SButton
-        class="app-no-drag"
+        class="app-no-drag shrink-0"
         variant="tertiary"
         circle
         :size="40"
@@ -71,7 +71,7 @@ const onMenuSelect = (key: string): void => {
         <template #icon><IconLucideChevronLeft /></template>
       </SButton>
       <SButton
-        class="app-no-drag"
+        class="app-no-drag shrink-0"
         variant="tertiary"
         circle
         :size="40"
@@ -80,9 +80,10 @@ const onMenuSelect = (key: string): void => {
       >
         <template #icon><IconLucideChevronRight /></template>
       </SButton>
+      <NavSearch />
       <SButton
         v-if="update.hasUpdate"
-        class="app-no-drag"
+        class="app-no-drag shrink-0"
         variant="tertiary"
         circle
         :size="40"
@@ -93,16 +94,14 @@ const onMenuSelect = (key: string): void => {
         <template #icon><IconLucideCircleArrowUp /></template>
       </SButton>
     </div>
-    <!-- 中间：搜索框，窄窗口下可收缩 -->
-    <div class="flex-1 min-w-0 mx-3">
-      <NavSearch />
-    </div>
+    <!-- 中间 -->
+    <div class="flex-1 h-full min-w-4" />
     <!-- 右侧 -->
-    <div class="flex items-center gap-3 shrink-0">
+    <div class="flex items-center gap-2 sm:gap-3 shrink-0">
       <NavUser />
       <SDropdownMenu :items="menuItems" @select="onMenuSelect">
         <template #trigger>
-          <SButton class="app-no-drag" variant="tertiary" circle :size="40">
+          <SButton class="app-no-drag shrink-0" variant="tertiary" circle :size="40">
             <template #icon><IconLucideSettings /></template>
           </SButton>
         </template>

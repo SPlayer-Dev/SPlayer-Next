@@ -8,8 +8,8 @@ import icon from "../../../public/icons/favicon.png?asset";
 const getDefaultOptions = (): BrowserWindowConstructorOptions => ({
   width: 1280,
   height: 800,
-  minWidth: 800,
-  minHeight: 600,
+  minWidth: 1280,
+  minHeight: 800,
   autoHideMenuBar: true,
   show: false,
   backgroundColor: nativeTheme.shouldUseDarkColors ? "#101014" : "#f6f6f6",

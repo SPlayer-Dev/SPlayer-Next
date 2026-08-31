@@ -276,11 +276,11 @@ onMounted(() => {
 
 <template>
   <!-- 搜索框触发器与听歌识曲 -->
-  <div class="flex items-center gap-2 min-w-0 w-full max-w-72">
+  <div class="flex items-center gap-2 shrink-0">
     <div
       role="button"
       :aria-label="t('nav.searchPlaceholder')"
-      class="app-no-drag flex-1 w-full max-w-60 min-w-0 h-10 px-4 cursor-pointer flex items-center gap-2 rounded-full border border-solid bg-on-surface/3 border-on-surface/15 hover:bg-on-surface/10 hover:border-on-surface/25 transition-colors duration-250 select-none"
+      class="app-no-drag w-60 h-10 px-4 cursor-pointer flex items-center gap-2 rounded-full border border-solid bg-on-surface/3 border-on-surface/15 hover:bg-on-surface/10 hover:border-on-surface/25 transition-colors duration-250 select-none"
       @click="dialogOpen = true"
       @contextmenu.prevent="dialogOpen = true"
       @mousedown.prevent
