@@ -369,6 +369,57 @@ fn build_typed_stream_for_format(
     }
 }
 
+#[cfg(target_os = "linux")]
+mod pipewire_props {
+    use std::{
+        ffi::OsString,
+        sync::{Mutex, MutexGuard},
+    };
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    pub(super) struct Guard {
+        original: Option<OsString>,
+        _lock: MutexGuard<'static, ()>,
+    }
+
+    impl Guard {
+        pub(super) fn set_node_rate(sample_rate: u32) -> Option<Self> {
+            if sample_rate == 0 {
+                return None;
+            }
+
+            let lock = ENV_LOCK.lock().unwrap_or_else(|err| err.into_inner());
+            let original = std::env::var_os("PIPEWIRE_PROPS");
+
+            // Linux PipeWire 下 cpal 构造流未携带 node.rate 属性，导致调度器无法自适应切换硬件时钟；
+            // 临时注入 PIPEWIRE_PROPS 显式声明目标采样率，驱动硬件 DAC 切换时钟频率
+            unsafe {
+                std::env::set_var(
+                    "PIPEWIRE_PROPS",
+                    format!(r#"{{"node.rate":"1/{sample_rate}"}}"#),
+                );
+            }
+
+            Some(Self {
+                original,
+                _lock: lock,
+            })
+        }
+    }
+
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            unsafe {
+                match self.original.take() {
+                    Some(value) => std::env::set_var("PIPEWIRE_PROPS", value),
+                    None => std::env::remove_var("PIPEWIRE_PROPS"),
+                }
+            }
+        }
+    }
+}
+
 fn build_typed_stream<T>(
     device: &cpal::Device,
     config: StreamConfig,
@@ -380,34 +431,39 @@ fn build_typed_stream<T>(
 where
     T: SizedSample + Sample + FromSample<f32>,
 {
-    let stream = device.build_output_stream(
-        config,
-        move |data: &mut [T], _| {
-            let gain = f32::from_bits(volume.load(Ordering::Relaxed));
-            if stopped.load(Ordering::Acquire) {
-                data.fill(T::EQUILIBRIUM);
-                return;
-            }
-            for output in data {
-                *output = T::from_sample(source.next().unwrap_or(0.0) * gain);
-            }
-        },
-        move |error| {
-            let err_msg = error.to_string();
-            // 设备失效的两种上报文本：默认设备监听的 "no longer valid"，以及绑定端点被拔出时
-            // GetCurrentPadding 返回 0x88890004 (AUDCLNT_E_DEVICE_INVALIDATED) 的十进制 OS Error。
-            // 均属预期失效，重建即可
-            let invalidated =
-                err_msg.contains("no longer valid") || err_msg.contains("-2004287484");
-            if invalidated {
-                info!("音频输出流因设备切换失效，准备重建");
-            } else {
-                warn!(%error, "音频输出流失败");
-            }
-            on_failure();
-        },
-        None,
-    )?;
+    let stream = {
+        #[cfg(target_os = "linux")]
+        let _props_guard = pipewire_props::Guard::set_node_rate(config.sample_rate);
+
+        device.build_output_stream(
+            config,
+            move |data: &mut [T], _| {
+                let gain = f32::from_bits(volume.load(Ordering::Relaxed));
+                if stopped.load(Ordering::Acquire) {
+                    data.fill(T::EQUILIBRIUM);
+                    return;
+                }
+                for output in data {
+                    *output = T::from_sample(source.next().unwrap_or(0.0) * gain);
+                }
+            },
+            move |error| {
+                let err_msg = error.to_string();
+                // 设备失效的两种上报文本：默认设备监听的 "no longer valid"，以及绑定端点被拔出时
+                // GetCurrentPadding 返回 0x88890004 (AUDCLNT_E_DEVICE_INVALIDATED) 的十进制 OS Error。
+                // 均属预期失效，重建即可
+                let invalidated =
+                    err_msg.contains("no longer valid") || err_msg.contains("-2004287484");
+                if invalidated {
+                    info!("音频输出流因设备切换失效，准备重建");
+                } else {
+                    warn!(%error, "音频输出流失败");
+                }
+                on_failure();
+            },
+            None,
+        )?
+    };
     Ok(stream)
 }
 
