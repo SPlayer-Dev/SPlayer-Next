@@ -17,6 +17,9 @@ Exec=/opt/SPlayer-Next/SPlayer-Next --ozone-platform=x11 %U
 ```
 
 In KDE Plasma, the same change can be made by editing the application's desktop entry and replacing `%U` with `--ozone-platform=x11 %U`.
+> [!NOTE]
+>
+> Under Xwayland the Dynamic Island used to be completely invisible (the window was clipped to nothing). The issue is fixed in the latest version, so if you gave up on Xwayland because of that, please upgrade and retry. Under Xwayland, always-on-top, snap centering and absolute positioning all go through the X11 protocol and work normally.
 
 > [!IMPORTANT]
 > Xwayland may not fix global shortcuts and can make them unavailable because it cannot listen to native Wayland input or register through XDG Desktop Portal. KDE users can adjust **System Settings → Application Permissions → Legacy X11 App Support** if they accept the security trade-off.
@@ -29,7 +32,7 @@ Wayland intentionally prevents applications from reading or setting global coord
 | --------------------------------- | --------------------------------------------------- |
 | Desktop lyrics / Dynamic Island   | Rendering errors, opaque background, wrong position |
 | Absolute positioning and snapping | Unavailable or inaccurate                           |
-| Always on top                     | Limited compositor support                          |
+| Always on top                     | Not possible on native Wayland; use window rules or Xwayland      |
 | Click-through                     | May not work                                        |
 | Global cursor hover detection     | Hidden/interactive behavior may be inaccurate       |
 | Global shortcuts                  | May fail to register                                |
@@ -40,7 +43,18 @@ Behavior varies between GNOME Mutter, KDE KWin, wlroots-based compositors, and o
 
 The desktop lyric window has the fixed title `SPlayer-Next - Desktop Lyric`. In KWin, create a rule matching window class `top.imsyy.splayer_next` and this exact title. You can force Always on Top, Overlay layer, All Desktops, and skip taskbar/pager/switcher behavior.
 
+The Dynamic Island window uses the fixed title **`Dynamic Island`** and can be matched the same way.
+
+> [!NOTE]
+>
+> Native Wayland does not let applications set absolute window coordinates, so the Island grows rightward from its fixed top-left corner as lyrics change (side-to-side jumping); snap centering cannot truly work on native Wayland. Two options:
+>
+> 1. Run under Xwayland (see above) — centering and always-on-top both work through the X11 protocol;
+> 2. In KWin, **force a fixed position / always-on-top** with the rule below so the compositor replaces the app's own positioning.
+
 Example KWin rule:
+
+> Save any rule snippet below as a `*.kwinrule` file (UTF-8) and import it via **System Settings → Window Management → Window Rules → Import…**, or append it to `~/.config/kwinrulesrc`.
 
 ```ini
 [SPlayer Next Desktop Lyric]
@@ -58,6 +72,29 @@ skipswitcherrule=2
 skiptaskbar=true
 skiptaskbarrule=2
 title=SPlayer-Next - Desktop Lyric
+titlematch=1
+wmclass=top.imsyy.splayer_next
+wmclassmatch=1
+```
+
+Dynamic Island (set **Position** separately for your resolution):
+
+```ini
+[SPlayer Next Dynamic Island]
+Description=SPlayer Next Dynamic Island
+above=true
+aboverule=2
+desktops=\0
+desktopsrule=2
+layer=overlay
+layerrule=2
+skippager=true
+skippagerrule=2
+skipswitcher=true
+skipswitcherrule=2
+skiptaskbar=true
+skiptaskbarrule=2
+title=Dynamic Island
 titlematch=1
 wmclass=top.imsyy.splayer_next
 wmclassmatch=1
