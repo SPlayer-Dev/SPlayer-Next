@@ -291,7 +291,7 @@ impl SystemMediaControls for WindowsImpl {
         let generation = ctx.cover_generation;
 
         let title = payload.title.clone();
-        let artist = payload.artist.clone();
+        let artist = payload.artist_text();
         let album = payload.album.clone();
         let cover_data = payload.cover_data;
         if update_display(ctx, &title, &artist, &album, None).is_err() {
