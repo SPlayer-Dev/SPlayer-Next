@@ -40,8 +40,8 @@ if (!parentPort) {
 
 /**
  * 深度剥离不可克隆字段
- * 保留 string/number/bool/null/Uint8Array/纯字典/数组；丢函数/symbol；
- * Buffer 转 Uint8Array、普通对象用 Object.create(null) 重建以脱掉 vm.Context 原型链
+ * 保留 string/number/bool/null/二进制视图/纯字典/数组；丢函数/symbol；
+ * 二进制统一复制为当前 realm 的 Uint8Array，普通对象重建以脱掉 vm.Context 原型链
  * @param value - 任意值
  * @param depth - 递归深度上限
  */
@@ -51,8 +51,13 @@ const sanitizeForIpc = (value: unknown, depth = 0): unknown => {
   const t = typeof value;
   if (t === "string" || t === "number" || t === "boolean" || t === "bigint") return value;
   if (t === "function" || t === "symbol") return undefined;
-  if (Buffer.isBuffer(value)) return new Uint8Array(value);
-  if (value instanceof Uint8Array || value instanceof ArrayBuffer) return value;
+  if (ArrayBuffer.isView(value)) {
+    const view = value as ArrayBufferView;
+    return new Uint8Array(view.buffer, view.byteOffset, view.byteLength).slice();
+  }
+  if (Object.prototype.toString.call(value) === "[object ArrayBuffer]") {
+    return new Uint8Array(value as ArrayBuffer).slice().buffer;
+  }
   if (Array.isArray(value)) {
     return value
       .map((item) => sanitizeForIpc(item, depth + 1))
@@ -281,6 +286,11 @@ const buildSplayer = (record: PluginContextRecord, spec: LoadSpec): HostApi => (
     setVolume: (volume: number) =>
       void hostCall(record, "player.setVolume", [volume]).catch(() => {}),
     getPosition: () => hostCall(record, "player.getPosition", []) as Promise<number>,
+  },
+
+  media: {
+    getCover: () =>
+      hostCall(record, "media.getCover", []) as ReturnType<HostApi["media"]["getCover"]>,
   },
 
   onSettingChange: (key: string, handler: (value: unknown) => void) => {

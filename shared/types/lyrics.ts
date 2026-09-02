@@ -19,6 +19,9 @@ export const DEFAULT_LYRIC_FORMAT_ORDER: readonly LyricFormat[] = [
 /** 歌词来源 */
 export type LyricSource = "external" | "embedded" | "online";
 
+/** 当前歌词加载状态 */
+export type LyricLoadState = "loading" | "ready" | "none";
+
 /** 歌词行语言；und-Latn 表示语言未知的拉丁文字 */
 export type LyricLanguage = "ja" | "ko" | "zh-CN" | "und-Latn";
 

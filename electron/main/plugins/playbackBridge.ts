@@ -37,10 +37,15 @@ const findIndex = (time: number): number => {
   return result;
 };
 
-const onTrackChange = (data: { track: Track | null }): void => {
+const onTrackChange = (data: { track: Track | null; revision: number }): void => {
   lyricLines = [];
   currentIndex = -1;
-  pluginRegistry.broadcastPlaybackEvent("trackChange", { track: data.track });
+  pluginRegistry.broadcastPlaybackEvent("trackChange", data);
+};
+
+/** 转发当前曲目的延迟元数据更新 */
+const onTrackUpdate = (data: { track: Track; revision: number }): void => {
+  pluginRegistry.broadcastPlaybackEvent("trackUpdate", data);
 };
 
 /** 按给定进度重算当前行，与上次不同才补发；暂停态没有后续 position-sync，靠这里纠正 */
@@ -55,13 +60,37 @@ const onLyricChange = (snap: NowPlayingSnapshot): void => {
   lyricLines = snap.lyric;
   currentIndex = -1;
   lyricOffsetMs = snap.lyricOffsetMs;
-  pluginRegistry.broadcastPlaybackEvent("lyricChange", { lines: lyricLines });
+  pluginRegistry.broadcastPlaybackEvent("lyricChange", {
+    lines: lyricLines,
+    source: snap.source,
+    status: snap.lyricStatus,
+    revision: snap.lyricRevision,
+  });
   reEmitLine(snap.position);
+};
+
+/** 转发供插件本地插值的播放锚点 */
+const emitPositionSync = (data: NowPlayingPositionSync): void => {
+  pluginRegistry.broadcastPlaybackEvent("positionSync", {
+    position: data.position,
+    state: toPluginState(data.state),
+    speed: data.speed,
+    lyricOffsetMs,
+    sendTimestamp: data.sendTimestamp,
+  });
 };
 
 const onLyricOffsetChange = (data: NowPlayingLyricOffsetSync): void => {
   lyricOffsetMs = data.offsetMs;
-  reEmitLine(nowPlaying.snapshot().position);
+  const snap = nowPlaying.snapshot();
+  reEmitLine(snap.position);
+  emitPositionSync({
+    position: snap.position,
+    playing: snap.playing,
+    state: snap.state,
+    speed: snap.speed,
+    sendTimestamp: snap.sendTimestamp,
+  });
 };
 
 const onPositionSync = (data: NowPlayingPositionSync): void => {
@@ -73,6 +102,7 @@ const onPositionSync = (data: NowPlayingPositionSync): void => {
       position: data.position,
     });
   }
+  emitPositionSync(data);
   if (lyricLines.length === 0) return;
   const next = findIndex(data.position + lyricOffsetMs);
   if (next === currentIndex) return;
@@ -94,9 +124,21 @@ const primePlugin = (id: string): void => {
   const snap = nowPlaying.snapshot();
   const send = <K extends PlaybackEventKind>(event: K, data: PlaybackEventData[K]): void =>
     pluginRegistry.sendPlaybackEventTo(id, event, data);
-  send("trackChange", { track: snap.track });
-  send("lyricChange", { lines: snap.lyric });
+  send("trackChange", { track: snap.track, revision: snap.trackRevision });
+  send("lyricChange", {
+    lines: snap.lyric,
+    source: snap.source,
+    status: snap.lyricStatus,
+    revision: snap.lyricRevision,
+  });
   send("playStateChange", { state: toPluginState(snap.state), position: snap.position });
+  send("positionSync", {
+    position: snap.position,
+    state: toPluginState(snap.state),
+    speed: snap.speed,
+    lyricOffsetMs: snap.lyricOffsetMs,
+    sendTimestamp: snap.sendTimestamp,
+  });
   const index = snap.lyric.length > 0 ? findIndex(snap.position + snap.lyricOffsetMs) : -1;
   if (index >= 0) send("lineChange", { index, position: snap.position });
 };
@@ -106,6 +148,7 @@ const attach = (): void => {
   if (unsubscribers.length > 0) return;
   unsubscribers = [
     nowPlaying.onTrackChange(onTrackChange),
+    nowPlaying.onTrackUpdate(onTrackUpdate),
     nowPlaying.onLyricChange(onLyricChange),
     nowPlaying.onLyricOffsetChange(onLyricOffsetChange),
     nowPlaying.onPositionSync(onPositionSync),

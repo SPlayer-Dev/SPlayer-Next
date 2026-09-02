@@ -8,6 +8,27 @@ const STREAMING_COVER_SCHEME = "streaming-cover";
 export const MAIN_PARTITION = "persist:main";
 
 /**
+ * 将 cache:// URL 解析为缓存目录内的磁盘路径
+ * @param url - cache:// URL
+ * @returns 安全的绝对路径；非法或越界时返回 null
+ */
+export const resolveCacheUrlPath = (url: string): string | null => {
+  const withoutQuery = url.split("?")[0];
+  if (!withoutQuery.startsWith(`${SCHEME}://`)) return null;
+  let relativePath: string;
+  try {
+    relativePath = decodeURIComponent(withoutQuery.slice(`${SCHEME}://`.length));
+  } catch {
+    return null;
+  }
+  const root = getAppCacheDir();
+  const resolved = path.resolve(root, relativePath);
+  const rootWithSep = root.endsWith(path.sep) ? root : root + path.sep;
+  if (resolved !== root && !resolved.startsWith(rootWithSep)) return null;
+  return resolved;
+};
+
+/**
  * 注册 cache:// 协议方案
  * 必须在 app.whenReady 之前调用
  */
@@ -40,16 +61,8 @@ export const registerCacheScheme = (): void => {
 
 /** cache:// 协议的处理函数 */
 const cacheHandler = (request: Request): Response | Promise<Response> => {
-  // 剥离查询串：?v=xxx 仅用于封面替换后的缓存失效，不参与路径解析
-  const withoutQuery = request.url.split("?")[0];
-  const relativePath = decodeURIComponent(withoutQuery.slice(`${SCHEME}://`.length));
-  const root = getAppCacheDir();
-  const resolved = path.resolve(root, relativePath);
-  // 防 cache://../ 逃逸：解析后的绝对路径必须仍在缓存根目录内
-  const rootWithSep = root.endsWith(path.sep) ? root : root + path.sep;
-  if (resolved !== root && !resolved.startsWith(rootWithSep)) {
-    return new Response(null, { status: 403 });
-  }
+  const resolved = resolveCacheUrlPath(request.url);
+  if (!resolved) return new Response(null, { status: 403 });
   return net.fetch(`file://${resolved.replace(/\\/g, "/")}`);
 };
 
