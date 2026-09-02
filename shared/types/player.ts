@@ -60,6 +60,8 @@ export interface Playlist {
   trackCount?: number;
   /** 创建者 */
   owner?: string;
+  /** 播放次数（在线歌单来源） */
+  playCount?: number;
 }
 
 /** 音质信息 */
