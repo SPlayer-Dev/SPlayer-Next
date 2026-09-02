@@ -81,6 +81,11 @@ const config: Configuration = {
       filter: ["*.node"],
     },
     {
+      from: "native/linux-portal",
+      to: "native",
+      filter: ["*.node"],
+    },
+    {
       from: "native/taskbar-lyric",
       to: "native",
       filter: ["*.node"],

@@ -992,6 +992,10 @@
       "description": "管理应用内与全局快捷键",
       "globalEnabled": "开启全局快捷键",
       "globalEnabledHint": "应用未聚焦时也可触发，可能与系统或其他应用冲突",
+      "portalModeTitle": "全局快捷键由系统托管",
+      "portalModeHint": "当前通过 XDG Desktop Portal 注册全局快捷键，请在系统设置中自定义按键",
+      "portalConfigure": "打开系统设置",
+      "portalConfigureFailed": "无法打开系统快捷键设置",
       "colAction": "动作",
       "colInApp": "应用内",
       "colGlobal": "全局",
@@ -1007,6 +1011,7 @@
       "osOccupied": "该组合键已被系统或其他应用占用",
       "osDuplicate": "已被另一全局快捷键占用",
       "invalid": "组合键无效",
+      "portal": "Portal",
       "groups": {
         "player": "播放控制",
         "window": "窗口",
@@ -1030,6 +1035,10 @@
         "togglePlaylist": "展开 / 收起播放列表",
         "openSearch": "打开搜索",
         "searchInPage": "页面内搜索"
+      },
+      "portalGlobalShortcuts": {
+        "label": "使用系统门户管理全局快捷键",
+        "description": "在 Linux 下优先通过 XDG Desktop Portal 注册全局快捷键。不支持时自动回退 Electron 实现"
       }
     },
     "engine": {

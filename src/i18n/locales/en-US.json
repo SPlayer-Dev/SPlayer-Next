@@ -1004,6 +1004,10 @@
       "description": "Manage in-app and global keyboard shortcuts",
       "globalEnabled": "Enable global shortcuts",
       "globalEnabledHint": "Fire even when the app is not focused. May conflict with the OS or other apps.",
+      "portalModeTitle": "Global shortcuts managed by the system",
+      "portalModeHint": "Registered via the XDG Desktop Portal. Customize them in your system settings.",
+      "portalConfigure": "Open system settings",
+      "portalConfigureFailed": "Unable to open system shortcut settings",
       "colAction": "Action",
       "colInApp": "In-App",
       "colGlobal": "Global",
@@ -1019,6 +1023,7 @@
       "osOccupied": "Already taken by the OS or another app",
       "osDuplicate": "Already used by another global shortcut",
       "invalid": "Invalid key combination",
+      "portal": "Portal",
       "groups": {
         "player": "Playback",
         "window": "Windows",
@@ -1042,6 +1047,10 @@
         "togglePlaylist": "Show / hide playlist",
         "openSearch": "Open search",
         "searchInPage": "Search in page"
+      },
+      "portalGlobalShortcuts": {
+        "label": "Manage global shortcuts via the system portal",
+        "description": "On Linux, prefer registering global shortcuts through the XDG Desktop Portal. Falls back to the Electron implementation when unsupported."
       }
     },
     "engine": {

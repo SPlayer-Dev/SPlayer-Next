@@ -19,7 +19,8 @@ Exec=/opt/SPlayer-Next/SPlayer-Next --ozone-platform=x11 %U
 In KDE Plasma, the same change can be made by editing the application's desktop entry and replacing `%U` with `--ozone-platform=x11 %U`.
 
 > [!IMPORTANT]
-> Xwayland may not fix global shortcuts and can make them unavailable because it cannot listen to native Wayland input or register through XDG Desktop Portal. KDE users can adjust **System Settings → Application Permissions → Legacy X11 App Support** if they accept the security trade-off.
+>
+> Using Xwayland may not resolve the global shortcut issue, because Xwayland cannot listen to native Wayland key events and still relies on XDG Desktop Portal.
 
 ## Known window limitations
 
@@ -79,8 +80,6 @@ Click-through while locked is a known issue; Xwayland may help.
 ## Global shortcuts
 
 On native Wayland, Electron registers global shortcuts through `xdg-desktop-portal`. New shortcuts should trigger a permission request when the app starts. KDE lists them under **System Settings → Keyboard → Shortcuts → SPlayer-Next**.
-
-Electron registers a display name such as `SPlayer-Next shortcut: Ctrl+Shift+Left`. The actual key combination is the binding assigned to that entry in system settings. Changing a shortcut in the app changes the registered name; restart SPlayer-Next after each change so the portal can request permission again.
 
 Check whether the active portal backend exposes GlobalShortcuts:
 

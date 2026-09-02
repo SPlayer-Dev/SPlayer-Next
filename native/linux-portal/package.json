@@ -1,0 +1,14 @@
+{
+  "name": "linux-portal",
+  "version": "0.1.0",
+  "main": "linux-portal.node",
+  "types": "index.d.ts",
+  "napi": {
+    "binaryName": "linux-portal",
+    "triples": {}
+  },
+  "scripts": {
+    "build": "napi build --release --no-const-enum",
+    "build:debug": "napi build --no-const-enum"
+  }
+}

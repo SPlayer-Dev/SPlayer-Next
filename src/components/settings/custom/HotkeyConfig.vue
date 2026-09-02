@@ -7,12 +7,21 @@ import { formatAccelerator } from "@shared/utils/accelerator";
 import { toast } from "@/composables/useToast";
 import { dialog } from "@/composables/useDialog";
 import IconLucideRotateCcw from "~icons/lucide/rotate-ccw";
-import { isMac } from "@/utils/config";
+import IconLucideSettings2 from "~icons/lucide/settings-2";
+import { isMac, isLinux } from "@/utils/config";
 
 defineOptions({ inheritAttrs: false });
 
 const { t } = useI18n();
 const hotkey = useHotkeyStore();
+
+/** 打开系统侧快捷键设置（portal 模式） */
+const openPortalSettings = async (): Promise<void> => {
+  const res = await hotkey.configureShortcuts();
+  if (!res.ok) {
+    toast.error(res.error ?? t("settings.hotkeys.portalConfigureFailed"));
+  }
+};
 
 /** 按 id 前缀分组 */
 const groupedActions = computed(() => {
@@ -110,7 +119,7 @@ const recorder = useHotkeyRecorder({
 
 /** 开始录入 */
 const startRecord = (id: HotkeyActionId, scope: Scope): void => {
-  if (scope === "global" && !hotkey.globalEnabled) return;
+  if (scope === "global" && (!hotkey.globalEnabled || hotkey.mode === "portal")) return;
   clearError();
   if (
     recordingTarget.value &&
@@ -155,8 +164,17 @@ const toggleGlobalEnabled = async (v: boolean): Promise<void> => {
   await hotkey.setGlobalEnabled(v);
 };
 
+/** 切换 portal 后端开关（主进程按此切换实现模式） */
+const togglePortalShortcuts = async (v: boolean): Promise<void> => {
+  await hotkey.setPortalShortcuts(v);
+};
+
 /** 获取值 */
 const valueOf = (id: HotkeyActionId, scope: Scope): string => {
+  // portal 模式：全局快捷键由系统托管，不展示应用侧的绑定值
+  if (scope === "global" && hotkey.mode === "portal") {
+    return t("settings.hotkeys.portal");
+  }
   const target = recordingTarget.value;
   if (target && target.id === id && target.scope === scope) {
     return recorder.current.value;
@@ -225,6 +243,42 @@ const errorTitleOf = (id: HotkeyActionId, scope: Scope): string => {
       <SSwitch :model-value="hotkey.globalEnabled" @update:model-value="toggleGlobalEnabled" />
     </div>
 
+    <div
+      v-if="hotkey.globalEnabled && isLinux"
+      class="rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3.5 flex items-center justify-between gap-4"
+    >
+      <div class="min-w-0 flex-1">
+        <div class="text-base">{{ t("settings.hotkeys.portalGlobalShortcuts.label") }}</div>
+        <div class="text-sm text-on-surface-variant/70 mt-0.5">
+          {{ t("settings.hotkeys.portalGlobalShortcuts.description") }}
+        </div>
+      </div>
+      <SSwitch :model-value="hotkey.portalShortcuts" @update:model-value="togglePortalShortcuts" />
+    </div>
+
+    <div
+      v-if="hotkey.mode === 'portal' && hotkey.globalEnabled"
+      class="rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3.5 flex items-center justify-between gap-4"
+    >
+      <div class="min-w-0 flex-1">
+        <div class="text-base flex items-center gap-2">
+          <IconLucideSettings2 class="size-4 text-on-surface-variant/70" />
+          {{ t("settings.hotkeys.portalModeTitle") }}
+        </div>
+        <div class="text-sm text-on-surface-variant/70 mt-0.5">
+          {{ t("settings.hotkeys.portalModeHint") }}
+        </div>
+      </div>
+      <SButton
+        v-if="hotkey.portalConfigureSupported"
+        variant="secondary"
+        :disabled="!hotkey.globalEnabled"
+        @click="openPortalSettings"
+      >
+        {{ t("settings.hotkeys.portalConfigure") }}
+      </SButton>
+    </div>
+
     <!-- 绑定表：按类分组 -->
     <div
       v-for="group in groupedActions"
@@ -263,7 +317,7 @@ const errorTitleOf = (id: HotkeyActionId, scope: Scope): string => {
             <div v-if="action.allowGlobal" class="w-48" :title="errorTitleOf(action.id, 'global')">
               <SInput
                 readonly
-                :disabled="!hotkey.globalEnabled"
+                :disabled="!hotkey.globalEnabled || hotkey.mode === 'portal'"
                 :model-value="valueOf(action.id, 'global')"
                 :placeholder="placeholderOf(action.id, 'global')"
                 :status="statusOf(action.id, 'global')"
@@ -288,6 +342,7 @@ const errorTitleOf = (id: HotkeyActionId, scope: Scope): string => {
     </div>
 
     <div
+      v-if="hotkey.mode !== 'portal'"
       class="rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3.5 flex items-center justify-between gap-4"
     >
       <div class="min-w-0 flex-1">

@@ -17,6 +17,7 @@
       "@splayer/audio-engine": ["./native/audio-engine"],
       "@splayer/audio-capture": ["./native/audio-capture"],
       "@splayer/media-ctrl": ["./native/media-ctrl"],
+      "@splayer/linux-portal": ["./native/linux-portal"],
       "@splayer/taskbar-lyric": ["./native/taskbar-lyric"],
       "@splayer/taskbar-thumbnail": ["./native/taskbar-thumbnail"],
       "@splayer/opencc": ["./native/opencc"]

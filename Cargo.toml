@@ -2,6 +2,7 @@
 members = [
   "./native/audio-engine",
   "./native/audio-capture",
+  "./native/linux-portal",
   "./native/media-ctrl",
   "./native/taskbar-lyric",
   "./native/taskbar-thumbnail",

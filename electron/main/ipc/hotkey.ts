@@ -8,8 +8,13 @@ import {
   setBinding,
   resetBindings,
   setGlobalEnabled,
+  setPortalShortcuts,
   probeAccelerator,
   getConflicts,
+  getGlobalModeSnapshot,
+  awaitPortalReady,
+  configurePortalShortcuts,
+  setPortalDescriptions,
 } from "@main/services/globalHotkey";
 import type { HotkeyActionId, HotkeyBinding } from "@shared/types/hotkey";
 
@@ -26,7 +31,24 @@ export const registerHotkeyIpc = (): void => {
     setGlobalEnabled(enabled),
   );
 
+  ipcMain.handle("hotkey:setPortalShortcuts", (_event, enabled: boolean) =>
+    setPortalShortcuts(enabled),
+  );
+
   ipcMain.handle("hotkey:probe", (_event, accel: string) => probeAccelerator(accel));
 
   ipcMain.handle("hotkey:getConflicts", () => getConflicts());
+
+  ipcMain.handle("hotkey:getGlobalMode", async () => {
+    await awaitPortalReady();
+    return getGlobalModeSnapshot();
+  });
+
+  ipcMain.handle("hotkey:configureShortcuts", () => configurePortalShortcuts());
+
+  ipcMain.handle(
+    "hotkey:setPortalDescriptions",
+    (_event, descriptions: Partial<Record<HotkeyActionId, string>>) =>
+      setPortalDescriptions(descriptions),
+  );
 };
