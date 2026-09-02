@@ -14,6 +14,7 @@ import { useProgressLyric } from "@/composables/useProgressLyric";
 import Lyrics from "@/components/player/Lyrics/index.vue";
 import AMLLLyrics from "@/components/player/Lyrics/AMLLLyrics.vue";
 import PlaylistPickerDialog from "@/components/modals/PlaylistPickerDialog.vue";
+import FullPlayerComments from "./FullPlayerComments.vue";
 import { useWindowControls } from "@/composables/useWindowControls";
 import * as player from "@/core/player";
 import { openExternal } from "@/utils/url";
@@ -109,8 +110,15 @@ watch(
 const fullscreenCover = computed(() => settings.player.coverLayout === "fullscreen");
 
 const coverCentered = computed(() => {
-  if (fullscreenCover.value || status.fullQueueOpen) return false;
+  if (fullscreenCover.value || status.fullQueueOpen || status.fullCommentsOpen) return false;
   return !showLyric.value || (settings.player.autoCenterCover && !hasLyric.value);
+});
+
+/** 全屏内嵌评论布局模式：off 关闭 / half 左半屏 / full 全屏 */
+const fullCommentMode = computed<"off" | "half" | "full">(() => {
+  if (!status.fullCommentsOpen) return "off";
+  // 用实际就绪歌词判定，避免歌词加载中/失败导致面板宽度来回切换
+  return media.parsedLyric.length > 0 && showLyric.value ? "half" : "full";
 });
 
 const handleLyricSeek = async (timeMs: number): Promise<void> => {
@@ -180,9 +188,17 @@ const toggleLyric = (): void => {
   }
 };
 
-const showComments = (): void => {
-  if (displayTrack.value) status.showComments(displayTrack.value);
+const toggleFullComments = (): void => {
+  if (status.fullQueueOpen) status.fullQueueOpen = false;
+  status.fullCommentsOpen = !status.fullCommentsOpen;
 };
+
+watch(
+  () => status.fullQueueOpen,
+  (open) => {
+    if (open && status.fullCommentsOpen) status.fullCommentsOpen = false;
+  },
+);
 </script>
 
 <template>
@@ -207,9 +223,19 @@ const showComments = (): void => {
         <!-- 背景 -->
         <PlayerBackground />
         <!-- 全屏封面 -->
-        <div v-if="fullscreenCover" class="absolute inset-y-0 left-0 w-[60%]">
-          <PlayerCover fullscreen />
-        </div>
+        <Transition
+          enter-active-class="transition-opacity duration-250"
+          enter-from-class="opacity-0"
+          leave-active-class="transition-opacity duration-250"
+          leave-to-class="opacity-0"
+        >
+          <div
+            v-if="fullscreenCover && fullCommentMode === 'off'"
+            class="absolute inset-y-0 left-0 w-[60%]"
+          >
+            <PlayerCover fullscreen />
+          </div>
+        </Transition>
         <!-- 底部频谱 -->
         <BottomSpectrum
           v-if="isPlayerExpanded && settings.player.enableSpectrum"
@@ -217,12 +243,12 @@ const showComments = (): void => {
         />
         <!-- 顶/底栏渐变遮罩（全屏封面模式） -->
         <div
-          v-if="fullscreenCover"
+          v-if="fullscreenCover && fullCommentMode === 'off'"
           class="cover-mask-top absolute top-0 inset-x-0 h-20 z-5 pointer-events-none transition-opacity duration-400"
           :class="immersive ? 'opacity-0' : 'opacity-100'"
         />
         <div
-          v-if="fullscreenCover"
+          v-if="fullscreenCover && fullCommentMode === 'off'"
           class="cover-mask-bottom absolute bottom-0 inset-x-0 h-48 z-5 pointer-events-none transition-opacity duration-400"
           :class="immersive ? 'opacity-0' : 'opacity-100'"
         />
@@ -261,7 +287,8 @@ const showComments = (): void => {
           <!-- 左侧 -->
           <div
             v-if="!fullscreenCover"
-            class="absolute inset-y-0 left-0 w-[45%] flex items-center justify-center px-12 transition-transform duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
+            class="absolute inset-y-0 left-0 w-[45%] flex items-center justify-center px-12 transition-[transform,opacity] duration-250 ease-[cubic-bezier(0.4,0,0.2,1)]"
+            :class="fullCommentMode === 'off' ? 'opacity-100' : 'opacity-0 pointer-events-none'"
             :style="coverCentered ? 'transform: translateX(calc(100% * 11 / 18))' : undefined"
           >
             <div class="relative w-[clamp(200px,85%,50vh)] -translate-y-[11vh]">
@@ -277,22 +304,29 @@ const showComments = (): void => {
           </div>
           <!-- 右侧 -->
           <div
-            class="group absolute inset-y-0 right-0 pr-20 flex flex-col transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
+            class="group absolute inset-y-0 right-0 pr-20 flex flex-col transition-opacity duration-250 ease-[cubic-bezier(0.4,0,0.2,1)]"
             :class="[
-              fullscreenCover ? 'w-1/2' : 'w-[55%]',
-              coverCentered || status.fullQueueOpen
+              fullscreenCover || fullCommentMode === 'half' ? 'w-1/2' : 'w-[55%]',
+              coverCentered || status.fullQueueOpen || fullCommentMode === 'full'
                 ? 'opacity-0 pointer-events-none'
                 : 'opacity-100',
             ]"
           >
             <!-- 全屏封面 -->
-            <div
-              v-if="fullscreenCover"
-              class="shrink-0 pt-2 pb-6 pl-[calc(1em-0.5rem)]"
-              :style="{ fontSize: lyricFontSize }"
+            <Transition
+              enter-active-class="transition-opacity duration-250"
+              enter-from-class="opacity-0"
+              leave-active-class="transition-opacity duration-250"
+              leave-to-class="opacity-0"
             >
-              <PlayerData align="left" simple />
-            </div>
+              <div
+                v-if="fullscreenCover && fullCommentMode === 'off'"
+                class="shrink-0 pt-2 pb-6 pl-[calc(1em-0.5rem)]"
+                :style="{ fontSize: lyricFontSize }"
+              >
+                <PlayerData align="left" simple />
+              </div>
+            </Transition>
             <!-- 歌词容器 -->
             <div
               class="lyric-area relative flex-1 min-h-0"
@@ -381,6 +415,29 @@ const showComments = (): void => {
             <!-- 歌词侧边工具栏 -->
             <LyricActions :immersive="immersive" />
           </div>
+          <!-- 全屏内嵌评论 -->
+          <Transition
+            enter-active-class="transition-opacity duration-250 ease-[cubic-bezier(0.4,0,0.2,1)]"
+            enter-from-class="opacity-0"
+            leave-active-class="transition-opacity duration-250 ease-[cubic-bezier(0.4,0,0.2,1)]"
+            leave-to-class="opacity-0"
+          >
+            <div
+              v-if="fullCommentMode !== 'off'"
+              class="absolute py-4 z-6 transition-[inset,width,padding] duration-250 ease-[cubic-bezier(0.4,0,0.2,1)]"
+              :class="
+                fullCommentMode === 'half'
+                  ? 'inset-y-0 left-0 w-1/2 pl-[clamp(32px,4vw,64px)] pr-[clamp(20px,2.5vw,40px)]'
+                  : 'inset-0 w-full px-[clamp(32px,5vw,80px)]'
+              "
+            >
+              <FullPlayerComments
+                :mode="fullCommentMode"
+                :immersive="immersive"
+                @close="toggleFullComments"
+              />
+            </div>
+          </Transition>
           <!-- 播放队列 -->
           <div
             class="absolute inset-y-0 right-0 pl-4 py-6 flex items-center"
@@ -433,7 +490,8 @@ const showComments = (): void => {
               size="large"
               circle
               :disabled="!hasTrack"
-              @click="showComments"
+              :class="status.fullCommentsOpen ? 'opacity-100' : 'opacity-40'"
+              @click="toggleFullComments"
             >
               <template #icon><IconLucideMessageCircle /></template>
             </SButton>
