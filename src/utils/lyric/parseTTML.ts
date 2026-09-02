@@ -9,6 +9,7 @@
  * - iTunes 翻译元数据（translations 段）
  * - iTunes 音译元数据（transliterations 段，行级 + 逐词罗马音）
  * - 逐字间有意义的空格保留
+ * - ruby 注音（tts:ruby base/text）提取到 LyricWord.ruby
  */
 
 import type { LyricLine, LyricWord } from "@shared/types/lyrics";
@@ -40,13 +41,159 @@ const getWordText = (el: Element): string => {
     if (node.nodeType === Node.TEXT_NODE) {
       text += node.textContent ?? "";
     } else if (node.nodeType === Node.ELEMENT_NODE) {
-      const role = getAttr(node as Element, "role");
-      if (role !== "x-translation" && role !== "x-roman") {
-        text += getWordText(node as Element);
-      }
+      const childEl = node as Element;
+      const role = getAttr(childEl, "role");
+      if (role === "x-translation" || role === "x-roman") continue;
+      // 跳过 ruby 注音 span（文字由 base 节点单独处理）
+      if (getAttr(childEl, "ruby") === "text") continue;
+      text += getWordText(childEl);
     }
   }
   return text;
+};
+
+/**
+ * 预处理 tts:ruby 注音元素，统一转换为带时间戳的 <span> 结构
+ *
+ * 支持两种格式：
+ * 1. 标准 TTML：<tts:ruby base="行"><tts:ruby:textContainer><tts:ruby:text begin="...">い</tts:ruby:text></tts:ruby:textContainer></tts:ruby>
+ * 2. 简化格式：<span tts:ruby="container"><span tts:ruby="base">行</span><span tts:ruby="textContainer"><span tts:ruby="text" begin="..." end="...">い</span></span></span>
+ *
+ * 转换后：
+ * - 格式1 → <span tts:ruby="base" begin="..." end="...">行</span><span tts:ruby="text" begin="..." end="...">い</span>
+ * - 格式2 → <span tts:ruby="base" begin="..." end="...">行</span><span tts:ruby="text" begin="..." end="...">い</span>
+ * 两者统一，base 获得时间戳，text span 紧跟其后，供 collectRubySegments 收集。
+ */
+/** @internal 供测试使用 */
+export const normalizeRubyElements = (el: Element): void => {
+  const queue: Element[] = [el];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    // 收集所有子元素快照，避免修改 DOM 时迭代问题
+    const children = Array.from(current.children);
+    for (const child of children) {
+      // 格式1：处理 <tts:ruby base="..."> 容器（在 happy-dom 中 localName="ruby"）
+      if (child.localName === "ruby") {
+        const baseText = getAttr(child, "base") ?? "";
+        const rubySegments: { begin: string; end: string; text: string }[] = [];
+        for (const subChild of Array.from(child.children)) {
+          if (subChild.tagName.toLowerCase() !== "tts:ruby:textcontainer") continue;
+          for (const textEl of Array.from(subChild.children)) {
+            if (textEl.tagName.toLowerCase() !== "tts:ruby:text") continue;
+            const b = getAttr(textEl, "begin");
+            const e = getAttr(textEl, "end");
+            const t = (textEl.textContent ?? "").trim();
+            if (t) rubySegments.push({ begin: b ?? "", end: e ?? "", text: t });
+          }
+        }
+        const parent = child.parentElement;
+        if (!parent) {
+          // 已脱离 DOM，从队列中移除并跳出内层循环，防止死循环
+          queue.shift();
+          break;
+        }
+        const toInsert: Element[] = [];
+        const baseSpan = parent.ownerDocument.createElement("span");
+        baseSpan.setAttribute("tts:ruby", "base");
+        baseSpan.textContent = baseText;
+        if (rubySegments.length) {
+          baseSpan.setAttribute("begin", rubySegments[0].begin);
+          baseSpan.setAttribute("end", rubySegments[0].end);
+        }
+        toInsert.push(baseSpan);
+        for (const seg of rubySegments) {
+          const textSpan = parent.ownerDocument.createElement("span");
+          textSpan.setAttribute("tts:ruby", "text");
+          textSpan.textContent = seg.text;
+          if (seg.begin) textSpan.setAttribute("begin", seg.begin);
+          if (seg.end) textSpan.setAttribute("end", seg.end);
+          toInsert.push(textSpan);
+        }
+        const ref = child.nextSibling;
+        for (const el of toInsert) {
+          parent.insertBefore(el, ref);
+        }
+        parent.removeChild(child);
+        // 已展开，不加入队列
+        continue;
+      }
+      // 格式2：处理 <span tts:ruby="container">...</span>
+      if (child.localName === "span" && getAttr(child, "ruby") === "container") {
+        const baseSpan = Array.from(child.children).find(
+          (c) => c.localName === "span" && getAttr(c, "ruby") === "base",
+        );
+        const textContainer = Array.from(child.children).find(
+          (c) => c.localName === "span" && getAttr(c, "ruby") === "textContainer",
+        );
+        if (!baseSpan || !textContainer) {
+          // 结构不完整，从队列中移除并跳过，防止死循环
+          queue.shift();
+          break;
+        }
+        const baseText = (baseSpan.textContent ?? "").trim();
+        const rubySegments: { begin: string; end: string; text: string }[] = [];
+        for (const textEl of Array.from(textContainer.children)) {
+          if (textEl.localName !== "span" || getAttr(textEl, "ruby") !== "text") continue;
+          const b = getAttr(textEl, "begin");
+          const e = getAttr(textEl, "end");
+          const t = (textEl.textContent ?? "").trim();
+          if (t) rubySegments.push({ begin: b ?? "", end: e ?? "", text: t });
+        }
+        const parent = child.parentElement;
+        if (!parent) break;
+        const toInsert: Element[] = [];
+        const newBase = parent.ownerDocument.createElement("span");
+        newBase.setAttribute("tts:ruby", "base");
+        newBase.textContent = baseText;
+        if (rubySegments.length) {
+          newBase.setAttribute("begin", rubySegments[0].begin);
+          newBase.setAttribute("end", rubySegments[0].end);
+        }
+        toInsert.push(newBase);
+        for (const seg of rubySegments) {
+          const textSpan = parent.ownerDocument.createElement("span");
+          textSpan.setAttribute("tts:ruby", "text");
+          textSpan.textContent = seg.text;
+          if (seg.begin) textSpan.setAttribute("begin", seg.begin);
+          if (seg.end) textSpan.setAttribute("end", seg.end);
+          toInsert.push(textSpan);
+        }
+        const ref = child.nextSibling;
+        for (const el of toInsert) {
+          parent.insertBefore(el, ref);
+        }
+        parent.removeChild(child);
+        // 已展开，不加入队列
+        continue;
+      }
+      // 非 ruby 元素，加入队列继续处理
+      queue.push(child);
+    }
+  }
+};
+
+/**
+ * 收集紧跟在 base span 后的相邻 tts:ruby="text" span 作为注音
+ * @param afterBase 紧跟在 base span 后的第一个 sibling
+ * @returns ruby 注音段数组，无注音时返回 undefined
+ */
+const collectRubySegments = (afterBase: Element | null): LyricWord["ruby"] => {
+  const segments: LyricWord["ruby"] = [];
+  let cur = afterBase;
+  while (cur && getAttr(cur, "ruby") === "text") {
+    const b = getAttr(cur, "begin");
+    const e = getAttr(cur, "end");
+    const text = (cur.textContent ?? "").trim();
+    if (text) {
+      segments.push({
+        startTime: b ? parseTTMLTime(b) : 0,
+        endTime: e ? parseTTMLTime(e) : 0,
+        word: text,
+      });
+    }
+    cur = cur.nextElementSibling;
+  }
+  return segments.length > 0 ? segments : undefined;
 };
 
 /**
@@ -316,6 +463,9 @@ export const parseTTML = (text: string, preferredLang = ""): LyricLine[] => {
     throw new Error("Invalid TTML XML");
   }
 
+  // 预处理：将 <tts:ruby base="漢字"> 展开为带时间的 <span tts:ruby="base">漢字</span>
+  normalizeRubyElements(doc.documentElement);
+
   const { mainAgent, agentTypes } = collectAgents(doc);
   const translations = collectTranslations(doc, preferredLang);
   const transliterations = collectTransliterations(doc);
@@ -393,6 +543,7 @@ export const parseTTML = (text: string, preferredLang = ""): LyricLine[] => {
         const span = node as Element;
         if (span.localName !== "span") continue;
         const role = getAttr(span, "role");
+        const rubyRole = getAttr(span, "ruby");
 
         if (role === "x-bg") {
           // 背景歌词行，递归解析
@@ -407,20 +558,46 @@ export const parseTTML = (text: string, preferredLang = ""): LyricLine[] => {
         } else if (role === "x-roman") {
           // 行内音译
           if (!line.romanLyric) line.romanLyric = span.textContent?.trim() ?? "";
+        } else if (rubyRole === "text") {
+          // 孤立的天文字 span，跳过（已由 base 收集）
+          continue;
         } else {
           // 逐字 span
           const wb = getAttr(span, "begin");
           const we = getAttr(span, "end");
-          if (wb && we) {
-            const lyricWord: LyricWord = {
-              word: getWordText(span),
-              startTime: parseTTMLTime(wb),
-              endTime: parseTTMLTime(we),
-            };
-            line.words.push(lyricWord);
-            timedWords.push(lyricWord);
-            lastWasTimedSpan = true;
-          }
+
+          // 检查 span 是否包含 ruby base 子元素（标准 TTML 格式展开后的结构）
+          const rubyBaseChild = Array.from(span.children).find(
+            (c) => c.localName === "span" && getAttr(c, "ruby") === "base",
+          );
+          const rubyBaseTime = rubyBaseChild
+            ? {
+                startTime: rubyBaseChild.getAttribute("begin")
+                  ? parseTTMLTime(rubyBaseChild.getAttribute("begin")!)
+                  : 0,
+                endTime: rubyBaseChild.getAttribute("end")
+                  ? parseTTMLTime(rubyBaseChild.getAttribute("end")!)
+                  : 0,
+              }
+            : null;
+
+          // 收集 base span 后紧跟的 text 注音（简化格式展开后的结构）
+          const rubySegments =
+            rubyRole === "base" ? collectRubySegments(span.nextElementSibling) : undefined;
+
+          // 优先使用 ruby base 的时间戳（来自 ttml:text），否则使用 span 自己的时间戳
+          const effectiveBegin = rubyBaseTime?.startTime ?? (wb ? parseTTMLTime(wb) : 0);
+          const effectiveEnd = rubyBaseTime?.endTime ?? (we ? parseTTMLTime(we) : 0);
+
+          const lyricWord: LyricWord = {
+            word: getWordText(span),
+            startTime: effectiveBegin,
+            endTime: effectiveEnd,
+            ruby: rubySegments,
+          };
+          line.words.push(lyricWord);
+          timedWords.push(lyricWord);
+          lastWasTimedSpan = true;
         }
       }
     }
