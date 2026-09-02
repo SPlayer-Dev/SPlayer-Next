@@ -23,6 +23,7 @@ import IconLucideListEnd from "~icons/lucide/list-end";
 import IconLucideListPlus from "~icons/lucide/list-plus";
 import IconLucideListMinus from "~icons/lucide/list-minus";
 import IconLucideDownload from "~icons/lucide/download";
+import IconLucideFolderDown from "~icons/lucide/folder-down";
 import IconLucideTrash2 from "~icons/lucide/trash-2";
 import IconLucideArrowLeftRight from "~icons/lucide/arrow-left-right";
 import IconLucideX from "~icons/lucide/x";
@@ -373,6 +374,16 @@ defineExpose({
               >
                 <template #icon><IconLucideDownload class="size-3.5" /></template>
                 <span>{{ t("songList.batch.download") }}</span>
+              </SButton>
+              <SButton
+                v-if="source !== 'local' && settings.system.download.enabled"
+                variant="ghost"
+                size="small"
+                :disabled="batch.selectedCount.value === 0"
+                @click="batch.batchDownloadCustomDir"
+              >
+                <template #icon><IconLucideFolderDown class="size-3.5" /></template>
+                <span>{{ t("songList.batch.downloadCustomDir") }}</span>
               </SButton>
               <SButton
                 v-if="source === 'local' || source === 'netease'"

@@ -1,4 +1,4 @@
-import { app, ipcMain, shell } from "electron";
+import { app, ipcMain, dialog, shell } from "electron";
 import { writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, basename } from "node:path";
@@ -40,6 +40,19 @@ export const registerSystemIpc = (): void => {
   // 在文件管理器中显示文件
   ipcMain.handle("system:showInExplorer", (_event, filePath: string) => {
     shell.showItemInFolder(filePath);
+  });
+
+  // 选择目录
+  ipcMain.handle("system:pickDir", async (_event, title: string = "选择目录") => {
+    const result = await dialog.showOpenDialog({
+      title: title,
+      properties: ["openDirectory", "createDirectory"],
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+      return { ok: false, reason: "canceled" as const };
+    }
+    const dir = result.filePaths[0];
+    return { ok: true, dir };
   });
 
   // 打开日志目录

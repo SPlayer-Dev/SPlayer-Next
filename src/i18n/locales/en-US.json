@@ -560,6 +560,7 @@
       "invert": "Invert",
       "addToQueue": "Add to Queue",
       "download": "Batch Download",
+      "downloadCustomDir": "Download to Custom Directory",
       "exit": "Exit"
     },
     "delete": {

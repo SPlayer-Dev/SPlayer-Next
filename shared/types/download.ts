@@ -53,6 +53,8 @@ export interface DownloadRequest {
   usePlaybackForDownload: boolean;
   /** 内嵌歌词与 .lrc 的保存格式 */
   lyricFileFormat: DownloadLyricFormat;
+  /** 自定义下载目录 */
+  customDir?: string;
 }
 
 /** 主进程持有的下载任务 */
@@ -73,6 +75,8 @@ export interface DownloadTask {
   tagWarning?: boolean;
   createdAt: number;
   finishedAt?: number;
+  /** 自定义下载目录 */
+  customDir?: string;
 }
 
 /** 下载进度推送 */

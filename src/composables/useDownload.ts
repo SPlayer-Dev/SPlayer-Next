@@ -10,6 +10,8 @@ interface EnqueueOptions {
   quality?: QualityLevel;
   /** 复用已有任务 id（重试） */
   taskId?: string;
+  /** 自定义下载目录 */
+  customDir?: string;
 }
 
 /** 可下载音质档位（展示顺序） */
@@ -57,6 +59,7 @@ export const useDownload = () => {
       tagOptions,
       usePlaybackForDownload: download.usePlaybackForDownload,
       lyricFileFormat: download.lyricFileFormat,
+      customDir: opts.customDir,
     };
   };
 
@@ -81,9 +84,9 @@ export const useDownload = () => {
   };
 
   /** 批量下载 */
-  const enqueueMany = async (tracks: Track[]): Promise<void> => {
+  const enqueueMany = async (tracks: Track[], opts: EnqueueOptions = {}): Promise<void> => {
     const requests = tracks
-      .map((track) => prepareRequest(track, {}))
+      .map((track) => prepareRequest(track, opts))
       .filter((req): req is DownloadRequest => req !== null);
     const results = await window.api.download.startMany(requests).catch(() => []);
     const count = results.filter((result) => result?.ok).length;
@@ -92,7 +95,11 @@ export const useDownload = () => {
 
   /** 重试：用任务保存的完整 Track 重新入队（复用 taskId） */
   const retry = (task: DownloadTask): Promise<boolean> =>
-    enqueue(task.track, { quality: task.qualityLevel, taskId: task.taskId });
+    enqueue(task.track, {
+      quality: task.qualityLevel,
+      taskId: task.taskId,
+      customDir: task.customDir,
+    });
 
   return { enqueue, enqueueMany, retry };
 };

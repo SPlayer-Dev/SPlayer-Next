@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 
 /** 当前 schema 版本 */
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 type TableInfoRow = { name: string };
 
@@ -50,6 +50,14 @@ export const migrate = (d: Database.Database): void => {
       d.exec("ALTER TABLE tracks ADD COLUMN cue_end_ms INTEGER");
     }
     v = 4;
+  }
+
+  // v4 → v5: 添加下载任务自定义目录列
+  if (v < 5) {
+    if (!hasColumn(d, "download_tasks", "custom_dir")) {
+      d.exec("ALTER TABLE download_tasks ADD COLUMN custom_dir TEXT");
+    }
+    v = 5;
   }
 
   // 版本无关部分
