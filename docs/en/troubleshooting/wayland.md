@@ -48,10 +48,11 @@ The Dynamic Island window uses the fixed title **`Dynamic Island`** and can be m
 
 > [!NOTE]
 >
-> Native Wayland does not let applications set absolute window coordinates, so the Island grows rightward from its fixed top-left corner as lyrics change (side-to-side jumping); snap centering cannot truly work on native Wayland. Two options:
+> Native Wayland does not let applications set absolute window coordinates, so the Island grows rightward from its fixed top-left corner as lyrics change (side-to-side jumping); snap centering cannot truly work on native Wayland. Three options:
 >
 > 1. Run under Xwayland (see above) — centering and always-on-top both work through the X11 protocol;
 > 2. In KWin, **force a fixed position / always-on-top** with the rule below so the compositor replaces the app's own positioning.
+> 3. Use the [KWin script](#dynamic-centering-with-a-kwin-script) below to center it dynamically, so it stays centered as the lyrics widen.
 
 Example KWin rule:
 
@@ -113,6 +114,86 @@ window-rule {
 If normal mouse dragging does not work, enable **Settings → External Lyrics → Desktop Lyrics → Use CSS dragging**. Otherwise, use the compositor shortcut, such as Meta + left mouse button in KWin or Alt + left mouse button in Mutter.
 
 Click-through while locked is a known issue; Xwayland may help.
+
+## Dynamic centering with a KWin script
+
+The window rule above is static — it fixes a position/size, but as the lyric text changes the Island still grows rightward from its fixed left edge, so it cannot stay centered. To center it dynamically, use a **KWin script** (it runs inside the compositor and can read/write window geometry, bypassing the client-side Wayland restriction).
+
+The script below keeps the Dynamic Island horizontally centered and flush with the top of the work area:
+
+```js
+// Horizontal centering; vertical flush with work-area top (below the panel). Width/height are left to the app.
+const WM_CLASS = "top.imsyy.splayer_next";
+const ISLAND_TITLE = "Dynamic Island";
+const TOP_OFFSET = 0; // extra offset below the work-area top, increase if you want a gap
+
+function isIsland(w) {
+  return (
+    (w.resourceClass === WM_CLASS || w.resourceName === WM_CLASS) && w.caption === ISLAND_TITLE
+  );
+}
+
+function centerIsland(w) {
+  const area = workspace.clientArea(KWin.MaximizeArea, w); // work area excluding panels
+  const fb = w.frameGeometry;
+  if (fb.width <= 0 || fb.height <= 0) return;
+
+  const x = Math.round(area.x + (area.width - fb.width) / 2);
+  const y = area.y + TOP_OFFSET;
+  // only write back if there is an offset, to avoid re-triggering frameGeometryChanged
+  if (Math.abs(fb.x - x) > 1 || Math.abs(fb.y - y) > 1) {
+    w.frameGeometry = { x: x, y: y, width: fb.width, height: fb.height };
+  }
+}
+
+function attach(w) {
+  if (!isIsland(w) || w._splayerCentered) return;
+  w._splayerCentered = true;
+  w.frameGeometryChanged.connect(() => centerIsland(w));
+  centerIsland(w);
+}
+
+workspace.windowList().forEach(attach); // existing windows
+workspace.windowAdded.connect(attach); // windows created later
+```
+
+Install the script as `~/.local/share/kwin/scripts/splayer-island-center/contents/code/main.js` and create `metadata.json` next to it:
+
+```json
+{
+  "KPlugin": {
+    "Id": "splayer-island-center",
+    "Name": "SPlayer Dynamic Island Center",
+    "Description": "Keep the SPlayer Dynamic Island centered on native Wayland",
+    "Authors": [{ "Name": "expoli" }],
+    "License": "MIT",
+    "Version": "1.0"
+  },
+  "KPackageStructure": "KWin/Script"
+}
+```
+
+Then enable it under **System Settings → Window Management → KWin Scripts** (or log out and back in).
+
+> [!NOTE]
+>
+> Debugging gotchas found when writing this script:
+>
+> - `window.geometry` reads as `undefined` on native Wayland — use `window.frameGeometry` instead;
+> - `Qt.rect(...)` is not available in KWin 6 scripting — assign an object literal `{ x, y, width, height }`;
+> - guard the write with `Math.abs(...) > 1` so the set does not re-trigger `frameGeometryChanged` (feedback loop);
+> - match on `resourceClass` **and** the caption — the main window uses the same `top.imsyy.splayer_next` class.
+
+Reload without logging out after editing the script:
+
+```bash
+qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.unloadScript splayer-island-center
+qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.loadScript \
+  ~/.local/share/kwin/scripts/splayer-island-center/contents/code/main.js splayer-island-center
+qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.start
+```
+
+> This only works on KDE / KWin; GNOME needs a Mutter extension to do the same dynamic centering.
 
 ## Global shortcuts
 

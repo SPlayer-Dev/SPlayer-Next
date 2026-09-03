@@ -77,10 +77,11 @@ Wayland 出于安全考虑，不允许应用读取 / 设置全局屏幕坐标，
 
 > [!NOTE]
 >
-> 原生 Wayland 不允许应用设置窗口绝对坐标，因此歌词长度变化时灵动岛会从窗口左上角向右伸缩（左右弹跳），吸附居中在原生 Wayland 下无法真正生效。两种解决办法：
+> 原生 Wayland 不允许应用设置窗口绝对坐标，因此歌词长度变化时灵动岛会从窗口左上角向右伸缩（左右弹跳），吸附居中在原生 Wayland 下无法真正生效。三种解决办法：
 >
 > 1. 以 Xwayland 运行（见上），居中与置顶均走 X11 协议，可正常工作；
 > 2. 在 KWin 中用下面规则**强制固定位置 / 置顶**，让合成器代替应用完成定位与置顶。
+> 3. 用 **KWin 脚本**动态居中（见下文「用 KWin 脚本实现灵动岛动态居中」），歌词变宽时也始终居中。
 
 这里也提供了一些可直接导入的规则。欢迎 PR 补充其它环境或更好的配置
 
@@ -156,6 +157,86 @@ window-rule {
 拖动时直接按鼠标左键无法拖动。此时可以尝试打开 SPlayer-Next 的 **全局设置 → 外部歌词 → 桌面歌词 → 使用 CSS 拖拽** 功能。若还是无法拖动，请使用 WM 的窗口拖动快捷键（如 KWin 默认的 <kbd>Meta</kbd>+<kbd>鼠标左键</kbd> 或 Mutter 默认的 <kbd>Alt</kbd>+<kbd>鼠标左键</kbd>）
 
 锁定时鼠标穿透不生效是已知问题。可以尝试[使用 Xwayland](#使用-xwayland)
+
+## 用 KWin 脚本实现灵动岛动态居中
+
+上面的 KWin 窗口规则是**静态**的——只能固定一个位置/大小，歌词文本一变，灵动岛仍会从固定左边缘向右伸缩，无法保持居中。要**动态居中**，需要借助 **KWin 脚本**（它运行在合成器进程内，可读写窗口几何，不受客户端侧 Wayland 协议限制）。
+
+下面脚本让灵动岛在原生 Wayland 下保持水平居中，并贴合工作区顶部：
+
+```js
+// 水平居中；垂直贴合工作区顶部（panel 下方）。宽高由应用自行决定，这里不改。
+const WM_CLASS = "top.imsyy.splayer_next";
+const ISLAND_TITLE = "Dynamic Island";
+const TOP_OFFSET = 0; // 距工作区顶部的额外间距，需要留空就调大
+
+function isIsland(w) {
+  return (
+    (w.resourceClass === WM_CLASS || w.resourceName === WM_CLASS) && w.caption === ISLAND_TITLE
+  );
+}
+
+function centerIsland(w) {
+  const area = workspace.clientArea(KWin.MaximizeArea, w); // 排除面板的可用工作区
+  const fb = w.frameGeometry;
+  if (fb.width <= 0 || fb.height <= 0) return;
+
+  const x = Math.round(area.x + (area.width - fb.width) / 2);
+  const y = area.y + TOP_OFFSET;
+  // 有偏移才写回，避免把自己设的几何再次触发 frameGeometryChanged 形成循环
+  if (Math.abs(fb.x - x) > 1 || Math.abs(fb.y - y) > 1) {
+    w.frameGeometry = { x: x, y: y, width: fb.width, height: fb.height };
+  }
+}
+
+function attach(w) {
+  if (!isIsland(w) || w._splayerCentered) return;
+  w._splayerCentered = true;
+  w.frameGeometryChanged.connect(() => centerIsland(w));
+  centerIsland(w);
+}
+
+workspace.windowList().forEach(attach); // 已存在的窗口
+workspace.windowAdded.connect(attach); // 之后新建的灵动岛窗口
+```
+
+将脚本保存为 `~/.local/share/kwin/scripts/splayer-island-center/contents/code/main.js`，并在同目录创建 `metadata.json`：
+
+```json
+{
+  "KPlugin": {
+    "Id": "splayer-island-center",
+    "Name": "SPlayer Dynamic Island Center",
+    "Description": "Keep the SPlayer Dynamic Island centered on native Wayland",
+    "Authors": [{ "Name": "expoli" }],
+    "License": "MIT",
+    "Version": "1.0"
+  },
+  "KPackageStructure": "KWin/Script"
+}
+```
+
+然后在 **系统设置 → 窗口管理 → KWin 脚本** 中勾选启用（或注销后重新登录）。
+
+> [!NOTE]
+>
+> 编写该脚本时踩到的坑：
+>
+> - `window.geometry` 在原生 Wayland 下读取为 `undefined`，改用 `window.frameGeometry`；
+> - KWin 6 脚本里没有 `Qt.rect(...)`，要用对象字面量 `{ x, y, width, height }` 赋值；
+> - 回写前用 `Math.abs(...) > 1` 判断，否则设置的几何会再次触发 `frameGeometryChanged` 形成循环；
+> - 窗口匹配要同时用 `resourceClass` 与标题（主窗口也是 `top.imsyy.splayer_next`，只靠 wmclass 会误匹配）。
+
+改完脚本不需要注销，可直接热重载：
+
+```bash
+qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.unloadScript splayer-island-center
+qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.loadScript \
+  ~/.local/share/kwin/scripts/splayer-island-center/contents/code/main.js splayer-island-center
+qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.start
+```
+
+> 该方案仅适用于 KDE / KWin；GNOME 需借助 Mutter 扩展才能实现同样的动态居中。
 
 ## 全局快捷键
 
