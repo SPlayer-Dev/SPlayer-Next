@@ -30,6 +30,10 @@ pnpm dev -- --ozone-platform=x11
    ```
 4. 保存退出。
 
+> [!NOTE]
+>
+> 灵动岛在 Xwayland 下曾经完全无法显示（窗口被裁切成空白），该问题已修复。若你之前因为灵动岛显示异常而放弃 Xwayland，请升级到最新版本后再试。Xwayland 下窗口置顶、吸附居中、绝对定位均走 X11 协议，可正常工作。
+
 > [!IMPORTANT]
 >
 > 使用 Xwayland 可能并不能解决全局快捷键的问题，反而可能导致全局快捷键失效。因为 Xwayland 无法监听原生 Wayland 的按键事件，也无法通过 XDG Desktop Portal 注册全局快捷键。
@@ -44,7 +48,7 @@ Wayland 出于安全考虑，不允许应用读取 / 设置全局屏幕坐标，
 | ---------------------------------------- | ------------------------------------------------- |
 | 桌面歌词 / 灵动岛（无边框 + 透明悬浮窗） | 可能渲染异常、出现不透明背景，或定位错位          |
 | 窗口绝对定位（拖拽、吸附、记忆位置）     | Wayland 不允许应用设置绝对坐标，可能失效或错位    |
-| 窗口置顶（always-on-top）                | 支持有限，悬浮窗可能无法保持置顶                  |
+| 窗口置顶（always-on-top）                | 原生 Wayland 下无法生效，需窗口规则或 Xwayland    |
 | 鼠标穿透（click-through）                | 可能不生效                                        |
 | 悬停判定（全局光标位置）                 | Wayland 限制读取全局光标，悬停隐藏 / 交互可能不准 |
 | 全局快捷键                               | Wayland 下可能无法注册全局快捷键                  |
@@ -69,6 +73,16 @@ Wayland 出于安全考虑，不允许应用读取 / 设置全局屏幕坐标，
 
 其它 DE/WM 也可参考此配置方法自行配置。
 
+灵动岛窗口的标题固定为 **`Dynamic Island`**，可按标题同理配置窗口规则。
+
+> [!NOTE]
+>
+> 原生 Wayland 不允许应用设置窗口绝对坐标，因此歌词长度变化时灵动岛会从窗口左上角向右伸缩（左右弹跳），吸附居中在原生 Wayland 下无法真正生效。三种解决办法：
+>
+> 1. 以 Xwayland 运行（见上），居中与置顶均走 X11 协议，可正常工作；
+> 2. 在 KWin 中用下面规则**强制固定位置 / 置顶**，让合成器代替应用完成定位与置顶。
+> 3. 用 **KWin 脚本**动态居中（见下文「用 KWin 脚本实现灵动岛动态居中」），歌词变宽时也始终居中。
+
 这里也提供了一些可直接导入的规则。欢迎 PR 补充其它环境或更好的配置
 
 <details>
@@ -76,6 +90,8 @@ Wayland 出于安全考虑，不允许应用读取 / 设置全局屏幕坐标，
 <summary>可直接导入的规则</summary>
 
 KWin 规则
+
+> 将下面任一规则片段保存为 `*.kwinrule` 文件（UTF-8），在 **系统设置 → 窗口管理 → 窗口规则** 里点 **导入…** 选择该文件即可；也可手工追加到 `~/.config/kwinrulesrc`。
 
 > 编者用的规则，我觉得挺好用的
 
@@ -100,6 +116,29 @@ wmclass=top.imsyy.splayer_next
 wmclassmatch=1
 ```
 
+灵动岛（KWin 规则需按实际分辨率另行设置 **位置**）
+
+```ini
+[SPlayer Next 灵动岛]
+Description=SPlayer Next 灵动岛
+above=true
+aboverule=2
+desktops=\0
+desktopsrule=2
+layer=overlay
+layerrule=2
+skippager=true
+skippagerrule=2
+skipswitcher=true
+skipswitcherrule=2
+skiptaskbar=true
+skiptaskbarrule=2
+title=Dynamic Island
+titlematch=1
+wmclass=top.imsyy.splayer_next
+wmclassmatch=1
+```
+
 Niri 窗口规则
 
 > 编者日常不使用 Niri，未经充分测试
@@ -118,6 +157,86 @@ window-rule {
 拖动时直接按鼠标左键无法拖动。此时可以尝试打开 SPlayer-Next 的 **全局设置 → 外部歌词 → 桌面歌词 → 使用 CSS 拖拽** 功能。若还是无法拖动，请使用 WM 的窗口拖动快捷键（如 KWin 默认的 <kbd>Meta</kbd>+<kbd>鼠标左键</kbd> 或 Mutter 默认的 <kbd>Alt</kbd>+<kbd>鼠标左键</kbd>）
 
 锁定时鼠标穿透不生效是已知问题。可以尝试[使用 Xwayland](#使用-xwayland)
+
+## 用 KWin 脚本实现灵动岛动态居中
+
+上面的 KWin 窗口规则是**静态**的——只能固定一个位置/大小，歌词文本一变，灵动岛仍会从固定左边缘向右伸缩，无法保持居中。要**动态居中**，需要借助 **KWin 脚本**（它运行在合成器进程内，可读写窗口几何，不受客户端侧 Wayland 协议限制）。
+
+下面脚本让灵动岛在原生 Wayland 下保持水平居中，并贴合工作区顶部：
+
+```js
+// 水平居中；垂直贴合工作区顶部（panel 下方）。宽高由应用自行决定，这里不改。
+const WM_CLASS = "top.imsyy.splayer_next";
+const ISLAND_TITLE = "Dynamic Island";
+const TOP_OFFSET = 0; // 距工作区顶部的额外间距，需要留空就调大
+
+function isIsland(w) {
+  return (
+    (w.resourceClass === WM_CLASS || w.resourceName === WM_CLASS) && w.caption === ISLAND_TITLE
+  );
+}
+
+function centerIsland(w) {
+  const area = workspace.clientArea(KWin.MaximizeArea, w); // 排除面板的可用工作区
+  const fb = w.frameGeometry;
+  if (fb.width <= 0 || fb.height <= 0) return;
+
+  const x = Math.round(area.x + (area.width - fb.width) / 2);
+  const y = area.y + TOP_OFFSET;
+  // 有偏移才写回，避免把自己设的几何再次触发 frameGeometryChanged 形成循环
+  if (Math.abs(fb.x - x) > 1 || Math.abs(fb.y - y) > 1) {
+    w.frameGeometry = { x: x, y: y, width: fb.width, height: fb.height };
+  }
+}
+
+function attach(w) {
+  if (!isIsland(w) || w._splayerCentered) return;
+  w._splayerCentered = true;
+  w.frameGeometryChanged.connect(() => centerIsland(w));
+  centerIsland(w);
+}
+
+workspace.windowList().forEach(attach); // 已存在的窗口
+workspace.windowAdded.connect(attach); // 之后新建的灵动岛窗口
+```
+
+将脚本保存为 `~/.local/share/kwin/scripts/splayer-island-center/contents/code/main.js`，并在同目录创建 `metadata.json`：
+
+```json
+{
+  "KPlugin": {
+    "Id": "splayer-island-center",
+    "Name": "SPlayer Dynamic Island Center",
+    "Description": "Keep the SPlayer Dynamic Island centered on native Wayland",
+    "Authors": [{ "Name": "expoli" }],
+    "License": "MIT",
+    "Version": "1.0"
+  },
+  "KPackageStructure": "KWin/Script"
+}
+```
+
+然后在 **系统设置 → 窗口管理 → KWin 脚本** 中勾选启用（或注销后重新登录）。
+
+> [!NOTE]
+>
+> 编写该脚本时踩到的坑：
+>
+> - `window.geometry` 在原生 Wayland 下读取为 `undefined`，改用 `window.frameGeometry`；
+> - KWin 6 脚本里没有 `Qt.rect(...)`，要用对象字面量 `{ x, y, width, height }` 赋值；
+> - 回写前用 `Math.abs(...) > 1` 判断，否则设置的几何会再次触发 `frameGeometryChanged` 形成循环；
+> - 窗口匹配要同时用 `resourceClass` 与标题（主窗口也是 `top.imsyy.splayer_next`，只靠 wmclass 会误匹配）。
+
+改完脚本不需要注销，可直接热重载：
+
+```bash
+qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.unloadScript splayer-island-center
+qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.loadScript \
+  ~/.local/share/kwin/scripts/splayer-island-center/contents/code/main.js splayer-island-center
+qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.start
+```
+
+> 该方案仅适用于 KDE / KWin；GNOME 需借助 Mutter 扩展才能实现同样的动态居中。
 
 ## 全局快捷键
 
