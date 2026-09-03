@@ -17,6 +17,7 @@ Exec=/opt/SPlayer-Next/SPlayer-Next --ozone-platform=x11 %U
 ```
 
 In KDE Plasma, the same change can be made by editing the application's desktop entry and replacing `%U` with `--ozone-platform=x11 %U`.
+
 > [!NOTE]
 >
 > Under Xwayland the Dynamic Island used to be completely invisible (the window was clipped to nothing). The issue is fixed in the latest version, so if you gave up on Xwayland because of that, please upgrade and retry. Under Xwayland, always-on-top, snap centering and absolute positioning all go through the X11 protocol and work normally.
@@ -28,14 +29,14 @@ In KDE Plasma, the same change can be made by editing the application's desktop 
 
 Wayland intentionally prevents applications from reading or setting global coordinates and applies stricter rules to transparent, borderless, always-on-top windows.
 
-| Feature                           | Possible behavior under Wayland                     |
-| --------------------------------- | --------------------------------------------------- |
-| Desktop lyrics / Dynamic Island   | Rendering errors, opaque background, wrong position |
-| Absolute positioning and snapping | Unavailable or inaccurate                           |
-| Always on top                     | Not possible on native Wayland; use window rules or Xwayland      |
-| Click-through                     | May not work                                        |
-| Global cursor hover detection     | Hidden/interactive behavior may be inaccurate       |
-| Global shortcuts                  | May fail to register                                |
+| Feature                           | Possible behavior under Wayland                              |
+| --------------------------------- | ------------------------------------------------------------ |
+| Desktop lyrics / Dynamic Island   | Rendering errors, opaque background, wrong position          |
+| Absolute positioning and snapping | Unavailable or inaccurate                                    |
+| Always on top                     | Not possible on native Wayland; use window rules or Xwayland |
+| Click-through                     | May not work                                                 |
+| Global cursor hover detection     | Hidden/interactive behavior may be inaccurate                |
+| Global shortcuts                  | May fail to register                                         |
 
 Behavior varies between GNOME Mutter, KDE KWin, wlroots-based compositors, and other environments.
 
