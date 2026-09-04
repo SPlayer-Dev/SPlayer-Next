@@ -1,5 +1,6 @@
 import type { SettingCategory } from "@/types/settings-schema";
 import DeviceSelector from "@/components/settings/custom/DeviceSelector.vue";
+import { isWin } from "@/utils/config";
 import IconLucidePlay from "~icons/lucide/play";
 
 const playerCategory: SettingCategory = {
@@ -140,6 +141,17 @@ const playerCategory: SettingCategory = {
           key: "outputDevice",
           type: "custom",
           component: DeviceSelector,
+        },
+        {
+          key: "audioOutputMode",
+          type: "select",
+          binding: { store: "settings", path: "system.player.audioOutputMode" },
+          options: [
+            { value: "shared", labelKey: "settings.audioOutputMode.shared" },
+            { value: "exclusive", labelKey: "settings.audioOutputMode.exclusive" },
+          ],
+          defaultValue: "shared",
+          visible: () => isWin,
         },
         {
           key: "pauseOnDeviceSwitch",

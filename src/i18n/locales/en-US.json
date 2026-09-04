@@ -879,6 +879,17 @@
       "description": "Select audio output device",
       "default": "System Default"
     },
+    "audioOutputMode": {
+      "label": "Audio Output Mode",
+      "description": "Exclusive mode bypasses the system mixer and sends the original sample rate and bit depth directly to the sound card (bit-perfect), ideal for external DACs / Hi-Fi gear; other apps cannot play audio while exclusive",
+      "shared": "Shared Mode",
+      "exclusive": "WASAPI Exclusive Mode",
+      "fallback": {
+        "deviceBusy": "The device is being used exclusively by another app, falling back to shared mode",
+        "formatUnsupported": "The device does not support the required exclusive-mode format, falling back to shared mode",
+        "unavailable": "Exclusive mode is currently unavailable, falling back to shared mode"
+      }
+    },
     "pauseOnDeviceSwitch": {
       "label": "Pause on Device Switch",
       "description": "Pause playback when switching the output device, e.g. when a Bluetooth device disconnects"

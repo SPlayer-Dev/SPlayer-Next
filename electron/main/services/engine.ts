@@ -86,6 +86,15 @@ export const setPreampGain = (preampDb: number): void => {
   }
 };
 
+/** 同步 WASAPI 独占模式开关到播放器（仅 Windows 生效） */
+export const setExclusiveMode = (enabled: boolean): void => {
+  if (playerInstance) {
+    playerInstance.setExclusiveMode(enabled).catch((error) => {
+      playerLog.warn("切换音频输出模式失败:", error);
+    });
+  }
+};
+
 /** 同步当前封面缓存目录到原生引擎（缓存路径切换时调用） */
 export const syncCoverCacheDir = (): void => {
   if (playerInstance) {

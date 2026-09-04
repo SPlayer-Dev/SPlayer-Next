@@ -7,7 +7,7 @@ use ffmpeg_audio::HttpCancelHandle;
 use parking_lot::Mutex;
 use tracing::{debug, info};
 
-use crate::audio_output::{AudioOutput, OutputFailureCallback};
+use crate::audio_output::{AudioOutput, ExclusiveFallbackCallback, OutputFailureCallback};
 use crate::decoder;
 use crate::equalizer::{Equalizer, EQ_BAND_COUNT};
 use crate::fft::FftAnalyzer;
@@ -79,6 +79,10 @@ pub struct InnerPlayer {
     output_generation: Arc<AtomicU64>,
     /// 当前音频源的原始采样率
     original_sample_rate: u32,
+    /// 当前音频源的有效位深，独占模式协商候选的优先依据
+    original_bits: u32,
+    /// WASAPI 独占模式开关（仅 Windows 生效，重建设备时生效）
+    exclusive_mode: bool,
     /// 正在打开的网络音源中断句柄，确保切歌和 stop 能取消元数据探测
     pending_load_handle: Option<HttpCancelHandle>,
 }
@@ -97,11 +101,15 @@ impl InnerPlayer {
         if self.output.is_none() {
             let generation = self.reserve_output_generation();
             let on_failure = self.make_failure_callback(generation);
+            let on_fallback = self.make_fallback_callback(generation);
+            let exclusive = self.exclusive_mode.then_some(on_fallback);
             self.output = Some(AudioOutput::new(
                 self.selected_device.as_deref(),
                 requested_sample_rate,
+                None,
                 generation,
                 on_failure,
+                exclusive.as_ref(),
             )?);
         }
         self.output
@@ -119,6 +127,21 @@ impl InnerPlayer {
         std::sync::Arc::new(move || {
             if active_generation.load(Ordering::Acquire) == generation {
                 cb(PlayerEvent::OutputFailed);
+            }
+        })
+    }
+
+    /// 构造独占模式回退回调：只发送轻量 `PlayerEvent::OutputFallback`
+    pub fn make_fallback_callback(&self, generation: u64) -> ExclusiveFallbackCallback {
+        let Some(cb) = self.event_callback.as_ref().map(Arc::clone) else {
+            return std::sync::Arc::new(|_| {});
+        };
+        let active_generation = Arc::clone(&self.output_generation);
+        std::sync::Arc::new(move |reason: &str| {
+            if active_generation.load(Ordering::Acquire) == generation {
+                cb(PlayerEvent::OutputFallback {
+                    reason: reason.to_string(),
+                });
             }
         })
     }
@@ -185,6 +208,8 @@ impl InnerPlayer {
             load_token: Arc::new(AtomicU64::new(0)),
             output_generation: Arc::new(AtomicU64::new(0)),
             original_sample_rate: decoder::DEFAULT_TARGET_SAMPLE_RATE,
+            original_bits: 16,
+            exclusive_mode: false,
             pending_load_handle: None,
         })
     }
@@ -193,6 +218,17 @@ impl InnerPlayer {
     pub fn set_output_device(&mut self, device_id: Option<String>) {
         info!(device = ?device_id, "切换输出设备");
         self.selected_device = device_id;
+    }
+
+    /// 设置独占模式开关（下一次重建设备时生效）
+    pub fn set_exclusive_mode(&mut self, enabled: bool) {
+        info!(enabled, "切换音频输出模式");
+        self.exclusive_mode = enabled;
+    }
+
+    /// 独占模式开关是否已启用
+    pub fn is_exclusive_mode(&self) -> bool {
+        self.exclusive_mode
     }
 
     /// 获取当前选择的输出设备（None = 跟随系统默认）

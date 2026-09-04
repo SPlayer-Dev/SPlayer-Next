@@ -243,8 +243,7 @@ const appearanceCategory: SettingCategory = {
             contentKey: "settings.confirm.highResourceContent",
             type: "warning",
           },
-          childrenCondition: () =>
-            useSettingsStore().player.playerBgType === "animation",
+          childrenCondition: () => useSettingsStore().player.playerBgType === "animation",
           hideChildren: true,
           children: [
             {
