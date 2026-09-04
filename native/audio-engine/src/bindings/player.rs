@@ -115,7 +115,7 @@ pub struct JsFftData {
 #[napi(object)]
 #[derive(Default)]
 pub struct JsPlayerEvent {
-    /// 事件类型："stateChanged" | "ended" | "sourceError" | "position" | "fftData" | "outputStalled" | "outputFailed"
+    /// 事件类型："stateChanged" | "ended" | "sourceError" | "position" | "fftData" | "outputStalled" | "outputFailed" | "outputFallback"
     #[napi(js_name = "type")]
     pub event_type: String,
     /// 状态（仅 stateChanged 时有值）
@@ -126,6 +126,8 @@ pub struct JsPlayerEvent {
     pub duration: Option<f64>,
     /// FFT 频谱数据（仅 fftData 时有值，128 个频段，值域 0.0 ~ 1.0）
     pub fft_data: Option<JsFftData>,
+    /// 回退原因分类键（仅 outputFallback 时有值：deviceBusy / formatUnsupported / unavailable）
+    pub reason: Option<String>,
 }
 
 /// 播放器状态快照
@@ -189,6 +191,8 @@ impl AudioPlayer {
             output_generation,
             on_failure,
             device_id,
+            exclusive_mode,
+            on_fallback,
         ) = {
             let mut player = self.inner.lock();
             let position = player.position();
@@ -196,6 +200,8 @@ impl AudioPlayer {
             let device_id = player.selected_device().map(String::from);
             let output_generation = player.reserve_output_generation();
             let on_failure = player.make_failure_callback(output_generation);
+            let on_fallback = player.make_fallback_callback(output_generation);
+            let exclusive_mode = player.is_exclusive_mode();
             let seek_take = player.take_for_async_seek();
             let fallback_source = player.current_source().map(String::from);
             (
@@ -206,6 +212,8 @@ impl AudioPlayer {
                 output_generation,
                 on_failure,
                 device_id,
+                exclusive_mode,
+                on_fallback,
             )
         };
 
@@ -217,6 +225,7 @@ impl AudioPlayer {
                 current_source,
                 was_playing,
                 original_sample_rate,
+                original_bits,
                 output_sample_rate: _,
                 output_channels: _,
                 token,
@@ -231,8 +240,10 @@ impl AudioPlayer {
                 let output = match audio_output::AudioOutput::new(
                     device_id.as_deref(),
                     Some(original_sample_rate),
+                    Some(original_bits),
                     output_generation,
                     on_failure,
+                    exclusive_mode.then_some(&on_fallback),
                 ) {
                     Ok(output) => output,
                     Err(error) => return ReinitOutcome::OutputFailed { error },
@@ -416,11 +427,16 @@ impl AudioPlayer {
                     event_type: "outputStalled".into(),
                     ..Default::default()
                 },
-                PlayerEvent::OutputFailed => JsPlayerEvent {
-                    event_type: "outputFailed".into(),
-                    ..Default::default()
-                },
-            };
+            PlayerEvent::OutputFailed => JsPlayerEvent {
+                event_type: "outputFailed".into(),
+                ..Default::default()
+            },
+            PlayerEvent::OutputFallback { reason } => JsPlayerEvent {
+                event_type: "outputFallback".into(),
+                reason: Some(reason),
+                ..Default::default()
+            },
+        };
             tsfn.call(js_event, ThreadsafeFunctionCallMode::NonBlocking);
         });
 
@@ -486,6 +502,8 @@ impl AudioPlayer {
             device_id,
             output_generation,
             failure_callback,
+            fallback_callback,
+            exclusive_mode,
             equalizer,
             tempo,
         ) = {
@@ -493,6 +511,8 @@ impl AudioPlayer {
             let (old_threads, token) = player.take_for_async_load(handle.clone());
             let output_generation = player.reserve_output_generation();
             let failure_callback = player.make_failure_callback(output_generation);
+            let fallback_callback = player.make_fallback_callback(output_generation);
+            let exclusive_mode = player.is_exclusive_mode();
             (
                 old_threads,
                 token,
@@ -502,6 +522,8 @@ impl AudioPlayer {
                 player.selected_device().map(String::from),
                 output_generation,
                 failure_callback,
+                fallback_callback,
+                exclusive_mode,
                 player.equalizer_handle(),
                 player.tempo_handle(),
             )
@@ -522,8 +544,10 @@ impl AudioPlayer {
             let output = audio_output::AudioOutput::new(
                 device_id.as_deref(),
                 Some(prepared.original_sample_rate()),
+                Some(prepared.bits_per_sample()),
                 output_generation,
                 failure_callback,
+                exclusive_mode.then_some(&fallback_callback),
             )?;
             let shared = Shared::new(output.sample_rate(), output.channels());
             shared.set_normalization_enabled(normalization_enabled);
@@ -682,6 +706,7 @@ impl AudioPlayer {
             current_source,
             was_playing,
             original_sample_rate: _,
+            original_bits: _,
             output_sample_rate,
             output_channels,
             token,
@@ -932,6 +957,15 @@ impl AudioPlayer {
     #[napi]
     pub fn get_selected_device_name(&self) -> Option<String> {
         self.inner.lock().selected_device().map(String::from)
+    }
+
+    /// 设置音频输出模式为 WASAPI 独占（仅 Windows 生效，立即重建设备）
+    ///
+    /// 设备被占用或格式不支持时自动回退共享模式，并通过 outputFallback 事件通知
+    #[napi]
+    pub async fn set_exclusive_mode(&self, enabled: bool) -> Result<()> {
+        self.inner.lock().set_exclusive_mode(enabled);
+        self.reinit_output().await
     }
 
     /// 设置播放速度（自动 clamp 到 [0.5, 2.0]）

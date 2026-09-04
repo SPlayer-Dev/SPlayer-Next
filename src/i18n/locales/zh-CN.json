@@ -867,6 +867,17 @@
       "description": "选择音频输出设备",
       "default": "系统默认"
     },
+    "audioOutputMode": {
+      "label": "音频输出模式",
+      "description": "独占模式绕过系统混音器，按音源采样率与位深直通声卡（bit-perfect），适合外接 DAC / Hi-Fi 设备；独占期间其他应用无法播放声音",
+      "shared": "共享模式",
+      "exclusive": "WASAPI 独占模式",
+      "fallback": {
+        "deviceBusy": "设备已被其他程序独占，已回退共享模式",
+        "formatUnsupported": "设备不支持独占模式所需的音频格式，已回退共享模式",
+        "unavailable": "独占模式暂不可用，已回退共享模式"
+      }
+    },
     "pauseOnDeviceSwitch": {
       "label": "切换时暂停播放",
       "description": "切换输出设备时暂停播放，例如蓝牙设备的断联"

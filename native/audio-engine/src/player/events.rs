@@ -19,6 +19,8 @@ pub enum PlayerEvent {
     OutputStalled,
     /// 输出流在运行期失效（CPAL 流错误），由 JS 侧触发输出重建
     OutputFailed,
+    /// WASAPI 独占模式打开失败已回退共享模式，reason 为分类键
+    OutputFallback { reason: String },
 }
 
 /// 事件发射器类型（跨线程安全）

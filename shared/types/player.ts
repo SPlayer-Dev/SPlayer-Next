@@ -221,7 +221,8 @@ export type PlayerEvent =
   | { type: "toggleLike" }
   | { type: "fftData"; data: FftData }
   | { type: "error"; error: string }
-  | { type: "deviceChanged"; data: { defaultDevice: string | null } };
+  | { type: "deviceChanged"; data: { defaultDevice: string | null } }
+  | { type: "outputFallback"; data: { reason: string } };
 
 /** FFT 数据 */
 export interface FftData {

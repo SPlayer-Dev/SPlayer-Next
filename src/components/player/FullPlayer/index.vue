@@ -282,7 +282,11 @@ const showComments = (): void => {
           <!-- 右侧 -->
           <div
             class="group absolute inset-y-0 right-0 pr-20 flex flex-col transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
-            :class="coverCentered || status.fullQueueOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'"
+            :class="
+              coverCentered || status.fullQueueOpen
+                ? 'opacity-0 pointer-events-none'
+                : 'opacity-100'
+            "
             :style="{ width: fullscreenCover ? '50%' : `calc(100% - ${coverWidth})` }"
           >
             <!-- 全屏封面 -->
