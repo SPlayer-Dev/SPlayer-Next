@@ -93,6 +93,15 @@
   margin-left: auto;
 }
 
+.lp-root:has(ruby) {
+  overflow: visible clip;
+  contain: size layout style;
+}
+
+.lp-line:has(ruby) {
+  contain: layout style;
+}
+
 /* ---- 对唱左右分栏 ---- */
 
 .lp-has-duet {
@@ -148,10 +157,25 @@
   overflow: visible;
 
   ruby {
-    ruby-position: over;
+    position: relative;
+    display: inline-block;
+    padding-top: 0.5em;
+    white-space: pre;
+    overflow: visible;
+
+    & > span {
+      display: inline-block;
+    }
   }
 
   rt {
+    position: absolute;
+    display: block;
+    top: 0;
+    left: 50%;
+    width: max-content;
+    transform: translateX(-50%);
+    white-space: pre;
     font-size: 0.45em;
     line-height: 1;
     font-weight: 400;

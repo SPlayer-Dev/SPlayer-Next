@@ -139,7 +139,7 @@ const extractFromXml = (text: string): string => {
 };
 
 /** 解析 QRC 歌词 */
-export const parseQRC = (text: string, detectBackground = true): LyricLine[] => {
+export const parseQRC = (text: string, detectBackground = true, showKana = true): LyricLine[] => {
   const content = extractFromXml(text);
   const kanaLine = content.match(/^\[kana:([^\r\n]*)\]/m);
   const kanaTokens = kanaLine ? parseKanaTokens(kanaLine[1]) : [];
@@ -177,6 +177,6 @@ export const parseQRC = (text: string, detectBackground = true): LyricLine[] => 
     }
   }
 
-  applyKana(lines, kanaTokens);
+  if (showKana) applyKana(lines, kanaTokens);
   return lines;
 };

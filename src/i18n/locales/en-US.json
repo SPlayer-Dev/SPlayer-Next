@@ -752,6 +752,7 @@
       "lyricTTML": "TTML Lyrics",
       "lyricExclude": "Metadata Stripping",
       "lyricGeneral": "Content & Style",
+      "lyricQrcKana": "QRC Japanese Ruby",
       "lyricDisplay": "Display Effects",
       "lyricAMLLOptimize": "Lyric Optimization",
       "lyricSpring": "Spring Animation",
@@ -1169,6 +1170,10 @@
     "amllShowWordRomanization": {
       "label": "Show Word Romanization",
       "description": "Display romanized lyrics for each word in word-by-word lyrics"
+    },
+    "showQrcKana": {
+      "label": "Show Japanese Ruby",
+      "description": "Only applies to QRC lyric sources"
     },
     "enableWordHighlight": {
       "label": "Word Highlight",

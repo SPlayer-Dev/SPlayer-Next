@@ -141,6 +141,8 @@ export interface LyricSettings {
   showTranslation: boolean;
   /** 是否显示音译歌词 */
   showRomanization: boolean;
+  /** 是否显示 QRC 日语注音 */
+  showQrcKana: boolean;
   /** AMLL 是否显示逐行音译 */
   amllShowLineRomanization: boolean;
   /** AMLL 是否显示逐词音译 */

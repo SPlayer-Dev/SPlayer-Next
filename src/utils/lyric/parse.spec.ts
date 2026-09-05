@@ -103,4 +103,12 @@ describe("lyric parse", () => {
     expect(lines[0].words[0].ruby?.[0]?.word).toBe("さんじゅういっ");
     expect(lines[0].words[1].ruby?.[0]?.word).toBe("せ");
   });
+
+  it("QRC 可关闭日语注音而不影响主体歌词", () => {
+    const [line] = parseLyric({ content: "[kana:1ひかり]\n[0,10]光(0,10)" }, "qrc", "", {
+      showQrcKana: false,
+    });
+    expect(line.words[0]?.ruby).toBeUndefined();
+    expect(line.words[0]?.word).toBe("光");
+  });
 });

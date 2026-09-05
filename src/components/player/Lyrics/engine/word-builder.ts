@@ -9,8 +9,8 @@ import { shouldChunkEmphasize } from "./emphasize";
 
 /** 单个歌词单词的 DOM 元素与测量数据 */
 export interface WordMeasurement {
-  /** 对应的 span 元素 */
-  element: HTMLSpanElement;
+  /** 独立应用掩码的主体或注音元素 */
+  element: HTMLElement;
   /** 歌词单词数据 */
   word: LyricWord;
   /** 元素宽度（px） */
@@ -40,18 +40,29 @@ export interface BuildResult {
   animTargets: WordAnimTarget[];
 }
 
-const appendWordContent = (span: HTMLSpanElement, word: LyricWord): void => {
+const appendWordContent = (
+  span: HTMLSpanElement,
+  word: LyricWord,
+  measurements: WordMeasurement[],
+): void => {
   const rubyText = word.ruby?.map((item) => item.word).join("") ?? "";
   if (!rubyText) {
     span.textContent = word.word;
+    measurements.push({ element: span, word, width: 0, fadeWidth: 0 });
     return;
   }
   const ruby = document.createElement("ruby");
-  ruby.appendChild(document.createTextNode(word.word));
+  const base = document.createElement("span");
+  base.textContent = word.word;
+  ruby.appendChild(base);
   const rt = document.createElement("rt");
   rt.textContent = rubyText;
   ruby.appendChild(rt);
   span.appendChild(ruby);
+  measurements.push(
+    { element: base, word, width: 0, fadeWidth: 0 },
+    { element: rt, word, width: 0, fadeWidth: 0 },
+  );
 };
 
 /**
@@ -97,9 +108,8 @@ export const buildWordSpans = (
           const text = atom.word.trim();
           if (!text) continue;
           const span = document.createElement("span");
-          appendWordContent(span, atom);
+          appendWordContent(span, atom, measurements);
           mainDiv.appendChild(span);
-          measurements.push({ element: span, word: atom, width: 0, fadeWidth: 0 });
           animTargets.push({
             element: span,
             word: atom,
@@ -135,9 +145,8 @@ export const buildWordSpans = (
       } else {
         for (const word of chunk) {
           const span = document.createElement("span");
-          appendWordContent(span, word);
+          appendWordContent(span, word, measurements);
           mainDiv.appendChild(span);
-          measurements.push({ element: span, word, width: 0, fadeWidth: 0 });
           animTargets.push({
             element: span,
             word,
@@ -172,9 +181,8 @@ export const buildWordSpans = (
         buildEmphasizedChunk([chunk], mainDiv, measurements, animTargets, isLast);
       } else {
         const span = document.createElement("span");
-        appendWordContent(span, chunk);
+        appendWordContent(span, chunk, measurements);
         mainDiv.appendChild(span);
-        measurements.push({ element: span, word: chunk, width: 0, fadeWidth: 0 });
         animTargets.push({
           element: span,
           word: chunk,
@@ -216,15 +224,26 @@ function buildEmphasizedChunk(
   wrapper.className = "lp-emp-wrapper";
 
   const charElements: HTMLElement[] = [];
-  for (const char of trimmed) {
-    const charSpan = document.createElement("span");
-    charSpan.textContent = char;
-    wrapper.appendChild(charSpan);
-    charElements.push(charSpan);
+  const hasRuby = atoms.some((atom) => atom.ruby?.some((ruby) => ruby.word));
+  if (hasRuby) {
+    for (const atom of atoms) {
+      const atomSpan = document.createElement("span");
+      atomSpan.className = "lp-emp-atom";
+      appendWordContent(atomSpan, atom, measurements);
+      wrapper.appendChild(atomSpan);
+      charElements.push(atomSpan);
+    }
+  } else {
+    for (const char of trimmed) {
+      const charSpan = document.createElement("span");
+      charSpan.textContent = char;
+      wrapper.appendChild(charSpan);
+      charElements.push(charSpan);
+    }
+    measurements.push({ element: wrapper, word: mergedWord, width: 0, fadeWidth: 0 });
   }
 
   mainDiv.appendChild(wrapper);
-  measurements.push({ element: wrapper, word: mergedWord, width: 0, fadeWidth: 0 });
   animTargets.push({
     element: wrapper,
     word: mergedWord,
@@ -259,7 +278,7 @@ export const measureAndApplyWordMasks = (
     for (let j = 0; j < lineMeasurements.length; j++) {
       const m = lineMeasurements[j];
       const el = m.element;
-      const padding = el.classList.contains("lp-emp-wrapper")
+      const padding = el.matches(".lp-emp-wrapper, .lp-emp-atom")
         ? Number.parseFloat(getComputedStyle(el).paddingLeft) || 0
         : 0;
       paddings[i][j] = padding;

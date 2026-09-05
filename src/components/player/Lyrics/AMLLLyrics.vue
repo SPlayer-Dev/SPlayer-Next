@@ -4,6 +4,7 @@ import { LyricPlayer as CoreLyricPlayer } from "@applemusic-like-lyrics/core";
 import { useSettingsStore } from "@/stores/settings";
 import { useStatusStore } from "@/stores/status";
 import { getCurrentTime } from "@/services/playback";
+import { observeAmllRubyLayout } from "./utils/amll-ruby-layout";
 import "@applemusic-like-lyrics/core/style.css";
 import "./renderer.css";
 
@@ -55,6 +56,7 @@ const status = useStatusStore();
 
 const wrapperRef = ref<HTMLDivElement | null>(null);
 const playerRef = ref<CoreLyricPlayer>();
+let stopRubyLayout: (() => void) | undefined;
 const bottomLineEl = ref<HTMLElement>();
 const clockInitialized = ref(false);
 // 播放器是否已初始化完成
@@ -184,6 +186,7 @@ onMounted(async () => {
   el.style.width = "100%";
   el.style.height = "100%";
   wrapperRef.value.appendChild(el);
+  stopRubyLayout = observeAmllRubyLayout(player);
 
   const bottomEl = player.getBottomLineElement();
   if (bottomEl) {
@@ -231,6 +234,8 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  stopRubyLayout?.();
+  stopRubyLayout = undefined;
   document.removeEventListener("visibilitychange", handleVisibility);
   pauseRaf();
   initialized.value = false;
@@ -406,6 +411,40 @@ defineExpose({
 /* AMLL 将含 ruby 行的词正文设为纵向 flex；强调词拆成字符后需恢复横排 */
 :deep(.FmKaba_wordWithRuby.FmKaba_emphasize .FmKaba_wordBody) {
   flex-direction: row;
+}
+
+:deep(.FmKaba_lyricMainLine .FmKaba_rubyWord) {
+  width: 0;
+  overflow: visible;
+}
+
+:deep(.FmKaba_rubyWord > span) {
+  flex-shrink: 0;
+  white-space: pre;
+}
+
+:deep(.FmKaba_lyricMainLine .FmKaba_wordWithRuby) {
+  padding: var(--amll-ruby-padding, 1em);
+  margin: calc(-1 * var(--amll-ruby-padding, 1em));
+}
+
+:deep(.FmKaba_lyricLine:has(.FmKaba_rubyWord > span)) {
+  contain: layout style;
+  content-visibility: visible;
+  overflow: visible;
+}
+
+.amll-lyrics-container:has(.FmKaba_rubyWord > span),
+:deep(.amll-lyric-player:has(.FmKaba_rubyWord > span)),
+:deep(.amll-lyric-player:has(.FmKaba_rubyWord > span) .FmKaba_lyricMainLine),
+:deep(.amll-lyric-player:has(.FmKaba_rubyWord > span) .FmKaba_wordWithRuby),
+:deep(.amll-lyric-player:has(.FmKaba_rubyWord > span) .FmKaba_rubyWord) {
+  overflow: visible !important;
+  contain: none !important;
+}
+
+:deep(.amll-lyric-player:has(.FmKaba_rubyWord > span)) {
+  mix-blend-mode: normal !important;
 }
 
 :deep(.lp-line.lp-credit) {

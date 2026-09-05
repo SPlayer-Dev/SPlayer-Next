@@ -228,6 +228,17 @@ const lyricCategory: SettingCategory = {
       ],
     },
     {
+      id: "lyricQrcKana",
+      items: [
+        {
+          key: "showQrcKana",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.showQrcKana" },
+          defaultValue: true,
+        },
+      ],
+    },
+    {
       id: "lyricDisplay",
       items: [
         {
