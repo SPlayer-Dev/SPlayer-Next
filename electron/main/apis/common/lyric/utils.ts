@@ -46,7 +46,7 @@ export const buildLyricSearchKeyword = (track: Track): string =>
     .join(" ");
 
 /** 歌手是否有可用交集 */
-const artistMatches = (
+export const artistMatches = (
   candidateArtist: string | undefined | null,
   trackArtists: readonly string[],
 ): { exact: boolean; contains: boolean } => {

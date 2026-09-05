@@ -1971,6 +1971,13 @@
       "clear": "清除",
       "unset": "未设置目录"
     },
+    "localLyricMatchLevel": {
+      "label": "匹配强度",
+      "description": "控制本地 TTML 与当前歌曲的匹配严格程度",
+      "strict": "严格（平台 ID 匹配，或歌名与艺术家完全一致）",
+      "standard": "标准（推荐，歌名一致且艺术家匹配或包含）",
+      "loose": "宽松（仅歌名一致即可，同名不同曲可能误匹）"
+    },
     "fileCacheManager": {
       "label": "缓存管理",
       "description": "查看缓存占用并清理"
