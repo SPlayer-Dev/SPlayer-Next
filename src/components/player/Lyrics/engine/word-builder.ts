@@ -6,6 +6,7 @@ import { chunkAndSplitLyricWords } from "../utils/split-words";
 import type { LyricLine, LyricWord } from "@shared/types/lyrics";
 import { needsSpaceBetween } from "../utils/split-words";
 import { shouldChunkEmphasize } from "./emphasize";
+import { alignRubyGroups, type RubyLayoutItem } from "../utils/ruby-layout";
 
 /** 单个歌词单词的 DOM 元素与测量数据 */
 export interface WordMeasurement {
@@ -266,6 +267,7 @@ export const measureAndApplyWordMasks = (
 ) => {
   // 临时存储每个 measurement 的 padding，供第二遍使用
   const paddings: number[][] = new Array(wordMeasurements.length);
+  const rubyUpdates: [HTMLElement, number][] = [];
 
   // ===== 第一遍：批量读取 DOM 尺寸（一次回流） =====
   for (let i = 0; i < wordMeasurements.length; i++) {
@@ -275,6 +277,8 @@ export const measureAndApplyWordMasks = (
       continue;
     }
     paddings[i] = new Array(lineMeasurements.length);
+    const rubyItems: (RubyLayoutItem & { ruby: HTMLElement })[] = [];
+    let lineScale = 0;
     for (let j = 0; j < lineMeasurements.length; j++) {
       const m = lineMeasurements[j];
       const el = m.element;
@@ -284,7 +288,36 @@ export const measureAndApplyWordMasks = (
       paddings[i][j] = padding;
       m.width = (el.clientWidth || 1) - padding * 2;
       m.fadeWidth = ((el.clientHeight || 16) - padding * 2) * fadeRatio;
+      if (el.tagName === "RT") {
+        const word = el.parentElement!;
+        const body = el.previousElementSibling!;
+        if (!lineScale) {
+          const main = word.closest<HTMLElement>(".lp-main")!;
+          lineScale = main.getBoundingClientRect().width / main.offsetWidth;
+        }
+        if (!lineScale) continue;
+        const rect = body.getBoundingClientRect();
+        rubyItems.push({
+          word,
+          ruby: el,
+          text: m.word.word,
+          left: rect.left / lineScale,
+          top: rect.top / lineScale,
+          width: rect.width / lineScale,
+          rubyWidth: el.getBoundingClientRect().width / lineScale,
+          fontSize: Number.parseFloat(getComputedStyle(word).fontSize),
+          offset: 0,
+        });
+      }
     }
+    if (rubyItems.length) {
+      alignRubyGroups(rubyItems);
+      rubyItems.forEach(({ ruby, offset }) => rubyUpdates.push([ruby, offset]));
+    }
+  }
+
+  for (const [ruby, offset] of rubyUpdates) {
+    ruby.style.setProperty("--lp-ruby-offset", `${offset.toFixed(3)}px`);
   }
 
   // ===== 第二遍：批量写入 CSS mask 样式（零回流） =====

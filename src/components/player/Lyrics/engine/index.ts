@@ -260,6 +260,13 @@ export class LyricRenderer {
     if (this.sentinelElement) {
       this.sentinelResizeObserver.observe(this.sentinelElement);
     }
+    for (const measurements of this.wordMeasurements) {
+      for (const { element } of measurements) {
+        if (element.tagName !== "RT") continue;
+        this.sentinelResizeObserver.observe(element);
+        this.sentinelResizeObserver.observe(element.previousElementSibling!);
+      }
+    }
     this.lastFrameTimestamp = 0;
     this.needsFullSync = true;
     // 冻结期间播放进度可能大幅前进，恢复后的首次时间推送若检测到跳变则瞬移布局
@@ -376,6 +383,14 @@ export class LyricRenderer {
     if (lineCount > 0) {
       this.sentinelElement = this.lineElements[0];
       this.sentinelResizeObserver.observe(this.sentinelElement);
+    }
+    // 注音绝对定位，字体变化可能只改变其宽度而不改变哨兵行高度。
+    for (const measurements of this.wordMeasurements) {
+      for (const { element } of measurements) {
+        if (element.tagName !== "RT") continue;
+        this.sentinelResizeObserver.observe(element);
+        this.sentinelResizeObserver.observe(element.previousElementSibling!);
+      }
     }
 
     // 测量尺寸 + 计算 CSS mask

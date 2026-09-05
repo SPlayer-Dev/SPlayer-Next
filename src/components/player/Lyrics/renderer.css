@@ -175,6 +175,7 @@
     left: 50%;
     width: max-content;
     transform: translateX(-50%);
+    translate: var(--lp-ruby-offset, 0px) 0;
     white-space: pre;
     font-size: 0.45em;
     line-height: 1;

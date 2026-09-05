@@ -416,6 +416,7 @@ defineExpose({
 :deep(.FmKaba_lyricMainLine .FmKaba_rubyWord) {
   width: 0;
   overflow: visible;
+  translate: var(--amll-ruby-offset, 0px) 0;
 }
 
 :deep(.FmKaba_rubyWord > span) {
