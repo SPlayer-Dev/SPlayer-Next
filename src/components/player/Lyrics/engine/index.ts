@@ -183,8 +183,6 @@ export class LyricRenderer {
   private containerResizeObserver: ResizeObserver;
   /** 哨兵行尺寸观察器（检测字体/样式变化） */
   private sentinelResizeObserver: ResizeObserver;
-  /** 哨兵行元素 */
-  private sentinelElement: HTMLDivElement | null = null;
 
   /** bottom-line 容器 */
   private bottomLineEl!: HTMLDivElement;
@@ -257,9 +255,7 @@ export class LyricRenderer {
   resume = () => {
     if (this.animationFrameId !== 0) return;
     this.containerResizeObserver.observe(this.container);
-    if (this.sentinelElement) {
-      this.sentinelResizeObserver.observe(this.sentinelElement);
-    }
+    this.observeTextSizes();
     this.lastFrameTimestamp = 0;
     this.needsFullSync = true;
     // 冻结期间播放进度可能大幅前进，恢复后的首次时间推送若检测到跳变则瞬移布局
@@ -372,11 +368,7 @@ export class LyricRenderer {
 
     // 哨兵观察器：监听第一行尺寸变化以检测字体/样式变化
     this.sentinelResizeObserver.disconnect();
-    this.sentinelElement = null;
-    if (lineCount > 0) {
-      this.sentinelElement = this.lineElements[0];
-      this.sentinelResizeObserver.observe(this.sentinelElement);
-    }
+    this.observeTextSizes();
 
     // 测量尺寸 + 计算 CSS mask
     this.dotsContainerWidth = this.dotsContainer.offsetWidth || 60;
@@ -1143,6 +1135,19 @@ export class LyricRenderer {
     }
     this.calculateLayout(true);
     this.needsFullSync = true;
+  };
+
+  /** 注音绝对定位，需同时监听正文和注音宽度，覆盖行高不变的字体变化。 */
+  private observeTextSizes = (): void => {
+    const firstLine = this.lineElements[0];
+    if (firstLine) this.sentinelResizeObserver.observe(firstLine);
+    for (const measurements of this.wordMeasurements) {
+      for (const { element } of measurements) {
+        if (element.tagName !== "RT") continue;
+        this.sentinelResizeObserver.observe(element);
+        this.sentinelResizeObserver.observe(element.previousElementSibling!);
+      }
+    }
   };
 
   /** 取 bottom-line 容器 */

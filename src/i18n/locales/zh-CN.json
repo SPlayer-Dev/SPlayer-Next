@@ -740,6 +740,7 @@
       "lyricTTML": "TTML 歌词",
       "lyricExclude": "歌词排除",
       "lyricGeneral": "内容样式",
+      "lyricQrcKana": "QRC 日语注音",
       "lyricDisplay": "显示效果",
       "lyricAMLLOptimize": "歌词优化",
       "lyricSpring": "弹簧动画",
@@ -1157,6 +1158,10 @@
     "amllShowWordRomanization": {
       "label": "显示逐词音译",
       "description": "在逐字歌词中，显示每个字词的音译文本"
+    },
+    "showQrcKana": {
+      "label": "显示日语注音",
+      "description": "仅在 QRC 歌词源时生效"
     },
     "enableWordHighlight": {
       "label": "逐字高亮",

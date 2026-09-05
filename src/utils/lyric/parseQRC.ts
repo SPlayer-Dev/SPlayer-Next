@@ -17,6 +17,63 @@ const LINE_HEADER_RE = /^\[(\d+),(\d+)\]/;
 
 /** 时间标记开头：`(` 紧跟数字 */
 const TIMING_RE = /\((\d+),(\d+)\)/;
+/** 可注音字符：汉字、迭代符号、半角/全角数字及编号数字 */
+const RUBY_TARGET_RE =
+  /[\p{Unified_Ideograph}\u3400-\u4dbf\uf900-\ufaff\u3005\u3006\u30070-9０-９\u2160-\u217f\u2460-\u2473]/u;
+
+interface KanaToken {
+  length: number;
+  text: string;
+  startTime?: number;
+}
+
+const parseKanaTokens = (value: string): KanaToken[] => {
+  const tokens: KanaToken[] = [];
+  const re = /(\d)((?:[^\d(]|\(\d+,\d+\))*)/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(value))) {
+    const timing = match[2].match(/\((\d+),\d+\)/);
+    tokens.push({
+      length: Number(match[1]),
+      text: match[2].replace(/\(\d+,\d+\)/g, ""),
+      startTime: timing ? Number(timing[1]) : undefined,
+    });
+  }
+  return tokens;
+};
+
+const applyKana = (lines: LyricLine[], tokens: KanaToken[]): void => {
+  let tokenIndex = 0;
+  let remaining = 0;
+  let currentToken: KanaToken | null = null;
+  for (const line of lines) {
+    for (const word of line.words) {
+      const chars = [...word.word];
+      const targetCount = chars.filter((char) => RUBY_TARGET_RE.test(char)).length;
+      if (!targetCount) continue;
+
+      const anchorIndex = tokens.findIndex(
+        (token, index) => index >= tokenIndex && token.startTime === word.startTime,
+      );
+      if (anchorIndex !== -1) {
+        tokenIndex = anchorIndex;
+        remaining = 0;
+        currentToken = null;
+      }
+
+      if (remaining <= 0) {
+        currentToken = tokens[tokenIndex++] ?? null;
+        if (!currentToken) break;
+        remaining = currentToken.length;
+      }
+
+      remaining -= Math.min(remaining, targetCount);
+      if (remaining === 0 && currentToken?.text) {
+        word.ruby = [{ startTime: word.startTime, endTime: word.endTime, word: currentToken.text }];
+      }
+    }
+  }
+};
 
 /**
  * 逐字符解析单行 QRC 字级歌词
@@ -82,8 +139,10 @@ const extractFromXml = (text: string): string => {
 };
 
 /** 解析 QRC 歌词 */
-export const parseQRC = (text: string, detectBackground = true): LyricLine[] => {
+export const parseQRC = (text: string, detectBackground = true, showKana = true): LyricLine[] => {
   const content = extractFromXml(text);
+  const kanaLine = content.match(/^\[kana:([^\r\n]*)\]/m);
+  const kanaTokens = kanaLine ? parseKanaTokens(kanaLine[1]) : [];
   const lines: LyricLine[] = [];
 
   for (const raw of content.split("\n")) {
@@ -118,5 +177,6 @@ export const parseQRC = (text: string, detectBackground = true): LyricLine[] => 
     }
   }
 
+  if (showKana) applyKana(lines, kanaTokens);
   return lines;
 };
