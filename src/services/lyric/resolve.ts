@@ -253,9 +253,7 @@ export const resolveStreamingByPreference = async (
   });
   if (!shouldContinue()) return null;
   if (online) {
-    const ttml = await resolveTTMLOverlay(track, online);
-    if (!shouldContinue()) return null;
-    return ttml ?? { source: online.source, input: online.input };
+    return { source: online.source, input: online.input };
   }
   if (serverLyric || preference === "auto") return serverLyric;
 
@@ -354,12 +352,9 @@ export const resolveLyricForPreload = async (
     shouldContinue,
   });
   if (!shouldContinue()) return null;
-  let normal: ResolvedLyric | null = null;
-  if (online) {
-    const ttml = await resolveTTMLOverlay(track, online);
-    if (!shouldContinue()) return null;
-    normal = ttml ?? { source: online.source, input: online.input };
-  }
+  const normal: ResolvedLyric | null = online
+    ? { source: online.source, input: online.input }
+    : null;
   if (pluginTask) {
     const plugin = await pluginTask;
     if (!shouldContinue()) return null;
