@@ -101,6 +101,7 @@ export const defaultSystemConfig: SystemConfig = {
   localLyric: {
     enableLocalTTMLOverride: false,
     repoDir: "",
+    matchLevel: "standard",
   },
   cache: {
     dir: null,

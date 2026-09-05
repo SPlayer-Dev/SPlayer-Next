@@ -15,14 +15,15 @@ import { readdir, stat } from "node:fs/promises";
 import { join, extname } from "node:path";
 import { readFileAutoEncoding } from "@main/utils/encoding";
 import { store } from "@main/store";
-import { normalize } from "@main/apis/common/lyric/utils";
+import { normalize, normalizeTrackArtists, artistMatches } from "@main/apis/common/lyric/utils";
 import { buildFingerprint, getMatchedId } from "@main/database/lyricMatchCache";
 import { coreLog } from "@main/utils/logger";
 import type { Track } from "@shared/types/player";
+import type { LocalLyricMatchLevel } from "@shared/types/settings";
 
-/** 同名候选：艺术家仅作区分，不作硬门槛 */
+/** 同名候选 */
 interface NameCandidate {
-  /** 归一化首艺术家，缺失为空串 */
+  /** 候选艺术家原始文本，供拆分比对 */
   artist: string;
   file: string;
 }
@@ -98,7 +99,7 @@ const buildIndex = async (dir: string): Promise<RepoIndex> => {
     if (meta.qqId && !index.byQq.has(meta.qqId)) index.byQq.set(meta.qqId, file);
     if (meta.name) {
       const titleKey = normalize(meta.name);
-      const candidate: NameCandidate = { artist: normalize(meta.artist ?? ""), file };
+      const candidate: NameCandidate = { artist: meta.artist ?? "", file };
       const list = index.byTitle.get(titleKey);
       if (list) list.push(candidate);
       else index.byTitle.set(titleKey, [candidate]);
@@ -146,21 +147,58 @@ const tryRead = async (file: string | undefined): Promise<string | null> => {
 };
 
 /**
- * 同名候选里按艺术家挑最匹配的；只有一条或无法用艺术家区分时取第一条
- * @param candidates - 同一标题下的候选
- * @param wantArtist - 归一化的目标首艺术家
- * @returns 命中文件路径
+ * 根据匹配强度从同名候选列表中挑选最匹配的文件
+ * @param candidates - 同一标题下的候选列表
+ * @param track - 目标歌曲
+ * @param level - 匹配强度 (strict | standard | loose)
+ * @returns 命中文件路径，未命中返回 null
  */
-const pickByArtist = (candidates: NameCandidate[], wantArtist: string): string => {
-  if (candidates.length === 1 || !wantArtist) return candidates[0].file;
-  const exact = candidates.find((candidate) => candidate.artist === wantArtist);
+const pickCandidate = (
+  candidates: NameCandidate[],
+  track: Track,
+  level: LocalLyricMatchLevel,
+): string | null => {
+  const trackArtists = normalizeTrackArtists(track);
+
+  // 宽松模式：保持原有容错，同名单个直接返回；多个优先匹配，无匹配兜底首个
+  if (level === "loose") {
+    if (candidates.length === 1 || trackArtists.length === 0) return candidates[0].file;
+    const exact = candidates.find(
+      (candidate) => artistMatches(candidate.artist, trackArtists).exact,
+    );
+    if (exact) return exact.file;
+    const partial = candidates.find(
+      (candidate) => artistMatches(candidate.artist, trackArtists).contains,
+    );
+    return (partial ?? candidates[0]).file;
+  }
+
+  // 严格模式：必须歌曲与候选均有艺术家，且完全严格一致
+  if (level === "strict") {
+    if (trackArtists.length === 0) return null;
+    const exact = candidates.find(
+      (candidate) => artistMatches(candidate.artist, trackArtists).exact,
+    );
+    return exact ? exact.file : null;
+  }
+
+  // 标准模式 (standard，默认)：优先艺术家完全一致
+  const exact = candidates.find((candidate) => artistMatches(candidate.artist, trackArtists).exact);
   if (exact) return exact.file;
+
+  // 其次子串相互包含（如合唱歌手、feat 等）
   const partial = candidates.find(
-    (candidate) =>
-      candidate.artist &&
-      (candidate.artist.includes(wantArtist) || wantArtist.includes(candidate.artist)),
+    (candidate) => artistMatches(candidate.artist, trackArtists).contains,
   );
-  return (partial ?? candidates[0]).file;
+  if (partial) return partial.file;
+
+  // 元数据缺失容错：目标歌曲无艺术家信息时允许取同名首个；候选本身无艺术家信息也允许命中
+  if (trackArtists.length === 0) return candidates[0].file;
+  const emptyArtistCandidate = candidates.find((candidate) => !candidate.artist.trim());
+  if (emptyArtistCandidate) return emptyArtistCandidate.file;
+
+  // 双方均有艺术家但完全互不相干（如不同歌手同名曲）：拒绝盲目兜底
+  return null;
 };
 
 /**
@@ -197,6 +235,9 @@ export const matchLocalTTML = async (track: Track): Promise<string | null> => {
   if (!store.get("localLyric.enableLocalTTMLOverride")) return null;
   const index = await getIndex();
   if (!index) return null;
+
+  const matchLevel = (store.get("localLyric.matchLevel") as LocalLyricMatchLevel) || "standard";
+
   // track 自带平台 id 精确命中（在线歌曲）
   if (track.source === "netease") {
     const hit = await tryRead(index.byNcm.get(track.id));
@@ -209,10 +250,14 @@ export const matchLocalTTML = async (track: Track): Promise<string | null> => {
       if (hit) return hit;
     }
   }
-  // 标题命中；同名多条时再用艺术家软性区分
+  // 标题命中：按匹配强度筛选候选
   const candidates = index.byTitle.get(normalize(track.title));
   if (candidates && candidates.length > 0) {
-    return tryRead(pickByArtist(candidates, normalize(track.artists[0]?.name ?? "")));
+    const picked = pickCandidate(candidates, track, matchLevel);
+    if (picked) {
+      const hit = await tryRead(picked);
+      if (hit) return hit;
+    }
   }
   // 兜底：平台 id 回查
   return matchByCachedId(track, index);
