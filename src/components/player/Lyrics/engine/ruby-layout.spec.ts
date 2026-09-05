@@ -4,6 +4,11 @@ import type { LyricWord } from "@shared/types/lyrics";
 
 beforeEach(() => document.body.replaceChildren());
 
+const story: [string, string, number, number][] = [
+  ["物", "もの", 40, 36],
+  ["語", "がたり", 40, 54],
+];
+
 const createLine = (texts: [string, string, number, number][], emphasize = false) => {
   const main = document.createElement("div");
   main.className = "lp-main";
@@ -42,13 +47,7 @@ const createLine = (texts: [string, string, number, number][], emphasize = false
 
 describe("physics 引擎 Ruby 合排", () => {
   it.each([false, true])("物語整体居中，并保留逐词掩码（强调效果：%s）", (emphasize) => {
-    const fixture = createLine(
-      [
-        ["物", "もの", 40, 36],
-        ["語", "がたり", 40, 54],
-      ],
-      emphasize,
-    );
+    const fixture = createLine(story, emphasize);
     fixture.measure();
     expect(fixture.offsets()).toEqual([-7, -2]);
     expect(
@@ -80,10 +79,7 @@ describe("physics 引擎 Ruby 合排", () => {
   });
 
   it("字体变更后重新测量并恢复独立居中", () => {
-    const fixture = createLine([
-      ["物", "もの", 40, 36],
-      ["語", "がたり", 40, 54],
-    ]);
+    const fixture = createLine(story);
     fixture.measure();
     fixture.rtWidths[1] = 30;
     fixture.measure();
@@ -91,11 +87,7 @@ describe("physics 引擎 Ruby 合排", () => {
   });
 
   it("空格隔开的汉字不合并", () => {
-    const fixture = createLine([
-      ["物", "もの", 40, 36],
-      [" ", "", 0, 0],
-      ["語", "がたり", 40, 54],
-    ]);
+    const fixture = createLine([story[0], [" ", "", 0, 0], story[1]]);
     fixture.measure();
     expect(fixture.offsets()).toEqual([0, 0]);
   });

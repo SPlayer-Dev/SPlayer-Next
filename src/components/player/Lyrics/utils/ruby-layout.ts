@@ -1,5 +1,6 @@
 export interface RubyLayoutItem {
   word: HTMLElement;
+  ruby: HTMLElement;
   text: string;
   left: number;
   top: number;
@@ -10,6 +11,32 @@ export interface RubyLayoutItem {
 }
 
 const HAN_GROUP = /^(?:[\p{Script=Han}\u3005\u3006]\p{Variation_Selector}?)+$/u;
+
+/** 测量正文与注音的实际尺寸，排除行缩放和正文容器中的逐词罗马音。 */
+export const measureRuby = (
+  word: HTMLElement,
+  body: Element,
+  ruby: HTMLElement,
+  scale: number,
+): RubyLayoutItem => {
+  const rect = body.getBoundingClientRect();
+  // AMLL 的零宽容器会向两侧溢出，需累加子片段；原生 rt 直接测量自身。
+  const parts = ruby.childElementCount ? Array.from(ruby.children) : [ruby];
+  return {
+    word,
+    ruby,
+    text: Array.from(body.childNodes)
+      .filter((node) => !(node instanceof Element && node.matches(".FmKaba_romanWord")))
+      .map((node) => node.textContent ?? "")
+      .join(""),
+    left: rect.left / scale,
+    top: rect.top / scale,
+    width: rect.width / scale,
+    rubyWidth: parts.reduce((sum, part) => sum + part.getBoundingClientRect().width / scale, 0),
+    fontSize: Number.parseFloat(getComputedStyle(word).fontSize),
+    offset: 0,
+  };
+};
 
 /**
  * 连续汉字注音发生碰撞时合排整组，以正文范围的中心对齐注音总宽度。

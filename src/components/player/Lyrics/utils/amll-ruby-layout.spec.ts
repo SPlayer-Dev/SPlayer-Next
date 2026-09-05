@@ -111,13 +111,20 @@ describe("AMLL 连续汉字注音布局", () => {
     expect(first.ruby.style.visibility).toBe("");
   });
 
-  it("最後未溢出时保留逐字居中", () => {
-    const fixture = createFixture();
-    const first = fixture.add("最", 40, [["さい", 40]]);
-    const last = fixture.add("後", 40, [["ご", 20]]);
-    stop = observeAmllRubyLayout(fixture.player);
-    expect([offset(first.ruby), offset(last.ruby)]).toEqual([0, 0]);
-  });
+  it.each([
+    ["未溢出", "最", "さい", 40, 40, "後", "ご", 20],
+    ["注音较长但未溢出", "天球", "てんきゅう", 80, 50, "儀", "ぎ", 20],
+    ["有溢出但未碰撞", "物", "もの", 40, 20, "語", "がたり", 50],
+  ] as const)(
+    "%s 时保留逐词居中",
+    (_, text, reading, width, rubyWidth, lastText, lastReading, lastWidth) => {
+      const fixture = createFixture();
+      const first = fixture.add(text, width, [[reading, rubyWidth]]);
+      const last = fixture.add(lastText, 40, [[lastReading, lastWidth]]);
+      stop = observeAmllRubyLayout(fixture.player);
+      expect([offset(first.ruby), offset(last.ruby)]).toEqual([0, 0]);
+    },
+  );
 
   it("按像素宽度处理汉字组及多个注音时间片段", () => {
     const fixture = createFixture();
@@ -129,22 +136,6 @@ describe("AMLL 连续汉字注音布局", () => {
     stop = observeAmllRubyLayout(fixture.player);
     expect([offset(first.ruby), offset(last.ruby)]).toEqual([0, 15]);
     expect(first.ruby.children).toHaveLength(2);
-  });
-
-  it("字符数较长但物理宽度未溢出时不合并", () => {
-    const fixture = createFixture();
-    const first = fixture.add("天球", 80, [["てんきゅう", 50]]);
-    const last = fixture.add("儀", 40, [["ぎ", 20]]);
-    stop = observeAmllRubyLayout(fixture.player);
-    expect([offset(first.ruby), offset(last.ruby)]).toEqual([0, 0]);
-  });
-
-  it("溢出注音与相邻注音没有碰撞时不合并", () => {
-    const fixture = createFixture();
-    const first = fixture.add("物", 40, [["もの", 20]]);
-    const last = fixture.add("語", 40, [["がたり", 50]]);
-    stop = observeAmllRubyLayout(fixture.player);
-    expect([offset(first.ruby), offset(last.ruby)]).toEqual([0, 0]);
   });
 
   it("中间词溢出时左右关联汉字都参与合排", () => {

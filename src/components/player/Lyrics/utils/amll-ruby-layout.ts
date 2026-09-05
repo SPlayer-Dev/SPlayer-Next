@@ -1,9 +1,5 @@
 import type { LyricPlayer } from "@applemusic-like-lyrics/core";
-import { alignRubyGroups, type RubyLayoutItem } from "./ruby-layout";
-
-interface RubyMeasurement extends RubyLayoutItem {
-  ruby: HTMLElement;
-}
+import { alignRubyGroups, measureRuby, type RubyLayoutItem } from "./ruby-layout";
 
 /**
  * 按实际宽度合排连续汉字注音，并扩展掩码空间；保留原节点与逐词时间轴。
@@ -12,80 +8,54 @@ interface RubyMeasurement extends RubyLayoutItem {
  */
 export const observeAmllRubyLayout = (player: LyricPlayer): (() => void) => {
   const root = player.getElement();
-  const observed = new Set<HTMLElement>();
+  let observed = new Set<HTMLElement>();
 
   const sync = (): void => {
     if (document.hidden || !root.isConnected || root.clientWidth === 0) return;
     const targets = new Set<HTMLElement>([root]);
-    const measurements: RubyMeasurement[] = [];
+    const measurements: RubyLayoutItem[] = [];
 
     for (const line of root.querySelectorAll<HTMLElement>(".FmKaba_lyricMainLine")) {
       targets.add(line);
       const scale = line.getBoundingClientRect().width / line.offsetWidth;
       if (!scale) continue;
-      const lineMeasurements: RubyMeasurement[] = [];
+      const lineMeasurements: RubyLayoutItem[] = [];
 
       for (const word of line.querySelectorAll<HTMLElement>(".FmKaba_wordWithRuby")) {
         const ruby = word.querySelector<HTMLElement>(".FmKaba_rubyWord");
         const body = word.querySelector<HTMLElement>(".FmKaba_wordBody");
         if (!ruby || !body) continue;
         targets.add(body);
-        const parts = Array.from(ruby.children) as HTMLElement[];
-        parts.forEach((part) => targets.add(part));
-        const rect = body.getBoundingClientRect();
-        const item: RubyMeasurement = {
-          word,
-          ruby,
-          text: Array.from(body.childNodes)
-            .filter((node) => !(node instanceof Element && node.matches(".FmKaba_romanWord")))
-            .map((node) => node.textContent ?? "")
-            .join(""),
-          left: rect.left / scale,
-          top: rect.top / scale,
-          width: rect.width / scale,
-          // 零宽 flex 容器的 scrollWidth 不包含向左溢出的部分，需测量全部注音片段。
-          rubyWidth: parts.reduce(
-            (sum, part) => sum + part.getBoundingClientRect().width / scale,
-            0,
-          ),
-          fontSize: Number.parseFloat(getComputedStyle(word).fontSize),
-          offset: 0,
-        };
-        lineMeasurements.push(item);
+        for (const part of ruby.children) targets.add(part as HTMLElement);
+        lineMeasurements.push(measureRuby(word, body, ruby, scale));
       }
       alignRubyGroups(lineMeasurements);
       measurements.push(...lineMeasurements);
     }
 
     for (const target of observed) {
-      if (!targets.has(target)) {
-        resizeObserver.unobserve(target);
-        observed.delete(target);
-      }
+      if (!targets.has(target)) resizeObserver.unobserve(target);
     }
     for (const target of targets) {
-      if (!observed.has(target)) {
-        resizeObserver.observe(target);
-        observed.add(target);
-      }
+      if (!observed.has(target)) resizeObserver.observe(target);
     }
+    observed = targets;
 
-    const changedWords = new Set<HTMLElement>();
-    for (const item of measurements) {
-      const { word, ruby, offset, rubyWidth, width, fontSize } = item;
+    const changedWords: HTMLElement[] = [];
+    for (const { word, ruby, offset, rubyWidth, width, fontSize } of measurements) {
       const shift = `${offset.toFixed(3)}px`;
       if (ruby.style.getPropertyValue("--amll-ruby-offset") !== shift)
         ruby.style.setProperty("--amll-ruby-offset", shift);
       const padding = `${Math.ceil(Math.max(fontSize, Math.abs(offset) + (rubyWidth - width) / 2 + 1))}px`;
       if (word.style.getPropertyValue("--amll-ruby-padding") !== padding) {
         word.style.setProperty("--amll-ruby-padding", padding);
-        changedWords.add(word);
+        changedWords.push(word);
       }
     }
-    if (!changedWords.size) return;
+    if (!changedWords.length) return;
     for (const group of player.currentLyricGroups) {
       for (const line of [group.mainLine, group.bgLine]) {
-        if (line && Array.from(changedWords).some((word) => line.getElement().contains(word)))
+        if (line && changedWords.some((word) => line.getElement().contains(word)))
           line.updateMaskImageSync();
       }
     }
