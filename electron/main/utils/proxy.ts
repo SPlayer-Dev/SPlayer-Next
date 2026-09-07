@@ -21,7 +21,7 @@ export const getNetworkProxyUrl = (): string | null => {
   return `${config.protocol}://${host}:${port}`;
 };
 
-const getProxyDispatcher = (): Dispatcher | undefined => {
+export const getProxyDispatcher = (): Dispatcher | undefined => {
   const url = getNetworkProxyUrl();
   if (!url) return undefined;
   if (!proxyAgent || proxyAgentUrl !== url) {

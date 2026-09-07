@@ -12,6 +12,7 @@ import { NeteaseRequestError } from "@main/apis/netease/core/request";
 import { cookieToJson } from "@main/apis/netease/core/cookie";
 import { callQQMusic, clearQQMusicCookies, mergeQQMusicCookies } from "@main/apis/qqmusic";
 import { callKugou, clearKugouSession, mergeKugouSession } from "@main/apis/kugou";
+import { callBd, clearBdSession, mergeBdSession } from "@main/apis/bd";
 import { openNeteaseLoginWindow } from "@main/window/login";
 import { coreLog } from "@main/utils/logger";
 import type { ApiPlatform } from "@shared/types/apis";
@@ -33,6 +34,10 @@ const dispatch = async (
     }
     case "kugou": {
       const data = await callKugou(name, params);
+      return { data };
+    }
+    case "bd": {
+      const data = await callBd(name, params);
       return { data };
     }
     default:
@@ -66,6 +71,7 @@ export const registerApisIpc = (): void => {
     if (platform === "netease") clearNeteaseCookies();
     if (platform === "qqmusic") clearQQMusicCookies();
     if (platform === "kugou") clearKugouSession();
+    if (platform === "bd") clearBdSession();
   });
 
   // 打开官方网页登录，成功后把 cookies 合并写入 session
@@ -110,6 +116,13 @@ export const registerApisIpc = (): void => {
         return { ok: false, error: "missing token or userid" };
       }
       mergeKugouSession(parsed);
+      return { ok: true };
+    }
+    if (platform === "bd") {
+      if (!/^[1-9]\d*$/.test(parsed.uid ?? "") || !parsed.token?.trim()) {
+        return { ok: false, error: "missing uid or token" };
+      }
+      mergeBdSession(parsed);
       return { ok: true };
     }
     return { ok: false, error: "unsupported platform" };

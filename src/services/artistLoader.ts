@@ -9,6 +9,7 @@ import { useStreamingStore } from "@/stores/streaming";
 import { fetchArtist } from "@/apis/artist/netease";
 import { fetchQQMusicArtist } from "@/apis/artist/qqmusic";
 import { fetchKugouArtist } from "@/apis/artist/kugou";
+import { fetchBdArtist } from "@/apis/artist/bd";
 import { albumsToCoverItems } from "@/utils/format/coverItem";
 
 export interface LoadArtistOptions {
@@ -52,6 +53,12 @@ export const loadArtist = async (
   if (source === "kugou") {
     const artistId = decodeURIComponent(id);
     const result = await fetchKugouArtist(artistId, options.fallbackName ?? artistId);
+    if (!options.signal?.aborted) options.onUpdate(result);
+    return;
+  }
+  if (source === "bd") {
+    const artistId = decodeURIComponent(id);
+    const result = await fetchBdArtist(artistId, options.fallbackName ?? artistId);
     if (!options.signal?.aborted) options.onUpdate(result);
     return;
   }

@@ -36,6 +36,19 @@ const otherCategory: SettingCategory = {
             "settings.platformLogin.manualCookie",
           ],
         },
+        {
+          key: "bdAccount",
+          type: "custom",
+          component: PlatformAccount,
+          componentProps: { platform: "bd" },
+          fullWidth: true,
+          keywords: [
+            "settings.platformLogin.title",
+            "settings.platformLogin.desc",
+            "settings.platformLogin.loginQr",
+            "settings.platformLogin.manualCookie",
+          ],
+        },
       ],
     },
     {

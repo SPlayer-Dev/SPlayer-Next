@@ -1,5 +1,6 @@
 import type { LyricFormat } from "./lyrics";
 import type { Platform } from "./platform";
+import type { BdTrackInfo } from "./bd";
 
 /** 播放器状态 */
 export type PlayerState = "idle" | "loading" | "playing" | "paused" | "stopped";
@@ -88,6 +89,7 @@ export interface Track {
   extId?: string;
   /** 平台媒体文件 id */
   mediaId?: string;
+  bd?: BdTrackInfo;
   /** 歌曲来源 */
   source: TrackSource;
   /** 本地路径 */

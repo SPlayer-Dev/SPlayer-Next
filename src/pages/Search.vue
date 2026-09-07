@@ -2,7 +2,12 @@
 defineOptions({ name: "SearchPage" });
 
 import type { PlaybackContext, Track } from "@shared/types/player";
-import { ALL_PLATFORMS, PLATFORM_SHORT_NAME, type Platform } from "@shared/types/platform";
+import {
+  ALL_PLATFORMS,
+  PLATFORM_SHORT_NAME,
+  getPlatformSearchCategories,
+  type Platform,
+} from "@shared/types/platform";
 import type { CoverItem } from "@/types/artist";
 import { searchSongs, searchAlbums, searchArtists, searchPlaylists } from "@/apis/search";
 import SongList from "@/components/list/SongList.vue";
@@ -17,8 +22,6 @@ const status = useStatusStore();
 
 type TabKey = "songs" | "albums" | "artists" | "playlists";
 
-const TAB_KEYS: readonly TabKey[] = ["songs", "albums", "artists", "playlists"];
-
 const PAGE_SIZE = 50;
 
 /** 当前生效的 tab */
@@ -27,12 +30,12 @@ const activeTab = ref<TabKey>("songs");
 /** 当前生效的关键词 */
 const keyword = ref("");
 
-const tabs = computed(() => [
-  { key: "songs", label: t("search.tabs.songs") },
-  { key: "albums", label: t("search.tabs.albums") },
-  { key: "artists", label: t("search.tabs.artists") },
-  { key: "playlists", label: t("search.tabs.playlists") },
-]);
+const tabs = computed(() =>
+  getPlatformSearchCategories(status.searchPlatform).map((key) => ({
+    key,
+    label: t(`search.tabs.${key}`),
+  })),
+);
 
 const platformTabs = ALL_PLATFORMS.map((key) => ({ key, label: PLATFORM_SHORT_NAME[key] }));
 
@@ -131,8 +134,10 @@ let lastLoadedPlatform = status.searchPlatform;
 const syncFromRoute = (): void => {
   if (route.name !== "search") return;
   const q = typeof route.query.q === "string" ? route.query.q.trim() : "";
+  const categories = getPlatformSearchCategories(status.searchPlatform);
   const tab =
-    typeof route.query.tab === "string" && (TAB_KEYS as readonly string[]).includes(route.query.tab)
+    typeof route.query.tab === "string" &&
+    (categories as readonly string[]).includes(route.query.tab)
       ? (route.query.tab as TabKey)
       : "songs";
 
@@ -213,7 +218,7 @@ const playbackContext = computed<PlaybackContext>(() => ({
           </span>
         </h1>
         <!-- 平台切换 -->
-        <div class="shrink-0 w-40">
+        <div class="shrink-0 w-56">
           <STabs
             :model-value="status.searchPlatform"
             :tabs="platformTabs"
