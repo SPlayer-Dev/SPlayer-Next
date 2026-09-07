@@ -114,6 +114,7 @@ export const toPlaylist = (raw: any): Playlist => ({
   description: raw.description,
   trackCount: raw.trackCount,
   owner: raw.creator?.nickname,
+  playCount: raw.playcount ?? raw.playCount,
 });
 
 /** 收藏专辑（/album/sublist 元素）→ 应用层 Album */
