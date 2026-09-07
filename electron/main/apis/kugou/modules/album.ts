@@ -7,6 +7,7 @@
  */
 
 import { decodeName, fillCover } from "../core/config";
+import { fetchAllPages } from "../core/pagination";
 import { kgGatewayRequest, kgRequest } from "../core/request";
 import type { KGModule, KGSong, Quality } from "../core/types";
 
@@ -259,18 +260,36 @@ const resolveAlbumId = async (idOrName: string): Promise<string> => {
   return idOrName;
 };
 
+/**
+ * 拉取专辑全量歌曲（mobilecdn 通道）：复用分页拉取，第一页失败返回空数组
+ * @param albumId - 专辑 albumid
+ */
+const fetchAllMobileAlbumSongs = async (albumId: string): Promise<MobileAlbumSong[]> => {
+  const requestPage = async (page: number) => {
+    const res = await kgRequest<{
+      data?: { info?: MobileAlbumSong[]; total?: number };
+    }>(
+      `http://mobilecdn.kugou.com/api/v3/album/song?albumid=${encodeURIComponent(albumId)}&page=${page}&pagesize=300&format=json`,
+    ).catch(() => ({ data: undefined }));
+    return res as PagedResponseLike<MobileAlbumSong>;
+  };
+  return fetchAllPages<MobileAlbumSong>(requestPage);
+};
+
+/** mobilecdn 分页响应的宽松结构（info/total 均可缺省） */
+interface PagedResponseLike<T> {
+  data?: { info?: T[]; total?: number };
+}
+
 const loadAlbumFromMobile = async (albumId: string) => {
-  const [infoRes, songsRes] = await Promise.all([
+  const [infoRes, rawSongs] = await Promise.all([
     kgRequest<{ data?: MobileAlbumInfo }>(
       `http://mobilecdn.kugou.com/api/v3/album/info?albumid=${encodeURIComponent(albumId)}&format=json`,
     ).catch(() => ({ data: undefined })),
-    kgRequest<{ data?: { info?: MobileAlbumSong[]; total?: number } }>(
-      `http://mobilecdn.kugou.com/api/v3/album/song?albumid=${encodeURIComponent(albumId)}&page=1&pagesize=300&format=json`,
-    ).catch(() => ({ data: undefined })),
+    fetchAllMobileAlbumSongs(albumId),
   ]);
 
   const info = infoRes.data ?? {};
-  const rawSongs = songsRes.data?.info ?? [];
   const cover = fillCover(info.imgurl, 300);
   const coverOriginal = fillCover(info.imgurl, 480);
   const songs = rawSongs.map((s) => normalizeMobileAlbumSong(s, info.imgurl));
@@ -292,9 +311,32 @@ const loadAlbumFromMobile = async (albumId: string) => {
       : [],
     publishTime: info.publishtime,
     description: info.intro,
-    total: info.songcount ?? songsRes.data?.total ?? songs.length,
+    total: songs.length,
     songs,
   };
+};
+
+/**
+ * 拉取专辑全量歌曲（网关 /v1/album_audio/lite 通道）：复用分页拉取
+ * @param id - 专辑 albumid
+ * @returns 全量歌曲原始数据；接口异常时抛错由上层降级 mobilecdn
+ */
+const fetchAllGatewayAlbumSongs = async (id: string): Promise<RawAlbumSongEntry[]> => {
+  // 网关返回的 data 可能是歌曲数组本身或 { songs, total } 包装，适配成分页结构
+  const requestPage = async (page: number) => {
+    const res = await kgGatewayRequest<{
+      data?: { songs?: RawAlbumSongEntry[]; total?: number } | RawAlbumSongEntry[];
+    }>("/v1/album_audio/lite", {
+      method: "POST",
+      data: { album_id: id, page, pagesize: 300 },
+      headers: { "x-router": "openapi.kugou.com", "kg-tid": "255" },
+    });
+    const list = Array.isArray(res.data) ? res.data : (res.data?.songs ?? []);
+    const total = Array.isArray(res.data) ? undefined : res.data?.total;
+    return { data: { info: list, total } };
+  };
+
+  return fetchAllPages<RawAlbumSongEntry>(requestPage);
 };
 
 const album: KGModule = async (params) => {
@@ -305,7 +347,7 @@ const album: KGModule = async (params) => {
 
   // 优先通过网关请求
   try {
-    const [detailRes, songsRes] = await Promise.all([
+    const [detailRes, rawSongs] = await Promise.all([
       kgGatewayRequest<{ data?: RawAlbumDetail[] }>("/kmr/v2/albums", {
         method: "POST",
         data: {
@@ -315,24 +357,14 @@ const album: KGModule = async (params) => {
         },
         headers: { "x-router": "openapi.kugou.com", "kg-tid": "255" },
       }),
-      kgGatewayRequest<{
-        data?: { songs?: RawAlbumSongEntry[]; total?: number } | RawAlbumSongEntry[];
-      }>("/v1/album_audio/lite", {
-        method: "POST",
-        data: { album_id: id, page: 1, pagesize: 300 },
-        headers: { "x-router": "openapi.kugou.com", "kg-tid": "255" },
-      }),
+      fetchAllGatewayAlbumSongs(id),
     ]);
 
     const detail = detailRes.data?.[0] ?? {};
     const cover = fillCover(detail.sizable_cover, 300);
     const coverOriginal = fillCover(detail.sizable_cover, 480);
 
-    const rawSongs: RawAlbumSongEntry[] = Array.isArray(songsRes.data)
-      ? songsRes.data
-      : (songsRes.data?.songs ?? []);
     const songs = rawSongs.map((item) => normalizeAlbumSong(item, detail.sizable_cover));
-
     const authors = detail.authors ?? [];
     const artistName =
       detail.author_name ||
@@ -356,7 +388,7 @@ const album: KGModule = async (params) => {
       })),
       publishTime: detail.publish_date,
       description: detail.intro,
-      total: detail.songcount ?? songs.length,
+      total: songs.length,
       songs,
     };
   } catch {
