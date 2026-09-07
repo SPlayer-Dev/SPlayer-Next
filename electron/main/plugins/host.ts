@@ -17,6 +17,7 @@ import {
   pluginStorageSet,
 } from "./storage";
 import { playerControl } from "@main/services/playerControl";
+import { getCurrentCover } from "./media";
 
 /** 处理一次 plugin→host 调用 */
 export const dispatchHostCall = async (
@@ -91,6 +92,9 @@ export const dispatchHostCall = async (
       }
       case "player.getPosition":
         data = playerControl.getPosition();
+        break;
+      case "media.getCover":
+        data = await getCurrentCover();
         break;
       default:
         throw Object.assign(new Error(`unknown host method: ${method}`), {

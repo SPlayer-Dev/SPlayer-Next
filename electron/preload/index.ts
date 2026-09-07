@@ -484,6 +484,9 @@ const api = {
     // 订阅歌曲切换事件
     onTrackChange: (callback: (data: unknown) => void) =>
       subscribe("nowPlaying:track-change", callback),
+    // 订阅当前曲目的延迟元数据更新
+    onTrackUpdate: (callback: (data: unknown) => void) =>
+      subscribe("nowPlaying:track-update", callback),
     // 订阅歌词内容变化事件
     onLyricChange: (callback: (snapshot: unknown) => void) =>
       subscribe("nowPlaying:lyric-change", callback),

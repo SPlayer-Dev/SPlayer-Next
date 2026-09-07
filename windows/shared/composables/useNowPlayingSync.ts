@@ -49,7 +49,7 @@ export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSyn
 
   const resetAnchor = (positionMs: number, sendTimestamp: number): void => {
     const ipcDelay = Math.max(0, Date.now() - sendTimestamp);
-    anchorPos = positionMs + (playing.value ? ipcDelay : 0);
+    anchorPos = positionMs + (playing.value ? ipcDelay * speed : 0);
     anchorPerf = performance.now();
     // currentNowPlayingMs 始终是「叠加 offset 后的歌词时间」，与 syncOnce 保持一致
     currentNowPlayingMs = anchorPos + lyricOffsetMs;
@@ -74,7 +74,7 @@ export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSyn
       return;
     }
     const ipcDelay = Math.max(0, Date.now() - sendTimestamp);
-    const candidate = positionMs + ipcDelay;
+    const candidate = positionMs + ipcDelay * speed;
     const projected = anchorPos + (performance.now() - anchorPerf) * speed;
     if (Math.abs(candidate - projected) > SYNC_DRIFT_THRESHOLD) {
       resetAnchor(positionMs, sendTimestamp);
@@ -120,6 +120,14 @@ export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSyn
     }
 
     unsubscribers.push(
+      window.api.nowPlaying.onTrackChange(({ track: nextTrack }) => {
+        track.value = nextTrack;
+        lyric.value = [];
+        primaryIndex.value = -1;
+      }),
+      window.api.nowPlaying.onTrackUpdate(({ track: nextTrack }) => {
+        track.value = nextTrack;
+      }),
       window.api.nowPlaying.onLyricChange((snap) => {
         applySnapshot(snap);
         kickTick();

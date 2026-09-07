@@ -7,7 +7,7 @@ import type { NowPlayingUpdatePayload } from "@shared/types/nowPlaying";
 export const registerNowPlayingIpc = (): void => {
   // 渲染进程同步当前播放状态到主进程
   ipcMain.on("nowPlaying:update", (_event, payload: NowPlayingUpdatePayload) => {
-    nowPlaying.update(payload.track, payload.lyric, payload.source);
+    nowPlaying.update(payload.track, payload.lyric, payload.source, payload.lyricStatus);
   });
 
   // 渲染进程写入指定曲目的歌词偏移
@@ -23,6 +23,10 @@ export const registerNowPlayingIpc = (): void => {
   nowPlaying.onTrackChange((data) => {
     broadcast("nowPlaying:track-change", data);
     wsBroadcast({ type: "track", data });
+  });
+  nowPlaying.onTrackUpdate((data) => {
+    broadcast("nowPlaying:track-update", data);
+    wsBroadcast({ type: "trackUpdate", data });
   });
   nowPlaying.onLyricChange((snap) => {
     broadcast("nowPlaying:lyric-change", snap);

@@ -113,7 +113,7 @@ SPlayer-Next 内置一套插件系统，允许用第三方 JavaScript 扩展应�
 | `@homepage`    |      | 主页 URL                                                                                                                     |
 | `@grant`       |      | 控制插件声明权限：`network`（联网）/ `control`（控制播放器）/ `ui`（扩展界面，如菜单项），逗号分隔；音源插件自动获 `network` |
 | `@type`        |      | `source`（音源，默认）或 `control`（控制）；**建议显式声明**，决定插件类型与权限默认                                         |
-| `@apiLevel`    |      | 声明兼容的 [API 级别与变更记录](#api-级别与变更记录)，当前宿主为 `3`；具体能力所需级别以该表为准                             |
+| `@apiLevel`    |      | 声明兼容的 [API 级别与变更记录](#api-级别与变更记录)，当前宿主为 `4`；具体能力所需级别以该表为准                             |
 | `@updateUrl`   |      | 更新检查地址，详见 [插件更新](/plugins/update)                                                                               |
 | `@changelog`   |      | 更新说明，详见 [插件更新](/plugins/update)                                                                                   |
 
@@ -139,16 +139,17 @@ SPlayer-Next 内置一套插件系统，允许用第三方 JavaScript 扩展应�
 
 `@apiLevel` 声明插件需要的宿主能力级别。能力是**累加**的：高级别包含低级别的全部能力，新增能力会提升级别。这里是插件 API 级别的唯一变更记录；其它页面只说明具体能力要求的最低级别。
 
-| 级别 | 相对上一等级新增的能力                                                                                                                                                                  | 用到这些能力时                                  |
-| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `1`  | 基础音源能力：`register({ sources })`、`musicUrl` 处理器；元数据兜底处理器：`musicSearch` / `musicLyric` / `musicPic`；通用 API：`request` / `storage` / `log` / `getSetting` / `utils` | 播放地址、歌词、封面插件声明 `@apiLevel 1` 即可 |
-| `2`  | 控制能力：`register({ events, controls, settings })`、`splayer.player` 事件订阅与反向控制、`onSettingChange`；界面能力：`register({ menus })`、`menuClick` 处理器（需 `@grant ui`）     | 控制插件或菜单扩展声明 `@apiLevel 2`            |
-| `3`  | 评论能力：`musicComment` 处理器。宿主先用 `musicSearch` 匹配曲目，再向声明了 `musicComment` 的源请求热门 / 最新评论                                                                     | 评论插件能力声明 `@apiLevel 3`                  |
+| 级别 | 相对上一等级新增的能力                                                                                                                                                                  | 用到这些能力时                                   |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `1`  | 基础音源能力：`register({ sources })`、`musicUrl` 处理器；元数据兜底处理器：`musicSearch` / `musicLyric` / `musicPic`；通用 API：`request` / `storage` / `log` / `getSetting` / `utils` | 播放地址、歌词、封面插件声明 `@apiLevel 1` 即可  |
+| `2`  | 控制能力：`register({ events, controls, settings })`、`splayer.player` 事件订阅与反向控制、`onSettingChange`；界面能力：`register({ menus })`、`menuClick` 处理器（需 `@grant ui`）     | 控制插件或菜单扩展声明 `@apiLevel 2`             |
+| `3`  | 评论能力：`musicComment` 处理器。宿主先用 `musicSearch` 匹配曲目，再向声明了 `musicComment` 的源请求热门 / 最新评论                                                                     | 评论插件能力声明 `@apiLevel 3`                   |
+| `4`  | 高级播放同步：`trackUpdate` / `positionSync`，带来源、加载状态和修订号的 `lyricChange`，以及只读 `splayer.media.getCover()`                                                             | 高级歌词、封面或精确时间轴联动声明 `@apiLevel 4` |
 
-当前宿主级别为 **3**。规则：
+当前宿主级别为 **4**。规则：
 
 - 声明值**必须 ≤ 当前宿主级别**，否则拒绝加载并报 `PLUGIN_API_LEVEL_MISMATCH`（需等应用升级）；
-- 声明你实际用到的**最低**级别即可——只做播放地址 / 歌词 / 封面写 `1`，用到任何控制能力写 `2`，用到评论能力写 `3`；
+- 声明你实际用到的**最低**级别即可——只做播放地址 / 歌词 / 封面写 `1`，用到基础控制能力写 `2`，用到评论能力写 `3`，用到高级播放同步写 `4`；
 - 控制插件（`@type control`）必须声明 `2`，否则控制能力在运行时不可用。
 
 ::: tip

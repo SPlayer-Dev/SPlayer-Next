@@ -94,10 +94,15 @@ export const hostRequest = async (
   let body: BodyInit | undefined;
   if (opts.body != null) {
     if (typeof opts.body === "string") body = opts.body;
-    else if (opts.body instanceof ArrayBuffer) body = opts.body;
-    else {
-      const u8 = opts.body as Uint8Array;
-      body = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
+    else if (ArrayBuffer.isView(opts.body)) {
+      const view = opts.body as ArrayBufferView;
+      body = new Uint8Array(view.buffer, view.byteOffset, view.byteLength).slice().buffer;
+    } else if (Object.prototype.toString.call(opts.body) === "[object ArrayBuffer]") {
+      body = new Uint8Array(opts.body as ArrayBuffer).slice().buffer;
+    } else {
+      throw Object.assign(new Error("request body must be string or binary data"), {
+        code: PluginErrorCodes.UNKNOWN,
+      });
     }
   }
 
