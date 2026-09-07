@@ -298,4 +298,6 @@ export interface PresetSettings {
   hideQualityTag: boolean;
   /** 显示歌曲副标题（别名） */
   showSubtitle: boolean;
+  /** 拒绝胎教模式（剔除 TTML 汉语拼音音译） */
+  noPinyin: boolean;
 }

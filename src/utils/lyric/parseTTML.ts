@@ -88,6 +88,36 @@ const normalizeLang = (lang: string | null | undefined): string =>
   (lang ?? "").toLowerCase().replace(/_/g, "-");
 
 /**
+ * 判断语言标签是否为普通话汉语拼音（排除粤拼等方言方案及其他语言）
+ * @param rawLang - 原始语言标签
+ * @returns 是否为汉语拼音
+ */
+export const isPinyinTransliteration = (rawLang: string | null | undefined): boolean => {
+  if (!rawLang) return false;
+  const lang = rawLang.trim().toLowerCase().replace(/_/g, "-");
+  if (!lang) return false;
+
+  // 排除粤语拼音（如 zh-Latn-jyutping, zh-Latn-jyupin, yue-Latn 等）及其他方言方案
+  if (
+    lang.includes("jyutping") ||
+    lang.includes("jyupin") ||
+    lang.includes("cantonese") ||
+    lang.startsWith("yue")
+  ) {
+    return false;
+  }
+
+  // 匹配普通话汉语拼音：zh-Latn-pinyin, zh-pinyin, cmn-Latn-pinyin, zh-cmn-Latn-pinyin 等
+  return (
+    lang === "zh-latn-pinyin" ||
+    lang === "zh-pinyin" ||
+    lang === "cmn-latn-pinyin" ||
+    lang === "zh-cmn-latn-pinyin" ||
+    ((lang.startsWith("zh") || lang.startsWith("cmn")) && lang.includes("pinyin"))
+  );
+};
+
+/**
  * 从多语言候选中选出最匹配偏好语言的索引
  * @param langs 候选语言标签数组，顺序与候选一致
  * @param preferred 偏好语言标签（如 zh-CN），为空则取首个
@@ -191,13 +221,27 @@ interface TransliterationMaps {
 }
 
 /**
+ * 查找元素归属的 transliteration 容器节点
+ * @param el 目标元素
+ */
+const findTransliterationEl = (el: Element): Element | null => {
+  let curr: Element | null = el.parentElement;
+  while (curr && curr.nodeType === Node.ELEMENT_NODE) {
+    if (curr.localName === "transliteration") return curr;
+    curr = curr.parentElement;
+  }
+  return null;
+};
+
+/**
  * 收集 iTunes 音译元数据（transliterations 段中的 text[for] 元素）
  *
  * 纯文本节点累积为行级音译；带 begin/end 的子 span 视为逐词罗马音，
  * 嵌套在 x-bg 元素内的归背景行
  * @param doc XML 文档
+ * @param filterPinyin 是否剔除普通话拼音音译
  */
-const collectTransliterations = (doc: Document): TransliterationMaps => {
+const collectTransliterations = (doc: Document, filterPinyin = false): TransliterationMaps => {
   const lines = new Map<string, { main: string; bg: string }>();
   const words = new Map<string, { main: RomanWord[]; bg: RomanWord[] }>();
 
@@ -207,6 +251,12 @@ const collectTransliterations = (doc: Document): TransliterationMaps => {
       !parent ||
       (parent.localName !== "transliteration" && !parent.closest("transliterations"))
     ) {
+      continue;
+    }
+
+    const transEl = findTransliterationEl(textEl) ?? parent;
+    const lang = getAttr(transEl, "lang");
+    if (filterPinyin && isPinyinTransliteration(lang)) {
       continue;
     }
 
@@ -303,22 +353,34 @@ const alignRomanWords = (words: LyricWord[], romanWords: RomanWord[]): void => {
   }
 };
 
+/** TTML 解析选项 */
+export interface ParseTTMLOptions {
+  /** 是否剔除普通话汉语拼音音译 */
+  filterPinyin?: boolean;
+}
+
 /**
  * 解析 TTML 歌词文本
  * @param text TTML XML 文本内容
  * @param preferredLang 偏好翻译语言标签
+ * @param options 解析选项
  * @returns 解析后的歌词行数组
  * @throws 当 XML 解析失败时抛出错误
  */
-export const parseTTML = (text: string, preferredLang = ""): LyricLine[] => {
+export const parseTTML = (
+  text: string,
+  preferredLang = "",
+  options: ParseTTMLOptions = {},
+): LyricLine[] => {
   const doc = new DOMParser().parseFromString(text, "application/xml");
   if (doc.querySelector("parsererror")) {
     throw new Error("Invalid TTML XML");
   }
 
+  const filterPinyin = options.filterPinyin === true;
   const { mainAgent, agentTypes } = collectAgents(doc);
   const translations = collectTranslations(doc, preferredLang);
-  const transliterations = collectTransliterations(doc);
+  const transliterations = collectTransliterations(doc, filterPinyin);
   const lines: LyricLine[] = [];
 
   /**
@@ -406,7 +468,12 @@ export const parseTTML = (text: string, preferredLang = ""): LyricLine[] => {
           });
         } else if (role === "x-roman") {
           // 行内音译
-          if (!line.romanLyric) line.romanLyric = span.textContent?.trim() ?? "";
+          if (!line.romanLyric) {
+            const spanLang = getAttr(span, "lang");
+            if (!filterPinyin || !isPinyinTransliteration(spanLang)) {
+              line.romanLyric = span.textContent?.trim() ?? "";
+            }
+          }
         } else {
           // 逐字 span
           const wb = getAttr(span, "begin");

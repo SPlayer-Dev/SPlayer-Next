@@ -12,6 +12,8 @@ import { normalizeKangxi } from "./kangxi";
 
 export interface ParseLyricOptions {
   detectBackground?: boolean;
+  /** 是否剔除普通话汉语拼音音译（TTML） */
+  filterPinyin?: boolean;
 }
 
 /**
@@ -82,7 +84,7 @@ const parseContent = (
   const detectBackground = options.detectBackground !== false;
   switch (format) {
     case "ttml":
-      return parseTTML(text, preferredLang);
+      return parseTTML(text, preferredLang, { filterPinyin: options.filterPinyin });
     case "qrc":
       return parseQRC(text, detectBackground);
     case "krc":

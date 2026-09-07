@@ -818,6 +818,10 @@
       "label": "显示副标题",
       "description": "歌曲列表中显示别名等副标题信息"
     },
+    "noPinyin": {
+      "label": "拒绝胎教模式",
+      "description": "遇到普通话汉语拼音音译时自动剔除，保留其他语言音译"
+    },
     "rememberLastTrack": {
       "label": "记忆播放进度",
       "description": "启动时恢复上次歌曲的播放进度"

@@ -830,6 +830,10 @@
       "label": "Show Subtitle",
       "description": "Show alias and other subtitle info in song list"
     },
+    "noPinyin": {
+      "label": "Filter Pinyin Mode",
+      "description": "Filter out Mandarin Pinyin transliterations in TTML lyrics"
+    },
     "rememberLastTrack": {
       "label": "Remember Progress",
       "description": "Restore playback position on startup"

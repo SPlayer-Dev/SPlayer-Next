@@ -1,4 +1,5 @@
 import type { SettingCategory } from "@/types/settings-schema";
+import { useSettingsStore } from "@/stores/settings";
 import PlatformAccount from "@/components/settings/custom/PlatformAccount.vue";
 import IconLucideSettings from "~icons/lucide/settings";
 
@@ -91,6 +92,13 @@ const otherCategory: SettingCategory = {
           type: "switch",
           binding: { store: "settings", path: "preset.showSubtitle" },
           defaultValue: true,
+        },
+        {
+          key: "noPinyin",
+          type: "switch",
+          binding: { store: "settings", path: "preset.noPinyin" },
+          defaultValue: false,
+          visible: () => useSettingsStore().locale.startsWith("zh"),
         },
       ],
     },
