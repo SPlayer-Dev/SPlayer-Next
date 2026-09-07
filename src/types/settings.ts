@@ -238,6 +238,8 @@ export interface PlayerSettings {
   songLevel: QualityLevel;
   /** 允许完整音源不可用时播放试听片段 */
   allowTrialPlay: boolean;
+  /** 优先使用已启用的音源插件获取播放链接 */
+  preferPluginSource: boolean;
   /** 时间显示格式 */
   timeFormat: TimeFormat;
   /** 显示进度条悬浮信息 */

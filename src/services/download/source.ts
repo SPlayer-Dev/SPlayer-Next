@@ -2,6 +2,7 @@ import type { Track } from "@shared/types/player";
 import type { QualityLevel } from "@/utils/quality";
 import { isPlatform } from "@shared/types/platform";
 import { useStreamingStore } from "@/stores/streaming";
+import { useSettingsStore } from "@/stores/settings";
 import { resolveByPlugin } from "@/services/audioSource";
 import { resolveNeteaseDownloadUrl } from "@/apis/song/netease";
 import { resolveQQMusicUrl } from "@/apis/song/qqmusic";
@@ -38,6 +39,16 @@ export const resolveDownloadSource = async (
       return null;
     }
   }
+
+  const settings = useSettingsStore();
+  const preferPlugin = settings.player.preferPluginSource;
+
+  // 若开启插件优先，先尝试音源插件
+  if (preferPlugin && isPlatform(track.source)) {
+    const res = await resolveByPlugin(track, level);
+    if (res.ok && !res.isTrial) return { url: res.url };
+  }
+
   // 官方接口
   if (track.source === "netease") {
     try {
@@ -56,8 +67,9 @@ export const resolveDownloadSource = async (
     const resolved = await resolveKugouUrl(track, level);
     if (resolved.available) return { url: resolved.url };
   }
-  // 其他播放源走插件
-  if (isPlatform(track.source)) {
+
+  // 若未开启插件优先，官方失败后兜底走插件
+  if (!preferPlugin && isPlatform(track.source)) {
     const res = await resolveByPlugin(track, level);
     if (res.ok && !res.isTrial) return { url: res.url };
   }

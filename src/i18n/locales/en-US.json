@@ -870,6 +870,10 @@
       "label": "Allow Trial Playback",
       "description": "Play trial clips returned by the platform only when full sources and plugins are unavailable"
     },
+    "preferPluginSource": {
+      "label": "Prefer Plugin Audio Source",
+      "description": "Prioritize getting playback URLs from enabled source plugins, falling back to official online sources if failed"
+    },
     "preloadNextTrack": {
       "label": "Preload next track",
       "description": "Fetch the next track's playback info in advance, which may increase network usage"

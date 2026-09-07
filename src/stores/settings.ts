@@ -145,6 +145,7 @@ export const useSettingsStore = defineStore(
       reverseSpectrum: false,
       songLevel: "hq",
       allowTrialPlay: false,
+      preferPluginSource: false,
       timeFormat: "current-total",
       showProgressTooltip: true,
       showProgressLyric: false,

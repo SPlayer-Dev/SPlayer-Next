@@ -858,6 +858,10 @@
       "label": "允许播放试听",
       "description": "完整音源和插件都不可用时，允许播放平台返回的试听片段"
     },
+    "preferPluginSource": {
+      "label": "优先使用插件音源",
+      "description": "播放时优先从已启用的音源插件获取音频直链，失败时回退至官方接口"
+    },
     "preloadNextTrack": {
       "label": "预载下一首歌曲",
       "description": "提前获取下一首的播放信息，可能会增加网络占用"
