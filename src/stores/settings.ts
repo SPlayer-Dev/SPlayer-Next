@@ -183,6 +183,7 @@ export const useSettingsStore = defineStore(
       fontFamilyChinese: "",
       showTranslation: true,
       showRomanization: true,
+      showQrcKana: true,
       amllShowLineRomanization: true,
       amllShowWordRomanization: true,
       enableWordHighlight: true,

@@ -12,6 +12,7 @@ import { normalizeKangxi } from "./kangxi";
 
 export interface ParseLyricOptions {
   detectBackground?: boolean;
+  showQrcKana?: boolean;
 }
 
 /**
@@ -84,7 +85,7 @@ const parseContent = (
     case "ttml":
       return parseTTML(text, preferredLang);
     case "qrc":
-      return parseQRC(text, detectBackground);
+      return parseQRC(text, detectBackground, options.showQrcKana !== false);
     case "krc":
       return parseKRC(text, detectBackground);
     case "yrc":

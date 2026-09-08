@@ -137,7 +137,11 @@ export const useMediaStore = defineStore("media", () => {
 
   // 监听简繁转换及强迫症设置变化并重新解析当前歌词
   watch(
-    () => [useSettingsStore().lyric.cjkTransform, useSettingsStore().preset.uncensorProfanity],
+    () => [
+      useSettingsStore().lyric.cjkTransform,
+      useSettingsStore().lyric.showQrcKana,
+      useSettingsStore().preset.uncensorProfanity,
+    ],
     () => {
       if (activeLyric.value && lyricContent.value) {
         setLyric(activeLyric.value, lyricContent.value);
@@ -157,6 +161,7 @@ export const useMediaStore = defineStore("media", () => {
       try {
         const lines = parseLyric(input, source.format, settings.locale, {
           detectBackground: settings.lyric.detectBackgroundLyrics,
+          showQrcKana: settings.lyric.showQrcKana,
         });
         nextLines = applyLyricExclude(lines, track.value);
         normalizeLyricLines(nextLines);

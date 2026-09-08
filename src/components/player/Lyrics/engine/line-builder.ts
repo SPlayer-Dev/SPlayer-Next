@@ -70,7 +70,9 @@ export const buildLineElements = (
     if (line.language) mainDiv.lang = line.language;
 
     // 行歌词是否静态（≤1 个单词，无逐字动画）
-    const isStatic = line.words.length === 0 || (line.words.length === 1 && !hasMultiWordLine);
+    const isStatic =
+      line.words.length === 0 ||
+      (line.words.length === 1 && !hasMultiWordLine && !(line.words[0]?.ruby?.length ?? 0));
 
     if (isStatic) {
       mainDiv.appendChild(document.createTextNode(line.words.map((w) => w.word).join("")));
