@@ -13,6 +13,7 @@ import { initPlayer, playFiles, restoreLastTrack } from "./core/player";
 import { handleOrpheus } from "./services/orpheus";
 import { installHotkeyManager } from "./core/hotkey/manager";
 import { vRipple } from "./directives/ripple";
+import { HOTKEY_ACTIONS } from "@shared/defaults/hotkeys";
 
 const pinia = createPinia();
 pinia.use(piniaPersistedstate);
@@ -26,12 +27,23 @@ app.use(i18n);
 // 初始化主题
 useThemeStore().init();
 
+/** 将当前语言的快捷键描述上报给主进程（portal 绑定展示用） */
+const syncPortalDescriptions = (): void => {
+  const descriptions: Record<string, string> = {};
+  for (const action of HOTKEY_ACTIONS) {
+    if (!action.allowGlobal) continue;
+    descriptions[action.id] = i18n.global.t(action.labelKey);
+  }
+  void window.api.hotkey.setPortalDescriptions(descriptions);
+};
+
 // 同步语言设置
 watch(
   () => useSettingsStore().locale,
   (v) => {
     i18n.global.locale.value = v;
     window.api.system.setLocale(v);
+    syncPortalDescriptions();
   },
   { immediate: true },
 );

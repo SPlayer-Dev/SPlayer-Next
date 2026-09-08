@@ -4,6 +4,8 @@ import type {
   HotkeyBindingsMap,
   HotkeyConfig,
   HotkeyConflict,
+  HotkeyGlobalMode,
+  HotkeyGlobalModeSnapshot,
 } from "@shared/types/hotkey";
 
 /**
@@ -12,24 +14,35 @@ import type {
 export const useHotkeyStore = defineStore("hotkey", () => {
   const bindings = ref<HotkeyBindingsMap>({} as HotkeyBindingsMap);
   const globalEnabled = ref(true);
+  /** Linux 下是否优先用 XDG Desktop Portal 托管全局快捷键 */
+  const portalShortcuts = ref(true);
   const conflicts = ref<HotkeyConflict[]>([]);
+  /** 全局快捷键实现模式（portal 模式下全局绑定由系统托管，不可在应用内编辑） */
+  const mode = ref<HotkeyGlobalMode>("electron");
+  /** portal 模式下后端是否支持 ConfigureShortcuts */
+  const portalConfigureSupported = ref(false);
   const initialized = ref(false);
 
   let unsubscribeConflicts: (() => void) | null = null;
+  let unsubscribeMode: (() => void) | null = null;
 
   /** 初始化 */
   const init = async (): Promise<void> => {
     if (initialized.value) return;
-    const [cfg, initialConflicts] = await Promise.all([
+    const [cfg, initialConflicts, modeSnapshot] = await Promise.all([
       window.api.hotkey.getAll(),
       window.api.hotkey.getConflicts(),
+      window.api.hotkey.getGlobalMode(),
     ]);
     applyConfig(cfg);
     conflicts.value = initialConflicts;
+    applyModeSnapshot(modeSnapshot);
     unsubscribeConflicts?.();
     unsubscribeConflicts = window.api.hotkey.onConflicts((list) => {
       conflicts.value = list;
     });
+    unsubscribeMode?.();
+    unsubscribeMode = window.api.hotkey.onGlobalModeChange(applyModeSnapshot);
     initialized.value = true;
   };
 
@@ -37,6 +50,18 @@ export const useHotkeyStore = defineStore("hotkey", () => {
   const applyConfig = (cfg: HotkeyConfig): void => {
     bindings.value = cfg.bindings;
     globalEnabled.value = cfg.globalEnabled;
+    portalShortcuts.value = cfg.portalShortcuts;
+  };
+
+  /** 应用模式快照 */
+  const applyModeSnapshot = (snapshot: HotkeyGlobalModeSnapshot): void => {
+    mode.value = snapshot.mode;
+    portalConfigureSupported.value = snapshot.portalConfigureSupported;
+  };
+
+  /** 打开系统侧快捷键设置（portal 模式） */
+  const configureShortcuts = async (): Promise<{ ok: boolean; error?: string }> => {
+    return window.api.hotkey.configureShortcuts();
   };
 
   /** 单项更新 */
@@ -54,6 +79,11 @@ export const useHotkeyStore = defineStore("hotkey", () => {
     applyConfig(await window.api.hotkey.setGlobalEnabled(enabled));
   };
 
+  /** 切换使用 XDG Desktop Portal 托管全局快捷键（Linux） */
+  const setPortalShortcuts = async (enabled: boolean): Promise<void> => {
+    applyConfig(await window.api.hotkey.setPortalShortcuts(enabled));
+  };
+
   /** 探测某 accelerator 在系统层是否可注册 */
   const probe = async (accelerator: string): Promise<boolean> => {
     return window.api.hotkey.probe(accelerator);
@@ -63,6 +93,8 @@ export const useHotkeyStore = defineStore("hotkey", () => {
   onScopeDispose(() => {
     unsubscribeConflicts?.();
     unsubscribeConflicts = null;
+    unsubscribeMode?.();
+    unsubscribeMode = null;
   });
 
   /** 检测同 inApp scope 内重复占用 */
@@ -102,12 +134,17 @@ export const useHotkeyStore = defineStore("hotkey", () => {
   return {
     bindings,
     globalEnabled,
+    portalShortcuts,
     conflicts,
+    mode,
+    portalConfigureSupported,
     init,
     updateBinding,
     resetBinding,
     setGlobalEnabled,
+    setPortalShortcuts,
     probe,
+    configureShortcuts,
     findInAppDuplicate,
     findGlobalConflict,
   };

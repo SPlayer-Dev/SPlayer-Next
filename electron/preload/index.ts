@@ -9,7 +9,12 @@ import type {
   PluginMatchLyricArgs,
   PluginMatchCoverArgs,
 } from "@shared/types/plugin";
-import type { HotkeyActionId, HotkeyBinding, HotkeyConflict } from "@shared/types/hotkey";
+import type {
+  HotkeyActionId,
+  HotkeyBinding,
+  HotkeyConflict,
+  HotkeyGlobalModeSnapshot,
+} from "@shared/types/hotkey";
 import type { LoadOptions, TrackSource } from "@shared/types/player";
 import type { StreamingServerInput } from "@shared/types/streaming";
 import type { RecognitionConfig, RecognitionEvent } from "@shared/types/recognition";
@@ -729,12 +734,20 @@ const api = {
       ipcRenderer.invoke("hotkey:set", id, binding),
     reset: (id?: HotkeyActionId) => ipcRenderer.invoke("hotkey:reset", id),
     setGlobalEnabled: (enabled: boolean) => ipcRenderer.invoke("hotkey:setGlobalEnabled", enabled),
+    setPortalShortcuts: (enabled: boolean) =>
+      ipcRenderer.invoke("hotkey:setPortalShortcuts", enabled),
     probe: (accelerator: string) => ipcRenderer.invoke("hotkey:probe", accelerator),
     getConflicts: () => ipcRenderer.invoke("hotkey:getConflicts"),
+    getGlobalMode: () => ipcRenderer.invoke("hotkey:getGlobalMode"),
+    configureShortcuts: () => ipcRenderer.invoke("hotkey:configureShortcuts"),
+    setPortalDescriptions: (descriptions: Record<HotkeyActionId, string>) =>
+      ipcRenderer.invoke("hotkey:setPortalDescriptions", descriptions),
     onTrigger: (callback: (id: HotkeyActionId) => void) =>
       subscribe<HotkeyActionId>("hotkey:trigger", callback),
     onConflicts: (callback: (conflicts: HotkeyConflict[]) => void) =>
       subscribe<HotkeyConflict[]>("hotkey:conflicts", callback),
+    onGlobalModeChange: (callback: (snapshot: HotkeyGlobalModeSnapshot) => void) =>
+      subscribe<HotkeyGlobalModeSnapshot>("hotkey:mode-change", callback),
   },
 };
 

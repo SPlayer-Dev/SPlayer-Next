@@ -295,3 +295,79 @@ export const eventToAccelerator = (event: KeyboardEvent, isMac: boolean): string
   parts.push(codeToToken(event.code));
   return normalizeAccelerator(parts.join("+"));
 };
+
+/** Electron key token 映射到 XDG 规范 keysym 名称 */
+const xdgKeyName = (key: string): string => {
+  if (/^[A-Z]$/.test(key)) return key.toLowerCase();
+  if (/^F\d+$/.test(key)) return key;
+  const map: Record<string, string> = {
+    Space: "space",
+    Spacebar: "space",
+    Return: "Return",
+    Enter: "Return",
+    Escape: "Escape",
+    Backspace: "BackSpace",
+    Delete: "Delete",
+    Tab: "Tab",
+    Home: "Home",
+    End: "End",
+    PageUp: "Page_Up",
+    PageDown: "Page_Down",
+    Insert: "Insert",
+    Left: "Left",
+    Right: "Right",
+    Up: "Up",
+    Down: "Down",
+    Plus: "plus",
+    "=": "equal",
+    "-": "minus",
+    "[": "bracketleft",
+    "]": "bracketright",
+    "\\": "backslash",
+    ";": "semicolon",
+    "'": "apostrophe",
+    ",": "comma",
+    ".": "period",
+    "/": "slash",
+    "`": "grave",
+  };
+  return map[key] ?? key.toLowerCase();
+};
+
+/**
+ * 把 Electron Accelerator 转成 XDG Desktop Portal preferred_trigger 语法
+ * 规范：MOD1+MOD2+KEY，修饰键为 CTRL / ALT / SHIFT / NUM / LOGO
+ * @param accel Accelerator 字符串
+ * @returns XDG 触发串；无效时返回 null
+ */
+export const acceleratorToXdgTrigger = (accel: string): string | null => {
+  const norm = normalizeAccelerator(accel);
+  if (!norm) return null;
+  const tokens = norm
+    .split("+")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const mods: string[] = [];
+  let key = "";
+  for (const token of tokens) {
+    const lower = token.toLowerCase();
+    if (
+      lower === "commandorcontrol" ||
+      lower === "cmdorctrl" ||
+      lower === "ctrl" ||
+      lower === "control"
+    ) {
+      mods.push("CTRL");
+    } else if (lower === "cmd" || lower === "command" || lower === "meta" || lower === "super") {
+      mods.push("LOGO");
+    } else if (lower === "alt" || lower === "option") {
+      mods.push("ALT");
+    } else if (lower === "shift") {
+      mods.push("SHIFT");
+    } else {
+      key = token;
+    }
+  }
+  if (!key) return null;
+  return [...mods, xdgKeyName(key)].join("+");
+};

@@ -1,0 +1,31 @@
+[package]
+name = "linux-portal"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "3.12.1", features = ["napi9", "tokio_rt"] }
+napi-derive = "3.6.3"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = [
+  "env-filter",
+  "local-time",
+] }
+tracing-appender = "0.2"
+time = { version = "0.3", features = ["macros", "formatting"] }
+
+# Linux
+[target.'cfg(target_os = "linux")'.dependencies]
+ashpd = { version = "0.13", default-features = false, features = ["tokio", "global_shortcuts"] }
+tokio = { version = "1", features = ["rt", "macros", "sync", "time"] }
+futures-util = "0.3"
+
+[build-dependencies]
+napi-build = "2.4.1"
+
+[lints]
+workspace = true
