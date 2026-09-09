@@ -151,6 +151,12 @@ const playerCategory: SettingCategory = {
             { value: "exclusive", labelKey: "settings.audioOutputMode.exclusive" },
           ],
           defaultValue: "shared",
+          confirm: {
+            when: (next) => next === "exclusive",
+            titleKey: "settings.confirm.exclusiveModeTitle",
+            contentKey: "settings.confirm.exclusiveModeContent",
+            type: "warning",
+          },
           visible: () => isWin,
         },
         {

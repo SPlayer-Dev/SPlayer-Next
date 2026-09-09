@@ -881,7 +881,7 @@
     },
     "audioOutputMode": {
       "label": "Audio Output Mode",
-      "description": "Exclusive mode bypasses the system mixer and sends the original sample rate and bit depth directly to the sound card (bit-perfect), ideal for external DACs / Hi-Fi gear; other apps cannot play audio while exclusive",
+      "description": "Select the current Windows WASAPI audio output mode",
       "shared": "Shared Mode",
       "exclusive": "WASAPI Exclusive Mode",
       "fallback": {
@@ -1072,7 +1072,9 @@
       "testChannelTitle": "Switch to a Test Channel",
       "testChannelContent": "Beta and Alpha channels receive test releases early. Alpha releases may be highly unstable. Switch anyway?",
       "kugouLoginVersionTitle": "Switch KG Login Version",
-      "kugouLoginVersionContent": "After switching, the current credentials will not match the new version. You must log out and scan the QR code again, or VIP privileges and high-quality playback will stop working. Switch anyway?"
+      "kugouLoginVersionContent": "After switching, the current credentials will not match the new version. You must log out and scan the QR code again, or VIP privileges and high-quality playback will stop working. Switch anyway?",
+      "exclusiveModeTitle": "Switch to Exclusive Mode",
+      "exclusiveModeContent": "Exclusive mode bypasses the system mixer and sends the original sample rate and bit depth directly to the sound card (bit-perfect), ideal for external DACs / Hi-Fi gear; other apps cannot play audio while exclusive. If the device is busy or the format is unsupported, it will automatically fall back to shared mode. Switch anyway?"
     },
     "useAMSpring": {
       "label": "Spring Animation Debug Switch",
