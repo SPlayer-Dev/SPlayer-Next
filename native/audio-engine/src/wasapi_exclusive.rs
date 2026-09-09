@@ -138,7 +138,8 @@ fn build_wave_format(format: &ExclusiveFormat) -> WAVEFORMATEXTENSIBLE {
             wBitsPerSample: format.container_bits,
             nBlockAlign: block_align,
             nAvgBytesPerSec: format.sample_rate * u32::from(block_align),
-            cbSize: std::mem::size_of::<WAVEFORMATEXTENSIBLE_0>() as u16,
+            // WAVEFORMATEXTENSIBLE 扩展部分固定 22 字节
+            cbSize: 22,
         },
         Samples: WAVEFORMATEXTENSIBLE_0 {
             wValidBitsPerSample: format.valid_bits,
@@ -500,21 +501,14 @@ fn render_loop(
         if wait == WAIT_EVENT(WAIT_OBJECT_0.0 + SHUTDOWN_EVENT_INDEX) {
             break;
         }
-
-        let padding = match unsafe { client.GetCurrentPadding() } {
-            Ok(padding) => padding,
-            Err(error) => {
-                warn!(error = %error, "独占模式读取缓冲水位失败");
-                on_failure();
-                break;
-            }
-        };
-        let available = buffer_frames.saturating_sub(padding);
-        if available == 0 {
-            continue;
+        if wait.0 > WAIT_OBJECT_0.0 + 1 {
+            warn!(code = wait.0, "独占模式等待周期事件失败");
+            on_failure();
+            break;
         }
 
-        let buffer_ptr = match unsafe { render.GetBuffer(available) } {
+        // 独占事件驱动模式
+        let buffer_ptr = match unsafe { render.GetBuffer(buffer_frames) } {
             Ok(ptr) => ptr,
             Err(error) => {
                 warn!(error = %error, "独占模式获取渲染缓冲失败");
@@ -526,10 +520,10 @@ fn render_loop(
         let gain = f32::from_bits(volume.load(Ordering::Relaxed));
         let silent = stopped.load(Ordering::Acquire) || paused.load(Ordering::Acquire);
         let byte_buffer =
-            unsafe { std::slice::from_raw_parts_mut(buffer_ptr, available as usize * block_align) };
+            unsafe { std::slice::from_raw_parts_mut(buffer_ptr, buffer_frames as usize * block_align) };
         fill_buffer(byte_buffer, &mut source, gain, silent, &format);
 
-        if let Err(error) = unsafe { render.ReleaseBuffer(available, 0) } {
+        if let Err(error) = unsafe { render.ReleaseBuffer(buffer_frames, 0) } {
             warn!(error = %error, "独占模式提交渲染缓冲失败");
             on_failure();
             break;
