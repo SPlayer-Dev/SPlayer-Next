@@ -5,21 +5,21 @@ use anyhow::{Context, Result};
 use cpal::traits::StreamTrait;
 use tracing::warn;
 
-use crate::audio_output::AudioOutput;
+use crate::audio_output::{AudioOutput, OutputStream};
 use crate::error::{AudioErrorKind, AudioResultExt};
 use crate::source::DecoderSource;
 
-/// 平台统一的播放控制句柄：持有一条独立的 `cpal::Stream`。
+/// 平台统一的播放控制句柄：持有一条独立输出流（cpal 共享流或 WASAPI 独占流）。
 /// 每次加载/seek 由 `attach` 创建，播放期间音量与停止通过原子标志与实时回调通信。
 pub struct PlaybackHandle {
-    stream: cpal::Stream,
+    stream: OutputStream,
     volume: Arc<AtomicU32>,
     stopped: Arc<AtomicBool>,
 }
 
 impl PlaybackHandle {
     /// 按 `output` 的配置创建输出流并接入 `source`。
-    /// 传入 `volume` 为初始音量，`paused` 为 true 时保持停止（恢复时由 `play` 启动）。
+    /// 传入 `volume` 为初始音量，`paused` 为 true 时保持暂停（恢复时由 `play` 启动）。
     pub fn attach(
         output: &AudioOutput,
         source: DecoderSource,
@@ -28,7 +28,7 @@ impl PlaybackHandle {
     ) -> Result<Self> {
         let volume = Arc::new(AtomicU32::new(volume.to_bits()));
         let stopped = Arc::new(AtomicBool::new(false));
-        let stream = output.build_stream(source, Arc::clone(&volume), Arc::clone(&stopped))?;
+        let stream = output.build_stream(source, Arc::clone(&volume), Arc::clone(&stopped), paused)?;
         if !paused {
             stream
                 .play()
@@ -61,5 +61,29 @@ impl PlaybackHandle {
 
     pub fn set_volume(&self, volume: f32) {
         self.volume.store(volume.to_bits(), Ordering::Relaxed);
+    }
+}
+
+impl OutputStream {
+    fn play(&self) -> Result<()> {
+        match self {
+            Self::Shared(stream) => stream.play().map_err(Into::into),
+            #[cfg(target_os = "windows")]
+            Self::Exclusive(stream) => {
+                stream.play();
+                Ok(())
+            }
+        }
+    }
+
+    fn pause(&self) -> Result<()> {
+        match self {
+            Self::Shared(stream) => stream.pause().map_err(Into::into),
+            #[cfg(target_os = "windows")]
+            Self::Exclusive(stream) => {
+                stream.pause();
+                Ok(())
+            }
+        }
     }
 }

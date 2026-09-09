@@ -1,4 +1,6 @@
 import type { PlayerEvent } from "@shared/types/player";
+import i18n from "@/i18n";
+import { toast } from "@/composables/useToast";
 import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
 import { useFavorite } from "@/composables/useFavorite";
@@ -142,6 +144,15 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
       break;
     case "deviceChanged": {
       refreshDevices();
+      break;
+    }
+    case "outputFallback": {
+      // WASAPI 独占模式不可用已回退共享，按原因分类提示
+      const key = `settings.audioOutputMode.fallback.${event.data.reason}`;
+      const message = i18n.global.te(key)
+        ? i18n.global.t(key)
+        : i18n.global.t("settings.audioOutputMode.fallback.unavailable");
+      toast.warning(message);
       break;
     }
   }

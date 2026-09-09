@@ -19,13 +19,27 @@ use crate::source::DecoderSource;
 /// 禁止获取 `InnerPlayer` 锁、join 线程、枚举设备、创建新流或调用 NAPI async 方法。
 pub type OutputFailureCallback = Arc<dyn Fn() + Send + Sync + 'static>;
 
+/// 独占模式回退回调：参数为回退原因分类键（deviceBusy / formatUnsupported / unavailable），
+/// 由协商失败的工作线程调用，只允许发送轻量事件
+pub type ExclusiveFallbackCallback = Arc<dyn Fn(&str) + Send + Sync + 'static>;
+
+/// 平台输出流：共享模式走 cpal，Windows 独占模式走 WASAPI 专属流
+pub(crate) enum OutputStream {
+    Shared(cpal::Stream),
+    #[cfg(target_os = "windows")]
+    Exclusive(crate::wasapi_exclusive::ExclusiveStream),
+}
+
 /// 输出设备与配置句柄。`Send`，可放进 `InnerPlayer` 而不需 `unsafe impl Send`。
 ///
-/// 不持有 `cpal::Stream`——输出流由每次加载音源时的 `PlaybackHandle::attach` 按此配置创建，
+/// 不持有输出流——输出流由每次加载音源时的 `PlaybackHandle::attach` 按此配置创建，
 /// 因此切歌时无需跨线程移交流，也天然避免新旧流重叠占用设备。
 pub struct AudioOutput {
     device: cpal::Device,
     config: SupportedStreamConfig,
+    /// Windows 独占模式协商结果；`Some` 时输出走 WASAPI 独占流
+    #[cfg(target_os = "windows")]
+    exclusive: Option<crate::wasapi_exclusive::ExclusiveFormat>,
     /// 该输出流的单调代次，用于诊断和过滤销毁后迟到的流错误
     generation: u64,
     on_failure: OutputFailureCallback,
@@ -38,8 +52,10 @@ impl AudioOutput {
     /// * `device_id` - 输出设备 ID，`None` 走系统默认设备
     /// * `requested_sample_rate` - 期望输出采样率；设备支持时按此速率打开（音源精确采样率），
     ///   否则回退到设备默认配置。`None` 表示直接用设备默认配置
+    /// * `source_bits` - 音源位深，独占模式协商候选的优先依据
     /// * `generation` - 输出流单调代次，见 [`AudioOutput`] 字段说明
     /// * `on_failure` - 运行期流错误回调，见 [`OutputFailureCallback`]
+    /// * `exclusive` - 独占模式开关，`Some` 携带回退回调；协商失败时自动回退共享并上报
     ///
     /// # Errors
     /// - 找不到指定设备
@@ -47,11 +63,41 @@ impl AudioOutput {
     pub fn new(
         device_id: Option<&str>,
         requested_sample_rate: Option<u32>,
+        source_bits: Option<u32>,
         generation: u64,
         on_failure: OutputFailureCallback,
+        exclusive: Option<&ExclusiveFallbackCallback>,
     ) -> Result<Self> {
-        let (device, config) = open_device(device_id, requested_sample_rate)
-            .with_audio_kind(AudioErrorKind::Device)?;
+        let (device, config, exclusive_format) = open_device(
+            device_id,
+            requested_sample_rate,
+            source_bits,
+            exclusive,
+        )
+        .with_audio_kind(AudioErrorKind::Device)?;
+        #[cfg(not(target_os = "windows"))]
+        let _ = exclusive_format;
+        #[cfg(target_os = "windows")]
+        if let Some(format) = exclusive_format {
+            info!(
+                id = device_id_string(&device).as_deref().unwrap_or("-"),
+                name = %device,
+                rate = format.sample_rate,
+                channels = format.channels,
+                bits = format.valid_bits,
+                "打开独占模式音频输出配置"
+            );
+        }
+        #[cfg(target_os = "windows")]
+        if exclusive_format.is_none() {
+            info!(
+                id = device_id_string(&device).as_deref().unwrap_or("-"),
+                name = %device,
+                sample_rate = config.sample_rate(),
+                "打开音频输出配置"
+            );
+        }
+        #[cfg(not(target_os = "windows"))]
         info!(
             id = device_id_string(&device).as_deref().unwrap_or("-"),
             name = %device,
@@ -61,6 +107,8 @@ impl AudioOutput {
         Ok(Self {
             device,
             config,
+            #[cfg(target_os = "windows")]
+            exclusive: exclusive_format,
             generation,
             on_failure,
         })
@@ -68,28 +116,58 @@ impl AudioOutput {
 
     /// 实际输出流采样率（播放重采样目标）
     pub fn sample_rate(&self) -> u32 {
+        #[cfg(target_os = "windows")]
+        if let Some(format) = &self.exclusive {
+            return format.sample_rate;
+        }
         self.config.sample_rate()
     }
 
     /// 实际输出流声道数
     pub fn channels(&self) -> u16 {
+        #[cfg(target_os = "windows")]
+        if let Some(format) = &self.exclusive {
+            return format.channels;
+        }
         self.config.channels()
     }
 
     /// 按本配置创建一次播放的输出流，实时回调从 `source` 拉取样本。
-    /// 调用方持有返回的 `Stream`，直到本次播放结束。
+    /// 调用方持有返回的流，直到本次播放结束。
     pub(crate) fn build_stream(
         &self,
         source: DecoderSource,
         volume: Arc<AtomicU32>,
         stopped: Arc<AtomicBool>,
-    ) -> Result<cpal::Stream> {
+        paused: bool,
+    ) -> Result<OutputStream> {
+        #[cfg(target_os = "windows")]
+        if let Some(format) = self.exclusive {
+            let device_id = device_id_string(&self.device);
+            let on_failure = Arc::clone(&self.on_failure);
+            return run_in_mta(move || {
+                crate::wasapi_exclusive::open_exclusive_stream(
+                    device_id.as_deref(),
+                    format,
+                    source,
+                    volume,
+                    stopped,
+                    paused,
+                    on_failure,
+                )
+                .map(OutputStream::Exclusive)
+            })
+            .with_audio_kind(AudioErrorKind::Device);
+        }
+        #[cfg(not(target_os = "windows"))]
+        let _ = paused;
         let device = self.device.clone();
-        let config = self.config.clone();
+        let config = self.config;
         let on_failure = Arc::clone(&self.on_failure);
         run_in_mta(move || {
             build_typed_stream_for_format(&device, &config, source, volume, stopped, on_failure)
         })
+        .map(OutputStream::Shared)
         .with_audio_kind(AudioErrorKind::Device)
     }
 }
@@ -249,6 +327,12 @@ pub fn default_device_id() -> Option<String> {
     .unwrap_or_default()
 }
 
+/// 独占模式协商结果类型：非 Windows 平台无此概念
+#[cfg(target_os = "windows")]
+type ExclusiveFormatOpt = Option<crate::wasapi_exclusive::ExclusiveFormat>;
+#[cfg(not(target_os = "windows"))]
+type ExclusiveFormatOpt = ();
+
 /// 按设备 ID（`None` 为默认设备）解析设备与输出配置。
 /// 设备支持 `requested_sample_rate` 时按该速率打开，否则使用设备默认配置。
 /// 样本格式优先沿用设备默认格式：PipeWire 等后端上报的 supported 列表包含
@@ -257,7 +341,9 @@ pub fn default_device_id() -> Option<String> {
 fn open_device_internal(
     device_id: Option<&str>,
     requested_sample_rate: Option<u32>,
-) -> Result<(cpal::Device, SupportedStreamConfig)> {
+    source_bits: Option<u32>,
+    exclusive: Option<&ExclusiveFallbackCallback>,
+) -> Result<(cpal::Device, SupportedStreamConfig, ExclusiveFormatOpt)> {
     let host = cpal::default_host();
     let device = match device_id {
         Some(selector) => {
@@ -272,14 +358,32 @@ fn open_device_internal(
     let default_config = device
         .default_output_config()
         .context("读取输出设备配置失败")?;
+
     #[cfg(target_os = "windows")]
     {
         let _ = requested_sample_rate;
-        Ok((device, default_config))
+        let mut exclusive_format = None;
+        if let Some(on_fallback) = exclusive {
+            // 独占模式：优先按音源采样率/位深协商，失败时回退共享并上报原因
+            match crate::wasapi_exclusive::negotiate_exclusive_format(
+                device_id_string(&device).as_deref(),
+                requested_sample_rate.unwrap_or(default_config.sample_rate()),
+                source_bits.unwrap_or(24),
+                default_config.channels(),
+            ) {
+                Ok(format) => exclusive_format = Some(format),
+                Err(error) => {
+                    warn!(reason = error.reason(), error = %error, "独占模式协商失败，回退共享模式");
+                    on_fallback(error.reason());
+                }
+            }
+        }
+        Ok((device, default_config, exclusive_format))
     }
 
     #[cfg(not(target_os = "windows"))]
     {
+        let _ = (source_bits, exclusive);
         let config = match requested_sample_rate {
             Some(rate) => {
                 if rate == default_config.sample_rate() {
@@ -325,16 +429,27 @@ fn open_device_internal(
             }
             None => default_config,
         };
-        Ok((device, config))
+        Ok((device, config, ()))
     }
 }
 
 fn open_device(
     device_id: Option<&str>,
     requested_sample_rate: Option<u32>,
-) -> Result<(cpal::Device, SupportedStreamConfig)> {
+    source_bits: Option<u32>,
+    exclusive: Option<&ExclusiveFallbackCallback>,
+) -> Result<(cpal::Device, SupportedStreamConfig, ExclusiveFormatOpt)> {
     let id_owned = device_id.map(String::from);
-    run_in_mta(move || open_device_internal(id_owned.as_deref(), requested_sample_rate))
+    // 回退回调只在 MTA 工作线程被调用，Arc 在此克隆进闭包
+    let fallback_owned = exclusive.cloned();
+    run_in_mta(move || {
+        open_device_internal(
+            id_owned.as_deref(),
+            requested_sample_rate,
+            source_bits,
+            fallback_owned.as_ref(),
+        )
+    })
 }
 
 /// 按样本格式分发到类型化构建

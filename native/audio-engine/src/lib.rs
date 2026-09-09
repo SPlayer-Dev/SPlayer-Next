@@ -19,4 +19,7 @@ mod shared;
 mod source;
 mod tempo;
 
+#[cfg(target_os = "windows")]
+mod wasapi_exclusive;
+
 pub use bindings::*;

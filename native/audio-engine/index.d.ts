@@ -108,6 +108,12 @@ export declare class AudioPlayer {
    * 旧配置存的是显示名，此处原样返回，由 `open_device` 回退解析
    */
   getSelectedDeviceName(): string | null
+  /**
+   * 设置音频输出模式为 WASAPI 独占（仅 Windows 生效，立即重建设备）
+   *
+   * 设备被占用或格式不支持时自动回退共享模式，并通过 outputFallback 事件通知
+   */
+  setExclusiveMode(enabled: boolean): Promise<void>
   /** 设置播放速度（自动 clamp 到 [0.5, 2.0]） */
   setSpeed(speed: number): void
   /** 设置音调偏移（半音，自动 clamp 到 [-12, 12]） */
@@ -190,7 +196,7 @@ export interface JsMusicMetadata {
 
 /** 播放器事件，推送给 JS 侧 */
 export interface JsPlayerEvent {
-  /** 事件类型："stateChanged" | "ended" | "sourceError" | "position" | "fftData" | "outputStalled" | "outputFailed" */
+  /** 事件类型："stateChanged" | "ended" | "sourceError" | "position" | "fftData" | "outputStalled" | "outputFailed" | "outputFallback" */
   type: string
   /** 状态（仅 stateChanged 时有值） */
   state?: string
@@ -200,6 +206,8 @@ export interface JsPlayerEvent {
   duration?: number
   /** FFT 频谱数据（仅 fftData 时有值，128 个频段，值域 0.0 ~ 1.0） */
   fftData?: JsFftData
+  /** 回退原因分类键（仅 outputFallback 时有值：deviceBusy / formatUnsupported / unavailable） */
+  reason?: string
 }
 
 /** 播放器状态快照 */

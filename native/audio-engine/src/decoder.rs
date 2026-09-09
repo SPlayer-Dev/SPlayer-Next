@@ -97,6 +97,11 @@ impl PreparedDecoder {
     pub fn original_sample_rate(&self) -> u32 {
         self.metadata.original_sample_rate
     }
+
+    /// 音源有效位深，独占模式协商候选的优先依据
+    pub fn bits_per_sample(&self) -> u32 {
+        self.metadata.bits_per_sample
+    }
 }
 
 /// 统一结束解码线程；panic 属于源错误，但仍需结束 source 迭代
