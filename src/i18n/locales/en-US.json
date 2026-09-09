@@ -387,7 +387,13 @@
     "logout": "Sign out",
     "logoutConfirmTitle": "Sign out",
     "logoutConfirmDesc": "Sign out of the current account?",
-    "logoutDone": "Signed out"
+    "logoutDone": "Signed out",
+    "signin": "Daily check-in",
+    "signed": "Checked in",
+    "signinSuccess": "Checked in, +{point} XP",
+    "signinRepeat": "Already checked in today",
+    "signinNeedLogin": "Session expired, sign in again",
+    "signinFailed": "Check-in failed, try again later"
   },
   "search": {
     "title": "Search",
