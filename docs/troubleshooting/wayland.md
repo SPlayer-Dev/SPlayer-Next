@@ -212,7 +212,8 @@ workspace.windowAdded.connect(attach); // 之后新建的灵动岛窗口
     "License": "MIT",
     "Version": "1.0"
   },
-  "KPackageStructure": "KWin/Script"
+  "KPackageStructure": "KWin/Script",
+  "X-Plasma-API": "javascript"
 }
 ```
 
@@ -225,9 +226,10 @@ workspace.windowAdded.connect(attach); // 之后新建的灵动岛窗口
 > - `window.geometry` 在原生 Wayland 下读取为 `undefined`，改用 `window.frameGeometry`；
 > - KWin 6 脚本里没有 `Qt.rect(...)`，要用对象字面量 `{ x, y, width, height }` 赋值；
 > - 回写前用 `Math.abs(...) > 1` 判断，否则设置的几何会再次触发 `frameGeometryChanged` 形成循环；
-> - 窗口匹配要同时用 `resourceClass` 与标题（主窗口也是 `top.imsyy.splayer_next`，只靠 wmclass 会误匹配）。
+> - 窗口匹配要同时用 `resourceClass` 与标题（主窗口也是 `top.imsyy.splayer_next`，只靠 wmclass 会误匹配）；
+> - `metadata.json` 里的 `"X-Plasma-API": "javascript"` **不能漏**：KWin 扫描脚本包时对缺该字段的包直接跳过，既不加载也不报错（`kwinrc` 里 `Enabled=true` 也无济于事）。漏写时下面的 `loadScript` 热重载仍然生效，但注销/重启 KWin 后脚本永久失效——排查时先看 `isScriptLoaded`。
 
-改完脚本不需要注销，可直接热重载：
+改完脚本不需要注销，可直接热重载（`loadScript` 直接读文件、绕过包元数据检查，所以只能用来验证脚本逻辑，包是否被正常加载仍要看 `isScriptLoaded`）：
 
 ```bash
 qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.unloadScript splayer-island-center

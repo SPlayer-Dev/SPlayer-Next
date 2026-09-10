@@ -169,7 +169,8 @@ Install the script as `~/.local/share/kwin/scripts/splayer-island-center/content
     "License": "MIT",
     "Version": "1.0"
   },
-  "KPackageStructure": "KWin/Script"
+  "KPackageStructure": "KWin/Script",
+  "X-Plasma-API": "javascript"
 }
 ```
 
@@ -182,9 +183,10 @@ Then enable it under **System Settings → Window Management → KWin Scripts** 
 > - `window.geometry` reads as `undefined` on native Wayland — use `window.frameGeometry` instead;
 > - `Qt.rect(...)` is not available in KWin 6 scripting — assign an object literal `{ x, y, width, height }`;
 > - guard the write with `Math.abs(...) > 1` so the set does not re-trigger `frameGeometryChanged` (feedback loop);
-> - match on `resourceClass` **and** the caption — the main window uses the same `top.imsyy.splayer_next` class.
+> - match on `resourceClass` **and** the caption — the main window uses the same `top.imsyy.splayer_next` class;
+> - `"X-Plasma-API": "javascript"` in `metadata.json` is **mandatory**: KWin skips packages without it, loading nothing and reporting nothing (`Enabled=true` in `kwinrc` does not help). The `loadScript` reload below still works without it, but the script stays dead after every logout or KWin restart — check `isScriptLoaded` first when debugging.
 
-Reload without logging out after editing the script:
+Reload without logging out after editing the script (`loadScript` reads the file directly and bypasses package metadata checks, so it only validates the script logic — confirm package loading with `isScriptLoaded`):
 
 ```bash
 qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.unloadScript splayer-island-center
