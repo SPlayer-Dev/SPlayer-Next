@@ -15,6 +15,7 @@ interface RawRow {
   tag_warning: number;
   created_at: number;
   finished_at: number | null;
+  custom_dir: string | null;
 }
 
 /** sqlite 行 → 业务 DownloadTask */
@@ -30,6 +31,7 @@ const toTask = (raw: RawRow): DownloadTask => ({
   tagWarning: raw.tag_warning === 1,
   createdAt: raw.created_at,
   finishedAt: raw.finished_at ?? undefined,
+  customDir: raw.custom_dir ?? undefined,
 });
 
 /** 写入或覆盖一条任务 */
@@ -37,8 +39,8 @@ export const upsert = (task: DownloadTask): void => {
   getDb()
     .prepare(
       `INSERT INTO download_tasks
-         (task_id, track_json, quality_level, status, received, total, file_path, error_code, tag_warning, created_at, finished_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         (task_id, track_json, quality_level, status, received, total, file_path, error_code, tag_warning, created_at, finished_at, custom_dir)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(task_id) DO UPDATE SET
          track_json = excluded.track_json,
          quality_level = excluded.quality_level,
@@ -48,7 +50,8 @@ export const upsert = (task: DownloadTask): void => {
          file_path = excluded.file_path,
          error_code = excluded.error_code,
          tag_warning = excluded.tag_warning,
-         finished_at = excluded.finished_at`,
+         finished_at = excluded.finished_at,
+         custom_dir = excluded.custom_dir`,
     )
     .run(
       task.taskId,
@@ -62,6 +65,7 @@ export const upsert = (task: DownloadTask): void => {
       task.tagWarning ? 1 : 0,
       task.createdAt,
       task.finishedAt ?? null,
+      task.customDir ?? null,
     );
 };
 

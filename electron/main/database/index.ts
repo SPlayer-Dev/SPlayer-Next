@@ -133,7 +133,8 @@ export const initDatabase = (): void => {
       error_code TEXT,
       tag_warning INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL,
-      finished_at INTEGER
+      finished_at INTEGER,
+      custom_dir TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_download_tasks_created ON download_tasks(created_at);
 
