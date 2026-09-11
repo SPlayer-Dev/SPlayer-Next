@@ -15,7 +15,12 @@ import { readdir, stat } from "node:fs/promises";
 import { join, extname } from "node:path";
 import { readFileAutoEncoding } from "@main/utils/encoding";
 import { store } from "@main/store";
-import { normalize, normalizeTrackArtists, artistMatches } from "@main/apis/common/lyric/utils";
+import {
+  normalize,
+  normalizeTrackArtists,
+  artistMatches,
+  bothContains,
+} from "@main/apis/common/lyric/utils";
 import { buildFingerprint, getMatchedId } from "@main/database/lyricMatchCache";
 import { coreLog } from "@main/utils/logger";
 import type { Track } from "@shared/types/player";
@@ -25,6 +30,8 @@ import type { LocalLyricMatchLevel } from "@shared/types/settings";
 interface NameCandidate {
   /** 候选艺术家原始文本，供拆分比对 */
   artist: string;
+  /** 候选专辑原始文本，供比对 */
+  album: string;
   file: string;
 }
 
@@ -47,17 +54,20 @@ let building: Promise<RepoIndex | null> | null = null;
 /** 从 TTML 文本头部提取 AMLL 元信息 */
 const extractMeta = (
   text: string,
-): { name?: string; artist?: string; ncmId?: string; qqId?: string } => {
+): { name?: string; artist?: string; album?: string; ncmId?: string; qqId?: string } => {
   const bodyAt = text.indexOf("<body");
   const head = bodyAt > 0 ? text.slice(0, bodyAt) : text.slice(0, 8000);
-  const meta: { name?: string; artist?: string; ncmId?: string; qqId?: string } = {};
+  const meta: { name?: string; artist?: string; album?: string; ncmId?: string; qqId?: string } =
+    {};
   for (const tag of head.matchAll(/<amll:meta\b[^>]*>/gi)) {
     const key = tag[0].match(/\bkey="([^"]*)"/)?.[1];
     const value = tag[0].match(/\bvalue="([^"]*)"/)?.[1];
     if (!key || !value) continue;
     if (key === "musicName" && !meta.name) meta.name = value;
     else if (key === "artists" && !meta.artist) meta.artist = value;
-    else if (key === "ncmMusicId" && !meta.ncmId) meta.ncmId = value;
+    else if (key === "album" || key === "albumName" || key === "albumTitle") {
+      meta.album = meta.album ? `${meta.album} / ${value}` : value;
+    } else if (key === "ncmMusicId" && !meta.ncmId) meta.ncmId = value;
     else if (key === "qqMusicId" && !meta.qqId) meta.qqId = value;
   }
   return meta;
@@ -99,7 +109,11 @@ const buildIndex = async (dir: string): Promise<RepoIndex> => {
     if (meta.qqId && !index.byQq.has(meta.qqId)) index.byQq.set(meta.qqId, file);
     if (meta.name) {
       const titleKey = normalize(meta.name);
-      const candidate: NameCandidate = { artist: meta.artist ?? "", file };
+      const candidate: NameCandidate = {
+        artist: meta.artist ?? "",
+        album: meta.album ?? "",
+        file,
+      };
       const list = index.byTitle.get(titleKey);
       if (list) list.push(candidate);
       else index.byTitle.set(titleKey, [candidate]);
@@ -159,46 +173,99 @@ const pickCandidate = (
   level: LocalLyricMatchLevel,
 ): string | null => {
   const trackArtists = normalizeTrackArtists(track);
+  const trackAlbum = normalize(track.album?.name);
 
-  // 宽松模式：保持原有容错，同名单个直接返回；多个优先匹配，无匹配兜底首个
+  // 宽松模式：保持原有容错，多候选时按艺术家和专辑打分挑最优；都无匹配兜底首个
   if (level === "loose") {
     if (candidates.length === 1 || trackArtists.length === 0) return candidates[0].file;
-    const exact = candidates.find(
-      (candidate) => artistMatches(candidate.artist, trackArtists).exact,
-    );
-    if (exact) return exact.file;
-    const partial = candidates.find(
-      (candidate) => artistMatches(candidate.artist, trackArtists).contains,
-    );
-    return (partial ?? candidates[0]).file;
+    let best = candidates[0];
+    let bestScore = -1;
+    for (const candidate of candidates) {
+      let score = 0;
+      const artist = artistMatches(candidate.artist, trackArtists);
+      if (artist.exact) score += 100;
+      else if (artist.contains) score += 50;
+
+      const candAlbum = normalize(candidate.album);
+      if (trackAlbum && candAlbum) {
+        if (candAlbum === trackAlbum) score += 20;
+        else if (bothContains(candAlbum, trackAlbum)) score += 10;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        best = candidate;
+      }
+    }
+    return best.file;
   }
 
-  // 严格模式：必须歌曲与候选均有艺术家，且完全严格一致
+  // 严格模式：必须歌曲与候选均有艺术家且严格一致，若双方均有专辑则专辑也必须一致
   if (level === "strict") {
     if (trackArtists.length === 0) return null;
-    const exact = candidates.find(
-      (candidate) => artistMatches(candidate.artist, trackArtists).exact,
-    );
-    return exact ? exact.file : null;
+    let best: NameCandidate | null = null;
+    let bestScore = -1;
+
+    for (const candidate of candidates) {
+      const artist = artistMatches(candidate.artist, trackArtists);
+      if (!artist.exact) continue;
+
+      const candAlbum = normalize(candidate.album);
+      let albumScore = 0;
+      if (trackAlbum && candAlbum) {
+        if (candAlbum === trackAlbum) {
+          albumScore = 20;
+        } else if (bothContains(candAlbum, trackAlbum)) {
+          albumScore = 10;
+        } else {
+          continue; // 专辑冲突，严格模式直接排除
+        }
+      }
+
+      const score = 100 + albumScore;
+      if (score > bestScore) {
+        bestScore = score;
+        best = candidate;
+      }
+    }
+    return best ? best.file : null;
   }
 
-  // 标准模式 (standard，默认)：优先艺术家完全一致
-  const exact = candidates.find((candidate) => artistMatches(candidate.artist, trackArtists).exact);
-  if (exact) return exact.file;
+  // 标准模式 (standard，默认)：必须艺术家匹配；多候选根据艺术家与专辑匹配度综合择优
+  let best: NameCandidate | null = null;
+  let bestScore = -1;
 
-  // 其次子串相互包含（如合唱歌手、feat 等）
-  const partial = candidates.find(
-    (candidate) => artistMatches(candidate.artist, trackArtists).contains,
-  );
-  if (partial) return partial.file;
+  for (const candidate of candidates) {
+    const artist = artistMatches(candidate.artist, trackArtists);
+    let score = 0;
 
-  // 元数据缺失容错：目标歌曲无艺术家信息时允许取同名首个；候选本身无艺术家信息也允许命中
-  if (trackArtists.length === 0) return candidates[0].file;
-  const emptyArtistCandidate = candidates.find((candidate) => !candidate.artist.trim());
-  if (emptyArtistCandidate) return emptyArtistCandidate.file;
+    if (trackArtists.length > 0) {
+      if (artist.exact) score = 100;
+      else if (artist.contains) score = 60;
+      else if (!candidate.artist.trim())
+        score = 20; // 候选缺少艺术家，容错
+      else continue; // 双方均有艺术家且不匹配，坚决拒绝兜底
+    } else {
+      score = 20; // 目标歌曲无艺术家，容错
+    }
 
-  // 双方均有艺术家但完全互不相干（如不同歌手同名曲）：拒绝盲目兜底
-  return null;
+    const candAlbum = normalize(candidate.album);
+    if (trackAlbum && candAlbum) {
+      if (candAlbum === trackAlbum) {
+        score += 30; // 专辑完全一致
+      } else if (bothContains(candAlbum, trackAlbum)) {
+        score += 15; // 专辑包含
+      } else {
+        score -= 10; // 专辑不同，降级避免抢占同名同专辑候选
+      }
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = candidate;
+    }
+  }
+
+  return best ? best.file : null;
 };
 
 /**

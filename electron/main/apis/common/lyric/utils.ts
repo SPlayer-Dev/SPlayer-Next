@@ -24,7 +24,7 @@ export const normalize = (text: string | undefined | null): string => {
 };
 
 /** 双向 includes 命中 */
-const bothContains = (left: string, right: string): boolean =>
+export const bothContains = (left: string, right: string): boolean =>
   left.length > 0 && right.length > 0 && (left.includes(right) || right.includes(left));
 
 /** 拆分候选歌手文本 */
