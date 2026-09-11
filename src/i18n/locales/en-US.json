@@ -1989,6 +1989,13 @@
       "clear": "Clear",
       "unset": "Not set"
     },
+    "localLyricMatchLevel": {
+      "label": "Matching Strictness",
+      "description": "Control how strictly local TTML files are matched against the current song",
+      "strict": "Strict (Platform ID match, or exact title and artist with matched album)",
+      "standard": "Standard (Recommended, matched artist and prioritized album)",
+      "loose": "Loose (Title match only, may mismatch different songs with the same title)"
+    },
     "fileCacheManager": {
       "label": "Cache Manager",
       "description": "Inspect cache usage and clear it"

@@ -345,6 +345,7 @@ export const watchLyricPreference = (): void => {
       settings.system.lyric.enableOnlineTTMLLyric,
       settings.system.localLyric.enableLocalTTMLOverride,
       settings.system.localLyric.repoDir,
+      settings.system.localLyric.matchLevel,
     ],
     () => {
       refreshPreference();

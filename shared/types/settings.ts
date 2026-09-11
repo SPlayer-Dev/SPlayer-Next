@@ -314,12 +314,17 @@ export interface OnlineLyricSettings {
   amllDbServer: string;
 }
 
+/** 本地 TTML 歌词匹配强度 */
+export type LocalLyricMatchLevel = "strict" | "standard" | "loose";
+
 /** 本地歌词配置 */
 export interface LocalLyricSettings {
   /** 启用本地 TTML 歌词库：从指定目录按元信息匹配 .ttml，命中优先于在线源 */
   enableLocalTTMLOverride: boolean;
   /** 本地 TTML 歌词库目录 */
   repoDir: string;
+  /** 本地 TTML 匹配强度 */
+  matchLevel: LocalLyricMatchLevel;
 }
 
 /** 歌曲缓存配置 */
