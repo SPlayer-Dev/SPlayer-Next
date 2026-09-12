@@ -98,21 +98,30 @@ const toStringId = (value: unknown): string => {
   return "";
 };
 
-const optionalString = (value: unknown): string | undefined => {
+export const optionalString = (value: unknown): string | undefined => {
   if (typeof value !== "string") return undefined;
   const text = value.trim();
   return text || undefined;
 };
 
-/** 转换网易云评论项 */
-export const normalizeNeteaseComment = (raw: NeteaseComment): MusicCommentItem | null => {
-  const id = toStringId(raw.commentId ?? raw.beRepliedCommentId);
+/**
+ * 转换网易云评论项
+ * @param raw - 原始评论数据
+ * @param fallbackId - 回复项缺自身 commentId 时的 id 兜底（父 id + 序号），避免多条回复共享父 id 造成 key 冲突
+ */
+export const normalizeNeteaseComment = (
+  raw: NeteaseComment,
+  fallbackId?: { parentId: string; index: number },
+): MusicCommentItem | null => {
+  const id =
+    toStringId(raw.commentId ?? raw.beRepliedCommentId) ||
+    (fallbackId ? `${fallbackId.parentId}_reply_${fallbackId.index}` : "");
   const text = optionalString(raw.content);
   if (!id || !text) return null;
 
   const userId = toStringId(raw.user?.userId);
   const reply = (raw.beReplied ?? [])
-    .map((item) => normalizeNeteaseComment(item))
+    .map((item, index) => normalizeNeteaseComment(item, { parentId: id, index }))
     .filter((item): item is MusicCommentItem => item !== null);
 
   const item: MusicCommentItem = {
@@ -249,6 +258,28 @@ export const normalizeKugouCommentPage = (
     page: data.current_page ?? page,
     limit,
   };
+};
+
+/**
+ * 纯函数：从已归一化的评论中筛选主创评论（userId 命中账号映射）
+ * 命中时把账号对应的歌手名挂到 creatorName，便于卡片徽章直接展示
+ * @param items - 已归一化的评论列表
+ * @param accountMap - 网易云账号 id → 歌手名
+ * @returns 命中的主创评论（带 creatorName）
+ */
+export const scanCreatorComments = (
+  items: MusicCommentItem[],
+  accountMap: Map<string, string>,
+): MusicCommentItem[] => {
+  if (accountMap.size === 0) return [];
+  const result: MusicCommentItem[] = [];
+  for (const item of items) {
+    const userId = item.userId;
+    if (!userId || !accountMap.has(userId)) continue;
+    // 歌手名为空时 creatorName 为空串，徽章回退默认文案
+    result.push({ ...item, creatorName: accountMap.get(userId) ?? "" });
+  }
+  return result;
 };
 
 /** 构建可用评论源 */
