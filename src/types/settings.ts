@@ -259,6 +259,8 @@ export interface PlayerSettings {
   preloadNextTrack: boolean;
   /** 搜索页播放行为 */
   searchPlayBehavior: SearchPlayBehavior;
+  /** 是否展示动态封面（仅网易云来源，封面模式有效） */
+  dynamicCover: boolean;
 }
 
 /** 外观设置 */

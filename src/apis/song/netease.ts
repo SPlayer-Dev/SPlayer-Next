@@ -6,6 +6,20 @@ import { isExplicitNeteaseAuthFailure } from "@/apis/neteaseAuth";
 import { songsToTracks } from "@/utils/format/netease";
 
 /**
+ * 获取歌曲动态封面
+ * @param id - 平台 songId
+ * @returns videoPlayUrl 或 null
+ */
+export const getDynamicCover = async (id: string): Promise<string | null> => {
+  try {
+    const body = await neteaseCall("song_dynamic_cover", { id });
+    return body?.data?.videoPlayUrl ?? null;
+  } catch {
+    return null;
+  }
+};
+
+/**
  * 按 ID 批量取歌曲详情
  * @param ids - 平台 songId 列表
  * @returns 与传入 ids 对应的 Track 列表

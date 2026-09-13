@@ -152,6 +152,7 @@ export const useSettingsStore = defineStore(
       showLyricInBar: true,
       preloadNextTrack: false,
       searchPlayBehavior: "current",
+      dynamicCover: false,
     });
 
     /** 强迫症设置 */

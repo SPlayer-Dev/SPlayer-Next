@@ -868,6 +868,10 @@
       "label": "预载下一首歌曲",
       "description": "提前获取下一首的播放信息，可能会增加网络占用"
     },
+    "dynamicCover": {
+      "label": "动态封面",
+      "description": "可展示部分歌曲的动态封面，仅在封面模式有效"
+    },
     "outputDevice": {
       "label": "输出设备",
       "description": "选择音频输出设备",
