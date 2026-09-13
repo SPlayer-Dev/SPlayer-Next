@@ -124,7 +124,7 @@ const toTtml = (lines: LyricLine[]): string => {
 /**
  * 把下载到的歌词序列化为指定格式
  * - lrc / enhanced-lrc：丢弃信息头，双语写主 + 翻译
- * - ttml：完整含原文 + 翻译 + 音译 + 背景 / 对唱
+ * - ttml：源格式已是 ttml 则直接保留原文本（避免格式化丢失元数据与样式）；其它格式转换为标准 ttml
  * @param input - 主歌词 + 可选翻译 / 音译
  * @param mainFormat - 主歌词源格式
  * @param target - 目标格式
@@ -135,9 +135,17 @@ export const buildDownloadLyric = (
   mainFormat: LyricFormat,
   target: DownloadLyricFormat | "ttml",
 ): string | null => {
-  const lines = parseLyric(input, mainFormat);
+  if (!input.content?.trim()) return null;
+  let lines: LyricLine[];
+  try {
+    lines = parseLyric(input, mainFormat);
+  } catch {
+    return null;
+  }
   if (lines.length === 0) return null;
-  if (target === "ttml") return toTtml(lines);
+  if (target === "ttml") {
+    return mainFormat === "ttml" ? input.content.trim() : toTtml(lines);
+  }
   const content = target === "enhanced-lrc" ? toEnhancedLrc(lines) : toLrc(lines);
   return content.trim() ? content : null;
 };
