@@ -4,7 +4,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { getQQMusicCookies, getQQMusicUin } from "../core/request";
+import { getQQMusicCookies, getQQMusicUin, refreshQMCredential } from "../core/request";
 import { sessionToCookieHeader } from "../core/credential";
 import { coreLog } from "@main/utils/logger";
 import type { QMModule } from "../core/types";
@@ -75,48 +75,43 @@ const songUrl: QMModule = async (params) => {
   const candidates = getQualityCandidates(targetLevel);
   const filenames = candidates.map((c) => `${c.prefix}${fileBase}${c.ext}`);
 
-  const cookies = getQQMusicCookies();
-  const uin = getQQMusicUin();
-  const musickey = cookies.qm_keyst || cookies.qqmusic_key || "";
-  const cookieStr = sessionToCookieHeader(cookies);
-  const gtk = hash33(musickey, 5381);
-  const guid = randomUUID().replace(/-/g, "");
+  const requestUrl = async () => {
+    const cookies = getQQMusicCookies();
+    const uin = getQQMusicUin();
+    const musickey = cookies.qm_keyst || cookies.qqmusic_key || "";
+    const cookieStr = sessionToCookieHeader(cookies);
+    const gtk = hash33(musickey, 5381);
+    const guid = randomUUID().replace(/-/g, "");
 
-  coreLog.debug("[qm-song-url] 发起直链解析:", mid, targetLevel, {
-    uin,
-    loggedIn: !!musickey,
-  });
-
-  const body = {
-    comm: {
-      uin: uin !== "0" ? uin : "",
-      format: "json",
-      ct: 24,
-      cv: 4747474,
-      platform: "yqq.json",
-      chid: "0",
-      g_tk: gtk,
-      g_tk_new_20200303: gtk,
-      inCharset: "utf-8",
-      outCharset: "utf-8",
-      notice: 0,
-      needNewCode: 1,
-    },
-    req_0: {
-      module: "music.vkey.GetVkey",
-      method: "UrlGetVkey",
-      param: {
-        guid,
-        songmid: filenames.map(() => mid),
-        filename: filenames,
-        songtype: filenames.map(() => 0),
+    const body = {
+      comm: {
         uin: uin !== "0" ? uin : "",
-        ctx: 0,
+        format: "json",
+        ct: 24,
+        cv: 4747474,
+        platform: "yqq.json",
+        chid: "0",
+        g_tk: gtk,
+        g_tk_new_20200303: gtk,
+        inCharset: "utf-8",
+        outCharset: "utf-8",
+        notice: 0,
+        needNewCode: 1,
       },
-    },
-  };
+      req_0: {
+        module: "music.vkey.GetVkey",
+        method: "UrlGetVkey",
+        param: {
+          guid,
+          songmid: filenames.map(() => mid),
+          filename: filenames,
+          songtype: filenames.map(() => 0),
+          uin: uin !== "0" ? uin : "",
+          ctx: 0,
+        },
+      },
+    };
 
-  try {
     const res = await fetch("https://u.y.qq.com/cgi-bin/musicu.fcg", {
       method: "POST",
       headers: {
@@ -136,7 +131,7 @@ const songUrl: QMModule = async (params) => {
     const sip =
       data?.sip?.find((s) => s.startsWith("http")) || "https://isure.stream.qqmusic.qq.com/";
 
-    const matched = candidates
+    return candidates
       .map((cand) => {
         const matchFilename = `${cand.prefix}${fileBase}${cand.ext}`;
         const found = infos.find((item) => item.filename === matchFilename && !!item.purl);
@@ -148,6 +143,25 @@ const songUrl: QMModule = async (params) => {
           : undefined;
       })
       .find((item): item is NonNullable<typeof item> => !!item);
+  };
+
+  const cookies = getQQMusicCookies();
+  const hasCredential = !!(cookies.qm_keyst || cookies.qqmusic_key);
+
+  coreLog.debug("[qm-song-url] 发起直链解析:", mid, targetLevel, {
+    uin: getQQMusicUin(),
+    loggedIn: hasCredential,
+  });
+
+  try {
+    let matched = await requestUrl();
+    if (!matched && hasCredential) {
+      coreLog.warn("[qm-song-url] 携带凭据未命中播放直链，尝试刷新凭据重试");
+      const refreshed = await refreshQMCredential();
+      if (refreshed) {
+        matched = await requestUrl();
+      }
+    }
 
     if (matched) {
       coreLog.info(

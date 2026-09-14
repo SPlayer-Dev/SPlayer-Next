@@ -168,12 +168,6 @@ const appearanceCategory: SettingCategory = {
           component: SidebarCustomizeConfig,
         },
         {
-          key: "showStatsInSidebar",
-          type: "switch",
-          binding: { store: "settings", path: "appearance.showStatsInSidebar" },
-          defaultValue: true,
-        },
-        {
           key: "showQualitySwitch",
           type: "switch",
           binding: { store: "settings", path: "appearance.showQualitySwitch" },
@@ -243,8 +237,7 @@ const appearanceCategory: SettingCategory = {
             contentKey: "settings.confirm.highResourceContent",
             type: "warning",
           },
-          childrenCondition: () =>
-            useSettingsStore().player.playerBgType === "animation",
+          childrenCondition: () => useSettingsStore().player.playerBgType === "animation",
           hideChildren: true,
           children: [
             {

@@ -18,6 +18,13 @@ export type CoverLayout = "default" | "fullscreen";
 export type TimeFormat = "current-total" | "remaining-total" | "current-remaining";
 
 /**
+ * 搜索页播放行为
+ * - current: 仅播放当前
+ * - all: 播放全部
+ */
+export type SearchPlayBehavior = "current" | "all";
+
+/**
  * 歌词来源偏好
  * - auto：智能选择（按打分结果）
  * - Platform（netease / qqmusic / kugou…）：优先该平台
@@ -139,14 +146,16 @@ export interface LyricSettings {
   fontFamilyChinese: string;
   /** 是否显示翻译歌词 */
   showTranslation: boolean;
-  /** 是否显示音译歌词 */
+  /** 是否显示词内注音 */
+  showRuby: boolean;
+  /** 是否显示逐行音译 */
   showRomanization: boolean;
-  /** 是否显示 QRC 日语注音 */
-  showQrcKana: boolean;
-  /** AMLL 是否显示逐行音译 */
-  amllShowLineRomanization: boolean;
-  /** AMLL 是否显示逐词音译 */
-  amllShowWordRomanization: boolean;
+  /** 是否显示逐词音译 */
+  showWordRomanization: boolean;
+  /** 是否启用歌词缩放效果 */
+  enableScale: boolean;
+  /** 是否始终将背景行置于主行下方 */
+  bgAlwaysBelow: boolean;
   /** 逐字高亮效果 */
   enableWordHighlight: boolean;
   /** 逐字上浮动画 */
@@ -230,6 +239,8 @@ export interface PlayerSettings {
   outputDevice: string | null;
   /** 切换输出设备时暂停播放 */
   pauseOnDeviceSwitch: boolean;
+  /** 是否为不同输出设备独立记忆音量 */
+  rememberDeviceVolume: boolean;
   /** 是否启用音乐频谱可视化 */
   enableSpectrum: boolean;
   /** 频谱单条宽度（px） */
@@ -252,6 +263,8 @@ export interface PlayerSettings {
   showLyricInBar: boolean;
   /** 播放时提前获取下一首的播放数据 */
   preloadNextTrack: boolean;
+  /** 搜索页播放行为 */
+  searchPlayBehavior: SearchPlayBehavior;
 }
 
 /** 外观设置 */
@@ -274,8 +287,6 @@ export interface AppearanceSettings {
   sidebarNameWithDivider: boolean;
   /** 侧边栏歌单显示顺序 */
   sidebarPlaylistOrder: SidebarPlaylistOrder;
-  /** 侧边栏显示播放统计入口 */
-  showStatsInSidebar: boolean;
   /** 播放栏显示快捷音质切换 */
   showQualitySwitch: boolean;
   /** 点击关闭按钮的行为 */

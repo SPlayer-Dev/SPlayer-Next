@@ -413,13 +413,13 @@ export interface WindowStates {
 }
 
 /** 应用更新通道 */
-export type UpdateChannel = "stable" | "beta" | "alpha";
+export type UpdateChannel = "stable" | "beta" | "alpha" | "nightly";
 
 /** 应用更新配置 */
 export interface AppUpdateSettings {
   /** 自动检查更新 */
   autoCheck: boolean;
-  /** 更新通道：stable 正式通道 / beta 预览通道 / alpha 内测通道 */
+  /** 更新通道：stable 正式通道 / beta 预览通道 / alpha 内测通道 / nightly 持续构建通道 */
   channel: UpdateChannel;
 }
 

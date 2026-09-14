@@ -432,8 +432,28 @@ const loadPluginIntoContext = (spec: LoadSpec): void => {
       debug: splayer.log.debug,
       warn: splayer.log.warn,
       error: splayer.log.error,
+      group: splayer.log.info,
+      groupCollapsed: splayer.log.info,
+      groupEnd: (): void => {},
+      table: splayer.log.info,
+      dir: splayer.log.info,
+      dirxml: splayer.log.info,
+      trace: splayer.log.debug,
+      clear: (): void => {},
+      time: (_label?: string): void => {},
+      timeEnd: (_label?: string): void => {},
+      timeLog: (_label?: string, ..._data: unknown[]): void => {},
+      count: (_label?: string): void => {},
+      countReset: (_label?: string): void => {},
+      assert: (condition?: boolean, ...args: unknown[]): void => {
+        if (!condition) splayer.log.error(...args);
+      },
     },
   };
+
+  sandboxGlobal.globalThis = sandboxGlobal;
+  sandboxGlobal.window = sandboxGlobal;
+  sandboxGlobal.self = sandboxGlobal;
 
   installLxShim(
     sandboxGlobal,
@@ -455,8 +475,6 @@ const loadPluginIntoContext = (spec: LoadSpec): void => {
       rawScript: spec.source,
     },
   );
-
-  sandboxGlobal.globalThis = sandboxGlobal;
 
   const context = vm.createContext(sandboxGlobal, {
     name: `plugin:${spec.pluginId}`,

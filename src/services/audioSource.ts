@@ -105,7 +105,7 @@ export const resolveByPlugin = async (
   const songId = track.id;
   const isHash =
     typeof songId === "string" && songId.length === 32 && /^[0-9a-fA-F]{32}$/.test(songId);
-  const hash = isHash || track.source === "kugou" ? songId : "";
+  const hash = isHash || track.source === "kugou" ? songId : undefined;
   const musicInfo = {
     id: songId,
     songmid: songId,
@@ -115,7 +115,7 @@ export const resolveByPlugin = async (
     source: pluginSource,
     interval,
     img: track.cover ?? null,
-    hash,
+    ...(hash ? { hash } : {}),
     albumId: track.album?.id ?? "",
     albumName: track.album?.name ?? "",
     meta: {
@@ -123,7 +123,7 @@ export const resolveByPlugin = async (
       albumName: track.album?.name ?? "",
       albumId: track.album?.id ?? "",
       picUrl: track.cover ?? null,
-      hash,
+      ...(hash ? { hash } : {}),
     },
   };
   for (const plugin of candidates) {

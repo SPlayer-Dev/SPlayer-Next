@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { LyricLine } from "@shared/types/lyrics";
 import type { DesktopLyricAlign } from "@shared/types/settings";
-import { getWordSweepProgress } from "@shared/utils/lyricSync";
+import { getWordSweepProgress } from "lyric-kit";
 import { getNowPlayingCurrentMs } from "@windows/shared/composables/useNowPlayingSync";
 import { computeHorizontalScrollOffset, measureHorizontalScrollRange } from "../utils";
+import { getLineText, getWordText } from "@shared/utils/lyrics";
 
 const props = defineProps<{
   line: LyricLine;
@@ -260,11 +261,11 @@ onBeforeUnmount(() => {
               :ref="(el) => setWordRef(el, i)"
               class="dl-word"
             >
-              {{ word.word }}
+              {{ getWordText(word) }}
             </span>
           </template>
           <span v-else class="dl-static" :class="{ 'is-unplayed': isNext }">
-            {{ line.words.map((w) => w.word).join("") }}
+            {{ getLineText(line) }}
           </span>
         </span>
       </span>

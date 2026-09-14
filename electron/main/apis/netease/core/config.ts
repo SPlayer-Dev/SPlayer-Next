@@ -19,8 +19,10 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDgtQn2JZ34ZC28NWYpAUd98iZ37BUrX/aKzmFbt7cl
 
 /** web 域名（weapi） */
 export const DOMAIN = "https://music.163.com";
-/** 客户端接口域名（api/eapi） */
+/** 客户端通用接口域名（api） */
 export const API_DOMAIN = "https://interface.music.163.com";
+/** 客户端 eapi 加密接口专用域名 */
+export const EAPI_DOMAIN = "https://interfacepc.music.163.com";
 /** xeapi 域名（反爬加密接口，如游客注册） */
 export const XEAPI_DOMAIN = "https://interface3.music.163.com";
 /** 客户端日志域名 */
@@ -39,7 +41,7 @@ export const SPECIAL_STATUS_CODES: ReadonlySet<number> = new Set([
 export const OS_MAP = {
   pc: {
     os: "pc",
-    appver: "3.1.17.204416",
+    appver: "3.1.29.205117",
     osver: "Microsoft-Windows-10-Professional-build-19045-64bit",
     channel: "netease",
   },
@@ -79,9 +81,9 @@ export const UA_MAP = {
       "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.90 Safari/537.36",
   },
   api: {
-    pc: "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36 Chrome/91.0.4472.164 NeteaseMusicDesktop/3.0.18.203152",
+    pc: "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36 Chrome/91.0.4472.164 NeteaseMusicDesktop/3.1.29.205117",
     android:
-      "NeteaseMusic/9.1.65.240927161425(9001065);Dalvik/2.1.0 (Linux; U; Android 14; 23013RK75C Build/UKQ1.230804.001)",
+      "NeteaseMusic/9.5.61.260802021928(9005061);Dalvik/2.1.0 (Linux; U; Android 12; HBN-AL00 Build/cd737a2.0)",
     iphone: "NeteaseMusic 9.0.90/5038 (iPhone; iOS 16.2; zh_CN)",
   },
 } as const;

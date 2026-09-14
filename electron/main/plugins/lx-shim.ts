@@ -181,9 +181,9 @@ export interface LxMusicInfo {
   types: string[];
   _types: Record<string, unknown>;
   typeUrl: Record<string, unknown>;
-  hash: string;
-  strMediaMid: string;
-  copyrightId: string;
+  hash?: string;
+  strMediaMid?: string;
+  copyrightId?: string;
   albumId: string;
   albumName: string;
   meta: {
@@ -191,14 +191,14 @@ export interface LxMusicInfo {
     albumName: string;
     albumId: string;
     picUrl: string | null;
-    hash: string;
+    hash?: string;
     [key: string]: unknown;
   };
   [key: string]: unknown;
 }
 
 /** 将宿主传入的 musicInfo 归一化 */
-const normalizeLxMusicInfo = (
+export const normalizeLxMusicInfo = (
   raw: MusicUrlReq["musicInfo"] | undefined,
   source: string,
 ): LxMusicInfo => {
@@ -214,15 +214,44 @@ const normalizeLxMusicInfo = (
   const albumId = String(info.albumId ?? meta.albumId ?? "");
   const interval = typeof info.interval === "string" ? info.interval : null;
   const img = (info.img ?? info.pic ?? meta.picUrl ?? null) as string | null;
-  const rawHash = info.hash ?? meta.hash;
-  const hash =
-    typeof rawHash === "string" && rawHash.length > 0
-      ? rawHash
-      : id.length === 32 && /^[0-9a-fA-F]{32}$/.test(id)
-        ? id
-        : "";
 
-  return {
+  const rawHash = info.hash ?? meta.hash;
+  const isKg = source === "kg" || source === "kugou";
+  const hash =
+    typeof rawHash === "string" && rawHash.trim().length > 0
+      ? rawHash.trim()
+      : isKg && id.length === 32 && /^[0-9a-fA-F]{32}$/.test(id)
+        ? id
+        : undefined;
+
+  const rawStrMediaMid = info.strMediaMid ?? meta.strMediaMid;
+  const strMediaMid =
+    typeof rawStrMediaMid === "string" && rawStrMediaMid.trim().length > 0
+      ? rawStrMediaMid.trim()
+      : source === "tx" || source === "qqmusic"
+        ? id
+        : undefined;
+
+  const rawCopyrightId = info.copyrightId ?? meta.copyrightId;
+  const copyrightId =
+    typeof rawCopyrightId === "string" && rawCopyrightId.trim().length > 0
+      ? rawCopyrightId.trim()
+      : undefined;
+
+  const resMeta: Record<string, unknown> = {
+    ...meta,
+    songId: id,
+    albumName,
+    albumId,
+    picUrl: img,
+  };
+  if (hash) {
+    resMeta.hash = hash;
+  } else {
+    delete resMeta.hash;
+  }
+
+  const result: LxMusicInfo = {
     ...info,
     name,
     singer,
@@ -242,18 +271,26 @@ const normalizeLxMusicInfo = (
         ? (info._types as Record<string, unknown>)
         : {},
     typeUrl: {},
-    hash,
-    strMediaMid: typeof info.strMediaMid === "string" ? info.strMediaMid : id,
-    copyrightId: typeof info.copyrightId === "string" ? info.copyrightId : "",
-    meta: {
-      songId: id,
-      albumName,
-      albumId,
-      picUrl: img,
-      hash,
-      ...meta,
-    },
+    meta: resMeta as LxMusicInfo["meta"],
   };
+
+  if (hash) {
+    result.hash = hash;
+  } else {
+    delete (result as Record<string, unknown>).hash;
+  }
+  if (strMediaMid) {
+    result.strMediaMid = strMediaMid;
+  } else {
+    delete (result as Record<string, unknown>).strMediaMid;
+  }
+  if (copyrightId) {
+    result.copyrightId = copyrightId;
+  } else {
+    delete (result as Record<string, unknown>).copyrightId;
+  }
+
+  return result;
 };
 
 /**
@@ -484,7 +521,11 @@ export const installLxShim = (
 
   sandboxGlobal.lx = lxApi;
   // 部分脚本通过 window.lx 访问
-  sandboxGlobal.window = { lx: lxApi };
+  if (typeof sandboxGlobal.window === "object" && sandboxGlobal.window !== null) {
+    (sandboxGlobal.window as Record<string, unknown>).lx = lxApi;
+  } else {
+    sandboxGlobal.window = sandboxGlobal;
+  }
 
   // 为每个 action 安装一个通用分派器：把 router 的 call 转译成 lx 的 request 形状
   const registerAction = (action: PluginAction): void => {

@@ -4,11 +4,12 @@ import type { LyricLine } from "@shared/types/lyrics";
 import { DYNAMIC_ISLAND_BASE_HEIGHT } from "@shared/defaults/settings";
 import DEFAULT_COVER from "@/assets/images/song.jpg";
 import IslandLyricLine from "./components/IslandLyricLine.vue";
-import { pickAdvanceOnEndIndex } from "@shared/utils/lyricSync";
+import { pickAdvanceOnEndIndex } from "lyric-kit";
 import { useNowPlayingSync } from "@windows/shared/composables/useNowPlayingSync";
 import { useDragWindow } from "./composables/useDragWindow";
 import { isMac } from "@/utils/config";
 import { formatArtists } from "@shared/utils/track";
+import { getLineText } from "@shared/utils/lyrics";
 
 const config = reactive<DynamicIslandSettings>({
   scale: 1,
@@ -135,7 +136,7 @@ let phase: "idle" | "shrinking" | "expanding" = "idle";
 let hasPainted = false;
 
 /* 行文本 */
-const lineText = (line: LyricLine): string => line.words.map((w) => w.word).join("");
+const lineText = (line: LyricLine): string => getLineText(line);
 
 /* 计算副行文本 */
 const computeSubText = (idx: number, line: LyricLine | null): string => {

@@ -740,7 +740,6 @@
       "lyricTTML": "TTML 歌词",
       "lyricExclude": "歌词排除",
       "lyricGeneral": "内容样式",
-      "lyricQrcKana": "QRC 日语注音",
       "lyricDisplay": "显示效果",
       "lyricAMLLOptimize": "歌词优化",
       "lyricSpring": "弹簧动画",
@@ -823,6 +822,12 @@
       "label": "记忆播放进度",
       "description": "启动时恢复上次歌曲的播放进度"
     },
+    "searchPlayBehavior": {
+      "label": "搜索页播放行为",
+      "description": "设置在搜索页面双击歌曲时的播放与添加策略",
+      "current": "仅播放当前",
+      "all": "播放全部"
+    },
     "showLyricInBar": {
       "label": "播放时显示歌词",
       "description": "底部播放栏播放时将歌手名替换为当前歌词"
@@ -867,6 +872,10 @@
       "label": "输出设备",
       "description": "选择音频输出设备",
       "default": "系统默认"
+    },
+    "rememberDeviceVolume": {
+      "label": "独立设备音量记忆",
+      "description": "切换或插拔不同音频输出设备时，分别保存并恢复各自的音量大小"
     },
     "pauseOnDeviceSwitch": {
       "label": "切换时暂停播放",
@@ -1147,21 +1156,25 @@
       "label": "显示翻译",
       "description": "显示歌词的翻译文本"
     },
-    "showRomanization": {
-      "label": "显示音译",
-      "description": "显示歌词的音译文本"
+    "showRuby": {
+      "label": "显示词内注音",
+      "description": "显示歌词中汉字词语的假名或拼音注音"
     },
-    "amllShowLineRomanization": {
+    "showRomanization": {
       "label": "显示逐行音译",
       "description": "显示歌词行的音译文本"
     },
-    "amllShowWordRomanization": {
+    "showWordRomanization": {
       "label": "显示逐词音译",
       "description": "在逐字歌词中，显示每个字词的音译文本"
     },
-    "showQrcKana": {
-      "label": "显示日语注音",
-      "description": "仅在 QRC 歌词源时生效"
+    "enableScale": {
+      "label": "歌词缩放",
+      "description": "聚焦播放行，非激活行轻微缩小"
+    },
+    "bgAlwaysBelow": {
+      "label": "背景歌词置于下方",
+      "description": "始终将背景和声歌词显示在主歌词行下方"
     },
     "enableWordHighlight": {
       "label": "逐字高亮",
@@ -1552,10 +1565,6 @@
       "confirmResetDesc": "分组、命名、排序与显隐都将重置为默认！",
       "featureDisabled": "功能未开启"
     },
-    "showStatsInSidebar": {
-      "label": "显示播放统计入口",
-      "description": "在侧边栏显示播放统计页面入口"
-    },
     "showQualitySwitch": {
       "label": "显示快捷音质切换",
       "description": "在播放栏显示在线音质标签，可点击快速切换音质"
@@ -1679,10 +1688,11 @@
     },
     "updateChannel": {
       "label": "更新通道",
-      "description": "选择正式版、Beta 预览版或 Alpha 内测版更新",
+      "description": "选择正式版、Beta 预览版、Alpha 内测版或 Nightly 持续构建更新",
       "stable": "正式版",
       "beta": "Beta 预览版",
-      "alpha": "Alpha 内测版"
+      "alpha": "Alpha 内测版",
+      "nightly": "Nightly 持续构建"
     },
     "checkUpdate": {
       "label": "检查更新",

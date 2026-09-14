@@ -1,13 +1,17 @@
 import type { PlayerEvent } from "@shared/types/player";
 import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
+import { useSettingsStore } from "@/stores/settings";
 import { useFavorite } from "@/composables/useFavorite";
 import * as playback from "@/services/playback";
 import * as autoClose from "@/services/autoClose";
 import * as abLoop from "@/services/abLoop";
 import * as cacheScheduler from "@/services/cacheScheduler";
+import { setDeviceVolume } from "@/services/deviceVolume";
 import * as playStats from "./stats";
 import {
+  applySavedVolumeForActiveDevice,
+  getActiveDeviceId,
   hasReachedSeekTarget,
   insertManyToQueue,
   isSeeking,
@@ -68,7 +72,14 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
         status.position = playback.setCurrentTime(event.data.position);
       }
       status.duration = event.data.duration;
-      status.volume = event.data.volume;
+      if (status.volume !== event.data.volume) {
+        status.volume = event.data.volume;
+        const settings = useSettingsStore();
+        if (settings.player.rememberDeviceVolume) {
+          const activeId = getActiveDeviceId();
+          if (activeId) setDeviceVolume(activeId, event.data.volume);
+        }
+      }
       if (event.data.speed != null) {
         status.speed = event.data.speed;
         playback.setSpeed(event.data.speed);
@@ -141,7 +152,15 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
       await useFavorite().toggle(useMediaStore().track);
       break;
     case "deviceChanged": {
-      refreshDevices();
+      const prevActiveId = getActiveDeviceId();
+      await refreshDevices();
+      const settings = useSettingsStore();
+      if (settings.player.outputDevice === null && settings.player.rememberDeviceVolume) {
+        const nextActiveId = getActiveDeviceId();
+        if (nextActiveId && nextActiveId !== prevActiveId) {
+          await applySavedVolumeForActiveDevice();
+        }
+      }
       break;
     }
   }

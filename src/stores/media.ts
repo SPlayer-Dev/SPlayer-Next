@@ -1,13 +1,15 @@
 import type { MediaInfo, PlaybackContext, Track, TrackDetail } from "@shared/types/player";
 import type { LyricData, LyricFormat, LyricInput, LyricLine } from "@shared/types/lyrics";
-import { findLyricIndex } from "@shared/utils/lyric";
 import { useSettingsStore } from "@/stores/settings";
 import { watchLyricPreference } from "@/services/lyric/loader";
-import { parseLyric } from "@/utils/lyric/parse";
-import { applyLyricLanguages } from "@/utils/lyric/language";
-import { extractLyricAuthors } from "@/utils/lyric/author";
+import {
+  applyLyricLanguages,
+  extractLyricAuthors,
+  findLyricIndex,
+  normalizeLyricLines,
+  parseLyric,
+} from "lyric-kit";
 import { applyLyricExclude } from "@/utils/lyric/lyricStripper";
-import { normalizeLyricLines } from "@/utils/lyric/normalize";
 import { applyProfanityUncensor } from "@/utils/preset/profanity";
 import { applyLyricCjkTransform } from "@/utils/lyric/cjkTransform";
 
@@ -137,11 +139,7 @@ export const useMediaStore = defineStore("media", () => {
 
   // 监听简繁转换及强迫症设置变化并重新解析当前歌词
   watch(
-    () => [
-      useSettingsStore().lyric.cjkTransform,
-      useSettingsStore().lyric.showQrcKana,
-      useSettingsStore().preset.uncensorProfanity,
-    ],
+    () => [useSettingsStore().lyric.cjkTransform, useSettingsStore().preset.uncensorProfanity],
     () => {
       if (activeLyric.value && lyricContent.value) {
         setLyric(activeLyric.value, lyricContent.value);
@@ -156,20 +154,36 @@ export const useMediaStore = defineStore("media", () => {
    */
   const setLyric = (source: LyricData, input: LyricInput | null): void => {
     let nextLines: LyricLine[] = [];
+    let authors: string[] = [];
     const settings = useSettingsStore();
     if (source && input) {
       try {
-        const lines = parseLyric(input, source.format, settings.locale, {
-          detectBackground: settings.lyric.detectBackgroundLyrics,
-          showQrcKana: settings.lyric.showQrcKana,
-        });
-        nextLines = applyLyricExclude(lines, track.value);
+        const result = parseLyric(
+          {
+            content: input.content,
+            format: source.format,
+            translation: input.translation,
+            translationFormat: input.translationFormat,
+            romaji: input.romaji,
+            romajiFormat: input.romajiFormat,
+          },
+          {
+            detectBackground: settings.lyric.detectBackgroundLyrics,
+            preferredLang: settings.locale,
+            cleanKangxi: true,
+            extractMetadata: true,
+          },
+        );
+        nextLines = applyLyricExclude(result.lines, track.value);
         normalizeLyricLines(nextLines);
         // Fuck Mode
         if (settings.preset.uncensorProfanity) {
           applyProfanityUncensor(nextLines);
         }
         applyLyricLanguages(nextLines);
+        authors = result.metadata.authors?.length
+          ? result.metadata.authors
+          : extractLyricAuthors(input.content, source.format);
       } catch (e) {
         console.error("[media] parse lyric failed:", e);
         nextLines = [];
@@ -180,8 +194,7 @@ export const useMediaStore = defineStore("media", () => {
     activeLyric.value = hasContent ? source : null;
     lyricContent.value = hasContent ? input : null;
     parsedLyric.value = nextLines;
-    lyricAuthors.value =
-      hasContent && source && input ? extractLyricAuthors(input.content, source.format) : [];
+    lyricAuthors.value = hasContent && source && input ? authors : [];
     lyricIndex.value = -1;
     lyricLoading.value = false;
     syncToMain();

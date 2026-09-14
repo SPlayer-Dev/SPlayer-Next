@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import type { LyricLine } from "@shared/types/lyrics";
-import { LyricPlayer as CoreLyricPlayer } from "@applemusic-like-lyrics/core";
+import {
+  LyricPlayer as CoreLyricPlayer,
+  type LyricLineMouseEvent,
+} from "@applemusic-like-lyrics/core";
 import { useSettingsStore } from "@/stores/settings";
 import { useStatusStore } from "@/stores/status";
 import { getCurrentTime } from "@/services/playback";
 import { observeAmllRubyLayout } from "./utils/amll-ruby-layout";
 import "@applemusic-like-lyrics/core/style.css";
-import "./renderer.css";
+import LyricCredit from "./LyricCredit.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -24,10 +27,14 @@ const props = withDefaults(
     enableBlur?: boolean;
     /** 是否显示翻译歌词 */
     showTranslation?: boolean;
+    /** 是否显示词内注音 */
+    showRuby?: boolean;
     /** 是否显示逐行音译 */
-    showLineRomanization?: boolean;
+    showRomanization?: boolean;
     /** 是否显示逐词音译 */
     showWordRomanization?: boolean;
+    /** 是否始终将背景行置于主行下方 */
+    bgAlwaysBelow?: boolean;
     /** 挂载时的初始播放时间（毫秒） */
     initialTime?: number;
   }>(),
@@ -38,8 +45,10 @@ const props = withDefaults(
     hidePassedLines: false,
     enableBlur: false,
     showTranslation: true,
-    showLineRomanization: true,
+    showRuby: true,
+    showRomanization: true,
     showWordRomanization: true,
+    bgAlwaysBelow: false,
     initialTime: 0,
   },
 );
@@ -81,13 +90,19 @@ const processedLyrics = computed(() => {
     const newLine = {
       ...line,
       translatedLyric: props.showTranslation ? line.translatedLyric : "",
-      romanLyric: props.showLineRomanization ? line.romanLyric : "",
+      romanLyric: props.showRomanization ? line.romanLyric : "",
     };
     if (line.words) {
       newLine.words = line.words.map((word) => {
         const newWord = { ...word };
+        if (word.endsWithSpace && !word.word.endsWith(" ")) {
+          newWord.word = word.word + " ";
+        }
         if (!props.showWordRomanization) {
           delete newWord.romanWord;
+        }
+        if (!props.showRuby) {
+          delete newWord.ruby;
         }
         return newWord;
       });
@@ -97,8 +112,8 @@ const processedLyrics = computed(() => {
 });
 
 // 行点击事件回调
-const handleLineClick = (e: Event) => {
-  const amllEvent = e as Event & { line?: { getLine: () => { startTime?: number } } };
+const handleLineClick = (event: Event) => {
+  const amllEvent = event as LyricLineMouseEvent;
   const lineData = amllEvent.line?.getLine();
   if (lineData && typeof lineData.startTime === "number") {
     emit("seek", lineData.startTime);
@@ -139,6 +154,7 @@ const syncPlayerOptions = (player = playerRef.value): void => {
   const useSpring = settings.lyric.useAMSpring;
   player.setEnableSpring(useSpring);
   player.setEnableScale(useSpring);
+  player.setAlwaysPostpositionBackground(props.bgAlwaysBelow ?? false);
   player.setLinePosYSpringParams({
     mass: settings.lyric.amllVerticalSpringMass,
     damping: settings.lyric.amllVerticalSpringDamping,
@@ -169,11 +185,10 @@ const handleVisibility = () => {
     playerRef.value?.pause();
     isPreviousHidden.value = true;
   } else if (isPreviousHidden.value && !isFrozen.value && playerRef.value) {
-    // 从隐藏恢复：校准 Core 内部时钟到当前播放位置，避免逐词效果从头开始
+    // 从隐藏恢复
     const currentTime = getCurrentTime() + status.lyricOffsetMs;
     playerRef.value.setCurrentTime(currentTime, true);
     isPreviousHidden.value = false;
-    // 恢复后根据当前状态决定 resume/pause（由 watchEffect 处理，这里只需确保 state sync）
   }
 };
 
@@ -283,6 +298,7 @@ watch(
     props.wordFadeWidth,
     props.hidePassedLines,
     props.enableBlur,
+    props.bgAlwaysBelow,
     settings.lyric.useAMSpring,
     settings.lyric.amllVerticalSpringMass,
     settings.lyric.amllVerticalSpringDamping,
@@ -366,7 +382,9 @@ defineExpose({
 <template>
   <div ref="wrapperRef" class="amll-lyrics-container" :class="contentVisible ? 'is-visible' : ''" />
   <Teleport v-if="bottomLineEl" :to="bottomLineEl">
-    <slot name="bottom" />
+    <slot name="bottom">
+      <LyricCredit />
+    </slot>
   </Teleport>
 </template>
 

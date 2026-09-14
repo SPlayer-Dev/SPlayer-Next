@@ -5,6 +5,7 @@ import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
 import { navigateToArtist } from "@/utils/navigate";
 import { getValidArtists } from "@shared/utils/track";
+import { getLineText } from "@shared/utils/lyrics";
 
 withDefaults(
   defineProps<{
@@ -36,7 +37,7 @@ const currentBarLyric = computed(() => {
     return null;
   const currentMs = media.parsedLyric[media.lyricIndex]?.startTime ?? 0;
   const line = mainLines.value.findLast((l) => l.startTime <= currentMs) ?? mainLines.value[0];
-  const text = line.words.map((w) => w.word).join("");
+  const text = getLineText(line);
   return {
     key: `${line.startTime}:${text}`,
     text: line.translatedLyric ? `${text}（${line.translatedLyric}）` : text,

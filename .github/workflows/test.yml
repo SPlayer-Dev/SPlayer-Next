@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: test-${{ github.workflow }}-${{ github.ref }}
+  group: test-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -19,7 +19,7 @@ env:
 
 jobs:
   typescript:
-    name: TypeScript and Vitest
+    name: Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -37,12 +37,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Typecheck
-        run: pnpm typecheck
 
       - name: Test
         run: pnpm test

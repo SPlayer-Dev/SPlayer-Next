@@ -322,31 +322,49 @@ export const doUpload = async (
 ): Promise<UploadResult> => {
   const payload = encryptNCBL(metaJson, body);
   const multipart = buildMultipart(payload);
-  const resp = await fetchWithProxy(
-    `${CLIENT_LOG3_DOMAIN}/api/clientlog/encrypt/upload?multiupload=true`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": `multipart/form-data; boundary=${multipart.boundary}`,
-        Referer: "https://music.163.com/di",
-        "User-Agent": `Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36 Chrome/91.0.4472.164 NeteaseMusicDesktop/${ctx.app.version}`,
-        "Accept-Encoding": "gzip,deflate",
-        "Accept-Language": "zh-CN,zh;q=0.8",
-        Cookie: cookieStr,
-      },
-      body: new Uint8Array(multipart.body),
-      signal: AbortSignal.timeout(15000),
-    },
-  );
+  const maxAttempts = 3;
+  let resp: Response | null = null;
+  let lastErr: unknown = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      resp = await fetchWithProxy(
+        `${CLIENT_LOG3_DOMAIN}/api/clientlog/encrypt/upload?multiupload=true`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": `multipart/form-data; boundary=${multipart.boundary}`,
+            Referer: "https://music.163.com/di",
+            "User-Agent": `Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36 Chrome/91.0.4472.164 NeteaseMusicDesktop/${ctx.app.version}`,
+            "Accept-Encoding": "gzip,deflate",
+            "Accept-Language": "zh-CN,zh;q=0.8",
+            Cookie: cookieStr,
+          },
+          body: new Uint8Array(multipart.body),
+          signal: AbortSignal.timeout(15000),
+        },
+      );
+      break;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, attempt * 200));
+      }
+    }
+  }
+
+  if (!resp) {
+    throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+  }
 
   const text = await resp.text();
-  let respBody: Record<string, any>;
+  let respBody: Record<string, unknown>;
   try {
-    respBody = JSON.parse(text) as Record<string, any>;
+    respBody = JSON.parse(text) as Record<string, unknown>;
   } catch {
     respBody = { code: resp.status, raw: text };
   }
-  const success =
-    respBody?.code === 200 && respBody?.data?.successfiles?.includes?.(multipart.fileName);
+  const successFiles = (respBody?.data as { successfiles?: string[] } | undefined)?.successfiles;
+  const success = respBody?.code === 200 && Boolean(successFiles?.includes(multipart.fileName));
   return { success, fileName: multipart.fileName, payload, respBody };
 };

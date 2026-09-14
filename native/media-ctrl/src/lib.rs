@@ -81,7 +81,7 @@ pub fn on_event(callback: Function<Unknown<'static>, UnknownReturnValue>) -> Res
 pub fn set_metadata(param: MetadataParam) {
     let discord_payload = MetadataPayload {
         title: param.title.clone(),
-        artist: param.artist.clone(),
+        artists: param.artists.clone(),
         album: param.album.clone(),
         cover_data: None,
         cover_url: param.cover_url.clone(),

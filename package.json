@@ -1,4 +1,5 @@
 {
+  "$schema": "https://www.schemastore.org/package.json",
   "name": "splayer-next",
   "productName": "SPlayer-Next",
   "desktopName": "top.imsyy.splayer_next",
@@ -44,7 +45,7 @@
     "start": "electron-vite preview",
     "dev": "pnpm build:native --dev && tsx scripts/dev.ts",
     "build": "rimraf dist && pnpm build:native && pnpm typecheck && electron-vite build",
-    "postinstall": "electron-rebuild -f -w better-sqlite3",
+    "postinstall": "node node_modules/electron/install.js && electron-rebuild -f -w better-sqlite3",
     "build:unpack": "pnpm build && electron-builder --dir --config electron-builder.config.ts",
     "build:win": "pnpm build && tsx scripts/gen-license.ts && electron-builder --config electron-builder.config.ts --win",
     "build:mac": "pnpm build && electron-builder --config electron-builder.config.ts --mac",
@@ -62,9 +63,9 @@
     "better-sqlite3": "^13.0.3",
     "electron-log": "^5.4.4",
     "electron-updater": "^6.8.9",
-    "fast-xml-parser": "^5.10.1",
     "font-list": "^2.1.0",
     "hono": "^4.13.0",
+    "lyric-kit": "^0.5.3",
     "undici": "^8.10.0",
     "ws": "^8.21.2",
     "zod": "^4.4.3"
@@ -102,6 +103,7 @@
     "eslint-plugin-vue": "^10.10.0",
     "happy-dom": "^20.11.1",
     "localforage": "^1.10.0",
+    "lyric-dom": "^0.1.2",
     "marked": "^18.0.9",
     "pinia": "^4.0.2",
     "pinia-plugin-persistedstate": "^4.7.1",

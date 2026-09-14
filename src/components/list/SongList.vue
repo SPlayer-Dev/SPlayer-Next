@@ -80,6 +80,7 @@ const props = withDefaults(
 );
 
 const { t } = useI18n();
+const route = useRoute();
 const media = useMediaStore();
 const status = useStatusStore();
 const settings = useSettingsStore();
@@ -267,6 +268,20 @@ const onListContextMenu = (event: MouseEvent): void => {
     event.preventDefault();
     event.stopPropagation();
   }
+};
+
+/**
+ * 双击歌曲项播放
+ * @param item - 歌曲数据
+ * @param index - 列表索引
+ */
+const onTrackDblClick = (item: Track, index: number): void => {
+  if (batch.active.value) return;
+  if (route.name === "search" && settings.player.searchPlayBehavior !== "all") {
+    void player.playNow(item, props.playbackContext);
+    return;
+  }
+  void player.playFrom(sortedItems.value, index, props.playbackContext);
 };
 
 const emit = defineEmits<{
@@ -511,11 +526,7 @@ defineExpose({
                     : 'bg-surface-panel border-primary/12 hover:border-primary/30 hover:bg-on-surface/8 active:bg-on-surface/12'
               "
               @click="batch.active.value ? batch.toggle(item.id) : undefined"
-              @dblclick="
-                batch.active.value
-                  ? undefined
-                  : player.playFrom(sortedItems, index, props.playbackContext)
-              "
+              @dblclick="onTrackDblClick(item, index)"
               @contextmenu="contextTrack = item"
             >
               <!-- 序号 / 多选 -->

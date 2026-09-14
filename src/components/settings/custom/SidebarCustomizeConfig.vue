@@ -205,8 +205,7 @@ const editorGroups = computed(() =>
         hideable: entry?.hideable ?? true,
         featureOff:
           (key === "/download" && !settings.system.download.enabled) ||
-          (key === "/streaming" && !settings.system.streaming.enabled) ||
-          (key === "/stats" && !settings.appearance.showStatsInSidebar),
+          (key === "/streaming" && !settings.system.streaming.enabled),
       };
     }),
   })),

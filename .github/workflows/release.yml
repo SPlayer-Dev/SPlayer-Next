@@ -65,6 +65,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -72,7 +73,14 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "native/audio-engine -> target\nnative/audio-capture -> target\nnative/media-ctrl -> target"
+          workspaces: |
+            . -> target
+            native/audio-engine -> target
+            native/audio-capture -> target
+            native/media-ctrl -> target
+            native/taskbar-lyric -> target
+            native/taskbar-thumbnail -> target
+            native/opencc -> target
 
       # 校验标签、版本和更新通道
       - name: Verify release metadata
@@ -109,14 +117,8 @@ jobs:
             rpm libarchive-tools
 
       # 清理旧构建产物
-      - name: Clean workspace on Windows
-        if: runner.os == 'Windows'
-        run: |
-          if (Test-Path dist) { Remove-Item -Recurse -Force dist }
-          if (Test-Path out) { Remove-Item -Recurse -Force out }
-
-      - name: Clean workspace on macOS & Linux
-        if: runner.os != 'Windows'
+      - name: Clean workspace
+        shell: bash
         run: rm -rf dist out
 
       # CI 不需要国内镜像
@@ -165,6 +167,33 @@ jobs:
         with:
           name: SPlayer-Next-${{ matrix.name }}
           path: dist/*.*
+
+      # 生成当前平台的运行工作摘要 (Job Summary)
+      - name: Generate Job Summary
+        if: always()
+        shell: bash
+        run: |
+          echo "### 📦 构建产物明细 - ${{ matrix.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 文件名 | 格式 | 文件大小 |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+          found=0
+          for f in dist/*; do
+            if [ -f "$f" ]; then
+              fname=$(basename "$f")
+              ext="${fname##*.}"
+              case "$ext" in
+                exe|dmg|zip|AppImage|deb|rpm|pacman|gz)
+                  fsize=$(ls -lh "$f" | awk '{print $5}')
+                  echo "| \`$fname\` | **$ext** | $fsize |" >> $GITHUB_STEP_SUMMARY
+                  found=1
+                  ;;
+              esac
+            fi
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "| *(未生成安装包或构建中断)* | - | - |" >> $GITHUB_STEP_SUMMARY
+          fi
 
   # 合并多架构更新清单并创建 GitHub 草稿 Release
   release:
@@ -254,3 +283,29 @@ jobs:
               --draft \
               release-assets/*
           fi
+
+      # 生成发布工作摘要 (Job Summary)
+      - name: Generate Release Summary
+        if: success()
+        shell: bash
+        run: |
+          echo "## 🎉 SPlayer-Next 发布完成" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 项目 | 信息 |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔖 **版本** | \`$APP_VERSION\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🏷️ **标签** | [\`$RELEASE_TAG\`](https://github.com/$GITHUB_REPOSITORY/releases/tag/$RELEASE_TAG) |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📡 **更新通道** | \`$UPDATE_CHANNEL\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| 状态 | $([ "$UPDATE_CHANNEL" = "latest" ] && echo "草稿 (Draft - 待人工发布)" || echo "预发布 (Prerelease)") |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 发布资源清单" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 文件名 | 文件大小 |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+          for f in release-assets/*; do
+            if [ -f "$f" ]; then
+              fname=$(basename "$f")
+              fsize=$(ls -lh "$f" | awk '{print $5}')
+              echo "| \`$fname\` | $fsize |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done

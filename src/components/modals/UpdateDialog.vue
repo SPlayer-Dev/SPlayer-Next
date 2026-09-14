@@ -28,6 +28,7 @@ const releaseDateText = computed(() => {
     :open="update.dialogOpen"
     :title="t('update.dialogTitle')"
     width="520px"
+    destroy-on-close
     @update:open="update.dialogOpen = $event"
   >
     <div class="flex flex-col gap-4">

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { LyricLine } from "@shared/types/lyrics";
-import { getWordSweepProgress } from "@shared/utils/lyricSync";
+import { getWordSweepProgress } from "lyric-kit";
 import { getNowPlayingCurrentMs } from "@windows/shared/composables/useNowPlayingSync";
+import { getLineText, getWordText } from "@shared/utils/lyrics";
 
 const props = withDefaults(
   defineProps<{
@@ -14,7 +15,7 @@ const props = withDefaults(
 );
 
 const useKaraoke = computed(() => props.wordByWord && !!props.line);
-const plainText = computed(() => props.text ?? props.line?.words.map((w) => w.word).join("") ?? "");
+const plainText = computed(() => props.text ?? getLineText(props.line));
 
 const wrapperRef = ref<HTMLElement | null>(null);
 const contentRef = ref<HTMLElement | null>(null);
@@ -157,7 +158,7 @@ onBeforeUnmount(() => {
           :ref="(el) => setWordRef(el, i)"
           class="tb-word"
         >
-          {{ word.word }}
+          {{ getWordText(word) }}
         </span>
       </template>
       <span v-else>{{ plainText }}</span>

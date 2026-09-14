@@ -7,9 +7,10 @@ import IconSkipForward from "~icons/lucide/skip-forward";
 import IconPlay from "~icons/lucide/play";
 import IconPause from "~icons/lucide/pause";
 import TaskbarLyricLine from "./components/TaskbarLyricLine.vue";
-import { pickPrimaryIndex } from "@shared/utils/lyricSync";
+import { pickPrimaryIndex } from "lyric-kit";
 import { useNowPlayingSync } from "@windows/shared/composables/useNowPlayingSync";
 import { formatArtists } from "@shared/utils/track";
+import { getLineText } from "@shared/utils/lyrics";
 
 const config = reactive<TaskbarLyricSettings>({
   position: "auto",
@@ -149,7 +150,7 @@ const items = computed<RenderItem[]>(() => {
       {
         key: `line-${idx}`,
         role: "primary",
-        text: line.words.map((w) => w.word).join(""),
+        text: getLineText(line),
         line,
       },
     ];
@@ -163,7 +164,7 @@ const items = computed<RenderItem[]>(() => {
           list.push({
             key: `line-${idx + 1}`,
             role: "secondary",
-            text: next.words.map((w) => w.word).join(""),
+            text: getLineText(next),
             line: next,
           });
         }

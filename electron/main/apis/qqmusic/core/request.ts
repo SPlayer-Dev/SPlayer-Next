@@ -79,26 +79,31 @@ interface FcgResponse {
   [key: string]: unknown;
 }
 
-interface QMRequestOptions {
+export interface QMRequestOptions {
   /** 是否在请求前初始化客户端会话 */
   session?: boolean;
   /** 追加到 comm 的字段（如 tmeLoginType） */
   comm?: Record<string, unknown>;
+  /** 是否需要携带用户认证凭据 */
+  auth?: boolean;
+  /** 是否允许在收到鉴权错误时自动刷新凭据 */
+  autoRefresh?: boolean;
 }
 
-/** 发起一次 fcg POST（自动注入 Cookie） */
+/** 发起一次 fcg POST */
 const postRaw = async (
   body: unknown,
   extraHeaders?: Record<string, string>,
+  useAuth = true,
 ): Promise<FcgResponse> => {
-  const cookies = getQQMusicCookies();
+  const cookies = useAuth ? getQQMusicCookies() : {};
   const cookieStr = sessionToCookieHeader(cookies);
 
   const res = await fetch(QM_API_URL, {
     method: "POST",
     headers: {
       ...QM_HEADERS,
-      ...(cookieStr ? { Cookie: cookieStr } : {}),
+      ...(cookieStr ? { Cookie: cookieStr } : { Cookie: "tmeLoginType=-1;" }),
       ...extraHeaders,
     },
     body: JSON.stringify(body),
@@ -165,35 +170,61 @@ export const qmRequest = async <T = unknown>(
   const useSession = options.session !== false;
   if (useSession) await ensureSession();
 
-  const uin = getQQMusicUin();
-  const cookies = getQQMusicCookies();
-  const musickey = cookies.qm_keyst || cookies.qqmusic_key;
-  const loginType =
-    cookies.tmeLoginType !== undefined
-      ? Number(cookies.tmeLoginType)
-      : musickey?.startsWith("W_X")
-        ? 1
-        : 2;
+  const useAuth = options.auth !== false;
+  let triedRefresh = false;
 
-  const comm = {
-    ...getCommonParams(),
-    ...(uin && uin !== "0" ? { uin, qq: uin } : {}),
-    ...(musickey ? { authst: musickey, tmeLoginType: loginType } : {}),
-    ...(useSession && session.uid ? { uid: session.uid } : {}),
-    ...(useSession && session.sid ? { sid: session.sid } : {}),
-    ...(useSession && session.userip ? { userip: session.userip } : {}),
-    ...(options.comm ?? {}),
+  const buildComm = () => {
+    const cookies = getQQMusicCookies();
+    const musickey = useAuth ? cookies.qm_keyst || cookies.qqmusic_key : undefined;
+    const uin = useAuth ? getQQMusicUin() : undefined;
+    const loginType =
+      cookies.tmeLoginType !== undefined
+        ? Number(cookies.tmeLoginType)
+        : musickey?.startsWith("W_X")
+          ? 1
+          : 2;
+
+    return {
+      ...getCommonParams(),
+      ...(uin && uin !== "0" ? { uin, qq: uin } : {}),
+      ...(musickey ? { authst: musickey, tmeLoginType: loginType } : {}),
+      ...(useSession && session.uid ? { uid: session.uid } : {}),
+      ...(useSession && session.sid ? { sid: session.sid } : {}),
+      ...(useSession && session.userip ? { userip: session.userip } : {}),
+      ...(options.comm ?? {}),
+    };
   };
 
-  const body = { comm, request: { module, method, param } };
-
-  // QM 后端偶发瞬时错误
   let lastErr: unknown;
   for (let attempt = 0; attempt <= MAX_RETRY; attempt++) {
     try {
-      const data = await postRaw(body);
+      const comm = buildComm();
+      const body = { comm, request: { module, method, param } };
+      const data = await postRaw(body, undefined, useAuth);
       const outerCode = data.code ?? 0;
       const innerCode = data.request?.code ?? 0;
+
+      // 遇到鉴权失败或系统拦截错误（1000: 未登录/token失效, 2001: 会话异常）
+      const isAuthError =
+        useAuth &&
+        getQQMusicUin() !== "0" &&
+        outerCode === 0 &&
+        (innerCode === 1000 || innerCode === 2001);
+      if (isAuthError && options.autoRefresh !== false && !triedRefresh) {
+        triedRefresh = true;
+        coreLog.warn(
+          `[qm-request] 接口遇到鉴权异常 (outer=${outerCode} inner=${innerCode})，尝试自动刷新凭据...`,
+        );
+        invalidateSession();
+
+        const refreshed = await refreshQMCredential();
+        if (refreshed) {
+          coreLog.info("[qm-request] 凭据刷新成功，重试当前请求");
+          attempt = -1;
+          continue;
+        }
+      }
+
       if (outerCode !== 0 || innerCode !== 0) {
         throw new Error(`QM API 错误: outer=${outerCode} inner=${innerCode}`);
       }
@@ -226,10 +257,9 @@ interface RefreshCredentialData {
 }
 
 /**
- * 用存储的凭据调 LoginServer.Login（loginMode=2）刷新 musickey
- * @returns 刷新成功（新 key 已写回 cookie）返回 true；失败返回 false
+ * 执行 LoginServer.Login（loginMode=2）向服务端请求刷新 musickey
  */
-export const refreshQQMusicCredential = async (): Promise<boolean> => {
+const performRefreshCredential = async (): Promise<boolean> => {
   const cookies = getQQMusicCookies();
   const uin = getQQMusicUin();
   const musickey = cookies.qm_keyst || cookies.qqmusic_key;
@@ -317,4 +347,23 @@ export const refreshQQMusicCredential = async (): Promise<boolean> => {
     coreLog.warn("[qm-refresh] musickey 刷新失败:", err);
     return false;
   }
+};
+
+let refreshPromise: Promise<boolean> | null = null;
+
+/**
+ * 刷新 QM 凭据（内置并发安全互斥锁）
+ * 多个并发请求触发时只发起一次实际的刷新请求
+ * @returns 刷新成功（新 key 已写回 cookie）返回 true；失败返回 false
+ */
+export const refreshQMCredential = async (): Promise<boolean> => {
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = (async () => {
+    try {
+      return await performRefreshCredential();
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+  return refreshPromise;
 };

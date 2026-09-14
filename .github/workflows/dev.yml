@@ -21,41 +21,39 @@ on:
       - ".github/workflows/dev.yml"
   workflow_dispatch:
 
+concurrency:
+  group: dev-build-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   NODE_VERSION: 22.x
 
 jobs:
   build:
-    name: Build on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    name: Build on ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            name: windows
-            arch: x64
-            artifact_name_suffix: windows-x64
-            package_extension: zip
-            build_cmd: pnpm build:win --x64
-          - os: macos-latest
-            name: macOS
-            arch: arm64
-            artifact_name_suffix: macos-arm64
-            package_extension: tar.gz
-            build_cmd: pnpm build:mac --arm64
-          - os: macos-latest
-            name: macOS
-            arch: x64
-            artifact_name_suffix: macos-x64
-            package_extension: tar.gz
-            build_cmd: pnpm build:mac --x64
-          - os: ubuntu-latest
-            name: linux
-            arch: x64
-            artifact_name_suffix: linux-x64
-            package_extension: tar.gz
-            build_cmd: pnpm build:linux --x64
+          - name: Windows x64
+            runner: windows-latest
+            target: windows-x64
+          - name: Windows arm64
+            runner: windows-11-arm
+            target: windows-arm64
+          - name: macOS x64
+            runner: macos-15-intel
+            target: macos-x64
+          - name: macOS arm64
+            runner: macos-latest
+            target: macos-arm64
+          - name: Linux x64
+            runner: ubuntu-latest
+            target: linux-x64
+          - name: Linux arm64
+            runner: ubuntu-24.04-arm
+            target: linux-arm64
     steps:
       - name: Check out git repository
         uses: actions/checkout@v5
@@ -67,6 +65,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -74,7 +73,14 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "native/audio-engine -> target\nnative/audio-capture -> target\nnative/media-ctrl -> target"
+          workspaces: |
+            . -> target
+            native/audio-engine -> target
+            native/audio-capture -> target
+            native/media-ctrl -> target
+            native/taskbar-lyric -> target
+            native/taskbar-thumbnail -> target
+            native/opencc -> target
 
       # Linux: 安装系统构建/打包依赖
       - name: 安装系统依赖 (Linux)
@@ -86,14 +92,8 @@ jobs:
             rpm libarchive-tools
 
       # 清理旧构建产物
-      - name: Clean workspace on Windows
-        if: runner.os == 'Windows'
-        run: |
-          if (Test-Path dist) { Remove-Item -Recurse -Force dist }
-          if (Test-Path out) { Remove-Item -Recurse -Force out }
-
-      - name: Clean workspace on macOS & Linux
-        if: runner.os != 'Windows'
+      - name: Clean workspace
+        shell: bash
         run: rm -rf dist out
 
       # CI 不需要国内镜像
@@ -105,68 +105,77 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      # 构建
-      - name: Build ${{ matrix.name }} ${{ matrix.arch }}
-        run: ${{ matrix.build_cmd }}
+      # 构建各平台产物
+      - name: Build ${{ matrix.name }}
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: |
+          case "${{ matrix.target }}" in
+            windows-x64)
+              pnpm build:win --x64 --publish never
+              ;;
+            windows-arm64)
+              pnpm build:win --arm64 --publish never
+              ;;
+            macos-x64)
+              pnpm build:mac --x64 --publish never
+              ;;
+            macos-arm64)
+              pnpm build:mac --arm64 --publish never
+              ;;
+            linux-x64)
+              pnpm build:linux --x64 --publish never
+              ;;
+            linux-arm64)
+              pnpm build:linux --arm64 --publish never
+              ;;
+            *)
+              echo "Unsupported target: ${{ matrix.target }}"
+              exit 1
+              ;;
+          esac
 
-      # 上传构建产物 (Windows)
-      - name: Upload Windows Setup
-        if: runner.os == 'Windows'
+      # 上传当前平台的安装包产物
+      - name: Upload Artifact
         uses: actions/upload-artifact@v7
         with:
-          name: SPlayer-Next-Windows-setup-${{ matrix.arch }}
-          path: dist/*-setup.exe
+          name: SPlayer-Next-${{ matrix.target }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.rpm
+            dist/*.tar.gz
+            dist/*.pacman
+          if-no-files-found: ignore
 
-      # 上传构建产物 (macOS)
-      - name: Upload macOS DMG
-        if: runner.os == 'macOS'
-        uses: actions/upload-artifact@v7
-        with:
-          name: SPlayer-Next-macOS-dmg-${{ matrix.arch }}
-          path: dist/*.dmg
-
-      - name: Upload macOS Zip
-        if: runner.os == 'macOS'
-        uses: actions/upload-artifact@v7
-        with:
-          name: SPlayer-Next-macOS-zip-${{ matrix.arch }}
-          path: dist/*.zip
-
-      # 上传构建产物 (Linux)
-      - name: Upload Linux AppImage
-        if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v7
-        with:
-          name: SPlayer-Next-Linux-appimage-${{ matrix.arch }}
-          path: dist/*.AppImage
-
-      - name: Upload Linux DEB
-        if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v7
-        with:
-          name: SPlayer-Next-Linux-deb-${{ matrix.arch }}
-          path: dist/*.deb
-
-      - name: Upload Linux RPM
-        if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v7
-        with:
-          name: SPlayer-Next-Linux-rpm-${{ matrix.arch }}
-          path: dist/*.rpm
-
-      - name: Upload Linux Tar
-        if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v7
-        with:
-          name: SPlayer-Next-Linux-tar-${{ matrix.arch }}
-          path: dist/*.tar.gz
-
-      - name: Upload Linux Pacman
-        if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v7
-        with:
-          name: SPlayer-Next-Linux-pacman-${{ matrix.arch }}
-          path: dist/*.pacman
+      # 生成当前平台的运行工作摘要 (Job Summary)
+      - name: Generate Job Summary
+        if: always()
+        shell: bash
+        run: |
+          echo "### 📦 构建产物明细 - ${{ matrix.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 文件名 | 格式 | 文件大小 |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+          found=0
+          for f in dist/*; do
+            if [ -f "$f" ]; then
+              fname=$(basename "$f")
+              ext="${fname##*.}"
+              case "$ext" in
+                exe|dmg|zip|AppImage|deb|rpm|pacman|gz)
+                  fsize=$(ls -lh "$f" | awk '{print $5}')
+                  echo "| \`$fname\` | **$ext** | $fsize |" >> $GITHUB_STEP_SUMMARY
+                  found=1
+                  ;;
+              esac
+            fi
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "| *(未生成安装包或构建中断)* | - | - |" >> $GITHUB_STEP_SUMMARY
+          fi

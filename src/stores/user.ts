@@ -465,6 +465,18 @@ export const useUserStore = defineStore(
         persistLikedSongIds();
         return true;
       } catch (err) {
+        // 下架歌曲可能被 like 接口拦截（401: 下架歌曲无法收藏），尝试通过我喜欢的音乐歌单兜底操作
+        if (likedPlaylistId.value) {
+          try {
+            if (!wasLiked) {
+              await addTracksToPlaylist(likedPlaylistId.value, [trackId]);
+            } else {
+              await removeTracksFromPlaylist(likedPlaylistId.value, [trackId]);
+            }
+            persistLikedSongIds();
+            return true;
+          } catch {}
+        }
         const rollback = new Set(likedSongIds.value);
         if (wasLiked) rollback.add(trackId);
         else rollback.delete(trackId);
