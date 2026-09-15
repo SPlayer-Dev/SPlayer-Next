@@ -145,6 +145,8 @@ const api = {
     toggleDevTools: () => ipcRenderer.invoke("system:toggleDevTools"),
     // 在文件管理器中显示文件
     showInExplorer: (filePath: string) => ipcRenderer.invoke("system:showInExplorer", filePath),
+    // 选择目录
+    pickDir: (title?: string) => ipcRenderer.invoke("system:pickDir", title),
     // 打开日志目录
     openLogsDir: () => ipcRenderer.invoke("system:openLogsDir"),
     // 同步语言到主进程

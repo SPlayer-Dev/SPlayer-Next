@@ -548,6 +548,7 @@
       "invert": "反选",
       "addToQueue": "添加到播放列表",
       "download": "批量下载",
+      "downloadCustomDir": "下载到自定义目录",
       "exit": "退出"
     },
     "delete": {
