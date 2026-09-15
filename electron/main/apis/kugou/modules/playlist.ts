@@ -7,6 +7,7 @@
  */
 
 import { decodeName, fillCover } from "../core/config";
+import { fetchAllPages, type PagedResponse } from "../core/pagination";
 import { kgRequest } from "../core/request";
 import type { KGModule, KGSong, Quality } from "../core/types";
 
@@ -132,17 +133,20 @@ const playlist: KGModule = async (params) => {
   const id = String(params.id ?? params.specialid ?? params.special_id ?? "");
   if (!id) return { code: 400, message: "id required" };
 
-  const [infoRes, songsRes] = await Promise.all([
+  const [infoRes, rawSongs] = await Promise.all([
     kgRequest<{ data?: RawSpecialInfo }>(
       `http://mobilecdn.kugou.com/api/v3/special/info?specialid=${encodeURIComponent(id)}&format=json`,
     ),
-    kgRequest<{ data?: { info?: RawSpecialSong[]; total?: number } }>(
-      `http://mobilecdn.kugou.com/api/v3/special/song?specialid=${encodeURIComponent(id)}&page=1&pagesize=300&format=json`,
+    fetchAllPages<RawSpecialSong>(async (page) =>
+      kgRequest<PagedResponse<RawSpecialSong>>(
+        `http://mobilecdn.kugou.com/api/v3/special/song?specialid=${encodeURIComponent(id)}&page=${page}&pagesize=300&format=json`,
+        // mobilecdn 波动大（单请求实测可达 15s+），默认 8s 超时对 300 首/页的大响应偏紧
+        { signal: AbortSignal.timeout(30_000) },
+      ),
     ),
   ]);
 
   const info = infoRes.data ?? {};
-  const rawSongs = songsRes.data?.info ?? [];
 
   const cover = fillCover(info.imgurl, 300);
   const coverOriginal = fillCover(info.imgurl, 480);
@@ -157,7 +161,7 @@ const playlist: KGModule = async (params) => {
     cover,
     coverOriginal,
     playCount: info.playcount ?? 0,
-    total: info.songcount ?? songsRes.data?.total ?? songs.length,
+    total: songs.length,
     songs,
   };
 };
