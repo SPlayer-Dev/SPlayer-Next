@@ -53,6 +53,7 @@ export default defineConfig({
         "@splayer/audio-engine": resolve(__dirname, "native/audio-engine"),
         "@splayer/audio-capture": resolve(__dirname, "native/audio-capture"),
         "@splayer/media-ctrl": resolve(__dirname, "native/media-ctrl"),
+        "@splayer/linux-portal": resolve(__dirname, "native/linux-portal"),
         "@splayer/taskbar-lyric": resolve(__dirname, "native/taskbar-lyric"),
         "@splayer/taskbar-thumbnail": resolve(__dirname, "native/taskbar-thumbnail"),
         "@splayer/opencc": resolve(__dirname, "native/opencc"),

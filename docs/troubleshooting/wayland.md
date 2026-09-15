@@ -32,9 +32,7 @@ pnpm dev -- --ozone-platform=x11
 
 > [!IMPORTANT]
 >
-> 使用 Xwayland 可能并不能解决全局快捷键的问题，反而可能导致全局快捷键失效。因为 Xwayland 无法监听原生 Wayland 的按键事件，也无法通过 XDG Desktop Portal 注册全局快捷键。
->
-> 部分桌面环境对此有支持。如 KDE Plasma Wayland 可以在 **系统设置 → 应用程序权限 → 旧式 X11 应用程序支持** 中，将 **监听按键** 设置为 「**和上面一样，加上按住 Ctrl、Alt、Meta 等修饰键时按下的任何按键**」
+> 使用 Xwayland 可能并不能解决全局快捷键的问题，因为 Xwayland 无法监听原生 Wayland 的按键事件，仍然需要通过 XDG Desktop Portal。
 
 ## 已知的窗口限制
 
@@ -124,18 +122,6 @@ window-rule {
 在原生 Wayland 下，Electron 的全局快捷键通过 `xdg-desktop-portal` 实现。
 
 打开应用时，若有新的未申请的全局快捷键，应该会弹出授权请求，点击确定即可。也可以在系统设置中查看 SPlayer-Next 是否有注册全局快捷键（在 KDE Plasma Wayland 中是 **系统设置 → 键盘 → 快捷键 → SPlayer-Next**）
-
-Electron 注册的快捷键名称格式为 `SPlayer-Next shortcut: <组合键>`，但这个名称**并非实际生效的组合键**。实际生效的组合键由**系统设置**中为该名称绑定的按键决定。应用内设置的全局快捷键只决定它在系统中注册的名称，不决定实际按键。
-
-例如：
-
-1. 在应用内设置“上一曲”为 `Ctrl+Shift+←`，系统会注册名为 `SPlayer-Next shortcut: Ctrl+Shift+Left` 的项。
-2. 在系统设置中，将该项绑定为 `Ctrl+Alt+Shift+←`，实际生效的全局快捷键就是 `Ctrl+Alt+Shift+←`。
-3. 若之后在应用内将“上一曲”改为 `Ctrl+Alt+Shift+←`，旧名称失效，应用会请求注册新名称 `SPlayer-Next shortcut: Ctrl+Alt+Shift+Left`，此时实际生效的按键取决于系统设置中新名称对应的绑定。
-
-> [!TIP]
->
-> 授权请求仅在开启应用时弹出。所以每次修改全局快捷键后，都需要重新启动应用以触发授权请求。
 
 > [!TIP]
 >
