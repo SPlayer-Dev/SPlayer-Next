@@ -7,6 +7,7 @@ import {
   setQQMusicCookie,
 } from "./qqmusic";
 import { fetchKugouLoginStatus, kugouQrLoginAdapter, logoutKugou, setKugouCookie } from "./kugou";
+import { bdQrLoginAdapter, fetchBdLoginStatus, logoutBd, setBdCookie } from "./bd";
 
 export type QrLoginState = "expired" | "waiting" | "scanned" | "success";
 
@@ -64,6 +65,14 @@ const adapters: Partial<Record<Platform, PlatformAccountAdapter>> = {
     logout: logoutKugou,
     setCookie: setKugouCookie,
     qrLogin: kugouQrLoginAdapter,
+  },
+  bd: {
+    displayName: "BD",
+    userIdLabel: "UID",
+    fetchProfile: fetchBdLoginStatus,
+    logout: logoutBd,
+    setCookie: setBdCookie,
+    qrLogin: bdQrLoginAdapter,
   },
 };
 

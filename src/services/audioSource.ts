@@ -8,6 +8,7 @@ import { useUserStore } from "@/stores/user";
 import { resolveNeteaseUrl } from "@/apis/song/netease";
 import { resolveQQMusicUrl } from "@/apis/song/qqmusic";
 import { resolveKugouUrl } from "@/apis/song/kugou";
+import { resolveBdUrl } from "@/apis/song/bd";
 import { ErrorCode } from "@shared/types/errors";
 import { handleError } from "@/utils/errors";
 
@@ -16,6 +17,7 @@ const PLATFORM_TO_PLUGIN_SOURCE: Record<Platform, string> = {
   netease: "wy",
   qqmusic: "tx",
   kugou: "kg",
+  bd: "bd",
 };
 
 /** 解析选项 */
@@ -35,7 +37,7 @@ export interface ResolveTrackSourceOptions {
  * @param source - 要检查的 source
  */
 const isOnlinePlatform = (source: TrackSource): source is Platform =>
-  source === "netease" || source === "qqmusic" || source === "kugou";
+  source === "netease" || source === "qqmusic" || source === "kugou" || source === "bd";
 
 /**
  * 派生缓存键
@@ -203,6 +205,23 @@ const resolveOnlineUrl = async (
       officialErrorCode = resolved.errorCode;
     } catch (err) {
       console.warn("[audio-source] official Kugou URL resolve failed:", err);
+      officialErrorCode = ErrorCode.URL_RESOLVE_FAILED;
+    }
+  }
+  if (track.source === "bd" && !options.skipOfficialOnline) {
+    try {
+      const resolved = await resolveBdUrl(track, songLevel);
+      if (resolved.available) {
+        return {
+          ok: true,
+          url: resolved.url,
+          isTrial: resolved.isTrial,
+          provider: "official",
+        };
+      }
+      officialErrorCode = resolved.errorCode;
+    } catch (err) {
+      console.warn("[audio-source] official Bd URL resolve failed:", err);
       officialErrorCode = ErrorCode.URL_RESOLVE_FAILED;
     }
   }

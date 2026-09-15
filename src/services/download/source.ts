@@ -6,6 +6,7 @@ import { resolveByPlugin } from "@/services/audioSource";
 import { resolveNeteaseDownloadUrl } from "@/apis/song/netease";
 import { resolveQQMusicUrl } from "@/apis/song/qqmusic";
 import { resolveKugouUrl } from "@/apis/song/kugou";
+import { resolveBdUrl } from "@/apis/song/bd";
 
 /** 下载源解析结果 */
 export interface DownloadSource {
@@ -55,6 +56,10 @@ export const resolveDownloadSource = async (
   if (track.source === "kugou") {
     const resolved = await resolveKugouUrl(track, level);
     if (resolved.available) return { url: resolved.url };
+  }
+  if (track.source === "bd") {
+    const resolved = await resolveBdUrl(track, level);
+    if (resolved.available && !resolved.isTrial) return { url: resolved.url };
   }
   // 其他播放源走插件
   if (isPlatform(track.source)) {
