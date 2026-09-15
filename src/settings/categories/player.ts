@@ -84,6 +84,12 @@ const playerCategory: SettingCategory = {
           defaultValue: false,
         },
         {
+          key: "preferPluginSource",
+          type: "switch",
+          binding: { store: "settings", path: "player.preferPluginSource" },
+          defaultValue: false,
+        },
+        {
           key: "preloadNextTrack",
           type: "switch",
           binding: { store: "settings", path: "player.preloadNextTrack" },
