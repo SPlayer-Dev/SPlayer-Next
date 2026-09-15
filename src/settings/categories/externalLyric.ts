@@ -384,6 +384,7 @@ const taskbarLyricSection: SettingSection = {
       type: "switch",
       binding: { store: "settings", path: "system.taskbarLyric.showTranslation" },
       defaultValue: true,
+      visible: () => useSettingsStore().system.taskbarLyric.doubleLine === true,
     },
   ],
 };
