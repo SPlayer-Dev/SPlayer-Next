@@ -1133,6 +1133,10 @@
       "label": "歌词字号",
       "description": "关闭自适应后生效"
     },
+    "translationFontSize": {
+      "label": "翻译/音译字号",
+      "description": "翻译与音译副行的字号，自适应开启时作为基准大小 (以 1080p 高度为准)"
+    },
     "fontWeight": {
       "label": "歌词字重",
       "description": "歌词文字粗细"

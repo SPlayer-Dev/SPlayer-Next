@@ -174,6 +174,7 @@ export const useSettingsStore = defineStore(
       cjkTransform: "none",
       adaptiveFontSize: true,
       fontSize: 48,
+      translationFontSize: 22,
       fontWeight: 700,
       lyricBlendMode: "normal",
       fontFamily: "",

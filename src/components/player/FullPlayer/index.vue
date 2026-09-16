@@ -123,6 +123,12 @@ const lyricFontSize = computed(() =>
     : `${settings.lyric.fontSize}px`,
 );
 
+const lyricSubFontSize = computed(() =>
+  settings.lyric.adaptiveFontSize
+    ? `calc(${settings.lyric.translationFontSize} / 1080 * 100vh)`
+    : `${settings.lyric.translationFontSize}px`,
+);
+
 const { immersive, onPlayerMouseEnter, onPlayerMouseLeave, onMainMove, onBarEnter, onBarLeave } =
   useImmersiveMode(isPlayerExpanded);
 
@@ -295,6 +301,10 @@ const showComments = (): void => {
               :style="{
                 '--lp-credit-opacity': '1',
                 fontSize: lyricFontSize,
+                '--lp-sub-font-size': lyricSubFontSize,
+                // 副行透明度恒定，激活/非激活的明暗由行级透明度负责（与旧版 SPlayer 一致）
+                '--lp-sub-active-opacity': '0.6',
+                '--lp-sub-inactive-opacity': '0.6',
                 fontWeight: String(settings.lyric.fontWeight),
                 fontFamily: settings.lyric.fontFamily || undefined,
                 '--lyric-font-zh': settings.lyric.fontFamilyChinese || undefined,
