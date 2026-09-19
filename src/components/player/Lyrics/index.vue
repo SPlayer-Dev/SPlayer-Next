@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { LyricLine } from "@shared/types/lyrics";
+import { useStatusStore } from "@/stores/status";
 import { useSettingsStore } from "@/stores/settings";
 import AMLLLyrics from "./AMLLLyrics.vue";
 import DefaultLyrics from "./DefaultLyrics.vue";
@@ -25,6 +26,12 @@ const emit = defineEmits<{
 }>();
 
 const settings = useSettingsStore();
+const status = useStatusStore();
+
+/** 将歌词时间还原为音频时间，与显示时加上偏移的方向相反。 */
+const handleSeek = (timeMs: number): void => {
+  emit("seek", Math.max(0, timeMs - status.lyricOffsetMs));
+};
 
 type LyricEngineInstance = {
   setCurrentTime: (time: number, isSeeking?: boolean) => void;
@@ -75,7 +82,7 @@ defineExpose({
     :show-romanization="settings.lyric.showRomanization"
     :show-word-romanization="settings.lyric.showWordRomanization"
     :bg-always-below="settings.lyric.bgAlwaysBelow"
-    @seek="emit('seek', $event)"
+    @seek="handleSeek"
   >
     <template #bottom>
       <slot name="bottom">
@@ -104,7 +111,7 @@ defineExpose({
     :show-ruby="settings.lyric.showRuby"
     :show-romanization="settings.lyric.showRomanization"
     :show-word-romanization="settings.lyric.showWordRomanization"
-    @seek="emit('seek', $event)"
+    @seek="handleSeek"
   >
     <template #bottom>
       <slot name="bottom">
