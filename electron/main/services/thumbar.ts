@@ -1,8 +1,8 @@
 import { BrowserWindow, nativeTheme, ThumbarButton } from "electron";
-import { sendToMain } from "@main/utils/broadcast";
 import { loadThemedIcon } from "@main/utils/icon";
 import { t } from "@main/utils/i18n";
 import { thumbarLog } from "@main/utils/logger";
+import { dispatchTaskbarPlayerEvent } from "@main/services/taskbarUserTasks";
 
 export interface Thumbar {
   clearThumbar(): void;
@@ -39,27 +39,27 @@ class ThumbarImpl implements Thumbar {
     this.like = {
       tooltip: t("addToLiked"),
       icon: thumbarIcon("unlike"),
-      click: () => sendToMain("player:event", { type: "toggleLike" }),
+      click: () => dispatchTaskbarPlayerEvent("toggleLike"),
     };
     this.prev = {
       tooltip: t("prev"),
       icon: thumbarIcon("prev"),
-      click: () => sendToMain("player:event", { type: "prev" }),
+      click: () => dispatchTaskbarPlayerEvent("prev"),
     };
     this.next = {
       tooltip: t("next"),
       icon: thumbarIcon("next"),
-      click: () => sendToMain("player:event", { type: "next" }),
+      click: () => dispatchTaskbarPlayerEvent("next"),
     };
     this.play = {
       tooltip: t("play"),
       icon: thumbarIcon("play"),
-      click: () => sendToMain("player:event", { type: "play" }),
+      click: () => dispatchTaskbarPlayerEvent("play"),
     };
     this.pause = {
       tooltip: t("pause"),
       icon: thumbarIcon("pause"),
-      click: () => sendToMain("player:event", { type: "pause" }),
+      click: () => dispatchTaskbarPlayerEvent("pause"),
     };
     // 初始化工具栏
     this.updateThumbar(false);

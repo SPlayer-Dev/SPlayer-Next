@@ -2,10 +2,12 @@ import { app } from "electron";
 import { sendToMain } from "@main/utils/broadcast";
 import { t } from "@main/utils/i18n";
 import { isWin } from "@main/utils/config";
-import { coreLog } from "@main/utils/logger";
+import { coreLog, thumbarLog } from "@main/utils/logger";
 import { TASKBAR_ACTION_ARG_PREFIX, type TaskbarAction } from "@shared/utils/taskbarAction";
 
-let pendingAction: TaskbarAction | null = null;
+export type TaskbarPlayerEvent = TaskbarAction | "toggleLike";
+
+let pendingEvents: TaskbarPlayerEvent[] = [];
 let rendererReady = false;
 let isPlaying = false;
 
@@ -16,8 +18,13 @@ let isPlaying = false;
  */
 const taskArguments = (action: TaskbarAction): string => {
   const actionArg = `${TASKBAR_ACTION_ARG_PREFIX}${action}`;
+  // 便携版的内部 exe 被 Jump List 拉起时不会带上启动器设置的
+  // PORTABLE_EXECUTABLE_DIR。复用当前 userData 才能命中同一实例锁。
+  const userDataArg = `--user-data-dir="${app.getPath("userData")}"`;
   // 开发版的 process.execPath 是 electron.exe，需把应用入口一并传回。
-  return process.defaultApp ? `"${process.argv[1]}" ${actionArg}` : actionArg;
+  return process.defaultApp
+    ? `"${process.argv[1]}" ${userDataArg} ${actionArg}`
+    : `${userDataArg} ${actionArg}`;
 };
 
 /** 创建带当前应用图标的 Windows 用户任务 */
@@ -55,24 +62,35 @@ export const updateTaskbarUserTasks = (playing: boolean): void => {
 };
 
 /**
+ * 将任务栏播放事件转发给渲染层；渲染层订阅尚未建立时先暂存。
+ * 缩略图工具栏与 Jump List 共用这里，避免启动阶段事件静默丢失。
+ */
+export const dispatchTaskbarPlayerEvent = (event: TaskbarPlayerEvent): void => {
+  if (!rendererReady) {
+    pendingEvents.push(event);
+    thumbarLog.info(`任务栏事件已暂存，等待渲染层就绪: ${event}`);
+    return;
+  }
+  thumbarLog.info(`转发任务栏事件到渲染层: ${event}`);
+  sendToMain("player:event", { type: event });
+};
+
+/**
  * 捕获外部唤起的播放动作，渲染端就绪后再分发
  * @param action - 任务栏传入的播放动作
  */
 export const captureTaskbarAction = (action: TaskbarAction): void => {
-  if (rendererReady) {
-    sendToMain("player:event", { type: action });
-    return;
-  }
-  pendingAction = action;
+  dispatchTaskbarPlayerEvent(action);
 };
 
 /**
- * 取走冷启动暂存的播放动作，并标记渲染端已就绪
- * @returns 冷启动时捕获的动作
+ * 取走启动阶段暂存的任务栏事件，并标记渲染端已就绪
+ * @returns 冷启动时捕获的事件
  */
-export const consumePendingTaskbarAction = (): TaskbarAction | null => {
+export const consumePendingTaskbarAction = (): TaskbarPlayerEvent[] => {
   rendererReady = true;
-  const action = pendingAction;
-  pendingAction = null;
-  return action;
+  const events = pendingEvents;
+  pendingEvents = [];
+  if (events.length > 0) thumbarLog.info(`渲染层已就绪，消费启动任务栏事件: ${events.join(", ")}`);
+  return events;
 };
