@@ -81,7 +81,10 @@ export default defineConfig({
       __COMMIT_DATE__: JSON.stringify(getGitDate()),
     },
     server: {
-      port: 14558,
+      // 与外部 API 的 14558 端口分开，并固定回环地址，避免 DNS 地址族改变页面来源。
+      host: "127.0.0.1",
+      port: 5173,
+      strictPort: true,
       watch: {
         ignored: ["**/native/**/target/**"],
       },

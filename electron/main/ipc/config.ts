@@ -3,6 +3,7 @@ import { dialog, ipcMain } from "electron";
 import { store } from "@main/store";
 import type { ConfigPath } from "@main/store/types";
 import { systemLog } from "@main/utils/logger";
+import { applyNetworkPreferences } from "@main/services/network";
 import {
   enable as enableMedia,
   disable as disableMedia,
@@ -41,8 +42,19 @@ import type { UpdateChannel } from "@shared/types/settings";
  * @param value - 新值
  * @param previous - 写入前的旧值
  */
-const applyConfigChange = (keyPath: string, value: unknown, previous: unknown): void => {
+const applyConfigChange = async (
+  keyPath: string,
+  value: unknown,
+  previous: unknown,
+): Promise<void> => {
   switch (keyPath) {
+    case "system.preferIPv4":
+    case "system.networkProxy":
+    case "system.networkProxy.protocol":
+    case "system.networkProxy.host":
+    case "system.networkProxy.port":
+      await applyNetworkPreferences();
+      break;
     case "update.channel":
       applyChannelChange(previous as UpdateChannel, value as UpdateChannel);
       break;
@@ -134,7 +146,7 @@ const applyConfigChange = (keyPath: string, value: unknown, previous: unknown): 
 /** 注册配置相关 IPC */
 export const registerConfigIpc = (): void => {
   ipcMain.handle("config:get", (_event, keyPath: string) => store.get(keyPath as ConfigPath));
-  ipcMain.handle("config:set", (_event, keyPath: string, value: unknown) => {
+  ipcMain.handle("config:set", async (_event, keyPath: string, value: unknown) => {
     if (
       keyPath === "update.channel" &&
       value !== "stable" &&
@@ -145,14 +157,18 @@ export const registerConfigIpc = (): void => {
     }
     const previous = store.get(keyPath as ConfigPath);
     store.set(keyPath, value);
-    applyConfigChange(keyPath, value, previous);
+    await applyConfigChange(keyPath, value, previous);
   });
   ipcMain.handle("config:getAll", () => store.store);
-  ipcMain.handle("config:reset", () => store.clear());
+  ipcMain.handle("config:reset", async () => {
+    store.clear();
+    await applyNetworkPreferences();
+  });
 
   /** 替换整盘配置 */
-  ipcMain.handle("config:replaceAll", (_event, payload: unknown) => {
+  ipcMain.handle("config:replaceAll", async (_event, payload: unknown) => {
     store.replaceAll(payload);
+    await applyNetworkPreferences();
   });
 
   /** 备份 */

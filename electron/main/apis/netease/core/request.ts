@@ -6,6 +6,7 @@
  */
 
 import { randomBytes } from "node:crypto";
+import { inspect } from "node:util";
 import {
   API_DOMAIN,
   DOMAIN,
@@ -23,6 +24,7 @@ import { getAnonymousToken, getDeviceId } from "./device";
 import { ensureXeapiKey, getXeapiSession, updateXeapiSession } from "./xeapi";
 import { getAntiCheatTokenV3 } from "./checktoken";
 import { fetchWithProxy } from "@main/utils/proxy";
+import { neteaseLog } from "@main/utils/logger";
 
 /** 调用方传入的可选参数 */
 export interface RequestOptions {
@@ -53,11 +55,15 @@ export interface RequestResponse {
 /** 非 200 响应抛出的错误 */
 export class NeteaseRequestError extends Error {
   readonly response: RequestResponse;
-  constructor(response: RequestResponse) {
+  constructor(response: RequestResponse, options?: ErrorOptions & { httpStatus?: number }) {
     const body = response.body as { code?: number | string; msg?: string; message?: string };
     const code = body?.code ?? response.status;
     const msg = body?.msg ?? body?.message ?? "";
-    super(msg ? `netease ${code}: ${msg}` : `netease ${code}`);
+    const prefix =
+      options?.httpStatus !== undefined && options.httpStatus !== 200
+        ? `netease HTTP ${options.httpStatus} (code ${code})`
+        : `netease ${code}`;
+    super(msg ? `${prefix}: ${msg}` : prefix, options);
     this.name = "NeteaseRequestError";
     this.response = response;
   }
@@ -301,12 +307,17 @@ export const createRequest = async (
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      res = await fetchWithProxy(url, {
-        method: "POST",
-        headers,
-        body,
-        signal: AbortSignal.timeout(8000),
-      });
+      // IPv6 在 TCP 建连后仍可能被重置，后续重试使用 IPv4，手动代理仍优先。
+      res = await fetchWithProxy(
+        url,
+        {
+          method: "POST",
+          headers,
+          body,
+          signal: AbortSignal.timeout(8000),
+        },
+        attempt > 1,
+      );
       break;
     } catch (err) {
       lastErr = err;
@@ -321,8 +332,14 @@ export const createRequest = async (
     const cause = (lastErr as { cause?: { code?: string; message?: string } })?.cause;
     const errorMsg = lastErr instanceof Error ? lastErr.message : String(lastErr);
     const detailMsg = cause?.code ? `${errorMsg} (${cause.code})` : errorMsg;
-    answer.body = { code: 502, msg: detailMsg };
-    throw new NeteaseRequestError(answer);
+    answer.body = { code: 502, msg: `网络请求失败（未收到 HTTP 响应）: ${detailMsg}` };
+    const target = new URL(url);
+    // electron-log 默认只序列化 Error.stack，需显式展开 cause 和 AggregateError.errors。
+    neteaseLog.warn(
+      `[request] POST ${target.origin}${target.pathname} failed after ${maxAttempts} attempts:`,
+      inspect(lastErr, { depth: 5 }),
+    );
+    throw new NeteaseRequestError(answer, { cause: lastErr });
   }
 
   // 收集 set-cookie 并提取服务端下发的 NMTID
@@ -359,28 +376,36 @@ export const createRequest = async (
           : encrypt.eapiResDecrypt(buf.toString("hex").toUpperCase(), headers["x-aeapi"] === "true")
       ) as NeteaseBody;
     } else {
-      const text = await res.text();
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        parsed = { code: res.status, raw: text };
-      }
+      parsed = JSON.parse(await res.text());
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("invalid netease response body");
     }
     answer.body = parsed;
     if (parsed?.code !== undefined) parsed.code = Number(parsed.code);
-    answer.status = Number(parsed?.code || res.status);
-    if (typeof parsed?.code === "number" && SPECIAL_STATUS_CODES.has(parsed.code)) {
+    answer.status = res.ok ? Number(parsed?.code || res.status) : res.status;
+    // 业务码兼容仅适用于成功的 HTTP 响应，不能把网关错误当成成功。
+    if (res.ok && typeof parsed?.code === "number" && SPECIAL_STATUS_CODES.has(parsed.code)) {
       answer.status = 200;
     }
-  } catch {
-    answer.body = { code: res.status, msg: "parse failed" };
-    answer.status = res.status;
+  } catch (err) {
+    answer.status = res.ok ? 502 : res.status;
+    answer.body = {
+      code: answer.status,
+      msg: `响应读取或解析失败（HTTP ${res.status}）`,
+    };
+    const target = new URL(url);
+    neteaseLog.warn(
+      `[request] POST ${target.origin}${target.pathname} response failed (HTTP ${res.status}):`,
+      inspect(err, { depth: 5 }),
+    );
+    throw new NeteaseRequestError(answer, { cause: err, httpStatus: res.status });
   }
 
   answer.status = answer.status > 100 && answer.status < 600 ? answer.status : 400;
 
   if (answer.status === 200) return answer;
-  throw new NeteaseRequestError(answer);
+  throw new NeteaseRequestError(answer, { httpStatus: res.status });
 };
 
 /** 宽松的 boolean 解析 */

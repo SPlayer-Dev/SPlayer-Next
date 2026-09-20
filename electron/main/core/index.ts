@@ -27,6 +27,8 @@ import { startServer, stopServer } from "@main/server";
 import { startMcpServer, stopMcpServer } from "@main/services/mcp/http";
 import { initUpdater, disposeUpdater } from "@main/services/updater";
 import { coreLog, initLogger } from "@main/utils/logger";
+import { applyIPv4Preference } from "@main/utils/proxy";
+import { initializeNetwork, closeNetwork } from "@main/services/network";
 import {
   initOrpheusRegistration,
   extractOrpheusUrl,
@@ -82,6 +84,7 @@ export const initApp = (): void => {
     app.quit();
     return;
   }
+  applyIPv4Preference();
   app.on("second-instance", (_event, commandLine) => {
     focusMainWindow();
     const url = extractOrpheusUrl(commandLine);
@@ -102,7 +105,8 @@ export const initApp = (): void => {
   // 注册缓存协议方案
   registerCacheScheme();
   // 其他初始化
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
+    await initializeNetwork();
     electronApp.setAppUserModelId("top.imsyy.splayer-next");
     // 注册 cache:// 协议处理
     handleCacheProtocol();
@@ -171,5 +175,6 @@ export const initApp = (): void => {
     void pluginRegistry.shutdown();
     disposePlaybackBridge();
     disposeUpdater();
+    closeNetwork();
   });
 };

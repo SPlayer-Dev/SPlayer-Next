@@ -1725,7 +1725,7 @@
     },
     "networkProxyProtocol": {
       "label": "网络代理",
-      "description": "为在线请求配置手动代理",
+      "description": "为所有对外连接配置代理；关闭时直接连接，不使用系统代理",
       "off": "关闭代理",
       "http": "HTTP 代理",
       "https": "HTTPS 代理",
@@ -1745,6 +1745,10 @@
       "description": "测试代理配置是否可以正常连通",
       "success": "该代理可正常使用",
       "failed": "代理测试失败，请检查配置"
+    },
+    "preferIPv4": {
+      "label": "连接优先采用 IPv4",
+      "description": "所有对外连接优先采用 IPv4，包括音频、图片、在线接口和网页登录，同时保留 IPv6 支持"
     },
     "neteaseRealIp": {
       "label": "使用真实IP地址",

@@ -1737,7 +1737,7 @@
     },
     "networkProxyProtocol": {
       "label": "Network Proxy",
-      "description": "Configure a manual proxy for online requests",
+      "description": "Configure a proxy for all outgoing connections. Proxy off connects directly without using the system proxy",
       "off": "Proxy off",
       "http": "HTTP proxy",
       "https": "HTTPS proxy",
@@ -1757,6 +1757,10 @@
       "description": "Test whether the proxy configuration can connect successfully",
       "success": "Proxy is available",
       "failed": "Proxy test failed. Check the configuration"
+    },
+    "preferIPv4": {
+      "label": "Prefer IPv4 Connections",
+      "description": "Prefer IPv4 for all outgoing connections, including audio, images, APIs and web sign-in, while keeping IPv6 available"
     },
     "neteaseRealIp": {
       "label": "Use Real IP",
