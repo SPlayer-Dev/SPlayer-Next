@@ -151,18 +151,25 @@ export const resolveByPlugin = async (
 };
 
 /**
- * 解析在线音频源 URL
- * @param track - 要解析的 track
- * @param songLevel - 在线歌曲音质档位（仅内置官方接口生效）
+ * 官方在线平台接口解析结果
  */
-const resolveOnlineUrl = async (
+interface OfficialResolveOutcome {
+  resolved: OnlineResolveResult | null;
+  trialUrl: string | null;
+  officialErrorCode: ErrorCode | null;
+}
+
+/**
+ * 解析官方内置在线接口
+ */
+const resolveOfficialOnlineUrl = async (
   track: Track,
   songLevel: QualityLevel,
-  options: ResolveTrackSourceOptions = {},
-): Promise<OnlineResolveResult> => {
-  const settings = useSettingsStore();
+  options: ResolveTrackSourceOptions,
+): Promise<OfficialResolveOutcome> => {
   let trialUrl: string | null = null;
   let officialErrorCode: ErrorCode | null = null;
+
   if (track.source === "netease" && !options.skipOfficialOnline) {
     const user = useUserStore();
     try {
@@ -173,7 +180,11 @@ const resolveOnlineUrl = async (
       if (!resolved.available) {
         officialErrorCode = resolved.errorCode;
       } else if (!resolved.isTrial) {
-        return { ok: true, url: resolved.url, isTrial: false, provider: "official" };
+        return {
+          resolved: { ok: true, url: resolved.url, isTrial: false, provider: "official" },
+          trialUrl: null,
+          officialErrorCode: null,
+        };
       } else {
         trialUrl = resolved.url;
       }
@@ -182,11 +193,16 @@ const resolveOnlineUrl = async (
       officialErrorCode = ErrorCode.URL_RESOLVE_FAILED;
     }
   }
+
   if (track.source === "qqmusic" && !options.skipOfficialOnline) {
     try {
       const resolved = await resolveQQMusicUrl(track, songLevel);
       if (resolved.available) {
-        return { ok: true, url: resolved.url, isTrial: false, provider: "official" };
+        return {
+          resolved: { ok: true, url: resolved.url, isTrial: false, provider: "official" },
+          trialUrl: null,
+          officialErrorCode: null,
+        };
       }
       officialErrorCode = resolved.errorCode;
     } catch (err) {
@@ -194,11 +210,16 @@ const resolveOnlineUrl = async (
       officialErrorCode = ErrorCode.URL_RESOLVE_FAILED;
     }
   }
+
   if (track.source === "kugou" && !options.skipOfficialOnline) {
     try {
       const resolved = await resolveKugouUrl(track, songLevel);
       if (resolved.available) {
-        return { ok: true, url: resolved.url, isTrial: false, provider: "official" };
+        return {
+          resolved: { ok: true, url: resolved.url, isTrial: false, provider: "official" },
+          trialUrl: null,
+          officialErrorCode: null,
+        };
       }
       officialErrorCode = resolved.errorCode;
     } catch (err) {
@@ -206,14 +227,57 @@ const resolveOnlineUrl = async (
       officialErrorCode = ErrorCode.URL_RESOLVE_FAILED;
     }
   }
-  const pluginResolved = await resolveByPlugin(track, songLevel, options.skipPluginIds ?? []);
-  if (pluginResolved.ok) return pluginResolved;
+
+  return { resolved: null, trialUrl, officialErrorCode };
+};
+
+/**
+ * 解析在线音频源 URL
+ * @param track - 要解析的 track
+ * @param songLevel - 在线歌曲音质档位
+ */
+const resolveOnlineUrl = async (
+  track: Track,
+  songLevel: QualityLevel,
+  options: ResolveTrackSourceOptions = {},
+): Promise<OnlineResolveResult> => {
+  const settings = useSettingsStore();
+  const preferPlugin = settings.player.preferPluginSource;
+
+  // 若开启插件音源优先，先尝试音源插件
+  if (preferPlugin) {
+    const pluginResolved = await resolveByPlugin(track, songLevel, options.skipPluginIds ?? []);
+    if (pluginResolved.ok && !pluginResolved.isTrial) {
+      return pluginResolved;
+    }
+  }
+
+  // 尝试官方内置在线接口
+  const {
+    resolved: officialResolved,
+    trialUrl,
+    officialErrorCode,
+  } = await resolveOfficialOnlineUrl(track, songLevel, options);
+  if (officialResolved) {
+    return officialResolved;
+  }
+
+  // 若未开启插件优先（插件作为兜底），在官方失败后尝试插件
+  let pluginResolved: OnlineResolveResult | null = null;
+  if (!preferPlugin) {
+    pluginResolved = await resolveByPlugin(track, songLevel, options.skipPluginIds ?? []);
+    if (pluginResolved.ok) return pluginResolved;
+  }
+
+  // 试听及错误回退处理
   if (trialUrl && settings.player.allowTrialPlay) {
     return { ok: true, url: trialUrl, isTrial: true, provider: "trial" };
   }
   if (trialUrl) return { ok: false, errorCode: ErrorCode.NETEASE_TRIAL_DISABLED };
   if (officialErrorCode) return { ok: false, errorCode: officialErrorCode };
-  return pluginResolved;
+  if (pluginResolved) return pluginResolved;
+
+  return { ok: false, errorCode: ErrorCode.URL_RESOLVE_FAILED };
 };
 
 /**

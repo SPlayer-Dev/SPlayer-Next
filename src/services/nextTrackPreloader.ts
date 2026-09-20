@@ -44,6 +44,7 @@ const buildContextKey = (track: Track): string => {
     track.cueAudioPath ?? "",
     settings.player.songLevel,
     settings.player.allowTrialPlay,
+    settings.player.preferPluginSource,
     settings.preset.fuckDjMode,
     streaming.activeServerId ?? "",
     plugins.list
@@ -216,6 +217,7 @@ export const installNextTrackPreloadWatchers = (): void => {
       settings.player.preloadNextTrack,
       settings.player.songLevel,
       settings.player.allowTrialPlay,
+      settings.player.preferPluginSource,
       settings.preset.fuckDjMode,
       status.playIndex,
       status.fmMode,
