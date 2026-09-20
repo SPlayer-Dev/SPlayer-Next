@@ -73,6 +73,9 @@ const bootstrapPlayback = async (): Promise<void> => {
   } else {
     await restoreLastTrack();
   }
+
+  const pendingTaskbarAction = await window.api.system.consumePendingTaskbarAction();
+  if (pendingTaskbarAction) window.api.player.dispatch(pendingTaskbarAction);
 };
 
 // 初始化程序

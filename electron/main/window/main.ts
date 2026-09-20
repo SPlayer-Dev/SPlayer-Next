@@ -60,7 +60,11 @@ export const createMainWindow = (): BrowserWindow => {
 
   // 窗口内容就绪
   mainWindow.once("ready-to-show", () => {
-    mainWindow?.show();
+    const win = mainWindow;
+    if (!win) return;
+    // 先注册 show/restore 监听，再显示窗口，避免丢失首个 Thumbar 注册时机。
+    initThumbar(win);
+    win.show();
   });
 
   // 初始化托盘
@@ -68,11 +72,6 @@ export const createMainWindow = (): BrowserWindow => {
 
   // 自定义任务栏缩略图
   enableTaskbarThumbnail(mainWindow);
-
-  // 缩略图工具栏
-  mainWindow.once("show", () => {
-    initThumbar(mainWindow!);
-  });
 
   // 每次加载完成应用界面缩放
   mainWindow.webContents.on("did-finish-load", () => {

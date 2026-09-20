@@ -13,6 +13,10 @@ import { fetchBytes } from "@main/utils/fetchBytes";
 import { logsDir } from "@main/utils/paths";
 import { consumePendingOrpheusUrl } from "@main/services/orpheus";
 import { consumePendingAudioFiles } from "@main/services/externalFile";
+import {
+  consumePendingTaskbarAction,
+  refreshTaskbarUserTasks,
+} from "@main/services/taskbarUserTasks";
 import { testNetworkProxy } from "@main/utils/proxy";
 import { store } from "@main/store";
 
@@ -27,6 +31,9 @@ export const registerSystemIpc = (): void => {
 
   // 渲染层拉取冷启动暂存的外部音频文件列表
   ipcMain.handle("system:consumePendingAudioFiles", () => consumePendingAudioFiles());
+
+  // 渲染层在播放器与队列恢复后取走冷启动的任务栏播放动作
+  ipcMain.handle("system:consumePendingTaskbarAction", () => consumePendingTaskbarAction());
 
   // 切换开发者工具
   ipcMain.handle("system:toggleDevTools", () => {
@@ -49,6 +56,7 @@ export const registerSystemIpc = (): void => {
   ipcMain.on("system:setLocale", (_event, locale: LocaleCode) => {
     if (setLocale(locale)) {
       refreshTray();
+      refreshTaskbarUserTasks();
       getThumbar()?.refreshLocale();
     }
   });

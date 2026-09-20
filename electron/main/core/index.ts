@@ -33,6 +33,8 @@ import {
   captureOrpheusUrl,
 } from "@main/services/orpheus";
 import { extractAudioFiles, captureAudioFiles } from "@main/services/externalFile";
+import { captureTaskbarAction, initTaskbarUserTasks } from "@main/services/taskbarUserTasks";
+import { extractTaskbarAction } from "@shared/utils/taskbarAction";
 
 /**
  * 配置 Chromium 启动参数以优化内存占用
@@ -85,6 +87,8 @@ export const initApp = (): void => {
   app.on("second-instance", (_event, commandLine) => {
     focusMainWindow();
     const url = extractOrpheusUrl(commandLine);
+    const taskbarAction = extractTaskbarAction(commandLine);
+    if (taskbarAction) captureTaskbarAction(taskbarAction);
     if (url) captureOrpheusUrl(url);
     const files = extractAudioFiles(commandLine);
     if (files.length > 0) captureAudioFiles(files);
@@ -115,10 +119,14 @@ export const initApp = (): void => {
     initDatabase();
     // 创建主窗口
     createMainWindow();
+    // 注册 Windows 任务栏图标右键播放控制
+    initTaskbarUserTasks();
     // 注册 orpheus 协议并处理冷启动唤起
     initOrpheusRegistration();
     const coldOrpheusUrl = extractOrpheusUrl(process.argv);
     if (coldOrpheusUrl) captureOrpheusUrl(coldOrpheusUrl);
+    const coldTaskbarAction = extractTaskbarAction(process.argv);
+    if (coldTaskbarAction) captureTaskbarAction(coldTaskbarAction);
     const coldAudioFiles = extractAudioFiles(process.argv);
     if (coldAudioFiles.length > 0) captureAudioFiles(coldAudioFiles);
     // 启动歌曲缓存

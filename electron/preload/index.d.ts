@@ -68,6 +68,7 @@ declare global {
         consumePendingProtocolUrl: () => Promise<string | null>;
         onOpenFiles: (callback: (files: string[]) => void) => () => void;
         consumePendingAudioFiles: () => Promise<string[]>;
+        consumePendingTaskbarAction: () => Promise<"prev" | "play" | "pause" | "next" | null>;
         getPathForFile: (file: File) => string;
       };
       library: LibraryApi;
