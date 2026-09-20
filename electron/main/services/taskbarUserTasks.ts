@@ -1,4 +1,5 @@
-import { app } from "electron";
+import { app, nativeTheme } from "electron";
+import { join } from "node:path";
 import { sendToMain } from "@main/utils/broadcast";
 import { t } from "@main/utils/i18n";
 import { isWin } from "@main/utils/config";
@@ -15,6 +16,22 @@ let pendingActions: TaskbarAction[] = [];
 let rendererReady = false;
 /** 当前是否正在播放，决定中间任务项显示播放还是暂停 */
 let isPlaying = false;
+/** 是否已挂载主题变化监听 */
+let themeListenerBound = false;
+
+/** Jump List 图标目录（public 走 asarUnpack，是真实文件路径，Shell API 可读） */
+const TASK_ICON_DIR = join(__dirname, "../../public/icons/taskbar-tasks");
+
+/**
+ * 按当前系统主题取任务项图标的绝对路径
+ *
+ * 深色菜单用白色图标（-dark），浅色菜单用黑色图标（-light），与 hover 工具栏一致。
+ * @param name - 动作名（prev / play / pause / next）
+ */
+const taskIcon = (name: string): string => {
+  const suffix = nativeTheme.shouldUseDarkColors ? "dark" : "light";
+  return join(TASK_ICON_DIR, `${name}-${suffix}.ico`);
+};
 
 /**
  * 生成 Jump List 任务项的启动参数
@@ -41,18 +58,20 @@ const taskArguments = (action: TaskbarAction): string => {
  */
 const taskProgram = (): string => process.execPath;
 
-/** 创建带应用图标的 Windows 用户任务 */
-const userTask = (action: TaskbarAction, title: string): Electron.Task => {
-  const program = taskProgram();
-  return {
-    program,
-    arguments: taskArguments(action),
-    title,
-    description: title,
-    iconPath: program,
-    iconIndex: 0,
-  };
-};
+/**
+ * 创建 Windows 用户任务
+ * @param action - 触发的播放动作
+ * @param iconName - 图标名（可与 action 不同，如播放暂停切换）
+ * @param title - 显示文案
+ */
+const userTask = (action: TaskbarAction, iconName: string, title: string): Electron.Task => ({
+  program: taskProgram(),
+  arguments: taskArguments(action),
+  title,
+  description: title,
+  iconPath: taskIcon(iconName),
+  iconIndex: 0,
+});
 
 /**
  * 刷新 Windows 任务栏图标右键的用户任务
@@ -61,16 +80,25 @@ const userTask = (action: TaskbarAction, title: string): Electron.Task => {
  */
 export const refreshTaskbarUserTasks = (): void => {
   if (!isWin) return;
+  const middle: TaskbarAction = isPlaying ? "pause" : "play";
   const tasks: Electron.Task[] = [
-    userTask("prev", t("prev")),
-    userTask(isPlaying ? "pause" : "play", t(isPlaying ? "pause" : "play")),
-    userTask("next", t("next")),
+    userTask("prev", "prev", t("prev")),
+    userTask(middle, middle, t(middle)),
+    userTask("next", "next", t("next")),
   ];
   if (!app.setUserTasks(tasks)) coreLog.warn("注册 Windows 任务栏用户任务失败");
 };
 
 /** 初始化 Windows 任务栏图标右键任务 */
-export const initTaskbarUserTasks = (): void => refreshTaskbarUserTasks();
+export const initTaskbarUserTasks = (): void => {
+  if (!isWin) return;
+  // 系统主题切换时刷新图标（深色菜单白图标 / 浅色菜单黑图标）
+  if (!themeListenerBound) {
+    nativeTheme.on("updated", refreshTaskbarUserTasks);
+    themeListenerBound = true;
+  }
+  refreshTaskbarUserTasks();
+};
 
 /**
  * 按播放状态刷新中间任务项
@@ -81,6 +109,7 @@ export const updateTaskbarUserTasks = (playing: boolean): void => {
   isPlaying = playing;
   refreshTaskbarUserTasks();
 };
+
 
 /**
  * 捕获任务栏唤起的播放动作
