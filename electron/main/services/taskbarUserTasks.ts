@@ -1,4 +1,6 @@
 import { app } from "electron";
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
 import { sendToMain } from "@main/utils/broadcast";
 import { t } from "@main/utils/i18n";
 import { isWin } from "@main/utils/config";
@@ -18,24 +20,36 @@ let isPlaying = false;
  */
 const taskArguments = (action: TaskbarAction): string => {
   const actionArg = `${TASKBAR_ACTION_ARG_PREFIX}${action}`;
-  // 便携版的内部 exe 被 Jump List 拉起时不会带上启动器设置的
-  // PORTABLE_EXECUTABLE_DIR。复用当前 userData 才能命中同一实例锁。
-  const userDataArg = `--user-data-dir="${app.getPath("userData")}"`;
   // 开发版的 process.execPath 是 electron.exe，需把应用入口一并传回。
-  return process.defaultApp
-    ? `"${process.argv[1]}" ${userDataArg} ${actionArg}`
-    : `${userDataArg} ${actionArg}`;
+  return process.defaultApp ? `"${process.argv[1]}" ${actionArg}` : actionArg;
+};
+
+/** 获取 Jump List 应启动的程序。便携版必须经外层启动器保留数据目录与单实例锁。 */
+const taskProgram = (): string => {
+  const portableDir = process.env.PORTABLE_EXECUTABLE_DIR;
+  if (!portableDir) return process.execPath;
+  try {
+    const launcher = readdirSync(portableDir).find((name) => name.endsWith("-portable.exe"));
+    if (launcher) return join(portableDir, launcher);
+  } catch (error) {
+    coreLog.warn("读取便携版启动器目录失败", error);
+  }
+  coreLog.warn("未找到便携版启动器，Jump List 将回退到内部可执行文件");
+  return process.execPath;
 };
 
 /** 创建带当前应用图标的 Windows 用户任务 */
-const userTask = (action: TaskbarAction, title: string): Electron.Task => ({
-  program: process.execPath,
-  arguments: taskArguments(action),
-  title,
-  description: title,
-  iconPath: process.execPath,
-  iconIndex: 0,
-});
+const userTask = (action: TaskbarAction, title: string): Electron.Task => {
+  const program = taskProgram();
+  return {
+    program,
+    arguments: taskArguments(action),
+    title,
+    description: title,
+    iconPath: program,
+    iconIndex: 0,
+  };
+};
 
 /** 刷新 Windows 任务栏图标右键的用户任务 */
 export const refreshTaskbarUserTasks = (): void => {
