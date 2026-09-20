@@ -63,6 +63,11 @@ const removeSplash = (): void => {
 const bootstrapPlayback = async (): Promise<void> => {
   await initPlayer();
 
+  // initPlayer 已建立 player:event 订阅，此时即可安全消费任务栏动作；
+  // 不能等后续音源恢复完成，避免按钮长期停在暂存队列。
+  const pendingTaskbarActions = await window.api.system.consumePendingTaskbarAction();
+  for (const action of pendingTaskbarActions) window.api.player.dispatch(action);
+
   const pendingAudioFiles = await window.api.system.consumePendingAudioFiles();
   const pendingOrpheusUrl = await window.api.system.consumePendingProtocolUrl();
 
