@@ -163,6 +163,7 @@ export const useSettingsStore = defineStore(
       hideVipTag: false,
       hideQualityTag: false,
       showSubtitle: true,
+      noPinyin: false,
     });
 
     /** 歌词 */
@@ -373,6 +374,9 @@ export const useSettingsStore = defineStore(
         }
         if (!Array.isArray(preset.skipTrackKeywords)) {
           preset.skipTrackKeywords = [...DEFAULT_SKIP_TRACK_KEYWORDS];
+        }
+        if (typeof preset?.noPinyin !== "boolean") {
+          preset.noPinyin = false;
         }
         lyric.lyricSourceOrder = reconcileOrder(lyric.lyricSourceOrder, ALL_PLATFORMS);
         lyric.lyricFormatOrder = reconcileOrder(lyric.lyricFormatOrder, DEFAULT_LYRIC_FORMAT_ORDER);
