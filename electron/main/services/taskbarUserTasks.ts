@@ -19,8 +19,16 @@ let isPlaying = false;
 /** 是否已挂载主题变化监听 */
 let themeListenerBound = false;
 
-/** Jump List 图标目录（public 走 asarUnpack，是真实文件路径，Shell API 可读） */
-const TASK_ICON_DIR = join(__dirname, "../../public/icons/taskbar-tasks");
+/**
+ * Jump List 图标目录
+ *
+ * setUserTasks 的 iconPath 直接交给 Windows Shell，无法读取 .asar 包内文件。
+ * public 虽被 asarUnpack 解包，但 __dirname 指向 asar 内部，Shell 读不到，故打包
+ * 环境显式指向 app.asar.unpacked 下的真实路径；开发环境直接用源码 public。
+ */
+const TASK_ICON_DIR = app.isPackaged
+  ? join(process.resourcesPath, "app.asar.unpacked", "public", "icons", "taskbar-tasks")
+  : join(__dirname, "../../public/icons/taskbar-tasks");
 
 /**
  * 按当前系统主题取任务项图标的绝对路径
