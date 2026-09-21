@@ -158,31 +158,26 @@ export const useMediaStore = defineStore("media", () => {
     const settings = useSettingsStore();
     if (source && input) {
       try {
-        const isTtml =
-          source.format === "ttml" ||
-          (Boolean(input.content) && input.content.trim().startsWith("<tt"));
-        const result = isTtml
-          ? parseTTML(input.content, {
-              preferredLang: settings.locale,
-              cleanKangxi: true,
-              extractMetadata: true,
-            })
-          : parseLyric(
-              {
-                content: input.content,
-                format: source.format,
-                translation: input.translation,
-                translationFormat: input.translationFormat,
-                romaji: input.romaji,
-                romajiFormat: input.romajiFormat,
-              },
-              {
-                detectBackground: settings.lyric.detectBackgroundLyrics,
-                preferredLang: settings.locale,
-                cleanKangxi: true,
-                extractMetadata: true,
-              },
-            );
+        const parseOptions = {
+          preferredLang: settings.locale,
+          cleanKangxi: true,
+          extractMetadata: true,
+          detectBackground: settings.lyric.detectBackgroundLyrics,
+        };
+        const result =
+          source.format === "ttml"
+            ? parseTTML(input.content, parseOptions)
+            : parseLyric(
+                {
+                  content: input.content,
+                  format: source.format,
+                  translation: input.translation,
+                  translationFormat: input.translationFormat,
+                  romaji: input.romaji,
+                  romajiFormat: input.romajiFormat,
+                },
+                parseOptions,
+              );
         nextLines = applyLyricExclude(result.lines, track.value);
         normalizeLyricLines(nextLines);
         applyLyricLanguages(nextLines);
