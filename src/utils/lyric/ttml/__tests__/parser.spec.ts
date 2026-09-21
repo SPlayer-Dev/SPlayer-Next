@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { parseTTML, toAmllLyrics, toSPlayerLyricResult, TTMLParser } from "../index";
+import { parseTTML, toSPlayerLyricResult, TTMLParser } from "../index";
 import type { SubLyricContent, TTMLResult } from "../types";
 
 const XML = readFileSync(join(import.meta.dirname, "fixtures", "complex-test-song.ttml"), "utf-8");
@@ -126,28 +126,28 @@ describe("TTML 解析器与转换器测试套件", () => {
     expect(lineIds).toEqual(["L1", "L2", "L3"]);
   });
 
-  it("支持 toAmllLyrics 降级并正确处理对唱翻转与背景拆分", () => {
-    const amll = toAmllLyrics(result, {
+  it("toSPlayerLyricResult 正确处理对唱翻转与背景人声拆分", () => {
+    const splayer = toSPlayerLyricResult(result, {
       translationLanguage: "zh-Hans-CN",
       romanizationLanguage: "ja-Latn",
     });
 
     // 包含 3 条主行 + 1 条拆分出的背景行，共 4 行
-    expect(amll.lines).toHaveLength(4);
+    expect(splayer.lines).toHaveLength(4);
 
     // L1 为非对唱 (左)
-    expect(amll.lines[0].isDuet).toBe(false);
-    expect(amll.lines[0].translatedLyric).toBe("这是第一行歌词 (演唱者A)");
+    expect(splayer.lines[0].isDuet).toBe(false);
+    expect(splayer.lines[0].translatedLyric).toBe("这是第一行歌词 (演唱者A)");
 
     // L2 切换演唱者，翻转为对唱 (右)
-    expect(amll.lines[1].isDuet).toBe(true);
+    expect(splayer.lines[1].isDuet).toBe(true);
 
     // L3 为 Chorus Group，合唱保持非对唱 (居中)
-    expect(amll.lines[2].isDuet).toBe(false);
+    expect(splayer.lines[2].isDuet).toBe(false);
 
     // L3 拆分出来的背景行 (isBG: true)
-    expect(amll.lines[3].isBG).toBe(true);
-    expect(amll.lines[3].isDuet).toBe(false);
+    expect(splayer.lines[3].isBG).toBe(true);
+    expect(splayer.lines[3].isDuet).toBe(false);
   });
 
   it("正确解析 Ruby 注音结构 (ruby-test-song.ttml)", () => {

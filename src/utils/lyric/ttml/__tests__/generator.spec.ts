@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { exportTTML, TTMLGenerator, TTMLParser } from "../index";
+import { exportTTML, parseTTML, TTMLGenerator, TTMLParser } from "../index";
 import type { TTMLResult } from "../types";
 
 const XML = readFileSync(join(import.meta.dirname, "fixtures", "complex-test-song.ttml"), "utf-8");
@@ -48,5 +48,14 @@ describe("TTML 生成器测试套件", () => {
     expect(roundTripParsed.lines[0].id).toBe("L1");
     expect(roundTripParsed.lines[0].songPart).toBe("Verse");
     expect(roundTripParsed.metadata.title).toContain("Complex Test Song");
+  });
+
+  it("支持直接接收 SPlayer 原生 LyricResult 导出", () => {
+    const splayerLyric = parseTTML(XML, { preferredLang: "zh-Hans-CN" });
+    const generated = exportTTML(splayerLyric);
+
+    expect(generated).toContain('xmlns="http://www.w3.org/ns/ttml"');
+    expect(generated).toContain('itunes:key="L1"');
+    expect(generated).toContain("这是第一行歌词 (演唱者A)");
   });
 });
