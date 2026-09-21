@@ -89,7 +89,13 @@ export interface TTMLParserOptions {
 
 /** 生成器配置选项 */
 export interface GeneratorOptions {
-  /** 对于逐行翻译/音译，是否放入 Head (Apple Music 风格) */
+  /** 歌词根节点主语言代码，未指定时优先读取 metadata.language */
+  language?: string;
+  /** 翻译目标语言代码，默认 zh-Hans */
+  translationLanguage?: string;
+  /** 音译目标语言代码，默认 und-Latn */
+  romanizationLanguage?: string;
+  /** 对于逐行翻译/音译，是否放入 Head 走 iTunes Sidecar 规范（默认 true） */
   useSidecar?: boolean;
 }
 

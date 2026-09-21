@@ -19,6 +19,7 @@ export function toSPlayerLyricResult(
   options: ParseTTMLOptions = {},
 ): LyricResult {
   const preferredLang = options.preferredLang || options.translationLanguage;
+  const stripParens = options.stripBackgroundParens ?? true;
   const splayerLines: SPlayerLyricLine[] = [];
 
   const convertLine = (
@@ -33,26 +34,36 @@ export function toSPlayerLyricResult(
     let words: SPlayerLyricLine["words"] = [];
 
     if (source.words && source.words.length > 0) {
-      words = source.words.map((w) => ({
-        startTime: w.startTime,
-        endTime: w.endTime,
-        word: w.text,
-        romanWord: "",
-        obscene: w.obscene,
-        emptyBeat: w.emptyBeat,
-        endsWithSpace: w.endsWithSpace,
-        ruby: w.ruby?.map((r) => ({
-          startTime: r.startTime,
-          endTime: r.endTime,
-          word: r.text,
-        })),
-      }));
+      words = source.words.map((w) => {
+        let text = w.text;
+        if (isBG && stripParens) {
+          text = text.replace(/^[(（]+/, "").replace(/[)）]+$/, "");
+        }
+        return {
+          startTime: w.startTime,
+          endTime: w.endTime,
+          word: text,
+          romanWord: "",
+          obscene: w.obscene,
+          emptyBeat: w.emptyBeat,
+          endsWithSpace: w.endsWithSpace,
+          ruby: w.ruby?.map((r) => ({
+            startTime: r.startTime,
+            endTime: r.endTime,
+            word: r.text,
+          })),
+        };
+      });
     } else {
+      let text = source.text;
+      if (isBG && stripParens) {
+        text = text.replace(/^[(（]+/, "").replace(/[)）]+$/, "");
+      }
       words = [
         {
           startTime: source.startTime,
           endTime: source.endTime,
-          word: source.text,
+          word: text,
           romanWord: "",
         },
       ];
@@ -115,7 +126,10 @@ export function toSPlayerLyricResult(
 
     let currentIsDuet = false;
 
-    // Apple Music 对唱声部交替推导
+    // 针对对唱歌词的左右对齐判定：
+    // 当前播放器 UI 仅设左右双侧排版槽位（左侧主唱 isDuet: false，右侧对唱 isDuet: true，群唱居中）。
+    // 当存在 3 位及以上 Person 角色交替演唱时，采用声部切换左右翻转策略；
+    // 同时保留原始 agentId 透传至各行，确保声部元数据不丢失。
     if (isGroup) {
       currentIsDuet = false;
     } else if (lastPersonAgentId === null) {
@@ -155,8 +169,16 @@ export function toSPlayerLyricResult(
     }
   }
 
-  // 整理作者元数据
+  // 提取元数据
   const meta = result.metadata;
+  const shouldExtractMeta = options.extractMetadata !== false;
+  if (!shouldExtractMeta) {
+    return {
+      lines: splayerLines,
+      metadata: {},
+    };
+  }
+
   const authorSet = new Set<string>();
   meta.authorNames?.forEach((name) => {
     if (name.trim()) authorSet.add(name.trim());
@@ -188,9 +210,9 @@ export function toSPlayerLyricResult(
 }
 
 /**
- * 逐字罗马音双指针滑动窗口对齐
- * @param mainWords - 主歌词单词列表
- * @param romanWords - 音译逐字片段
+ * 逐字罗马音双指针滑动窗口对齐算法
+ * @param mainWords - 主歌词逐字列表
+ * @param romanWords - 音译逐字片段序列
  */
 export function alignRomanization(
   mainWords: Array<{ startTime: number; endTime: number; romanWord?: string }>,

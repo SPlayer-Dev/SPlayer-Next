@@ -9,10 +9,10 @@ import type {
   Agent,
   BackgroundVocal,
   LyricLine,
+  ParseTTMLOptions,
   SubLyricContent,
   Syllable,
   TTMLMetadata,
-  TTMLParserOptions,
   TTMLResult,
 } from "./types";
 
@@ -35,8 +35,16 @@ interface ParsedNodeContent {
   backgroundVocal?: BackgroundVocal;
 }
 
+interface TimedRange {
+  startTime: number;
+  endTime: number;
+}
+
 /**
- * 辅助获取元素属性值（支持多候选属性名，如带前缀与不带前缀）
+ * 获取元素属性值，按候选名称顺序匹配第一个有效值
+ * @param el - 目标 DOM 元素
+ * @param names - 候选属性名列表
+ * @returns 属性值或 null
  */
 function getAttr(el: Element, ...names: string[]): string | null {
   for (const name of names) {
@@ -47,24 +55,46 @@ function getAttr(el: Element, ...names: string[]): string | null {
 }
 
 /**
- * 深层查找匹配特定本地标签名的所有元素
+ * 遍历直接子元素，获取匹配本地标签名的元素列表
+ * @param parent - 父级元素或文档
+ * @param localName - 目标本地标签名
+ * @returns 匹配的子元素数组
  */
-function findElementsByLocalName(root: Element | Document, localName: string): Element[] {
+function getChildrenByLocalName(parent: Element | Document, localName: string): Element[] {
   const result: Element[] = [];
   const target = localName.toLowerCase();
-  const all = Array.from(root.getElementsByTagName("*"));
+  const children =
+    parent instanceof Document
+      ? parent.documentElement
+        ? [parent.documentElement]
+        : []
+      : Array.from(parent.children);
 
-  for (const el of all) {
-    const current = (el.localName || el.tagName.split(":").pop() || "").toLowerCase();
+  for (const child of children) {
+    const current = (child.localName || child.tagName.split(":").pop() || "").toLowerCase();
     if (current === target) {
-      result.push(el);
+      result.push(child);
     }
   }
   return result;
 }
 
+/**
+ * 查找匹配特定本地标签名的第一个直接子元素
+ * @param parent - 父级元素或文档
+ * @param localName - 目标本地标签名
+ * @returns 匹配的第一个子元素或 undefined
+ */
+function getFirstChildByLocalName(
+  parent: Element | Document,
+  localName: string,
+): Element | undefined {
+  return getChildrenByLocalName(parent, localName)[0];
+}
+
 export class TTMLParser {
   private cleanKangxi: boolean;
+  private stripBackgroundParens: boolean;
 
   private static readonly TIME_REGEX =
     /^(?:(?:(?<hours>\d+):)?(?<minutes>\d+):)?(?<seconds>\d+(?:\.\d+)?)$/;
@@ -72,19 +102,29 @@ export class TTMLParser {
   private static readonly TRAILING_SPACE_REGEX = /\s$/;
   private static readonly MULTI_SPACE_REGEX = /\s+/g;
 
-  constructor(options?: TTMLParserOptions) {
+  /**
+   * 构造 TTML 解析器实例
+   * @param options - 解析配置选项
+   */
+  constructor(options?: ParseTTMLOptions) {
     this.cleanKangxi = Boolean(options?.cleanKangxi);
+    this.stripBackgroundParens = options?.stripBackgroundParens ?? true;
   }
 
   /**
    * 静态便捷解析入口
+   * @param xmlStr - TTML XML 字符串
+   * @param options - 解析配置选项
+   * @returns 结构化 AST 结果
    */
-  public static parse(xmlStr: string, options?: TTMLParserOptions): TTMLResult {
+  public static parse(xmlStr: string, options?: ParseTTMLOptions): TTMLResult {
     return new TTMLParser(options).parse(xmlStr);
   }
 
   /**
-   * 解析 TTML XML 字符串为 AST
+   * 解析 TTML XML 文本为结构化 AST
+   * @param xmlStr - TTML XML 字符串
+   * @returns 解析后的 TTMLResult
    */
   public parse(xmlStr: string): TTMLResult {
     if (!xmlStr || typeof xmlStr !== "string" || xmlStr.trim().length === 0) {
@@ -111,7 +151,7 @@ export class TTMLParser {
       throw new Error("TTMLParser: Missing document root element.");
     }
 
-    const { metadata, sidecar } = this.parseHead(doc);
+    const { metadata, sidecar } = this.parseHead(root);
 
     const result: TTMLResult = {
       metadata,
@@ -126,7 +166,7 @@ export class TTMLParser {
       result.metadata.timingMode = timing;
     }
 
-    this.parseBody(doc, result, sidecar);
+    this.parseBody(root, result, sidecar);
 
     result.metadata.timingMode ??= this.inferTimingMode(result.lines);
 
@@ -135,6 +175,8 @@ export class TTMLParser {
 
   /**
    * 解析时间戳字符串为毫秒数值
+   * @param timeStr - 包含时间格式的字符串
+   * @returns 毫秒数值
    */
   public parseTime(timeStr: string | null | undefined): number {
     if (!timeStr) return 0;
@@ -161,12 +203,23 @@ export class TTMLParser {
     return 0;
   }
 
+  /**
+   * 文本空白归一化处理
+   * @param text - 待处理文本
+   * @param trim - 是否去除首尾空白
+   * @returns 归一化后的文本
+   */
   private normalizeText(text: string | null | undefined, trim: boolean = true): string {
     if (!text) return "";
     const normalized = text.replace(TTMLParser.MULTI_SPACE_REGEX, " ");
     return trim ? normalized.trim() : normalized;
   }
 
+  /**
+   * 根据逐字音节判断当前歌词的计时模式
+   * @param lines - 歌词行数组
+   * @returns 计时模式 Word 或 Line
+   */
   private inferTimingMode(lines: LyricLine[]): "Word" | "Line" {
     const hasWordTiming = lines.some(
       (line) => (line.words?.length ?? 0) > 1 || (line.backgroundVocal?.words?.length ?? 0) > 1,
@@ -175,10 +228,12 @@ export class TTMLParser {
   }
 
   /**
-   * 解析 Head 元素元数据与 Sidecar 翻译/音译
+   * 解析 Head 节点中的元数据与 Sidecar 翻译音译
+   * @param root - 根节点
+   * @returns 元数据与 Sidecar 字典
    */
-  private parseHead(doc: Document): { metadata: TTMLMetadata; sidecar: SidecarStore } {
-    const head = findElementsByLocalName(doc, Elements.Head)[0];
+  private parseHead(root: Element): { metadata: TTMLMetadata; sidecar: SidecarStore } {
+    const head = getFirstChildByLocalName(root, Elements.Head);
     const metadata: TTMLMetadata = {
       title: [],
       artist: [],
@@ -194,20 +249,23 @@ export class TTMLParser {
 
     if (!head) return { metadata, sidecar };
 
-    // 1. 解析 <ttm:title>
-    const titles = findElementsByLocalName(head, Elements.Title);
+    const metadataContainer = getFirstChildByLocalName(head, Elements.TTMLMetadata);
+    if (!metadataContainer) return { metadata, sidecar };
+
+    // 提取标题
+    const titles = getChildrenByLocalName(metadataContainer, Elements.Title);
     for (const titleEl of titles) {
       const t = titleEl.textContent?.trim();
       if (t) metadata.title?.push(t);
     }
 
-    // 2. 解析 <ttm:agent>
-    const agents = findElementsByLocalName(head, Elements.Agent);
+    // 提取声部演唱者
+    const agents = getChildrenByLocalName(metadataContainer, Elements.Agent);
     for (const agentEl of agents) {
       const id = getAttr(agentEl, "xml:id", "id");
       if (!id) continue;
       const type = getAttr(agentEl, "type") || undefined;
-      const nameEl = findElementsByLocalName(agentEl, Elements.Name)[0];
+      const nameEl = getFirstChildByLocalName(agentEl, Elements.Name);
       const name = nameEl?.textContent?.trim() || undefined;
 
       const agentObj: Agent = { id };
@@ -218,8 +276,8 @@ export class TTMLParser {
       metadata.agents[id] = agentObj;
     }
 
-    // 3. 解析 <amll:meta>
-    const metas = findElementsByLocalName(head, Elements.Meta);
+    // 提取 AMLL 扩展元数据
+    const metas = getChildrenByLocalName(metadataContainer, Elements.Meta);
     for (const metaEl of metas) {
       const key = getAttr(metaEl, "key");
       const value = getAttr(metaEl, "value")?.trim();
@@ -258,17 +316,18 @@ export class TTMLParser {
       }
     }
 
-    // 4. 解析 <iTunesMetadata>
-    const iTunesMetas = findElementsByLocalName(head, Elements.ITunesMetadata);
+    // 提取 iTunesMetadata 扩展
+    const iTunesMetas = getChildrenByLocalName(metadataContainer, Elements.ITunesMetadata);
     for (const itunes of iTunesMetas) {
-      // 词曲作者
-      const writers = findElementsByLocalName(itunes, Elements.Songwriter);
-      for (const w of writers) {
-        const name = w.textContent?.trim();
-        if (name) metadata.songwriters?.push(name);
+      const songwritersContainer = getFirstChildByLocalName(itunes, Elements.Songwriters);
+      if (songwritersContainer) {
+        const writers = getChildrenByLocalName(songwritersContainer, Elements.Songwriter);
+        for (const w of writers) {
+          const name = w.textContent?.trim();
+          if (name) metadata.songwriters?.push(name);
+        }
       }
 
-      // 翻译与音译 Sidecar
       this.parseSidecarEntries(
         itunes,
         Elements.Translations,
@@ -285,7 +344,6 @@ export class TTMLParser {
       );
     }
 
-    // 去重
     const dedupe = (arr?: string[]): string[] => (arr ? Array.from(new Set(arr)) : []);
     metadata.title = dedupe(metadata.title);
     metadata.artist = dedupe(metadata.artist);
@@ -298,6 +356,14 @@ export class TTMLParser {
     return { metadata, sidecar };
   }
 
+  /**
+   * 解析 Sidecar 容器内的翻译或音译文本条目
+   * @param container - iTunesMetadata 元素
+   * @param groupTag - 容器组标签名
+   * @param itemTag - 子项标签名
+   * @param type - 存放类型
+   * @param sidecar - 目标 Sidecar 容器
+   */
   private parseSidecarEntries(
     container: Element,
     groupTag: string,
@@ -305,12 +371,12 @@ export class TTMLParser {
     type: "translations" | "romanizations",
     sidecar: SidecarStore,
   ): void {
-    const groups = findElementsByLocalName(container, groupTag);
+    const groups = getChildrenByLocalName(container, groupTag);
     for (const g of groups) {
-      const items = findElementsByLocalName(g, itemTag);
+      const items = getChildrenByLocalName(g, itemTag);
       for (const item of items) {
         const lang = getAttr(item, "xml:lang", "lang") || undefined;
-        const textNodes = findElementsByLocalName(item, Elements.Text);
+        const textNodes = getChildrenByLocalName(item, Elements.Text);
 
         for (const textEl of textNodes) {
           const forId = getAttr(textEl, "for");
@@ -349,10 +415,13 @@ export class TTMLParser {
   }
 
   /**
-   * 解析 Body 段落结构与歌词行
+   * 解析 Body 节点及段落行
+   * @param root - 根节点
+   * @param result - 目标结果容器
+   * @param sidecar - Sidecar 数据源
    */
-  private parseBody(doc: Document, result: TTMLResult, sidecar: SidecarStore): void {
-    const body = findElementsByLocalName(doc, Elements.Body)[0];
+  private parseBody(root: Element, result: TTMLResult, sidecar: SidecarStore): void {
+    const body = getFirstChildByLocalName(root, Elements.Body);
     if (!body) return;
 
     let currentBlockIndex = 0;
@@ -365,7 +434,7 @@ export class TTMLParser {
         const songPart =
           getAttr(node, "itunes:song-part", "itunes:songPart", "song-part", "songPart") ||
           undefined;
-        const pList = findElementsByLocalName(node, Elements.P);
+        const pList = getChildrenByLocalName(node, Elements.P);
 
         for (const p of pList) {
           this.processLineElement(p, result.lines, sidecar, songPart, currentBlockIndex);
@@ -377,6 +446,14 @@ export class TTMLParser {
     }
   }
 
+  /**
+   * 处理单行 p 元素
+   * @param p - p 节点
+   * @param lines - 目标行列表
+   * @param sidecar - Sidecar 数据源
+   * @param songPart - 歌曲段落结构
+   * @param blockIndex - 分块序号
+   */
   private processLineElement(
     p: Element,
     lines: LyricLine[],
@@ -393,11 +470,12 @@ export class TTMLParser {
 
     const parsed = this.parseNodeContent(p);
 
-    // 计算实际起止时间
     let startTime = originalStartTime;
     let endTime = originalEndTime;
-    const timedElements = [...parsed.words];
-    if (parsed.backgroundVocal) timedElements.push(parsed.backgroundVocal as unknown as Syllable);
+    const timedElements: TimedRange[] = [...parsed.words];
+    if (parsed.backgroundVocal) {
+      timedElements.push(parsed.backgroundVocal);
+    }
 
     if (timedElements.length > 0) {
       let minStart = Infinity;
@@ -406,17 +484,20 @@ export class TTMLParser {
         if (el.startTime < minStart) minStart = el.startTime;
         if (el.endTime > maxEnd) maxEnd = el.endTime;
       }
-      if (startTime === 0 || (minStart > 0 && minStart < startTime)) {
+      // 仅当标签未显式声明 begin 时，才以子音节最小起始时间兜底
+      if (beginAttr === null) {
         startTime = minStart === Infinity ? 0 : minStart;
       }
-      if (endTime === 0 || maxEnd > endTime) {
+      // 仅当标签未显式声明 end 时以最大结束时间兜底，或子音节超出当前 end 时进行扩充
+      if (endAttr === null) {
+        endTime = maxEnd;
+      } else if (maxEnd > endTime) {
         endTime = maxEnd;
       }
     }
 
     const cleanFullText = this.normalizeText(parsed.fullText);
 
-    // 单字音节兜底
     if (
       parsed.words.length === 0 &&
       cleanFullText.length > 0 &&
@@ -430,7 +511,6 @@ export class TTMLParser {
       });
     }
 
-    // 格式化尾部单词空格
     if (parsed.words.length > 0) {
       parsed.words[0].text = parsed.words[0].text.trimStart();
       const last = parsed.words[parsed.words.length - 1];
@@ -438,17 +518,16 @@ export class TTMLParser {
       last.endsWithSpace = false;
     }
 
-    // 处理背景人声
     const bgVocal = parsed.backgroundVocal;
     if (bgVocal) {
-      if (!bgVocal.startTime && bgVocal.words?.length) {
+      if (bgVocal.startTime === 0 && bgVocal.words?.length) {
         bgVocal.startTime = Math.min(...bgVocal.words.map((w) => w.startTime));
       }
-      if (!bgVocal.endTime && bgVocal.words?.length) {
+      if (bgVocal.endTime === 0 && bgVocal.words?.length) {
         bgVocal.endTime = Math.max(...bgVocal.words.map((w) => w.endTime));
       }
-      if (!bgVocal.startTime && startTime > 0) bgVocal.startTime = startTime;
-      if (!bgVocal.endTime && endTime > 0) bgVocal.endTime = endTime;
+      if (bgVocal.startTime === 0 && startTime > 0) bgVocal.startTime = startTime;
+      if (bgVocal.endTime === 0 && endTime > 0) bgVocal.endTime = endTime;
 
       if (parsed.bgTranslations.length > 0) {
         (bgVocal.translations ??= []).push(...parsed.bgTranslations);
@@ -472,7 +551,6 @@ export class TTMLParser {
       blockIndex,
     };
 
-    // 合并 Sidecar
     const ext = sidecar[id];
     if (ext) {
       if (ext.translations) (line.translations ??= []).push(...ext.translations);
@@ -490,6 +568,8 @@ export class TTMLParser {
 
   /**
    * 解析节点下的文本、逐字 span、Ruby、背景人声与内联翻译
+   * @param element - 当前 DOM 元素
+   * @returns 解析后的内容容器
    */
   private parseNodeContent(element: Element): ParsedNodeContent {
     const result: ParsedNodeContent = {
@@ -541,6 +621,11 @@ export class TTMLParser {
     return result;
   }
 
+  /**
+   * 解析 Ruby 振假名注音节点
+   * @param containerEl - 包含注音的容器元素
+   * @param state - 内容状态容器
+   */
   private parseRubyElement(containerEl: Element, state: ParsedNodeContent): void {
     const isObscene = getAttr(containerEl, "amll:obscene", "obscene") === "true";
     const emptyBeatStr = getAttr(containerEl, "amll:empty-beat", "empty-beat");
@@ -603,6 +688,11 @@ export class TTMLParser {
     }
   }
 
+  /**
+   * 解析普通逐字音节节点
+   * @param el - span 节点
+   * @param state - 内容状态容器
+   */
   private parseWordElement(el: Element, state: ParsedNodeContent): void {
     const begin = getAttr(el, "begin");
     const end = getAttr(el, "end");
@@ -643,13 +733,19 @@ export class TTMLParser {
     }
   }
 
+  /**
+   * 解析背景伴唱节点
+   * @param el - 伴唱节点
+   * @returns 背景伴唱对象
+   */
   private parseBackgroundVocalElement(el: Element): BackgroundVocal {
     const parsed = this.parseNodeContent(el);
-    const text = this.normalizeText(parsed.fullText)
-      .replace(/^[(（]+/, "")
-      .replace(/[)）]+$/, "");
+    let text = this.normalizeText(parsed.fullText);
+    if (this.stripBackgroundParens) {
+      text = text.replace(/^[(（]+/, "").replace(/[)）]+$/, "");
+    }
 
-    if (parsed.words.length > 0) {
+    if (parsed.words.length > 0 && this.stripBackgroundParens) {
       parsed.words[0].text = parsed.words[0].text.replace(/^[(（]+/, "").trimStart();
       const last = parsed.words[parsed.words.length - 1];
       last.text = last.text.replace(/[)）]+$/, "").trimEnd();
@@ -677,6 +773,11 @@ export class TTMLParser {
     };
   }
 
+  /**
+   * 解析行内翻译或音译节点
+   * @param el - 包含角色的 span 节点
+   * @returns 翻译音译片段
+   */
   private parseInlineSubContent(
     el: Element,
   ): { main?: SubLyricContent; bg?: SubLyricContent } | null {

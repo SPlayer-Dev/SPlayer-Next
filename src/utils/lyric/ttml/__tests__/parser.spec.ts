@@ -41,6 +41,12 @@ describe("TTML 解析器核心功能测试", () => {
     expect(meta.agents?.v1000?.name).toBe("Chorus Group");
   });
 
+  it("正确响应 extractMetadata: false 选项", () => {
+    const noMetaResult = parseTTML(XML, { extractMetadata: false });
+    expect(noMetaResult.metadata).toEqual({});
+    expect(noMetaResult.lines.length).toBeGreaterThan(0);
+  });
+
   it("正确提取逐字歌词、Sidecar 翻译、音译对齐及词间扩展属性", () => {
     const l1 = result.lines.find((l) => l.id === "L1");
     expect(l1).toBeDefined();
@@ -54,6 +60,21 @@ describe("TTML 解析器核心功能测试", () => {
       { word: "は", endsWithSpace: true, romanWord: "re" },
       { word: "テスト", emptyBeat: 5, romanWord: "tesuto" },
     ]);
+  });
+
+  it("正确保留零起始时间（00:00.000）不被误覆盖", () => {
+    const zeroXml = `<tt xmlns="http://www.w3.org/ns/ttml">
+      <body>
+        <div>
+          <p begin="00:00.000" end="00:02.000">
+            <span begin="00:00.200" end="00:01.800">Hello</span>
+          </p>
+        </div>
+      </body>
+    </tt>`;
+    const parsed = parseTTML(zeroXml);
+    expect(parsed.lines[0].startTime).toBe(0);
+    expect(parsed.lines[0].endTime).toBe(2000);
   });
 
   it("正确处理背景伴唱独立拆分与声部对唱交替推导", () => {

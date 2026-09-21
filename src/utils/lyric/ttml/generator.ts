@@ -8,23 +8,34 @@ import { NS, Values } from "./constants";
 import type { GeneratorOptions, TTMLResult } from "./types";
 
 /**
- * 格式化毫秒数值为 TTML 时间字符串（如 01:23.456）
+ * 格式化毫秒数值为 TTML 标准时间戳字符串（如 00:01.234 或 01:05:00.000）
+ * @param ms - 毫秒数值
+ * @returns 格式化后的时间字符串
  */
 export function formatTime(ms: number): string {
-  const validMs = Math.max(0, ms || 0);
+  const validMs = Math.max(0, Math.round(ms || 0));
   const totalSeconds = Math.floor(validMs / 1000);
   const milliseconds = validMs % 1000;
-  const minutes = Math.floor(totalSeconds / 60);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
+
+  const mm = minutes.toString().padStart(2, "0");
+  const ss = seconds.toString().padStart(2, "0");
   const fff = milliseconds.toString().padStart(3, "0");
 
-  if (minutes > 0) {
-    const ss = seconds.toString().padStart(2, "0");
-    return `${minutes}:${ss}.${fff}`;
+  if (hours > 0) {
+    const hh = hours.toString().padStart(2, "0");
+    return `${hh}:${mm}:${ss}.${fff}`;
   }
-  return `${seconds}.${fff}`;
+  return `${mm}:${ss}.${fff}`;
 }
 
+/**
+ * XML 特殊字符转义
+ * @param str - 原始文本字符串
+ * @returns 转义后的 XML 安全文本
+ */
 function escapeXml(str: string): string {
   return (str || "")
     .replace(/&/g, "&amp;")
@@ -64,64 +75,101 @@ interface NormalizedLine {
   };
 }
 
+/**
+ * 安全提取音节中的字词文本
+ * @param item - 音节或单词对象
+ * @returns 提取的文本
+ */
+function extractWordText(item: unknown): string {
+  if (!item || typeof item !== "object") return "";
+  if ("text" in item && typeof item.text === "string") return item.text;
+  if ("word" in item && typeof item.word === "string") return item.word;
+  return "";
+}
+
 export class TTMLGenerator {
-  public static generate(input: LyricResult | TTMLResult, _options?: GeneratorOptions): string {
+  /**
+   * 将歌词数据生成为标准 TTML XML 字符串
+   * @param input - SPlayer 统一歌词结果或 AST TTMLResult
+   * @param options - 生成器配置选项
+   * @returns 格式化后的 XML 文本
+   */
+  public static generate(input: LyricResult | TTMLResult, options?: GeneratorOptions): string {
     const metadata = input.metadata || {};
     const lines = input.lines || [];
 
     const timingMode = metadata.timingMode || "Word";
-    const language = (metadata as { language?: string }).language || "ja";
+    const language =
+      options?.language ||
+      ("language" in metadata && typeof metadata.language === "string" && metadata.language) ||
+      "und";
+    const translationLang = options?.translationLanguage || "zh-Hans";
+    const romanizationLang = options?.romanizationLanguage || "und-Latn";
+    const useSidecar = options?.useSidecar ?? true;
 
-    // 归一化歌词行
+    // 归一化歌词行数据
     const normalizedLines: NormalizedLine[] = lines.map((line, idx) => {
       const id = line.id || `L${idx + 1}`;
-      const agentId = (line as { agentId?: string }).agentId || Values.AgentDefault;
+      const agentId = ("agentId" in line && line.agentId) || Values.AgentDefault;
 
-      const rawWords = (line as { words?: unknown[] }).words || [];
-      const words: NormalizedWord[] = rawWords.map((w: any) => ({
-        text: w.text || w.word || "",
-        startTime: w.startTime || 0,
-        endTime: w.endTime || 0,
-        endsWithSpace: Boolean(w.endsWithSpace),
-        obscene: Boolean(w.obscene),
-        emptyBeat: w.emptyBeat,
-        ruby: w.ruby?.map((r: any) => ({
-          text: r.text || r.word || "",
-          startTime: r.startTime || 0,
-          endTime: r.endTime || 0,
-        })),
-      }));
+      const rawWords: unknown[] = Array.isArray(line.words) ? line.words : [];
+      const words: NormalizedWord[] = rawWords.map((raw) => {
+        const w = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+        const rawRuby: unknown[] = Array.isArray(w.ruby) ? w.ruby : [];
+
+        const ruby = rawRuby.map((rawR) => {
+          const r = (rawR && typeof rawR === "object" ? rawR : {}) as Record<string, unknown>;
+          return {
+            text: extractWordText(r),
+            startTime: typeof r.startTime === "number" ? r.startTime : 0,
+            endTime: typeof r.endTime === "number" ? r.endTime : 0,
+          };
+        });
+
+        return {
+          text: extractWordText(w),
+          startTime: typeof w.startTime === "number" ? w.startTime : 0,
+          endTime: typeof w.endTime === "number" ? w.endTime : 0,
+          endsWithSpace: Boolean(w.endsWithSpace),
+          obscene: Boolean(w.obscene),
+          emptyBeat: typeof w.emptyBeat === "number" ? w.emptyBeat : undefined,
+          ruby: ruby.length > 0 ? ruby : undefined,
+        };
+      });
 
       const fullText =
-        (line as { text?: string }).text ||
+        ("text" in line && typeof line.text === "string" && line.text) ||
         words.map((w) => w.text + (w.endsWithSpace ? " " : "")).join("") ||
         "";
 
       let bgVocal: NormalizedLine["backgroundVocal"];
       if ("backgroundVocal" in line && line.backgroundVocal) {
         const bg = line.backgroundVocal;
+        const bgRawWords: unknown[] = Array.isArray(bg.words) ? bg.words : [];
         bgVocal = {
           text: bg.text,
           startTime: bg.startTime,
           endTime: bg.endTime,
-          words: bg.words?.map((w: any) => ({
-            text: w.text || w.word || "",
-            startTime: w.startTime || 0,
-            endTime: w.endTime || 0,
-            endsWithSpace: Boolean(w.endsWithSpace),
-            obscene: Boolean(w.obscene),
-            emptyBeat: w.emptyBeat,
-          })),
+          words: bgRawWords.map((raw) => {
+            const w = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+            return {
+              text: extractWordText(w),
+              startTime: typeof w.startTime === "number" ? w.startTime : 0,
+              endTime: typeof w.endTime === "number" ? w.endTime : 0,
+              endsWithSpace: Boolean(w.endsWithSpace),
+              obscene: Boolean(w.obscene),
+              emptyBeat: typeof w.emptyBeat === "number" ? w.emptyBeat : undefined,
+            };
+          }),
         };
       }
 
-      // 提取翻译与音译文本
-      let transText = (line as { translatedLyric?: string }).translatedLyric;
+      let transText = "translatedLyric" in line ? line.translatedLyric : undefined;
       if (!transText && "translations" in line && Array.isArray(line.translations)) {
         transText = line.translations[0]?.text;
       }
 
-      let romanText = (line as { romanLyric?: string }).romanLyric;
+      let romanText = "romanLyric" in line ? line.romanLyric : undefined;
       if (!romanText && "romanizations" in line && Array.isArray(line.romanizations)) {
         romanText = line.romanizations[0]?.text;
       }
@@ -134,10 +182,12 @@ export class TTMLGenerator {
         text: fullText,
         translatedLyric: transText,
         romanLyric: romanText,
-        isBG: Boolean((line as { isBG?: boolean }).isBG),
+        isBG: Boolean("isBG" in line && line.isBG),
         agentId,
-        songPart: (line as { songPart?: string }).songPart,
-        blockIndex: (line as { blockIndex?: number }).blockIndex,
+        songPart:
+          "songPart" in line && typeof line.songPart === "string" ? line.songPart : undefined,
+        blockIndex:
+          "blockIndex" in line && typeof line.blockIndex === "number" ? line.blockIndex : undefined,
         backgroundVocal: bgVocal,
       };
     });
@@ -146,10 +196,12 @@ export class TTMLGenerator {
       normalizedLines.length > 0 ? Math.max(...normalizedLines.map((l) => l.endTime)) : 0;
     const bodyDur = formatTime(linesMaxEnd);
 
-    // 收集 Agents
+    // 收集声部 Agent 列表
     const agentsMap = new Map<string, { id: string; name?: string; type?: string }>();
     if ("agents" in metadata && metadata.agents) {
-      Object.values(metadata.agents).forEach((a) => agentsMap.set(a.id, a));
+      Object.values(metadata.agents).forEach((a) => {
+        if (a?.id) agentsMap.set(a.id, a);
+      });
     }
     normalizedLines.forEach((l) => {
       if (l.agentId && !agentsMap.has(l.agentId)) {
@@ -157,7 +209,6 @@ export class TTMLGenerator {
       }
     });
 
-    // 头部 XML 组装
     const xmlLines: string[] = [
       '<?xml version="1.0" encoding="UTF-8"?>',
       `<tt xmlns="${NS.TT}"`,
@@ -171,7 +222,7 @@ export class TTMLGenerator {
       "    <metadata>",
     ];
 
-    // Agents
+    // 声部 Agent 节点
     agentsMap.forEach((agent) => {
       const typeAttr = agent.type ? ` type="${escapeXml(agent.type)}"` : "";
       if (agent.name) {
@@ -185,12 +236,12 @@ export class TTMLGenerator {
       }
     });
 
-    // 标题
+    // 歌曲标题
     metadata.title?.forEach((t) => {
       xmlLines.push(`      <ttm:title>${escapeXml(t)}</ttm:title>`);
     });
 
-    // amll:meta 标签
+    // AMLL 规范元数据
     metadata.artist?.forEach((a) => {
       xmlLines.push(`      <amll:meta key="${Values.Artists}" value="${escapeXml(a)}" />`);
     });
@@ -217,11 +268,12 @@ export class TTMLGenerator {
       });
     }
 
-    // iTunesMetadata 扩展（词曲作者与 Sidecar 翻译）
+    // iTunesMetadata（词曲作者与 Sidecar 多语言）
     const hasSongwriters = Boolean(metadata.songwriters && metadata.songwriters.length > 0);
     const transLines = normalizedLines.filter((l) => Boolean(l.translatedLyric));
     const romanLines = normalizedLines.filter((l) => Boolean(l.romanLyric));
-    const hasSidecar = transLines.length > 0 || romanLines.length > 0 || hasSongwriters;
+    const hasSidecar =
+      useSidecar && (transLines.length > 0 || romanLines.length > 0 || hasSongwriters);
 
     if (hasSidecar) {
       xmlLines.push(`      <iTunesMetadata xmlns="${NS.ITUNES}">`);
@@ -235,7 +287,7 @@ export class TTMLGenerator {
 
       if (transLines.length > 0) {
         xmlLines.push("        <translations>");
-        xmlLines.push('          <translation xml:lang="zh-Hans">');
+        xmlLines.push(`          <translation xml:lang="${escapeXml(translationLang)}">`);
         transLines.forEach((l) => {
           xmlLines.push(
             `            <text for="${escapeXml(l.id)}">${escapeXml(l.translatedLyric!)}</text>`,
@@ -247,7 +299,7 @@ export class TTMLGenerator {
 
       if (romanLines.length > 0) {
         xmlLines.push("        <transliterations>");
-        xmlLines.push('          <transliteration xml:lang="ja-Latn">');
+        xmlLines.push(`          <transliteration xml:lang="${escapeXml(romanizationLang)}">`);
         romanLines.forEach((l) => {
           xmlLines.push(
             `            <text for="${escapeXml(l.id)}">${escapeXml(l.romanLyric!)}</text>`,
@@ -286,7 +338,6 @@ export class TTMLGenerator {
           `      <p begin="${pStart}" end="${pEnd}" itunes:key="${escapeXml(line.id)}"${agentAttr}>`,
         );
 
-        // 单词序列
         if (line.words.length > 0) {
           const spansHtml = line.words
             .map((w) => {
@@ -314,7 +365,7 @@ export class TTMLGenerator {
           xmlLines.push(`        ${escapeXml(line.text)}`);
         }
 
-        // 背景人声
+        // 背景伴唱
         if (line.backgroundVocal) {
           const bg = line.backgroundVocal;
           const bgStart = formatTime(bg.startTime);
@@ -331,6 +382,20 @@ export class TTMLGenerator {
           xmlLines.push(
             `        <span ttm:role="x-bg" begin="${bgStart}" end="${bgEnd}">(${bgWordsHtml})</span>`,
           );
+        }
+
+        // 行内翻译与音译（当 useSidecar === false 时输出到正文 p 内）
+        if (!useSidecar) {
+          if (line.translatedLyric) {
+            xmlLines.push(
+              `        <span ttm:role="x-translation" xml:lang="${escapeXml(translationLang)}">${escapeXml(line.translatedLyric)}</span>`,
+            );
+          }
+          if (line.romanLyric) {
+            xmlLines.push(
+              `        <span ttm:role="x-roman" xml:lang="${escapeXml(romanizationLang)}">${escapeXml(line.romanLyric)}</span>`,
+            );
+          }
         }
 
         xmlLines.push("      </p>");
