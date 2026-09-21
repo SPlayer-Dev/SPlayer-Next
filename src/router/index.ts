@@ -68,6 +68,11 @@ const router = createRouter({
           component: () => import("@/pages/Artist.vue"),
         },
         {
+          path: "comments/:source/:id",
+          name: "comments",
+          component: () => import("@/pages/Comments.vue"),
+        },
+        {
           path: "artists/local",
           name: "artist-list",
           component: () => import("@/pages/LocalList.vue"),

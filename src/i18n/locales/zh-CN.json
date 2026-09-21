@@ -123,7 +123,10 @@
     "empty": "暂无评论",
     "noSource": "没有可用的评论来源",
     "location": "来自{location}",
-    "page": "第 {page} / {total} 页"
+    "page": "第 {page} / {total} 页",
+    "creator": "主创说",
+    "creatorBadge": "主创",
+    "playTrack": "播放此曲"
   },
   "equalizer": {
     "title": "均衡器",

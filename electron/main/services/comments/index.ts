@@ -9,6 +9,7 @@ import { pluginLog } from "@main/utils/logger";
 import type { CommentSource, MusicCommentPage, MusicCommentQuery } from "@shared/types/comment";
 import type { MusicSearchCandidate } from "@shared/types/plugin";
 import type { Track } from "@shared/types/player";
+import { BoundedMap } from "./cache";
 import {
   buildCommentSources,
   normalizeNeteaseCommentPage,
@@ -22,6 +23,15 @@ const NETEASE_SOURCE_ID = "builtin:netease";
 const QQMUSIC_SOURCE_ID = "builtin:qqmusic";
 const KUGOU_SOURCE_ID = "builtin:kugou";
 const NETEASE_RESOURCE_TYPE = "R_SO_4_";
+
+const SONG_META_CACHE_LIMIT = 200;
+/** 歌曲元信息解析缓存（null 表示负缓存：搜索无结果），避免翻页时每页重复搜索 */
+const songMetaCache = new BoundedMap<string, { songId: string; artistIds: string[] } | null>(
+  SONG_META_CACHE_LIMIT,
+);
+
+const makeTrackKey = (track: Track): string =>
+  `${track.source}\n${track.serverId ?? ""}\n${track.id}`;
 
 const PLATFORM_TO_PLUGIN_SOURCE: Record<string, string> = {
   netease: "wy",
@@ -80,33 +90,66 @@ const findPluginMatch = async (
   return pickBestCandidate(candidates, track)?.extra ?? null;
 };
 
+/**
+ * 解析 Track 对应的网易云歌曲元信息：songId + 歌手 id 列表
+ * 一次 search 同时取两者，避免主创说二次搜索；结果按 track 缓存（含负缓存），翻页不重复搜索
+ * @param track - 当前曲目
+ * @returns 歌曲元信息或 null（搜索无结果）
+ */
+export const findNeteaseSongMeta = async (
+  track: Track,
+): Promise<{ songId: string; artistIds: string[] } | null> => {
+  const cacheKey = makeTrackKey(track);
+  const cached = songMetaCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  let meta: { songId: string; artistIds: string[] } | null;
+  if (track.source === "netease" && track.id) {
+    meta = {
+      songId: track.id,
+      artistIds: track.artists.map((a) => a.id).filter((id): id is string => !!id),
+    };
+  } else {
+    const keyword = toKeyword(track);
+    if (!keyword) return null;
+    const { status, body } = await callNetease("search", {
+      keywords: keyword,
+      type: 1,
+      limit: 20,
+    });
+    if (status !== 200) return null;
+    const songs = body.result?.songs ?? [];
+    const candidates: LyricCandidate<{ id: string; artistIds: string[] }>[] = songs.map(
+      (song: {
+        id: string | number;
+        name?: string;
+        artists?: { id?: string | number; name: string }[];
+        album?: { name?: string };
+        duration?: number;
+      }) => ({
+        name: song.name ?? "",
+        artist: (song.artists ?? []).map((artist) => artist.name).join(" / "),
+        album: song.album?.name,
+        duration: song.duration,
+        extra: {
+          id: String(song.id),
+          artistIds: (song.artists ?? []).map((a) => (a.id ? String(a.id) : "")).filter(Boolean),
+        },
+      }),
+    );
+    const best = pickBestCandidate(candidates, track)?.extra;
+    meta = best ? { songId: best.id, artistIds: best.artistIds } : null;
+  }
+
+  if (meta) songMetaCache.set(cacheKey, meta);
+  else songMetaCache.set(cacheKey, null);
+  return meta;
+};
+
+/** 取网易云歌曲 id（薄包装，供普通评论拉取复用） */
 const findNeteaseId = async (track: Track): Promise<string | null> => {
-  if (track.source === "netease" && track.id) return track.id;
-  const keyword = toKeyword(track);
-  if (!keyword) return null;
-  const { status, body } = await callNetease("search", {
-    keywords: keyword,
-    type: 1,
-    limit: 20,
-  });
-  if (status !== 200) return null;
-  const songs = body.result?.songs ?? [];
-  const candidates: LyricCandidate<{ id: string }>[] = songs.map(
-    (song: {
-      id: string | number;
-      name?: string;
-      artists?: { name: string }[];
-      album?: { name?: string };
-      duration?: number;
-    }) => ({
-      name: song.name ?? "",
-      artist: (song.artists ?? []).map((artist) => artist.name).join(" / "),
-      album: song.album?.name,
-      duration: song.duration,
-      extra: { id: String(song.id) },
-    }),
-  );
-  return pickBestCandidate(candidates, track)?.extra.id ?? null;
+  const meta = await findNeteaseSongMeta(track);
+  return meta?.songId ?? null;
 };
 
 const getNeteaseComments = async (args: MusicCommentQuery): Promise<MusicCommentPage> => {
