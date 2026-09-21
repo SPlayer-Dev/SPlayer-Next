@@ -39,10 +39,11 @@ export function toSPlayerLyricResult(
         if (isBG && stripParens) {
           text = text.replace(/^[(（]+/, "").replace(/[)）]+$/, "");
         }
+        const wordText = text + (w.endsWithSpace ? " " : "");
         return {
           startTime: w.startTime,
           endTime: w.endTime,
-          word: text,
+          word: wordText,
           romanWord: "",
           obscene: w.obscene,
           emptyBeat: w.emptyBeat,

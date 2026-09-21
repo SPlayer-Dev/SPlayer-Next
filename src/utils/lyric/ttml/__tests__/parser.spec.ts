@@ -57,7 +57,7 @@ describe("TTML 解析器核心功能测试", () => {
     // 逐字与空格/空拍/脏标
     expect(l1?.words).toMatchObject([
       { word: "これ", obscene: true, romanWord: "Ko" },
-      { word: "は", endsWithSpace: true, romanWord: "re" },
+      { word: "は ", endsWithSpace: true, romanWord: "re" },
       { word: "テスト", emptyBeat: 5, romanWord: "tesuto" },
     ]);
   });
