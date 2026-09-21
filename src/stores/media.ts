@@ -9,6 +9,7 @@ import {
   normalizeLyricLines,
   parseLyric,
 } from "lyric-kit";
+import { parseTTML } from "@/utils/lyric/ttml";
 import { applyLyricExclude } from "@/utils/lyric/lyricStripper";
 import { applyLyricCjkTransform } from "@/utils/lyric/cjkTransform";
 
@@ -157,22 +158,31 @@ export const useMediaStore = defineStore("media", () => {
     const settings = useSettingsStore();
     if (source && input) {
       try {
-        const result = parseLyric(
-          {
-            content: input.content,
-            format: source.format,
-            translation: input.translation,
-            translationFormat: input.translationFormat,
-            romaji: input.romaji,
-            romajiFormat: input.romajiFormat,
-          },
-          {
-            detectBackground: settings.lyric.detectBackgroundLyrics,
-            preferredLang: settings.locale,
-            cleanKangxi: true,
-            extractMetadata: true,
-          },
-        );
+        const isTtml =
+          source.format === "ttml" ||
+          (Boolean(input.content) && input.content.trim().startsWith("<tt"));
+        const result = isTtml
+          ? parseTTML(input.content, {
+              preferredLang: settings.locale,
+              cleanKangxi: true,
+              extractMetadata: true,
+            })
+          : parseLyric(
+              {
+                content: input.content,
+                format: source.format,
+                translation: input.translation,
+                translationFormat: input.translationFormat,
+                romaji: input.romaji,
+                romajiFormat: input.romajiFormat,
+              },
+              {
+                detectBackground: settings.lyric.detectBackgroundLyrics,
+                preferredLang: settings.locale,
+                cleanKangxi: true,
+                extractMetadata: true,
+              },
+            );
         nextLines = applyLyricExclude(result.lines, track.value);
         normalizeLyricLines(nextLines);
         applyLyricLanguages(nextLines);

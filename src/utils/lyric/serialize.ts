@@ -7,7 +7,8 @@
 
 import type { LyricFormat, LyricInput } from "@shared/types/lyrics";
 import type { DownloadLyricFormat } from "@shared/types/download";
-import { parseLyric, toEnhancedLRC, toLRC, toTTML } from "lyric-kit";
+import { parseLyric, toEnhancedLRC, toLRC } from "lyric-kit";
+import { exportTTML } from "@/utils/lyric/ttml";
 
 /**
  * 把下载到的歌词序列化为指定格式
@@ -39,7 +40,7 @@ export const buildDownloadLyric = (
   }
   if (result.lines.length === 0) return null;
   if (target === "ttml") {
-    return mainFormat === "ttml" ? input.content.trim() : toTTML(result);
+    return mainFormat === "ttml" ? input.content.trim() : exportTTML(result);
   }
   const content = target === "enhanced-lrc" ? toEnhancedLRC(result.lines) : toLRC(result.lines);
   return content.trim() ? content : null;
