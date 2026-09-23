@@ -73,6 +73,7 @@ let loadToken = 0;
 /** loadTrack 竞态 token */
 let trackToken = 0;
 let transitionInFlight = false;
+let lastLoggedTransitionId: string | null = null;
 /** 连续加载失败计数，成功时重置 */
 let consecutiveFailures = 0;
 /** 连续失败硬上限 */
@@ -910,6 +911,15 @@ export const trySmartTransition = async (positionMs: number): Promise<void> => {
   if (!candidate) return;
   const prepared = peekPreparedTrack(candidate.track);
   if (!prepared?.preparedId || !prepared.source) return;
+  const shouldLog = lastLoggedTransitionId !== prepared.preparedId;
+  if (shouldLog) {
+    lastLoggedTransitionId = prepared.preparedId;
+    console.info("[player:transition] 开始交叉过渡", {
+      from: status.currentTrack?.title,
+      to: candidate.track.title,
+      remainingMs: Math.round(remainingMs),
+    });
+  }
   const oldIndex = status.playIndex;
   const oldTrackId = status.currentTrack?.id;
   const token = trackToken;
@@ -925,8 +935,17 @@ export const trySmartTransition = async (positionMs: number): Promise<void> => {
         autoPlay: true,
       },
     );
-    if (token !== trackToken) return;
+    if (token !== trackToken) {
+      if (shouldLog) console.info("[player:transition] 交叉过渡已被新的播放操作取消");
+      return;
+    }
     if (!result.success || !result.data) {
+      if (shouldLog) {
+        console.warn(
+          "[player:transition] 未能完成交叉过渡，等待正常切歌",
+          result.error ?? "备用槽位未命中或播放器状态已变化",
+        );
+      }
       if (result.error) await nextTrack();
       return;
     }
@@ -936,9 +955,14 @@ export const trySmartTransition = async (positionMs: number): Promise<void> => {
       queue.queue.value[candidate.index]?.id !== candidate.track.id ||
       !consumePreloadedTrack(candidate.track)
     ) {
+      console.warn("[player:transition] 队列或预载槽位已变化，重新加载下一曲");
       await nextTrack();
       return;
     }
+    console.info("[player:transition] 音频交接完成", {
+      trackId: candidate.track.id,
+      title: candidate.track.title,
+    });
     onTrackEnded(false);
     const stopAfterTrack = autoClose.onTrackEnded();
     status.playIndex = candidate.index;

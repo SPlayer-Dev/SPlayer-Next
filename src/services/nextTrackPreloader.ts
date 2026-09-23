@@ -207,6 +207,10 @@ export const scheduleNextTrackPreload = (): void => {
   nativePreloadId = id;
   currentContextKey = contextKey;
   cachedResult = null;
+  console.info("[player:preload] 开始预载下一曲", {
+    trackId: candidateTrack.id,
+    title: candidateTrack.title,
+  });
 
   void (async () => {
     try {
@@ -219,7 +223,13 @@ export const scheduleNextTrackPreload = (): void => {
         streamingPlaySessionId: crypto.randomUUID(),
       });
       if (token !== currentToken) return;
-      if (!source) return;
+      if (!source) {
+        console.info("[player:preload] 下一曲未找到可用音源", {
+          trackId: candidateTrack.id,
+          title: candidateTrack.title,
+        });
+        return;
+      }
       if (source.cacheRequest) {
         const cachedPath = await source.cacheRequest(id, abort.signal);
         if (token !== currentToken) return;
@@ -241,11 +251,25 @@ export const scheduleNextTrackPreload = (): void => {
         nativePreloadId = null;
       }
       cachedResult = { trackId: candidateTrack.id, source, contextKey, preparedId };
+      console.info(
+        preparedId
+          ? "[player:preload] 下一曲 PCM 预载完成"
+          : "[player:preload] 下一曲音源已准备，PCM 未预载",
+        {
+          trackId: candidateTrack.id,
+          title: candidateTrack.title,
+          source: source.provider,
+          pcmReady: Boolean(preparedId),
+        },
+      );
     } catch (err) {
-      console.warn("[nextPreload] Preload task failed silently:", err);
-      if (token === currentToken) {
-        invalidateNextTrackPreload();
-      }
+      if (token !== currentToken) return;
+      console.warn("[player:preload] 下一曲预载失败", {
+        trackId: candidateTrack.id,
+        title: candidateTrack.title,
+        error: err,
+      });
+      invalidateNextTrackPreload();
     }
   })();
 };
