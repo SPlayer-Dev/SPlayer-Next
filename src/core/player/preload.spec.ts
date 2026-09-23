@@ -60,6 +60,7 @@ vi.mock("@/stores/history", () => ({ useHistoryStore: () => ({ record: vi.fn() }
 vi.mock("@/stores/library", () => ({ useLibraryStore: vi.fn() }));
 vi.mock("@/stores/queue", () => ({
   queue: { value: [{ ...mocks.track, id: "old" }, mocks.track] },
+  queueLength: { value: 2 },
   setQueue: vi.fn(),
   updateQueueTracks: vi.fn(),
 }));
@@ -122,7 +123,26 @@ describe("切歌消费真实预载", () => {
       expect.objectContaining({ preparedId: "prepared" }),
     );
     expect(mocks.resolve).not.toHaveBeenCalled();
+    expect(mocks.transition).not.toHaveBeenCalled();
   });
+
+  it.each(["nextTrack", "playAtIndex"] as const)(
+    "手动调用 %s 时复用预载槽位且不交叉淡化",
+    async (method) => {
+      mocks.status.currentTrack = mocks.track;
+      mocks.consume.mockReturnValue({
+        preparedId: "prepared",
+        source: { source: "C:/cache/next.bin", fromCache: true, provider: "cache" },
+      });
+      const player = await import("./index");
+      await (method === "nextTrack" ? player.nextTrack() : player.playAtIndex(1));
+      expect(mocks.load).toHaveBeenCalledWith(
+        "C:/cache/next.bin",
+        expect.objectContaining({ preparedId: "prepared" }),
+      );
+      expect(mocks.transition).not.toHaveBeenCalled();
+    },
+  );
 
   it("没有就绪槽位时保留正常停止、解析和加载流程", async () => {
     mocks.consume.mockReturnValue(null);
@@ -217,6 +237,34 @@ describe("交叉过渡的队列交接", () => {
       preference,
       expect.objectContaining({ meta: mocks.track }),
     );
+  });
+
+  it("交接等待期间切换播放列表后丢弃旧交接结果", async () => {
+    let completeTransition!: (result: {
+      success: boolean;
+      data: { detail: object; mediaInfo: { duration: number } };
+    }) => void;
+    mocks.transition.mockImplementation(
+      () => new Promise((resolve) => (completeTransition = resolve)),
+    );
+    mocks.resolve.mockResolvedValue({
+      source: "C:/music/chosen.wav",
+      fromCache: false,
+      provider: "local",
+    });
+    mocks.load.mockResolvedValue({
+      success: true,
+      data: { detail: {}, mediaInfo: { duration: 1000 } },
+    });
+    const player = await import("./index");
+    const pending = player.trySmartTransition(5000);
+    const chosen = { ...mocks.track, id: "chosen", title: "Chosen" };
+    mocks.status.currentTrack = chosen;
+    await player.playFrom([chosen as Track]);
+    completeTransition({ success: true, data: { detail: {}, mediaInfo: { duration: 1000 } } });
+    await pending;
+    expect(mocks.media.track.id).toBe("chosen");
+    expect(mocks.onTrackEnded).not.toHaveBeenCalled();
   });
 
   it("单曲循环时不提前交叉切换", async () => {

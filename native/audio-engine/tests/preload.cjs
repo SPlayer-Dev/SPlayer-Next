@@ -84,6 +84,36 @@ test("停止播放会取消尚未完成的交叉过渡", { timeout: 30000 }, asy
 
 for (const exclusive of [false, true]) {
   test(
+    `混音开始后手动切歌取消旧交接（${exclusive ? "独占" : "共享"}输出）`,
+    { skip: exclusive && process.env.SPLAYER_TEST_EXCLUSIVE !== "1", timeout: 30000 },
+    async (t) => {
+      const directory = fs.mkdtempSync(path.join(os.tmpdir(), "splayer-transition-replace-"));
+      const current = path.join(directory, "current.wav");
+      const prepared = path.join(directory, "prepared.wav");
+      const selected = path.join(directory, "selected.wav");
+      const player = new AudioPlayer();
+      t.after(() => {
+        player.stop();
+        fs.rmSync(directory, { recursive: true, force: true });
+      });
+      if (exclusive) await player.setExclusiveMode(true);
+      writeWav(current, 48000, 6);
+      writeWav(prepared, 48000, 6, 0.1);
+      writeWav(selected, 48000, 7, 0.2);
+      await player.load(current, true);
+      assert.equal(await player.prepareNext("old-candidate", prepared), true);
+      const pending = player.transitionToPrepared("old-candidate", prepared, 3, "standard");
+      await new Promise((resolve) => setTimeout(resolve, 900));
+      assert.ok(player.getPosition() > 0.35, "当前曲必须已进入交叉过渡窗口");
+      await player.load(selected, true);
+      assert.equal(await pending, null);
+      assert.equal(player.getDuration(), 7);
+    },
+  );
+}
+
+for (const exclusive of [false, true]) {
+  test(
     `双槽位预载与复用（${exclusive ? "独占" : "共享"}输出）`,
     {
       skip: exclusive && process.env.SPLAYER_TEST_EXCLUSIVE !== "1",
