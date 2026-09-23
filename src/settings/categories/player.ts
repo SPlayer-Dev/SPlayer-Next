@@ -143,6 +143,20 @@ const playerCategory: SettingCategory = {
               await settings.setSystem("cache.songCache.cacheStreaming", true);
             }
           },
+          children: [
+            {
+              key: "transitionPreference",
+              type: "select",
+              binding: { store: "settings", path: "player.transitionPreference" },
+              options: [
+                { value: "conservative", labelKey: "settings.transitionPreference.conservative" },
+                { value: "standard", labelKey: "settings.transitionPreference.standard" },
+                { value: "eager", labelKey: "settings.transitionPreference.eager" },
+              ],
+              defaultValue: "standard",
+            },
+          ],
+          childrenCondition: () => useSettingsStore().player.transitionMode === "crossfade",
         },
       ],
     },

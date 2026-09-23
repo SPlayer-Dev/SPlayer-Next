@@ -71,6 +71,9 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
       // 歌曲加载中或 loading 事件不更新 UI，保持当前封面/进度/播放状态平滑过渡
       if (event.data.state === "loading" || status.trackLoading) break;
       status.state = event.data.state;
+      if (event.data.state === "idle" || event.data.state === "stopped") {
+        status.transitioning = false;
+      }
       // seek 期间不从 status 事件更新 position，避免回跳；position 更新统一由 position 事件负责
       if (!isSeeking()) {
         status.position = playback.setCurrentTime(event.data.position);
@@ -93,6 +96,14 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
       break;
     case "seek":
       markSeek(event.data.position);
+      break;
+    case "transition":
+      status.transitioning = event.data.active;
+      console.info(
+        event.data.active
+          ? "[player:transition] 实际淡化开始"
+          : "[player:transition] 淡化结束或已取消",
+      );
       break;
     case "position": {
       // 歌曲加载中不更新进度

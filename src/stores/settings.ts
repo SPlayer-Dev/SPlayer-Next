@@ -154,6 +154,7 @@ export const useSettingsStore = defineStore(
       showLyricInBar: true,
       preloadNextTrack: false,
       transitionMode: "none",
+      transitionPreference: "standard",
       searchPlayBehavior: "current",
     });
 
@@ -371,6 +372,12 @@ export const useSettingsStore = defineStore(
           player: PlayerSettings;
         };
         if (player.transitionMode !== "crossfade") player.transitionMode = "none";
+        if (
+          player.transitionPreference !== "conservative" &&
+          player.transitionPreference !== "eager"
+        ) {
+          player.transitionPreference = "standard";
+        }
         if (typeof lyric.detectBackgroundLyrics !== "boolean") {
           lyric.detectBackgroundLyrics = true;
         }

@@ -121,6 +121,7 @@ export type LoadOutcome = { ok: true; track: Track | null } | { ok: false; error
 const resetForLoad = (duration: number): void => {
   const status = useStatusStore();
   status.trackLoading = true;
+  status.transitioning = false;
   status.position = 0;
   status.duration = duration;
   playback.setCurrentTime(0, { force: true });
@@ -914,10 +915,11 @@ export const trySmartTransition = async (positionMs: number): Promise<void> => {
   const shouldLog = lastLoggedTransitionId !== prepared.preparedId;
   if (shouldLog) {
     lastLoggedTransitionId = prepared.preparedId;
-    console.info("[player:transition] 开始交叉过渡", {
+    console.info("[player:transition] 已提交交叉过渡", {
       from: status.currentTrack?.title,
       to: candidate.track.title,
       remainingMs: Math.round(remainingMs),
+      preference: settings.player.transitionPreference,
     });
   }
   const oldIndex = status.playIndex;
@@ -929,6 +931,7 @@ export const trySmartTransition = async (positionMs: number): Promise<void> => {
       prepared.preparedId,
       prepared.source.source,
       remainingMs / Math.max(status.speed, 0.1),
+      settings.player.transitionPreference,
       {
         meta: candidate.track,
         context: status.currentPlaybackContext,

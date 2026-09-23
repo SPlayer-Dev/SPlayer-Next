@@ -30,6 +30,8 @@ export const useStatusStore = defineStore(
     const outputDevices = ref<AudioDevice[]>([]);
     /** 歌曲加载 */
     const trackLoading = ref(false);
+    /** 原生输出回调正在混合相邻两曲 */
+    const transitioning = ref(false);
     /** 全屏播放器展开状态 */
     const isPlayerExpanded = ref(false);
     /** 外层播放队列 */
@@ -126,6 +128,7 @@ export const useStatusStore = defineStore(
       isLoading,
       progress,
       trackLoading,
+      transitioning,
       isPlayerExpanded,
       outerQueueOpen,
       fullQueueOpen,

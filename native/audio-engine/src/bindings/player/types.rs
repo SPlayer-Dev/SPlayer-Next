@@ -63,7 +63,7 @@ pub struct JsFftData {
 #[napi(object)]
 #[derive(Default)]
 pub struct JsPlayerEvent {
-    /// 事件类型："stateChanged" | "ended" | "sourceError" | "position" | "fftData" | "outputStalled" | "outputFailed" | "outputFallback"
+    /// 事件类型："stateChanged" | "ended" | "sourceError" | "position" | "transitionChanged" | "fftData" | "outputStalled" | "outputFailed" | "outputFallback"
     #[napi(js_name = "type")]
     pub event_type: String,
     /// 状态（仅 stateChanged 时有值）
@@ -72,6 +72,8 @@ pub struct JsPlayerEvent {
     pub position: Option<f64>,
     /// 时长（秒，仅 position 时有值）
     pub duration: Option<f64>,
+    /// 实际交叉淡化状态（仅 transitionChanged 时有值）
+    pub transition_active: Option<bool>,
     /// FFT 频谱数据（仅 fftData 时有值，128 个频段，值域 0.0 ~ 1.0）
     pub fft_data: Option<JsFftData>,
     /// 回退原因分类键（仅 outputFallback 时有值：deviceBusy / formatUnsupported / unavailable）

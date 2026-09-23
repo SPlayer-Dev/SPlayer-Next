@@ -1,6 +1,7 @@
 import type { LyricFormat } from "@shared/types/lyrics";
 import { DEFAULT_LYRIC_FORMAT_ORDER as DEFAULT_LYRIC_FORMAT_ORDER_SHARED } from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
+import type { TransitionPreference } from "@shared/types/player";
 import { ALL_PLATFORMS } from "@shared/types/platform";
 import type { CjkTransformMode } from "@shared/types/opencc";
 import type { QualityLevel } from "@/utils/quality";
@@ -268,6 +269,8 @@ export interface PlayerSettings {
   preloadNextTrack: boolean;
   /** 相邻曲目的播放过渡方式 */
   transitionMode: "none" | "crossfade";
+  /** 曲尾安静段的交接倾向 */
+  transitionPreference: TransitionPreference;
   /** 搜索页播放行为 */
   searchPlayBehavior: SearchPlayBehavior;
 }

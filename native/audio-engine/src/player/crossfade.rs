@@ -10,6 +10,7 @@ use crate::metadata::AudioMetadata;
 /// 已交给输出回调、等待音频边界完成的备用槽位
 pub struct ArmedTransition {
     pub ready: PreparedPlayback,
+    pub started: Arc<AtomicBool>,
     pub completed: Arc<AtomicBool>,
     pub token: u64,
 }
@@ -21,6 +22,7 @@ impl InnerPlayer {
         id: &str,
         source: &str,
         remaining_secs: f64,
+        preference: &str,
     ) -> Result<Option<ArmedTransition>> {
         if self.state != PlayerState::Playing || self.transitioning.load(Ordering::Acquire) {
             return Ok(None);
@@ -46,6 +48,11 @@ impl InnerPlayer {
             return Ok(None);
         }
         let fade_secs = 2.4_f64.min(remaining_secs - 0.35).min(next_remaining / 2.0);
+        let quiet_threshold = match preference {
+            "conservative" => 0.0025,
+            "eager" => 0.015,
+            _ => 0.005,
+        };
         let fade_samples = ((fade_secs * sample_rate as f64).round() as u64) * channels;
         let latest_sample =
             (((remaining_secs - fade_secs - 0.35).max(0.0) * sample_rate as f64) as u64) * channels;
@@ -53,15 +60,16 @@ impl InnerPlayer {
             latest_sample.saturating_sub(((1.2 * rate as f64) as u64) / channels * channels);
         ready.shared.set_preloading(false);
         self.transitioning.store(true, Ordering::Release);
-        let completed = playback.queue_transition(
+        let signals = playback.queue_transition(
             Arc::clone(&ready.shared),
             Arc::clone(&self.fft),
             earliest_sample,
             latest_sample,
             fade_samples,
+            quiet_threshold,
         );
-        let completed = match completed {
-            Ok(completed) => completed,
+        let signals = match signals {
+            Ok(signals) => signals,
             Err(error) => {
                 self.transitioning.store(false, Ordering::Release);
                 return Err(error);
@@ -69,7 +77,8 @@ impl InnerPlayer {
         };
         Ok(Some(ArmedTransition {
             ready,
-            completed,
+            started: signals.started,
+            completed: signals.completed,
             token: self.load_token.load(Ordering::Acquire),
         }))
     }

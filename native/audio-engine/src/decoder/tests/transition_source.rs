@@ -34,12 +34,14 @@ fn crossfade_keeps_one_output_source_and_skips_quiet_intro() {
     let fft = Arc::new(FftAnalyzer::new());
     let mut source = TransitionSource::new(first, Arc::clone(&fft));
     let control = source.control();
-    let completed = control
-        .queue(second, fft, 0, 100, 100)
+    let signals = control
+        .queue(second, fft, 0, 100, 100, 0.005)
         .expect("应接受备用槽位");
     source.begin_callback();
 
-    let output: Vec<f32> = (0..240).map(|_| source.next().unwrap()).collect();
+    let mut output: Vec<f32> = (0..90).map(|_| source.next().unwrap()).collect();
+    assert!(!signals.started.load(Ordering::Acquire));
+    output.extend((90..240).map(|_| source.next().unwrap()));
     assert!(output[..90]
         .iter()
         .all(|sample| (*sample - 0.6).abs() < 0.001));
@@ -47,7 +49,8 @@ fn crossfade_keeps_one_output_source_and_skips_quiet_intro() {
     assert!(output[220..]
         .iter()
         .all(|sample| (*sample - 0.5).abs() < 0.001));
-    assert!(completed.load(Ordering::Acquire));
+    assert!(signals.started.load(Ordering::Acquire));
+    assert!(signals.completed.load(Ordering::Acquire));
     control.drain_retired();
 }
 
@@ -59,16 +62,38 @@ fn quiet_outro_starts_before_forced_boundary() {
     let second = buffered(vec![0.5; 500]);
     let fft = Arc::new(FftAnalyzer::new());
     let mut source = TransitionSource::new(first, Arc::clone(&fft));
-    let completed = source
+    let signals = source
         .control()
-        .queue(second, fft, 0, 400, 100)
+        .queue(second, fft, 0, 400, 100, 0.005)
         .expect("应接受备用槽位");
     source.begin_callback();
 
     let output: Vec<f32> = (0..350).map(|_| source.next().unwrap()).collect();
     assert!(output[230] > 0.0);
     assert!(output[330] > 0.49);
-    assert!(completed.load(Ordering::Acquire));
+    assert!(signals.started.load(Ordering::Acquire));
+    assert!(signals.completed.load(Ordering::Acquire));
+}
+
+#[test]
+fn quiet_preference_changes_handoff_without_changing_fade_length() {
+    let mut first_samples = vec![0.6; 30];
+    first_samples.extend(vec![0.01; 500]);
+    for (threshold, expected_started) in [(0.0025, false), (0.005, false), (0.015, true)] {
+        let first = buffered(first_samples.clone());
+        let second = buffered(vec![0.5; 500]);
+        let fft = Arc::new(FftAnalyzer::new());
+        let mut source = TransitionSource::new(first, Arc::clone(&fft));
+        let signals = source
+            .control()
+            .queue(second, fft, 0, 400, 100, threshold)
+            .expect("应接受备用槽位");
+        source.begin_callback();
+        for _ in 0..300 {
+            source.next();
+        }
+        assert_eq!(signals.started.load(Ordering::Acquire), expected_started);
+    }
 }
 
 #[test]
@@ -83,7 +108,7 @@ fn skipped_stereo_intro_preserves_channel_order() {
     let mut source = TransitionSource::new(first, Arc::clone(&fft));
     source
         .control()
-        .queue(second, fft, 0, 100, 200)
+        .queue(second, fft, 0, 100, 200, 0.005)
         .expect("应接受双声道备用槽位");
     source.begin_callback();
     let output: Vec<f32> = (0..400).map(|_| source.next().unwrap()).collect();

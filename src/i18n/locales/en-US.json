@@ -881,9 +881,16 @@
     },
     "transitionMode": {
       "label": "Transition mode",
-      "description": "Find the handoff point between tracks automatically; crossfade requires next-track preloading",
+      "description": "Try a quiet point near the end; use a timed fade if none is found. Crossfade requires next-track preloading",
       "none": "No transition",
       "crossfade": "Crossfade"
+    },
+    "transitionPreference": {
+      "label": "Handoff preference",
+      "description": "Sets how quiet the outro must be to fade early. The maximum fade length stays the same; Eager may overlap a soft outro",
+      "conservative": "Conservative",
+      "standard": "Standard",
+      "eager": "Eager"
     },
     "songLevel": {
       "label": "Online Audio Quality",

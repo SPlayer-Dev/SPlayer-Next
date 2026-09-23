@@ -53,7 +53,7 @@ for (const exclusive of [false, true]) {
       writeWav(next, 44100, 6, 0.1);
       await player.load(current, true);
       assert.equal(await player.prepareNext("transition", next), true);
-      const result = await player.transitionToPrepared("transition", next, 4);
+      const result = await player.transitionToPrepared("transition", next, 4, "standard");
       assert.ok(result, "应在当前输出流中提交下一曲");
       assert.equal(result.duration, 6);
       assert.equal(player.getStatus().state, "playing");
@@ -76,7 +76,7 @@ test("停止播放会取消尚未完成的交叉过渡", { timeout: 30000 }, asy
   writeWav(next, 48000, 8, 0.1);
   await player.load(current, true);
   assert.equal(await player.prepareNext("cancelled-transition", next), true);
-  const pending = player.transitionToPrepared("cancelled-transition", next, 6);
+  const pending = player.transitionToPrepared("cancelled-transition", next, 6, "standard");
   await new Promise((resolve) => setTimeout(resolve, 100));
   player.stop();
   assert.equal(await pending, null);

@@ -25,7 +25,14 @@ struct TransitionCommand {
     earliest_sample: u64,
     latest_sample: u64,
     fade_samples: u64,
+    quiet_threshold: f32,
+    started: Arc<AtomicBool>,
     completed: Arc<AtomicBool>,
+}
+
+pub struct TransitionSignals {
+    pub started: Arc<AtomicBool>,
+    pub completed: Arc<AtomicBool>,
 }
 
 struct ActiveTransition {
@@ -67,7 +74,9 @@ impl TransitionControl {
         earliest_sample: u64,
         latest_sample: u64,
         fade_samples: u64,
-    ) -> Result<Arc<AtomicBool>> {
+        quiet_threshold: f32,
+    ) -> Result<TransitionSignals> {
+        let started = Arc::new(AtomicBool::new(false));
         let completed = Arc::new(AtomicBool::new(false));
         let command = TransitionCommand {
             intro_frame: vec![0.0; shared.channels() as usize],
@@ -75,12 +84,14 @@ impl TransitionControl {
             earliest_sample,
             latest_sample,
             fade_samples: fade_samples.max(1),
+            quiet_threshold,
+            started: Arc::clone(&started),
             completed: Arc::clone(&completed),
         };
         self.commands
             .push(command)
             .map_err(|_| anyhow!("已有播放过渡正在等待提交"))?;
-        Ok(completed)
+        Ok(TransitionSignals { started, completed })
     }
 
     /// 在控制线程回收已经退出混音的旧音源
@@ -198,7 +209,7 @@ impl Iterator for TransitionSource {
         }
 
         let sample = a.unwrap_or(0.0);
-        if sample.abs() < 0.005 && !self.active.is_underrun() {
+        if sample.abs() < transition.command.quiet_threshold && !self.active.is_underrun() {
             transition.quiet_samples += 1;
         } else {
             transition.quiet_samples = 0;
@@ -229,6 +240,9 @@ impl Iterator for TransitionSource {
             }
             self.finish_transition();
             return Some(b);
+        }
+        if transition.faded == 0 {
+            transition.command.started.store(true, Ordering::Release);
         }
         if transition.faded % self.channels == 0 {
             let progress = ((transition.faded / self.channels) as f32

@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => {
   };
   return {
     track,
+    transitionPreference: "standard" as "conservative" | "standard" | "eager",
     media,
     status: {
       currentTrack: { ...track, id: "old" },
@@ -21,6 +22,7 @@ const mocks = vi.hoisted(() => {
       duration: 10000,
       speed: 1,
       trackLoading: false,
+      transitioning: false,
       isPlaying: true,
       state: "playing",
       currentSource: "old",
@@ -40,7 +42,7 @@ vi.mock("./stats", () => ({ installPlayStats: vi.fn(), onTrackEnded: mocks.onTra
 vi.mock("@/stores/settings", () => ({
   useSettingsStore: () => ({
     preset: { skipKeywordsSongs: false, skipTrackKeywords: [] },
-    player: { transitionMode: "crossfade" },
+    player: { transitionMode: "crossfade", transitionPreference: mocks.transitionPreference },
   }),
 }));
 vi.mock("@/stores/status", () => ({ useStatusStore: () => mocks.status }));
@@ -172,6 +174,7 @@ describe("交叉过渡的队列交接", () => {
     mocks.status.repeatMode = "off";
     mocks.status.abLoop.enable = false;
     mocks.status.fmMode = false;
+    mocks.transitionPreference = "standard";
     mocks.peek.mockReturnValue({
       preparedId: "next-slot",
       source: { source: "C:/cache/next.bin", fromCache: true, provider: "cache" },
@@ -193,6 +196,7 @@ describe("交叉过渡的队列交接", () => {
       "next-slot",
       "C:/cache/next.bin",
       5000,
+      "standard",
       expect.objectContaining({ meta: mocks.track }),
     );
     expect(mocks.status.playIndex).toBe(1);
@@ -200,6 +204,19 @@ describe("交叉过渡的队列交接", () => {
     expect(mocks.load).not.toHaveBeenCalled();
     expect(mocks.stop).not.toHaveBeenCalled();
     expect(mocks.onTrackEnded).toHaveBeenCalledWith(false);
+  });
+
+  it.each(["conservative", "eager"] as const)("%s 档向原生引擎传递交接倾向", async (preference) => {
+    mocks.transitionPreference = preference;
+    const { trySmartTransition } = await import("./index");
+    await trySmartTransition(5000);
+    expect(mocks.transition).toHaveBeenCalledWith(
+      "next-slot",
+      "C:/cache/next.bin",
+      5000,
+      preference,
+      expect.objectContaining({ meta: mocks.track }),
+    );
   });
 
   it("单曲循环时不提前交叉切换", async () => {

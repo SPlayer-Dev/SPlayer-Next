@@ -29,6 +29,11 @@ impl AudioPlayer {
                     duration: Some(duration),
                     ..Default::default()
                 },
+                PlayerEvent::TransitionChanged { active } => JsPlayerEvent {
+                    event_type: "transitionChanged".into(),
+                    transition_active: Some(active),
+                    ..Default::default()
+                },
                 PlayerEvent::FftData { ldata, rdata } => JsPlayerEvent {
                     event_type: "fftData".into(),
                     fft_data: Some(JsFftData {

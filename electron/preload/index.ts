@@ -10,7 +10,7 @@ import type {
   PluginMatchCoverArgs,
 } from "@shared/types/plugin";
 import type { HotkeyActionId, HotkeyBinding, HotkeyConflict } from "@shared/types/hotkey";
-import type { LoadOptions, TrackSource } from "@shared/types/player";
+import type { LoadOptions, TrackSource, TransitionPreference } from "@shared/types/player";
 import type { StreamingServerInput } from "@shared/types/streaming";
 import type { RecognitionConfig, RecognitionEvent } from "@shared/types/recognition";
 import type { PlayEventInput, FavoriteEventInput } from "@shared/types/stats";
@@ -82,11 +82,18 @@ const api = {
      * @param id - 预载槽位标识
      * @param source - 下一曲缓存音源路径
      * @param remainingMs - 当前曲目剩余的墙钟时间
+     * @param preference - 曲尾安静程度偏好
      * @param options - 下一曲的权威元数据和播放上下文
      * @returns 交接成功时返回下一曲信息
      */
-    transitionPrepared: (id: string, source: string, remainingMs: number, options: LoadOptions) =>
-      ipcRenderer.invoke("player:transitionPrepared", id, source, remainingMs, options),
+    transitionPrepared: (
+      id: string,
+      source: string,
+      remainingMs: number,
+      preference: TransitionPreference,
+      options: LoadOptions,
+    ) =>
+      ipcRenderer.invoke("player:transitionPrepared", id, source, remainingMs, preference, options),
     // 加载音频（本地路径或网络地址）
     load: (source: string, options?: LoadOptions) =>
       ipcRenderer.invoke("player:load", source, options ?? {}),

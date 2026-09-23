@@ -41,6 +41,7 @@ import type {
   RepeatMode,
   ShuffleMode,
   PlayerState,
+  TransitionPreference,
 } from "@shared/types/player";
 import type { MediaEvent } from "@main/services/media";
 import { JsPlayerEvent } from "@splayer/audio-engine";
@@ -189,6 +190,15 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
         if (store.get("system.taskbarProgress") && durMs > 0) setTaskbarProgress(posMs / durMs);
         break;
       }
+      case "transitionChanged": {
+        const transitionEvent = {
+          type: "transition",
+          data: { active: event.transitionActive ?? false, mode: "crossfade" },
+        } as const;
+        sendToMain("player:event", transitionEvent);
+        wsBroadcast(transitionEvent);
+        break;
+      }
       case "fftData": {
         const fftEvent = { type: "fftData", data: event.fftData ?? { ldata: [], rdata: [] } };
         if (getMainWindow()?.isVisible()) sendToMain("player:event", fftEvent);
@@ -324,9 +334,21 @@ export const registerPlayerIpc = (): void => {
   ipcMain.handle("player:cancelPrepared", (_event, id: string) => cancelPreparedTrack(id));
   ipcMain.handle(
     "player:transitionPrepared",
-    async (_event, id: string, source: string, remainingMs: number, options: LoadOptions = {}) => {
+    async (
+      _event,
+      id: string,
+      source: string,
+      remainingMs: number,
+      preference: TransitionPreference,
+      options: LoadOptions = {},
+    ) => {
       try {
-        const meta = await getPlayer().transitionToPrepared(id, source, remainingMs / 1000);
+        const meta = await getPlayer().transitionToPrepared(
+          id,
+          source,
+          remainingMs / 1000,
+          preference,
+        );
         if (!meta) return { success: false };
         activeCueRange = cueRangeFromTrack(options.meta);
         const seq = ++loadSeq;

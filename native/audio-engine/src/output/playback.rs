@@ -6,7 +6,9 @@ use cpal::traits::StreamTrait;
 use tracing::warn;
 
 use crate::decoder::buffer::Shared;
-use crate::decoder::transition_source::{TransitionControl, TransitionSource as DecoderSource};
+use crate::decoder::transition_source::{
+    TransitionControl, TransitionSignals, TransitionSource as DecoderSource,
+};
 use crate::dsp::fft::FftAnalyzer;
 use crate::error::{AudioErrorKind, AudioResultExt};
 use crate::output::{AudioOutput, OutputStream};
@@ -105,10 +107,17 @@ impl PlaybackHandle {
         earliest_sample: u64,
         latest_sample: u64,
         fade_samples: u64,
-    ) -> Result<Arc<AtomicBool>> {
+        quiet_threshold: f32,
+    ) -> Result<TransitionSignals> {
         self.transition.drain_retired();
-        self.transition
-            .queue(shared, fft, earliest_sample, latest_sample, fade_samples)
+        self.transition.queue(
+            shared,
+            fft,
+            earliest_sample,
+            latest_sample,
+            fade_samples,
+            quiet_threshold,
+        )
     }
 
     /// 在非实时线程回收已经退出混音的旧音源

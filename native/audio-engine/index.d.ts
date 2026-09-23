@@ -142,9 +142,10 @@ export declare class AudioPlayer {
    * @param id - 预载槽位标识
    * @param source - 预载音源路径
    * @param remainingSeconds - 当前曲目距离有效结束的墙钟秒数
+   * @param preference - 曲尾安静程度偏好
    * @returns 成功交接时返回下一曲元信息，槽位失效时返回空值
    */
-  transitionToPrepared(id: string, source: string, remainingSeconds: number): Promise<JsMusicMetadata | null>
+  transitionToPrepared(id: string, source: string, remainingSeconds: number, preference: string): Promise<JsMusicMetadata | null>
   /** 创建新的播放器实例 */
   constructor()
 }
@@ -249,7 +250,7 @@ export interface JsMusicMetadata {
 
 /** 播放器事件，推送给 JS 侧 */
 export interface JsPlayerEvent {
-  /** 事件类型："stateChanged" | "ended" | "sourceError" | "position" | "fftData" | "outputStalled" | "outputFailed" | "outputFallback" */
+  /** 事件类型："stateChanged" | "ended" | "sourceError" | "position" | "transitionChanged" | "fftData" | "outputStalled" | "outputFailed" | "outputFallback" */
   type: string
   /** 状态（仅 stateChanged 时有值） */
   state?: string
@@ -257,6 +258,8 @@ export interface JsPlayerEvent {
   position?: number
   /** 时长（秒，仅 position 时有值） */
   duration?: number
+  /** 实际交叉淡化状态（仅 transitionChanged 时有值） */
+  transitionActive?: boolean
   /** FFT 频谱数据（仅 fftData 时有值，128 个频段，值域 0.0 ~ 1.0） */
   fftData?: JsFftData
   /** 回退原因分类键（仅 outputFallback 时有值：deviceBusy / formatUnsupported / unavailable） */
