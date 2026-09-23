@@ -6,6 +6,7 @@ import type {
   NowPlayingSnapshot,
   NowPlayingPositionSync,
   NowPlayingLyricOffsetSync,
+  NowPlayingUpdatePayload,
 } from "@shared/types/nowPlaying";
 import { store } from "@main/store";
 
@@ -34,6 +35,8 @@ let currentSource: LyricData = null;
 let currentLyricStatus: LyricLoadState = "none";
 /** 当前歌词文档修订号 */
 let lyricRevision = 0;
+/** 渲染端最近一次送达的歌词令牌 */
+let currentLyricToken = 0;
 /** 最近一次播放位置（毫秒） */
 let lastPosition = 0;
 /** lastPosition 真实成立的墙钟时刻（Date.now 毫秒），用于补偿其过期时长 */
@@ -77,20 +80,19 @@ const readOffset = (trackId: string | null | undefined, source: LyricData): numb
 let currentOffsetKey = "";
 
 /**
- * 同步当前播放状态
- * @param track - 当前曲目
- * @param lyric - 当前歌词
- * @param source - 当前歌词源
+ * Track 身份：source + id（流媒体的 Track.id 已带 serverId 前缀）
+ * @param track - 目标曲目
  */
-export const update = (
-  track: Track | null,
-  lyric: LyricLine[],
-  source: LyricData,
-  lyricStatus: LyricLoadState,
-): void => {
-  const previousIdentity = currentTrack ? `${currentTrack.source}:${currentTrack.id}` : null;
-  const nextIdentity = track ? `${track.source}:${track.id}` : null;
-  const trackChanged = previousIdentity !== nextIdentity;
+const trackIdentity = (track: Track | null): string | null =>
+  track ? `${track.source}:${track.id}` : null;
+
+/**
+ * 应用当前 Track：身份变化按切歌处理，同身份下的字段变化发 track-update
+ * @param track - 当前曲目
+ * @returns 是否发生切歌
+ */
+const applyTrack = (track: Track | null): boolean => {
+  const trackChanged = trackIdentity(currentTrack) !== trackIdentity(track);
   const trackUpdated = !trackChanged && !isDeepStrictEqual(currentTrack, track);
   currentTrack = track;
   if (trackChanged) {
@@ -103,11 +105,36 @@ export const update = (
     trackRevision++;
     emitter.emit("track-update", { track, revision: trackRevision });
   }
+  return trackChanged;
+};
 
-  const lyricChanged =
-    currentLyricStatus !== lyricStatus ||
-    !isDeepStrictEqual(currentSource, source) ||
-    !isDeepStrictEqual(currentLyric, lyric);
+/**
+ * 重读当前（曲目, 歌词源）的偏移并在变化时广播
+ * @param track - 当前曲目
+ * @param source - 当前歌词源
+ * @param force - 曲目刚切换时即使 key 相同也要刷新
+ */
+const refreshOffset = (track: Track | null, source: LyricData, force: boolean): void => {
+  const key = track?.id ? offsetKey(track.id, source) : "";
+  if (!force && key === currentOffsetKey) return;
+  currentOffsetKey = key;
+  currentLyricOffsetMs = readOffset(track?.id, source);
+  emitter.emit("lyric-offset-change", {
+    trackId: track?.id ?? null,
+    offsetMs: currentLyricOffsetMs,
+  });
+};
+
+/**
+ * 同步当前播放状态
+ * @param payload - 渲染端的 track + 歌词 + 歌词源 + 加载状态 + 歌词令牌
+ */
+export const update = (payload: NowPlayingUpdatePayload): void => {
+  const { track, lyric, source, lyricStatus, lyricToken } = payload;
+  const trackChanged = applyTrack(track);
+  // 歌词正文与令牌同源送达，比对令牌即可，无需深比较整份逐字歌词
+  const lyricChanged = lyricToken !== currentLyricToken || lyricStatus !== currentLyricStatus;
+  currentLyricToken = lyricToken;
   currentLyric = lyric;
   currentSource = source;
   currentLyricStatus = lyricStatus;
@@ -115,16 +142,17 @@ export const update = (
     lyricRevision++;
   }
   // 曲目或歌词源任一变化都重读偏移并广播
-  const key = track?.id ? offsetKey(track.id, source) : "";
-  if (trackChanged || key !== currentOffsetKey) {
-    currentOffsetKey = key;
-    currentLyricOffsetMs = readOffset(track?.id, source);
-    emitter.emit("lyric-offset-change", {
-      trackId: track?.id ?? null,
-      offsetMs: currentLyricOffsetMs,
-    });
-  }
+  refreshOffset(track, source, trackChanged);
   if (lyricChanged) emitter.emit("lyric-change", snapshot());
+};
+
+/**
+ * 只同步当前 Track 的延迟元数据（封面 / 时长 / 音质补全）
+ * @param track - 当前曲目
+ */
+export const updateTrack = (track: Track): void => {
+  // 元数据通道可能先于完整同步观察到切歌，偏移也要跟着换曲重读
+  refreshOffset(track, currentSource, applyTrack(track));
 };
 
 /**
@@ -249,7 +277,14 @@ export const lyricSnapshot = () => ({
 
 /** 清空 */
 export const clear = (): void => {
-  update(null, [], null, "none");
+  // 令牌自增，让主进程把清空当作一次歌词变化广播出去
+  update({
+    track: null,
+    lyric: [],
+    source: null,
+    lyricStatus: "none",
+    lyricToken: currentLyricToken + 1,
+  });
 };
 
 /** 订阅歌曲切换 */

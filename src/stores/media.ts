@@ -45,7 +45,10 @@ export const useMediaStore = defineStore("media", () => {
   /** 当前歌词文件制作者列表 */
   const lyricAuthors = ref<string[]>([]);
 
-  /** 同步当前歌词源到主进程 */
+  /** 歌词文档令牌：每次重新解析自增，主进程据此判断是否需要广播歌词变化 */
+  let lyricToken = 0;
+
+  /** 同步当前歌词文档到主进程 */
   const syncToMain = (): void => {
     try {
       const payload = {
@@ -57,11 +60,24 @@ export const useMediaStore = defineStore("media", () => {
           : parsedLyric.value.length > 0
             ? ("ready" as const)
             : ("none" as const),
+        lyricToken,
       };
       window.api.nowPlaying.update(payload);
     } catch (error) {
       console.error("[media] syncToMain failed", error);
     }
+  };
+
+  /** 歌词文档变化：令牌自增后再同步，让主进程识别为新的一份歌词 */
+  const pushLyricDocument = (): void => {
+    lyricToken++;
+    syncToMain();
+  };
+
+  /** 只同步 Track，封面 / 时长一类的延迟元数据变化不必重发整份歌词 */
+  const syncTrackToMain = (): void => {
+    if (!track.value) return;
+    window.api.nowPlaying.updateTrack(toRaw(track.value));
   };
 
   /**
@@ -110,7 +126,7 @@ export const useMediaStore = defineStore("media", () => {
       quality: track.value.quality ?? info.quality,
     };
     if (newDetail) detail.value = newDetail;
-    syncToMain();
+    syncTrackToMain();
   };
 
   /**
@@ -126,7 +142,7 @@ export const useMediaStore = defineStore("media", () => {
       cover: track.value.cover || url,
       coverOriginal: track.value.coverOriginal || url,
     };
-    syncToMain();
+    syncTrackToMain();
   };
 
   /** 重置歌词状态 */
@@ -137,7 +153,7 @@ export const useMediaStore = defineStore("media", () => {
     lyricAuthors.value = [];
     lyricIndex.value = -1;
     lyricLoading.value = true;
-    syncToMain();
+    pushLyricDocument();
   };
 
   /** 简繁转换竞态 token */
@@ -199,7 +215,7 @@ export const useMediaStore = defineStore("media", () => {
     lyricAuthors.value = hasContent && source && input ? authors : [];
     lyricIndex.value = -1;
     lyricLoading.value = false;
-    syncToMain();
+    pushLyricDocument();
 
     // 应用 OpenCC 简繁转换
     const cjkMode = settings.lyric.cjkTransform;
@@ -208,7 +224,7 @@ export const useMediaStore = defineStore("media", () => {
       applyLyricCjkTransform(nextLines, cjkMode).then((transformed) => {
         if (token !== transformToken) return;
         parsedLyric.value = transformed;
-        syncToMain();
+        pushLyricDocument();
       });
     }
   };
@@ -232,7 +248,7 @@ export const useMediaStore = defineStore("media", () => {
     lyricAuthors.value = [];
     lyricLoading.value = false;
     lyricIndex.value = -1;
-    syncToMain();
+    pushLyricDocument();
   };
 
   return {

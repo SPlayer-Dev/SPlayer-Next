@@ -7,6 +7,8 @@ export interface NowPlayingUpdatePayload {
   lyric: LyricLine[];
   source: LyricData;
   lyricStatus: LyricLoadState;
+  /** 歌词文档令牌：渲染端每次重新解析歌词自增，主进程据此判断歌词是否变化 */
+  lyricToken: number;
 }
 
 /** 主进程 → 窗口：当前播放的完整快照 */
@@ -55,6 +57,8 @@ export interface NowPlayingLyricOffsetSync {
 export interface NowPlayingApi {
   /** 同步当前播放状态到主进程 */
   update: (payload: NowPlayingUpdatePayload) => void;
+  /** 只同步当前 Track（封面 / 时长等延迟元数据），不重发歌词 */
+  updateTrack: (track: Track) => void;
   /** 拉取当前完整快照 */
   requestSnapshot: () => Promise<NowPlayingSnapshot>;
   /** 写入指定曲目的歌词偏移（ms）；0 视为清除 */

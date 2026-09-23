@@ -23,7 +23,14 @@ Declare `@type control` and at least `@apiLevel 2`, otherwise control capabiliti
  */
 
 splayer.register({
-  events: ["trackChange", "playStateChange", "lineChange"],
+  events: [
+    "trackChange",
+    "trackUpdate",
+    "lyricChange",
+    "lineChange",
+    "playStateChange",
+    "positionSync",
+  ],
   controls: true,
   settings: [{ key: "enabled", type: "switch", label: "Enable sync", default: true }],
 });
@@ -66,15 +73,28 @@ splayer.player.on(kind, (data) => {
 
 ### `trackChange`
 
-`track` is the current [`Track`](/en/types#track), or `null` when no track exists.
+`track` is the current [`Track`](/en/types#track), or `null` when no track exists. `revision` is the track metadata revision.
+
+### `trackUpdate` (apiLevel 4)
+
+Sent when the track identity stays the same but delayed metadata arrives — cover, duration or quality. The payload carries the full `track` plus `revision`; `trackChange` is not re-emitted for these.
 
 ### `lyricChange`
 
-The payload contains `lines: LyricLine[]`. See [`LyricLine`](/en/types#lyricline) and [`LyricWord`](/en/types#lyricword). Convert a line to text with:
+| Field      | Type                             | Description                                           |
+| ---------- | -------------------------------- | ----------------------------------------------------- |
+| `lines`    | `LyricLine[]`                    | Full parsed lyric for the current track               |
+| `source`   | `LyricData`                      | Lyric source, format and online platform (apiLevel 4) |
+| `status`   | `"loading" \| "ready" \| "none"` | Current lyric load state (apiLevel 4)                 |
+| `revision` | `number`                         | Lyric document revision (apiLevel 4)                  |
+
+See [`LyricLine`](/en/types#lyricline) and [`LyricWord`](/en/types#lyricword). Convert a line to text with:
 
 ```js
 line.words.map((word) => word.word).join("");
 ```
+
+`lines` includes TTML backing vocal lines (`line.isBG === true`); filter with `!line.isBG` before showing the lead lyric, which is what the desktop lyric window does. Use `revision` to tell when the lyric for the same track was re-matched or upgraded to a finer format, such as line-level LRC replaced by word-level TTML.
 
 ### `lineChange`
 
@@ -103,6 +123,34 @@ splayer.player.on("lineChange", ({ index }) => {
 
 `stopped` is distinct from `paused`, for example after playback ends.
 
+### `positionSync` (apiLevel 4)
+
+Delivered on the player's position sync cadence (about 5 Hz), meant for external lyric windows that interpolate locally. Only plugins subscribed to this event receive it. Plugins declaring `@apiLevel` below `4` receive neither `positionSync` nor `trackUpdate`.
+
+| Field           | Type                                 | Description                                      |
+| --------------- | ------------------------------------ | ------------------------------------------------ |
+| `position`      | `number`                             | Playback position in milliseconds                |
+| `state`         | `"playing" \| "paused" \| "stopped"` | Playback state                                   |
+| `speed`         | `number`                             | Playback rate multiplier                         |
+| `lyricOffsetMs` | `number`                             | Current lyric offset; positive means lyrics lead |
+| `sendTimestamp` | `number`                             | `Date.now()` milliseconds when the position held |
+
+## Reading the current cover (apiLevel 4)
+
+Declare `@grant control` with `@apiLevel 4` to read the small cover of the current track:
+
+```js
+const cover = await splayer.media.getCover();
+if (cover) {
+  // cover.data is a 300px JPEG; a binary view crossing the sandbox boundary
+  // is not necessarily a Uint8Array of this context
+  const bytes = ArrayBuffer.isView(cover.data) ? new Uint8Array(cover.data) : null;
+  splayer.log.info(cover.trackId, cover.hash, bytes?.byteLength);
+}
+```
+
+The payload also carries `source`, `mimeType` and a content `hash`; it is `null` when no cover is available or reading fails. Covers from local files (including embedded art), online platforms and streaming servers (Jellyfin / Emby / Subsonic family) are all resolved by the host and re-encoded into a 300px JPEG — original high-resolution art is never handed out. While the cover of the current track is unchanged the `hash` is stable and the host reuses the previous result, so polling does not re-decode.
+
 ## Controlling playback
 
 Declare `@grant control` to use these methods. Without the permission, calls are ignored. `register({ controls: true })` describes the plugin's capability, while the grant is the current enforcement boundary.
@@ -117,7 +165,7 @@ Declare `@grant control` to use these methods. Without the permission, calls are
 | `player.setVolume(volume)` | Set volume from `0` to `1`                  |
 | `player.getPosition()`     | `Promise<number>` with the current position |
 
-All methods except `getPosition` are fire-and-forget. Invalid positions or volumes are ignored. Use `getPosition` only for occasional queries; rely on event positions for continuous tracking.
+All methods except `getPosition` are fire-and-forget; invalid input (negative seek, out-of-range volume) is ignored. `getPosition()` costs a round trip per call, so keep it to occasional one-off queries — for continuous progress, subscribe to `positionSync` (apiLevel 4) and interpolate locally.
 
 ## Settings
 

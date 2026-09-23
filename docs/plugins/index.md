@@ -144,13 +144,14 @@ SPlayer-Next 内置一套插件系统，允许用第三方 JavaScript 扩展应�
 | `1`  | 基础音源能力：`register({ sources })`、`musicUrl` 处理器；元数据兜底处理器：`musicSearch` / `musicLyric` / `musicPic`；通用 API：`request` / `storage` / `log` / `getSetting` / `utils` | 播放地址、歌词、封面插件声明 `@apiLevel 1` 即可  |
 | `2`  | 控制能力：`register({ events, controls, settings })`、`splayer.player` 事件订阅与反向控制、`onSettingChange`；界面能力：`register({ menus })`、`menuClick` 处理器（需 `@grant ui`）     | 控制插件或菜单扩展声明 `@apiLevel 2`             |
 | `3`  | 评论能力：`musicComment` 处理器。宿主先用 `musicSearch` 匹配曲目，再向声明了 `musicComment` 的源请求热门 / 最新评论                                                                     | 评论插件能力声明 `@apiLevel 3`                   |
-| `4`  | 高级播放同步：`trackUpdate` / `positionSync`，带来源、加载状态和修订号的 `lyricChange`，以及只读 `splayer.media.getCover()`                                                             | 高级歌词、封面或精确时间轴联动声明 `@apiLevel 4` |
+| `4`  | 高级播放同步：`trackUpdate` / `positionSync`，带来源、加载状态和修订号的 `lyricChange`，以及需 `@grant control` 的只读 `splayer.media.getCover()`                                       | 高级歌词、封面或精确时间轴联动声明 `@apiLevel 4` |
 
 当前宿主级别为 **4**。规则：
 
 - 声明值**必须 ≤ 当前宿主级别**，否则拒绝加载并报 `PLUGIN_API_LEVEL_MISMATCH`（需等应用升级）；
 - 声明你实际用到的**最低**级别即可——只做播放地址 / 歌词 / 封面写 `1`，用到基础控制能力写 `2`，用到评论能力写 `3`，用到高级播放同步写 `4`；
 - 控制插件（`@type control`）必须声明 `2`，否则控制能力在运行时不可用。
+- `trackUpdate` / `positionSync` 与 `media.getCover()` 会按声明的级别在运行时把关：级别不够时收不到这两个事件、调用 `media.getCover()` 报 `PLUGIN_API_LEVEL_MISMATCH`。
 
 ::: tip
 后续版本若新增插件能力，会提升宿主级别并在上表追加一行。你的插件声明的级别不变即可继续运行（向后兼容），用到新能力时再相应提高 `@apiLevel`。

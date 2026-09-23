@@ -2,12 +2,18 @@ import { ipcMain } from "electron";
 import { broadcast } from "@main/utils/broadcast";
 import { wsBroadcast } from "@main/server/broadcast";
 import * as nowPlaying from "@main/services/nowPlaying";
+import type { Track } from "@shared/types/player";
 import type { NowPlayingUpdatePayload } from "@shared/types/nowPlaying";
 
 export const registerNowPlayingIpc = (): void => {
   // 渲染进程同步当前播放状态到主进程
   ipcMain.on("nowPlaying:update", (_event, payload: NowPlayingUpdatePayload) => {
-    nowPlaying.update(payload.track, payload.lyric, payload.source, payload.lyricStatus);
+    nowPlaying.update(payload);
+  });
+
+  // 渲染进程只更新当前 Track 的延迟元数据，不重发歌词
+  ipcMain.on("nowPlaying:updateTrack", (_event, track: Track) => {
+    nowPlaying.updateTrack(track);
   });
 
   // 渲染进程写入指定曲目的歌词偏移

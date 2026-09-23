@@ -6,7 +6,7 @@
  */
 
 import type { HostCallMethod, HostRequestOptions, PluginGrant } from "@shared/types/plugin";
-import { PluginErrorCodes } from "@shared/defaults/plugin-api";
+import { HOST_CALL_MIN_API_LEVEL, PluginErrorCodes } from "@shared/defaults/plugin-api";
 import { coreLog } from "@main/utils/logger";
 import { pluginHost } from "./host-process";
 import { hostRequest } from "./net";
@@ -19,10 +19,19 @@ import {
 import { playerControl } from "@main/services/playerControl";
 import { getCurrentCover } from "./media";
 
-/** 处理一次 plugin→host 调用 */
+/**
+ * 处理一次 plugin→host 调用
+ * @param pluginId - 调用方插件 ID
+ * @param grant - 插件声明的权限
+ * @param apiLevel - 插件声明的 `@apiLevel`
+ * @param callId - 本次调用 ID，用于回传结果
+ * @param method - 宿主方法名
+ * @param args - 方法入参
+ */
 export const dispatchHostCall = async (
   pluginId: string,
   grant: PluginGrant[],
+  apiLevel: number,
   callId: string,
   method: HostCallMethod,
   args: unknown[],
@@ -34,11 +43,22 @@ export const dispatchHostCall = async (
         code: PluginErrorCodes.PERMISSION_DENIED,
       });
     }
-    if (method.startsWith("player.") && !grant.includes("control")) {
+    if (
+      (method.startsWith("player.") || method.startsWith("media.")) &&
+      !grant.includes("control")
+    ) {
       coreLog.warn(`[plugin:${pluginId}] 缺少 "control" 权限，拒绝调用 ${method}`);
       throw Object.assign(new Error(`plugin "${pluginId}" lacks "control" grant`), {
         code: PluginErrorCodes.PERMISSION_DENIED,
       });
+    }
+    // 能力门控：高级方法要求插件声明够用的 @apiLevel
+    const minApiLevel = HOST_CALL_MIN_API_LEVEL[method];
+    if (minApiLevel && apiLevel < minApiLevel) {
+      throw Object.assign(
+        new Error(`plugin "${pluginId}" needs apiLevel ${minApiLevel} for ${method}`),
+        { code: PluginErrorCodes.API_LEVEL_MISMATCH },
+      );
     }
     let data: unknown;
     switch (method) {

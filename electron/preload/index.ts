@@ -478,6 +478,8 @@ const api = {
   nowPlaying: {
     // 渲染进程同步当前播放状态到主进程
     update: (payload: unknown) => ipcRenderer.send("nowPlaying:update", payload),
+    // 渲染进程只同步当前 Track 的延迟元数据
+    updateTrack: (track: unknown) => ipcRenderer.send("nowPlaying:updateTrack", track),
     // 拉取当前完整快照
     requestSnapshot: () => ipcRenderer.invoke("nowPlaying:requestSnapshot"),
     // 写入指定曲目的歌词偏移（ms），0 视为清除

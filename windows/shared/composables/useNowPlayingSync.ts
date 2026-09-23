@@ -81,10 +81,25 @@ export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSyn
     }
   };
 
+  /** 未经末行裁剪的主歌词原文，时长晚到时据此重新夹取 */
+  let rawLyric: LyricLine[] = [];
+
+  /**
+   * 过滤伴唱行并按当前时长夹取末行结束时间
+   * @param lines - 未经处理的歌词行
+   * @param durationMs - 曲目时长，未知时为 undefined
+   */
+  const applyLyric = (lines: LyricLine[], durationMs: number | undefined): void => {
+    rawLyric = lines;
+    lyric.value = clampLastLineEnd(
+      lines.filter((line) => !line.isBG),
+      durationMs,
+    );
+  };
+
   const applySnapshot = (snap: NowPlayingSnapshot): void => {
     track.value = snap.track;
-    const mainLines = snap.lyric.filter((line) => !line.isBG);
-    lyric.value = clampLastLineEnd(mainLines, snap.track?.duration);
+    applyLyric(snap.lyric, snap.track?.duration);
     playing.value = snap.playing;
     speed = snap.speed;
     lyricOffsetMs = snap.lyricOffsetMs;
@@ -122,11 +137,13 @@ export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSyn
     unsubscribers.push(
       window.api.nowPlaying.onTrackChange(({ track: nextTrack }) => {
         track.value = nextTrack;
-        lyric.value = [];
+        applyLyric([], nextTrack?.duration);
         primaryIndex.value = -1;
       }),
       window.api.nowPlaying.onTrackUpdate(({ track: nextTrack }) => {
         track.value = nextTrack;
+        // 歌词正文没变就不会再收到 lyric-change，时长晚到时在这里补夹末行
+        applyLyric(rawLyric, nextTrack.duration);
       }),
       window.api.nowPlaying.onLyricChange((snap) => {
         applySnapshot(snap);
