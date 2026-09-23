@@ -50,7 +50,7 @@ fn crossfade_keeps_one_output_source_and_skips_quiet_intro() {
     let mut source = TransitionSource::new(first, Arc::clone(&fft));
     let control = source.control();
     let signals = control
-        .queue(second, fft, plan(100, 100, 0.025, 3))
+        .queue(second, plan(100, 100, 0.025, 3))
         .expect("应接受备用槽位");
     source.begin_callback();
 
@@ -79,7 +79,7 @@ fn quiet_outro_starts_before_forced_boundary() {
     let mut source = TransitionSource::new(first, Arc::clone(&fft));
     let signals = source
         .control()
-        .queue(second, fft, plan(400, 100, 0.025, 3))
+        .queue(second, plan(400, 100, 0.025, 3))
         .expect("应接受备用槽位");
     source.begin_callback();
 
@@ -103,7 +103,7 @@ fn quiet_preference_changes_handoff_before_forced_boundary() {
         let mut source = TransitionSource::new(first, Arc::clone(&fft));
         let signals = source
             .control()
-            .queue(second, fft, plan(400, 100, threshold, windows))
+            .queue(second, plan(400, 100, threshold, windows))
             .expect("应接受备用槽位");
         source.begin_callback();
         for _ in 0..300 {
@@ -129,7 +129,7 @@ fn standard_fades_before_digital_silence() {
     let mut source = TransitionSource::new(first, Arc::clone(&fft));
     let signals = source
         .control()
-        .queue(second, fft, plan(400, 100, 0.025, 3))
+        .queue(second, plan(400, 100, 0.025, 3))
         .expect("应接受备用槽位");
     source.begin_callback();
     for _ in 0..250 {
@@ -151,7 +151,7 @@ fn skipped_stereo_intro_preserves_channel_order() {
     let mut source = TransitionSource::new(first, Arc::clone(&fft));
     source
         .control()
-        .queue(second, fft, plan(100, 200, 0.025, 3))
+        .queue(second, plan(100, 200, 0.025, 3))
         .expect("应接受双声道备用槽位");
     source.begin_callback();
     let output: Vec<f32> = (0..400).map(|_| source.next().unwrap()).collect();
@@ -167,4 +167,124 @@ fn mixed_peak_has_a_smooth_ceiling() {
     assert!(soft_ceiling(1.3) < 1.0);
     assert!(soft_ceiling(1.3) > soft_ceiling(1.0));
     assert_eq!(soft_ceiling(-1.3), -soft_ceiling(1.3));
+}
+
+#[test]
+fn handoff_position_includes_only_skipped_intro_and_played_audio() {
+    let first = buffered(vec![0.6; 1000]);
+    let mut samples = vec![0.0; 40];
+    samples.extend(vec![0.5; 1000]);
+    let second = buffered(samples);
+    let fft = Arc::new(FftAnalyzer::new());
+    let mut source = TransitionSource::new(first, Arc::clone(&fft));
+    let signals = source
+        .control()
+        .queue(Arc::clone(&second), plan(100, 100, 0.025, 3))
+        .unwrap();
+    source.begin_callback();
+    for _ in 0..500 {
+        source.next();
+        if signals.completed.load(Ordering::Acquire) {
+            break;
+        }
+    }
+    assert!(signals.completed.load(Ordering::Acquire));
+    assert!((second.consumed_position() - 0.140).abs() < 0.001);
+}
+
+#[test]
+fn underrun_keeps_outgoing_gain_and_resumes_the_envelope() {
+    let first = buffered(vec![0.6; 1000]);
+    let second = Shared::new(1000, 1);
+    second.push_output(AudioChunk {
+        player_samples: vec![0.4; 60],
+        fft_samples: vec![],
+        source_sample_count: 60,
+    });
+    let fft = Arc::new(FftAnalyzer::new());
+    let mut source = TransitionSource::new(first, Arc::clone(&fft));
+    let signals = source
+        .control()
+        .queue(Arc::clone(&second), plan(0, 100, 0.025, 3))
+        .unwrap();
+    source.begin_callback();
+    for _ in 0..60 {
+        source.next();
+    }
+    let expected = 0.6 * (0.59 * FRAC_PI_2).cos();
+    for _ in 0..20 {
+        assert!((source.next().unwrap() - expected).abs() < 0.0001);
+    }
+    assert!(!signals.completed.load(Ordering::Acquire));
+    second.push_output(AudioChunk {
+        player_samples: vec![0.4; 200],
+        fft_samples: vec![],
+        source_sample_count: 200,
+    });
+    second.mark_output_eof();
+    source.begin_callback();
+    for _ in 0..40 {
+        source.next();
+    }
+    assert!(signals.completed.load(Ordering::Acquire));
+}
+
+#[test]
+fn outgoing_eof_does_not_jump_incoming_gain_to_full_volume() {
+    let first = buffered(vec![0.6; 50]);
+    let second = buffered(vec![0.4; 500]);
+    let fft = Arc::new(FftAnalyzer::new());
+    let mut source = TransitionSource::new(first, Arc::clone(&fft));
+    let signals = source
+        .control()
+        .queue(second, plan(0, 100, 0.025, 3))
+        .unwrap();
+    source.begin_callback();
+    for _ in 0..50 {
+        source.next();
+    }
+    assert!((source.next().unwrap() - 0.4 * FRAC_PI_2.sin() / 2.0_f32.sqrt()).abs() < 0.0001);
+    assert!(!signals.completed.load(Ordering::Acquire));
+}
+
+#[test]
+fn fft_observes_the_mixed_output_instead_of_each_deck() {
+    let first = stereo_buffered(vec![0.5; 5000]);
+    let second = stereo_buffered(vec![-0.5; 5000]);
+    let fft = Arc::new(FftAnalyzer::new());
+    fft.set_enabled(true);
+    let reference = FftAnalyzer::new();
+    reference.set_enabled(true);
+    reference.set_sample_rate(1000);
+    let mut source = TransitionSource::new(first, Arc::clone(&fft));
+    source
+        .control()
+        .queue(second, plan(0, 4000, 0.025, 3))
+        .unwrap();
+    source.begin_callback();
+    let output: Vec<_> = (0..4096).map(|_| source.next().unwrap()).collect();
+    source.begin_callback();
+    reference.push_interleaved_samples(&output);
+    assert_eq!(fft.analyze(), reference.analyze());
+}
+
+#[test]
+fn changing_speed_preserves_gain_and_scales_remaining_fade() {
+    let fft = Arc::new(FftAnalyzer::new());
+    let mut source = TransitionSource::new(buffered(vec![0.6; 1000]), fft);
+    let control = source.control();
+    let signals = control
+        .queue(buffered(vec![0.4; 1000]), plan(0, 100, 0.025, 3))
+        .unwrap();
+    source.begin_callback();
+    for _ in 0..50 {
+        source.next();
+    }
+    control.set_speed_ratio(2.0);
+    source.begin_callback();
+    assert!((source.next().unwrap() - 1.0 / 2.0_f32.sqrt()).abs() < 0.0001);
+    for _ in 0..24 {
+        source.next();
+    }
+    assert!(signals.completed.load(Ordering::Acquire));
 }

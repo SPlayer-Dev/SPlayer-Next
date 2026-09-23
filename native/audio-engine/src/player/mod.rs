@@ -30,6 +30,7 @@ pub use transition::{LoadedPlayback, SeekTake};
 pub struct InnerPlayer {
     pub(crate) preload: preload::PreloadSlot,
     transitioning: Arc<AtomicBool>,
+    transition_dsp: Option<crossfade::TransitionDsp>,
     /// 输出设备与配置句柄（不持有流），保证 InnerPlayer 整体是 Send 的
     output: Option<AudioOutput>,
     /// 使用 Arc 包装，允许 fade 线程在 Mutex 外操作音量
@@ -147,6 +148,7 @@ impl InnerPlayer {
         Ok(Self {
             preload: preload::PreloadSlot::default(),
             transitioning: Arc::new(AtomicBool::new(false)),
+            transition_dsp: None,
             output,
             playback: None,
             shared: None,
@@ -386,6 +388,7 @@ impl InnerPlayer {
 
     fn stop_internal(&mut self) {
         self.transitioning.store(false, Ordering::Release);
+        self.transition_dsp = None;
         // 1. 取消渐变并等待渐变线程退出（释放 Arc<Sink>）
         self.cancel_fade();
         // 2. 停止定时器并等待线程退出（释放 Arc<Shared> 和 Arc<EventEmitter>）
@@ -474,6 +477,9 @@ impl InnerPlayer {
     /// 设置音量归一化开关
     pub fn set_normalization_enabled(&mut self, enabled: bool) {
         self.normalization_enabled = enabled;
+        if let Some(next) = &self.transition_dsp {
+            next.shared.set_normalization_enabled(enabled);
+        }
         if let Some(ref shared) = self.shared {
             shared.set_normalization_enabled(enabled);
         }
@@ -487,6 +493,9 @@ impl InnerPlayer {
     /// 设置均衡器开关
     pub fn set_equalizer_enabled(&mut self, enabled: bool) {
         self.equalizer.lock().set_enabled(enabled);
+        if let Some(next) = &self.transition_dsp {
+            next.equalizer.lock().set_enabled(enabled);
+        }
     }
 
     /// 获取均衡器开关状态
@@ -497,6 +506,9 @@ impl InnerPlayer {
     /// 更新所有频段增益（dB），长度需为 EQ_BAND_COUNT
     pub fn set_equalizer_bands(&mut self, gains_db: &[f32]) {
         self.equalizer.lock().set_band_gains(gains_db);
+        if let Some(next) = &self.transition_dsp {
+            next.equalizer.lock().set_band_gains(gains_db);
+        }
     }
 
     /// 获取所有频段当前增益（dB）
@@ -507,6 +519,9 @@ impl InnerPlayer {
     /// 设置前级增益（dB，自动 clamp 到 ±12）
     pub fn set_preamp_gain(&mut self, db: f32) {
         self.equalizer.lock().set_preamp_db(db);
+        if let Some(next) = &self.transition_dsp {
+            next.equalizer.lock().set_preamp_db(db);
+        }
     }
 
     /// 获取前级增益（dB）
@@ -517,17 +532,29 @@ impl InnerPlayer {
     /// 设置播放速度（自动 clamp 到 [0.5, 2.0]）
     pub fn set_speed(&mut self, speed: f32) {
         self.tempo.lock().set_speed(speed);
+        if let Some(next) = &self.transition_dsp {
+            next.tempo.lock().set_speed(speed);
+            if let Some(playback) = &self.playback {
+                playback.set_transition_speed(self.speed() / next.initial_speed);
+            }
+        }
     }
 
     /// 设置音调偏移（半音，自动 clamp 到 [-12, 12]）
     /// sync=ON 时立即下发；sync=OFF 时只更新内部值，不影响声音
     pub fn set_pitch(&mut self, semitones: i8) {
         self.tempo.lock().set_pitch(semitones);
+        if let Some(next) = &self.transition_dsp {
+            next.tempo.lock().set_pitch(semitones);
+        }
     }
 
     /// 设置"音调同步"开关（true = 变速保音调，默认）
     pub fn set_pitch_sync(&mut self, sync: bool) {
         self.tempo.lock().set_pitch_sync(sync);
+        if let Some(next) = &self.transition_dsp {
+            next.tempo.lock().set_pitch_sync(sync);
+        }
     }
 
     /// 获取当前播放速度

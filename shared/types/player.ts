@@ -167,6 +167,8 @@ export interface MediaInfo {
 /** 播放器加载后返回的完整数据 */
 export interface LoadResult {
   detail: TrackDetail;
+  /** 交接完成时的真实播放锚点，避免将已经播放的新曲重置到零 */
+  playback?: { position: number; state: PlayerState; speed: number; timestamp: number };
   /** 引擎从音频流提取的元数据，用于 enrich 渲染层已持有的 Track */
   mediaInfo: MediaInfo;
 }
@@ -212,6 +214,7 @@ export type TransitionPreference = "conservative" | "standard" | "eager";
 export type PlayerEvent =
   | { type: "status"; data: PlayerStatus }
   | { type: "position"; data: { position: number; duration: number } }
+  | { type: "transitionReady"; data: { id: string; position: number } }
   | { type: "transition"; data: { active: boolean; mode: "crossfade" } }
   | { type: "seek"; data: { position: number } }
   | { type: "ended" }

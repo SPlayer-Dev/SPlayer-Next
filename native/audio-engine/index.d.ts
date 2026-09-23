@@ -143,9 +143,11 @@ export declare class AudioPlayer {
    * @param source - 预载音源路径
    * @param remainingSeconds - 当前曲目距离有效结束的墙钟秒数
    * @param preference - 曲尾交接时机与淡化时长偏好
+   * @param nextEndSeconds - 下一曲的 CUE 结束位置
+   * @param currentEndSeconds - 当前曲目的 CUE 结束位置
    * @returns 成功交接时返回下一曲元信息，槽位失效时返回空值
    */
-  transitionToPrepared(id: string, source: string, remainingSeconds: number, preference: string): Promise<JsMusicMetadata | null>
+  transitionToPrepared(id: string, source: string, remainingSeconds: number, preference: string, nextEndSeconds?: number | undefined | null, currentEndSeconds?: number | undefined | null): Promise<JsMusicMetadata | null>
   /** 创建新的播放器实例 */
   constructor()
 }

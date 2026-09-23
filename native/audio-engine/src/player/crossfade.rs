@@ -5,8 +5,19 @@ use anyhow::{ensure, Result};
 
 use super::preload::PreparedPlayback;
 use super::{InnerPlayer, PlayerState};
+use crate::decoder::buffer::Shared;
 use crate::decoder::transition_source::TransitionPlan;
+use crate::dsp::{equalizer::Equalizer, tempo::StretchProcessor};
 use crate::metadata::AudioMetadata;
+use parking_lot::Mutex;
+
+/// 在途过渡的第二路 DSP，供用户调整音效时同步两路参数
+pub(super) struct TransitionDsp {
+    pub initial_speed: f32,
+    pub shared: Arc<Shared>,
+    pub equalizer: Arc<Mutex<Equalizer>>,
+    pub tempo: Arc<Mutex<StretchProcessor>>,
+}
 
 /// 已交给输出回调、等待音频边界完成的备用槽位
 pub struct ArmedTransition {
@@ -26,6 +37,8 @@ impl InnerPlayer {
         source: &str,
         remaining_secs: f64,
         preference: &str,
+        next_end_seconds: Option<f64>,
+        current_end_seconds: Option<f64>,
     ) -> Result<Option<ArmedTransition>> {
         if self.state != PlayerState::Playing || self.transitioning.load(Ordering::Acquire) {
             return Ok(None);
@@ -46,28 +59,44 @@ impl InnerPlayer {
             return Ok(None);
         };
         ensure!(ready.shared.output_ready(), "下一曲尚未准备好音频样本");
-        let next_remaining = ready.metadata.duration_secs - ready.start_position;
+        let next_end = next_end_seconds
+            .unwrap_or(ready.metadata.duration_secs)
+            .min(ready.metadata.duration_secs);
+        let next_remaining = next_end - ready.start_position;
         if !next_remaining.is_finite() || next_remaining < 2.0 {
             return Ok(None);
         }
+        let current_end = current_end_seconds.unwrap_or(self.duration());
+        let remaining_secs =
+            remaining_secs.min((current_end - self.position()).max(0.0) / f64::from(self.speed()));
+        if remaining_secs < 1.0 {
+            return Ok(None);
+        }
+        if current_end_seconds.is_some() {
+            if let Some(shared) = &self.shared {
+                shared.set_end_position(current_end - self.seek_base);
+            }
+        }
+        if next_end_seconds.is_some() {
+            ready.shared.set_end_position(next_remaining);
+        }
         let (fade_limit, quiet_threshold, quiet_windows_required, search_secs) = match preference {
-            "conservative" => (1.8_f64, 0.012_f32, 4_u8, 1.2_f64),
-            "eager" => (3.6, 0.06, 2, 3.0),
-            _ => (2.4, 0.025, 3, 2.0),
+            "conservative" => (1.8_f64, 0.012_f32, 4_u8, 0.25_f64),
+            "eager" => (3.6, 0.04, 4, 2.0),
+            _ => (3.0, 0.04, 4, 1.0),
         };
         let fade_secs = fade_limit
-            .min(remaining_secs - 0.35)
-            .min(next_remaining / 2.0);
+            .min(remaining_secs)
+            .min(next_remaining / f64::from(self.speed()) / 2.0);
         let fade_samples = ((fade_secs * sample_rate as f64).round() as u64) * channels;
         let latest_sample =
-            (((remaining_secs - fade_secs - 0.35).max(0.0) * sample_rate as f64) as u64) * channels;
+            (((remaining_secs - fade_secs).max(0.0) * sample_rate as f64) as u64) * channels;
         let earliest_sample = latest_sample
             .saturating_sub(((search_secs * rate as f64) as u64) / channels * channels);
         ready.shared.set_preloading(false);
         self.transitioning.store(true, Ordering::Release);
         let signals = playback.queue_transition(
             Arc::clone(&ready.shared),
-            Arc::clone(&self.fft),
             TransitionPlan {
                 earliest_sample,
                 latest_sample,
@@ -83,6 +112,12 @@ impl InnerPlayer {
                 return Err(error);
             }
         };
+        self.transition_dsp = Some(TransitionDsp {
+            initial_speed: ready.config.speed,
+            shared: Arc::clone(&ready.shared),
+            equalizer: Arc::clone(&ready.equalizer),
+            tempo: Arc::clone(&ready.tempo),
+        });
         Ok(Some(ArmedTransition {
             ready,
             started: signals.started,
@@ -124,6 +159,7 @@ impl InnerPlayer {
         self.cover_raw = transition.ready.metadata.cover_raw.take();
         self.playback.as_ref()?.drain_retired();
         self.transitioning.store(false, Ordering::Release);
+        self.transition_dsp = None;
         self.start_position_timer();
         Some(transition.ready.metadata.clone())
     }

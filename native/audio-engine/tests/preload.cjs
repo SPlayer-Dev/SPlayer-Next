@@ -35,6 +35,29 @@ function writeWav(file, sampleRate, seconds, amplitude = 0) {
   fs.writeFileSync(file, data);
 }
 
+test("交叉过渡遵守下一曲 CUE 边界并拒绝过短片段", { timeout: 15000 }, async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "splayer-transition-cue-"));
+  const current = path.join(directory, "current.wav");
+  const next = path.join(directory, "next.wav");
+  const player = new AudioPlayer();
+  t.after(() => {
+    player.stop();
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+  writeWav(current, 48000, 6, 0.2);
+  writeWav(next, 44100, 10, 0.1);
+  await player.load(current, true);
+  await player.prepareNext("short", next, 2);
+  assert.equal(await player.transitionToPrepared("short", next, 2, "eager", 2.5), null);
+  assert.equal(player.getStatus().state, "playing");
+  await player.prepareNext("cue", next, 2);
+  assert.ok(await player.transitionToPrepared("cue", next, 1.2, "eager", 5));
+  assert.ok(player.getPosition() >= 3 && player.getPosition() < 4);
+  await new Promise((resolve) => setTimeout(resolve, 2200));
+  assert.ok(Math.abs(player.getPosition() - 5) < 0.05, "不能播放到 CUE 子曲目之外");
+  assert.equal(player.getStatus().isFinished, true);
+});
+
 for (const exclusive of [false, true]) {
   test(
     `同一输出流完成交叉过渡（${exclusive ? "独占" : "共享"}输出）`,

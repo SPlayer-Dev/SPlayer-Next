@@ -3,7 +3,21 @@ import * as songCache from "@main/services/songCache";
 import { store } from "@main/store";
 import { playerLog } from "@main/utils/logger";
 
-let prepared: { id: string; player: ReturnType<typeof getPlayer> } | null = null;
+let prepared: { id: string; player: ReturnType<typeof getPlayer>; ready: boolean } | null = null;
+let notifiedId: string | null = null;
+
+/**
+ * 曲尾只通知一次就绪槽位，隐藏窗口也能安排交接
+ * @param remainingMs - 当前曲目剩余的源时间
+ * @returns 尚未通知的就绪槽位标识
+ */
+export const takeTransitionReady = (remainingMs: number): string | null => {
+  if (remainingMs > 6000) notifiedId = null;
+  if (remainingMs < 1000 || remainingMs > 6000 || !prepared?.ready) return null;
+  if (notifiedId === prepared.id) return null;
+  notifiedId = prepared.id;
+  return prepared.id;
+};
 
 /**
  * 取消下一曲准备任务并释放对应的缓存租约
@@ -36,7 +50,7 @@ export const prepareNextTrack = async (
     return false;
   }
   const player = getPlayer();
-  prepared = { id, player };
+  prepared = { id, player, ready: false };
   songCache.pinPreload(id, source);
   try {
     const ready = await player.prepareNext(id, source, startMs / 1000);
@@ -45,6 +59,7 @@ export const prepareNextTrack = async (
       cancelPreparedTrack(id);
       return false;
     }
+    prepared.ready = true;
     playerLog.info("下一曲 PCM 预载完成", { id, source });
     return true;
   } catch (error) {

@@ -1,5 +1,5 @@
 use std::f32::consts::FRAC_PI_2;
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering};
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
@@ -55,6 +55,8 @@ struct ActiveTransition {
     command: TransitionCommand,
     elapsed: u64,
     faded: u64,
+    timeline_elapsed: f64,
+    fade_progress: f64,
     energy_sum: f32,
     energy_samples: u64,
     quiet_windows: u8,
@@ -73,28 +75,28 @@ struct RetiredSource {
 /// 控制线程向同一条输出流提交下一曲，并回收退役的读取器
 #[derive(Clone)]
 pub struct TransitionControl {
+    speed_ratio: Arc<AtomicU32>,
     commands: Arc<ArrayQueue<TransitionCommand>>,
     retired: Arc<ArrayQueue<RetiredSource>>,
 }
 
 impl TransitionControl {
+    /// 调速后按同一比例推进搜索边界和淡化进度，保留当前增益
+    pub fn set_speed_ratio(&self, ratio: f32) {
+        self.speed_ratio.store(ratio.to_bits(), Ordering::Release);
+    }
     /// 将已就绪的下一曲提交到实时输出回调
     /// @param shared - 下一曲的 PCM 缓冲
-    /// @param fft - 输出频谱分析器
     /// @param plan - 输出帧、能量阈值及持续窗口构成的交接计划
     /// @returns 回调开始和完成交接时置位的状态
-    pub fn queue(
-        &self,
-        shared: Arc<Shared>,
-        fft: Arc<FftAnalyzer>,
-        plan: TransitionPlan,
-    ) -> Result<TransitionSignals> {
+    pub fn queue(&self, shared: Arc<Shared>, plan: TransitionPlan) -> Result<TransitionSignals> {
         let started = Arc::new(AtomicBool::new(false));
         let completed = Arc::new(AtomicBool::new(false));
         let decision = Arc::new(AtomicU8::new(0));
+        self.set_speed_ratio(1.0);
         let command = TransitionCommand {
             intro_frame: vec![0.0; shared.channels() as usize],
-            next: Box::new(DecoderSampleReader::new(shared, fft)),
+            next: Box::new(DecoderSampleReader::new(shared)),
             earliest_sample: plan.earliest_sample,
             latest_sample: plan.latest_sample,
             fade_samples: plan.fade_samples.max(1),
@@ -122,6 +124,13 @@ impl TransitionControl {
 
 /// 一条设备输出流中的双槽位混音源
 pub struct TransitionSource {
+    speed_ratio: f64,
+    fft: Arc<FftAnalyzer>,
+    fft_enabled: bool,
+    fft_buffer: [f32; 256],
+    fft_len: usize,
+    output_channel: u64,
+    output_frame: [f32; 2],
     active: Box<DecoderSampleReader>,
     transition: Option<ActiveTransition>,
     control: TransitionControl,
@@ -135,10 +144,19 @@ impl TransitionSource {
         let channels = u64::from(shared.channels());
         let energy_window_samples = (u64::from(shared.sample_rate()) / 20).max(1) * channels;
         let max_intro_samples = u64::from(shared.sample_rate()) * u64::from(shared.channels()) * 2;
+        fft.set_sample_rate(shared.sample_rate());
         Self {
-            active: Box::new(DecoderSampleReader::new(shared, fft)),
+            speed_ratio: 1.0,
+            fft_enabled: fft.is_enabled(),
+            fft,
+            fft_buffer: [0.0; 256],
+            fft_len: 0,
+            output_channel: 0,
+            output_frame: [0.0; 2],
+            active: Box::new(DecoderSampleReader::new(shared)),
             transition: None,
             control: TransitionControl {
+                speed_ratio: Arc::new(AtomicU32::new(1.0_f32.to_bits())),
                 commands: Arc::new(ArrayQueue::new(1)),
                 retired: Arc::new(ArrayQueue::new(1)),
             },
@@ -153,6 +171,15 @@ impl TransitionSource {
     }
 
     pub fn begin_callback(&mut self) {
+        self.speed_ratio = f64::from(f32::from_bits(
+            self.control.speed_ratio.load(Ordering::Acquire),
+        ));
+        if self.fft_len > 0 {
+            self.fft
+                .push_interleaved_samples(&self.fft_buffer[..self.fft_len]);
+            self.fft_len = 0;
+        }
+        self.fft_enabled = self.fft.is_enabled();
         self.active.begin_callback();
         if let Some(transition) = &mut self.transition {
             transition.command.next.begin_callback();
@@ -160,9 +187,10 @@ impl TransitionSource {
     }
 
     fn finish_transition(&mut self) {
-        let Some(transition) = self.transition.take() else {
+        let Some(mut transition) = self.transition.take() else {
             return;
         };
+        transition.command.next.sync_position();
         let old = std::mem::replace(&mut self.active, transition.command.next);
         let _ = self.control.retired.push(RetiredSource {
             _reader: old,
@@ -172,16 +200,19 @@ impl TransitionSource {
     }
 }
 
-impl Iterator for TransitionSource {
-    type Item = f32;
-
-    fn next(&mut self) -> Option<f32> {
+impl TransitionSource {
+    fn next_sample(&mut self) -> Option<f32> {
         if self.transition.is_none() {
             if let Some(command) = self.control.commands.pop() {
+                self.speed_ratio = f64::from(f32::from_bits(
+                    self.control.speed_ratio.load(Ordering::Acquire),
+                ));
                 let mut next = ActiveTransition {
                     command,
                     elapsed: 0,
                     faded: 0,
+                    timeline_elapsed: 0.0,
+                    fade_progress: 0.0,
                     energy_sum: 0.0,
                     energy_samples: 0,
                     quiet_windows: 0,
@@ -201,6 +232,7 @@ impl Iterator for TransitionSource {
         };
         let a = self.active.next();
         transition.elapsed = transition.elapsed.saturating_add(1);
+        transition.timeline_elapsed += self.speed_ratio;
         let frame_start = (transition.elapsed - 1) % self.channels == 0;
         if !transition.intro_done && frame_start {
             let mut audible = false;
@@ -225,7 +257,7 @@ impl Iterator for TransitionSource {
                 transition.intro_done = audible || transition.intro_scanned >= intro_limit;
             }
         }
-        if transition.elapsed < transition.command.earliest_sample {
+        if transition.timeline_elapsed < transition.command.earliest_sample as f64 {
             return a;
         }
 
@@ -253,7 +285,7 @@ impl Iterator for TransitionSource {
         let start = transition.faded > 0
             || (frame_start
                 && (quiet_found
-                    || transition.elapsed >= transition.command.latest_sample
+                    || transition.timeline_elapsed >= transition.command.latest_sample as f64
                     || a.is_none()));
         if !start || !transition.intro_done {
             return a;
@@ -267,10 +299,10 @@ impl Iterator for TransitionSource {
         } else {
             transition.command.next.next().unwrap_or(0.0)
         };
-        if !from_intro && transition.command.next.is_underrun() && a.is_some() {
-            return a;
+        if !from_intro && transition.command.next.is_underrun() {
+            return Some(sample * transition.gain_a);
         }
-        if a.is_none() {
+        if a.is_none() && transition.faded == 0 {
             if transition.command.next.is_underrun() {
                 return Some(0.0);
             }
@@ -282,7 +314,9 @@ impl Iterator for TransitionSource {
             return Some(b);
         }
         if transition.faded == 0 {
-            let reason = if transition.elapsed < transition.command.latest_sample && quiet_found {
+            let reason = if transition.timeline_elapsed < transition.command.latest_sample as f64
+                && quiet_found
+            {
                 TRANSITION_DECISION_QUIET
             } else {
                 TRANSITION_DECISION_DEADLINE
@@ -291,18 +325,48 @@ impl Iterator for TransitionSource {
             transition.command.started.store(true, Ordering::Release);
         }
         if transition.faded % self.channels == 0 {
-            let progress = ((transition.faded / self.channels) as f32
-                / (transition.command.fade_samples / self.channels).max(1) as f32)
-                .min(1.0);
-            transition.gain_a = (progress * FRAC_PI_2).cos();
-            transition.gain_b = (progress * FRAC_PI_2).sin();
+            let progress =
+                (transition.fade_progress / transition.command.fade_samples as f64).min(1.0) as f32;
+            (transition.gain_b, transition.gain_a) = (progress * FRAC_PI_2).sin_cos();
         }
         let mixed = sample * transition.gain_a + b * transition.gain_b;
         transition.faded += 1;
-        if transition.faded >= transition.command.fade_samples {
+        transition.fade_progress += self.speed_ratio;
+        if transition.fade_progress >= transition.command.fade_samples as f64
+            && transition.faded % self.channels == 0
+        {
             self.finish_transition();
         }
         Some(soft_ceiling(mixed))
+    }
+}
+
+impl Iterator for TransitionSource {
+    type Item = f32;
+
+    fn next(&mut self) -> Option<f32> {
+        let sample = self.next_sample()?;
+        if self.fft_enabled {
+            if self.output_channel < 2 {
+                self.output_frame[self.output_channel as usize] = sample;
+            }
+            self.output_channel += 1;
+            if self.output_channel == self.channels {
+                self.output_channel = 0;
+                self.fft_buffer[self.fft_len] = self.output_frame[0];
+                self.fft_buffer[self.fft_len + 1] = if self.channels == 1 {
+                    self.output_frame[0]
+                } else {
+                    self.output_frame[1]
+                };
+                self.fft_len += 2;
+                if self.fft_len == self.fft_buffer.len() {
+                    self.fft.push_interleaved_samples(&self.fft_buffer);
+                    self.fft_len = 0;
+                }
+            }
+        }
+        Some(sample)
     }
 }
 

@@ -1,6 +1,6 @@
 use parking_lot::Mutex;
 use rustfft::{num_complex::Complex, Fft, FftPlanner};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
 
 /// 每次 FFT 的样本数
@@ -17,6 +17,7 @@ const MAX_BUFFER_SIZE: usize = 8192;
 
 /// FFT 频谱分析器，接收交织双声道样本并输出频谱数据
 pub struct FftAnalyzer {
+    sample_rate: AtomicU32,
     /// 双声道样本环形缓冲区（由播放线程写入）
     sample_buffer: Mutex<StereoSampleBuffer>,
     /// 是否接收样本并执行频谱分析
@@ -56,6 +57,7 @@ impl FftAnalyzer {
             .collect();
 
         Self {
+            sample_rate: AtomicU32::new(FFT_SAMPLE_RATE),
             sample_buffer: Mutex::new(StereoSampleBuffer {
                 left: vec![0.0; MAX_BUFFER_SIZE],
                 right: vec![0.0; MAX_BUFFER_SIZE],
@@ -102,6 +104,11 @@ impl FftAnalyzer {
         self.enabled.load(Ordering::Relaxed)
     }
 
+    /// 使用实际混音输出的采样率解释频谱，不在音频回调中重采样
+    pub fn set_sample_rate(&self, sample_rate: u32) {
+        self.sample_rate.store(sample_rate, Ordering::Relaxed);
+    }
+
     /// 应用预计算的 Hamming 窗
     fn apply_window(&self, samples: &[f32], start: usize, windowed: &mut [Complex<f32>]) {
         for (i, output) in windowed.iter_mut().enumerate() {
@@ -140,7 +147,7 @@ impl FftAnalyzer {
         self.fft_plan.process(&mut work.windowed_r);
 
         // 将频率段映射到输出频段
-        let freq_per_bin = FFT_SAMPLE_RATE as f32 / FFT_SIZE as f32;
+        let freq_per_bin = self.sample_rate.load(Ordering::Relaxed) as f32 / FFT_SIZE as f32;
         let min_bin = (MIN_FREQ / freq_per_bin).floor() as usize;
         let max_bin = ((MAX_FREQ / freq_per_bin).ceil() as usize).min(FFT_SIZE / 2);
 

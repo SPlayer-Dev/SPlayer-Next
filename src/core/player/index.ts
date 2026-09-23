@@ -116,17 +116,23 @@ export type LoadOutcome = { ok: true; track: Track | null } | { ok: false; error
 
 /**
  * 切歌通用前置
- * @param duration 新歌时长（毫秒），未知时传 0
+ * @param duration - 新歌时长（毫秒），未知时传 0
+ * @param anchor - 已经播放的新曲锚点，交接时保持源时间连续
  */
-const resetForLoad = (duration: number): void => {
+const resetForLoad = (duration: number, anchor?: LoadResult["playback"]): void => {
   const status = useStatusStore();
   status.trackLoading = true;
   status.transitioning = false;
-  status.position = 0;
+  const position = anchor
+    ? anchor.position +
+      (anchor.state === "playing" ? Math.max(0, Date.now() - anchor.timestamp) * anchor.speed : 0)
+    : 0;
+  status.position = Math.min(position, duration > 0 ? duration : Infinity);
   status.duration = duration;
-  playback.setCurrentTime(0, { force: true });
   playback.setDuration(duration);
-  playback.setPlaying(false);
+  if (anchor) playback.setSpeed(anchor.speed);
+  playback.setPlaying(anchor?.state === "playing");
+  playback.setCurrentTime(status.position, { force: true });
   // 上一首未达到缓存触发阈值的请求丢弃
   cacheScheduler.cancel();
 };
@@ -152,7 +158,7 @@ export const load = async (
   // 清除上一次 seek 残留
   seekTarget = null;
   playback.setSeeking(false);
-  resetForLoad(meta?.duration ?? 0);
+  resetForLoad(meta?.duration ?? 0, options.transitionResult?.data?.playback);
   // 非本地并行歌词与取色
   const isOnline = meta?.source !== "local";
   if (isOnline) {
@@ -190,10 +196,15 @@ export const load = async (
       }
       const dur = enriched?.duration ?? mediaInfo.duration;
       status.duration = dur;
-      status.state = autoPlay ? "playing" : "paused";
+      status.state = result.data.playback?.state ?? (autoPlay ? "playing" : "paused");
       status.currentSource = source;
       playback.setDuration(dur);
-      playback.setPlaying(autoPlay);
+      playback.setPlaying(status.state === "playing");
+      if (result.data.playback) {
+        status.speed = result.data.playback.speed;
+        status.position = playback.getCurrentTime();
+        media.updateLyricIndex(status.position + status.lyricOffsetMs);
+      }
       return { ok: true, track: enriched };
     }
     status.state = "idle";
@@ -327,13 +338,13 @@ const loadTrack = async (
   }
   const myToken = ++trackToken;
   // 消费预载结果
-  const preloaded = consumePreloadedTrack(track);
+  const preloaded = transitionResult ? null : consumePreloadedTrack(track);
   // 乐观更新
   const media = useMediaStore();
   media.setTrack(track);
   media.setPlaybackContext(context);
   lyricLoader.beginLoad();
-  resetForLoad(track.duration ?? 0);
+  resetForLoad(track.duration ?? 0, transitionResult?.data?.playback);
   // 已准备的槽位由原生 load 接管；提前 stop 会连同备用槽一起释放
   if (!transitionResult && !preloaded?.preparedId) void window.api.player.stop();
   // 是否可跳曲
@@ -883,8 +894,12 @@ export const isSmartTransitionActive = (): boolean => transitionInFlight;
 /**
  * 在当前曲目尾部尝试以备用槽位进行自动交接
  * @param positionMs - 当前曲目的展示位置
+ * @param preparedId - 后台通知对应的槽位，用于拒绝迟到通知
  */
-export const trySmartTransition = async (positionMs: number): Promise<void> => {
+export const trySmartTransition = async (
+  positionMs: number,
+  preparedId?: string,
+): Promise<void> => {
   const settings = useSettingsStore();
   const status = useStatusStore();
   if (
@@ -912,6 +927,7 @@ export const trySmartTransition = async (positionMs: number): Promise<void> => {
   if (!candidate) return;
   const prepared = peekPreparedTrack(candidate.track);
   if (!prepared?.preparedId || !prepared.source) return;
+  if (preparedId && preparedId !== prepared.preparedId) return;
   const shouldLog = lastLoggedTransitionId !== prepared.preparedId;
   if (shouldLog) lastLoggedTransitionId = prepared.preparedId;
   const oldIndex = status.playIndex;

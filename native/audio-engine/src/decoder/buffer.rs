@@ -41,6 +41,7 @@ pub struct Shared {
     is_stopping: AtomicBool,
     /// 已被输出回调消费的交错采样数（包含所有声道）
     samples_consumed: AtomicU64,
+    end_sample: AtomicU64,
     /// 输出采样率（创建时确定，不可变）
     sample_rate: u32,
     /// 输出声道数（创建时确定，不可变）
@@ -91,6 +92,7 @@ impl Shared {
             output_eof: AtomicBool::new(false),
             is_stopping: AtomicBool::new(false),
             samples_consumed: AtomicU64::new(0),
+            end_sample: AtomicU64::new(u64::MAX),
             sample_rate,
             channels,
             all_consumed: AtomicBool::new(false),
@@ -177,6 +179,17 @@ impl Shared {
     /// 已消费采样的原始计数（用于停滞检测，不做单位换算）
     pub fn samples_consumed_count(&self) -> u64 {
         self.samples_consumed.load(Ordering::Relaxed)
+    }
+
+    /// 将 CUE 的有效时长下沉到样本读取边界
+    pub fn set_end_position(&self, seconds: f64) {
+        let frames = (seconds.max(0.0) * f64::from(self.sample_rate)).round() as u64;
+        self.end_sample
+            .store(frames * u64::from(self.channels), Ordering::Release);
+    }
+
+    pub fn end_sample(&self) -> u64 {
+        self.end_sample.load(Ordering::Acquire)
     }
 
     /// 缓冲区是否为空（true 表示解码 underrun，sink 不消费可能是正常等待数据）

@@ -9,6 +9,8 @@ impl AudioPlayer {
     /// @param source - 预载音源路径
     /// @param remainingSeconds - 当前曲目距离有效结束的墙钟秒数
     /// @param preference - 曲尾交接时机与淡化时长偏好
+    /// @param nextEndSeconds - 下一曲的 CUE 结束位置
+    /// @param currentEndSeconds - 当前曲目的 CUE 结束位置
     /// @returns 成功交接时返回下一曲元信息，槽位失效时返回空值
     #[napi]
     pub async fn transition_to_prepared(
@@ -17,11 +19,20 @@ impl AudioPlayer {
         source: String,
         remaining_seconds: f64,
         preference: String,
+        next_end_seconds: Option<f64>,
+        current_end_seconds: Option<f64>,
     ) -> Result<Option<JsMusicMetadata>> {
         let (armed, token_handle) = {
             let mut player = self.inner.lock();
             let armed = player
-                .arm_prepared_transition(&id, &source, remaining_seconds, &preference)
+                .arm_prepared_transition(
+                    &id,
+                    &source,
+                    remaining_seconds,
+                    &preference,
+                    next_end_seconds,
+                    current_end_seconds,
+                )
                 .into_napi()?;
             (armed, player.load_token_handle())
         };
@@ -38,8 +49,14 @@ impl AudioPlayer {
         let outcome = tokio::task::spawn_blocking(move || {
             let mut deadline =
                 Instant::now() + Duration::from_secs_f64(remaining_seconds.max(0.0) + 10.0);
+            let mut last_poll = Instant::now();
             let mut announced = false;
             loop {
+                let now = Instant::now();
+                if inner.lock().state() == PlayerState::Paused {
+                    deadline += now.duration_since(last_poll);
+                }
+                last_poll = now;
                 if token_handle.load(Ordering::Acquire) != token {
                     return (0_u8, announced);
                 }
@@ -64,9 +81,6 @@ impl AudioPlayer {
                     || Instant::now() >= deadline
                 {
                     return (2_u8, announced);
-                }
-                if inner.lock().state() == PlayerState::Paused {
-                    deadline = Instant::now() + Duration::from_secs(10);
                 }
                 std::thread::sleep(Duration::from_millis(20));
             }

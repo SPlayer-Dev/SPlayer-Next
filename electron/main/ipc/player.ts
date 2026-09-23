@@ -1,4 +1,8 @@
-import { prepareNextTrack, cancelPreparedTrack } from "@main/services/playerPreload";
+import {
+  prepareNextTrack,
+  cancelPreparedTrack,
+  takeTransitionReady,
+} from "@main/services/playerPreload";
 import { extname } from "node:path";
 import { app, ipcMain, powerMonitor } from "electron";
 import { sendToMain } from "@main/utils/broadcast";
@@ -176,6 +180,13 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
       case "position": {
         const posMs = toDisplayPositionMs(toMs(event.position ?? 0));
         const durMs = toDisplayDurationMs(toMs(event.duration ?? 0));
+        const readyId = takeTransitionReady(durMs - posMs);
+        if (readyId) {
+          sendToMain("player:event", {
+            type: "transitionReady",
+            data: { id: readyId, position: posMs },
+          });
+        }
         const positionEvent = {
           type: "position",
           data: { position: posMs, duration: durMs },
@@ -354,11 +365,22 @@ export const registerPlayerIpc = (): void => {
           preference,
           remainingMs: Math.round(remainingMs),
         });
-        const meta = await getPlayer().transitionToPrepared(
+        const current = getPlayer();
+        const remainingSeconds =
+          Math.max(
+            0,
+            toDisplayDurationMs(toMs(current.getDuration())) -
+              toDisplayPositionMs(toMs(current.getPosition())),
+          ) /
+          1000 /
+          current.getSpeed();
+        const meta = await current.transitionToPrepared(
           id,
           source,
-          remainingMs / 1000,
+          remainingSeconds,
           preference,
+          options.meta?.cueEndMs == null ? undefined : options.meta.cueEndMs / 1000,
+          activeCueRange ? (activeCueRange.startMs + activeCueRange.durationMs) / 1000 : undefined,
         );
         if (!meta) {
           playerLog.info("交叉过渡未启动，等待正常切歌");
@@ -367,7 +389,32 @@ export const registerPlayerIpc = (): void => {
         activeCueRange = cueRangeFromTrack(options.meta);
         const seq = ++loadSeq;
         cancelPreparedTrack(id);
-        return completeTrackLoad(source, { ...options, autoPlay: true }, meta, seq);
+        const inst = getPlayer();
+        const state = inst.getStatus().state as PlayerState;
+        const result = completeTrackLoad(
+          source,
+          { ...options, autoPlay: state === "playing" },
+          meta,
+          seq,
+        );
+        const playback = {
+          position: toDisplayPositionMs(toMs(inst.getPosition())),
+          state,
+          speed: inst.getSpeed(),
+          timestamp: Date.now(),
+        };
+        if (options.meta) nowPlaying.prepareTransition(options.meta.id, playback);
+        mediaService.setTimeline({
+          currentMs: playback.position,
+          totalMs: result.data.mediaInfo.duration,
+        });
+        return {
+          ...result,
+          data: {
+            ...result.data,
+            playback,
+          },
+        };
       } catch (error) {
         cancelPreparedTrack(id);
         return fail(ErrorCode.UNKNOWN, error);

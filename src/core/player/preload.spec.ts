@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => {
     track: { ...track, id: "old" },
     setPlaybackContext: vi.fn(),
     enrichTrack: vi.fn(),
+    updateLyricIndex: vi.fn(),
   };
   return {
     track,
@@ -20,6 +21,8 @@ const mocks = vi.hoisted(() => {
       fmMode: false,
       abLoop: { enable: false },
       duration: 10000,
+      position: 0,
+      lyricOffsetMs: 0,
       speed: 1,
       trackLoading: false,
       transitioning: false,
@@ -66,6 +69,8 @@ vi.mock("@/stores/queue", () => ({
 }));
 vi.mock("@/services/playback", () => ({
   setCurrentTime: vi.fn(),
+  getCurrentTime: vi.fn(() => mocks.status.position),
+  setSpeed: vi.fn(),
   setDuration: vi.fn(),
   setPlaying: vi.fn(),
   setSeeking: vi.fn(),
@@ -190,6 +195,9 @@ describe("交叉过渡的队列交接", () => {
     mocks.status.playIndex = 0;
     mocks.status.duration = 10000;
     mocks.status.isPlaying = true;
+    mocks.status.speed = 1;
+    mocks.status.position = 0;
+    mocks.status.state = "playing";
     mocks.status.trackLoading = false;
     mocks.status.repeatMode = "off";
     mocks.status.abLoop.enable = false;
@@ -224,6 +232,33 @@ describe("交叉过渡的队列交接", () => {
     expect(mocks.load).not.toHaveBeenCalled();
     expect(mocks.stop).not.toHaveBeenCalled();
     expect(mocks.onTrackEnded).toHaveBeenCalledWith(false);
+  });
+
+  it("交接采用真实锚点并保留暂停状态，不将歌词归零", async () => {
+    mocks.transition.mockResolvedValue({
+      success: true,
+      data: {
+        detail: {},
+        mediaInfo: { duration: 1000 },
+        playback: { position: 400, state: "paused", speed: 1.25, timestamp: Date.now() - 200 },
+      },
+    });
+    const { trySmartTransition } = await import("./index");
+    const clock = await import("@/services/playback");
+    await trySmartTransition(5000);
+    expect(mocks.status.position).toBe(400);
+    expect(mocks.status.state).toBe("paused");
+    expect(mocks.status.speed).toBe(1.25);
+    expect(clock.setCurrentTime).toHaveBeenCalledWith(400, { force: true });
+    expect(clock.setCurrentTime).not.toHaveBeenCalledWith(0, expect.anything());
+    expect(mocks.media.updateLyricIndex).toHaveBeenCalledWith(400);
+    expect(mocks.consume).toHaveBeenCalledTimes(1);
+  });
+
+  it("忽略后台迟到的其他槽位通知", async () => {
+    const { trySmartTransition } = await import("./index");
+    await trySmartTransition(5000, "old-slot");
+    expect(mocks.transition).not.toHaveBeenCalled();
   });
 
   it.each(["conservative", "eager"] as const)("%s 档向原生引擎传递交接倾向", async (preference) => {

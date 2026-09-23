@@ -157,6 +157,7 @@ const playerCategory: SettingCategory = {
             },
           ],
           childrenCondition: () => useSettingsStore().player.transitionMode === "crossfade",
+          hideChildren: true,
         },
       ],
     },

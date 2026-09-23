@@ -103,16 +103,20 @@ impl PlaybackHandle {
     pub fn queue_transition(
         &self,
         shared: Arc<Shared>,
-        fft: Arc<FftAnalyzer>,
         plan: TransitionPlan,
     ) -> Result<TransitionSignals> {
         self.transition.drain_retired();
-        self.transition.queue(shared, fft, plan)
+        self.transition.queue(shared, plan)
     }
 
     /// 在非实时线程回收已经退出混音的旧音源
     pub fn drain_retired(&self) {
         self.transition.drain_retired();
+    }
+
+    /// 将用户调速同步到在途过渡的时间轴
+    pub fn set_transition_speed(&self, ratio: f32) {
+        self.transition.set_speed_ratio(ratio);
     }
 
     pub fn play(&self) {

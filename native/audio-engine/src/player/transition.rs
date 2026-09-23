@@ -82,6 +82,7 @@ impl InnerPlayer {
     /// 返回旧线程集合与本次 load 的 token（token 用于校验本次 load 是否已被取代）
     pub fn take_for_async_load(&mut self, handle: HttpCancelHandle) -> (OldThreads, u64) {
         self.transitioning.store(false, Ordering::Release);
+        self.transition_dsp = None;
         // 自增 token：本次 load 的标识；任何并发的更早 commit_loaded 比较时会发现不匹配
         let token = self.load_token.fetch_add(1, Ordering::AcqRel) + 1;
         if let Some(previous) = self.pending_load_handle.replace(handle) {
@@ -157,6 +158,7 @@ impl InnerPlayer {
     /// 此时不做任何副作用——尤其不能 bump token，否则会误杀在途的 load
     pub fn take_for_async_seek(&mut self) -> Option<SeekTake> {
         self.transitioning.store(false, Ordering::Release);
+        self.transition_dsp = None;
         self.decoder_thread.as_ref()?;
         let output = self.output.take()?;
 
