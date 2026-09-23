@@ -913,15 +913,7 @@ export const trySmartTransition = async (positionMs: number): Promise<void> => {
   const prepared = peekPreparedTrack(candidate.track);
   if (!prepared?.preparedId || !prepared.source) return;
   const shouldLog = lastLoggedTransitionId !== prepared.preparedId;
-  if (shouldLog) {
-    lastLoggedTransitionId = prepared.preparedId;
-    console.info("[player:transition] 已提交交叉过渡", {
-      from: status.currentTrack?.title,
-      to: candidate.track.title,
-      remainingMs: Math.round(remainingMs),
-      preference: settings.player.transitionPreference,
-    });
-  }
+  if (shouldLog) lastLoggedTransitionId = prepared.preparedId;
   const oldIndex = status.playIndex;
   const oldTrackId = status.currentTrack?.id;
   const token = trackToken;

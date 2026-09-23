@@ -881,13 +881,13 @@
     },
     "transitionMode": {
       "label": "Transition mode",
-      "description": "Try a quiet point near the end; use a timed fade if none is found. Crossfade requires next-track preloading",
+      "description": "Adjust how songs sound when they change",
       "none": "No transition",
       "crossfade": "Crossfade"
     },
     "transitionPreference": {
       "label": "Handoff preference",
-      "description": "Sets how quiet the outro must be to fade early. The maximum fade length stays the same; Eager may overlap a soft outro",
+      "description": "Adjust how quiet the end of a song must be before the transition starts",
       "conservative": "Conservative",
       "standard": "Standard",
       "eager": "Eager"

@@ -869,13 +869,13 @@
     },
     "transitionMode": {
       "label": "过渡方式",
-      "description": "在曲尾安静段尝试交接，找不到时按时限淡化；交叉过渡需要开启下一曲预载",
+      "description": "调整歌曲在交替时的播放效果",
       "none": "无过渡",
       "crossfade": "交叉过渡"
     },
     "transitionPreference": {
       "label": "交接倾向",
-      "description": "调整曲尾需要多安静才提前过渡；不改变最长淡化时长，积极档可能覆盖较轻的尾奏",
+      "description": "调整曲尾需要多安静才提前过渡",
       "conservative": "保守",
       "standard": "标准",
       "eager": "积极"

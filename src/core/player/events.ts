@@ -99,11 +99,7 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
       break;
     case "transition":
       status.transitioning = event.data.active;
-      console.info(
-        event.data.active
-          ? "[player:transition] 实际淡化开始"
-          : "[player:transition] 淡化结束或已取消",
-      );
+      if (event.data.active) console.info("[player:transition] 实际淡化开始");
       break;
     case "position": {
       // 歌曲加载中不更新进度
