@@ -18,6 +18,16 @@ interface CdSongItem {
   singer?: Array<{ name?: string; mid?: string }>;
   albumname?: string;
   albummid?: string;
+  strMediaMid?: string;
+  pay?: {
+    payalbum?: number;
+    payplay?: number;
+  };
+  size128?: number;
+  size320?: number;
+  sizeape?: number;
+  sizeflac?: number;
+  sizeogg?: number;
 }
 
 interface CdListResp {
@@ -65,6 +75,13 @@ const songList: QMModule = async (params) => {
     album: item.albumname ?? "",
     albumMid: item.albummid ?? "",
     duration: (item.interval ?? 0) * 1000,
+    mediaMid: item.strMediaMid ?? "",
+    pay: item.pay,
+    size128: item.size128 ?? 0,
+    size320: item.size320 ?? 0,
+    sizeApe: item.sizeape ?? 0,
+    sizeFlac: item.sizeflac ?? 0,
+    sizeOgg: item.sizeogg ?? 0,
   }));
 
   return {

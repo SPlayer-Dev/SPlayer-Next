@@ -1,10 +1,26 @@
 import type { Platform } from "./platform";
 import type { Track } from "./player";
+import type {
+  LyricFormat,
+  LyricInput,
+  LyricLine,
+  LyricMetadata,
+  LyricResult,
+  LyricSpan,
+  LyricWord,
+} from "lyric-kit";
 
-/** 歌词格式 */
-export type LyricFormat = "ttml" | "lys" | "yrc" | "qrc" | "krc" | "lrc" | "srt" | "ass";
+export type {
+  LyricFormat,
+  LyricInput,
+  LyricLine,
+  LyricMetadata,
+  LyricResult,
+  LyricSpan,
+  LyricWord,
+};
 
-/** 默认格式优先级（高到低）；本地外挂选择、TTML 升级判定共用 */
+/** 默认格式优先级 */
 export const DEFAULT_LYRIC_FORMAT_ORDER: readonly LyricFormat[] = [
   "ttml",
   "lys",
@@ -22,9 +38,6 @@ export type LyricSource = "external" | "embedded" | "online";
 /** 当前歌词加载状态 */
 export type LyricLoadState = "loading" | "ready" | "none";
 
-/** 歌词行语言；und-Latn 表示语言未知的拉丁文字 */
-export type LyricLanguage = "ja" | "ko" | "zh-CN" | "und-Latn";
-
 /** 歌词数据 */
 export type LyricData = {
   source: LyricSource;
@@ -32,63 +45,6 @@ export type LyricData = {
   /** 在线歌词所属平台，仅 source=online 时有值 */
   platform?: Platform;
 } | null;
-
-/** 歌词时间片段 */
-export interface LyricSpan {
-  /** 起始时间（毫秒） */
-  startTime: number;
-  /** 结束时间（毫秒） */
-  endTime: number;
-  /** 内容 */
-  word: string;
-}
-
-/** 歌词单词 */
-export interface LyricWord extends LyricSpan {
-  /** 音译内容 */
-  romanWord?: string;
-  /** 是否包含不雅用语 */
-  obscene?: boolean;
-  /** 注音（如日语假名标注） */
-  ruby?: LyricSpan[];
-}
-
-/** 一行歌词 */
-export interface LyricLine {
-  /** 主歌词语言，用于字形选择与 HTML lang */
-  language?: LyricLanguage;
-  /**
-   * 该行的所有单词
-   * 如果是 LyRiC 等只能表达一行歌词的格式，这里就只会有一个单词且通常其始末时间和本结构的 `startTime` 和 `endTime` 相同
-   */
-  words: LyricWord[];
-  /** 该行的翻译歌词，将会显示在主歌词行的下方 */
-  translatedLyric: string;
-  /** 该行的音译歌词，将会显示在翻译歌词行的下方 */
-  romanLyric: string;
-  /** 句子的起始时间，单位为毫秒 */
-  startTime: number;
-  /** 句子的结束时间，单位为毫秒 */
-  endTime: number;
-  /** 是否为背景歌词行 */
-  isBG: boolean;
-  /** 是否为对唱歌词行 */
-  isDuet: boolean;
-}
-
-/**
- * 歌词原始内容载荷：主 + 可选翻译 / 音译
- */
-export interface LyricInput {
-  /** 主歌词原始文本 */
-  content: string;
-  /** 翻译原始文本 */
-  translation?: string;
-  translationFormat?: LyricFormat;
-  /** 罗马音原始文本 */
-  romaji?: string;
-  romajiFormat?: LyricFormat;
-}
 
 /** 平台额外字段 */
 export interface LyricMatchExtra {
@@ -107,8 +63,7 @@ export interface LyricMatchResult extends LyricInput {
 
 /** 歌词匹配 IPC 响应 */
 export type LyricMatchResponse =
-  | { ok: true; data: LyricMatchResult | null }
-  | { ok: false; error: string };
+  { ok: true; data: LyricMatchResult | null } | { ok: false; error: string };
 
 /** TTML 抓取 IPC 响应 */
 export type LyricTTMLResponse = { ok: true; data: string | null } | { ok: false; error: string };

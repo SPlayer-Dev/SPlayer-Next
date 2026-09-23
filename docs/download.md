@@ -4,9 +4,19 @@ title: 下载
 
 # 下载 SPlayer-Next
 
-下方会自动从 GitHub 拉取最新版本，并根据你的系统推荐合适的安装包。若下载缓慢，可切换为镜像线路。
+下方会自动从 GitHub 拉取对应更新通道的最新版本，并根据你的系统推荐合适的安装包。默认选择 Stable 正式版；若下载缓慢，可切换镜像线路。
 
 <DownloadPage />
+
+## 更新通道
+
+| 通道       | 适合人群           | 可收到的版本               | 版本格式示例    |
+| ---------- | ------------------ | -------------------------- | --------------- |
+| **Stable** | 日常使用           | Stable                     | `1.2.0`         |
+| **Beta**   | 愿意提前体验新功能 | Beta、后续 Stable          | `1.3.0-beta.1`  |
+| **Alpha**  | 开发测试与问题反馈 | Alpha、后续 Beta 和 Stable | `1.4.0-alpha.1` |
+
+应用内可在 **设置 → 通用 → 更新通道** 中切换。Alpha 版本可能非常不稳定，切换到更稳定的通道时，应用可能需要安装版本号更低的构建。
 
 ## 其他获取方式
 
@@ -29,8 +39,24 @@ title: 下载
 | pacman   | Arch Linux、Manjaro、EndeavourOS |
 | tar.gz   | 通用压缩包，适合手动解压运行     |
 
-Arch 系发行版从 GitHub Releases 下载 `.pacman` 文件后，可在文件所在目录安装：
-
 ```bash
+# AppImage
+chmod +x ./splayer-next-*.AppImage
+./splayer-next-*.AppImage # 直接运行
+./splayer-next-*.AppImage --appimage-extract # 或解压到 squashfs-root 目录
+
+# deb
+sudo apt install ./splayer-next-*.deb
+
+# rpm
+sudo dnf install ./splayer-next-*.rpm # Fedora
+sudo zypper install ./splayer-next-*.rpm # openSUSE
+
+# pacman
 sudo pacman -U ./splayer-next-*.pacman
+
+# 压缩包
+tar -xzf ./splayer-next-*.tar.gz
+cd splayer-next-*/
+./SPlayer-Next
 ```

@@ -1,6 +1,5 @@
 export interface DownloadAsset {
   fileName: string;
-  label: string;
   url: string;
   size: number;
   platform: string;
@@ -9,12 +8,37 @@ export interface DownloadAsset {
 }
 
 const LINUX_FORMATS = [
-  { suffix: ".appimage", format: "AppImage", label: "Linux AppImage" },
-  { suffix: ".deb", format: "deb", label: "Debian / Ubuntu (.deb)" },
-  { suffix: ".rpm", format: "rpm", label: "Fedora / RHEL (.rpm)" },
-  { suffix: ".pacman", format: "pacman", label: "Arch Linux (.pacman)" },
-  { suffix: ".tar.gz", format: "tar.gz", label: "Linux 压缩包 (.tar.gz)" },
+  { suffix: ".appimage", format: "AppImage" },
+  { suffix: ".deb", format: "deb" },
+  { suffix: ".rpm", format: "rpm" },
+  { suffix: ".pacman", format: "pacman" },
+  { suffix: ".tar.gz", format: "tar.gz" },
 ];
+
+const FORMAT_ORDER = [
+  "installer",
+  "dmg",
+  "AppImage",
+  "deb",
+  "rpm",
+  "pacman",
+  "portable",
+  "zip",
+  "tar.gz",
+];
+
+/**
+ * 将默认安装方式排在便携版和压缩包之前
+ * @param assets - 全部可下载资源
+ * @returns 按推荐优先级排序后的新数组
+ */
+export const sortDownloadAssets = (assets: DownloadAsset[]): DownloadAsset[] => {
+  return [...assets].sort((left, right) => {
+    const leftIndex = FORMAT_ORDER.indexOf(left.format);
+    const rightIndex = FORMAT_ORDER.indexOf(right.format);
+    return leftIndex - rightIndex;
+  });
+};
 
 /**
  * 识别发布资源的平台、架构与安装包格式
@@ -34,29 +58,26 @@ export const parseDownloadAsset = (
   }
 
   let platform = "";
-  let label = "";
   let format = "";
   if (lower.endsWith(".exe")) {
     platform = "Windows";
     format = lower.includes("portable") ? "portable" : "installer";
-    label = lower.includes("portable") ? "Windows 便携版" : "Windows 安装版";
   } else if (lower.endsWith(".dmg") || lower.endsWith(".zip")) {
     platform = "macOS";
     format = lower.endsWith(".dmg") ? "dmg" : "zip";
-    label = format === "dmg" ? "macOS 安装包 (.dmg)" : "macOS 压缩包 (.zip)";
   } else {
     const linuxFormat = LINUX_FORMATS.find((item) => lower.endsWith(item.suffix));
     if (!linuxFormat) return null;
     platform = "Linux";
-    ({ format, label } = linuxFormat);
+    ({ format } = linuxFormat);
   }
 
-  let arch = "通用";
+  let arch = "universal";
   if (lower.includes("arm64") || lower.includes("aarch64")) arch = "ARM64";
   else if (lower.includes("x64") || lower.includes("amd64") || lower.includes("x86_64")) {
     arch = "x64";
   }
-  return { fileName: name, label, url, size, platform, arch, format };
+  return { fileName: name, url, size, platform, arch, format };
 };
 
 /**
@@ -74,9 +95,9 @@ export const selectRecommendedAssets = (
   if (!platform) return [];
   const samePlatform = assets.filter((asset) => asset.platform === platform);
   const matched = arch
-    ? samePlatform.filter((asset) => asset.arch === arch || asset.arch === "通用")
+    ? samePlatform.filter((asset) => asset.arch === arch || asset.arch === "universal")
     : samePlatform;
-  const candidates = matched.length ? matched : samePlatform;
+  const candidates = sortDownloadAssets(matched.length ? matched : samePlatform);
   if (platform === "Linux") {
     const appImages = candidates.filter((asset) => asset.format === "AppImage");
     return (appImages.length ? appImages : candidates).slice(0, 1);

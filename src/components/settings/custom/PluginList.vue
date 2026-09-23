@@ -25,8 +25,8 @@ onMounted(() => {
   if (!loaded.value) void pluginsStore.load();
 });
 
-/** 控制类插件 ready 时声明的设置 schema（配置弹窗用） */
-const controlSettings = (info: PluginInfo) => {
+/** 插件 ready 时声明的设置 schema（配置弹窗用） */
+const pluginSettings = (info: PluginInfo) => {
   if (info.status.state !== "ready") return [];
   return info.status.settings ?? [];
 };
@@ -132,13 +132,15 @@ const onSettingChange = async (pluginId: string, key: string, value: unknown): P
   await pluginsStore.setSetting(pluginId, key, value);
 };
 
-/** 当前打开配置弹窗的控制类插件 */
-const settingsDialogInfo = computed(
-  () => controlPlugins.value.find((info) => info.manifest.id === settingsDialogId.value) ?? null,
-);
+/** 当前打开配置弹窗的插件（支持音源类与控制类） */
+const settingsDialogInfo = computed(() => {
+  if (!settingsDialogId.value) return null;
+  const allPlugins = [...sourcePlugins.value, ...controlPlugins.value];
+  return allPlugins.find((info) => info.manifest.id === settingsDialogId.value) ?? null;
+});
 /** 弹窗内设置表单的 schema 与当前值 */
 const settingsDialogSchema = computed(() =>
-  settingsDialogInfo.value ? controlSettings(settingsDialogInfo.value) : [],
+  settingsDialogInfo.value ? pluginSettings(settingsDialogInfo.value) : [],
 );
 const settingsDialogValues = computed(() => settingsDialogInfo.value?.settingsValues ?? {});
 
@@ -223,7 +225,7 @@ const refreshMarket = async (): Promise<void> => {
 
       <!-- 音源插件分区 -->
       <div v-if="sourcePlugins.length > 0" class="flex flex-col gap-2">
-        <div class="text-xs font-medium text-on-surface-variant/60 px-1">
+        <div class="text-sm font-medium text-on-surface-variant/70 px-1">
           {{ t("settings.plugins.sectionSource") }}
         </div>
         <div class="grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
@@ -244,7 +246,7 @@ const refreshMarket = async (): Promise<void> => {
 
       <!-- 控制插件分区 -->
       <div v-if="controlPlugins.length > 0" class="flex flex-col gap-2">
-        <div class="text-xs font-medium text-on-surface-variant/60 px-1">
+        <div class="text-sm font-medium text-on-surface-variant/70 px-1">
           {{ t("settings.plugins.sectionControl") }}
         </div>
         <div class="grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">

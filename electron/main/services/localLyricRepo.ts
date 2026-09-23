@@ -11,8 +11,9 @@
  * 仅保留路径与小键，不驻留文件内容；命中时按需读盘。
  */
 
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import { join, extname } from "node:path";
+import { readFileAutoEncoding } from "@main/utils/encoding";
 import { store } from "@main/store";
 import { normalize } from "@main/apis/common/lyric/utils";
 import { buildFingerprint, getMatchedId } from "@main/database/lyricMatchCache";
@@ -88,7 +89,7 @@ const buildIndex = async (dir: string): Promise<RepoIndex> => {
   for (const file of files) {
     let text: string;
     try {
-      text = await readFile(file, "utf-8");
+      text = await readFileAutoEncoding(file);
     } catch {
       continue;
     }
@@ -138,7 +139,7 @@ const getIndex = async (): Promise<RepoIndex | null> => {
 const tryRead = async (file: string | undefined): Promise<string | null> => {
   if (!file) return null;
   try {
-    return await readFile(file, "utf-8");
+    return await readFileAutoEncoding(file);
   } catch {
     return null;
   }

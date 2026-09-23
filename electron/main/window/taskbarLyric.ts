@@ -59,18 +59,18 @@ const resolveLyricWidth = (): number => {
 };
 
 /**
- * 初始窗口尺寸——故意设大，覆盖任何可能的任务栏宽度/高度。
+ * 初始窗口尺寸——故意设大，覆盖任何可能的任务栏宽度/高度
  * 关键原因：Electron BrowserWindow 在 `transparent:true`+SetParent 到任务栏后，
  * Chromium 视口（layered window 的 compositor surface）不会随 setBounds 扩大，
- * 只会收缩。初始尺寸小于后续 setBounds 目标时，超出初始尺寸的区域像素 alpha=0，
- * 按像素 alpha 命中测试会吞掉鼠标事件——即表现为"只有前面一点点可以操作"。
- * 解决方法：初始尺寸开到足够大，后续 setBounds 只做缩小，视口永远覆盖整个 HWND。
+ * 只会收缩初始尺寸小于后续 setBounds 目标时，超出初始尺寸的区域像素 alpha=0，
+ * 按像素 alpha 命中测试会吞掉鼠标事件——即表现为"只有前面一点点可以操作"
+ * 解决方法：初始尺寸开到足够大，后续 setBounds 只做缩小，视口永远覆盖整个 HWND
  */
 const INITIAL_WIDTH = 3000;
 const INITIAL_HEIGHT = 200;
 
 /**
- * 可显示的最小宽度（DIP）。任务栏挤满 / 居中且两侧仅余几十像素时，强行塞会变成挤压的几个字符
+ * 可显示的最小宽度（DIP）任务栏挤满 / 居中且两侧仅余几十像素时，强行塞会变成挤压的几个字符
  * 视觉很糟，直接隐藏窗口；空间回升后再 show
  */
 const MIN_LYRIC_WIDTH_DIP = 120;
@@ -79,23 +79,35 @@ const MIN_LYRIC_WIDTH_DIP = 120;
 export const getTaskbarLyricWindow = (): BrowserWindow | null =>
   taskbarLyricWindow && !taskbarLyricWindow.isDestroyed() ? taskbarLyricWindow : null;
 
-/** 根据内容宽度调整真实窗口边界，右侧布局始终固定右边缘 */
-const applyContentBounds = (): void => {
+/**
+ * 根据内容宽度裁切窗口有效区域
+ *
+ * 窗口本体始终保持 region 全宽，只在 applyLayout 布局真变时 setBounds——维持
+ * "初始宽于一切后续尺寸、setBounds 只做缩小"的嵌入约束（见 INITIAL_WIDTH 注释）
+ * 内容收缩改用 setShape 区域裁切：区域外不渲染也不参与命中测试，空白区点击直接
+ * 落到任务栏，命中效果等同当初的 HWND 物理收缩；但没有 move/resize，右锚定不再
+ * 随每行歌词移动窗口——那正是切行跳变与 hover 扩张后旧帧错位的根源
+ */
+const applyContentShape = (): void => {
   const win = getTaskbarLyricWindow();
   const region = activeWindowRegion;
   if (!win || !region) return;
   const adjustOccupiedSpace =
     (store.get("taskbarLyric.autoMaxWidth") ?? true) &&
     (store.get("taskbarLyric.autoAdjustOccupiedSpace") ?? false);
-  const width = Math.min(
+  const shapeWidth = Math.min(
     region.maxWidth,
     Math.max(
       MIN_LYRIC_WIDTH_DIP,
       Math.round(adjustOccupiedSpace ? (contentWidth ?? region.maxWidth) : region.maxWidth),
     ),
   );
-  const x = region.anchor === "right" ? region.x + region.maxWidth - width : region.x;
-  win.setBounds({ x, y: region.y, width, height: region.height });
+  if (shapeWidth >= region.maxWidth) {
+    win.setShape([]);
+    return;
+  }
+  const x = region.anchor === "right" ? region.maxWidth - shapeWidth : 0;
+  win.setShape([{ x, y: 0, width: shapeWidth, height: region.height }]);
 };
 
 /**
@@ -105,7 +117,7 @@ const applyContentBounds = (): void => {
 export const updateTaskbarLyricContentWidth = (width: number): void => {
   if (!Number.isFinite(width) || width <= 0) return;
   contentWidth = width;
-  applyContentBounds();
+  applyContentShape();
 };
 
 /** 根据设置和任务栏对齐方式选择使用哪侧空间以及锚定方向 */
@@ -182,7 +194,8 @@ const applyLayout = (layout: JsTaskbarLayout): void => {
     height: availHeight,
     anchor,
   };
-  applyContentBounds();
+  win.setBounds({ x: windowX, y: availY, width: windowWidth, height: availHeight });
+  applyContentShape();
 
   if (!firstLayoutDone) {
     firstLayoutDone = true;

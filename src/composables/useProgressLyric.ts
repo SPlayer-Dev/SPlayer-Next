@@ -1,6 +1,6 @@
 import { useSettingsStore } from "@/stores/settings";
 import { useMediaStore } from "@/stores/media";
-import { findLyricIndex } from "@shared/utils/lyric";
+import { findLyricIndex } from "lyric-kit";
 import { formatTime } from "@/utils/time";
 
 /**

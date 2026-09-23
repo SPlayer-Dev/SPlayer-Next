@@ -1,0 +1,33 @@
+[package]
+name = "audio-capture"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { workspace = true, features = ["napi9"] }
+napi-derive = { workspace = true }
+tracing = { workspace = true }
+
+[target.'cfg(target_os = "windows")'.dependencies.windows]
+workspace = true
+features = [
+  "Win32_Foundation",
+  "Win32_Media_Audio",
+  "Win32_Security",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_Threading",
+  "Win32_System_Variant",
+]
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libpulse-binding = "2"
+
+[build-dependencies]
+napi-build = { workspace = true }
+
+[lints]
+workspace = true

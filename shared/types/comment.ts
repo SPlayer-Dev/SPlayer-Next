@@ -1,4 +1,5 @@
 import type { Track } from "./player";
+import type { Platform } from "./platform";
 
 /** 评论来源类型 */
 export type CommentSourceKind = "builtin" | "plugin";
@@ -11,7 +12,9 @@ export interface CommentSource {
   id: string;
   name: string;
   kind: CommentSourceKind;
-  platform?: "netease";
+  platform?: Platform;
+  /** 该来源支持的评论标签，未声明时默认全部支持 */
+  tabs?: CommentTab[];
   pluginId?: string;
   pluginSource?: string;
 }
@@ -38,6 +41,8 @@ export interface MusicCommentPage {
   total: number;
   page: number;
   limit: number;
+  /** 下一页游标 */
+  nextCursor?: string;
 }
 
 /** 评论查询参数 */
@@ -47,12 +52,13 @@ export interface MusicCommentQuery {
   type: CommentTab;
   page: number;
   limit: number;
+  /** 当前页游标 */
+  cursor?: string;
 }
 
 /** 评论 IPC 响应 */
 export type MusicCommentResponse =
-  | { ok: true; data: MusicCommentPage }
-  | { ok: false; error: string };
+  { ok: true; data: MusicCommentPage } | { ok: false; error: string };
 
 /** 渲染端评论 API */
 export interface CommentsApi {

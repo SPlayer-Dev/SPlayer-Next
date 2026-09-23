@@ -6,7 +6,7 @@ import {
   closeDesktopLyricWindow,
   getDesktopLyricWindow,
   applyDesktopLyricHeight,
-  applyDesktopLyricMouseIgnore,
+  applyDesktopLyricUnlockButtonBounds,
   moveDesktopLyricWindow,
   saveDesktopLyricState,
   toggleDynamicIslandWindow,
@@ -45,9 +45,9 @@ export const registerWindowIpc = (): void => {
     applyDesktopLyricHeight(height);
   });
 
-  // 锁定态下切换鼠标穿透
-  ipcMain.on("desktopLyric:setMouseIgnore", (_event, ignore: boolean) => {
-    applyDesktopLyricMouseIgnore(ignore);
+  // 更新锁定态下唯一可交互的解锁按钮区域
+  ipcMain.on("desktopLyric:setUnlockButtonBounds", (_event, bounds) => {
+    applyDesktopLyricUnlockButtonBounds(bounds);
   });
 
   // 拖拽移动；只传位置，尺寸由主进程权威 cachedSize 写回

@@ -28,6 +28,7 @@ const results = computed<SearchResult[]>(() => {
   const out: SearchResult[] = [];
   for (const cat of settingsSchema) {
     for (const sec of cat.sections ?? []) {
+      if (sec.visible && !sec.visible()) continue;
       for (const item of sec.items) {
         if (item.visible && !item.visible()) continue;
         if (item.searchable === false) continue;

@@ -19,7 +19,7 @@ interface NeteaseSong {
   album?: { id?: number | string; name?: string; picUrl?: string };
   dt?: number;
   duration?: number;
-  fee?: number;
+  fee?: TrackFee;
   alia?: string[];
   alias?: string[];
 }
@@ -56,13 +56,6 @@ export interface OnlineSearchResult {
 const sizedNeteaseCover = (url: string | undefined, size: number): string | undefined =>
   url ? `${url}${url.includes("?param=") ? "" : `?param=${size}y${size}`}` : undefined;
 
-const neteaseFee = (fee: number | undefined): TrackFee | undefined => {
-  if (fee === 0 || fee === 8) return 0;
-  if (fee === 1) return 1;
-  if (fee === 4) return 2;
-  return undefined;
-};
-
 const neteaseToTrack = (song: NeteaseSong): Track => {
   const album = song.al ?? song.album;
   const artists = song.ar ?? song.artists ?? [];
@@ -82,7 +75,7 @@ const neteaseToTrack = (song: NeteaseSong): Track => {
     duration: song.dt ?? song.duration ?? 0,
     cover,
     coverOriginal: sizedNeteaseCover(album?.picUrl, 1024),
-    fee: neteaseFee(song.fee),
+    fee: song.fee,
   };
 };
 

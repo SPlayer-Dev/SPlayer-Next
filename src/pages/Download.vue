@@ -1,4 +1,6 @@
 <script setup lang="ts">
+defineOptions({ name: "Download" });
+
 import type { DownloadTask, DownloadStatus } from "@shared/types/download";
 import type { TabItem } from "@/components/ui/STabs.vue";
 import { useDownloadStore } from "@/stores/download";
@@ -12,32 +14,28 @@ import IconLucideDownload from "~icons/lucide/download";
 const { t } = useI18n();
 const downloadStore = useDownloadStore();
 
-type DownloadTab = "all" | "active" | "error" | "done";
-const tab = ref<DownloadTab>("all");
+type DownloadTab = "active" | "error" | "done";
+const tab = ref<DownloadTab>("active");
 
 const tabs = computed<TabItem[]>(() => [
-  { key: "all", label: t("download.tabAll") },
   { key: "active", label: t("download.tabActive") },
   { key: "error", label: t("download.tabError") },
   { key: "done", label: t("download.tabDone") },
 ]);
 
-const isActive = (status: DownloadStatus): boolean =>
-  status === "queued" || status === "downloading";
 const isError = (status: DownloadStatus): boolean =>
   status === "failed" || status === "canceled" || status === "interrupted";
 
 /** 当前 tab 的任务 */
 const currentTasks = computed<DownloadTask[]>(() => {
-  const all = downloadStore.tasks;
-  if (tab.value === "active") return all.filter((task) => isActive(task.status));
-  if (tab.value === "error") return all.filter((task) => isError(task.status));
-  if (tab.value === "done") return all.filter((task) => task.status === "done");
-  return all;
+  if (tab.value === "active") return downloadStore.activeTasks;
+  if (tab.value === "error")
+    return downloadStore.historyTasks.filter((task) => isError(task.status));
+  return downloadStore.historyTasks.filter((task) => task.status === "done");
 });
 
 /** 是否有可清空的已结束任务 */
-const hasFinished = computed(() => downloadStore.tasks.some((task) => !isActive(task.status)));
+const hasFinished = computed(() => downloadStore.historyTasks.length > 0);
 
 /** 二次确认后清空已结束任务记录（不删本地文件） */
 const requestClearFinished = async (): Promise<void> => {

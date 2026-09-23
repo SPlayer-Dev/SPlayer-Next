@@ -13,6 +13,7 @@ import IconLucideMusic from "~icons/lucide/music";
 import IconLucideUser from "~icons/lucide/user";
 import IconLucideDisc from "~icons/lucide/disc";
 import IconLucideListMusic from "~icons/lucide/list-music";
+import IconLucideAudioWaveform from "~icons/lucide/audio-waveform";
 
 const { t, locale } = useI18n();
 const router = useRouter();
@@ -25,6 +26,7 @@ const dialogOpen = computed({
   set: (value: boolean) => (status.searchOpen = value),
 });
 const searchQuery = ref("");
+const recognitionOpen = ref(false);
 
 const trimmedQuery = computed(() => searchQuery.value.trim());
 
@@ -111,7 +113,7 @@ const onClearHistory = (): void => data.clearSearchHistory();
 /**
  * 建议点击
  * @param kind - 建议类型
- * @param id - 网易云 id
+ * @param id - 歌曲 id
  * @param name - 名称
  */
 const navigateToResource = async (
@@ -273,21 +275,35 @@ onMounted(() => {
 </script>
 
 <template>
-  <!-- 搜索框触发器 -->
-  <div
-    role="button"
-    :aria-label="t('nav.searchPlaceholder')"
-    class="app-no-drag w-60 h-10 px-4 cursor-pointer flex items-center gap-2 rounded-full border border-solid bg-on-surface/3 border-on-surface/15 hover:bg-on-surface/10 hover:border-on-surface/25 transition-colors duration-250 select-none"
-    @click="dialogOpen = true"
-    @contextmenu.prevent="dialogOpen = true"
-    @mousedown.prevent
-  >
-    <IconLucideSearch class="size-4 text-on-surface-variant/50 shrink-0" />
-    <span class="flex-1 min-w-0 truncate text-base text-on-surface-variant/40">
-      {{ t("nav.searchPlaceholder") }}
-    </span>
+  <!-- 搜索框触发器与听歌识曲 -->
+  <div class="flex items-center gap-2 shrink-0">
+    <div
+      role="button"
+      :aria-label="t('nav.searchPlaceholder')"
+      class="app-no-drag w-60 h-10 px-4 cursor-pointer flex items-center gap-2 rounded-full border border-solid bg-on-surface/3 border-on-surface/15 hover:bg-on-surface/10 hover:border-on-surface/25 transition-colors duration-250 select-none"
+      @click="dialogOpen = true"
+      @contextmenu.prevent="dialogOpen = true"
+      @mousedown.prevent
+    >
+      <IconLucideSearch class="size-4 text-on-surface-variant/50 shrink-0" />
+      <span class="flex-1 min-w-0 truncate text-base text-on-surface-variant/40">
+        {{ t("nav.searchPlaceholder") }}
+      </span>
+    </div>
+    <SButton
+      class="app-no-drag shrink-0"
+      variant="tertiary"
+      circle
+      :size="40"
+      :icon-size="20"
+      @click="recognitionOpen = true"
+    >
+      <template #icon><IconLucideAudioWaveform /></template>
+    </SButton>
   </div>
-  <!-- 搜索弹窗 -->
+  <!-- 听歌识曲 -->
+  <RecognitionDialog v-model:open="recognitionOpen" />
+  <!-- 搜索 -->
   <SDialog
     v-model:open="dialogOpen"
     :closable="false"

@@ -37,6 +37,7 @@ const buildContextKey = (): string => {
     settings.lyric.lyricSourceOrder,
     settings.lyric.lyricFormatOrder,
     settings.lyric.smartPreferOnline,
+    settings.lyric.preferPluginLyric,
     settings.system.lyric.enableOnlineTTMLLyric,
     settings.system.localLyric.enableLocalTTMLOverride,
     settings.system.localLyric.repoDir,

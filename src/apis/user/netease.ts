@@ -62,8 +62,17 @@ export const fetchUserArtists = (): Promise<Artist[]> =>
     return { data: body?.data, hasMore: body?.hasMore };
   }, toArtist);
 
-/** 切换红心 */
+/**
+ * 切换红心状态
+ * 优先调用新版 like_v1，失败时自动降级到旧版 like
+ * @param trackId - 歌曲 ID
+ * @param like - true 为红心，false 为取消红心
+ */
 export const toggleLikeSong = async (trackId: string, like: boolean): Promise<void> => {
+  try {
+    const res = await neteaseApi.like_v1<{ code?: number }>({ id: trackId, like });
+    if (res && (res.code === 200 || Number(res.code) === 200)) return;
+  } catch {}
   ensureOk(await neteaseApi.like({ id: trackId, like }));
 };
 

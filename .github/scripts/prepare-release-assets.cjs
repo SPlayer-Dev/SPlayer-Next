@@ -1,52 +1,24 @@
 #!/usr/bin/env node
-/**
- * 整理 GitHub Release 待发布资源（CommonJS，便于用 NODE_PATH 引入隔离安装的 js-yaml）
- *
- * 背景：各平台/架构在独立 job 构建并各自上传 artifact。electron-builder 会为
- * Windows / macOS 生成同名的 `latest.yml` / `latest-mac.yml`（分别只含本架构条目），
- * 直接上传会互相覆盖，导致另一架构无法自动更新。Linux 则使用按架构区分的
- * `latest-linux.yml` / `latest-linux-arm64.yml`，天然不冲突。
- *
- * 本脚本将所有 artifact 扁平化到输出目录：
- *  - 合并 Windows / macOS 的 latest*.yml（合并 files 列表，path/sha512 优先指向 x64）
- *  - 保留各架构 Linux 清单原样
- *  - 剔除调试文件 builder-debug.yml
- *  - 同名二进制去重（保留首个），避免 release 资源重名冲突
- *
- * 用法: node prepare-release-assets.cjs <artifactsDir> <outDir>
- */
 "use strict";
 
 const fs = require("fs");
 const path = require("path");
 const yaml = require("js-yaml");
 
-const srcDir = process.argv[2];
-const outDir = process.argv[3];
-
-if (!srcDir || !outDir) {
-  console.error("用法: node prepare-release-assets.cjs <artifactsDir> <outDir>");
-  process.exit(1);
-}
-
-/** 需要跨架构合并的更新清单文件名 */
-const MERGE_MANIFESTS = new Set(["latest.yml", "latest-mac.yml"]);
-
-/** 不需要上传的文件 */
-const SKIP_FILES = new Set(["builder-debug.yml"]);
+const MANIFEST_SUFFIXES = ["", "-mac", "-linux", "-linux-arm64"];
+const SKIP_FILES = new Set(["builder-debug.yml", "builder-effective-config.yaml"]);
 
 /**
- * 递归收集目录下的所有文件（跳过 *-unpacked 目录）
- * @param {string} dir 起始目录
- * @param {string[]} [out] 结果累加数组（递归内部使用）
- * @returns {string[]} 收集到的文件路径列表
+ * 递归收集目录下的文件
+ * @param {string} dir - 起始目录
+ * @param {string[]} [out] - 结果累加数组
+ * @returns {string[]} 文件路径
  */
 const walk = (dir, out = []) => {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (entry.name.endsWith("-unpacked")) continue;
-      walk(full, out);
+      if (!entry.name.endsWith("-unpacked")) walk(full, out);
     } else {
       out.push(full);
     }
@@ -55,13 +27,21 @@ const walk = (dir, out = []) => {
 };
 
 /**
- * 合并多份同名更新清单：合并各架构的 files 列表（按 url 去重）
- * 基准 path/sha512 优先指向 x64
- * @param {Array<Record<string, any>>} docs 同名清单的解析结果数组
- * @returns {Record<string, any>} 合并后的清单对象
+ * 判断清单是否需要合并不同架构
+ * @param {string} name - 文件名
+ * @returns {boolean} 是否需要合并
+ */
+const shouldMergeManifest = (name) => /^(latest|beta|alpha|nightly)(-mac)?\.yml$/.test(name);
+
+/**
+ * 合并同平台不同架构的更新清单
+ * @param {Array<Record<string, any>>} docs - 清单内容
+ * @returns {Record<string, any>} 合并结果
  */
 const mergeManifests = (docs) => {
-  if (docs.length === 1) return docs[0];
+  const versions = new Set(docs.map((doc) => doc.version));
+  if (versions.size !== 1) throw new Error(`同名清单版本不一致: ${[...versions].join(", ")}`);
+
   const merged = { ...docs[0] };
   const byUrl = new Map();
   for (const doc of docs) {
@@ -70,45 +50,133 @@ const mergeManifests = (docs) => {
     }
   }
   merged.files = [...byUrl.values()];
-  const x64 = merged.files.find((file) => /x64|x86_64/i.test(file.url));
-  if (x64) {
-    merged.path = x64.url;
-    merged.sha512 = x64.sha512;
+  const preferred = merged.files.find((file) => /x64|x86_64/i.test(file.url)) ?? merged.files[0];
+  if (preferred) {
+    merged.path = preferred.url;
+    merged.sha512 = preferred.sha512;
   }
   return merged;
 };
 
-fs.mkdirSync(outDir, { recursive: true });
+/**
+ * 从版本号解析发布通道
+ * @param {string} version - 应用版本
+ * @returns {"latest" | "beta" | "alpha" | "nightly"} 发布通道
+ */
+const resolveChannel = (version) => {
+  if (/-nightly(?:\.|$)/.test(version)) return "nightly";
+  if (/-alpha(?:\.|$)/.test(version)) return "alpha";
+  if (/-beta(?:\.|$)/.test(version)) return "beta";
+  if (version.includes("-")) throw new Error(`不支持的预发布版本格式: ${version}`);
+  return "latest";
+};
 
-/** @type {Map<string, Array<Record<string, any>>>} 清单名 -> 解析文档数组 */
-const manifestDocs = new Map();
+const ALIAS_CHANNELS_MAP = {
+  latest: ["beta", "alpha"],
+  beta: ["alpha"],
+};
 
-/** @type {Set<string>} 已写入输出目录的文件名 */
-const seen = new Set();
+const VALIDATE_CHANNELS_MAP = {
+  latest: ["latest", "beta", "alpha"],
+  beta: ["beta", "alpha"],
+  alpha: ["alpha"],
+  nightly: ["nightly"],
+};
 
-for (const file of walk(srcDir)) {
-  const base = path.basename(file);
-  if (SKIP_FILES.has(base)) continue;
+/**
+ * 为更不稳定的订阅通道创建清单别名
+ * @param {string} outDir - 发布资源目录
+ * @param {"latest" | "beta" | "alpha" | "nightly"} channel - 发布通道
+ */
+const createChannelAliases = (outDir, channel) => {
+  const aliases = ALIAS_CHANNELS_MAP[channel] ?? [];
+  for (const suffix of MANIFEST_SUFFIXES) {
+    const source = path.join(outDir, `${channel}${suffix}.yml`);
+    if (!fs.existsSync(source)) throw new Error(`缺少更新清单: ${path.basename(source)}`);
+    for (const alias of aliases) {
+      fs.copyFileSync(source, path.join(outDir, `${alias}${suffix}.yml`));
+    }
+  }
+};
 
-  if (MERGE_MANIFESTS.has(base)) {
-    const doc = yaml.load(fs.readFileSync(file, "utf8"));
-    if (!manifestDocs.has(base)) manifestDocs.set(base, []);
-    manifestDocs.get(base).push(doc);
-    continue;
+/**
+ * 校验清单结构和引用资源
+ * @param {string} outDir - 发布资源目录
+ * @param {string} version - 应用版本
+ * @param {"latest" | "beta" | "alpha" | "nightly"} channel - 发布通道
+ */
+const validateManifests = (outDir, version, channel) => {
+  const channels = VALIDATE_CHANNELS_MAP[channel] ?? [channel];
+  for (const current of channels) {
+    for (const suffix of MANIFEST_SUFFIXES) {
+      const name = `${current}${suffix}.yml`;
+      const filePath = path.join(outDir, name);
+      if (!fs.existsSync(filePath)) throw new Error(`缺少更新清单: ${name}`);
+
+      const doc = yaml.load(fs.readFileSync(filePath, "utf8"));
+      if (doc.version !== version) throw new Error(`${name} 的版本不是 ${version}`);
+      if (!Array.isArray(doc.files) || doc.files.length === 0) {
+        throw new Error(`${name} 没有可更新文件`);
+      }
+      const selected = doc.files.find((item) => item.url === doc.path);
+      if (!selected || selected.sha512 !== doc.sha512) {
+        throw new Error(`${name} 的默认更新文件无效`);
+      }
+      for (const item of doc.files) {
+        const asset = path.join(outDir, path.basename(item.url));
+        if (!fs.existsSync(asset)) throw new Error(`${name} 引用了不存在的资源: ${item.url}`);
+        if (item.size != null && fs.statSync(asset).size !== item.size) {
+          throw new Error(`${name} 的资源大小不匹配: ${item.url}`);
+        }
+      }
+    }
+  }
+};
+
+/**
+ * 整理并校验 GitHub Release 资源
+ * @param {string} srcDir - 构建产物目录
+ * @param {string} outDir - 发布资源目录
+ * @param {string} version - 应用版本
+ */
+const prepareReleaseAssets = (srcDir, outDir, version) => {
+  const channel = resolveChannel(version);
+  fs.mkdirSync(outDir, { recursive: true });
+
+  const manifestDocs = new Map();
+  const seen = new Set();
+  for (const file of walk(srcDir)) {
+    const name = path.basename(file);
+    if (SKIP_FILES.has(name)) continue;
+    if (shouldMergeManifest(name)) {
+      const doc = yaml.load(fs.readFileSync(file, "utf8"));
+      if (!manifestDocs.has(name)) manifestDocs.set(name, []);
+      manifestDocs.get(name).push(doc);
+      continue;
+    }
+    if (seen.has(name)) throw new Error(`发现重复发布资源: ${name}`);
+    seen.add(name);
+    fs.copyFileSync(file, path.join(outDir, name));
   }
 
-  if (seen.has(base)) {
-    console.warn(`⚠️  跳过重复同名文件: ${base}`);
-    continue;
+  for (const [name, docs] of manifestDocs) {
+    const merged = mergeManifests(docs);
+    fs.writeFileSync(path.join(outDir, name), yaml.dump(merged, { lineWidth: -1 }));
+    console.log(`合并清单 ${name}（files: ${merged.files.length}）`);
   }
-  seen.add(base);
-  fs.copyFileSync(file, path.join(outDir, base));
+
+  createChannelAliases(outDir, channel);
+  validateManifests(outDir, version, channel);
+  console.log(`release-assets 校验完成，共 ${fs.readdirSync(outDir).length} 个文件`);
+};
+
+if (require.main === module) {
+  const [srcDir, outDir, version] = process.argv.slice(2);
+  if (!srcDir || !outDir || !version) {
+    console.error("用法: node prepare-release-assets.cjs <artifactsDir> <outDir> <version>");
+    process.exit(1);
+  }
+  prepareReleaseAssets(srcDir, outDir, version);
 }
 
-for (const [name, docs] of manifestDocs) {
-  const merged = mergeManifests(docs);
-  fs.writeFileSync(path.join(outDir, name), yaml.dump(merged, { lineWidth: -1 }));
-  console.log(`✅ 合并清单 ${name}（files: ${(merged.files || []).length}）`);
-}
-
-console.log(`release-assets 准备完成，共 ${fs.readdirSync(outDir).length} 个文件`);
+module.exports = { mergeManifests, prepareReleaseAssets, resolveChannel };

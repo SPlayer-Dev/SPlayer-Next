@@ -11,7 +11,10 @@
 
 import { createHash } from "node:crypto";
 import { modules } from "./modules";
+import { clearQQMusicCookies, mergeQQMusicCookies } from "./core/request";
 import type { QMParams } from "./core/types";
+
+export { clearQQMusicCookies, mergeQQMusicCookies };
 
 /** 2 分钟响应缓存 */
 const DEFAULT_TTL = 2 * 60 * 1000;
@@ -23,6 +26,15 @@ interface CacheEntry {
 }
 
 const cache = new Map<string, CacheEntry>();
+
+/** 不缓存的实时接口 */
+const NON_CACHEABLE: ReadonlySet<string> = new Set([
+  "user_detail",
+  "song_url",
+  "comment",
+  "login_qr_key",
+  "login_qr_check",
+]);
 
 const hashParams = (params: unknown): string =>
   createHash("md5")
@@ -56,7 +68,7 @@ export const clearQQMusicCache = (): void => {
 
 /**
  * 调用任意 QM API
- * @param name  见 modules/index.ts 中的 key（search / song_info / lyric / match / hot_search / leaderboard / song_list）
+ * @param name  见 modules/index.ts 中的 key（search / song_info / lyric / match / hot_search / leaderboard / song_list / user_detail / song_url）
  * @param params 业务参数；不想命中缓存可传 `timestamp: Date.now()`
  */
 export const callQQMusic = async (name: string, params: QMParams = {}): Promise<any> => {
@@ -64,7 +76,7 @@ export const callQQMusic = async (name: string, params: QMParams = {}): Promise<
   const fn = Object.hasOwn(modules, name) ? modules[name] : undefined;
   if (!fn) throw new Error(`unknown qm api: ${name}`);
 
-  if (name === "search") return fn(params);
+  if (NON_CACHEABLE.has(name)) return fn(params);
 
   const key = `${name}|${hashParams(params)}`;
   const hit = cacheGet(key);

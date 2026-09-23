@@ -1,0 +1,18 @@
+[package]
+name = "opencc"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { workspace = true, features = ["napi9"] }
+napi-derive = { workspace = true }
+ferrous-opencc = { version = "0.4", features = ["full"] }
+
+[build-dependencies]
+napi-build = { workspace = true }
+
+[lints]
+workspace = true

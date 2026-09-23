@@ -51,10 +51,10 @@ const descriptionText = computed(() =>
 
 <template>
   <div v-if="isVisible" :id="`setting-${item.key}`">
-    <!-- fullWidth custom：只渲染组件，不套标签与卡片 -->
     <component
       :is="item.component"
       v-if="item.type === 'custom' && item.fullWidth && item.component"
+      v-bind="item.componentProps"
       class="transition-all duration-300"
       :class="highlighted ? 'animate-highlight-pulse' : ''"
     />
@@ -149,6 +149,7 @@ const descriptionText = computed(() =>
         <component
           :is="item.component"
           v-else-if="item.type === 'custom' && item.component"
+          v-bind="item.componentProps"
           :model-value="model"
           @update:model-value="model = $event"
         />

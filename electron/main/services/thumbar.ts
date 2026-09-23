@@ -100,6 +100,8 @@ class ThumbarImpl implements Thumbar {
       clearTimeout(this.retryTimeout);
       this.retryTimeout = null;
     }
+    // 仅在完全隐藏到托盘时拦截
+    if (!this.win.isVisible() && !this.win.isMinimized()) return;
 
     this.like.icon = thumbarIcon(this.isLiked ? "like" : "unlike");
     this.like.tooltip = t(this.isLiked ? "removeFromLiked" : "addToLiked");

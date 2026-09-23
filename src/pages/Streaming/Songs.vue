@@ -1,4 +1,6 @@
 <script setup lang="ts">
+defineOptions({ name: "StreamingSongs" });
+
 import { useStreamingStore } from "@/stores/streaming";
 import SongList from "@/components/list/SongList.vue";
 import * as player from "@/core/player";
@@ -51,6 +53,7 @@ const handlePlayAll = (): void => {
         clearable
         round
         class="w-40 focus-within:w-56"
+        data-search-input
       >
         <template #prefix>
           <IconLucideSearch class="size-4 text-on-surface-variant/40 shrink-0" />

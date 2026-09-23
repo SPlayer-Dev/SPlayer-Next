@@ -14,12 +14,7 @@ export type DownloadFolderScheme = "none" | "artist" | "artist-album";
 
 /** 下载任务状态 */
 export type DownloadStatus =
-  | "queued"
-  | "downloading"
-  | "done"
-  | "failed"
-  | "canceled"
-  | "interrupted";
+  "queued" | "downloading" | "done" | "failed" | "canceled" | "interrupted";
 
 /** 写入选项 */
 export interface DownloadTagOptions {
@@ -41,8 +36,8 @@ export interface DownloadRequest {
   taskId: string;
   track: Track;
   qualityLevel: PluginQuality;
-  /** 已解析的音频 URL */
-  url: string;
+  /** 已解析的音频 URL，批量整批入队时可缺省 */
+  url?: string;
   /** 已知格式（netease 的 flac/mp3），用于确定扩展名 */
   declaredFormat?: string;
   /** 已知体积（字节），进度兜底 */
@@ -54,6 +49,10 @@ export interface DownloadRequest {
   /** 完整 TTML 文本 */
   ttmlText?: string;
   tagOptions: DownloadTagOptions;
+  /** 是否复用当前播放链接下载 */
+  usePlaybackForDownload: boolean;
+  /** 内嵌歌词与 .lrc 的保存格式 */
+  lyricFileFormat: DownloadLyricFormat;
 }
 
 /** 主进程持有的下载任务 */
@@ -83,6 +82,22 @@ export interface DownloadProgress {
   total: number;
 }
 
+/** 渲染层回传的解析结果（补全 DownloadRequest 缺省的网络字段，url 必填） */
+export type DownloadResolution = Required<Pick<DownloadRequest, "url">> &
+  Pick<DownloadRequest, "declaredFormat" | "declaredSize" | "lyricText" | "ttmlText">;
+
+/** 主进程 → 渲染层的解析请求载荷（轮到下载但缺少 URL 时下发） */
+export type DownloadResolvePayload = Pick<
+  DownloadRequest,
+  | "taskId"
+  | "track"
+  | "qualityLevel"
+  | "tagOptions"
+  | "coverUrl"
+  | "usePlaybackForDownload"
+  | "lyricFileFormat"
+>;
+
 /** 入队结果；ok 为 false 时 reason 说明原因 */
 export interface EnqueueResult {
   ok: boolean;
@@ -93,6 +108,7 @@ export interface EnqueueResult {
 /** 渲染端下载 IPC 入口 */
 export interface DownloadApi {
   start: (req: DownloadRequest) => Promise<EnqueueResult>;
+  startMany: (reqs: DownloadRequest[]) => Promise<EnqueueResult[]>;
   cancel: (taskId: string) => Promise<void>;
   retry: (req: DownloadRequest) => Promise<EnqueueResult>;
   remove: (taskId: string) => Promise<void>;
@@ -101,6 +117,11 @@ export interface DownloadApi {
   pickDir: () => Promise<{ ok: boolean; dir: string; reason?: "canceled" }>;
   getDir: () => Promise<string>;
   resetDir: () => Promise<string>;
+  /** 回传即时解析结果（主进程 download:resolve 的应答） */
+  submitResolution: (taskId: string, res: DownloadResolution) => Promise<void>;
+  /** 上报即时解析失败，任务标记为 failed */
+  failResolution: (taskId: string) => Promise<void>;
   onProgress: (callback: (data: DownloadProgress) => void) => () => void;
   onState: (callback: (task: DownloadTask) => void) => () => void;
+  onResolve: (callback: (payload: DownloadResolvePayload) => void) => () => void;
 }

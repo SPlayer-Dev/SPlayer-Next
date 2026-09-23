@@ -1,0 +1,14 @@
+{
+  "name": "audio-capture",
+  "version": "0.1.0",
+  "main": "audio-capture.node",
+  "types": "index.d.ts",
+  "napi": {
+    "binaryName": "audio-capture",
+    "triples": {}
+  },
+  "scripts": {
+    "build": "napi build --release --no-const-enum",
+    "build:debug": "napi build --no-const-enum"
+  }
+}

@@ -9,6 +9,7 @@ import { randomBytes } from "node:crypto";
 import {
   API_DOMAIN,
   DOMAIN,
+  EAPI_DOMAIN,
   ENCRYPT_RESPONSE,
   OS_MAP,
   SPECIAL_STATUS_CODES,
@@ -20,6 +21,7 @@ import { cookieObjToString, cookieToJson } from "./cookie";
 import * as encrypt from "./crypto";
 import { getAnonymousToken, getDeviceId } from "./device";
 import { ensureXeapiKey, getXeapiSession, updateXeapiSession } from "./xeapi";
+import { getAntiCheatTokenV3 } from "./checktoken";
 import { fetchWithProxy } from "@main/utils/proxy";
 
 /** 调用方传入的可选参数 */
@@ -37,8 +39,8 @@ export interface RequestOptions {
   ip?: string;
   /** 是否让服务端加密响应体（仅 weapi/eapi 有效） */
   e_r?: boolean;
-  /** 强制附加 anti-cheat token（暂未启用） */
-  checkToken?: boolean;
+  /** 强制附加 anti-cheat token（如 "v3"） */
+  checkToken?: string | boolean;
 }
 
 /** 响应统一结构 */
@@ -89,10 +91,15 @@ const generateRequestId = (): string => {
   return `${Date.now()}_${rand}`;
 };
 
+/** 缓存的服务端下发的合法 NMTID */
+let cachedNmtid = "";
+/** 未携带 NMTID 的探测重试次数（服务端仅在未携带 NMTID 的 eapi 请求下发 Set-Cookie: NMTID=...） */
+let nmtidRetriesLeft = 3;
+
 /** 补齐 cookie：注入 _ntes_nuid/_ntes_nnid/WNMCID/deviceId/appver 等客户端必备字段 */
 const processCookieObject = (
   cookie: Record<string, string>,
-  uri: string,
+  crypto: CryptoMode | "",
 ): Record<string, string> => {
   const ntesNuid = cookie._ntes_nuid || randomBytes(16).toString("hex");
   const os = OS_MAP[(cookie.os as keyof typeof OS_MAP) || "pc"] || OS_MAP.pc;
@@ -112,9 +119,13 @@ const processCookieObject = (
     appver: cookie.appver || os.appver,
   };
 
-  // 登录类接口不带 NMTID（服务端要求）
-  if (uri.indexOf("login") === -1) {
-    processed.NMTID = randomBytes(8).toString("hex");
+  // 服务端下发条件为不带 NMTID 请求任意 eapi 接口
+  if (cookie.NMTID) {
+    processed.NMTID = cookie.NMTID;
+  } else if (cachedNmtid) {
+    processed.NMTID = cachedNmtid;
+  } else if (nmtidRetriesLeft <= 0 || crypto !== "eapi") {
+    processed.NMTID = "00O" + randomBytes(19).toString("hex").slice(0, 38);
   }
 
   if (!processed.MUSIC_U) {
@@ -152,20 +163,25 @@ export const createRequest = async (
     headers["X-Forwarded-For"] = ip;
   }
 
+  let crypto: CryptoMode | "" = options.crypto ?? "";
+  if (crypto === "") crypto = "eapi";
+
   // 归一化 cookie 到对象并做一次补全
   let cookie: Record<string, string> =
     typeof options.cookie === "string" ? cookieToJson(options.cookie) : options.cookie || {};
-  cookie = processCookieObject(cookie, uri);
+  cookie = processCookieObject(cookie, crypto);
   headers["Cookie"] = cookieObjToString(cookie);
-
-  let crypto: CryptoMode | "" = options.crypto ?? "";
-  if (crypto === "") crypto = "eapi";
 
   const csrfToken = csrfFrom(cookie);
   const useER = toBoolean(
     options.e_r !== undefined ? options.e_r : data.e_r !== undefined ? data.e_r : ENCRYPT_RESPONSE,
   );
   data.e_r = useER;
+
+  let antiCheatToken = "";
+  if (options.checkToken) {
+    antiCheatToken = await getAntiCheatTokenV3();
+  }
 
   let url = "";
   let encryptData: Record<string, string | number | boolean> | typeof data;
@@ -174,7 +190,10 @@ export const createRequest = async (
     case "weapi": {
       headers["Referer"] = options.domain || DOMAIN;
       headers["User-Agent"] = options.ua || chooseUserAgent("weapi");
-      data.csrf_token = csrfToken;
+      (data as Record<string, unknown>).csrf_token = csrfToken;
+      if (options.checkToken && antiCheatToken) {
+        headers["X-antiCheatToken"] = antiCheatToken;
+      }
       encryptData = encrypt.weapi(data);
       url = (options.domain || DOMAIN) + "/weapi/" + uri.slice(5);
       break;
@@ -205,6 +224,9 @@ export const createRequest = async (
       headers["x-sdeviceid"] = cookie.sDeviceId || cookie.deviceId;
       headers["x-buildver"] = xeapiBuildver;
       if (cookie.MUSIC_U) headers["x-music-u"] = cookie.MUSIC_U;
+      if (options.checkToken && antiCheatToken) {
+        headers["X-antiCheatToken"] = antiCheatToken;
+      }
       headers["Cookie"] = cookieObjToString({
         ...cookie,
         os: xeapiOs,
@@ -219,7 +241,10 @@ export const createRequest = async (
         publicKeyState,
         sessionId: session.sessionId,
         sessionKey: session.sessionKey,
+        appver: xeapiAppver,
+        deviceId: cookie.deviceId,
         os: xeapiOs,
+        uid: cookie.uid || cookie.userId || "",
       });
       break;
     }
@@ -240,6 +265,11 @@ export const createRequest = async (
       };
       if (cookie.MUSIC_U) header.MUSIC_U = cookie.MUSIC_U;
       if (cookie.MUSIC_A) header.MUSIC_A = cookie.MUSIC_A;
+      if (crypto === "eapi" && cookie.NMTID) header.NMTID = cookie.NMTID;
+      if (options.checkToken && antiCheatToken) {
+        header["X-antiCheatToken"] = antiCheatToken;
+        headers["X-antiCheatToken"] = antiCheatToken;
+      }
       headers["Cookie"] = cookieObjToString(header);
       headers["User-Agent"] =
         options.ua || (cookie.os === "osx" ? OSX_USER_AGENT : chooseUserAgent("api", "iphone"));
@@ -247,7 +277,7 @@ export const createRequest = async (
       if (crypto === "eapi") {
         (data as Record<string, unknown>).header = header;
         encryptData = encrypt.eapi(uri, data);
-        url = (options.domain || API_DOMAIN) + "/eapi/" + uri.slice(5);
+        url = (options.domain || EAPI_DOMAIN) + "/eapi/" + uri.slice(5);
       } else {
         url = (options.domain || API_DOMAIN) + uri;
         encryptData = data;
@@ -265,25 +295,52 @@ export const createRequest = async (
   const isXeapi = crypto === "xeapi";
   const needDecrypt = isXeapi || ((crypto === "eapi" || crypto === "weapi") && useER);
 
-  let res: Response;
-  try {
-    res = await fetchWithProxy(url, {
-      method: "POST",
-      headers,
-      body,
-      signal: AbortSignal.timeout(8000),
-    });
-  } catch (err) {
+  let res: Response | null = null;
+  let lastErr: unknown = null;
+  const maxAttempts = 3;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      res = await fetchWithProxy(url, {
+        method: "POST",
+        headers,
+        body,
+        signal: AbortSignal.timeout(8000),
+      });
+      break;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, attempt * 200));
+      }
+    }
+  }
+
+  if (!res) {
     answer.status = 502;
-    answer.body = { code: 502, msg: err instanceof Error ? err.message : String(err) };
+    const cause = (lastErr as { cause?: { code?: string; message?: string } })?.cause;
+    const errorMsg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+    const detailMsg = cause?.code ? `${errorMsg} (${cause.code})` : errorMsg;
+    answer.body = { code: 502, msg: detailMsg };
     throw new NeteaseRequestError(answer);
   }
 
-  // 收集 set-cookie
+  // 收集 set-cookie 并提取服务端下发的 NMTID
   const setCookie =
     (res.headers as unknown as { getSetCookie?: () => string[] }).getSetCookie?.() ??
     (res.headers.get("set-cookie") ? [res.headers.get("set-cookie") as string] : []);
-  answer.cookie = setCookie.map((x) => x.replace(/\s*Domain=[^(;|$)]+;*/, ""));
+  const cleanCookie = (x: string): string => x.replace(/\s*Domain=[^(;|$)]+;*/, "");
+
+  if (crypto === "eapi" && !cachedNmtid && nmtidRetriesLeft > 0 && !cookie.NMTID) {
+    nmtidRetriesLeft--;
+    answer.cookie = setCookie.map((x) => {
+      const match = x.match(/(?:^|;\s*)NMTID=([^;]+)/);
+      if (match) cachedNmtid = match[1];
+      return cleanCookie(x);
+    });
+  } else {
+    answer.cookie = setCookie.map(cleanCookie);
+  }
 
   // xeapi 会话密钥由响应头下发，缓存供后续请求复用
   if (isXeapi) {

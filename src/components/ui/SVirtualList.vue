@@ -329,16 +329,21 @@ onMounted(() => {
 let savedScrollTop = 0;
 
 onDeactivated(() => {
-  savedScrollTop = scrollRef.value?.scrollTop ?? scrollTop.value;
+  const domTop = scrollRef.value?.scrollTop;
+  savedScrollTop = domTop && domTop > 0 ? domTop : scrollTop.value;
 });
 
 /** 恢复滚动位置并重算可见范围 */
 onActivated(() => {
-  nextTick(() => {
-    scrollRef.value?.scrollTo({ top: savedScrollTop });
-    scrollTop.value = savedScrollTop;
-    calculateVisibleRange(savedScrollTop);
-  });
+  const targetTop = savedScrollTop > 0 ? savedScrollTop : scrollTop.value;
+  if (targetTop > 0) {
+    scrollTop.value = targetTop;
+    calculateVisibleRange(targetTop);
+    nextTick(() => {
+      scrollRef.value?.scrollTo({ top: targetTop });
+      calculateVisibleRange(targetTop);
+    });
+  }
 });
 
 onUnmounted(() => {

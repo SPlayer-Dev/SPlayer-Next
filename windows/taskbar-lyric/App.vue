@@ -7,7 +7,7 @@ import IconSkipForward from "~icons/lucide/skip-forward";
 import IconPlay from "~icons/lucide/play";
 import IconPause from "~icons/lucide/pause";
 import TaskbarLyricLine from "./components/TaskbarLyricLine.vue";
-import { pickPrimaryIndex } from "@shared/utils/lyricSync";
+import { pickPrimaryIndex } from "lyric-kit";
 import { useNowPlayingSync } from "@windows/shared/composables/useNowPlayingSync";
 import { formatArtists } from "@shared/utils/track";
 
@@ -125,9 +125,7 @@ const currentLine = computed<LyricLine | null>(() => {
 const hasLyric = computed(() => lyric.value.length > 0 && primaryIndex.value >= 0);
 
 const titleText = computed<string>(() => track.value?.title ?? "SPlayer Next");
-const artistsText = computed<string>(
-  () => formatArtists(track.value?.artists) || "未知艺术家",
-);
+const artistsText = computed<string>(() => formatArtists(track.value?.artists) || "未知艺术家");
 
 const effectiveTheme = computed<"light" | "dark">(() => {
   if (config.colorMode === "light") return "light";

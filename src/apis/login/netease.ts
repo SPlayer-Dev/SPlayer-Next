@@ -1,9 +1,10 @@
 /**
- * 网易云登录相关
+ * 登录相关
  */
 
 import type { UserProfile } from "@/types/user";
 import { netease as neteaseApi } from "@/apis/netease";
+import type { QrLoginAdapter, QrLoginState } from "./platform";
 
 interface LoginStatusBody {
   code?: number | string;
@@ -59,20 +60,49 @@ export const qrCheck = async (key: string): Promise<QrCheckResult> => {
  */
 export const qrContent = (key: string): string => `https://music.163.com/login?codekey=${key}`;
 
+export const neteaseQrLoginAdapter: QrLoginAdapter = {
+  create: async () => {
+    const key = await qrKey();
+    return { key, content: qrContent(key) };
+  },
+  check: async (key) => {
+    const result = await qrCheck(key);
+    const state: QrLoginState =
+      result.code === 800
+        ? "expired"
+        : result.code === 802
+          ? "scanned"
+          : result.code === 803
+            ? "success"
+            : "waiting";
+    return { state, nickname: result.nickname, avatarUrl: result.avatarUrl };
+  },
+};
+
 /**
  * 校验 cookie 并取当前用户 profile
  * @returns 已登录返回 profile；未登录或 cookie 失效返回 null
  */
 export const fetchLoginStatus = async (): Promise<UserProfile | null> => {
-  const body = await neteaseApi.login_status<LoginStatusBody>();
+  const body = await neteaseApi.login_status<LoginStatusBody>({ timestamp: Date.now() });
   if (body?.code !== undefined && Number(body.code) !== 200) return null;
-  const raw = body?.data?.profile ?? body?.profile;
-  const userId = raw?.userId ?? body?.data?.account?.id ?? body?.account?.id;
-  if (!userId) return null;
-  const profile = raw ?? {};
+  const account = body?.data?.account ?? body?.account;
+  const profile = body?.data?.profile ?? body?.profile;
+
+  // 游客/匿名账号（anonimous 为 true、或无有效 profile/nickname）判定为未登录
+  if (
+    !account ||
+    (account as { anonimous?: boolean }).anonimous ||
+    !profile ||
+    !profile.userId ||
+    !profile.nickname
+  ) {
+    return null;
+  }
+
   return {
-    userId,
-    nickname: profile.nickname ?? "",
+    userId: profile.userId,
+    nickname: profile.nickname,
     avatarUrl: profile.avatarUrl,
     backgroundUrl: profile.backgroundUrl,
     signature: profile.signature,
@@ -86,9 +116,11 @@ export const fetchLoginStatus = async (): Promise<UserProfile | null> => {
 /**
  * 续期登录 cookie
  * set-cookie 由主进程 SESSION_MUTATING 自动写回 SQLite
+ * @returns 服务端是否实际下发了新的登录 cookie
  */
-export const refreshLogin = async (): Promise<void> => {
-  await neteaseApi.login_refresh();
+export const refreshLogin = async (): Promise<boolean> => {
+  const body = await neteaseApi.login_refresh<{ cookie?: unknown }>({ timestamp: Date.now() });
+  return typeof body?.cookie === "string" && /(?:^|;)\s*MUSIC_U=/.test(body.cookie);
 };
 
 /** 服务端登出（仅打断 server session，不清本地 cookie） */

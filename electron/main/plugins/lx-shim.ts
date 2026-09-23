@@ -11,6 +11,7 @@ import crypto from "node:crypto";
 import zlib from "node:zlib";
 import type {
   HostApi,
+  MusicUrlReq,
   MusicUrlRes,
   PluginAction,
   PluginQuality,
@@ -20,17 +21,26 @@ import type {
 
 /**
  * lx 原生音质枚举 → 宿主 PluginQuality 的映射
- * lx 用 128k/192k/320k/flac/flac24bit/ape/wav 这种具体编码描述，
- * 宿主按 lq/sq/hq/lossless/hi-res 等级分类，两端做一次转换即可对齐
+ * 兼容 128k/320k/flac/flac24bit 以及各类别名
  */
 const LX_TO_HOST_QUALITY: Record<string, PluginQuality> = {
   "128k": "lq",
+  "128": "lq",
+  standard: "lq",
   "192k": "sq",
+  "192": "sq",
   "320k": "hq",
+  "320": "hq",
+  high: "hq",
+  hq: "hq",
   flac: "lossless",
   ape: "lossless",
   wav: "lossless",
+  lossless: "lossless",
+  sq: "lossless",
   flac24bit: "hi-res",
+  hires: "hi-res",
+  "hi-res": "hi-res",
 };
 
 const HOST_TO_LX_QUALITY: Record<PluginQuality, string> = {
@@ -41,9 +51,13 @@ const HOST_TO_LX_QUALITY: Record<PluginQuality, string> = {
   "hi-res": "flac24bit",
 };
 
-const mapLxQualityToHost = (q: string): PluginQuality | null => LX_TO_HOST_QUALITY[q] ?? null;
+const mapLxQualityToHost = (q: string): PluginQuality | null =>
+  LX_TO_HOST_QUALITY[String(q).toLowerCase()] ?? null;
 
 const mapHostQualityToLx = (q: PluginQuality): string => HOST_TO_LX_QUALITY[q] ?? "320k";
+
+const DEFAULT_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 const EVENT_NAMES = {
   request: "request",
@@ -83,29 +97,41 @@ export interface LxCurrentScriptInfo {
   rawScript: string;
 }
 
-/** lx.utils — 参数签名与 lx-music 老脚本兼容（与自家 splayer.utils 不同） */
+/** 规范化输入为标准的 Uint8Array / Buffer */
+const toBuffer = (val: unknown): Buffer => {
+  if (Buffer.isBuffer(val)) return val;
+  if (val instanceof Uint8Array || val instanceof ArrayBuffer)
+    return Buffer.from(val as ArrayBuffer);
+  if (Array.isArray(val)) return Buffer.from(val as number[]);
+  if (typeof val === "string") return Buffer.from(val, "utf-8");
+  return Buffer.alloc(0);
+};
+
+/** lx.utils — 参数签名与 lx-music 脚本完全兼容 */
 const buildLxUtils = (): object => ({
   crypto: {
-    // 注意：lx 的参数顺序是 (buffer, mode, key, iv)，与我们自家 splayer.utils 不同
     aesEncrypt: (
-      buffer: Buffer | Uint8Array,
+      buffer: Buffer | Uint8Array | number[],
       mode: string,
-      key: Buffer | Uint8Array,
-      iv: Buffer | Uint8Array,
+      key: Buffer | Uint8Array | number[],
+      iv?: Buffer | Uint8Array | number[],
     ): Buffer => {
-      const cipher = crypto.createCipheriv(mode, key as crypto.CipherKey, iv as crypto.BinaryLike);
-      return Buffer.concat([cipher.update(Buffer.from(buffer)), cipher.final()]);
+      const buf = toBuffer(buffer);
+      const keyBuf = toBuffer(key);
+      const ivBuf = iv ? toBuffer(iv) : null;
+      const cipher = crypto.createCipheriv(mode, keyBuf, ivBuf);
+      return Buffer.concat([cipher.update(buf), cipher.final()]);
     },
-    rsaEncrypt: (buffer: Buffer | Uint8Array, key: string): Buffer => {
-      // lx 行为：先左填充 0 到 128 字节，再用 RSA_NO_PADDING 加密
-      const padded = Buffer.concat([Buffer.alloc(128 - buffer.length), Buffer.from(buffer)]);
+    rsaEncrypt: (buffer: Buffer | Uint8Array | number[], key: string): Buffer => {
+      const buf = toBuffer(buffer);
+      const padded = buf.length < 128 ? Buffer.concat([Buffer.alloc(128 - buf.length), buf]) : buf;
       return crypto.publicEncrypt({ key, padding: crypto.constants.RSA_NO_PADDING }, padded);
     },
     randomBytes: (size: number): Buffer => crypto.randomBytes(size),
-    md5: (str: string | Uint8Array): string =>
+    md5: (str: string | Uint8Array | number[]): string =>
       crypto
         .createHash("md5")
-        .update(str as crypto.BinaryLike)
+        .update(typeof str === "string" ? str : toBuffer(str))
         .digest("hex"),
   },
   buffer: {
@@ -114,29 +140,158 @@ const buildLxUtils = (): object => ({
       encoding?: BufferEncoding,
     ): Buffer =>
       typeof data === "string" ? Buffer.from(data, encoding) : Buffer.from(data as ArrayBuffer),
-    bufToString: (buf: Buffer | Uint8Array | string, format: BufferEncoding): string =>
-      typeof buf === "string"
-        ? Buffer.from(buf, "binary").toString(format)
-        : Buffer.from(buf).toString(format),
+    bufToString: (
+      buf: Buffer | Uint8Array | string | number[],
+      format: BufferEncoding = "utf-8",
+    ): string => {
+      if (typeof buf === "string") return Buffer.from(buf, "binary").toString(format);
+      return toBuffer(buf).toString(format);
+    },
   },
   zlib: {
-    // lx 的 zlib API 是异步 Promise 版本
-    inflate: (buf: Buffer | Uint8Array): Promise<Buffer> =>
+    inflate: (buf: Buffer | Uint8Array | number[]): Promise<Buffer> =>
       new Promise((resolve, reject) => {
-        zlib.inflate(buf, (err, data) => {
+        zlib.inflate(toBuffer(buf), (err, data) => {
           if (err) reject(new Error(err.message));
           else resolve(data);
         });
       }),
-    deflate: (data: Buffer | Uint8Array | string): Promise<Buffer> =>
+    deflate: (data: Buffer | Uint8Array | string | number[]): Promise<Buffer> =>
       new Promise((resolve, reject) => {
-        zlib.deflate(data, (err, buf) => {
+        zlib.deflate(toBuffer(data), (err, buf) => {
           if (err) reject(new Error(err.message));
           else resolve(buf);
         });
       }),
   },
 });
+
+/** LX 歌曲信息结构 */
+export interface LxMusicInfo {
+  id: string;
+  songmid: string;
+  songId: string;
+  name: string;
+  singer: string;
+  source: string;
+  interval: string | null;
+  img: string | null;
+  lrc: string | null;
+  otherSource: unknown;
+  types: string[];
+  _types: Record<string, unknown>;
+  typeUrl: Record<string, unknown>;
+  hash?: string;
+  strMediaMid?: string;
+  copyrightId?: string;
+  albumId: string;
+  albumName: string;
+  meta: {
+    songId: string;
+    albumName: string;
+    albumId: string;
+    picUrl: string | null;
+    hash?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+/** 将宿主传入的 musicInfo 归一化 */
+export const normalizeLxMusicInfo = (
+  raw: MusicUrlReq["musicInfo"] | undefined,
+  source: string,
+): LxMusicInfo => {
+  const info = raw ?? { songmid: "" };
+  const meta =
+    typeof info.meta === "object" && info.meta !== null
+      ? (info.meta as Record<string, unknown>)
+      : {};
+  const id = String(info.id ?? info.songmid ?? info.songId ?? meta.songId ?? "");
+  const name = String(info.name ?? info.title ?? "");
+  const singer = String(info.singer ?? info.artist ?? "");
+  const albumName = String(info.albumName ?? meta.albumName ?? "");
+  const albumId = String(info.albumId ?? meta.albumId ?? "");
+  const interval = typeof info.interval === "string" ? info.interval : null;
+  const img = (info.img ?? info.pic ?? meta.picUrl ?? null) as string | null;
+
+  const rawHash = info.hash ?? meta.hash;
+  const isKg = source === "kg" || source === "kugou";
+  const hash =
+    typeof rawHash === "string" && rawHash.trim().length > 0
+      ? rawHash.trim()
+      : isKg && id.length === 32 && /^[0-9a-fA-F]{32}$/.test(id)
+        ? id
+        : undefined;
+
+  const rawStrMediaMid = info.strMediaMid ?? meta.strMediaMid;
+  const strMediaMid =
+    typeof rawStrMediaMid === "string" && rawStrMediaMid.trim().length > 0
+      ? rawStrMediaMid.trim()
+      : source === "tx" || source === "qqmusic"
+        ? id
+        : undefined;
+
+  const rawCopyrightId = info.copyrightId ?? meta.copyrightId;
+  const copyrightId =
+    typeof rawCopyrightId === "string" && rawCopyrightId.trim().length > 0
+      ? rawCopyrightId.trim()
+      : undefined;
+
+  const resMeta: Record<string, unknown> = {
+    ...meta,
+    songId: id,
+    albumName,
+    albumId,
+    picUrl: img,
+  };
+  if (hash) {
+    resMeta.hash = hash;
+  } else {
+    delete resMeta.hash;
+  }
+
+  const result: LxMusicInfo = {
+    ...info,
+    name,
+    singer,
+    source,
+    songmid: id,
+    id,
+    songId: id,
+    albumId,
+    albumName,
+    interval,
+    img,
+    lrc: (info.lrc as string | null | undefined) ?? null,
+    otherSource: info.otherSource ?? null,
+    types: Array.isArray(info.types) ? (info.types as string[]) : [],
+    _types:
+      typeof info._types === "object" && info._types !== null
+        ? (info._types as Record<string, unknown>)
+        : {},
+    typeUrl: {},
+    meta: resMeta as LxMusicInfo["meta"],
+  };
+
+  if (hash) {
+    result.hash = hash;
+  } else {
+    delete (result as Record<string, unknown>).hash;
+  }
+  if (strMediaMid) {
+    result.strMediaMid = strMediaMid;
+  } else {
+    delete (result as Record<string, unknown>).strMediaMid;
+  }
+  if (copyrightId) {
+    result.copyrightId = copyrightId;
+  } else {
+    delete (result as Record<string, unknown>).copyrightId;
+  }
+
+  return result;
+};
 
 /**
  * 安装 lx 兼容层
@@ -204,11 +359,26 @@ export const installLxShim = (
         body = usp.toString();
         formContentType = "application/x-www-form-urlencoded";
       }
+      // 注入默认 User-Agent，避免反爬接口直接拦截
+      const hasUserAgent = Object.keys(headers).some((k) => k.toLowerCase() === "user-agent");
+      if (!hasUserAgent) {
+        headers["User-Agent"] = DEFAULT_USER_AGENT;
+      }
+
       // 默认 content-type 放前面，让用户传的 headers 仍能覆盖
       const finalHeaders: Record<string, string> = formContentType
         ? { "content-type": formContentType, ...headers }
         : headers;
       let aborted = false;
+
+      const safeCallback: LxRequestCallback = (err, resp, body) => {
+        if (aborted) return;
+        try {
+          callback(err, resp, body);
+        } catch (cbErr) {
+          splayer.log.error("[lx-shim] request callback threw:", (cbErr as Error)?.message);
+        }
+      };
 
       splayer
         .request(url, {
@@ -228,11 +398,11 @@ export const installLxShim = (
             /* 保留原字符串 */
           }
           const raw = Buffer.from(rawText, "utf-8");
-          callback(
+          safeCallback(
             null,
             {
               statusCode: resp.status,
-              statusMessage: "",
+              statusMessage: resp.status === 200 ? "OK" : "",
               headers: resp.headers,
               bytes: raw.byteLength,
               raw,
@@ -243,7 +413,7 @@ export const installLxShim = (
         })
         .catch((err: Error) => {
           if (aborted) return;
-          callback(err);
+          safeCallback(err, undefined, null);
         });
 
       // lx 返回一个 abort 函数；当前无法真正取消底层 fetch，置 aborted 丢弃结果
@@ -351,7 +521,11 @@ export const installLxShim = (
 
   sandboxGlobal.lx = lxApi;
   // 部分脚本通过 window.lx 访问
-  sandboxGlobal.window = { lx: lxApi };
+  if (typeof sandboxGlobal.window === "object" && sandboxGlobal.window !== null) {
+    (sandboxGlobal.window as Record<string, unknown>).lx = lxApi;
+  } else {
+    sandboxGlobal.window = sandboxGlobal;
+  }
 
   // 为每个 action 安装一个通用分派器：把 router 的 call 转译成 lx 的 request 形状
   const registerAction = (action: PluginAction): void => {
@@ -362,14 +536,14 @@ export const installLxShim = (
           code: "PLUGIN_NOT_READY",
         });
       }
-      const reqObj = req as Record<string, unknown>;
-      const source = (reqObj.source as string) ?? "";
+      const reqObj = req as MusicUrlReq;
+      const source = reqObj.source ?? "";
       // lx 期待 128k/320k/flac/... 音质字符串，宿主的 quality 做一次翻译
-      const hostQuality = reqObj.quality as PluginQuality | undefined;
+      const hostQuality = reqObj.quality;
       const lxType = hostQuality ? mapHostQualityToLx(hostQuality) : undefined;
-      const info: Record<string, unknown> = {
+      const info = {
         type: lxType,
-        musicInfo: reqObj.musicInfo ?? {},
+        musicInfo: normalizeLxMusicInfo(reqObj.musicInfo, source),
       };
       const raw = await Promise.resolve(requestHandler({ source, action, info }));
       // 严格归一为 { url }，避免脚本回包夹带闭包/Proxy 导致 postMessage 克隆失败

@@ -10,7 +10,6 @@
   color: rgb(var(--s-on-surface));
 }
 .markdown-body h2 {
-  margin: 1.4em 0 0.6em;
   font-size: 15px;
   font-weight: 600;
   color: rgb(var(--s-on-surface));

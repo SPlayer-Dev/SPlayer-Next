@@ -12,7 +12,12 @@ onBeforeUnmount(() => unsubscribe());
 </script>
 
 <template>
-  <SDialog v-model:open="open" width="min(1024px, calc(100vw - 40px))" height="75vh">
+  <SDialog
+    v-model:open="open"
+    width="min(1024px, calc(100vw - 40px))"
+    height="75vh"
+    destroy-on-close
+  >
     <SettingsContent class="h-full" />
   </SDialog>
 </template>

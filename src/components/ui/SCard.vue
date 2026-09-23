@@ -12,6 +12,8 @@ export interface SCardProps {
   radius?: "md" | "lg" | "xl";
   /** 鼠标悬浮高亮 */
   hoverable?: boolean;
+  /** 是否选中态 */
+  selected?: boolean;
   /** 无内边距 */
   flush?: boolean;
 }
@@ -21,13 +23,14 @@ withDefaults(defineProps<SCardProps>(), {
   bordered: true,
   size: "medium",
   radius: "lg",
+  selected: false,
 });
 
 /** 变体到背景 / 边框样式的映射 */
 const variantClass: Record<NonNullable<SCardProps["variant"]>, { bg: string; border: string }> = {
   default: { bg: "bg-surface-panel", border: "border-primary/20" },
   primary: { bg: "bg-primary/5", border: "border-primary/25" },
-  settings: { bg: "bg-on-surface/5", border: "border-primary/20" },
+  settings: { bg: "bg-surface-panel dark:bg-on-surface/5", border: "border-primary/20" },
 };
 
 const sizePadding: Record<NonNullable<SCardProps["size"]>, string> = {
@@ -49,11 +52,14 @@ const structured = computed(() => !!slots.header || !!slots["header-extra"] || !
 
 <template>
   <div
-    class="transition-shadow duration-200"
+    class="transition-[background-color,border-color,box-shadow] duration-200"
     :class="[
       variantClass[variant].bg,
       radiusClass[radius],
-      bordered && ['border border-solid', variantClass[variant].border],
+      bordered && [
+        'border border-solid',
+        selected ? 'border-primary' : variantClass[variant].border,
+      ],
       hoverable && 'cursor-pointer hover:shadow-md',
       !structured && !title && !flush && sizePadding[size],
     ]"

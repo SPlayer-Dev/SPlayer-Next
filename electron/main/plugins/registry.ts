@@ -503,9 +503,19 @@ class PluginRegistry extends EventEmitter {
         this.setStatus(rt, rt.status);
       },
       onSourcesUpdate: (sources) => {
-        if (rt.status.state !== "ready") return;
-        const merged = { ...rt.status.sources, ...sources };
-        this.setStatus(rt, { ...rt.status, sources: merged });
+        if (rt.status.state === "ready") {
+          const merged = { ...rt.status.sources, ...sources };
+          this.setStatus(rt, { ...rt.status, sources: merged });
+        } else {
+          this.setStatus(rt, {
+            state: "ready",
+            sources,
+            events: rt.events,
+            controls: rt.controls,
+            settings: rt.settings,
+            menus: rt.menus,
+          });
+        }
       },
       onRegistered: ({ events, controls, settings, menus: declaredMenus }) => {
         const menus = rt.manifest.grant.includes("ui") ? declaredMenus : [];

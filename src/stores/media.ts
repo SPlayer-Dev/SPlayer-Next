@@ -1,20 +1,25 @@
-import type { MediaInfo, Track, TrackDetail } from "@shared/types/player";
+import type { MediaInfo, PlaybackContext, Track, TrackDetail } from "@shared/types/player";
 import type { LyricData, LyricFormat, LyricInput, LyricLine } from "@shared/types/lyrics";
-import { findLyricIndex } from "@shared/utils/lyric";
 import { useSettingsStore } from "@/stores/settings";
 import { watchLyricPreference } from "@/services/lyric/loader";
-import { parseLyric } from "@/utils/lyric/parse";
-import { applyLyricLanguages } from "@/utils/lyric/language";
-import { extractLyricAuthors } from "@/utils/lyric/author";
+import {
+  applyLyricLanguages,
+  extractLyricAuthors,
+  findLyricIndex,
+  normalizeLyricLines,
+  parseLyric,
+} from "lyric-kit";
 import { applyLyricExclude } from "@/utils/lyric/lyricStripper";
-import { normalizeLyricLines } from "@/utils/lyric/normalize";
-import { applyProfanityUncensor } from "@/utils/preset/profanity";
+import { applyLyricCjkTransform } from "@/utils/lyric/cjkTransform";
 
 export const useMediaStore = defineStore("media", () => {
   watchLyricPreference();
 
   /** 当前歌曲轻量信息 */
   const track = shallowRef<Track | null>(null);
+
+  /** 当前播放的来源上下文 */
+  const playbackContext = shallowRef<PlaybackContext>();
 
   /** 当前歌曲详细信息 */
   const detail = shallowRef<TrackDetail | null>(null);
@@ -70,16 +75,36 @@ export const useMediaStore = defineStore("media", () => {
   };
 
   /**
-   * 把 audio-engine 解析出的元数据合并到当前 Track 上。
-   * 保留身份字段（id/source/serverId/originalId/platform/path）；
-   * 对未设置/空值的展示字段做兜底填充（duration/quality）。
-   * streaming 源的 cover/title/artist/album 已经是服务器返回的权威值，绝不被引擎覆盖。
+   * 更新当前播放的来源上下文
+   * @param context - 播放来源上下文
+   */
+  const setPlaybackContext = (context?: PlaybackContext): void => {
+    playbackContext.value = context;
+  };
+
+  /**
+   * 把 audio-engine 解析出的元数据合并到当前 Track 上
+   * 保留身份字段（id/source/serverId/originalId/platform/path）
+   * 对未设置/空值的展示字段做兜底填充（duration/quality）
+   * streaming 源的 cover/title/artist/album 已经是服务器返回的权威值，绝不被引擎覆盖
    */
   const enrichTrack = (info: MediaInfo, newDetail?: TrackDetail): void => {
     if (!track.value) return;
     const isStreaming = track.value.source === "streaming";
+    // 标题为文件名去后缀派生（如拖拽播放）时，让位给引擎提取的内嵌标签标题
+    const fileName = track.value.path?.split(/[\\/]/).pop() ?? "";
+    const stem = fileName.replace(/\.[^.]+$/, "");
+    const hasExplicitTitle = !!track.value.title && track.value.title !== stem;
+    const hasExplicitArtists = track.value.artists && track.value.artists.length > 0;
     track.value = {
       ...track.value,
+      title: hasExplicitTitle ? track.value.title : info.title || track.value.title,
+      artists: hasExplicitArtists
+        ? track.value.artists
+        : info.artists && info.artists.length > 0
+          ? info.artists
+          : track.value.artists,
+      album: track.value.album ?? info.album,
       duration: track.value.duration > 0 ? track.value.duration : info.duration,
       cover: isStreaming ? track.value.cover : (track.value.cover ?? info.cover),
       quality: track.value.quality ?? info.quality,
@@ -115,6 +140,19 @@ export const useMediaStore = defineStore("media", () => {
     syncToMain();
   };
 
+  /** 简繁转换竞态 token */
+  let transformToken = 0;
+
+  // 监听简繁转换设置变化并重新解析当前歌词
+  watch(
+    () => useSettingsStore().lyric.cjkTransform,
+    () => {
+      if (activeLyric.value && lyricContent.value) {
+        setLyric(activeLyric.value, lyricContent.value);
+      }
+    },
+  );
+
   /**
    * 原子写入歌词
    * @param source - 歌词源
@@ -122,19 +160,32 @@ export const useMediaStore = defineStore("media", () => {
    */
   const setLyric = (source: LyricData, input: LyricInput | null): void => {
     let nextLines: LyricLine[] = [];
+    let authors: string[] = [];
+    const settings = useSettingsStore();
     if (source && input) {
       try {
-        const settings = useSettingsStore();
-        const lines = parseLyric(input, source.format, settings.locale, {
-          detectBackground: settings.lyric.detectBackgroundLyrics,
-        });
-        nextLines = applyLyricExclude(lines, track.value);
+        const result = parseLyric(
+          {
+            content: input.content,
+            format: source.format,
+            translation: input.translation,
+            translationFormat: input.translationFormat,
+            romaji: input.romaji,
+            romajiFormat: input.romajiFormat,
+          },
+          {
+            detectBackground: settings.lyric.detectBackgroundLyrics,
+            preferredLang: settings.locale,
+            cleanKangxi: true,
+            extractMetadata: true,
+          },
+        );
+        nextLines = applyLyricExclude(result.lines, track.value);
         normalizeLyricLines(nextLines);
-        // Fuck Mode
-        if (settings.preset.uncensorProfanity) {
-          applyProfanityUncensor(nextLines);
-        }
         applyLyricLanguages(nextLines);
+        authors = result.metadata.authors?.length
+          ? result.metadata.authors
+          : extractLyricAuthors(input.content, source.format);
       } catch (e) {
         console.error("[media] parse lyric failed:", e);
         nextLines = [];
@@ -145,11 +196,21 @@ export const useMediaStore = defineStore("media", () => {
     activeLyric.value = hasContent ? source : null;
     lyricContent.value = hasContent ? input : null;
     parsedLyric.value = nextLines;
-    lyricAuthors.value =
-      hasContent && source && input ? extractLyricAuthors(input.content, source.format) : [];
+    lyricAuthors.value = hasContent && source && input ? authors : [];
     lyricIndex.value = -1;
     lyricLoading.value = false;
     syncToMain();
+
+    // 应用 OpenCC 简繁转换
+    const cjkMode = settings.lyric.cjkTransform;
+    if (hasContent && cjkMode && cjkMode !== "none") {
+      const token = ++transformToken;
+      applyLyricCjkTransform(nextLines, cjkMode).then((transformed) => {
+        if (token !== transformToken) return;
+        parsedLyric.value = transformed;
+        syncToMain();
+      });
+    }
   };
 
   /**
@@ -163,6 +224,7 @@ export const useMediaStore = defineStore("media", () => {
   /** 清空所有状态 */
   const clear = (): void => {
     track.value = null;
+    playbackContext.value = undefined;
     detail.value = null;
     activeLyric.value = null;
     lyricContent.value = null;
@@ -175,6 +237,7 @@ export const useMediaStore = defineStore("media", () => {
 
   return {
     track,
+    playbackContext,
     detail,
     activeLyric,
     lyricContent,
@@ -184,6 +247,7 @@ export const useMediaStore = defineStore("media", () => {
     lyricLoading,
     lyricIndex,
     setTrack,
+    setPlaybackContext,
     enrichTrack,
     patchCover,
     resetLyricState,

@@ -1,23 +1,42 @@
 #[cfg(target_os = "windows")]
 mod imp {
-    use std::sync::Once;
-
-    use tracing::{info, warn};
+    use tracing::{debug, warn};
+    use windows::core::w;
+    use windows::Win32::Foundation::HANDLE;
     use windows::Win32::System::Threading::{
-        GetCurrentProcess, GetCurrentThread, SetPriorityClass, SetThreadPriority,
-        ABOVE_NORMAL_PRIORITY_CLASS, THREAD_PRIORITY_HIGHEST,
+        AvRevertMmThreadCharacteristics, AvSetMmThreadCharacteristicsW, AvSetMmThreadPriority,
+        GetCurrentThread, SetThreadPriority, AVRT_PRIORITY_HIGH, THREAD_PRIORITY_HIGHEST,
     };
 
-    static PROCESS_PRIORITY_ONCE: Once = Once::new();
+    /// MMCSS 注册必须由同一线程释放；HANDLE 的非 Send 属性限制守卫跨线程移动。
+    pub struct RenderThreadPriority(HANDLE);
 
-    pub fn configure_process_priority() {
-        PROCESS_PRIORITY_ONCE.call_once(|| unsafe {
-            if let Err(err) = SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS) {
-                warn!(error = %err, "设置 audio-engine 进程优先级失败");
-                return;
+    impl RenderThreadPriority {
+        pub fn new() -> Option<Self> {
+            let mut task_index = 0;
+            let handle =
+                match unsafe { AvSetMmThreadCharacteristicsW(w!("Pro Audio"), &mut task_index) } {
+                    Ok(handle) => handle,
+                    Err(error) => {
+                        warn!(%error, "独占渲染线程注册 MMCSS 失败，使用普通音频线程优先级");
+                        boost_current_audio_thread("wasapi-exclusive");
+                        return None;
+                    }
+                };
+            if let Err(error) = unsafe { AvSetMmThreadPriority(handle, AVRT_PRIORITY_HIGH) } {
+                warn!(%error, "设置 MMCSS 相对优先级失败，保留任务默认优先级");
             }
-            info!("audio-engine 进程优先级已设为 Above Normal");
-        });
+            debug!(task_index, "独占渲染线程已注册 MMCSS Pro Audio");
+            Some(Self(handle))
+        }
+    }
+
+    impl Drop for RenderThreadPriority {
+        fn drop(&mut self) {
+            if let Err(error) = unsafe { AvRevertMmThreadCharacteristics(self.0) } {
+                warn!(%error, "释放独占渲染线程 MMCSS 注册失败");
+            }
+        }
     }
 
     pub fn boost_current_audio_thread(name: &str) {
@@ -31,9 +50,9 @@ mod imp {
 
 #[cfg(not(target_os = "windows"))]
 mod imp {
-    pub fn configure_process_priority() {}
-
     pub fn boost_current_audio_thread(_name: &str) {}
 }
 
-pub use imp::{boost_current_audio_thread, configure_process_priority};
+pub use imp::boost_current_audio_thread;
+#[cfg(target_os = "windows")]
+pub use imp::RenderThreadPriority;

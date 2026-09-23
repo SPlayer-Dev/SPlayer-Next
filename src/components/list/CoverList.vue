@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { CoverItem } from "@/types/artist";
 import type { SVirtualListExposed } from "@/components/ui/SVirtualList.vue";
-import { useFloatingPlayerBar, PLAYER_BAR_GAP } from "@/composables/useFloatingPlayerBar";
+import { useFloatingPlayerBar } from "@/composables/useFloatingPlayerBar";
 
 export interface CoverListProps {
   /** 列表数据 */
@@ -45,7 +45,7 @@ const props = withDefaults(defineProps<CoverListProps>(), {
 
 const { t } = useI18n();
 
-const { isFloatingBar } = useFloatingPlayerBar();
+const { isFloatingBar, PLAYER_BAR_GAP } = useFloatingPlayerBar();
 
 /** 虚拟模式底部 padding：悬浮播放栏下留白避免遮挡 */
 const virtualPaddingBottom = computed(() =>
@@ -60,9 +60,16 @@ const emit = defineEmits<{
 const virtualListRef = ref<SVirtualListExposed | null>(null);
 const scrollEl = computed(() => virtualListRef.value?.scrollRef ?? null);
 const { width: scrollWidth } = useElementSize(scrollEl);
+let lastValidWidth = 0;
 
 /** 实际可用网格宽度 = scrollEl 内容宽度 − 左右 padding */
-const innerWidth = computed(() => Math.max(0, scrollWidth.value - props.paddingX * 2));
+const innerWidth = computed(() => {
+  if (scrollWidth.value > 0) {
+    lastValidWidth = scrollWidth.value;
+  }
+  const w = scrollWidth.value > 0 ? scrollWidth.value : lastValidWidth;
+  return Math.max(0, w - props.paddingX * 2);
+});
 
 /** 信息区固定高度估算：标题 line-clamp-2 + 可选 subtitle + 上下 padding */
 const INFO_HEIGHT = 76;

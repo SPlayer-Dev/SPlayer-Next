@@ -1,19 +1,14 @@
-import type { Track } from "@shared/types/player";
+import type { PlaybackContext, Track } from "@shared/types/player";
 import type { NeteaseScrobbleMode } from "@shared/types/settings";
+import {
+  neteaseScrobbleThresholdMs,
+  toNeteaseScrobbleTrack,
+  type NeteaseScrobbleTrack,
+} from "@shared/utils/neteaseScrobble";
 import { store } from "@main/store";
 import { callNetease, getNeteaseCookies } from "@main/apis/netease";
 import { neteaseLog } from "@main/utils/logger";
 import { createPlayProgress } from "@main/services/playProgress";
-
-interface NeteaseScrobbleTrack {
-  id: string;
-  sourceId: string;
-  title: string;
-  artist: string;
-  bitrate: number;
-  level: string;
-  durationSec: number;
-}
 
 let current: NeteaseScrobbleTrack | null = null;
 /** 上一次收到的源时间位置 */
@@ -26,23 +21,6 @@ const isLoggedIn = (): boolean => Boolean(getNeteaseCookies().MUSIC_U);
 
 /** 听歌打卡是否启用 */
 const isScrobbleEnabled = (): boolean => Boolean(store.get("system.neteaseScrobbleEnabled"));
-
-/** 提取接口可接受的数字 id */
-const asNumericId = (value: string | undefined): string | null =>
-  value && /^\d+$/.test(value) ? value : null;
-
-/** NCBL 日志使用桌面客户端的音质字段 */
-const toNcblBitrate = (track: Track): number => {
-  const bitRate = track.quality?.bitRate ?? 320;
-  return bitRate > 10000 ? Math.round(bitRate / 1000) : Math.round(bitRate);
-};
-
-/** NCBL 日志使用网易云音质等级 */
-const toNcblLevel = (track: Track): string => {
-  if (track.quality?.codec?.toLowerCase() === "flac") return "lossless";
-  if ((track.quality?.bitRate ?? 0) >= 320000) return "exhigh";
-  return "higher";
-};
 
 /** 当前配置启用的上报接口 */
 const scrobbleApi = (): string => {
@@ -57,23 +35,6 @@ const ensureScrobbleOk = (api: string, res: { body: any }): void => {
   throw new Error(`${api}: ${msg}`);
 };
 
-/** 从 Track 生成打卡元数据 */
-const toScrobbleTrack = (track: Track | null, durationMs: number): NeteaseScrobbleTrack | null => {
-  if (!track || track.source !== "netease") return null;
-  const id = asNumericId(track.id);
-  const sourceId = asNumericId(track.album?.id);
-  if (!id || !sourceId) return null;
-  return {
-    id,
-    sourceId,
-    title: track.title,
-    artist: track.artists.map((artist) => artist.name).join(" / "),
-    bitrate: toNcblBitrate(track),
-    level: toNcblLevel(track),
-    durationSec: Math.round(durationMs / 1000),
-  };
-};
-
 /** 达标提交一次打卡（登录态判定在此，关着开关由 shouldFire 拦截） */
 const submit = (track: NeteaseScrobbleTrack, playedMs: number): void => {
   if (!isLoggedIn()) return;
@@ -83,12 +44,16 @@ const submit = (track: NeteaseScrobbleTrack, playedMs: number): void => {
   callNetease(api, {
     id: track.id,
     sourceid: track.sourceId,
+    source: track.sourceType,
+    sourceType: track.sourceType,
+    resourceType: track.resourceType,
     time: playedSec,
     total: track.durationSec,
     name: track.title,
     artist: track.artist,
     bitrate: track.bitrate,
     level: track.level,
+    fee: track.fee,
   })
     .then((res) => {
       ensureScrobbleOk(api, res);
@@ -102,17 +67,24 @@ const submit = (track: NeteaseScrobbleTrack, playedMs: number): void => {
 const progress = createPlayProgress<NeteaseScrobbleTrack>({
   onThreshold: submit,
   shouldFire: isScrobbleEnabled,
+  thresholdMs: neteaseScrobbleThresholdMs,
 });
 
 /**
  * 新曲目加载
  * @param track - 渲染层下发的权威 Track
+ * @param context - 本次播放的来源上下文
  * @param durationMs - 引擎确认后的时长
  * @param autoPlay - 是否自动播放
  */
-export const onTrackLoaded = (track: Track | null, durationMs: number, autoPlay: boolean): void => {
+export const onTrackLoaded = (
+  track: Track | null,
+  context: PlaybackContext | undefined,
+  durationMs: number,
+  autoPlay: boolean,
+): void => {
   cycleId++;
-  current = toScrobbleTrack(track, durationMs);
+  current = toNeteaseScrobbleTrack(track, context, durationMs);
   progress.load(current?.durationSec ?? 0, current, autoPlay);
   lastPositionMs = 0;
 };

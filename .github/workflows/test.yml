@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: test-${{ github.workflow }}-${{ github.ref }}
+  group: test-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -19,7 +19,7 @@ env:
 
 jobs:
   typescript:
-    name: TypeScript and Vitest
+    name: Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -37,12 +37,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Typecheck
-        run: pnpm typecheck
 
       - name: Test
         run: pnpm test
@@ -74,3 +68,32 @@ jobs:
 
       - name: Test Rust workspace
         run: pnpm test:native
+
+  native-linux:
+    name: Native modules on Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: native-linux
+
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libasound2-dev libdbus-1-dev libpipewire-0.3-dev libpulse-dev pkg-config clang \
+            pipewire pipewire-bin wireplumber dbus-daemon
+
+      - name: Check audio engine
+        run: cargo test -p audio-engine
+
+      - name: Test PipeWire output
+        run: bash scripts/test-pipewire.sh

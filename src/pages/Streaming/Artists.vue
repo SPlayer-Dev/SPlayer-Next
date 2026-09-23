@@ -1,4 +1,6 @@
 <script setup lang="ts">
+defineOptions({ name: "StreamingArtists" });
+
 import type { CoverItem } from "@/types/artist";
 import { useStreamingStore } from "@/stores/streaming";
 import { artistToCoverItem } from "@/utils/format/coverItem";

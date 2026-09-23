@@ -9,6 +9,7 @@ import { store } from "@main/store";
 import { handleCacheProtocolOnPartition, MAIN_PARTITION } from "@main/utils/protocol";
 import { isAppQuitting } from "@main/utils/lifecycle";
 import { broadcast } from "@main/utils/broadcast";
+import { isWin } from "@main/utils/config";
 import { CURRENT_AGREEMENT_VERSION } from "@shared/constants/agreement";
 
 /** 判断是否应用内部导航 */
@@ -41,6 +42,16 @@ export const createMainWindow = (): BrowserWindow => {
       webgl: true,
     },
   });
+
+  // Electron 43 在混合 DPI 下会先按主屏缩放创建窗口，定位到目标屏幕后需重新应用边界
+  if (isWin && saved?.x != null && saved?.y != null) {
+    mainWindow.setBounds({
+      width: saved.width,
+      height: saved.height,
+      x: saved.x,
+      y: saved.y,
+    });
+  }
 
   // 恢复最大化状态
   if (remember && saved?.maximized) {
@@ -199,6 +210,11 @@ export const minimizeMainWindow = (): void => {
 export const toggleMaximizeMainWindow = (): void => {
   const win = getMainWindow();
   if (!win) return;
+  if (win.isFullScreen()) {
+    win.setFullScreen(false);
+    if (!win.isMaximized()) win.maximize();
+    return;
+  }
   if (win.isMaximized()) win.unmaximize();
   else win.maximize();
 };

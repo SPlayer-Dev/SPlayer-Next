@@ -1,5 +1,5 @@
 import type { Ref } from "vue";
-import type { Track } from "@shared/types/player";
+import type { PlaybackContext, Track } from "@shared/types/player";
 import type { QualityLevel } from "@/utils/quality";
 import type { CollectionType } from "@/types/collection";
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
@@ -10,7 +10,7 @@ import { useStatusStore } from "@/stores/status";
 import { useCopyText } from "@/composables/useCopyText";
 import { toast } from "@/composables/useToast";
 import { buildDownloadQualityItems } from "@/composables/useDownload";
-import { getShareUrl } from "@/utils/format/shareUrl";
+import { getTrackShareUrl } from "@/utils/format/shareUrl";
 import { openExternal } from "@/utils/url";
 import IconPlay from "~icons/lucide/play";
 import IconListEnd from "~icons/lucide/list-end";
@@ -34,6 +34,8 @@ export interface TrackMenuOptions {
   canRemove?: boolean;
   /** 隐藏播放相关菜单项 */
   hidePlayActions?: boolean;
+  /** 播放来源上下文 */
+  playbackContext?: Ref<PlaybackContext | undefined>;
   /** 添加到歌单 */
   onAddToPlaylist?: (track: Track) => void;
   /** 从集合移除回调 */
@@ -223,10 +225,10 @@ export const useTrackMenu = (
     }
     switch (key) {
       case "play":
-        player.playNow(current);
+        player.playNow(current, options.playbackContext?.value);
         break;
       case "playNext":
-        player.insertToQueue(current);
+        player.insertToQueue(current, undefined, options.playbackContext?.value);
         toast.success(t("songList.toast.addedToNext"));
         break;
       case "addToPlaylist":
@@ -266,7 +268,7 @@ export const useTrackMenu = (
         await copy(current.id);
         break;
       case "copyUrl":
-        await copy(getShareUrl(current));
+        await copy(getTrackShareUrl(current));
         break;
     }
   };

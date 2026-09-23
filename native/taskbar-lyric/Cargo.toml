@@ -7,14 +7,14 @@ edition = "2024"
 crate-type = ["cdylib"]
 
 [dependencies]
-napi = { version = "3.8", features = ["napi9", "serde-json"] }
-napi-derive = "3.5"
-anyhow = "1"
+napi = { workspace = true, features = ["napi9", "serde-json"] }
+napi-derive = { workspace = true }
+anyhow = { workspace = true }
 winreg = "0.55"
-windows-core = "0.62.2"
+windows-core = { workspace = true }
 
 [dependencies.windows]
-version = "0.62"
+workspace = true
 features = [
   "Win32_Foundation",
   "Win32_UI_WindowsAndMessaging",
@@ -30,4 +30,8 @@ features = [
 ]
 
 [build-dependencies]
-napi-build = "2.3"
+napi-build = { workspace = true }
+
+[lints]
+workspace = true
+

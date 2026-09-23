@@ -25,7 +25,7 @@ export {
   getDesktopLyricWindow,
   applyDesktopLyricLock,
   applyDesktopLyricAlwaysOnTop,
-  applyDesktopLyricMouseIgnore,
+  applyDesktopLyricUnlockButtonBounds,
   applyDesktopLyricHeight,
   moveDesktopLyricWindow,
   saveDesktopLyricState,

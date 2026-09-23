@@ -5,7 +5,9 @@ import { createWindow } from "./create";
 import { setTrayDesktopLyric } from "@main/services/tray";
 import { store } from "@main/store";
 import { broadcast } from "@main/utils/broadcast";
+import { isLinux, isWin } from "@main/utils/config";
 import { isAppQuitting } from "@main/utils/lifecycle";
+import type { DesktopLyricUnlockButtonBounds } from "@shared/types/window";
 
 let desktopLyricWindow: BrowserWindow | null = null;
 
@@ -33,6 +35,8 @@ const cachedSize = { width: 0, height: 0 };
  */
 let cursorPollTimer: NodeJS.Timeout | null = null;
 let lastCursorInside = false;
+let unlockButtonBounds: DesktopLyricUnlockButtonBounds | null = null;
+let mouseEventsIgnored = false;
 
 const isCursorInsideBounds = (): boolean => {
   if (!desktopLyricWindow || desktopLyricWindow.isDestroyed()) return false;
@@ -41,6 +45,37 @@ const isCursorInsideBounds = (): boolean => {
   return (
     cursor.x >= b.x && cursor.x < b.x + b.width && cursor.y >= b.y && cursor.y < b.y + b.height
   );
+};
+
+/** 判断内容区坐标是否位于解锁按钮区域 */
+const isPointInsideUnlockButton = (x: number, y: number): boolean => {
+  if (!unlockButtonBounds) return false;
+  return (
+    x >= unlockButtonBounds.x &&
+    x < unlockButtonBounds.x + unlockButtonBounds.width &&
+    y >= unlockButtonBounds.y &&
+    y < unlockButtonBounds.y + unlockButtonBounds.height
+  );
+};
+
+/** 判断系统光标是否位于解锁按钮区域 */
+const isCursorInsideUnlockButton = (): boolean => {
+  if (!desktopLyricWindow || desktopLyricWindow.isDestroyed()) return false;
+  const cursor = screen.getCursorScreenPoint();
+  const content = desktopLyricWindow.getContentBounds();
+  return isPointInsideUnlockButton(cursor.x - content.x, cursor.y - content.y);
+};
+
+/** 根据锁定状态和系统光标位置同步整窗鼠标穿透 */
+const syncMousePassthrough = (cursorInsideUnlockButton = isCursorInsideUnlockButton()): void => {
+  const win = getDesktopLyricWindow();
+  if (!win) return;
+  const locked = store.get("desktopLyric").locked;
+  const shouldIgnore = locked && !cursorInsideUnlockButton;
+  if (shouldIgnore === mouseEventsIgnored) return;
+  if (!shouldIgnore && locked && isWin) win.moveTop();
+  win.setIgnoreMouseEvents(shouldIgnore, { forward: true });
+  mouseEventsIgnored = shouldIgnore;
 };
 
 /** 启动光标位置轮询 */
@@ -55,6 +90,7 @@ const startCursorPolling = (): void => {
       return;
     }
     const inside = isCursorInsideBounds();
+    if (isLinux) syncMousePassthrough();
     if (inside !== lastCursorInside) {
       lastCursorInside = inside;
       desktopLyricWindow.webContents.send("desktopLyric:cursorInside", inside);
@@ -90,9 +126,9 @@ const saveWindowState = (): void => {
 export const applyDesktopLyricLock = (locked: boolean): void => {
   const win = getDesktopLyricWindow();
   if (!win) return;
-  win.setIgnoreMouseEvents(locked, { forward: true });
   win.setMovable(!locked);
   win.setResizable(!locked);
+  syncMousePassthrough();
 };
 
 /**
@@ -105,11 +141,15 @@ export const applyDesktopLyricAlwaysOnTop = (alwaysOnTop: boolean): void => {
   win.setAlwaysOnTop(alwaysOnTop, "screen-saver");
 };
 
-/** 锁定状态下由渲染端切换鼠标事件穿透 */
-export const applyDesktopLyricMouseIgnore = (ignore: boolean): void => {
-  const win = getDesktopLyricWindow();
-  if (!win) return;
-  win.setIgnoreMouseEvents(ignore, { forward: true });
+/**
+ * 更新解锁按钮在窗口内容区内的命中区域
+ * @param bounds - 解锁按钮矩形
+ */
+export const applyDesktopLyricUnlockButtonBounds = (
+  bounds: DesktopLyricUnlockButtonBounds,
+): void => {
+  unlockButtonBounds = bounds;
+  syncMousePassthrough();
 };
 
 /**
@@ -206,6 +246,14 @@ export const createDesktopLyricWindow = (): BrowserWindow => {
     desktopLyricWindow?.webContents.setZoomFactor(1.0);
   });
 
+  desktopLyricWindow.webContents.on("before-mouse-event", (_event, mouse) => {
+    if (mouse.type !== "mouseMove" && mouse.type !== "mouseEnter" && mouse.type !== "mouseLeave") {
+      return;
+    }
+    const inside = mouse.type !== "mouseLeave" && isPointInsideUnlockButton(mouse.x, mouse.y);
+    syncMousePassthrough(inside);
+  });
+
   desktopLyricWindow.once("ready-to-show", () => {
     if (!desktopLyricWindow) return;
     const b = desktopLyricWindow.getBounds();
@@ -218,6 +266,7 @@ export const createDesktopLyricWindow = (): BrowserWindow => {
 
   if (config.locked) {
     desktopLyricWindow.setIgnoreMouseEvents(true, { forward: true });
+    mouseEventsIgnored = true;
   }
 
   /** 窗口大小变化事件 */
@@ -237,6 +286,8 @@ export const createDesktopLyricWindow = (): BrowserWindow => {
   /** 窗口关闭事件 */
   desktopLyricWindow.on("closed", () => {
     stopCursorPolling();
+    unlockButtonBounds = null;
+    mouseEventsIgnored = false;
     desktopLyricWindow = null;
     setTrayDesktopLyric(false);
     broadcast("desktopLyric:visibilityChange", false);

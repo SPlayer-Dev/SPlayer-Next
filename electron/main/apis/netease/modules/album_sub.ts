@@ -12,7 +12,7 @@ import { createOption } from "../core/option";
 import type { NeteaseModule } from "../core/types";
 
 const albumSub: NeteaseModule = (query, request) => {
-  const path = query.t === 2 ? "/api/album/sub/cancel" : "/api/album/sub";
+  const path = query.t === 2 ? "/api/album/unsub" : "/api/album/sub";
   const data = { id: query.id };
   return request(path, data, createOption(query, "weapi"));
 };

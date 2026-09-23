@@ -1,4 +1,6 @@
 <script setup lang="ts">
+defineOptions({ name: "Daily" });
+
 import type { Track } from "@shared/types/player";
 import type { SSelectOption } from "@/components/ui/SSelect.vue";
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";

@@ -1,166 +1,190 @@
 /**
  * QM 四分类搜索
- *
- * 分类接口采用公开 CGI：其类型编码和返回结构长期稳定，避免移动端 musicu 搜索的
- * session / search_id 偶发校验错误。详情接口仍走 musicu.fcg。
  */
 
-import { QM_HEADERS, formatSingerName } from "../core/config";
+import { formatSingerName } from "../core/config";
+import { qmRequest } from "../core/request";
 import type { QMModule } from "../core/types";
 
-const SEARCH_URL = "https://c.y.qq.com/soso/fcgi-bin/client_search_cp";
-const PLAYLIST_SEARCH_URL = "https://c.y.qq.com/soso/fcgi-bin/client_music_search_songlist";
 const secureUrl = (url: string | undefined): string => url?.replace(/^http:/, "https:") ?? "";
+const stripHighlight = (text: string | undefined): string => text?.replace(/<\/?em>/g, "") ?? "";
 
-interface SearchBucket<T> {
-  list?: T[];
-  totalnum?: number;
-}
-
-interface QMSong {
-  songid?: number;
-  songmid?: string;
-  songname?: string;
+interface MobileSong {
+  id?: number;
+  mid?: string;
+  title?: string;
   interval?: number;
   singer?: Array<{ id?: number; mid?: string; name?: string }>;
-  albumname?: string;
-  albummid?: string;
-  media_mid?: string;
-  pay?: {
-    payalbum?: number;
-    payplay?: number;
+  album?: { mid?: string; name?: string; title?: string; pmid?: string };
+  file?: {
+    media_mid?: string;
+    size_128mp3?: number;
+    size_320mp3?: number;
+    size_ape?: number;
+    size_flac?: number;
+    size_192ogg?: number;
+    size_hires?: number;
+    size_new?: number[];
+    hires_sample?: number;
+    hires_bitdepth?: number;
   };
-  size128?: number;
-  size320?: number;
-  sizeape?: number;
-  sizeflac?: number;
-  sizeogg?: number;
+  pay?: {
+    pay_month?: number;
+    pay_play?: number;
+    price_album?: number;
+  };
 }
 
-interface QMAlbum {
-  albumID?: number;
-  albumMID?: string;
-  albumName?: string;
-  albumPic?: string;
-  singerName?: string;
-  singerMID?: string;
-  song_count?: number;
+interface MobileSearchResponse {
+  body?: {
+    item_song?: MobileSong[];
+    item_album?: MobileAlbum[];
+    singer?: MobileArtist[];
+    item_songlist?: MobilePlaylist[];
+  };
+  meta?: { sum?: number };
 }
 
-interface QMArtist {
+interface MobileAlbum {
+  id?: number;
+  albummid?: string;
+  name?: string;
+  pic?: string;
+  singer?: string;
+  singer_list?: Array<{ mid?: string; name?: string }>;
+  song_num?: number;
+}
+
+interface MobileArtist {
   singerID?: number;
   singerMID?: string;
   singerName?: string;
   singerPic?: string;
+  iconurl?: string;
   albumNum?: number;
   songNum?: number;
 }
 
-interface QMPlaylist {
+interface MobilePlaylist {
   dissid?: string;
   dissname?: string;
-  imgurl?: string;
-  song_count?: number;
+  logo?: string;
+  layer_url?: string;
+  songnum?: number;
   listennum?: number;
-  creator?: { name?: string };
+  nickname?: string;
 }
 
-const fetchJson = async <T>(url: URL): Promise<T> => {
-  const res = await fetch(url, { headers: QM_HEADERS, signal: AbortSignal.timeout(8000) });
-  if (!res.ok) throw new Error(`QM 搜索请求失败: HTTP ${res.status}`);
-  return (await res.json()) as T;
+/** 生成移动端搜索请求所需的会话 ID */
+const createSearchId = (): string => {
+  const group = BigInt(Math.floor(Math.random() * 20) + 1);
+  const random = BigInt(Math.floor(Math.random() * 4194305));
+  const todayMs = BigInt(Date.now() % 86400000);
+  return String(group * 18014398509481984n + random * 4294967296n + todayMs);
 };
 
-const searchCommon = async (keywords: string, page: number, limit: number, type: number) => {
-  const url = new URL(SEARCH_URL);
-  url.search = new URLSearchParams({
-    format: "json",
-    n: String(limit),
-    p: String(page),
-    w: keywords,
-    cr: "1",
-    g_tk: "5381",
-    t: String(type),
-  }).toString();
-  return fetchJson<{ code?: number; message?: string; data?: Record<string, unknown> }>(url);
-};
+const searchMobile = (keywords: string, page: number, limit: number, searchType: number) =>
+  qmRequest<MobileSearchResponse>(
+    "music.search.SearchCgiService",
+    "DoSearchForQQMusicLite",
+    {
+      search_id: createSearchId(),
+      remoteplace: "search.android.keyboard",
+      query: keywords,
+      page_num: page,
+      num_per_page: limit,
+      search_type: searchType,
+      highlight: 0,
+      nqc_flag: 0,
+      page_id: 1,
+      grp: 1,
+    },
+    {
+      session: false,
+      auth: false,
+      comm: {
+        tmeAppID: "qqmusiclight",
+        cv: "1003006",
+        v: "1003006",
+      },
+    },
+  );
 
 const searchSongs = async (keywords: string, page: number, limit: number) => {
-  const body = await searchCommon(keywords, page, limit, 0);
-  if (body.code !== 0) throw new Error(body.message || `QM 单曲搜索失败: ${body.code}`);
-  const bucket = body.data?.song as SearchBucket<QMSong> | undefined;
-  const songs = (bucket?.list ?? []).map((song) => ({
-    id: String(song.songid ?? ""),
-    mid: song.songmid ?? "",
-    name: song.songname ?? "",
-    artist: formatSingerName(song.singer),
-    artists: song.singer ?? [],
-    album: song.albumname ?? "",
-    albumMid: song.albummid ?? "",
-    duration: (song.interval ?? 0) * 1000,
-    mediaMid: song.media_mid ?? "",
-    pay: song.pay,
-    size128: song.size128 ?? 0,
-    size320: song.size320 ?? 0,
-    sizeApe: song.sizeape ?? 0,
-    sizeFlac: song.sizeflac ?? 0,
-    sizeOgg: song.sizeogg ?? 0,
-  }));
-  return { code: 200, total: bucket?.totalnum ?? songs.length, songs };
+  const data = await searchMobile(keywords, page, limit, 0);
+  const songs = (data.body?.item_song ?? []).map((song) => {
+    const albumMid = song.album?.mid ?? "";
+    const albumPmid = song.album?.pmid ?? "";
+    const pictureMid = albumMid || albumPmid;
+    return {
+      id: String(song.id ?? ""),
+      mid: song.mid ?? "",
+      name: song.title ?? "",
+      artist: formatSingerName(song.singer),
+      artists: song.singer ?? [],
+      album: song.album?.name || song.album?.title || "",
+      albumMid,
+      duration: (song.interval ?? 0) * 1000,
+      mediaMid: song.file?.media_mid ?? "",
+      pay: {
+        payalbum: song.pay?.pay_month === 0 && (song.pay.price_album ?? 0) > 0 ? 1 : 0,
+        payplay: song.pay?.pay_play ?? 0,
+      },
+      size128: song.file?.size_128mp3 ?? 0,
+      size320: song.file?.size_320mp3 ?? 0,
+      sizeApe: song.file?.size_ape ?? 0,
+      sizeFlac: song.file?.size_flac ?? 0,
+      sizeOgg: song.file?.size_192ogg ?? 0,
+      sizeHiRes: song.file?.size_hires || song.file?.size_new?.[0] || 0,
+      hiResSampleRate: song.file?.hires_sample ?? 0,
+      hiResBitDepth: song.file?.hires_bitdepth ?? 0,
+      cover: pictureMid
+        ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${pictureMid}.jpg`
+        : "",
+      coverOriginal: pictureMid
+        ? `https://y.gtimg.cn/music/photo_new/T002R800x800M000${pictureMid}.jpg`
+        : "",
+    };
+  });
+  return { code: 200, total: data.meta?.sum ?? songs.length, songs };
 };
 
 const searchAlbums = async (keywords: string, page: number, limit: number) => {
-  const body = await searchCommon(keywords, page, limit, 8);
-  if (body.code !== 0) throw new Error(body.message || `QM 专辑搜索失败: ${body.code}`);
-  const bucket = body.data?.album as SearchBucket<QMAlbum> | undefined;
-  const albums = (bucket?.list ?? []).map((album) => ({
-    id: album.albumMID ?? String(album.albumID ?? ""),
-    name: album.albumName ?? "",
-    cover: secureUrl(album.albumPic),
-    artist: album.singerName ?? "",
-    artistMid: album.singerMID ?? "",
-    trackCount: album.song_count ?? 0,
+  const data = await searchMobile(keywords, page, limit, 2);
+  const albums = (data.body?.item_album ?? []).map((album) => ({
+    id: album.albummid ?? String(album.id ?? ""),
+    name: album.name ?? "",
+    cover: secureUrl(album.pic),
+    artist: album.singer || formatSingerName(album.singer_list),
+    artistMid: album.singer_list?.[0]?.mid ?? "",
+    trackCount: album.song_num ?? 0,
   }));
-  return { code: 200, total: bucket?.totalnum ?? albums.length, albums };
+  return { code: 200, total: data.meta?.sum ?? albums.length, albums };
 };
 
 const searchArtists = async (keywords: string, page: number, limit: number) => {
-  const body = await searchCommon(keywords, page, limit, 9);
-  if (body.code !== 0) throw new Error(body.message || `QM 歌手搜索失败: ${body.code}`);
-  const bucket = body.data?.singer as SearchBucket<QMArtist> | undefined;
-  const artists = (bucket?.list ?? []).map((artist) => ({
+  const data = await searchMobile(keywords, page, limit, 1);
+  const artists = (data.body?.singer ?? []).map((artist) => ({
     id: artist.singerMID ?? String(artist.singerID ?? ""),
     name: artist.singerName ?? "",
-    cover: secureUrl(artist.singerPic),
+    cover: secureUrl(artist.singerPic || artist.iconurl),
     albumCount: artist.albumNum ?? 0,
     songCount: artist.songNum ?? 0,
   }));
-  return { code: 200, total: bucket?.totalnum ?? artists.length, artists };
+  return { code: 200, total: data.meta?.sum ?? artists.length, artists };
 };
 
 const searchPlaylists = async (keywords: string, page: number, limit: number) => {
-  const url = new URL(PLAYLIST_SEARCH_URL);
-  url.search = new URLSearchParams({
-    remoteplace: "txt.yqq.playlist",
-    page_no: String(page - 1),
-    num_per_page: String(limit),
-    query: keywords,
-    format: "json",
-  }).toString();
-  const body = await fetchJson<{
-    code?: number;
-    data?: { list?: QMPlaylist[]; display_num?: number };
-  }>(url);
-  if (body.code !== 0) throw new Error(`QM 歌单搜索失败: ${body.code}`);
-  const playlists = (body.data?.list ?? []).map((playlist) => ({
+  const data = await searchMobile(keywords, page, limit, 3);
+  const playlists = (data.body?.item_songlist ?? []).map((playlist) => ({
     id: playlist.dissid ?? "",
-    name: playlist.dissname ?? "",
-    cover: secureUrl(playlist.imgurl),
-    creator: playlist.creator?.name ?? "",
-    trackCount: playlist.song_count ?? 0,
+    name: stripHighlight(playlist.dissname),
+    cover: secureUrl(playlist.logo || playlist.layer_url),
+    creator: playlist.nickname ?? "",
+    trackCount: playlist.songnum ?? 0,
     playCount: playlist.listennum ?? 0,
   }));
-  return { code: 200, total: body.data?.display_num ?? playlists.length, playlists };
+  return { code: 200, total: data.meta?.sum ?? playlists.length, playlists };
 };
 
 const search: QMModule = async (params) => {

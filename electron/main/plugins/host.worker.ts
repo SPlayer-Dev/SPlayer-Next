@@ -442,8 +442,28 @@ const loadPluginIntoContext = (spec: LoadSpec): void => {
       debug: splayer.log.debug,
       warn: splayer.log.warn,
       error: splayer.log.error,
+      group: splayer.log.info,
+      groupCollapsed: splayer.log.info,
+      groupEnd: (): void => {},
+      table: splayer.log.info,
+      dir: splayer.log.info,
+      dirxml: splayer.log.info,
+      trace: splayer.log.debug,
+      clear: (): void => {},
+      time: (_label?: string): void => {},
+      timeEnd: (_label?: string): void => {},
+      timeLog: (_label?: string, ..._data: unknown[]): void => {},
+      count: (_label?: string): void => {},
+      countReset: (_label?: string): void => {},
+      assert: (condition?: boolean, ...args: unknown[]): void => {
+        if (!condition) splayer.log.error(...args);
+      },
     },
   };
+
+  sandboxGlobal.globalThis = sandboxGlobal;
+  sandboxGlobal.window = sandboxGlobal;
+  sandboxGlobal.self = sandboxGlobal;
 
   installLxShim(
     sandboxGlobal,
@@ -466,8 +486,6 @@ const loadPluginIntoContext = (spec: LoadSpec): void => {
     },
   );
 
-  sandboxGlobal.globalThis = sandboxGlobal;
-
   const context = vm.createContext(sandboxGlobal, {
     name: `plugin:${spec.pluginId}`,
     codeGeneration: { strings: true, wasm: false },
@@ -475,19 +493,33 @@ const loadPluginIntoContext = (spec: LoadSpec): void => {
 
   try {
     const script = new vm.Script(spec.source, { filename: `plugin-${spec.pluginId}.js` });
-    script.runInContext(context, { timeout: 5_000, breakOnSigint: false });
+    script.runInContext(context, { timeout: 10_000, breakOnSigint: false });
   } catch (err) {
-    disposeRecord(record);
-    plugins.delete(spec.pluginId);
-    send({
-      kind: "fatal",
-      pluginId: spec.pluginId,
-      error: {
-        code: "PLUGIN_SCRIPT_ERROR",
-        message: err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err),
-      },
-    });
-    return;
+    const hasSources = Object.keys(record.registeredSources).length > 0;
+    const hasHandlers = record.handlers.size > 0;
+    if (hasSources || hasHandlers) {
+      send({
+        kind: "log",
+        pluginId: spec.pluginId,
+        level: "warn",
+        args: [
+          "[host] 插件脚本顶层执行抛出异常（音源/处理器已就绪，降级忽略）:",
+          err instanceof Error ? err.message : String(err),
+        ],
+      });
+    } else {
+      disposeRecord(record);
+      plugins.delete(spec.pluginId);
+      send({
+        kind: "fatal",
+        pluginId: spec.pluginId,
+        error: {
+          code: "PLUGIN_SCRIPT_ERROR",
+          message: err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err),
+        },
+      });
+      return;
+    }
   }
 
   // 脚本同步部分执行完，再 microtask 后上报 ready（兼容 lx 异步 inited）

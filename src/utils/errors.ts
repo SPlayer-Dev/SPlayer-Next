@@ -19,6 +19,10 @@ const SKIPPABLE_ERRORS = new Set<string>([
   ErrorCode.NETWORK_TIMEOUT,
   ErrorCode.URL_RESOLVE_FAILED,
   ErrorCode.NO_PLUGIN_AVAILABLE,
+  ErrorCode.NETEASE_LOGIN_EXPIRED,
+  ErrorCode.NETEASE_VIP_REQUIRED,
+  ErrorCode.NETEASE_TRIAL_DISABLED,
+  ErrorCode.NETEASE_UNAVAILABLE,
 ]);
 
 /** 需要用 dialog 强提示的严重错误（阻断性，用户必须介入） */

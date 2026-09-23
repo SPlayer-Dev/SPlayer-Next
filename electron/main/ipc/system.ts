@@ -12,6 +12,7 @@ import { getMainWindow, focusMainWindow } from "@main/window";
 import { fetchBytes } from "@main/utils/fetchBytes";
 import { logsDir } from "@main/utils/paths";
 import { consumePendingOrpheusUrl } from "@main/services/orpheus";
+import { consumePendingAudioFiles } from "@main/services/externalFile";
 import { testNetworkProxy } from "@main/utils/proxy";
 import { store } from "@main/store";
 
@@ -23,6 +24,9 @@ export const registerSystemIpc = (): void => {
 
   // 渲染层拉取冷启动暂存的 orpheus 唤起 URL
   ipcMain.handle("system:consumePendingProtocolUrl", () => consumePendingOrpheusUrl());
+
+  // 渲染层拉取冷启动暂存的外部音频文件列表
+  ipcMain.handle("system:consumePendingAudioFiles", () => consumePendingAudioFiles());
 
   // 切换开发者工具
   ipcMain.handle("system:toggleDevTools", () => {

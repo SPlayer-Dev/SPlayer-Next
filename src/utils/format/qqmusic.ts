@@ -4,11 +4,14 @@ import type { CoverItem } from "@/types/artist";
 export interface QMSong {
   id: string;
   mid?: string;
+  mediaMid?: string;
   name: string;
   artist: string;
   artists?: Array<{ mid?: string; name?: string }>;
   album?: string;
   albumMid?: string;
+  cover?: string;
+  coverOriginal?: string;
   duration: number;
   pay?: {
     payalbum?: number;
@@ -19,6 +22,9 @@ export interface QMSong {
   sizeApe?: number;
   sizeFlac?: number;
   sizeOgg?: number;
+  sizeHiRes?: number;
+  hiResSampleRate?: number;
+  hiResBitDepth?: number;
 }
 
 export interface QMAlbumItem {
@@ -57,7 +63,7 @@ export const qqArtistCover = (mid: string, size = 300): string =>
  * @returns 付费等级
  */
 const qqTrackFee = (song: QMSong): TrackFee => {
-  if (song.pay?.payalbum === 1) return 2;
+  if (song.pay?.payalbum === 1) return 4;
   if (song.pay?.payplay === 1) return 1;
   return 0;
 };
@@ -69,16 +75,31 @@ const qqTrackFee = (song: QMSong): TrackFee => {
  */
 const qqTrackQuality = (song: QMSong): { quality: AudioQuality; fileSize: number } | undefined => {
   const durationSeconds = song.duration / 1000;
-  const create = (codec: string, fileSize: number, bitRate: number, bitsPerSample: number) => ({
+  const create = (
+    codec: string,
+    fileSize: number,
+    bitRate: number,
+    bitsPerSample: number,
+    sampleRate = 44100,
+  ) => ({
     fileSize,
     quality: {
       codec,
-      sampleRate: 44100,
+      sampleRate,
       channels: 2,
       bitsPerSample,
       bitRate: bitRate || (durationSeconds > 0 ? Math.round((fileSize * 8) / durationSeconds) : 0),
     },
   });
+  if (song.sizeHiRes) {
+    return create(
+      "flac",
+      song.sizeHiRes,
+      0,
+      song.hiResBitDepth || 24,
+      song.hiResSampleRate || 96000,
+    );
+  }
   if (song.sizeFlac) return create("flac", song.sizeFlac, 0, 16);
   if (song.sizeApe) return create("ape", song.sizeApe, 0, 16);
   if (song.size320) return create("mp3", song.size320, 320000, 16);
@@ -88,11 +109,12 @@ const qqTrackQuality = (song: QMSong): { quality: AudioQuality; fileSize: number
 };
 
 export const qqSongToTrack = (song: QMSong): Track => {
-  const cover = song.albumMid ? qqAlbumCover(song.albumMid) : undefined;
+  const cover = song.cover || (song.albumMid ? qqAlbumCover(song.albumMid) : undefined);
   const audio = qqTrackQuality(song);
   return {
     id: song.mid || song.id,
     extId: song.mid && song.id !== song.mid ? song.id : undefined,
+    mediaId: song.mediaMid || undefined,
     source: "qqmusic",
     title: song.name,
     artists: song.artists?.length
@@ -106,7 +128,8 @@ export const qqSongToTrack = (song: QMSong): Track => {
     fileSize: audio?.fileSize,
     fee: qqTrackFee(song),
     cover,
-    coverOriginal: song.albumMid ? qqAlbumCover(song.albumMid, 800) : undefined,
+    coverOriginal:
+      song.coverOriginal || (song.albumMid ? qqAlbumCover(song.albumMid, 800) : undefined),
   };
 };
 

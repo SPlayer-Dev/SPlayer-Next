@@ -1,9 +1,8 @@
 /**
  * 下载管理服务
  *
- * 渲染层解析好 URL/封面/歌词后交给本服务：拉流落盘到下载目录、按文件名模板命名、
- * 再用原生 writeTrackTags 内嵌封面/元信息/歌词、可选写歌词文件。任务权威态在此（持久化到
- * download_tasks 表），进度/状态经 broadcast 推送给渲染层镜像
+ * 渲染层构建好请求后交给本服务：整批入队、串行下载，轮到某任务且
+ * 缺少 URL 时经 download:resolve 向渲染层即时索取
  */
 
 import fs from "node:fs";
@@ -21,13 +20,16 @@ import { renderDownloadPath, dedupePath, resolveExtension } from "@main/utils/fi
 import * as db from "@main/database/downloads";
 import { ErrorCode } from "@shared/types/errors";
 import type { JsTagWriteRequest } from "@splayer/audio-engine";
-import type { DownloadRequest, DownloadTask, EnqueueResult } from "@shared/types/download";
+import type {
+  DownloadRequest,
+  DownloadResolvePayload,
+  DownloadResolution,
+  DownloadTask,
+  EnqueueResult,
+} from "@shared/types/download";
 
 /** 进度推送节流间隔 */
 const PROGRESS_INTERVAL_MS = 250;
-/** 保留的历史任务上限（防无界增长） */
-const MAX_HISTORY = 200;
-
 /** 拒绝的响应 Content-Type 前缀（命中即非音频） */
 const REJECTED_MIME_PREFIXES = ["text/html", "application/json", "application/xml", "text/xml"];
 
@@ -66,6 +68,15 @@ const tasks = new Map<string, Pending>();
 const queue: string[] = [];
 /** 当前正在下载的 taskId；null 表示空闲 */
 let active: string | null = null;
+
+/** 渲染层解析结果的等待门 */
+interface ResolutionGate {
+  resolve: (res: DownloadResolution) => void;
+  reject: (err: Error) => void;
+}
+
+/** 轮到下载但缺 URL 的任务，按 taskId 等待渲染层回传解析 */
+const resolutionGates = new Map<string, ResolutionGate>();
 
 /** 临时分片目录（与用户下载目录隔离） */
 const tmpDir = (): string => path.join(getAppCacheDir(), "downloads-tmp");
@@ -186,6 +197,43 @@ const writeLyricFiles = async (req: DownloadRequest, audioPath: string): Promise
   if (req.tagOptions.saveTtml && req.ttmlText) await writeSidecar(`${base}.ttml`, req.ttmlText);
 };
 
+/** 等待渲染层补全解析；任务被取消/删除时经中断信号立即拒绝 */
+const waitForResolution = (taskId: string, signal: AbortSignal): Promise<DownloadResolution> =>
+  new Promise((resolve, reject) => {
+    const onAbort = (): void => {
+      resolutionGates.delete(taskId);
+      reject(new Error("resolution aborted"));
+    };
+    const gate: ResolutionGate = {
+      resolve: (res) => {
+        resolutionGates.delete(taskId);
+        signal.removeEventListener("abort", onAbort);
+        resolve(res);
+      },
+      reject: (err) => {
+        resolutionGates.delete(taskId);
+        signal.removeEventListener("abort", onAbort);
+        reject(err);
+      },
+    };
+    resolutionGates.set(taskId, gate);
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+
+/** 渲染层回传解析结果 */
+export const submitResolution = (taskId: string, res: DownloadResolution): void => {
+  resolutionGates.get(taskId)?.resolve(res);
+};
+
+/** 渲染层解析失败，任务按失败收尾 */
+export const failResolution = (taskId: string): void => {
+  resolutionGates.get(taskId)?.reject(new Error("resolve failed"));
+};
+
 /** 实际下载 + 落盘 + 写标签 */
 const runTask = async (
   req: DownloadRequest,
@@ -195,6 +243,24 @@ const runTask = async (
   const partPath = path.join(tmpDir(), `${req.taskId}.part`);
 
   try {
+    // 轮到才向渲染层即时解析
+    if (!req.url) {
+      const payload: DownloadResolvePayload = {
+        taskId: req.taskId,
+        track: req.track,
+        qualityLevel: req.qualityLevel,
+        tagOptions: req.tagOptions,
+        coverUrl: req.coverUrl,
+        usePlaybackForDownload: req.usePlaybackForDownload,
+        lyricFileFormat: req.lyricFileFormat,
+      };
+      const resolution = waitForResolution(req.taskId, controller.signal);
+      broadcast("download:resolve", payload);
+      Object.assign(req, await resolution);
+    }
+    const audioUrl = req.url;
+    if (!audioUrl) throw new Error("missing download url");
+
     const downloadDir = getDownloadDir();
     const { relDir, baseName } = renderDownloadPath(
       store.get("download.folderScheme"),
@@ -210,7 +276,7 @@ const runTask = async (
     const policy = store.get("download.overwritePolicy");
 
     // skip 策略：用预估扩展名提前命中已存在文件则跳过
-    const guessExt = resolveExtension(req.declaredFormat, null, req.url);
+    const guessExt = resolveExtension(req.declaredFormat, null, audioUrl);
     if (policy === "skip" && fs.existsSync(`${finalNoExt}${guessExt}`)) {
       task.status = "done";
       task.filePath = `${finalNoExt}${guessExt}`;
@@ -222,7 +288,7 @@ const runTask = async (
     await fsp.mkdir(tmpDir(), { recursive: true });
     await fsp.mkdir(targetDir, { recursive: true });
 
-    const response = await fetch(req.url, { signal: controller.signal });
+    const response = await fetch(audioUrl, { signal: controller.signal });
     if (!response.ok || !response.body) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -240,7 +306,7 @@ const runTask = async (
     if (received === 0) throw new Error("empty body");
     if (!(await looksLikeAudio(partPath))) throw new Error("not audio");
 
-    const ext = resolveExtension(req.declaredFormat, mime, req.url);
+    const ext = resolveExtension(req.declaredFormat, mime, audioUrl);
     const finalPath = policy === "rename" ? dedupePath(finalNoExt, ext) : `${finalNoExt}${ext}`;
     await moveFile(partPath, finalPath);
 
@@ -284,22 +350,29 @@ const pump = async (): Promise<void> => {
   } finally {
     tasks.delete(taskId);
     active = null;
-    db.pruneFinished(MAX_HISTORY);
     void pump();
   }
 };
 
 /** 入队下载（start / retry 共用，按 taskId 覆盖任务行） */
-export const enqueue = (req: DownloadRequest): EnqueueResult => {
+const enqueueOne = (
+  req: DownloadRequest,
+  completedByQuality?: Map<string, DownloadTask[]>,
+): EnqueueResult => {
   if (tasks.has(req.taskId)) return { ok: false, reason: "queued" };
   const dedupeKey = dedupeKeyOf(req);
   for (const pending of tasks.values()) {
     if (pending.dedupeKey === dedupeKey) return { ok: false, reason: "queued" };
   }
   // 已下载过同曲同音质且文件仍在 → 拦下
-  const downloaded = db
-    .listCompletedByQuality(req.qualityLevel)
-    .find((task) => task.track.source === req.track.source && task.track.id === req.track.id);
+  let completed = completedByQuality?.get(req.qualityLevel);
+  if (!completed) {
+    completed = db.listCompletedByQuality(req.qualityLevel);
+    completedByQuality?.set(req.qualityLevel, completed);
+  }
+  const downloaded = completed.find(
+    (task) => task.track.source === req.track.source && task.track.id === req.track.id,
+  );
   if (downloaded?.filePath && fs.existsSync(downloaded.filePath)) {
     return { ok: false, reason: "downloaded" };
   }
@@ -317,6 +390,14 @@ export const enqueue = (req: DownloadRequest): EnqueueResult => {
   broadcastState(task);
   void pump();
   return { ok: true };
+};
+
+export const enqueue = (req: DownloadRequest): EnqueueResult => enqueueOne(req);
+
+/** 批量入队：同一音质只读取一次已完成历史 */
+export const enqueueMany = (reqs: DownloadRequest[]): EnqueueResult[] => {
+  const completedByQuality = new Map<string, DownloadTask[]>();
+  return reqs.map((req) => enqueueOne(req, completedByQuality));
 };
 
 /** 取消任务：进行中则中断，排队中则移出并置为已取消 */

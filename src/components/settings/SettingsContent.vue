@@ -3,7 +3,7 @@ import { settingsSchema } from "@/settings/schema";
 import { useSettingsDialog } from "@/settings/useSettingsDialog";
 import { useSettingsStore } from "@/stores/settings";
 import { openExternal } from "@/utils/url";
-import { REPO_URL, REPO_NAME, APP_VERSION } from "@/utils/config";
+import { REPO_URL, REPO_NAME, APP_VERSION, IS_APPX } from "@/utils/config";
 
 const { initialCategory, initialHighlight, rememberCategory } = useSettingsDialog();
 
@@ -91,6 +91,7 @@ onMounted(() => {
           {{ REPO_NAME }}
         </SButton>
         <STag size="tiny">v{{ APP_VERSION }}</STag>
+        <STag v-if="IS_APPX" size="tiny">{{ t("settings.storeVersion") }}</STag>
       </div>
     </div>
 

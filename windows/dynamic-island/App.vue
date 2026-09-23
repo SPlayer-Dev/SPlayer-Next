@@ -4,7 +4,7 @@ import type { LyricLine } from "@shared/types/lyrics";
 import { DYNAMIC_ISLAND_BASE_HEIGHT } from "@shared/defaults/settings";
 import DEFAULT_COVER from "@/assets/images/song.jpg";
 import IslandLyricLine from "./components/IslandLyricLine.vue";
-import { pickAdvanceOnEndIndex } from "@shared/utils/lyricSync";
+import { pickAdvanceOnEndIndex } from "lyric-kit";
 import { useNowPlayingSync } from "@windows/shared/composables/useNowPlayingSync";
 import { useDragWindow } from "./composables/useDragWindow";
 import { isMac } from "@/utils/config";
@@ -79,9 +79,7 @@ const measureTextWidth = (text: string, sizePx: number = fontSize.value): number
 };
 
 /* 艺术家显示文本 */
-const artistsText = computed<string>(
-  () => formatArtists(track.value?.artists) || "未知艺术家",
-);
+const artistsText = computed<string>(() => formatArtists(track.value?.artists) || "未知艺术家");
 
 /* 当前行 */
 const currentLine = computed<LyricLine | null>(() => {

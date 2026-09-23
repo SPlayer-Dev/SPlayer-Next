@@ -8,6 +8,7 @@ import { useLibraryStore } from "@/stores/library";
 import { useStreamingStore } from "@/stores/streaming";
 import { fetchArtist } from "@/apis/artist/netease";
 import { fetchQQMusicArtist } from "@/apis/artist/qqmusic";
+import { fetchKugouArtist } from "@/apis/artist/kugou";
 import { albumsToCoverItems } from "@/utils/format/coverItem";
 
 export interface LoadArtistOptions {
@@ -21,7 +22,7 @@ export interface LoadArtistOptions {
 
 /**
  * 加载指定歌手
- * @param source 来源：local / streaming / netease
+ * @param source 来源：local / streaming / netease / qqmusic / kugou
  * @param id     歌手 id（route 原始字符串）
  * @param options 回调与中断信号
  */
@@ -45,6 +46,12 @@ export const loadArtist = async (
   if (source === "qqmusic") {
     const artistId = decodeURIComponent(id);
     const result = await fetchQQMusicArtist(artistId, options.fallbackName ?? artistId);
+    if (!options.signal?.aborted) options.onUpdate(result);
+    return;
+  }
+  if (source === "kugou") {
+    const artistId = decodeURIComponent(id);
+    const result = await fetchKugouArtist(artistId, options.fallbackName ?? artistId);
     if (!options.signal?.aborted) options.onUpdate(result);
     return;
   }

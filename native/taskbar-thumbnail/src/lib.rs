@@ -227,13 +227,23 @@ pub fn disable() {
     COVER.with(|cell| *cell.borrow_mut() = None);
 }
 
+/// 计算无行填充 BGRA 位图的精确字节数
+fn expected_bgra_len(width: i32, height: i32) -> Option<usize> {
+    let width = usize::try_from(width).ok()?;
+    let height = usize::try_from(height).ok()?;
+    if width == 0 || height == 0 {
+        return None;
+    }
+    width.checked_mul(height)?.checked_mul(4)
+}
+
 /// 更新封面（BGRA、顶向下、不透明），并让 DWM 失效以重新拉取
 #[napi]
 pub fn set_cover(bgra: Buffer, width: i32, height: i32) {
-    let bytes = bgra.to_vec();
-    if width <= 0 || height <= 0 || bytes.len() < (width * height * 4) as usize {
+    if expected_bgra_len(width, height) != Some(bgra.len()) {
         return;
     }
+    let bytes = bgra.to_vec();
     COVER.with(|cell| {
         *cell.borrow_mut() = Some(CoverData {
             bgra: bytes,
@@ -250,4 +260,31 @@ fn invalidate() {
             let _ = unsafe { DwmInvalidateIconicBitmaps(hwnd) };
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::expected_bgra_len;
+
+    #[test]
+    fn calculates_exact_bgra_buffer_length() {
+        assert_eq!(expected_bgra_len(300, 200), Some(240_000));
+        assert_eq!(expected_bgra_len(0, 200), None);
+        assert_eq!(expected_bgra_len(-1, 200), None);
+    }
+
+    #[test]
+    fn extreme_dimensions_do_not_overflow() {
+        let result = expected_bgra_len(i32::MAX, i32::MAX);
+        #[cfg(target_pointer_width = "64")]
+        assert_eq!(
+            result,
+            usize::try_from(i32::MAX)
+                .ok()
+                .and_then(|width| width.checked_mul(width))
+                .and_then(|pixels| pixels.checked_mul(4))
+        );
+        #[cfg(target_pointer_width = "32")]
+        assert_eq!(result, None);
+    }
 }

@@ -11,12 +11,7 @@ import type { CommentTab, MusicCommentItem } from "./comment";
  * 支持的插件动作
  */
 export type PluginAction =
-  | "musicUrl"
-  | "menuClick"
-  | "musicSearch"
-  | "musicLyric"
-  | "musicPic"
-  | "musicComment";
+  "musicUrl" | "menuClick" | "musicSearch" | "musicLyric" | "musicPic" | "musicComment";
 
 /**
  * 音质等级
@@ -41,12 +36,7 @@ export type PluginGrant = (typeof PLUGIN_GRANTS)[number];
 
 /** 控制类插件可订阅的高层播放事件 */
 export type PlaybackEventKind =
-  | "trackChange"
-  | "trackUpdate"
-  | "lyricChange"
-  | "lineChange"
-  | "playStateChange"
-  | "positionSync";
+  "trackChange" | "trackUpdate" | "lyricChange" | "lineChange" | "playStateChange" | "positionSync";
 
 /** 各高层事件的载荷 */
 export interface PlaybackEventData {

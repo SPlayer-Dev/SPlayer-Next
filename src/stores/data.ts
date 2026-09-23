@@ -1,5 +1,6 @@
 import localforage from "localforage";
 import type { Track } from "@shared/types/player";
+import type { Platform, PlatformProfile } from "@shared/types/platform";
 import { fetchDailySongs } from "@/apis/recommend/netease";
 import { useUserStore } from "@/stores/user";
 
@@ -130,6 +131,39 @@ export const useDataStore = defineStore(
       return dailyRecommendLoading;
     };
 
+    /** 辅助平台登录资料 */
+    const platformProfiles = ref<Partial<Record<Platform, PlatformProfile>>>({});
+
+    /**
+     * 获取指定平台的登录资料
+     * @param platform - 平台标识
+     */
+    const getPlatformProfile = (platform: Platform): PlatformProfile | null =>
+      platformProfiles.value[platform] ?? null;
+
+    /**
+     * 设置指定平台的登录资料
+     * @param platform - 平台标识
+     * @param profile - 资料对象，为 null 时清除该平台
+     */
+    const setPlatformProfile = (platform: Platform, profile: PlatformProfile | null): void => {
+      const next = { ...platformProfiles.value };
+      if (profile) {
+        next[platform] = profile;
+      } else {
+        delete next[platform];
+      }
+      platformProfiles.value = next;
+    };
+
+    /**
+     * 清除指定平台的登录资料
+     * @param platform - 平台标识
+     */
+    const clearPlatformProfile = (platform: Platform): void => {
+      setPlatformProfile(platform, null);
+    };
+
     return {
       searchHistory,
       addSearchHistory,
@@ -138,12 +172,16 @@ export const useDataStore = defineStore(
       dailyRecommend,
       dailyHistory,
       ensureDailyRecommend,
+      platformProfiles,
+      getPlatformProfile,
+      setPlatformProfile,
+      clearPlatformProfile,
     };
   },
   {
     persist: {
       storage: localStorage,
-      pick: ["searchHistory"],
+      pick: ["searchHistory", "platformProfiles"],
     },
   },
 );

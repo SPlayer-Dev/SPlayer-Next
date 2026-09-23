@@ -13,9 +13,8 @@ use windows::{
             PeekMessageW, SetWindowLongPtrW, WINDOW_LONG_PTR_INDEX, WM_USER,
         },
     },
-    core::w,
+    core::{PCWSTR, PWSTR, w},
 };
-use windows_core::{PCWSTR, PWSTR};
 use winreg::{
     RegKey,
     enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE},

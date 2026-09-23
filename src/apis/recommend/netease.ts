@@ -1,6 +1,6 @@
 import type { Track } from "@shared/types/player";
 import type { CoverItem } from "@/types/artist";
-import type { NeteaseSong } from "@/types/netease";
+import type { NeteaseSong, PersonalFmOptions } from "@/types/netease";
 import { netease as neteaseApi } from "@/apis/netease";
 import { songsToTracks, withPicSize, toPlaylist, toArtist, toAlbum } from "@/utils/format/netease";
 import { playlistToCoverItem, artistToCoverItem, albumToCoverItem } from "@/utils/format/coverItem";
@@ -25,9 +25,17 @@ export const fetchHeartModeList = async (seedId: string, playlistId: string): Pr
   return songsToTracks((body?.data ?? []).map((item) => item.songInfo));
 };
 
-/** 取一批私人 FM 推荐 */
-export const fetchPersonalFm = async (): Promise<Track[]> => {
-  const body = await neteaseApi.personal_fm<{ data?: NeteaseSong[] }>();
+/**
+ * 获取一批私人 FM 推荐曲目
+ * @param options - 可选的 FM 模式与场景选项
+ * @returns 推荐的 Track 列表
+ */
+export const fetchPersonalFm = async (options?: PersonalFmOptions): Promise<Track[]> => {
+  const body = await neteaseApi.personal_fm<{ data?: NeteaseSong[] }>({
+    ...(options?.mode ? { mode: options.mode } : {}),
+    ...(options?.submode ? { submode: options.submode } : {}),
+    ...(options?.limit ? { limit: options.limit } : {}),
+  });
   return songsToTracks(body?.data ?? []);
 };
 

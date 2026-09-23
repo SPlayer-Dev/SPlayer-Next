@@ -7,11 +7,11 @@ edition = "2024"
 crate-type = ["cdylib"]
 
 [dependencies]
-napi = { version = "3.8", features = ["napi9"] }
-napi-derive = "3.5"
+napi = { workspace = true, features = ["napi9"] }
+napi-derive = { workspace = true }
 
 [dependencies.windows]
-version = "0.62"
+workspace = true
 features = [
   "Win32_Foundation",
   "Win32_Graphics_Dwm",
@@ -21,4 +21,8 @@ features = [
 ]
 
 [build-dependencies]
-napi-build = "2.3"
+napi-build = { workspace = true }
+
+[lints]
+workspace = true
+

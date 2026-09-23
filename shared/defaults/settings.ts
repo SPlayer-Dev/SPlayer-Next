@@ -20,6 +20,7 @@ export const defaultSystemConfig: SystemConfig = {
     outputDevice: null,
     volume: 1,
     loudnessNormalization: false,
+    audioOutputMode: "shared",
     equalizer: {
       enabled: false,
       preset: "flat",
@@ -147,6 +148,7 @@ export const defaultSystemConfig: SystemConfig = {
   },
   update: {
     autoCheck: true,
+    channel: "stable",
   },
   system: {
     rememberWindowState: true,
@@ -157,6 +159,7 @@ export const defaultSystemConfig: SystemConfig = {
     onboardingCompleted: false,
     agreedAgreementVersion: 1,
     neteaseRealIp: false,
+    kugouLoginVersion: "standard",
     networkProxy: {
       protocol: "off",
       host: "127.0.0.1",

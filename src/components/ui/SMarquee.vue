@@ -8,6 +8,10 @@ export interface SMarqueeProps {
   gap?: number;
   /** 收缩适应内容 */
   fit?: boolean;
+  /** 是否在超出滚动时启用边缘渐变遮罩 */
+  mask?: boolean;
+  /** 渐变遮罩宽度（px） */
+  maskWidth?: number;
 }
 
 const props = withDefaults(defineProps<SMarqueeProps>(), {
@@ -15,6 +19,8 @@ const props = withDefaults(defineProps<SMarqueeProps>(), {
   delay: 2000,
   gap: 50,
   fit: false,
+  mask: true,
+  maskWidth: 8,
 });
 
 const containerRef = ref<HTMLElement>();
@@ -39,7 +45,10 @@ onMounted(() => {
   resizeObserver = new ResizeObserver(check);
   if (containerRef.value) resizeObserver.observe(containerRef.value);
   if (textRef.value) resizeObserver.observe(textRef.value);
+  nextTick(check);
 });
+
+onUpdated(check);
 
 onUnmounted(() => {
   resizeObserver?.disconnect();
@@ -47,15 +56,20 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="containerRef" class="overflow-hidden" :class="fit ? 'max-w-full' : 'w-full'">
+  <div
+    ref="containerRef"
+    class="overflow-hidden"
+    :class="[fit ? 'max-w-full' : 'w-full', isOverflowing && mask && 's-marquee-mask']"
+    :style="{
+      '--marquee-duration': animDuration,
+      '--marquee-delay': `${delay}ms`,
+      '--marquee-gap': `${gap}px`,
+      '--marquee-mask-width': `${maskWidth}px`,
+    }"
+  >
     <div
       class="inline-flex whitespace-nowrap min-w-full will-change-transform"
       :class="isOverflowing && 's-marquee-scrolling'"
-      :style="{
-        '--marquee-duration': animDuration,
-        '--marquee-delay': `${delay}ms`,
-        '--marquee-gap': `${gap}px`,
-      }"
     >
       <span ref="textRef" class="inline-flex items-center whitespace-nowrap shrink-0">
         <slot />
@@ -71,10 +85,7 @@ onUnmounted(() => {
   </div>
 </template>
 
-<style>
-/* 动画属性依赖运行时 CSS 变量（duration/delay/gap），@keyframes 内部又有 calc(var(...))
-   组合后既无法直接用 UnoCSS 的 animate-* 工具类，把变量写进 uno.config.ts 又会污染全局配置
-   保留这一段 <style>，作为组件局部动画定义 */
+<style scoped>
 .s-marquee-scrolling {
   animation: s-marquee-scroll var(--marquee-duration, 10s) linear var(--marquee-delay, 2s) infinite;
 }
@@ -84,6 +95,43 @@ onUnmounted(() => {
   }
   100% {
     transform: translateX(calc(-50% - var(--marquee-gap, 50px) / 2));
+  }
+}
+
+.s-marquee-mask {
+  mask-image: linear-gradient(
+    to right,
+    black 0%,
+    black calc(100% - var(--marquee-mask-width, 8px)),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    black 0%,
+    black calc(100% - var(--marquee-mask-width, 8px)),
+    transparent 100%
+  );
+  animation: s-marquee-mask-fade var(--marquee-duration, 10s) linear var(--marquee-delay, 2s)
+    infinite;
+}
+
+@keyframes s-marquee-mask-fade {
+  0%,
+  100% {
+    mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      black var(--marquee-mask-width, 8px),
+      black calc(100% - var(--marquee-mask-width, 8px)),
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      black var(--marquee-mask-width, 8px),
+      black calc(100% - var(--marquee-mask-width, 8px)),
+      transparent 100%
+    );
   }
 }
 </style>

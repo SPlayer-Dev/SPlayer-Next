@@ -73,7 +73,7 @@ pnpm build:mac     # 打包 macOS
 pnpm build:linux   # 打包 Linux（AppImage / deb / rpm / tar.gz / pacman）
 ```
 
-> 默认仅构建当前架构。如需指定架构，可追加参数，例如 `pnpm build:win --x64 --arm64`。
+> 默认仅构建当前架构，暂不支持交叉编译。
 
 ### 其他脚本
 
@@ -82,16 +82,6 @@ pnpm typecheck        # tsc + vue-tsc（node + web 双目标）
 pnpm lint             # ESLint
 pnpm format           # Prettier
 pnpm build:native     # 仅构建 Rust 原生模块（加 `--dev` 为 debug 构建）
-```
-
-## 安装
-
-### Arch Linux / Manjaro / EndeavourOS
-
-从 Release 页面下载 `.pacman` 包，使用 `pacman` 安装：
-
-```bash
-sudo pacman -U ./splayer-next-*.pacman
 ```
 
 ## 致谢
