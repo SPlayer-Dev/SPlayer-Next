@@ -9,7 +9,10 @@
     "goStore": "Update in Store",
     "upToDate": "You're on the latest version",
     "readyToast": "Update ready — restart to install",
-    "failed": "Update failed, please try again later"
+    "failed": "Update failed, please try again later",
+    "downloadBusy": "A download is already in progress",
+    "downloadChecking": "Checking for updates, please wait",
+    "downloadUnavailable": "No downloadable update is available"
   },
   "onboarding": {
     "next": "Next",

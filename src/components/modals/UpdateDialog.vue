@@ -63,28 +63,47 @@ const releaseDateText = computed(() => {
 
     <template #footer="{ close }">
       <SButton variant="secondary" @click="close">{{ t("update.later") }}</SButton>
-      <template v-if="update.canInstall">
-        <SButton
-          variant="secondary"
-          @click="
-            update.openDownloadPage();
-            close();
-          "
-        >
-          {{ t("update.goDownload") }}
-        </SButton>
-        <SButton v-if="update.phase === 'downloaded'" type="primary" @click="update.install()">
-          {{ t("update.installNow") }}
-        </SButton>
-        <SButton v-else-if="update.phase === 'downloading'" type="primary" disabled>
-          {{ t("update.downloading") }} {{ update.percent }}%
-        </SButton>
-        <SButton v-else type="primary" @click="update.download()">
-          {{ t("update.download") }}
-        </SButton>
-      </template>
       <SButton
-        v-else
+        v-if="update.canInstall && update.meta && update.phase !== 'checking'"
+        variant="secondary"
+        @click="
+          update.openDownloadPage();
+          close();
+        "
+      >
+        {{ t("update.goDownload") }}
+      </SButton>
+
+      <!-- 主要操作按钮：优先展示 error 与 checking 状态，再分流平台安装/外部下载 -->
+      <SButton v-if="update.phase === 'error'" type="primary" @click="update.retry()">
+        {{ t("common.retry") }}
+      </SButton>
+      <SButton v-else-if="update.phase === 'checking'" type="primary" disabled>
+        {{ t("settings.about.checking") }}
+      </SButton>
+      <SButton
+        v-else-if="update.phase === 'downloaded' && update.canInstall && update.meta"
+        type="primary"
+        @click="update.install()"
+      >
+        {{ t("update.installNow") }}
+      </SButton>
+      <SButton
+        v-else-if="update.phase === 'downloading' && update.canInstall && update.meta"
+        type="primary"
+        disabled
+      >
+        {{ t("update.downloading") }} {{ update.percent }}%
+      </SButton>
+      <SButton
+        v-else-if="update.phase === 'available' && update.canInstall && update.meta"
+        type="primary"
+        @click="update.download()"
+      >
+        {{ t("update.download") }}
+      </SButton>
+      <SButton
+        v-else-if="!update.canInstall && update.meta"
         type="primary"
         @click="
           update.openDownloadPage();

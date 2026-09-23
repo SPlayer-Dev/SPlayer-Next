@@ -33,7 +33,7 @@ import { startServer, stopServer } from "@main/server";
 import { startMcpServer, stopMcpServer } from "@main/services/mcp/http";
 import { setOrpheusProtocolRegistered } from "@main/services/orpheus";
 import { setTaskbarThumbnailEnabled } from "@main/services/thumbnail";
-import { applyChannelChange } from "@main/services/updater";
+import { applyChannelChange, syncChannel } from "@main/services/updater";
 import { UPDATE_CHANNELS, type UpdateChannel } from "@shared/types/settings";
 
 /**
@@ -148,13 +148,20 @@ export const registerConfigIpc = (): void => {
     const previous = store.get(keyPath as ConfigPath);
     store.set(keyPath, value);
     applyConfigChange(keyPath, value, previous);
+    // 写入可能经父对象改变有效通道，统一同步失效
+    syncChannel();
   });
   ipcMain.handle("config:getAll", () => store.store);
-  ipcMain.handle("config:reset", () => store.clear());
+  // 批量写入会绕过通道切换回调，需显式同步通道失效
+  ipcMain.handle("config:reset", () => {
+    store.clear();
+    syncChannel();
+  });
 
   /** 替换整盘配置 */
   ipcMain.handle("config:replaceAll", (_event, payload: unknown) => {
     store.replaceAll(payload);
+    syncChannel();
   });
 
   /** 备份 */

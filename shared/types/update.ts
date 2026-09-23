@@ -17,11 +17,14 @@ export interface UpdateMeta {
 /** 主进程推送到渲染层的更新事件 */
 export type UpdateEvent =
   | { type: "checking" }
+  | { type: "invalidated" }
   | { type: "available"; meta: UpdateMeta; manual: boolean; canInstall: boolean }
   | { type: "notAvailable"; manual: boolean }
+  | { type: "downloading" }
+  | { type: "downloadRejected"; reason: "busy" | "checking" | "unavailable" }
   | { type: "progress"; percent: number }
   | { type: "downloaded"; meta: UpdateMeta }
-  | { type: "error"; message: string; manual: boolean };
+  | { type: "error"; message: string; manual: boolean; source: "check" | "download" | "install" };
 
 /** 更新模块对渲染层暴露的 API */
 export interface UpdateApi {

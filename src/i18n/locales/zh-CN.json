@@ -9,7 +9,10 @@
     "goStore": "前往商店更新",
     "upToDate": "已是最新版本",
     "readyToast": "更新已就绪，可重启安装",
-    "failed": "更新失败，请稍后重试"
+    "failed": "更新失败，请稍后重试",
+    "downloadBusy": "已有进行中的下载任务",
+    "downloadChecking": "正在检查更新，请稍候",
+    "downloadUnavailable": "当前没有可下载的更新"
   },
   "onboarding": {
     "next": "下一步",
