@@ -5,48 +5,62 @@
  * 用 shallowRef 持有任务数组，进度更新只替换对应元素。
  */
 
-import type { DownloadTask, DownloadProgress } from "@shared/types/download";
+import type { DownloadTask, DownloadProgress, DownloadStatus } from "@shared/types/download";
+import { initDownloadResolver } from "@/services/download/resolver";
 
 export const useDownloadStore = defineStore("download", () => {
-  /** 内存中保留的任务上限（与主进程历史裁剪对齐） */
-  const MAX_TASKS = 200;
+  /** 是否尚未结束 */
+  const isActive = (status: DownloadStatus): boolean =>
+    status === "queued" || status === "downloading";
 
-  const tasks = shallowRef<DownloadTask[]>([]);
+  /** 活跃队列：下载中置顶，其余按实际入队顺序 */
+  const compareActive = (a: DownloadTask, b: DownloadTask): number => {
+    if (a.status !== b.status) return a.status === "downloading" ? -1 : 1;
+    return a.createdAt - b.createdAt;
+  };
+
+  /** 已结束历史：最新完成的在前 */
+  const compareHistory = (a: DownloadTask, b: DownloadTask): number =>
+    (b.finishedAt ?? b.createdAt) - (a.finishedAt ?? a.createdAt);
+
+  const activeTasks = shallowRef<DownloadTask[]>([]);
+  const historyTasks = shallowRef<DownloadTask[]>([]);
   const initialized = ref(false);
   const unsubscribers: Array<() => void> = [];
 
   /** 进行中任务数（侧边栏角标） */
-  const activeCount = computed(
-    () =>
-      tasks.value.filter((task) => task.status === "queued" || task.status === "downloading")
-        .length,
-  );
+  const activeCount = computed(() => activeTasks.value.length);
 
   /** 替换或插入一条任务 */
   const applyTask = (task: DownloadTask): void => {
-    const idx = tasks.value.findIndex((item) => item.taskId === task.taskId);
-    const next = tasks.value.slice();
-    if (idx === -1) next.unshift(task);
-    else next[idx] = task;
-    // 最新在前，超限时丢弃最旧的（已结束任务在尾部）
-    if (next.length > MAX_TASKS) next.length = MAX_TASKS;
-    tasks.value = next;
+    const active = activeTasks.value.filter((item) => item.taskId !== task.taskId);
+    const history = historyTasks.value.filter((item) => item.taskId !== task.taskId);
+    if (isActive(task.status)) {
+      activeTasks.value = [...active, task].sort(compareActive);
+      historyTasks.value = history;
+      return;
+    }
+    activeTasks.value = active;
+    historyTasks.value = [task, ...history].sort(compareHistory);
   };
 
   /** 更新进度 */
   const applyProgress = (data: DownloadProgress): void => {
-    const idx = tasks.value.findIndex((item) => item.taskId === data.taskId);
+    const idx = activeTasks.value.findIndex((item) => item.taskId === data.taskId);
     if (idx === -1) return;
-    const next = tasks.value.slice();
+    const next = activeTasks.value.slice();
     next[idx] = { ...next[idx], received: data.received, total: data.total };
-    tasks.value = next;
+    activeTasks.value = next;
   };
 
   /** 拉取全量并订阅增量 */
   const init = async (): Promise<void> => {
     if (initialized.value) return;
     initialized.value = true;
-    tasks.value = await window.api.download.list();
+    unsubscribers.push(initDownloadResolver());
+    const tasks = await window.api.download.list();
+    activeTasks.value = tasks.filter((task) => isActive(task.status)).sort(compareActive);
+    historyTasks.value = tasks.filter((task) => !isActive(task.status)).sort(compareHistory);
     unsubscribers.push(window.api.download.onState(applyTask));
     unsubscribers.push(window.api.download.onProgress(applyProgress));
   };
@@ -54,14 +68,13 @@ export const useDownloadStore = defineStore("download", () => {
   const cancel = (taskId: string): void => void window.api.download.cancel(taskId);
 
   const remove = (taskId: string): void => {
-    tasks.value = tasks.value.filter((item) => item.taskId !== taskId);
+    activeTasks.value = activeTasks.value.filter((item) => item.taskId !== taskId);
+    historyTasks.value = historyTasks.value.filter((item) => item.taskId !== taskId);
     void window.api.download.remove(taskId);
   };
 
   const clearFinished = (): void => {
-    tasks.value = tasks.value.filter(
-      (item) => item.status === "queued" || item.status === "downloading",
-    );
+    historyTasks.value = [];
     void window.api.download.clearFinished();
   };
 
@@ -70,5 +83,5 @@ export const useDownloadStore = defineStore("download", () => {
     unsubscribers.length = 0;
   });
 
-  return { tasks, activeCount, init, cancel, remove, clearFinished };
+  return { activeTasks, historyTasks, activeCount, init, cancel, remove, clearFinished };
 });

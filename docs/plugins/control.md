@@ -55,9 +55,7 @@ splayer.player.on("playStateChange", ({ state, position }) => {
 splayer.register({
   events: ["trackChange", "lyricChange", "lineChange", "playStateChange"],
   controls: true,
-  settings: [
-    /* PluginSettingItem[] */
-  ],
+  settings: [/* PluginSettingItem[] */],
 });
 ```
 
@@ -121,7 +119,7 @@ splayer.player.on("lineChange", ({ index }) => {
 
 ## 反向控制播放
 
-在 `register` 中声明 `controls: true` 并在脚本头加 `@grant control` 后，可调用 `splayer.player` 控制播放器（两者缺一时，这些控制调用会被宿主忽略）：
+在脚本头声明 `@grant control` 后，可调用 `splayer.player` 控制播放器；未授权时控制调用会被宿主忽略。`register({ controls: true })` 用于向宿主和用户表明插件包含反向控制能力，但当前权限门控以 `@grant control` 为准：
 
 | 方法                       | 说明                                    |
 | -------------------------- | --------------------------------------- |

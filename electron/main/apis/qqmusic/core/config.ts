@@ -9,19 +9,19 @@ export const QM_API_URL = "https://u.y.qq.com/cgi-bin/musicu.fcg";
 export const QM_HEADERS: Record<string, string> = {
   "Content-Type": "application/json",
   "Accept-Encoding": "gzip",
-  "User-Agent": "okhttp/3.14.9",
+  "User-Agent": "QQMusic 14090008(android 15)",
   Referer: "https://y.qq.com",
-  Cookie: "tmeLoginType=-1;",
 };
 
 /** 请求体 comm 字段（伪装 Android 客户端） */
 export const getCommonParams = (): Record<string, string | number> => ({
   ct: 11,
-  cv: "1003006",
-  v: "1003006",
+  cv: 14090008,
+  v: 14090008,
+  chid: "10003505",
   os_ver: "15",
   phonetype: "24122RKC7C",
-  tmeAppID: "qqmusiclight",
+  tmeAppID: "qqmusic",
   nettype: "NETWORK_WIFI",
   udid: "0",
   OpenUDID: "0",

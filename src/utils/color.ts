@@ -19,6 +19,8 @@ const COVER_SAMPLE_SIZE = 64;
 const COVER_EDGE_MARGIN = 3;
 /** 封面最小色度 */
 const MIN_COVER_CHROMA = 8;
+/** 彩色区域至少覆盖该比例，避免少量点缀色覆盖大面积中性色 */
+const MIN_COLORFUL_POPULATION_RATIO = 0.12;
 
 /** 将 ARGB 整数转为 HEX 字符串 */
 const argbToHex = (argb: number): string => {
@@ -43,15 +45,19 @@ const sampleWeight = (x: number, y: number): number => {
 const pickRepresentativeCoverColor = (colors: Map<number, number>): number | null => {
   const entries = Array.from(colors);
   if (entries.length === 0) return null;
-  const maxCount = Math.max(...entries.map(([, count]) => count));
+  const totalCount = entries.reduce((sum, [, count]) => sum + count, 0);
+  const colorfulEntries = entries.filter(([argb]) => {
+    const hct = Hct.fromInt(argb);
+    return hct.chroma >= MIN_COVER_CHROMA && hct.tone >= 10 && hct.tone <= 94;
+  });
+  const colorfulCount = colorfulEntries.reduce((sum, [, count]) => sum + count, 0);
+  if (colorfulCount / totalCount < MIN_COLORFUL_POPULATION_RATIO) return null;
+  const maxCount = Math.max(...colorfulEntries.map(([, count]) => count));
 
   let best: number | null = null;
   let bestScore = 0;
-  for (const [argb, count] of entries) {
+  for (const [argb, count] of colorfulEntries) {
     const hct = Hct.fromInt(argb);
-    if (hct.chroma < MIN_COVER_CHROMA) continue;
-    if (hct.tone < 10 || hct.tone > 94) continue;
-
     const populationScore = Math.pow(count / maxCount, 0.72);
     const chromaScore = Math.min(hct.chroma / 52, 1);
     const toneScore = Math.max(0, 1 - Math.abs(hct.tone - 58) / 58);
@@ -298,13 +304,7 @@ const extractColorFromImageElement = (img: HTMLImageElement): string | null => {
   }
   if (pixels.length === 0) return null;
   const quantized = QuantizerCelebi.quantize(pixels, 128);
-  const sorted = Array.from(quantized).sort((a, b) => b[1] - a[1]);
-  // 单调检测：前 5 色 RGB 分量差值均 < 8 → 灰度图
-  const top5 = sorted
-    .slice(0, 5)
-    .map(([argb]) => [(argb >> 16) & 0xff, (argb >> 8) & 0xff, argb & 0xff]);
-  if (top5.every((c) => Math.max(...c) - Math.min(...c) < 8)) return null;
-  const picked = pickRepresentativeCoverColor(new Map(sorted.slice(0, 50)));
+  const picked = pickRepresentativeCoverColor(quantized);
   if (!picked) return null;
   // 释放 canvas GPU 资源
   canvas.width = 0;

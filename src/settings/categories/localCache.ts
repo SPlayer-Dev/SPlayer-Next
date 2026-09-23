@@ -18,6 +18,12 @@ const localCacheCategory: SettingCategory = {
           defaultValue: false,
           children: [
             {
+              key: "cacheStreaming",
+              type: "switch",
+              binding: { store: "settings", path: "system.cache.songCache.cacheStreaming" },
+              defaultValue: false,
+            },
+            {
               key: "songCacheSizeLimit",
               type: "slider",
               binding: { store: "settings", path: "system.cache.songCache.sizeLimitGb" },

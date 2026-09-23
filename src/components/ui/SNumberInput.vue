@@ -1,5 +1,6 @@
 <script setup lang="ts">
 export interface SNumberInputProps {
+  id?: string;
   modelValue?: number | null;
   placeholder?: string;
   disabled?: boolean;
@@ -108,6 +109,7 @@ const commitAfterStep = (): void => {
 
 <template>
   <NumberFieldRoot
+    :id="id"
     :model-value="innerValue"
     :min="min"
     :max="max"

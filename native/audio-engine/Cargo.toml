@@ -7,15 +7,17 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-napi = { version = "3.8", features = ["napi9", "serde-json", "tokio_rt"] }
-napi-derive = "3.5"
-ffmpeg_audio = { git = "https://github.com/SPlayer-Dev/ffmpeg-audio", tag = "v3.0.0", default-features = false }
-ureq = { version = "2", default-features = false, features = ["tls"] }
+napi = { workspace = true, features = ["napi9", "serde-json", "tokio_rt"] }
+napi-derive = { workspace = true }
+ffmpeg_audio = { version = "0.3.1", default-features = false, features = [
+  "http",
+  "tracing",
+] }
 libc = "0.2"
-rodio = { version = "0.20", default-features = false }
-cpal = "0.15"
 parking_lot = "0.12"
-anyhow = "1"
+crossbeam-queue = "0.3.14"
+anyhow = { workspace = true }
+serde_json = "1"
 thiserror = "2"
 signalsmith-stretch = "0.1.3"
 lofty = "0.24"
@@ -26,25 +28,44 @@ image = { version = "0.25", default-features = false, features = [
   "webp",
 ] }
 rustfft = "6"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = [
-  "env-filter",
-  "local-time",
-] }
-tracing-appender = "0.2"
-time = { version = "0.3", features = ["macros", "formatting"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-appender = { workspace = true }
+time = { workspace = true }
 walkdir = "2"
-tokio = { version = "1", features = ["rt"] }
+tokio = { workspace = true, features = ["rt"] }
+cpal = { version = "0.18.2", default-features = false, features = [
+  "pipewire",
+  "pulseaudio",
+] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-core = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+cpal = { version = "0.18.2", default-features = false, features = ["realtime-dbus"] }
+pipewire = { version = "0.10.0", features = ["v0_3_53"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-core-audio = { version = "0.3.2", default-features = false, features = [
+  "std",
+  "AudioHardware",
+] }
 
 [target.'cfg(target_os = "windows")'.dependencies.windows]
-version = "0.62"
-features = ["Win32_Foundation", "Win32_System_Threading"]
+workspace = true
+features = [
+  "Win32_Foundation",
+  "Win32_Media_Audio",
+  "Win32_System_Com",
+  "Win32_System_Threading",
+]
 
 [build-dependencies]
-napi-build = "2.3"
+napi-build = { workspace = true }
 
 [dev-dependencies]
-httpmock = "0.7"
+httpmock = "0.8.3"
 
 [lints]
 workspace = true

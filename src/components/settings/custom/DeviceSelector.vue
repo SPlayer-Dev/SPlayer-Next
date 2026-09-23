@@ -15,13 +15,13 @@ const SYSTEM_DEFAULT = "system-default";
 const current = computed(() => settings.player.outputDevice ?? SYSTEM_DEFAULT);
 
 const options = computed(() => {
-  const defaultName = status.outputDevices.find((d) => d.isDefault)?.name;
+  const defaultName = status.outputDevices.find((device) => device.isDefault)?.name;
   const defaultLabel = defaultName
     ? `${t("settings.outputDevice.default")}（${defaultName}）`
     : t("settings.outputDevice.default");
   return [
     { value: SYSTEM_DEFAULT, label: defaultLabel },
-    ...status.outputDevices.map((d) => ({ value: d.name, label: d.name })),
+    ...status.outputDevices.map((device) => ({ value: device.id, label: device.name })),
   ];
 });
 

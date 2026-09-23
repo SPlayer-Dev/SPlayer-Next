@@ -1,0 +1,46 @@
+name: 功能建议
+description: 提出新功能或改进建议
+labels: ["新功能"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        感谢你为 SPlayer-Next 提出建议！请在提交前先检索已有 Issues 或 Discussions，避免重复提出相似需求。
+
+  - type: checkboxes
+    validations:
+      required: false
+    attributes:
+      label: "检查清单"
+      description: "在提交前请确认以下事项"
+      options:
+        - label: "我已检索过仓库中现有的 Issues / Discussions，确保没有相同或极为相似的功能建议"
+        - label: "我已经详细思考了该功能的合理性与使用场景，并在下方进行了清晰描述"
+
+  - type: textarea
+    id: feature-description
+    validations:
+      required: true
+    attributes:
+      label: "功能描述"
+      description: "请清晰描述你希望添加的功能或现有功能的改进方案"
+      placeholder: "例如：希望支持某种功能、在某界面增加新的交互..."
+
+  - type: textarea
+    id: use-case
+    validations:
+      required: false
+    attributes:
+      label: "使用场景与价值"
+      description: "这个功能解决了什么问题？在什么情况下会用到？"
+      placeholder: "例如：当我在特定场景使用时，目前的体验不够便捷..."
+
+  - type: textarea
+    id: alternatives
+    validations:
+      required: false
+    attributes:
+      label: "替代方案或补充说明"
+      description: "你是否考虑过其他可行的替代方案？或者有相关的参考设计/竞品截图？"
+      placeholder: "其他补充信息、参考截图等"

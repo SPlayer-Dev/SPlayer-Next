@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import type { Track } from "@shared/types/player";
+defineOptions({ name: "SearchPage" });
+
+import type { PlaybackContext, Track } from "@shared/types/player";
 import { ALL_PLATFORMS, PLATFORM_SHORT_NAME, type Platform } from "@shared/types/platform";
 import type { CoverItem } from "@/types/artist";
 import { searchSongs, searchAlbums, searchArtists, searchPlaylists } from "@/apis/search";
 import SongList from "@/components/list/SongList.vue";
 import CoverList from "@/components/list/CoverList.vue";
 import { useStatusStore } from "@/stores/status";
-import { navigateToAlbum, navigateToPlaylist } from "@/utils/navigate";
+import { navigateToAlbum, navigateToArtist, navigateToPlaylist } from "@/utils/navigate";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -17,21 +19,13 @@ type TabKey = "songs" | "albums" | "artists" | "playlists";
 
 const TAB_KEYS: readonly TabKey[] = ["songs", "albums", "artists", "playlists"];
 
-/** 当前 tab */
-const activeTab = computed<TabKey>(() => {
-  const tab = route.query.tab;
-  return typeof tab === "string" && (TAB_KEYS as readonly string[]).includes(tab)
-    ? (tab as TabKey)
-    : "songs";
-});
-
 const PAGE_SIZE = 50;
 
-/** URL query 中的关键词 */
-const keyword = computed(() => {
-  const q = route.query.q;
-  return typeof q === "string" ? q.trim() : "";
-});
+/** 当前生效的 tab */
+const activeTab = ref<TabKey>("songs");
+
+/** 当前生效的关键词 */
+const keyword = ref("");
 
 const tabs = computed(() => [
   { key: "songs", label: t("search.tabs.songs") },
@@ -130,28 +124,36 @@ const resetStates = (): void => {
   error.value = "";
 };
 
-/** 关键词变化：清空状态并拉当前 tab */
-watch(
-  keyword,
-  () => {
-    resetStates();
-    if (keyword.value) fetchTab(activeTab.value, false);
-  },
-  { immediate: true },
-);
+let lastLoadedKeyword = "";
+let lastLoadedPlatform = status.searchPlatform;
 
-/** 平台切换：清空状态并按当前关键词重拉 */
-watch(
-  () => status.searchPlatform,
-  () => {
-    resetStates();
-    if (keyword.value) fetchTab(activeTab.value, false);
-  },
-);
+/** 仅在当前处于搜索路由时同步路由参数，避免离开到其他页面时因 query 为空而误清空状态 */
+const syncFromRoute = (): void => {
+  if (route.name !== "search") return;
+  const q = typeof route.query.q === "string" ? route.query.q.trim() : "";
+  const tab =
+    typeof route.query.tab === "string" && (TAB_KEYS as readonly string[]).includes(route.query.tab)
+      ? (route.query.tab as TabKey)
+      : "songs";
 
-/** 切换 tab：未拉过则按需请求 */
-watch(activeTab, (tab) => {
-  if (keyword.value && !states[tab].loaded) fetchTab(tab, false);
+  activeTab.value = tab;
+  keyword.value = q;
+
+  const keywordChanged = q !== lastLoadedKeyword;
+  const platformChanged = status.searchPlatform !== lastLoadedPlatform;
+
+  if (keywordChanged || platformChanged) {
+    lastLoadedKeyword = q;
+    lastLoadedPlatform = status.searchPlatform;
+    resetStates();
+    if (q) fetchTab(tab, false);
+  } else if (q && !states[tab].loaded) {
+    fetchTab(tab, false);
+  }
+};
+
+watch(() => [route.name, route.query.q, route.query.tab, status.searchPlatform], syncFromRoute, {
+  immediate: true,
 });
 
 const onTabSwitch = (key: string): void => {
@@ -160,6 +162,12 @@ const onTabSwitch = (key: string): void => {
 
 const onPlatformSwitch = (key: string): void => {
   status.searchPlatform = key as Platform;
+};
+
+/** 失败后重试加载当前 tab */
+const onRetry = (): void => {
+  error.value = "";
+  fetchTab(activeTab.value, false);
 };
 
 /** 滚动触底加载下一页 */
@@ -178,6 +186,14 @@ const isEmptyResult = computed(() => {
   const state = states[activeTab.value];
   return state.loaded && state.items.length === 0;
 });
+
+/** 搜索页播放来源上下文 */
+const playbackContext = computed<PlaybackContext>(() => ({
+  provider: status.searchPlatform,
+  originId: `search:${status.searchPlatform}:${keyword.value}`,
+  originType: "page",
+  originName: keyword.value ? `${t("search.title")}: ${keyword.value}` : t("search.title"),
+}));
 </script>
 
 <template>
@@ -218,10 +234,23 @@ const isEmptyResult = computed(() => {
     </div>
     <!-- 错误态 -->
     <div v-else-if="error" class="flex-1 flex items-center justify-center px-6">
-      <div class="text-center text-red-500/85">
-        <IconLucideTriangleAlert class="size-14 mx-auto mb-4 opacity-50" />
-        <div class="text-sm font-medium mb-1">{{ t("search.errorTitle") }}</div>
-        <div class="text-xs opacity-80 break-all max-w-xs">{{ error }}</div>
+      <div class="text-center flex flex-col items-center">
+        <div class="text-red-500/85 mb-4">
+          <IconLucideTriangleAlert class="size-14 mx-auto mb-3 opacity-50" />
+          <div class="text-sm font-medium mb-1">{{ t("search.errorTitle") }}</div>
+          <div class="text-xs opacity-80 break-all max-w-xs">{{ error }}</div>
+        </div>
+        <SButton
+          variant="secondary"
+          size="small"
+          :loading="states[activeTab].loading"
+          @click="onRetry"
+        >
+          <template #icon>
+            <IconLucideRotateCw class="size-3.5" />
+          </template>
+          {{ t("common.retry") }}
+        </SButton>
       </div>
     </div>
     <!-- 首次加载 -->
@@ -245,6 +274,7 @@ const isEmptyResult = computed(() => {
         v-if="activeTab === 'songs'"
         :items="states.songs.items"
         :source="status.searchPlatform"
+        :playback-context="playbackContext"
         :show-size="false"
         :has-more="states.songs.hasMore"
         :loading-more="states.songs.loadingMore"
@@ -273,6 +303,10 @@ const isEmptyResult = computed(() => {
         :padding-bottom="20"
         :has-more="states.artists.hasMore"
         :loading-more="states.artists.loadingMore"
+        @click="
+          (item) =>
+            navigateToArtist(item.title, { source: status.searchPlatform, artistId: item.id })
+        "
         @reach-bottom="onReachBottom('artists')"
       />
       <CoverList

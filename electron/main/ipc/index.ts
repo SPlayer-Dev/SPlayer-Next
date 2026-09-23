@@ -14,10 +14,15 @@ import { registerLastfmIpc } from "./lastfm";
 import { registerCacheIpc } from "./cache";
 import { registerDownloadIpc } from "./download";
 import { registerExternalApiIpc } from "./externalApi";
+import { registerMcpIpc } from "./mcp";
 import { registerStatsIpc } from "./stats";
 import { registerUpdateIpc } from "./update";
 import { registerCloudIpc } from "./cloud";
 import { registerCommentsIpc } from "./comments";
+import { registerAiModelIpc } from "./aiModel";
+import { registerPlaylistIpc } from "./playlist";
+import { registerRecognitionIpc } from "./recognition";
+import { registerOpenccIpc } from "./opencc";
 
 /** 注册所有 IPC 处理 */
 export const registerIpcHandlers = (): void => {
@@ -32,13 +37,18 @@ export const registerIpcHandlers = (): void => {
   registerCloudIpc();
   registerCommentsIpc();
   registerLyricsIpc();
+  registerOpenccIpc();
   registerHotkeyIpc();
   registerThemeIpc();
   registerStreamingIpc();
+  registerPlaylistIpc();
+  registerRecognitionIpc();
   registerLastfmIpc();
   registerCacheIpc();
   registerDownloadIpc();
   registerExternalApiIpc();
+  registerMcpIpc();
+  registerAiModelIpc();
   registerStatsIpc();
   registerUpdateIpc();
 };

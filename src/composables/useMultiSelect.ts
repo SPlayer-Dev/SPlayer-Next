@@ -1,5 +1,5 @@
 import type { Ref } from "vue";
-import type { Track, TrackSource } from "@shared/types/player";
+import type { PlaybackContext, Track, TrackSource } from "@shared/types/player";
 import type { CollectionType } from "@/types/collection";
 import { usePlaylistStore } from "@/stores/playlist";
 import { useLibraryStore } from "@/stores/library";
@@ -17,6 +17,8 @@ export interface MultiSelectOptions {
   collectionId: Ref<string | undefined>;
   /** 是否有权从集合移除曲目 */
   canRemove?: Ref<boolean>;
+  /** 播放来源上下文 */
+  playbackContext?: Ref<PlaybackContext | undefined>;
   /**
    * 删除/移除完成后的回调
    * @param removedIds 成功删除的曲目 id 列表
@@ -173,7 +175,7 @@ export const useMultiSelect = (items: Ref<Track[]>, options: MultiSelectOptions)
   const addToQueue = (): void => {
     const tracks = selectedItems.value;
     if (tracks.length === 0) return;
-    player.insertManyToQueue(tracks);
+    player.insertManyToQueue(tracks, "next", options.playbackContext?.value);
     exit();
   };
 

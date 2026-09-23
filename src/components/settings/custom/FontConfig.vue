@@ -10,13 +10,26 @@ const { t } = useI18n();
 const settings = useSettingsStore();
 const { families: fonts, loading: loadingFonts, ensureLoaded } = useSystemFonts();
 
-type FontDraftKey = "global" | "lyric" | "desktopLyric" | "dynamicIsland" | "taskbarLyric";
+type FontDraftKey =
+  | "global"
+  | "lyric"
+  | "lyricChinese"
+  | "lyricJapanese"
+  | "lyricKorean"
+  | "lyricLatin"
+  | "desktopLyric"
+  | "dynamicIsland"
+  | "taskbarLyric";
 type FontGroup = "general" | "appLyric" | "externalLyric";
 type FontMode = "select" | "custom";
 
 interface FontDraft {
   global: string;
   lyric: string;
+  lyricChinese: string;
+  lyricJapanese: string;
+  lyricKorean: string;
+  lyricLatin: string;
   desktopLyric: string;
   dynamicIsland: string;
   taskbarLyric: string;
@@ -40,6 +53,10 @@ const mode = ref<FontMode>("select");
 const draft = reactive<FontDraft>({
   global: "",
   lyric: "",
+  lyricChinese: "",
+  lyricJapanese: "",
+  lyricKorean: "",
+  lyricLatin: "",
   desktopLyric: "",
   dynamicIsland: "",
   taskbarLyric: "",
@@ -49,6 +66,10 @@ const draft = reactive<FontDraft>({
 const TARGET_DEFS: Array<{ key: FontDraftKey; group: FontGroup }> = [
   { key: "global", group: "general" },
   { key: "lyric", group: "appLyric" },
+  { key: "lyricChinese", group: "appLyric" },
+  { key: "lyricJapanese", group: "appLyric" },
+  { key: "lyricKorean", group: "appLyric" },
+  { key: "lyricLatin", group: "appLyric" },
   { key: "desktopLyric", group: "externalLyric" },
   { key: "dynamicIsland", group: "externalLyric" },
   { key: "taskbarLyric", group: "externalLyric" },
@@ -60,11 +81,21 @@ const GROUP_ORDER: FontGroup[] = ["general", "appLyric", "externalLyric"];
 const groupedTargets = computed<Array<{ group: FontGroup; items: FontTarget[] }>>(() => {
   const buildTarget = (key: FontDraftKey): FontTarget => {
     const name = t(`settings.fontConfig.fields.${key}`);
+    const followLyricKeys: FontDraftKey[] = [
+      "lyricChinese",
+      "lyricJapanese",
+      "lyricKorean",
+      "lyricLatin",
+    ];
     return {
       key,
       label: t("settings.fontConfig.fieldLabel", { name }),
       defaultLabel:
-        key === "lyric" ? t("settings.fontConfig.useGlobal") : t("settings.fontConfig.useSystem"),
+        key === "lyric"
+          ? t("settings.fontConfig.useGlobal")
+          : followLyricKeys.includes(key)
+            ? t("settings.fontConfig.useLyric")
+            : t("settings.fontConfig.useSystem"),
     };
   };
   return GROUP_ORDER.map((group) => ({
@@ -102,6 +133,10 @@ const stringifyFontChain = (chain: string[]): string => {
 const syncDraft = (): void => {
   draft.global = settings.appearance.fontFamily;
   draft.lyric = settings.lyric.fontFamily;
+  draft.lyricChinese = settings.lyric.fontFamilyChinese;
+  draft.lyricJapanese = settings.lyric.fontFamilyJapanese;
+  draft.lyricKorean = settings.lyric.fontFamilyKorean;
+  draft.lyricLatin = settings.lyric.fontFamilyLatin;
   draft.desktopLyric = settings.system.desktopLyric.fontFamily;
   draft.dynamicIsland = settings.system.dynamicIsland.fontFamily;
   draft.taskbarLyric = settings.system.taskbarLyric.fontFamily;
@@ -142,6 +177,10 @@ const updateMode = (value: string | number | boolean): void => {
 const handleSave = async (): Promise<void> => {
   settings.appearance.fontFamily = draft.global;
   settings.lyric.fontFamily = draft.lyric;
+  settings.lyric.fontFamilyChinese = draft.lyricChinese;
+  settings.lyric.fontFamilyJapanese = draft.lyricJapanese;
+  settings.lyric.fontFamilyKorean = draft.lyricKorean;
+  settings.lyric.fontFamilyLatin = draft.lyricLatin;
   await Promise.all([
     settings.setSystem("desktopLyric.fontFamily", draft.desktopLyric),
     settings.setSystem("dynamicIsland.fontFamily", draft.dynamicIsland),
@@ -163,7 +202,7 @@ const handleSave = async (): Promise<void> => {
   >
     <div class="flex flex-col gap-3">
       <!-- 设置方式 -->
-      <SCard class="flex items-center gap-3">
+      <SCard variant="settings" class="flex items-center gap-3">
         <div class="min-w-0 flex-1">
           <div class="text-base">{{ t("settings.fontConfig.modeLabel") }}</div>
           <div class="text-sm text-on-surface-variant/70 mt-0.5">
@@ -181,7 +220,12 @@ const handleSave = async (): Promise<void> => {
           <span class="w-1 h-4 rounded-full bg-primary" />
           {{ t(`settings.fontConfig.groups.${g.group}`) }}
         </h4>
-        <SCard v-for="target in g.items" :key="target.key" class="flex flex-col gap-2.5">
+        <SCard
+          v-for="target in g.items"
+          :key="target.key"
+          variant="settings"
+          class="flex flex-col gap-2.5"
+        >
           <div class="flex items-center gap-3">
             <div class="min-w-0 flex-1 text-base">{{ target.label }}</div>
             <SButton

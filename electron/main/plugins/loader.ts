@@ -24,19 +24,19 @@ const GZ_PREFIX = "gz_";
 
 /** 脚本头部字段长度上限 */
 const FIELD_LIMITS: Record<string, number> = {
-  name: 24,
-  description: 256,
-  author: 56,
+  name: 64,
+  description: 512,
+  author: 64,
   homepage: 1024,
   version: 36,
-  changelog: 500,
+  changelog: 1000,
 };
 
-// JSDoc 风格的 `* @key value`
-const HEADER_RE = /^\s?\*\s?@(\w+)\s(.+)$/;
+// JSDoc 风格的 `@key value` 或 `* @key value`，兼容各类空白与星号
+const HEADER_RE = /^\s*\*?\s*@(\w+)\s+(.+)$/;
 
-// 源码开头的第一个块注释（`/*` 或 `/**` 都行，允许前置空白，非贪婪）
-const BLOCK_COMMENT_RE = /^\s*\/\*[\s\S]+?\*\//;
+// 源码开头的第一个块注释（`/*` 或 `/**` 或 `/*!`，非贪婪）
+const BLOCK_COMMENT_RE = /^\s*\/\*[\s\S]*?\*\//;
 
 /** 解压 gz_ 前缀脚本；若不是 gz_ 直接返回原文 */
 export const decompressIfNeeded = (raw: string): string => {
@@ -64,14 +64,9 @@ interface HeaderFields {
 const parseHeader = (source: string): HeaderFields => {
   const out: HeaderFields = {};
   const m0 = BLOCK_COMMENT_RE.exec(source);
-  if (!m0) return out;
-  const block = m0[0].slice(2, -2);
+  const block = m0 ? m0[0].slice(2, -2) : source.slice(0, 3000);
 
-  for (const rawLine of block.split(/\r?\n/)) {
-    const m = HEADER_RE.exec(rawLine);
-    if (!m) continue;
-    const key = m[1];
-    const raw = m[2].trim();
+  const applyField = (key: string, raw: string): void => {
     const limit = FIELD_LIMITS[key];
     const val = limit && raw.length > limit ? raw.slice(0, limit) + "..." : raw;
     switch (key) {
@@ -107,7 +102,23 @@ const parseHeader = (source: string): HeaderFields => {
           : "source";
         break;
     }
+  };
+
+  for (const rawLine of block.split(/\r?\n/)) {
+    const m = HEADER_RE.exec(rawLine);
+    if (!m) continue;
+    applyField(m[1], m[2].trim());
   }
+
+  // 兜底提取：若未匹配到关键字段，尝试在头部区域按正则全局提取
+  const fallbackKeys = ["name", "version", "author", "description", "homepage", "id"] as const;
+  for (const key of fallbackKeys) {
+    if (!out[key]) {
+      const fb = new RegExp(`@${key}\\s+(.+)`).exec(block);
+      if (fb?.[1]) applyField(key, fb[1].trim());
+    }
+  }
+
   return out;
 };
 

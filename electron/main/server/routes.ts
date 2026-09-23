@@ -35,8 +35,9 @@ export const buildRoutes = (): Hono => {
 
   api.get("/volume", (c) => c.json({ volume: getPlayer().getVolume() }));
 
-  // 当前播放完整快照
-  api.get("/now-playing", (c) => c.json(nowPlaying.snapshot()));
+  api.get("/now-playing", (c) => c.json(nowPlaying.lightSnapshot()));
+
+  api.get("/lyrics", (c) => c.json(nowPlaying.lyricSnapshot()));
 
   api.post("/play", (c) => {
     playerControl.play();

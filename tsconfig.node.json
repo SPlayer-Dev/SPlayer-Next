@@ -2,6 +2,7 @@
   "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
   "include": [
     "electron.vite.config.*",
+    "vitest.config.*",
     "electron/main/**/*",
     "electron/preload/**/*",
     "scripts/**/*",
@@ -14,9 +15,11 @@
       "@main/*": ["./electron/main/*"],
       "@shared/*": ["./shared/*"],
       "@splayer/audio-engine": ["./native/audio-engine"],
+      "@splayer/audio-capture": ["./native/audio-capture"],
       "@splayer/media-ctrl": ["./native/media-ctrl"],
       "@splayer/taskbar-lyric": ["./native/taskbar-lyric"],
-      "@splayer/taskbar-thumbnail": ["./native/taskbar-thumbnail"]
+      "@splayer/taskbar-thumbnail": ["./native/taskbar-thumbnail"],
+      "@splayer/opencc": ["./native/opencc"]
     }
   }
 }

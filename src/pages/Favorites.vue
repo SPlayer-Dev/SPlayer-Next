@@ -1,4 +1,6 @@
 <script setup lang="ts">
+defineOptions({ name: "Favorites" });
+
 import type { CoverItem } from "@/types/artist";
 import { useUserStore } from "@/stores/user";
 import {

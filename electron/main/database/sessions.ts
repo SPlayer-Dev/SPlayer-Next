@@ -6,9 +6,7 @@
  */
 
 import { getDb } from "./index";
-
-/** 支持的音源平台标识 */
-export type AccountPlatform = "netease";
+import type { Platform } from "@shared/types/platform";
 
 interface SessionRow {
   platform: string;
@@ -17,7 +15,7 @@ interface SessionRow {
 }
 
 /** 读取某平台的 cookies；未登录返回空对象 */
-export const getSessionCookies = (platform: AccountPlatform): Record<string, string> => {
+export const getSessionCookies = (platform: Platform): Record<string, string> => {
   const row = getDb()
     .prepare("SELECT cookies FROM account_sessions WHERE platform = ?")
     .get(platform) as Pick<SessionRow, "cookies"> | undefined;
@@ -31,10 +29,7 @@ export const getSessionCookies = (platform: AccountPlatform): Record<string, str
 };
 
 /** 整体替换某平台的 cookies（登出传 {} 即可） */
-export const saveSessionCookies = (
-  platform: AccountPlatform,
-  cookies: Record<string, string>,
-): void => {
+export const saveSessionCookies = (platform: Platform, cookies: Record<string, string>): void => {
   getDb()
     .prepare(
       `INSERT INTO account_sessions (platform, cookies, updated_at) VALUES (?, ?, ?)
@@ -46,6 +41,6 @@ export const saveSessionCookies = (
 };
 
 /** 清除某平台的 cookies（登出） */
-export const clearSessionCookies = (platform: AccountPlatform): void => {
+export const clearSessionCookies = (platform: Platform): void => {
   saveSessionCookies(platform, {});
 };

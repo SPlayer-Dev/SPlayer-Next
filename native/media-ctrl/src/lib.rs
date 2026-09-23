@@ -44,7 +44,7 @@ pub fn initialize() -> Result<()> {
 #[napi]
 pub fn shutdown() {
     info!("关闭媒体控件和 Discord RPC");
-    discord::disable();
+    discord::shutdown();
     let _ = sys_media::get_platform_controls().shutdown();
 }
 
@@ -79,13 +79,17 @@ pub fn on_event(callback: Function<Unknown<'static>, UnknownReturnValue>) -> Res
 /// 更新歌曲元数据（同时更新系统媒体控件和 Discord RPC）
 #[napi]
 pub fn set_metadata(param: MetadataParam) {
-    let payload = MetadataPayload::from(param);
-
-    // Discord RPC 只需要 cover_url，不需要占用大量内存的原图数据
-    let mut discord_payload = payload.clone();
-    discord_payload.cover_data = None;
+    let discord_payload = MetadataPayload {
+        title: param.title.clone(),
+        artists: param.artists.clone(),
+        album: param.album.clone(),
+        cover_data: None,
+        cover_url: param.cover_url.clone(),
+        duration_ms: param.duration_ms,
+    };
     discord::update_metadata(discord_payload);
 
+    let payload = MetadataPayload::from(param);
     sys_media::get_platform_controls().update_metadata(payload);
 }
 

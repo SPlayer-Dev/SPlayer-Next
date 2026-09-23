@@ -1,7 +1,3 @@
-/**
- * 热搜（仅网易云），10min 缓存
- */
-
 import { neteaseCall } from "@/apis/netease";
 
 export interface HotSearchItem {
@@ -30,7 +26,7 @@ const CACHE_TTL = 10 * 60 * 1000;
 let cache: { items: HotSearchItem[]; at: number } | null = null;
 
 /**
- * 取网易云热搜（按 TTL 缓存）
+ * 取内置在线源热搜（按 TTL 缓存）
  */
 export const getHotSearches = async (): Promise<HotSearchItem[]> => {
   const now = Date.now();

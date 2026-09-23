@@ -17,6 +17,7 @@ const hotSearch: QMModule = async () => {
     "tencent_musicsoso_hotkey.HotkeyService",
     "GetHotkeyForQQMusicPC",
     { search_id: "", uin: 0 },
+    { auth: false },
   );
 
   const list = (data?.vec_hotkey ?? []).map((item) => ({

@@ -18,17 +18,45 @@ const scrobble: NeteaseModule = async (query, request) => {
     cookie = "os=osx";
   }
   query.cookie = cookie;
+  const resourceId = String(query.id || "");
+  if (!/^\d+$/.test(resourceId) || resourceId === "0") {
+    return { status: 400, body: { code: 400, msg: "缺少有效的资源 ID" }, cookie: [] };
+  }
+  const playTime = Number(query.time);
+  if (Number.isNaN(playTime) || playTime <= 0) {
+    return { status: 400, body: { code: 400, msg: "缺少有效的播放时长" }, cookie: [] };
+  }
+
+  const resourceType = query.resourceType === "dj" ? "dj" : "song";
+  const sourceType = typeof query.sourceType === "string" ? query.sourceType : "song";
+  const sourceName =
+    resourceType === "dj"
+      ? "djradio"
+      : sourceType === "song"
+        ? "track"
+        : sourceType === "radio"
+          ? "djradio"
+          : sourceType;
+  const sourceId = String(query.sourceid || query.sourceId || resourceId);
+  const categoryId = Number(query.categoryId);
+  const sourceFields = {
+    sourceId,
+    source: sourceName,
+    sourcetype: sourceName,
+    ...(resourceType === "dj" && Number.isFinite(categoryId) ? { categoryId } : {}),
+  };
 
   const startplayData = {
     logs: JSON.stringify([
       {
         action: "startplay",
         json: {
-          id: query.id,
-          type: "song",
+          id: resourceId,
+          type: resourceType,
           mainsite: "1",
           mainsiteWeb: "1",
-          content: `id=${query.sourceid}`,
+          content: `id=${sourceId}`,
+          ...sourceFields,
         },
       },
     ]),
@@ -41,15 +69,14 @@ const scrobble: NeteaseModule = async (query, request) => {
         json: {
           download: 0,
           end: "playend",
-          id: query.id,
-          sourceId: query.sourceid,
-          time: query.time,
-          type: "song",
+          id: resourceId,
+          time: playTime,
+          type: resourceType,
           wifi: 0,
-          source: "list",
           mainsite: "1",
           mainsiteWeb: "1",
-          content: `id=${query.sourceid}`,
+          content: `id=${sourceId}`,
+          ...sourceFields,
         },
       },
     ]),
@@ -60,12 +87,15 @@ const scrobble: NeteaseModule = async (query, request) => {
 
   const startplay = await request("/api/feedback/weblog", startplayData, option);
   const play = await request("/api/feedback/weblog", playData, option);
+  const succeeded = [startplay, play].every(
+    ({ body }) => body?.code === 200 || body?.data === "success",
+  );
 
   return {
-    status: 200,
+    status: succeeded ? 200 : 502,
     body: {
-      code: 200,
-      data: "success",
+      code: succeeded ? 200 : 502,
+      ...(succeeded ? { data: "success" } : { msg: "原版日志上报失败" }),
       details: {
         startplay: startplay.body,
         play: play.body,

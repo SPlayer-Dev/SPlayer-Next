@@ -1,0 +1,249 @@
+# Nightly 每夜定时构建与滚动发布
+name: Nightly Build
+
+on:
+  schedule:
+    # 每天 UTC 18:00 触发
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nightly-release
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: 22.x
+
+jobs:
+  # 智能检查 dev 分支自上次发布以来是否有新提交
+  check-commits:
+    name: Check for new commits
+    runs-on: ubuntu-latest
+    outputs:
+      has_new_commits: ${{ steps.check.outputs.has_new_commits }}
+      prev_sha: ${{ steps.check.outputs.prev_sha }}
+    steps:
+      - name: Check out dev branch
+        uses: actions/checkout@v5
+        with:
+          ref: dev
+
+      - name: Compare commit with latest nightly release
+        id: check
+        shell: bash
+        run: |
+          NIGHTLY_TAG="nightly"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "手动触发构建，直接继续执行"
+            echo "has_new_commits=true" >> "$GITHUB_OUTPUT"
+            echo "prev_sha=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          REMOTE_TAG_SHA=$(git ls-remote origin "refs/tags/$NIGHTLY_TAG" | awk '{print $1}')
+          CURRENT_DEV_SHA=$(git rev-parse HEAD)
+
+          echo "当前 dev 最新 Commit: $CURRENT_DEV_SHA"
+          echo "上次 Nightly Tag Commit: $REMOTE_TAG_SHA"
+          echo "prev_sha=$REMOTE_TAG_SHA" >> "$GITHUB_OUTPUT"
+
+          if [ -n "$REMOTE_TAG_SHA" ] && [ "$REMOTE_TAG_SHA" = "$CURRENT_DEV_SHA" ]; then
+            echo "自上次 Nightly 构建以来无新代码提交，跳过本次夜间构建"
+            echo "has_new_commits=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "检测到新提交代码，启动夜间多平台构建"
+            echo "has_new_commits=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  # 平台独立构建
+  build:
+    name: Build on ${{ matrix.name }}
+    needs: check-commits
+    if: needs.check-commits.outputs.has_new_commits == 'true'
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            runner: windows-latest
+            target: windows-x64
+          - name: Windows arm64
+            runner: windows-11-arm
+            target: windows-arm64
+          - name: macOS x64
+            runner: macos-15-intel
+            target: macos-x64
+          - name: macOS arm64
+            runner: macos-latest
+            target: macos-arm64
+          - name: Linux x64
+            runner: ubuntu-latest
+            target: linux-x64
+          - name: Linux arm64
+            runner: ubuntu-24.04-arm
+            target: linux-arm64
+    steps:
+      - name: Check out git repository
+        uses: actions/checkout@v5
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      # Linux: 安装系统构建/打包依赖
+      - name: 安装系统依赖 (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libasound2-dev libdbus-1-dev libpipewire-0.3-dev libpulse-dev pkg-config clang \
+            rpm libarchive-tools
+
+      # 清理旧构建产物
+      - name: Clean workspace
+        shell: bash
+        run: rm -rf dist out
+
+      # CI 不需要国内镜像
+      - name: 移除 .npmrc
+        shell: bash
+        run: rm -f .npmrc
+
+      # 安装项目依赖
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 动态注入递增的 Nightly 构建版本号
+      - name: Generate Nightly Version
+        shell: bash
+        run: node scripts/gen-nightly-version.cjs
+
+      # 构建并生成更新清单
+      - name: Build ${{ matrix.name }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPDATE_CHANNEL: nightly
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: |
+          case "${{ matrix.target }}" in
+            windows-x64)
+              pnpm build:win --x64 --publish never
+              ;;
+            windows-arm64)
+              pnpm build:win --arm64 --publish never
+              ;;
+            macos-x64)
+              pnpm build:mac --x64 --publish never
+              ;;
+            macos-arm64)
+              pnpm build:mac --arm64 --publish never
+              ;;
+            linux-x64)
+              pnpm build:linux --x64 --publish never
+              ;;
+            linux-arm64)
+              pnpm build:linux --arm64 --publish never
+              ;;
+            *)
+              echo "Unsupported target: ${{ matrix.target }}"
+              exit 1
+              ;;
+          esac
+
+      # 上传产物以供后续聚合发布
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: SPlayer-Next-${{ matrix.target }}
+          path: dist/*.*
+
+  # 合并多架构更新清单并滚动覆盖发布至单一固定 Tag
+  release:
+    name: Publish Nightly Release
+    needs: [check-commits, build]
+    if: needs.check-commits.outputs.has_new_commits == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out dev branch
+        uses: actions/checkout@v5
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      # 读取注入的 Nightly 版本号
+      - name: Read Nightly Version
+        shell: bash
+        run: |
+          node scripts/gen-nightly-version.cjs
+          VERSION="$(node -p "require('./package.json').version")"
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      # 整理待发布资源并执行清单合并单元测试
+      - name: Prepare release assets
+        shell: bash
+        run: |
+          npm install --no-save --prefix "$RUNNER_TEMP/jsyaml" js-yaml@4.1.0
+          NODE_PATH="$RUNNER_TEMP/jsyaml/node_modules" \
+            node --test .github/scripts/prepare-release-assets.test.cjs
+          NODE_PATH="$RUNNER_TEMP/jsyaml/node_modules" \
+            node .github/scripts/prepare-release-assets.cjs artifacts release-assets "$APP_VERSION"
+          echo "待发布资源："
+          ls -1 release-assets
+
+      # 滚动覆盖发布到固定 Tag nightly
+      - name: Publish or Update Nightly Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NIGHTLY_TAG: nightly
+          PREV_COMMIT_SHA: ${{ needs.check-commits.outputs.prev_sha }}
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f "$NIGHTLY_TAG"
+          git push -f origin "$NIGHTLY_TAG"
+
+          if gh release view "$NIGHTLY_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "正在重置已有 Nightly Release..."
+            gh release delete "$NIGHTLY_TAG" --repo "$GITHUB_REPOSITORY" --yes
+          fi
+
+          node scripts/gen-nightly-notes.cjs notes.md
+
+          gh release create "$NIGHTLY_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "v$APP_VERSION" \
+            --notes-file notes.md \
+            --prerelease \
+            release-assets/*

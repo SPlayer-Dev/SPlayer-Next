@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "napi build --release --no-const-enum",
-    "build:debug": "napi build --no-const-enum"
+    "build:debug": "napi build --no-const-enum",
+    "test:integration": "node --test tests/*.cjs"
   }
 }

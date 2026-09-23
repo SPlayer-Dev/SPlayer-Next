@@ -75,7 +75,7 @@ const complete = async (): Promise<void> => {
               class="h-1.5 rounded-full transition-all duration-300"
               :class="
                 index === currentIndex
-                  ? 'flex-[2] bg-primary'
+                  ? 'flex-2 bg-primary'
                   : index < currentIndex
                     ? 'flex-1 bg-primary/60'
                     : 'flex-1 bg-on-surface/12'

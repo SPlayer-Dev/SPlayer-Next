@@ -3,17 +3,19 @@ import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
 import { useOrpheusProtocol } from "@/composables/useOrpheusProtocol";
+import { useExternalFileHandler } from "@/composables/useExternalFileHandler";
 
 const route = useRoute();
 const status = useStatusStore();
 const settings = useSettingsStore();
 
-// 接入 orpheus 协议唤起
+// 接入 orpheus 协议唤起与外部音频文件播放
 useOrpheusProtocol();
+useExternalFileHandler();
 
 /** 有歌曲信息时显示播放栏 */
 const showPlayerBar = computed(() => !!useMediaStore().track);
-const { isExpanded } = storeToRefs(status);
+const { isPlayerExpanded } = storeToRefs(status);
 const { appearance } = settings;
 
 /** 路由切换动效 */
@@ -27,6 +29,43 @@ const routeKey = computed(() => {
   const hasParam = route.matched.some((m) => m.path.includes(":"));
   return hasParam ? route.path : (route.matched[1]?.path ?? route.path);
 });
+
+/** 需要受控缓存的页面组件白名单 */
+const cachedViews = [
+  "Home",
+  "Library",
+  "Liked",
+  "History",
+  "Download",
+  "Daily",
+  "Favorites",
+  "Cloud",
+  "LocalList",
+  "Folders",
+  "SearchPage",
+  "Stats",
+  "StreamingIndex",
+];
+
+const mainContainerRef = shallowRef<HTMLElement | null>(null);
+const mainScrollMap = new Map<string, number>();
+
+// 路由离开前记录滚动位置
+watch(
+  () => route.fullPath,
+  (_newPath, oldPath) => {
+    if (oldPath && mainContainerRef.value) {
+      mainScrollMap.set(oldPath, mainContainerRef.value.scrollTop);
+    }
+  },
+);
+
+// 路由切换完成后恢复滚动位置
+const handleAfterEnter = (): void => {
+  if (!mainContainerRef.value) return;
+  const saved = mainScrollMap.get(route.fullPath) ?? 0;
+  mainContainerRef.value.scrollTop = saved;
+};
 
 /** 侧边栏样式 */
 const sidebarClass = computed(() => {
@@ -62,7 +101,7 @@ const playerBarWrapperClass = computed(() => {
 /** 内层播放条样式 */
 const playerBarInnerClass = computed(() => {
   // 禁用底部播放栏交互
-  const base = isExpanded.value ? "pointer-events-none" : "pointer-events-auto";
+  const base = isPlayerExpanded.value ? "pointer-events-none" : "pointer-events-auto";
   switch (appearance.layoutMode) {
     case "floating":
       return `${base} mx-auto max-w-4xl glass-panel rounded-full shadow-xl border border-solid border-primary/10`;
@@ -75,8 +114,8 @@ const playerBarInnerClass = computed(() => {
 <template>
   <!-- 主界面 -->
   <div
-    class="h-screen flex bg-app text-on-surface transition-[transform,opacity] duration-500 ease-[cubic-bezier(0.7,0,0.3,1)] origin-center"
-    :class="isExpanded ? 'scale-95 opacity-0 pointer-events-none' : ''"
+    class="h-screen flex overflow-hidden bg-app text-on-surface transition-[transform,opacity] duration-500 ease-[cubic-bezier(0.7,0,0.3,1)] origin-center"
+    :class="isPlayerExpanded ? 'scale-95 opacity-0 pointer-events-none' : ''"
   >
     <!-- 侧边栏 -->
     <aside
@@ -94,10 +133,12 @@ const playerBarInnerClass = computed(() => {
       </header>
 
       <!-- 主内容区 -->
-      <main class="flex-1 overflow-y-auto overflow-x-hidden">
+      <main ref="mainContainerRef" class="flex-1 overflow-y-auto overflow-x-hidden">
         <RouterView v-slot="{ Component }">
-          <Transition :name="routeTransitionName" mode="out-in">
-            <component :is="Component" :key="routeKey" />
+          <Transition :name="routeTransitionName" mode="out-in" @after-enter="handleAfterEnter">
+            <KeepAlive :max="10" :include="cachedViews">
+              <component :is="Component" :key="routeKey" />
+            </KeepAlive>
           </Transition>
         </RouterView>
       </main>
@@ -132,4 +173,6 @@ const playerBarInnerClass = computed(() => {
   <UpdateDialog />
   <!-- 评论弹窗 -->
   <MusicCommentsDialog />
+  <!-- 输出信息弹窗 -->
+  <AudioInfoDialog />
 </template>

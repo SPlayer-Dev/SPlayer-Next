@@ -1,67 +1,80 @@
 import type { Track } from "@shared/types/player";
 import type { CoverItem } from "@/types/artist";
-import { kugou as kugouApi } from "@/apis/kugou";
+import { kugou as kgApi } from "@/apis/kugou";
+import {
+  kgAlbumToCoverItem,
+  kgArtistToCoverItem,
+  kgPlaylistToCoverItem,
+  kgSongToTrack,
+  type KGAlbumItem,
+  type KGArtistItem,
+  type KGPlaylistItem,
+  type KGSong,
+} from "@/utils/format/kugou";
 import type { SearchResult } from "./index";
 
-interface KGSong {
-  id: string;
-  hash: string;
-  audioId?: number;
-  name: string;
-  artist: string;
-  album?: string;
-  albumId?: string | number;
-  cover?: string;
-  coverOriginal?: string;
-  duration: number;
-}
-
-interface SongsResp {
-  total?: number;
-  songs?: KGSong[];
-}
-
-const songToTrack = (song: KGSong): Track => ({
-  id: song.hash || song.id,
-  source: "kugou",
-  title: song.name,
-  artists: song.artist ? [{ name: song.artist }] : [],
-  // album.id 暂不暴露（在线专辑详情页未接通），列表里跟着 artist 一起暗显
-  album: song.album ? { name: song.album, cover: song.cover } : undefined,
-  cover: song.cover,
-  coverOriginal: song.coverOriginal,
-  duration: song.duration ?? 0,
+const result = <T>(items: T[], total: number, offset: number): SearchResult<T> => ({
+  items,
+  total,
+  hasMore: offset + items.length < total,
 });
-
-const empty = <T>(): SearchResult<T> => ({ items: [], total: 0, hasMore: false });
 
 export const songs = async (
   keyword: string,
   offset: number,
   limit: number,
 ): Promise<SearchResult<Track>> => {
-  const body = await kugouApi.search<SongsResp>({
+  const body = await kgApi.search<{ total?: number; songs?: KGSong[] }>({
     keywords: keyword,
+    type: 0,
     page: Math.floor(offset / limit) + 1,
     limit,
   });
-  const items = (body?.songs ?? []).map(songToTrack);
-  const total = body?.total ?? items.length;
-  return { items, total, hasMore: offset + items.length < total };
+  const items = (body.songs ?? []).map(kgSongToTrack);
+  return result(items, body.total ?? items.length, offset);
 };
 
 export const albums = async (
-  _keyword: string,
-  _offset: number,
-  _limit: number,
-): Promise<SearchResult<CoverItem>> => empty();
+  keyword: string,
+  offset: number,
+  limit: number,
+): Promise<SearchResult<CoverItem>> => {
+  const body = await kgApi.search<{ total?: number; albums?: KGAlbumItem[] }>({
+    keywords: keyword,
+    type: 8,
+    page: Math.floor(offset / limit) + 1,
+    limit,
+  });
+  const items = (body.albums ?? []).map(kgAlbumToCoverItem);
+  return result(items, body.total ?? items.length, offset);
+};
+
 export const artists = async (
-  _keyword: string,
-  _offset: number,
-  _limit: number,
-): Promise<SearchResult<CoverItem>> => empty();
+  keyword: string,
+  offset: number,
+  limit: number,
+): Promise<SearchResult<CoverItem>> => {
+  const body = await kgApi.search<{ total?: number; artists?: KGArtistItem[] }>({
+    keywords: keyword,
+    type: 9,
+    page: Math.floor(offset / limit) + 1,
+    limit,
+  });
+  const items = (body.artists ?? []).map(kgArtistToCoverItem);
+  return result(items, body.total ?? items.length, offset);
+};
+
 export const playlists = async (
-  _keyword: string,
-  _offset: number,
-  _limit: number,
-): Promise<SearchResult<CoverItem>> => empty();
+  keyword: string,
+  offset: number,
+  limit: number,
+): Promise<SearchResult<CoverItem>> => {
+  const body = await kgApi.search<{ total?: number; playlists?: KGPlaylistItem[] }>({
+    keywords: keyword,
+    type: 2,
+    page: Math.floor(offset / limit) + 1,
+    limit,
+  });
+  const items = (body.playlists ?? []).map(kgPlaylistToCoverItem);
+  return result(items, body.total ?? items.length, offset);
+};

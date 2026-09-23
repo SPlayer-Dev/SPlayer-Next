@@ -1,4 +1,6 @@
 <script setup lang="ts">
+defineOptions({ name: "Home" });
+
 import type { Track } from "@shared/types/player";
 import type { CoverItem } from "@/types/artist";
 import { useHomeHeader } from "@/composables/home/useHomeHeader";

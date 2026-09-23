@@ -8,6 +8,8 @@ import IconLucideGauge from "~icons/lucide/gauge";
 import IconLucideMoreVertical from "~icons/lucide/more-vertical";
 import IconLucideClock from "~icons/lucide/clock";
 import IconLucideRepeat2 from "~icons/lucide/repeat-2";
+import IconLucideRadio from "~icons/lucide/radio";
+import IconLucideAudioWaveform from "~icons/lucide/audio-waveform";
 
 const props = withDefaults(
   defineProps<{
@@ -57,8 +59,10 @@ const equalizerOpen = ref(false);
 const speedOpen = ref(false);
 const autoCloseOpen = ref(false);
 const abLoopOpen = ref(false);
+const fmModeOpen = ref(false);
 
 const moreMenuItems = computed<DropdownMenuItem[]>(() => [
+  { key: "audioInfo", label: t("quality.outputInfo"), icon: IconLucideAudioWaveform },
   { key: "equalizer", label: t("equalizer.title"), icon: IconLucideSliders },
   { key: "speed", label: t("speed.title"), icon: IconLucideGauge },
   { key: "abLoop", label: t("abLoop.title"), icon: IconLucideRepeat2 },
@@ -66,7 +70,8 @@ const moreMenuItems = computed<DropdownMenuItem[]>(() => [
 ]);
 
 const onMoreMenuSelect = (key: string): void => {
-  if (key === "equalizer") equalizerOpen.value = true;
+  if (key === "audioInfo") status.audioInfoOpen = true;
+  else if (key === "equalizer") equalizerOpen.value = true;
   else if (key === "speed") speedOpen.value = true;
   else if (key === "abLoop") abLoopOpen.value = true;
   else if (key === "autoClose") autoCloseOpen.value = true;
@@ -120,10 +125,24 @@ const onMoreMenuSelect = (key: string): void => {
       :class="isDesktopLyricOpen ? undefined : mutedClass"
       @click="toggleDesktopLyric"
     >
-      <template #icon><IconLucideMicVocal /></template>
+      <template #icon><IconLucideCaptions /></template>
     </SButton>
+    <!-- 私人 FM 模式调整 -->
     <SButton
-      v-if="!status.fmMode && cover"
+      v-if="status.fmMode"
+      :type="buttonType"
+      :variant="fmModeOpen ? 'tertiary' : 'ghost'"
+      circle
+      size="large"
+      :class="fmModeOpen ? undefined : mutedClass"
+      :title="t('player.fm.modeTooltip')"
+      @click="fmModeOpen = true"
+    >
+      <template #icon><IconLucideRadio /></template>
+    </SButton>
+    <!-- 全屏播放器内播放列表 -->
+    <SButton
+      v-else-if="cover"
       :type="buttonType"
       :variant="status.fullQueueOpen ? 'tertiary' : 'ghost'"
       circle
@@ -133,8 +152,9 @@ const onMoreMenuSelect = (key: string): void => {
     >
       <template #icon><IconLucideListMusic /></template>
     </SButton>
+    <!-- 常规播放列表气泡 -->
     <SPopover
-      v-else-if="!status.fmMode"
+      v-else
       v-model:open="status.outerQueueOpen"
       trigger="click"
       side="top"
@@ -171,5 +191,6 @@ const onMoreMenuSelect = (key: string): void => {
     <SpeedDialog v-model:open="speedOpen" />
     <AbLoopDialog v-model:open="abLoopOpen" />
     <AutoCloseDialog v-model:open="autoCloseOpen" />
+    <FmModeDialog v-model:open="fmModeOpen" />
   </div>
 </template>

@@ -1,4 +1,7 @@
 <script setup lang="ts">
+defineOptions({ name: "Library" });
+
+import type { PlaybackContext } from "@shared/types/player";
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import { useLibraryStore } from "@/stores/library";
 import SongList from "@/components/list/SongList.vue";
@@ -11,6 +14,12 @@ import * as player from "@/core/player";
 const { t } = useI18n();
 const libraryStore = useLibraryStore();
 const { tracks, scanDirs, scanning, scanProgress, initialized } = storeToRefs(libraryStore);
+
+const playbackContext = computed<PlaybackContext>(() => ({
+  originId: "library",
+  originType: "page",
+  originName: t("library.title"),
+}));
 
 /** 搜索关键词 */
 const searchQuery = ref("");
@@ -37,7 +46,7 @@ const handleQuickAddFolder = async (): Promise<void> => {
 // 播放全部
 const handlePlayAll = (): void => {
   if (tracks.value.length === 0) return;
-  player.playFrom(tracks.value, 0);
+  player.playFrom(tracks.value, 0, playbackContext.value);
 };
 
 // 扫描进度百分比
@@ -177,6 +186,7 @@ onUnmounted(() => {
           clearable
           round
           class="w-40 focus-within:w-56"
+          data-search-input
         >
           <template #prefix>
             <IconLucideSearch class="size-4 text-on-surface-variant/40 shrink-0" />
@@ -190,6 +200,7 @@ onUnmounted(() => {
         ref="songListRef"
         :items="tracks"
         :search-query="searchQuery"
+        :playback-context="playbackContext"
         enable-sort
         show-size
       />

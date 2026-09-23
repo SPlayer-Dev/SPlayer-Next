@@ -3,7 +3,9 @@
  */
 
 import type { Track } from "@shared/types/player";
+import type { PersonalFmOptions } from "@/types/netease";
 import { fetchPersonalFm, submitFmTrash } from "@/apis/recommend/netease";
+import { useStatusStore } from "@/stores/status";
 
 /** 剩余曲目不足此数时后台续推，FM 单次返回约 3 首 */
 const FM_PREFETCH_AHEAD = 1;
@@ -23,7 +25,7 @@ const fetchMore = (): Promise<void> => {
   if (fetchingPromise) return fetchingPromise;
   fetchingPromise = (async () => {
     try {
-      const more = await fetchPersonalFm();
+      const more = await fetchPersonalFm(useStatusStore().fmOptions);
       const seen = new Set(pool.map((track) => track.id));
       const fresh = more.filter((track) => !seen.has(track.id));
       if (fresh.length > 0) pool = [...pool, ...fresh];
@@ -52,18 +54,36 @@ const advance = async (): Promise<Track | null> => {
   return current();
 };
 
-/** 进入 FM */
-export const start = async (): Promise<Track | null> => {
+/**
+ * 启动私人 FM 播放
+ * @param options - 可选的 FM 模式与场景选项
+ * @returns 首曲 Track 实例，无可用曲目时返回 null
+ */
+export const start = async (options?: PersonalFmOptions): Promise<Track | null> => {
+  const status = useStatusStore();
+  const currentOptions = status.fmOptions ?? { mode: "DEFAULT" };
+  if (options) {
+    const isDifferentMode =
+      options.mode !== currentOptions.mode || options.submode !== currentOptions.submode;
+    if (isDifferentMode) {
+      status.fmOptions = { ...options };
+      pool = [];
+    }
+  }
   if (pool.length === 0) await fetchMore();
   return current();
 };
 
-/** 推进到下一首 */
+/**
+ * 推进到下一首
+ * @returns 下一首 Track 实例，池空时返回 null
+ */
 export const next = (): Promise<Track | null> => advance();
 
 /**
- * 减少推荐
+ * 减少推荐并切到下一首
  * @param playedSec - 当前曲目已播放秒数，作为算法反馈
+ * @returns 下一首 Track 实例，池空时返回 null
  */
 export const dislikeCurrent = async (playedSec?: number): Promise<Track | null> => {
   const track = current();

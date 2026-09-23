@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import type { TrackSource } from "@shared/types/player";
+import type { PlaybackContext, TrackSource } from "@shared/types/player";
 import type { ArtistProfile, CoverItem } from "@/types/artist";
 import { useSettingsStore } from "@/stores/settings";
 import { useUserStore } from "@/stores/user";
 import { toast } from "@/composables/useToast";
 import { loadArtist as loadArtistService } from "@/services/artistLoader";
 import { fetchArtistSongs } from "@/apis/artist/netease";
+import { fetchQQMusicArtistSongs } from "@/apis/artist/qqmusic";
 import { navigateToAlbum } from "@/utils/navigate";
 import SongList from "@/components/list/SongList.vue";
 import { formatTime } from "@/utils/time";
@@ -37,6 +38,8 @@ const id = route.params.id as string;
 const artist = shallowRef<ArtistProfile | null>(null);
 /** 正在加载 */
 const loading = ref(false);
+/** 错误信息 */
+const error = ref("");
 /** 取消当次加载 */
 let loadAbort: AbortController | null = null;
 /** 是否还有更多 */
@@ -65,6 +68,7 @@ const loadArtist = async (): Promise<void> => {
   const myAbort = new AbortController();
   loadAbort = myAbort;
   loading.value = true;
+  error.value = "";
   hasMoreSongs.value = false;
 
   try {
@@ -74,11 +78,18 @@ const loadArtist = async (): Promise<void> => {
       onUpdate: (next) => {
         if (myAbort.signal.aborted) return;
         artist.value = next;
-        if (next && source === "netease" && next.tracks.length >= 50) {
+        if (
+          next &&
+          ((source === "netease" && next.tracks.length >= 50) ||
+            (source === "qqmusic" && next.tracks.length < next.trackCount))
+        ) {
           hasMoreSongs.value = true;
         }
       },
     });
+  } catch (err) {
+    if (myAbort.signal.aborted) return;
+    error.value = err instanceof Error ? err.message : String(err);
   } finally {
     if (!myAbort.signal.aborted) loading.value = false;
   }
@@ -86,11 +97,20 @@ const loadArtist = async (): Promise<void> => {
 
 /** 触底加载 */
 const onReachBottom = async (): Promise<void> => {
-  if (source !== "netease" || !hasMoreSongs.value || loadingMore.value || !artist.value) return;
+  if (
+    (source !== "netease" && source !== "qqmusic") ||
+    !hasMoreSongs.value ||
+    loadingMore.value ||
+    !artist.value
+  )
+    return;
   const current = artist.value;
   loadingMore.value = true;
   try {
-    const { tracks, more } = await fetchArtistSongs(decodeURIComponent(id), current.tracks.length);
+    const { tracks, more } =
+      source === "qqmusic"
+        ? await fetchQQMusicArtistSongs(decodeURIComponent(id), current.tracks.length)
+        : await fetchArtistSongs(decodeURIComponent(id), current.tracks.length);
     if (loadAbort?.signal.aborted || artist.value?.id !== current.id) return;
     if (tracks.length === 0) {
       hasMoreSongs.value = false;
@@ -99,7 +119,7 @@ const onReachBottom = async (): Promise<void> => {
     artist.value = {
       ...current,
       tracks: [...current.tracks, ...tracks],
-      trackCount: current.tracks.length + tracks.length,
+      trackCount: source === "qqmusic" ? current.trackCount : current.tracks.length + tracks.length,
     };
     hasMoreSongs.value = more;
   } finally {
@@ -120,9 +140,16 @@ const totalDuration = computed(() => {
   return total > 0 ? formatTime(total) : "";
 });
 
+const playbackContext = computed<PlaybackContext>(() => ({
+  provider: source,
+  originId: decodeURIComponent(id),
+  originType: "artist",
+  originName: artist.value?.name,
+}));
+
 const handlePlayAll = () => {
   if (!artist.value?.tracks.length) return;
-  player.playFrom(artist.value.tracks, 0);
+  player.playFrom(artist.value.tracks, 0, playbackContext.value);
 };
 
 /** 收藏歌手仅支持网易云 */
@@ -302,6 +329,7 @@ const albumItems = computed<CoverItem[]>(() => {
               clearable
               round
               class="w-40 focus-within:w-56"
+              data-search-input
             >
               <template #prefix>
                 <IconLucideSearch class="size-4 text-on-surface-variant/40 shrink-0" />
@@ -333,6 +361,7 @@ const albumItems = computed<CoverItem[]>(() => {
               :items="artist.tracks"
               :search-query="searchQuery"
               :source="source"
+              :playback-context="playbackContext"
               :show-size="source === 'local'"
               :has-more="hasMoreSongs"
               :loading-more="loadingMore"
@@ -358,6 +387,18 @@ const albumItems = computed<CoverItem[]>(() => {
         <div class="text-center text-on-surface-variant/60">
           <SLoading class="text-4xl text-primary/70 mb-4 mx-auto block" />
           <div class="text-sm">{{ t("common.loading") }}</div>
+        </div>
+      </div>
+      <!-- 错误态 -->
+      <div v-else-if="error" key="error" class="flex-1 flex items-center justify-center px-6">
+        <div class="text-center text-red-500/85">
+          <IconLucideTriangleAlert class="size-14 mx-auto mb-4 opacity-50" />
+          <div class="text-sm font-medium mb-1">{{ t("search.errorTitle") }}</div>
+          <div class="text-xs opacity-80 break-all max-w-xs mb-4">{{ error }}</div>
+          <SButton type="primary" variant="secondary" @click="loadArtist">
+            <template #icon><IconLucideRefreshCw /></template>
+            {{ t("common.retry") }}
+          </SButton>
         </div>
       </div>
       <!-- 空状态 -->

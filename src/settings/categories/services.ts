@@ -2,7 +2,7 @@ import type { SettingCategory } from "@/types/settings-schema";
 import { useSettingsStore } from "@/stores/settings";
 import { toast } from "@/composables/useToast";
 import i18n from "@/i18n";
-import ExternalApiPanel from "@/components/settings/custom/ExternalApiPanel.vue";
+import ExternalApiStatusCard from "@/components/settings/custom/ExternalApiStatusCard.vue";
 import LastfmPanel from "@/components/settings/custom/LastfmPanel.vue";
 import IconLucideGlobe from "~icons/lucide/globe";
 
@@ -154,6 +154,13 @@ const servicesCategory: SettingCategory = {
       tag: { text: "Beta" },
       items: [
         {
+          key: "externalApiStatusCard",
+          type: "custom",
+          component: ExternalApiStatusCard,
+          fullWidth: true,
+          searchable: false,
+        },
+        {
           key: "externalApiEnabled",
           type: "switch",
           binding: { store: "settings", path: "system.externalApi.enabled" },
@@ -178,13 +185,6 @@ const servicesCategory: SettingCategory = {
               min: 1024,
               max: 65535,
               defaultValue: 14558,
-            },
-            {
-              key: "externalApiPanel",
-              type: "custom",
-              component: ExternalApiPanel,
-              fullWidth: true,
-              keywords: ["settings.externalApi.endpoint", "settings.externalApi.restart"],
             },
           ],
         },

@@ -1,12 +1,6 @@
 /** 应用更新阶段 */
 export type UpdatePhase =
-  | "idle"
-  | "checking"
-  | "available"
-  | "downloading"
-  | "downloaded"
-  | "upToDate"
-  | "error";
+  "idle" | "checking" | "available" | "downloading" | "downloaded" | "upToDate" | "error";
 
 /** 更新信息 */
 export interface UpdateMeta {

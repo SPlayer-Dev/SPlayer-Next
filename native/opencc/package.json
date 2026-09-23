@@ -1,0 +1,14 @@
+{
+  "name": "opencc",
+  "version": "0.1.0",
+  "main": "opencc.node",
+  "types": "index.d.ts",
+  "napi": {
+    "binaryName": "opencc",
+    "triples": {}
+  },
+  "scripts": {
+    "build": "napi build --release --no-const-enum",
+    "build:debug": "napi build --no-const-enum"
+  }
+}

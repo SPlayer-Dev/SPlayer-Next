@@ -15,16 +15,17 @@ import { broadcast } from "@main/utils/broadcast";
 import { toCacheUrl } from "@main/utils/protocol";
 import { toMs } from "@main/utils/time";
 import { parseArtists, parseAlbum } from "@main/utils/metadata";
-import { getCoverCacheDir } from "@main/utils/config";
+import { getCoverCacheDir, isWin } from "@main/utils/config";
 import { libraryLog } from "@main/utils/logger";
 import { getCueAudioPath, parseCueSheet, extractCuePath } from "./cue";
+import { readFileAutoEncoding } from "@main/utils/encoding";
 
 let scanning = false;
 
 /** 路径比较键，Windows 下保持大小写不敏感 */
 const pathKey = (value: string): string => {
   const resolved = path.resolve(value);
-  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+  return isWin ? resolved.toLowerCase() : resolved;
 };
 
 /**
@@ -88,7 +89,7 @@ const syncCueTracks = async (
         for (const trackPath of existing.paths) nextPaths.add(trackPath);
         continue;
       }
-      const content = await fs.readFile(cuePath, "utf8");
+      const content = await readFileAutoEncoding(cuePath);
       const audioPath = getCueAudioPath(content, cuePath);
       if (!audioPath) continue;
       const audio = audioByPath.get(pathKey(audioPath));

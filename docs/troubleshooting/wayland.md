@@ -32,7 +32,7 @@ pnpm dev -- --ozone-platform=x11
 
 > [!IMPORTANT]
 >
-> 即使切换回 Xwayland，全局快捷键仍可能无法正常生效。
+> 使用 Xwayland 可能并不能解决全局快捷键的问题，反而可能导致全局快捷键失效。因为 Xwayland 无法监听原生 Wayland 的按键事件，也无法通过 XDG Desktop Portal 注册全局快捷键。
 >
 > 部分桌面环境对此有支持。如 KDE Plasma Wayland 可以在 **系统设置 → 应用程序权限 → 旧式 X11 应用程序支持** 中，将 **监听按键** 设置为 「**和上面一样，加上按住 Ctrl、Alt、Meta 等修饰键时按下的任何按键**」
 
@@ -49,7 +49,7 @@ Wayland 出于安全考虑，不允许应用读取 / 设置全局屏幕坐标，
 | 悬停判定（全局光标位置）                 | Wayland 限制读取全局光标，悬停隐藏 / 交互可能不准 |
 | 全局快捷键                               | Wayland 下可能无法注册全局快捷键                  |
 
-> 具体表现因发行版与合成器（GNOME Mutter、KDE KWin、wlroots 等）而异。
+> 具体表现因合成器（GNOME Mutter、KDE KWin、wlroots 等）而异。
 
 ## 桌面歌词的窗口规则
 
@@ -69,15 +69,15 @@ Wayland 出于安全考虑，不允许应用读取 / 设置全局屏幕坐标，
 
 其它 DE/WM 也可参考此配置方法自行配置。
 
+这里也提供了一些可直接导入的规则。欢迎 PR 补充其它环境或更好的配置
+
 <details>
 
 <summary>可直接导入的规则</summary>
 
-> 这里提供了一些可直接导入的规则。欢迎 PR 补充你的 DE/WM
-
 KWin 规则
 
-> 编者用的规则，我觉得挺好用的。如有更好的规则欢迎 PR
+> 编者用的规则，我觉得挺好用的
 
 ```ini
 [SPlayer Next 桌面歌词]
@@ -102,7 +102,7 @@ wmclassmatch=1
 
 Niri 窗口规则
 
-> 编者日常不使用 Niri，未经充分测试。如有更好的规则欢迎 PR
+> 编者日常不使用 Niri，未经充分测试
 
 ```kdl
 window-rule {
@@ -111,7 +111,45 @@ window-rule {
 }
 ```
 
+---
+
 </details>
+
+拖动时直接按鼠标左键无法拖动。此时可以尝试打开 SPlayer-Next 的 **全局设置 → 外部歌词 → 桌面歌词 → 使用 CSS 拖拽** 功能。若还是无法拖动，请使用 WM 的窗口拖动快捷键（如 KWin 默认的 <kbd>Meta</kbd>+<kbd>鼠标左键</kbd> 或 Mutter 默认的 <kbd>Alt</kbd>+<kbd>鼠标左键</kbd>）
+
+锁定时鼠标穿透不生效是已知问题。可以尝试[使用 Xwayland](#使用-xwayland)
+
+## 全局快捷键
+
+在原生 Wayland 下，Electron 的全局快捷键通过 `xdg-desktop-portal` 实现。
+
+打开应用时，若有新的未申请的全局快捷键，应该会弹出授权请求，点击确定即可。也可以在系统设置中查看 SPlayer-Next 是否有注册全局快捷键（在 KDE Plasma Wayland 中是 **系统设置 → 键盘 → 快捷键 → SPlayer-Next**）
+
+Electron 注册的快捷键名称格式为 `SPlayer-Next shortcut: <组合键>`，但这个名称**并非实际生效的组合键**。实际生效的组合键由**系统设置**中为该名称绑定的按键决定。应用内设置的全局快捷键只决定它在系统中注册的名称，不决定实际按键。
+
+例如：
+
+1. 在应用内设置“上一曲”为 `Ctrl+Shift+←`，系统会注册名为 `SPlayer-Next shortcut: Ctrl+Shift+Left` 的项。
+2. 在系统设置中，将该项绑定为 `Ctrl+Alt+Shift+←`，实际生效的全局快捷键就是 `Ctrl+Alt+Shift+←`。
+3. 若之后在应用内将“上一曲”改为 `Ctrl+Alt+Shift+←`，旧名称失效，应用会请求注册新名称 `SPlayer-Next shortcut: Ctrl+Alt+Shift+Left`，此时实际生效的按键取决于系统设置中新名称对应的绑定。
+
+> [!TIP]
+>
+> 授权请求仅在开启应用时弹出。所以每次修改全局快捷键后，都需要重新启动应用以触发授权请求。
+
+> [!TIP]
+>
+> 若您的 `xdg-desktop-portal` 后端不支持全局快捷键，那我也没有办法咯
+>
+> 可查看 [XDG Desktop Portal - ArchWiki](https://wiki.archlinux.org/title/XDG_Desktop_Portal#List_of_backends_and_interfaces) 了解支持情况
+>
+> 也可以使用以下命令检查
+>
+> ```bash
+> dbus-send --session --dest=org.freedesktop.portal.Desktop --print-reply --type=method_call /org/freedesktop/portal/desktop org.freedesktop.DBus.Introspectable.Introspect | grep GlobalShortcuts
+> ```
+>
+> 它应该输出 `<interface name="org.freedesktop.portal.GlobalShortcuts">`
 
 ## 第三方 / 外部 API 替代
 

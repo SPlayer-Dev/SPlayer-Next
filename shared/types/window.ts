@@ -52,14 +52,22 @@ export interface DesktopLyricApi {
   onConfigChange: (callback: (config: DesktopLyricSettings) => void) => () => void;
   /** 将窗口高度锁定到指定像素 */
   setHeight: (height: number) => Promise<void>;
-  /** 锁定态下切换鼠标穿透 */
-  setMouseIgnore: (ignore: boolean) => void;
+  /** 上报解锁按钮在窗口内容区内的命中区域 */
+  setUnlockButtonBounds: (bounds: DesktopLyricUnlockButtonBounds) => void;
   /** 拖拽移动；只传位置，主进程持有权威尺寸 */
   move: (x: number, y: number) => void;
   /** 拖拽结束后存最终位置；程序 setBounds 不触发 moved 事件，需显式存 */
   saveState: () => void;
   /** 订阅主进程 screen 光标位置判定 */
   onCursorInside: (callback: (inside: boolean) => void) => () => void;
+}
+
+/** 解锁按钮在桌面歌词内容区内的矩形 */
+export interface DesktopLyricUnlockButtonBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 /** 任务栏歌词布局事件 */
@@ -69,6 +77,8 @@ export interface TaskbarLyricLayoutEvent {
   /** 任务栏是否浅色主题 */
   isLight: boolean;
   anchor: "left" | "right";
+  /** 当前任务栏区域允许的最大窗口宽度 */
+  maxWidth: number;
 }
 
 /** 任务栏歌词 API */
@@ -77,6 +87,8 @@ export interface TaskbarLyricApi {
   onLayout: (callback: (data: TaskbarLyricLayoutEvent) => void) => () => void;
   /** 订阅配置变化 */
   onConfigChange: (callback: (config: TaskbarLyricSettings) => void) => () => void;
+  /** 上报内容需要的实际窗口宽度 */
+  setContentWidth: (width: number) => void;
 }
 
 /** 灵动岛 API */
@@ -89,6 +101,8 @@ export interface DynamicIslandApi {
   saveState: () => void;
   /** 渲染端上报目标宽度，主进程立即 resize */
   resize: (width: number) => void;
+  /** 调整透明宿主的有效区域，null 恢复完整窗口 */
+  setShape: (width: number | null) => void;
   /** 渲染端上报目标高度 */
   setHeight: (height: number) => void;
   /** 查询当前吸附模式（HMR 后主进程不会主动重发，需主动拉取） */

@@ -31,6 +31,19 @@ const autoCleanLogs = (dir: string, daysToKeep: number = 30): void => {
 };
 
 /**
+ * 忽略 stdout/stderr 的 EPIPE 写入错误
+ *
+ * Linux 下父终端关闭后标准输出管道断开，console transport 写入会抛未捕获异常
+ */
+const ignorePipeErrors = (): void => {
+  for (const stream of [process.stdout, process.stderr]) {
+    stream?.on("error", (error: NodeJS.ErrnoException) => {
+      if (error.code !== "EPIPE") throw error;
+    });
+  }
+};
+
+/**
  * 初始化日志系统
  *
  * - 日志文件按日期命名：YYYY-MM-DD.log
@@ -39,6 +52,7 @@ const autoCleanLogs = (dir: string, daysToKeep: number = 30): void => {
  * - console.log/warn/error/info 重绑到 logger
  */
 export const initLogger = (): void => {
+  ignorePipeErrors();
   // 确保日志目录存在
   if (!existsSync(logsDir)) mkdirSync(logsDir, { recursive: true });
 
@@ -92,3 +106,4 @@ export const lastfmLog = log.scope("lastfm");
 export const neteaseLog = log.scope("netease");
 export const updaterLog = log.scope("updater");
 export const cloudLog = log.scope("cloud");
+export const recognitionLog = log.scope("recognition");

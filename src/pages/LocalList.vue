@@ -1,4 +1,6 @@
 <script setup lang="ts">
+defineOptions({ name: "LocalList" });
+
 import type { CoverItem } from "@/types/artist";
 import type { SSelectOption } from "@/components/ui/SSelect.vue";
 import type { AlbumSummary, ArtistSummary } from "@shared/types/library";

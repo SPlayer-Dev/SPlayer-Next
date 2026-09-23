@@ -9,7 +9,11 @@ import { createOption } from "../core/option";
 import type { NeteaseModule } from "../core/types";
 
 const personalFm: NeteaseModule = (query, request) => {
-  return request("/api/v1/radio/get", {}, createOption(query, "weapi"));
+  const data: Record<string, unknown> = {};
+  if (query.mode) data.mode = query.mode;
+  if (query.submode || query.subMode) data.subMode = query.submode || query.subMode;
+  if (query.limit) data.limit = query.limit;
+  return request("/api/v1/radio/get", data, createOption(query, "weapi"));
 };
 
 export default personalFm;

@@ -7,13 +7,6 @@ import type {
 } from "@shared/types/streaming";
 import { useStreamingStore } from "@/stores/streaming";
 import { toast } from "@/composables/useToast";
-import IconLucideServer from "~icons/lucide/server";
-import IconLucidePlus from "~icons/lucide/plus";
-import IconLucideEdit from "~icons/lucide/pencil";
-import IconLucideTrash from "~icons/lucide/trash-2";
-import IconLucideCheck from "~icons/lucide/check";
-import IconLucidePlugZap from "~icons/lucide/plug-zap";
-import IconLucideUnplug from "~icons/lucide/unplug";
 
 defineOptions({ inheritAttrs: false });
 
@@ -35,6 +28,7 @@ const TYPE_OPTIONS: { value: StreamingServerType; label: string }[] = [
 /** 表单 / 编辑状态 */
 const dialogOpen = ref(false);
 const editingId = ref<string | null>(null);
+
 const EMPTY_FORM: StreamingServerInput = {
   name: "",
   type: "navidrome",
@@ -43,6 +37,7 @@ const EMPTY_FORM: StreamingServerInput = {
   password: "",
 };
 const form = ref<StreamingServerInput>({ ...EMPTY_FORM });
+
 const submitting = ref(false);
 const testing = ref(false);
 const testResult = ref<StreamingPingResult | null>(null);
@@ -68,28 +63,41 @@ const openAdd = (): void => {
 
 const openEdit = (cfg: StreamingServerConfig): void => {
   editingId.value = cfg.id;
+  testResult.value = null;
+  formError.value = null;
   form.value = {
     name: cfg.name,
     type: cfg.type,
     url: cfg.url,
     username: cfg.username,
-    password: cfg.password,
+    password: "",
   };
-  testResult.value = null;
-  formError.value = null;
   dialogOpen.value = true;
 };
 
-const validate = (): string | null => {
-  if (!form.value.name.trim()) return t("streaming.server.errors.nameEmpty");
-  if (!/^https?:\/\//i.test(form.value.url.trim())) return t("streaming.server.errors.urlInvalid");
-  if (!form.value.username) return t("streaming.server.errors.usernameEmpty");
-  if (!form.value.password) return t("streaming.server.errors.passwordEmpty");
+/**
+ * 表单通用验证
+ * @param inputData - 填写的表单数据
+ * @returns 错误信息，若通过验证则返回 null
+ */
+const validate = (inputData: StreamingServerInput): string | null => {
+  if (!inputData.name.trim()) return t("streaming.server.errors.nameEmpty");
+  if (!/^https?:\/\//i.test(inputData.url.trim())) return t("streaming.server.errors.urlInvalid");
+
+  if (!inputData.username) return t("streaming.server.errors.usernameEmpty");
+  const editingServer = servers.value.find((server) => server.id === editingId.value);
+  if (!inputData.password && !editingServer?.hasPassword) {
+    return t("streaming.server.errors.passwordEmpty");
+  }
   return null;
 };
 
-const handleTest = async (): Promise<void> => {
-  const invalid = validate();
+/**
+ * 测试服务器连通性
+ * @param inputData - 当前表单数据
+ */
+const handleTest = async (inputData: StreamingServerInput): Promise<void> => {
+  const invalid = validate(inputData);
   if (invalid) {
     formError.value = invalid;
     return;
@@ -97,15 +105,19 @@ const handleTest = async (): Promise<void> => {
   formError.value = null;
   testing.value = true;
   try {
-    const res = await streaming.testConnection(form.value);
+    const res = await streaming.testConnection(inputData, editingId.value ?? undefined);
     testResult.value = res;
   } finally {
     testing.value = false;
   }
 };
 
-const handleSubmit = async (): Promise<void> => {
-  const invalid = validate();
+/**
+ * 提交表单保存服务器配置
+ * @param inputData - 当前表单数据
+ */
+const handleSubmit = async (inputData: StreamingServerInput): Promise<void> => {
+  const invalid = validate(inputData);
   if (invalid) {
     formError.value = invalid;
     return;
@@ -114,14 +126,14 @@ const handleSubmit = async (): Promise<void> => {
   submitting.value = true;
   try {
     if (editingId.value) {
-      streaming.updateServer(editingId.value, form.value);
+      await streaming.updateServer(editingId.value, inputData);
       // 编辑后如果是当前激活服务器，重新连接刷新 token
       if (activeServerId.value === editingId.value) {
         await streaming.connectToServer(editingId.value);
       }
       toast.success(t("streaming.server.updated"));
     } else {
-      const cfg = streaming.addServer(form.value);
+      const cfg = await streaming.addServer(inputData);
       // 第一台服务器自动设为激活
       if (!activeServerId.value) await streaming.setActiveServer(cfg.id);
       toast.success(t("streaming.server.added"));
@@ -142,7 +154,7 @@ const handleConfirmRemove = (): void => {
   confirmOpen.value = false;
   pendingRemoveId.value = null;
   if (!id) return;
-  streaming.removeServer(id);
+  void streaming.removeServer(id);
   toast.success(t("streaming.server.removed"));
 };
 
@@ -177,8 +189,8 @@ const formatTime = (t?: number): string => (t ? new Date(t).toLocaleString() : "
       class="flex items-center justify-between gap-4 rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3"
     >
       <div class="min-w-0 flex-1">
-        <div class="text-sm text-on-surface">{{ t("streaming.hint") }}</div>
-        <div class="text-xs text-on-surface-variant/60 mt-0.5">
+        <div class="text-base text-on-surface">{{ t("streaming.hint") }}</div>
+        <div class="text-sm text-on-surface-variant/70 mt-0.5">
           {{ t("streaming.hintDetail") }}
         </div>
       </div>
@@ -265,7 +277,7 @@ const formatTime = (t?: number): string => (t ? new Date(t).toLocaleString() : "
               <template #icon>
                 <IconLucideEdit class="size-4" />
               </template>
-              {{ t("streaming.server.edit") }}
+              {{ t("common.edit") }}
             </SButton>
             <SButton
               variant="secondary"
@@ -276,7 +288,7 @@ const formatTime = (t?: number): string => (t ? new Date(t).toLocaleString() : "
               <template #icon>
                 <IconLucideTrash class="size-4" />
               </template>
-              {{ t("streaming.server.delete") }}
+              {{ t("common.delete") }}
             </SButton>
           </div>
         </div>
@@ -323,7 +335,10 @@ const formatTime = (t?: number): string => (t ? new Date(t).toLocaleString() : "
             <span>
               {{ testResult.ok ? t("streaming.server.testOk") : t("streaming.server.testFail") }}
             </span>
-            <span v-if="testResult.version" class="opacity-70">v{{ testResult.version }}</span>
+            <span v-if="testResult.version" class="opacity-70">
+              <template v-if="/^[0-9]/.test(testResult.version)">v</template>
+              {{ testResult.version }}
+            </span>
           </div>
           <div v-if="testResult.error" class="mt-1 opacity-80">{{ testResult.error }}</div>
         </div>
@@ -332,7 +347,12 @@ const formatTime = (t?: number): string => (t ? new Date(t).toLocaleString() : "
         <SButton variant="secondary" :disabled="submitting || testing" @click="close">
           {{ t("common.cancel") }}
         </SButton>
-        <SButton variant="secondary" :loading="testing" :disabled="submitting" @click="handleTest">
+        <SButton
+          variant="secondary"
+          :loading="testing"
+          :disabled="submitting"
+          @click="handleTest(form)"
+        >
           {{ t("streaming.server.test") }}
         </SButton>
         <SButton
@@ -340,7 +360,7 @@ const formatTime = (t?: number): string => (t ? new Date(t).toLocaleString() : "
           type="primary"
           :loading="submitting"
           :disabled="testing"
-          @click="handleSubmit"
+          @click="handleSubmit(form)"
         >
           {{ t("common.save") }}
         </SButton>

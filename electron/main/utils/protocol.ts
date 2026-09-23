@@ -4,6 +4,8 @@ import { getAppCacheDir } from "./config";
 
 /** cache:// 协议方案名 */
 const SCHEME = "cache";
+const STREAMING_COVER_SCHEME = "streaming-cover";
+export const MAIN_PARTITION = "persist:main";
 
 /**
  * 注册 cache:// 协议方案
@@ -13,6 +15,17 @@ export const registerCacheScheme = (): void => {
   protocol.registerSchemesAsPrivileged([
     {
       scheme: SCHEME,
+      privileges: {
+        standard: true,
+        corsEnabled: true,
+        secure: true,
+        supportFetchAPI: true,
+        bypassCSP: true,
+        stream: true,
+      },
+    },
+    {
+      scheme: STREAMING_COVER_SCHEME,
       privileges: {
         standard: true,
         corsEnabled: true,

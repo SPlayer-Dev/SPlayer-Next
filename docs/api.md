@@ -1,10 +1,12 @@
 # 外部 API（HTTP）
 
-SPlayer-Next 提供一个可选的本地 HTTP 接口，用于查询播放状态与控制播放。实时状态推送请使用 [WebSocket API](/socket)。
+SPlayer-Next 提供一个可选的本地 HTTP 接口，用于查询播放状态与控制播放。实时状态推送请使用 [WebSocket API](/socket)，接入 AI 应用请使用 [MCP 接口](/mcp)。
 
 ::: warning 默认关闭
 外部 API **默认关闭**，需在 **设置 → 外部 API** 中开启。服务默认仅绑定 `127.0.0.1`（本机可访问），**不含任何鉴权**；如需局域网访问，请显式开启「允许局域网访问」，并仅在可信网络中使用。
 :::
+
+AI 使用的 [MCP 接口](/mcp)拥有独立开关、端口与服务生命周期，不依赖此外部 API。
 
 ## 约定
 
@@ -17,19 +19,20 @@ SPlayer-Next 提供一个可选的本地 HTTP 接口，用于查询播放状态�
 
 ## 端点总览
 
-| 方法   | 路径               | 说明             |
-| ------ | ------------------ | ---------------- |
-| `GET`  | `/api/info`        | 应用与连接信息   |
-| `GET`  | `/api/status`      | 播放状态         |
-| `GET`  | `/api/volume`      | 当前音量         |
-| `GET`  | `/api/now-playing` | 当前播放完整快照 |
-| `POST` | `/api/play`        | 播放             |
-| `POST` | `/api/pause`       | 暂停             |
-| `POST` | `/api/stop`        | 停止             |
-| `POST` | `/api/next`        | 下一曲           |
-| `POST` | `/api/prev`        | 上一曲           |
-| `POST` | `/api/seek`        | 跳转到指定位置   |
-| `POST` | `/api/volume`      | 设置音量         |
+| 方法   | 路径               | 说明                   |
+| ------ | ------------------ | ---------------------- |
+| `GET`  | `/api/info`        | 应用与连接信息         |
+| `GET`  | `/api/status`      | 播放状态               |
+| `GET`  | `/api/volume`      | 当前音量               |
+| `GET`  | `/api/now-playing` | 不含完整歌词的轻量快照 |
+| `GET`  | `/api/lyrics`      | 当前曲目的完整解析歌词 |
+| `POST` | `/api/play`        | 播放                   |
+| `POST` | `/api/pause`       | 暂停                   |
+| `POST` | `/api/stop`        | 停止                   |
+| `POST` | `/api/next`        | 下一曲                 |
+| `POST` | `/api/prev`        | 上一曲                 |
+| `POST` | `/api/seek`        | 跳转到指定位置         |
+| `POST` | `/api/volume`      | 设置音量               |
 
 ## 状态查询
 
@@ -91,7 +94,17 @@ GET /api/volume
 GET /api/now-playing
 ```
 
-返回当前曲目的完整快照（曲目信息、歌词等）。
+返回适合频繁轮询的轻量快照，不包含完整歌词正文。`lyricAvailable` 表示当前是否有
+歌词，`lyricLineCount` 表示歌词行数。需要歌词时单独请求 `/api/lyrics`。
+
+### 获取当前歌词
+
+```
+GET /api/lyrics
+```
+
+返回当前曲目的完整解析歌词、歌词来源和偏移。`lyric` 保持结构化 JSON 数组，避免将
+JSON 再编码成字符串所产生的双重转义和额外解析；服务在网络传输时会输出紧凑 JSON。
 
 ## 播放控制
 

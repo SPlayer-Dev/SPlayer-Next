@@ -5,11 +5,9 @@ import { handleOrpheus } from "@/services/orpheus";
  */
 export const useOrpheusProtocol = (): void => {
   let unsubscribe: (() => void) | null = null;
-  onMounted(async () => {
-    // 先注册监听再拉 pending，避免两步之间漏掉实时事件
+  onMounted(() => {
+    // 监听主进程下发的协议唤起事件
     unsubscribe = window.api.system.onProtocolUrl(handleOrpheus);
-    const pending = await window.api.system.consumePendingProtocolUrl();
-    if (pending) await handleOrpheus(pending);
   });
   onBeforeUnmount(() => unsubscribe?.());
 };

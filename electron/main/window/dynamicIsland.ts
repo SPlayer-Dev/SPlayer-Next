@@ -48,6 +48,7 @@ const CURSOR_POLL_MS = 150;
  * 避免 Windows 高 DPI 下 DIP↔物理像素有损回环造成尺寸漂移
  */
 const cachedSize = { width: INITIAL_WIDTH, height: 40 };
+let activeShapeWidth: number | null = null;
 
 /** 当前是否启用刘海融合，仅 macOS 生效 */
 const isNotchFusionEnabled = (): boolean => isMac && store.get("dynamicIsland").notchFusion;
@@ -182,8 +183,14 @@ const isCursorInsideBounds = (): boolean => {
   if (!dynamicIslandWindow || dynamicIslandWindow.isDestroyed()) return false;
   const cursor = screen.getCursorScreenPoint();
   const b = dynamicIslandWindow.getBounds();
+  const shapeWidth =
+    activeShapeWidth === null ? b.width : Math.min(b.width, Math.max(1, activeShapeWidth));
+  const shapeLeft = b.x + Math.round((b.width - shapeWidth) / 2);
   return (
-    cursor.x >= b.x && cursor.x < b.x + b.width && cursor.y >= b.y && cursor.y < b.y + b.height
+    cursor.x >= shapeLeft &&
+    cursor.x < shapeLeft + shapeWidth &&
+    cursor.y >= b.y &&
+    cursor.y < b.y + b.height
   );
 };
 
@@ -319,6 +326,7 @@ export const applyDynamicIslandHeight = (height: number): void => {
     const bounds = win.getBounds();
     win.setBounds({ x: bounds.x, y: bounds.y, width: cachedSize.width, height: h });
   }
+  updateDynamicIslandShape();
 };
 
 /**
@@ -347,6 +355,34 @@ export const applyDynamicIslandWidth = (width: number): void => {
     const newX = centerX - Math.round(newWidth / 2);
     win.setBounds({ x: newX, y: bounds.y, width: newWidth, height: cachedSize.height });
   }
+  updateDynamicIslandShape();
+};
+
+const updateDynamicIslandShape = (): void => {
+  const win = getDynamicIslandWindow();
+  if (!win || isMac) return;
+  if (activeShapeWidth === null) {
+    win.setShape([]);
+    return;
+  }
+  const shapeWidth = Math.min(cachedSize.width, Math.max(1, Math.round(activeShapeWidth)));
+  win.setShape([
+    {
+      x: Math.round((cachedSize.width - shapeWidth) / 2),
+      y: 0,
+      width: shapeWidth,
+      height: cachedSize.height,
+    },
+  ]);
+};
+
+/**
+ * 裁切透明宿主的有效区域，避免保留宽度的透明两侧阻挡鼠标
+ * @param width - 居中的有效宽度，null 表示恢复完整窗口
+ */
+export const applyDynamicIslandShape = (width: number | null): void => {
+  activeShapeWidth = width;
+  updateDynamicIslandShape();
 };
 
 /**
@@ -552,6 +588,7 @@ export const createDynamicIslandWindow = (): BrowserWindow => {
 
   dynamicIslandWindow.on("closed", () => {
     stopCursorPolling();
+    activeShapeWidth = null;
     dynamicIslandWindow = null;
     lastBroadcastMode = null;
     setTrayDynamicIsland(false);

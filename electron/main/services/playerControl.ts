@@ -8,6 +8,7 @@
 import { getPlayer } from "@main/services/engine";
 import { sendToMain } from "@main/utils/broadcast";
 import { toMs } from "@main/utils/time";
+import type { ShuffleMode, RepeatMode, Track } from "@shared/types/player";
 
 /**
  * 跳转（毫秒）
@@ -29,6 +30,14 @@ export const playerControl = {
   stop: (): void => getPlayer().stop(),
   next: (): void => sendToMain("player:event", { type: "next" }),
   prev: (): void => sendToMain("player:event", { type: "prev" }),
+  setShuffle: (mode: ShuffleMode): void =>
+    sendToMain("player:event", { type: "setShuffle", data: { mode } }),
+  setRepeat: (mode: RepeatMode): void =>
+    sendToMain("player:event", { type: "setRepeat", data: { mode } }),
+  playTrack: (track: Track): void =>
+    sendToMain("player:event", { type: "playTrack", data: { track } }),
+  addToQueue: (tracks: Track[], position: "next" | "end"): void =>
+    sendToMain("player:event", { type: "addToQueue", data: { tracks, position } }),
   seek,
   setVolume: (volume: number): void => getPlayer().setVolume(volume),
   /** 当前播放进度（毫秒） */

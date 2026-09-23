@@ -19,7 +19,7 @@ SPlayer-Next 将性能敏感的能力下沉到 **Rust**，通过 [NAPI-RS](https
 - 基于 rodio 输出，支持渐入渐出、变速变调、音量均衡与均衡器；
 - 实时 FFT 频谱数据，驱动可视化与歌词律动；
 - 解码时同步提取封面缩略图；
-- 在线音源通过内部的 `HttpRangeSource`（ureq + rustls）以 `Read + Seek` 方式按需拉取，TLS 在 Rust 内处理，跨平台且无系统依赖。
+- 在线音源通过 `ffmpeg_audio::HttpAudioSource`（配合 `HttpCancelHandle` 实现打断与 Seek 状态重置，基于 `reqwest` + `rustls`）以 `Read + Seek` 方式按需拉取，TLS 在 Rust 内处理，跨平台且无系统依赖。
 
 ### media-ctrl
 

@@ -14,7 +14,7 @@ SPlayer-Next 是基于 **Electron + Vue 3 + TypeScript** 的桌面音乐播放�
 
 ### 原生模块（`native/`）
 
-- `audio-engine`：`ffmpeg_audio` 解码（静态编 FFmpeg，零环境依赖）+ rodio 播放 + FFT + 封面提取；URL 通过 `HttpRangeSource`（ureq + rustls）包成 Read+Seek 流喂给 ffmpeg_audio
+- `audio-engine`：`ffmpeg_audio` 解码（静态编 FFmpeg，零环境依赖）+ rodio 播放 + FFT + 封面提取；URL 通过 `ffmpeg_audio::HttpAudioSource`（配对 `HttpCancelHandle` 用于打断与 Seek 重置，`reqwest` + `rustls`）包成 Read+Seek 流喂给 `ffmpeg_audio`
 - `media-ctrl`：跨平台系统媒体控件（Windows SMTC / Linux MPRIS / macOS MPNowPlaying）+ Discord RPC
 - `taskbar-lyric`：Windows 专属，把窗口嵌入任务栏 + RegistryWatcher / UiaWatcher / TrayWatcher 四路监听
 

@@ -11,12 +11,7 @@ import type { CommentTab, MusicCommentItem } from "./comment";
  * 支持的插件动作
  */
 export type PluginAction =
-  | "musicUrl"
-  | "menuClick"
-  | "musicSearch"
-  | "musicLyric"
-  | "musicPic"
-  | "musicComment";
+  "musicUrl" | "menuClick" | "musicSearch" | "musicLyric" | "musicPic" | "musicComment";
 
 /**
  * 音质等级

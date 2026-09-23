@@ -1,4 +1,5 @@
 import { resolve } from "path";
+import { execSync } from "child_process";
 import { defineConfig } from "electron-vite";
 import UnoCSS from "unocss/vite";
 import vue from "@vitejs/plugin-vue";
@@ -10,6 +11,24 @@ import RekaResolver from "reka-ui/resolver";
 import Components from "unplugin-vue-components/vite";
 import pkg from "./package.json" with { type: "json" };
 
+/** 获取当前 git 提交 */
+const getGitCommit = (): string => {
+  try {
+    return execSync("git rev-parse HEAD").toString().trim().slice(0, 7) || "unknown";
+  } catch {
+    return "unknown";
+  }
+};
+
+/** 获取当前 git 提交日期 */
+const getGitDate = (): string => {
+  try {
+    return execSync("git log -1 --format=%cI").toString().trim() || "unknown";
+  } catch {
+    return "unknown";
+  }
+};
+
 export default defineConfig({
   main: {
     publicDir: resolve(__dirname, "public"),
@@ -17,8 +36,13 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, "electron/main/index.ts"),
-          // 插件 host worker（utilityProcess 入口，托管所有插件 vm 上下文）
+          // 插件 host worker
           "host.worker": resolve(__dirname, "electron/main/plugins/host.worker.ts"),
+          // 听歌识曲指纹 worker
+          "fingerprint.worker": resolve(
+            __dirname,
+            "electron/main/services/recognition/fingerprint.worker.ts",
+          ),
         },
       },
     },
@@ -27,9 +51,11 @@ export default defineConfig({
         "@main": resolve(__dirname, "electron/main"),
         "@shared": resolve(__dirname, "shared"),
         "@splayer/audio-engine": resolve(__dirname, "native/audio-engine"),
+        "@splayer/audio-capture": resolve(__dirname, "native/audio-capture"),
         "@splayer/media-ctrl": resolve(__dirname, "native/media-ctrl"),
         "@splayer/taskbar-lyric": resolve(__dirname, "native/taskbar-lyric"),
         "@splayer/taskbar-thumbnail": resolve(__dirname, "native/taskbar-thumbnail"),
+        "@splayer/opencc": resolve(__dirname, "native/opencc"),
       },
     },
   },
@@ -51,6 +77,8 @@ export default defineConfig({
       __APP_AUTHOR__: JSON.stringify(pkg.author.name),
       __APP_HOMEPAGE__: JSON.stringify(pkg.homepage),
       __APP_AUTHOR_URL__: JSON.stringify(pkg.author.url),
+      __COMMIT_HASH__: JSON.stringify(getGitCommit()),
+      __COMMIT_DATE__: JSON.stringify(getGitDate()),
     },
     server: {
       port: 14558,

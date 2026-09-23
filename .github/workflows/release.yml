@@ -7,16 +7,22 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "要发布的标签（例如 v1.1.0-beta.1 或 v1.1.0-alpha.1）"
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 env:
   NODE_VERSION: 22.x
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
 # 同一个 tag 的发布串行执行，避免并发上传资源产生竞态
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -49,6 +55,8 @@ jobs:
     steps:
       - name: Check out git repository
         uses: actions/checkout@v5
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -57,6 +65,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -64,18 +73,32 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "native/audio-engine -> target\nnative/media-ctrl -> target"
+          workspaces: ". -> target"
 
-      # 校验 tag 与 package.json 版本一致
-      - name: Verify tag matches version
-        if: startsWith(github.ref, 'refs/tags/v')
+      # 校验标签、版本和更新通道
+      - name: Verify release metadata
         shell: bash
         run: |
-          PKG_VERSION="v$(node -p "require('./package.json').version")"
-          if [ "$PKG_VERSION" != "$GITHUB_REF_NAME" ]; then
-            echo "标签 $GITHUB_REF_NAME 与 package.json 版本 $PKG_VERSION 不一致"
+          VERSION="$(node -p "require('./package.json').version")"
+          if [ "v$VERSION" != "$RELEASE_TAG" ]; then
+            echo "标签 $RELEASE_TAG 与 package.json 版本 v$VERSION 不一致"
             exit 1
           fi
+          case "$VERSION" in
+            *-alpha|*-alpha.*)
+              echo "UPDATE_CHANNEL=alpha" >> "$GITHUB_ENV"
+              ;;
+            *-beta|*-beta.*)
+              echo "UPDATE_CHANNEL=beta" >> "$GITHUB_ENV"
+              ;;
+            *-*)
+              echo "不支持的预发布版本格式: $VERSION"
+              exit 1
+              ;;
+            *)
+              echo "UPDATE_CHANNEL=latest" >> "$GITHUB_ENV"
+              ;;
+          esac
 
       # Linux: 安装系统构建/打包依赖
       - name: 安装系统依赖 (Linux)
@@ -83,18 +106,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libdbus-1-dev pkg-config clang \
+            libasound2-dev libdbus-1-dev libpipewire-0.3-dev libpulse-dev pkg-config clang \
             rpm libarchive-tools
 
       # 清理旧构建产物
-      - name: Clean workspace on Windows
-        if: runner.os == 'Windows'
-        run: |
-          if (Test-Path dist) { Remove-Item -Recurse -Force dist }
-          if (Test-Path out) { Remove-Item -Recurse -Force out }
-
-      - name: Clean workspace on macOS & Linux
-        if: runner.os != 'Windows'
+      - name: Clean workspace
+        shell: bash
         run: rm -rf dist out
 
       # CI 不需要国内镜像
@@ -104,7 +121,7 @@ jobs:
 
       # 安装项目依赖
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       # 仅构建本机架构
       - name: Build ${{ matrix.name }}
@@ -138,20 +155,6 @@ jobs:
               ;;
           esac
 
-      # 修复 Linux arm64 自动更新清单命名
-      # electron-builder 单独构建 arm64 时仍命名为 latest-linux.yml，会与 x64 撞名，
-      # 显式重命名为 latest-linux-arm64.yml（electron-updater 在 arm64 上据此查找）
-      - name: Rename Linux arm64 update manifest
-        if: matrix.target == 'linux-arm64'
-        shell: bash
-        run: |
-          if [ -f dist/latest-linux.yml ]; then
-            mv dist/latest-linux.yml dist/latest-linux-arm64.yml
-            echo "Renamed latest-linux.yml -> latest-linux-arm64.yml"
-          else
-            echo "dist/latest-linux.yml not found, skipping"
-          fi
-
       - name: Upload Artifact
         uses: actions/upload-artifact@v7
         with:
@@ -168,11 +171,38 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
+
+      - name: Verify release metadata
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          if [ "v$VERSION" != "$RELEASE_TAG" ]; then
+            echo "标签 $RELEASE_TAG 与 package.json 版本 v$VERSION 不一致"
+            exit 1
+          fi
+          case "$VERSION" in
+            *-alpha|*-alpha.*)
+              echo "UPDATE_CHANNEL=alpha" >> "$GITHUB_ENV"
+              ;;
+            *-beta|*-beta.*)
+              echo "UPDATE_CHANNEL=beta" >> "$GITHUB_ENV"
+              ;;
+            *-*)
+              echo "不支持的预发布版本格式: $VERSION"
+              exit 1
+              ;;
+            *)
+              echo "UPDATE_CHANNEL=latest" >> "$GITHUB_ENV"
+              ;;
+          esac
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - name: Download all artifacts
         uses: actions/download-artifact@v8
@@ -185,25 +215,37 @@ jobs:
         run: |
           npm install --no-save --prefix "$RUNNER_TEMP/jsyaml" js-yaml@4.1.0
           NODE_PATH="$RUNNER_TEMP/jsyaml/node_modules" \
-            node .github/scripts/prepare-release-assets.cjs artifacts release-assets
+            node --test .github/scripts/prepare-release-assets.test.cjs
+          NODE_PATH="$RUNNER_TEMP/jsyaml/node_modules" \
+            node .github/scripts/prepare-release-assets.cjs artifacts release-assets "$APP_VERSION"
           echo "待发布资源："
           ls -1 release-assets
 
-      # 用官方 gh CLI 确定性创建草稿 Release
+      # 用官方 gh CLI 确定性创建 Release
+      # 正式版保持草稿，预览版直接发布为 prerelease
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          TAG="${GITHUB_REF#refs/tags/}"
           # 重跑场景：若同名 release 已存在则先删除，避免脏状态（保留 tag）
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release delete "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --yes
           fi
-          gh release create "$TAG" \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "$TAG" \
-            --generate-notes \
-            --verify-tag \
-            --draft \
-            release-assets/*
+          if [ "$UPDATE_CHANNEL" != "latest" ]; then
+            gh release create "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$RELEASE_TAG" \
+              --generate-notes \
+              --verify-tag \
+              --prerelease \
+              release-assets/*
+          else
+            gh release create "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$RELEASE_TAG" \
+              --generate-notes \
+              --verify-tag \
+              --draft \
+              release-assets/*
+          fi

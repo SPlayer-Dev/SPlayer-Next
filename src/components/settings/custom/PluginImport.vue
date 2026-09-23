@@ -63,15 +63,20 @@ const handleImportFromUrl = async (): Promise<void> => {
     </SAlert>
 
     <div
-      class="flex items-center justify-between gap-4 rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3"
+      class="flex items-center justify-between gap-4 rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3.5"
     >
       <div class="min-w-0 flex-1">
-        <div class="text-sm text-on-surface">{{ t("settings.plugins.hint") }}</div>
-        <div class="text-xs text-on-surface-variant/60 mt-0.5 flex items-center gap-0.5 flex-wrap">
+        <div class="flex items-center gap-2 text-base">
+          <span>{{ t("settings.plugins.hint") }}</span>
+        </div>
+        <div class="text-sm text-on-surface-variant/70 mt-0.5 flex items-center gap-1 flex-wrap">
           <span>{{ t("settings.plugins.hintDetail") }}</span>
-          <SButton variant="text" type="primary" size="tiny" @click="openExternal(DOCS_URL)">
+          <a
+            class="text-primary cursor-pointer hover:underline inline-flex items-center gap-0.5"
+            @click="openExternal(DOCS_URL)"
+          >
             {{ t("settings.plugins.docs") }}
-          </SButton>
+          </a>
         </div>
       </div>
       <div class="flex items-center gap-2 shrink-0">

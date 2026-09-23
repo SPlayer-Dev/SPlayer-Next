@@ -42,6 +42,7 @@ const isChildrenActive = computed(() => {
 });
 
 const isDisabled = computed(() => props.item.disabled?.() ?? false);
+const isVisible = computed(() => props.item.visible?.() ?? true);
 
 const descriptionText = computed(() =>
   t(props.item.descriptionKey ?? `settings.${props.item.key}.description`),
@@ -49,11 +50,11 @@ const descriptionText = computed(() =>
 </script>
 
 <template>
-  <div :id="`setting-${item.key}`">
-    <!-- fullWidth custom：只渲染组件，不套标签与卡片 -->
+  <div v-if="isVisible" :id="`setting-${item.key}`">
     <component
       :is="item.component"
       v-if="item.type === 'custom' && item.fullWidth && item.component"
+      v-bind="item.componentProps"
       class="transition-all duration-300"
       :class="highlighted ? 'animate-highlight-pulse' : ''"
     />
@@ -148,6 +149,7 @@ const descriptionText = computed(() =>
         <component
           :is="item.component"
           v-else-if="item.type === 'custom' && item.component"
+          v-bind="item.componentProps"
           :model-value="model"
           @update:model-value="model = $event"
         />

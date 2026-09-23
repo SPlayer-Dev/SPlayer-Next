@@ -5,6 +5,7 @@ import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
 import { getQualityLabel } from "@/utils/quality";
 import * as player from "@/core/player";
+import { isPlatform } from "@shared/types/platform";
 
 withDefaults(defineProps<{ cover?: boolean }>(), { cover: false });
 
@@ -13,10 +14,11 @@ const media = useMediaStore();
 const settings = useSettingsStore();
 
 /** 是否支持切换在线音质 */
-const canSwitchQuality = computed(() => media.track?.source === "netease" && !media.track?.cloud);
+const canSwitchQuality = computed(() => isPlatform(media.track?.source) && !media.track?.cloud);
 
-/** 实际播放音质 */
-const qualityLabel = computed(() => getQualityLabel(media.detail?.quality));
+/** 实际播放音质；详情加载前使用歌曲自身的音质信息。 */
+const quality = computed(() => media.detail?.quality ?? media.track?.quality);
+const qualityLabel = computed(() => getQualityLabel(quality.value));
 
 /** 音质偏好下拉选项 */
 const qualityOptions = computed<SSelectOption[]>(() => [
@@ -39,7 +41,7 @@ const onQualityChange = (value: string | number | boolean): void => {
 
 <template>
   <SPopselect
-    v-if="canSwitchQuality && media.detail?.quality"
+    v-if="canSwitchQuality && media.track"
     :model-value="settings.player.songLevel"
     :options="qualityOptions"
     side="top"
@@ -77,7 +79,7 @@ const onQualityChange = (value: string | number | boolean): void => {
     </template>
   </SPopselect>
   <STooltip
-    v-else-if="media.detail?.quality"
+    v-else-if="media.track"
     :content="t('settings.songLevel.unsupportedHint')"
     :side-offset="16"
     side="top"

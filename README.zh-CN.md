@@ -70,10 +70,10 @@ pnpm build         # 完整构建：清理 → 原生模块 → 类型检查 →
 
 pnpm build:win     # 打包 Windows
 pnpm build:mac     # 打包 macOS
-pnpm build:linux   # 打包 Linux
+pnpm build:linux   # 打包 Linux（AppImage / deb / rpm / tar.gz / pacman）
 ```
 
-> 默认仅构建当前架构。如需指定架构，可追加参数，例如 `pnpm build:win --x64 --arm64`。
+> 默认仅构建当前架构，暂不支持交叉编译。
 
 ### 其他脚本
 

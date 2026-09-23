@@ -1,15 +1,29 @@
 import { store } from "@main/store";
 import { systemLog } from "@main/utils/logger";
-import { fetch as undiciFetch, ProxyAgent, Socks5ProxyAgent } from "undici";
+import { fetch as undiciFetch, Agent, ProxyAgent, Socks5ProxyAgent } from "undici";
 import type { Dispatcher } from "undici";
+import crypto from "node:crypto";
 
 const PROXY_TEST_URL = "https://www.baidu.com";
 
 let proxyAgent: Dispatcher | null = null;
 let proxyAgentUrl = "";
+let defaultDispatcher: Dispatcher | null = null;
 
 const isManualProxyProtocol = (value: string): value is "http" | "https" | "socks5" =>
   value === "http" || value === "https" || value === "socks5";
+
+/** 默认直连 dispatcher（允许 legacy renegotiation） */
+const getDefaultDispatcher = (): Dispatcher => {
+  if (!defaultDispatcher) {
+    defaultDispatcher = new Agent({
+      connect: {
+        secureOptions: crypto.constants.SSL_OP_LEGACY_SERVER_CONNECT,
+      },
+    });
+  }
+  return defaultDispatcher;
+};
 
 /** 当前手动代理地址；off 或配置无效时返回 null，保持原生直连行为 */
 export const getNetworkProxyUrl = (): string | null => {
@@ -21,9 +35,9 @@ export const getNetworkProxyUrl = (): string | null => {
   return `${config.protocol}://${host}:${port}`;
 };
 
-const getProxyDispatcher = (): Dispatcher | undefined => {
+const getProxyDispatcher = (): Dispatcher => {
   const url = getNetworkProxyUrl();
-  if (!url) return undefined;
+  if (!url) return getDefaultDispatcher();
   if (!proxyAgent || proxyAgentUrl !== url) {
     proxyAgent?.close().catch(() => {});
     proxyAgent = url.startsWith("socks5://") ? new Socks5ProxyAgent(url) : new ProxyAgent(url);
@@ -33,10 +47,9 @@ const getProxyDispatcher = (): Dispatcher | undefined => {
   return proxyAgent;
 };
 
-/** Node fetch 包装：关闭代理时完全等价于原生 fetch，开启代理时才注入 dispatcher */
+/** Node fetch 包装：统一使用 undici 并注入支持 legacy SSL 的 dispatcher */
 export const fetchWithProxy = (input: string | URL, init?: RequestInit): Promise<Response> => {
   const dispatcher = getProxyDispatcher();
-  if (!dispatcher) return fetch(input, init);
   return undiciFetch(input, { ...(init as RequestInit), dispatcher } as Parameters<
     typeof undiciFetch
   >[1]) as unknown as Promise<Response>;

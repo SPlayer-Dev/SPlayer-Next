@@ -7,7 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const src = path.join(root, "USER_AGREEMENT.md");
+const src = path.join(root, "docs", "agreement.md");
 const outDir = path.join(root, "build");
 const out = path.join(outDir, "license.txt");
 

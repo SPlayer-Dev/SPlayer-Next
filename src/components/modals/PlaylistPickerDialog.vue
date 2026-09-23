@@ -31,7 +31,7 @@ interface PickerEntry {
 /** 当前 mode 下的歌单 */
 const entries = computed<PickerEntry[]>(() => {
   if (props.mode === "local") {
-    return playlistStore.playlists.map((pl) => ({
+    return playlistStore.localPlaylists.map((pl) => ({
       id: pl.id,
       name: pl.title,
       cover: pl.cover,
@@ -128,5 +128,5 @@ const handlePick = async (playlistId: string): Promise<void> => {
       <SButton variant="tertiary" @click="close">{{ t("common.cancel") }}</SButton>
     </template>
   </SDialog>
-  <PlaylistCreateDialog v-model:open="createDialogOpen" :mode="mode" lock-type />
+  <PlaylistCreateDialog v-model:open="createDialogOpen" :mode="mode" />
 </template>

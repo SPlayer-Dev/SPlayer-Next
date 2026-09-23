@@ -2,7 +2,7 @@ import { useSettingsStore } from "@/stores/settings";
 import { useMediaStore } from "@/stores/media";
 
 /** 悬浮播放栏底部留白 */
-export const PLAYER_BAR_GAP = 112;
+const PLAYER_BAR_GAP = 112;
 
 /**
  * 悬浮播放栏状态
@@ -16,5 +16,5 @@ export const useFloatingPlayerBar = () => {
     () => settings.appearance.layoutMode === "floating" && !!media.track,
   );
 
-  return { isFloatingBar };
+  return { isFloatingBar, PLAYER_BAR_GAP };
 };

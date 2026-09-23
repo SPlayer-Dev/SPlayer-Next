@@ -33,6 +33,14 @@ export enum ErrorCode {
   URL_RESOLVE_FAILED = "URL_RESOLVE_FAILED",
   /** 未找到支持该平台的插件 */
   NO_PLUGIN_AVAILABLE = "NO_PLUGIN_AVAILABLE",
+  /** 在线平台登录态已失效 */
+  NETEASE_LOGIN_EXPIRED = "NETEASE_LOGIN_EXPIRED",
+  /** 在线歌曲需要会员或单独购买 */
+  NETEASE_VIP_REQUIRED = "NETEASE_VIP_REQUIRED",
+  /** 在线歌曲仅有试听源且试听播放被禁用 */
+  NETEASE_TRIAL_DISABLED = "NETEASE_TRIAL_DISABLED",
+  /** 在线歌曲暂无可用官方音源 */
+  NETEASE_UNAVAILABLE = "NETEASE_UNAVAILABLE",
 
   // 标签编辑相关
   /** 读取文件标签失败 */
@@ -53,6 +61,8 @@ export enum ErrorCode {
   // 通用
   /** 加载已被更新的 load/stop 取代（快速切歌、停止），属正常竞态结果，前端静默处理 */
   LOAD_SUPERSEDED = "LOAD_SUPERSEDED",
+  /** 连续播放失败达到上限 */
+  MAX_CONSECUTIVE_FAILURES = "MAX_CONSECUTIVE_FAILURES",
   /** 未知错误 */
   UNKNOWN = "UNKNOWN",
 }

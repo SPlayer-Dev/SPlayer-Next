@@ -2,14 +2,7 @@ import type { Component } from "vue";
 
 /** 设置项控件类型 */
 export type SettingWidgetType =
-  | "switch"
-  | "select"
-  | "slider"
-  | "color"
-  | "button"
-  | "custom"
-  | "text"
-  | "number";
+  "switch" | "select" | "slider" | "color" | "button" | "custom" | "text" | "number";
 
 /** 选择项 */
 export interface SettingOption {
@@ -76,10 +69,14 @@ export interface SettingItem {
   action?: (value?: unknown) => void | Promise<void>;
   /** custom 类型的组件 */
   component?: Component;
+  /** custom 类型组件的属性 */
+  componentProps?: Record<string, unknown>;
   /** custom：独占整行 */
   fullWidth?: boolean;
   /** 搜索用额外关键词（i18n keys） */
   keywords?: string[];
+  /** 是否参与设置搜索，默认 true */
+  searchable?: boolean;
   /** 子项 */
   children?: SettingItem[];
   /** 子项展开条件 */
@@ -103,6 +100,8 @@ export interface SettingSection {
   items: SettingItem[];
   /** 标题旁的徽标 */
   tag?: SettingTag;
+  /** 条件隐藏分区 */
+  visible?: () => boolean;
 }
 
 /** 设置分类 */

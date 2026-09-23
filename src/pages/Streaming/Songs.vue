@@ -1,9 +1,9 @@
 <script setup lang="ts">
+defineOptions({ name: "StreamingSongs" });
+
 import { useStreamingStore } from "@/stores/streaming";
 import SongList from "@/components/list/SongList.vue";
 import * as player from "@/core/player";
-import IconLucidePlay from "~icons/lucide/play";
-import IconLucideSearch from "~icons/lucide/search";
 
 const { t } = useI18n();
 const streaming = useStreamingStore();
@@ -12,13 +12,13 @@ const { songs, loading, isConnected } = storeToRefs(streaming);
 const refreshKey = inject<{ value: number }>("streamingRefreshKey", { value: 0 });
 const searchQuery = ref("");
 
-const refresh = (): void => {
+const refresh = (force = false): void => {
   if (!isConnected.value) return;
-  streaming.fetchSongs();
+  streaming.refreshLibrary(force);
 };
 
 // 父组件按刷新按钮时触发
-watch(refreshKey, refresh);
+watch(refreshKey, () => refresh(true));
 // 连接成功时自动拉
 watch(isConnected, (v) => v && refresh());
 // 首次挂载：已连接且数据为空才拉（store 有缓存就直接显示，避免重复请求）
@@ -53,6 +53,7 @@ const handlePlayAll = (): void => {
         clearable
         round
         class="w-40 focus-within:w-56"
+        data-search-input
       >
         <template #prefix>
           <IconLucideSearch class="size-4 text-on-surface-variant/40 shrink-0" />
@@ -62,9 +63,12 @@ const handlePlayAll = (): void => {
     <div v-if="songs.length > 0" class="flex-1 min-h-0">
       <SongList :items="songs" :search-query="searchQuery" source="streaming" />
     </div>
-    <div v-else class="flex-1 flex items-center justify-center text-on-surface-variant/50">
-      <div class="text-sm">
-        {{ loading ? t("common.loading") : t("streaming.empty.noResults") }}
+    <div v-else class="flex-1 flex items-center justify-center">
+      <div class="text-center text-on-surface-variant/60">
+        <IconLucideMusic class="size-12 mx-auto mb-3 opacity-30" />
+        <div class="text-sm">
+          {{ loading ? t("common.loading") : t("streaming.empty.noResults") }}
+        </div>
       </div>
     </div>
   </div>

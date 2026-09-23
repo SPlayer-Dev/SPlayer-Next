@@ -15,6 +15,11 @@ const mediaSourceCategory: SettingCategory = {
           binding: { store: "settings", path: "system.streaming.enabled" },
           defaultValue: true,
         },
+      ],
+    },
+    {
+      id: "mediaServerManagement",
+      items: [
         {
           key: "streamingServerList",
           type: "custom",

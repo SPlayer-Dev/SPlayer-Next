@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { Track, Artist, Album, AudioQuality } from "@shared/types/player";
 import type { AlbumSummary, ArtistSummary } from "@shared/types/library";
+import type { LibraryStats } from "@shared/types/stats";
 import { getDb } from "./index";
 
 /** 数据库行类型 */
@@ -199,9 +200,17 @@ export const getCueTrackPathsByDirs = (dirs: string[]): string[] => {
 export const deleteTracksByPaths = (paths: string[]): void => {
   if (paths.length === 0) return;
   const d = getDb();
+  const removeMemberships = d.prepare(
+    `DELETE FROM playlist_tracks
+     WHERE playlist_id IN (SELECT id FROM playlists WHERE type = 'local')
+       AND track_id IN (
+         SELECT id FROM tracks WHERE path = ? OR cue_audio_path = ? OR cue_path = ?
+       )`,
+  );
   const stmt = d.prepare("DELETE FROM tracks WHERE path = ? OR cue_audio_path = ? OR cue_path = ?");
   const tx = d.transaction(() => {
     for (const p of paths) {
+      removeMemberships.run(p, p, p);
       stmt.run(p, p, p);
     }
   });
@@ -223,9 +232,22 @@ export const searchTracks = (query: string): Track[] => {
 /** 删除指定目录下的所有曲目 */
 export const deleteTracksByDir = (dir: string): void => {
   const prefix = dir.endsWith("/") || dir.endsWith("\\") ? dir : dir + path.sep;
-  getDb()
-    .prepare("DELETE FROM tracks WHERE path LIKE ? OR cue_path LIKE ? OR cue_audio_path LIKE ?")
-    .run(prefix + "%", prefix + "%", prefix + "%");
+  const patterns = [prefix + "%", prefix + "%", prefix + "%"];
+  const database = getDb();
+  database.transaction(() => {
+    database
+      .prepare(
+        `DELETE FROM playlist_tracks
+         WHERE playlist_id IN (SELECT id FROM playlists WHERE type = 'local')
+           AND track_id IN (
+             SELECT id FROM tracks WHERE path LIKE ? OR cue_path LIKE ? OR cue_audio_path LIKE ?
+           )`,
+      )
+      .run(...patterns);
+    database
+      .prepare("DELETE FROM tracks WHERE path LIKE ? OR cue_path LIKE ? OR cue_audio_path LIKE ?")
+      .run(...patterns);
+  })();
 };
 
 /** 专辑列表 */
@@ -293,6 +315,58 @@ export const getArtistTracks = (artistName: string): Track[] => {
     )
     .all(artistName) as TrackRow[];
   return rows.map(rowToTrack);
+};
+
+/** 音乐库统计概览：数量、总时长/大小与格式分布 */
+export const getLibraryStats = (): LibraryStats => {
+  const d = getDb();
+  const aggregate = d
+    .prepare(
+      `SELECT COUNT(*) AS trackCount,
+              COALESCE(SUM(duration), 0) AS totalDurationMs,
+              COALESCE(SUM(file_size), 0) AS totalFileSize
+       FROM tracks
+       WHERE ${excludeCueContainer()}`,
+    )
+    .get() as { trackCount: number; totalDurationMs: number; totalFileSize: number };
+
+  const albumRow = d
+    .prepare(
+      `SELECT COUNT(DISTINCT json_extract(album, '$.name')) AS count
+       FROM tracks
+       WHERE album IS NOT NULL AND json_extract(album, '$.name') IS NOT NULL
+         AND ${excludeCueContainer()}`,
+    )
+    .get() as { count: number };
+
+  const artistRow = d
+    .prepare(
+      `SELECT COUNT(DISTINCT json_extract(a.value, '$.name')) AS count
+       FROM tracks t, json_each(t.artists) a
+       WHERE json_extract(a.value, '$.name') IS NOT NULL
+         AND TRIM(json_extract(a.value, '$.name')) != ''
+         AND ${excludeCueContainer("t.path")}`,
+    )
+    .get() as { count: number };
+
+  const codecs = d
+    .prepare(
+      `SELECT COALESCE(codec, '') AS codec, COUNT(*) AS count
+       FROM tracks
+       WHERE ${excludeCueContainer()}
+       GROUP BY codec
+       ORDER BY count DESC, codec`,
+    )
+    .all() as { codec: string; count: number }[];
+
+  return {
+    trackCount: aggregate.trackCount,
+    albumCount: albumRow.count,
+    artistCount: artistRow.count,
+    totalDurationMs: aggregate.totalDurationMs,
+    totalFileSize: aggregate.totalFileSize,
+    codecs,
+  };
 };
 
 /** 按 ID 批量获取曲目 */

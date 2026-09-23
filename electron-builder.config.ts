@@ -1,12 +1,46 @@
 import type { Configuration } from "electron-builder";
+import { readFileSync } from "node:fs";
+import { SUPPORTED_AUDIO_EXTENSIONS } from "./shared/utils/audioFile";
+
+/** 音频后缀注册为文件关联 */
+const fileAssociations = [...SUPPORTED_AUDIO_EXTENSIONS].map((extension) => {
+  const ext = extension.slice(1);
+  return {
+    ext,
+    description: `${ext.toUpperCase()} Audio File`,
+    role: "Viewer" as const,
+  };
+});
+
+const packageVersion = JSON.parse(readFileSync("package.json", "utf8")).version as string;
+const prereleaseChannel = /-(alpha|beta|nightly)(?:\.|$)/.exec(packageVersion)?.[1];
+const inferredUpdateChannel = prereleaseChannel ?? "latest";
+const updateChannel = process.env.UPDATE_CHANNEL ?? inferredUpdateChannel;
+
+if (
+  updateChannel !== "latest" &&
+  updateChannel !== "beta" &&
+  updateChannel !== "alpha" &&
+  updateChannel !== "nightly"
+) {
+  throw new Error(`不支持的更新通道: ${updateChannel}`);
+}
+if (packageVersion.includes("-") && !prereleaseChannel) {
+  throw new Error(`不支持的预发布版本格式: ${packageVersion}`);
+}
+if (updateChannel !== inferredUpdateChannel) {
+  throw new Error(`版本 ${packageVersion} 与更新通道 ${updateChannel} 不匹配`);
+}
 
 const config: Configuration = {
   appId: "top.imsyy.splayer-next",
   productName: "SPlayer-Next",
   copyright: "Copyright © imsyy 2025",
   directories: { buildResources: "public" },
-  // afterPack: "./scripts/after-pack.ts",
+  fileAssociations,
+  afterPack: "./scripts/after-pack.ts",
   compression: "maximum",
+  generateUpdatesFilesForAllChannels: true,
   files: [
     "public/**",
     "out/**",
@@ -23,8 +57,9 @@ const config: Configuration = {
     "!{components.d.ts,auto-imports.d.ts}",
     "!{.env,.env.*,.npmrc,pnpm-lock.yaml}",
     "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}",
-    "!**/*.{d.ts,map,md}",
-    "!**/{CHANGELOG,LICENSE,license,README,readme}*",
+    "!**/*.{d.ts,ts,map,md}",
+    "!**/{CHANGELOG,README,readme}*",
+    "!**/node_modules/better-sqlite3/{deps,src}/**",
   ],
   // 保留的语言
   electronLanguages: ["zh-CN", "en-US"],
@@ -34,6 +69,16 @@ const config: Configuration = {
       from: "native/audio-engine",
       to: "native",
       filter: ["*.node"],
+    },
+    {
+      from: "native/audio-capture",
+      to: "native",
+      filter: ["*.node"],
+    },
+    {
+      from: "resources/afp",
+      to: "afp",
+      filter: ["afp.mjs", "afp.wasm.mjs"],
     },
     {
       from: "native/media-ctrl",
@@ -49,6 +94,17 @@ const config: Configuration = {
       from: "native/taskbar-thumbnail",
       to: "native",
       filter: ["*.node"],
+    },
+    {
+      from: "native/opencc",
+      to: "native",
+      filter: ["*.node"],
+    },
+  ],
+  extraFiles: [
+    {
+      from: "LICENSE",
+      to: "LICENSE",
     },
   ],
   win: {
@@ -105,12 +161,25 @@ const config: Configuration = {
     artifactName: "${name}-${version}-${arch}.${ext}",
     maintainer: "imsyy.top",
     category: "Audio;Music;AudioVideo;",
-    target: ["AppImage", "deb", "rpm", "tar.gz"],
+    target: ["AppImage", "deb", "rpm", "tar.gz", "pacman"],
     syncDesktopName: true,
     desktop: { entry: { MimeType: "x-scheme-handler/orpheus;" } },
   },
   appImage: {
     artifactName: "${name}-${version}-${arch}.${ext}",
+  },
+  pacman: {
+    artifactName: "${name}-${version}-${arch}.${ext}",
+    depends: [
+      "gtk3",
+      "libnotify",
+      "nss",
+      "libxss",
+      "libxtst",
+      "xdg-utils",
+      "at-spi2-core",
+      "libsecret",
+    ],
   },
   npmRebuild: false,
   electronDownload: {
@@ -120,6 +189,7 @@ const config: Configuration = {
     provider: "github",
     owner: "SPlayer-Dev",
     repo: "SPlayer-Next",
+    channel: updateChannel,
   },
 };
 

@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { marked } from "marked";
-import agreementRaw from "@root/USER_AGREEMENT.md?raw";
+import agreementRaw from "@root/docs/agreement.md?raw";
 import IconFileText from "~icons/lucide/file-text";
 import IconChevronLeft from "~icons/lucide/chevron-left";
 import IconArrowRight from "~icons/lucide/arrow-right";
+import IconLogOut from "~icons/lucide/log-out";
 
 const { t } = useI18n();
-const emit = defineEmits<{ (e: "next"): void; (e: "back"): void }>();
+const emit = defineEmits<{ (e: "next"): void; (e: "back"): void; (e: "reject"): void }>();
 const props = withDefaults(
   defineProps<{ variant?: "onboarding" | "update"; loading?: boolean }>(),
   {
@@ -85,6 +86,10 @@ const handleContinue = (): void => {
       <SButton v-if="!isUpdate" variant="ghost" round :disabled="loading" @click="emit('back')">
         <template #icon><IconChevronLeft /></template>
         {{ t("onboarding.back") }}
+      </SButton>
+      <SButton v-else variant="secondary" round :disabled="loading" @click="emit('reject')">
+        <template #icon><IconLogOut /></template>
+        {{ t("agreementUpdate.reject") }}
       </SButton>
       <div class="flex-1" />
       <SButton

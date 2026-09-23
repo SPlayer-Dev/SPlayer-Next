@@ -25,7 +25,7 @@ export {
   getDesktopLyricWindow,
   applyDesktopLyricLock,
   applyDesktopLyricAlwaysOnTop,
-  applyDesktopLyricMouseIgnore,
+  applyDesktopLyricUnlockButtonBounds,
   applyDesktopLyricHeight,
   moveDesktopLyricWindow,
   saveDesktopLyricState,
@@ -37,6 +37,7 @@ export {
   getDynamicIslandWindow,
   applyDynamicIslandAlwaysOnTop,
   applyDynamicIslandHeight,
+  applyDynamicIslandShape,
   applyDynamicIslandWidth,
   applyDynamicIslandSnapCentered,
   applyDynamicIslandNotchFusion,
@@ -50,6 +51,7 @@ export {
   toggleTaskbarLyricWindow,
   getTaskbarLyricWindow,
   applyTaskbarLyricLayout,
+  updateTaskbarLyricContentWidth,
 } from "./taskbarLyric";
 
 /** 恢复歌词相关窗口 */

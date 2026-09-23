@@ -23,15 +23,19 @@ const playlistTracks: NeteaseModule = async (query, request) => {
     trackIds: JSON.stringify(ids),
     imme: "true",
   });
+  const isAdd = query.op === "add";
   try {
     return await request("/api/playlist/manipulate/tracks", buildData(tracks), createOption(query));
   } catch (err) {
-    if (err instanceof NeteaseRequestError && err.response.body?.code === 512) {
-      return request(
-        "/api/playlist/manipulate/tracks",
-        buildData([...tracks, ...tracks]),
-        createOption(query),
-      );
+    if (isAdd && err instanceof NeteaseRequestError) {
+      const code = Number(err.response.body?.code ?? err.response.status);
+      if (code !== 200) {
+        return request(
+          "/api/playlist/manipulate/tracks",
+          buildData([...tracks, ...tracks]),
+          createOption(query),
+        );
+      }
     }
     throw err;
   }

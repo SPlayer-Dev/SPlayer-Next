@@ -70,11 +70,10 @@ pnpm build         # Full build: clean → native → typecheck → electron-vit
 
 pnpm build:win     # Package for Windows
 pnpm build:mac     # Package for macOS
-pnpm build:linux   # Package for Linux
+pnpm build:linux   # Package for Linux (AppImage / deb / rpm / tar.gz / pacman)
 ```
 
-> By default a build targets the current architecture only. To target specific
-> architectures, append them, e.g. `pnpm build:win --x64 --arm64`.
+> By default a build targets the current architecture only. Cross-compilation is not supported.
 
 ### Other Scripts
 

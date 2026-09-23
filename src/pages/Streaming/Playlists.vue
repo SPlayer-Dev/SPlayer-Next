@@ -1,9 +1,10 @@
 <script setup lang="ts">
+defineOptions({ name: "StreamingPlaylists" });
+
 import type { CoverItem } from "@/types/artist";
 import { useStreamingStore } from "@/stores/streaming";
 import { navigateToPlaylist } from "@/utils/navigate";
 import { playlistToCoverItem } from "@/utils/format/coverItem";
-import CoverList from "@/components/list/CoverList.vue";
 
 const { t } = useI18n();
 const streaming = useStreamingStore();
@@ -11,12 +12,12 @@ const { playlists, loading, isConnected } = storeToRefs(streaming);
 
 const refreshKey = inject<{ value: number }>("streamingRefreshKey", { value: 0 });
 
-const refresh = (): void => {
+const refresh = (force = false): void => {
   if (!isConnected.value) return;
-  streaming.fetchPlaylists();
+  streaming.refreshLibrary(force);
 };
 
-watch(refreshKey, refresh);
+watch(refreshKey, () => refresh(true));
 watch(isConnected, (v) => v && refresh());
 onMounted(() => {
   if (isConnected.value && playlists.value.length === 0) refresh();
@@ -44,9 +45,12 @@ const handleClick = (item: CoverItem): void => {
       :padding-bottom="20"
       @click="handleClick"
     />
-    <div v-else class="h-full flex items-center justify-center text-on-surface-variant/50">
-      <div class="text-sm">
-        {{ loading ? t("common.loading") : t("streaming.empty.noResults") }}
+    <div v-else class="h-full flex items-center justify-center">
+      <div class="text-center text-on-surface-variant/60">
+        <IconLucideListMusic class="size-12 mx-auto mb-3 opacity-30" />
+        <div class="text-sm">
+          {{ loading ? t("common.loading") : t("streaming.empty.noResults") }}
+        </div>
       </div>
     </div>
   </div>

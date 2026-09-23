@@ -1,4 +1,6 @@
 <script setup lang="ts">
+defineOptions({ name: "Folders" });
+
 import type { Track } from "@shared/types/player";
 import type { FolderNode } from "@/types/folder";
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
@@ -234,7 +236,6 @@ onMounted(async () => {
     <PlaylistCreateDialog
       v-model:open="createOpen"
       mode="local"
-      lock-type
       :initial-name="selectedFolder?.name"
       @created="handleCreated"
     />

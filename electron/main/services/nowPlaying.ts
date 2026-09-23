@@ -193,6 +193,27 @@ export const snapshot = (): NowPlayingSnapshot => ({
   sendTimestamp: lastPositionAt || Date.now(),
 });
 
+/** 获取不含完整歌词正文的轻量播放快照 */
+export const lightSnapshot = () => ({
+  track: currentTrack,
+  position: lastPosition,
+  playing,
+  state: playState,
+  speed: playSpeed,
+  lyricOffsetMs: currentLyricOffsetMs,
+  lyricAvailable: currentLyric.length > 0,
+  lyricLineCount: currentLyric.length,
+  sendTimestamp: lastPositionAt || Date.now(),
+});
+
+/** 获取当前曲目的完整歌词快照 */
+export const lyricSnapshot = () => ({
+  trackId: currentTrack?.id ?? null,
+  lyric: currentLyric,
+  source: currentSource,
+  lyricOffsetMs: currentLyricOffsetMs,
+});
+
 /** 清空 */
 export const clear = (): void => {
   currentTrack = null;

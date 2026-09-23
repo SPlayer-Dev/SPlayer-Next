@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Component } from "vue";
+import { usePopupZIndex } from "@/composables/useZIndex";
 
 export interface DropdownMenuItem {
   /** 唯一标识 */
@@ -43,8 +44,19 @@ const emit = defineEmits<{
   select: [key: string];
 }>();
 
+const { zIndex, onOpenChange } = usePopupZIndex();
+
 /** 显示的项 */
-const visibleItems = computed(() => props.items.filter((item) => item.show !== false));
+const visibleItems = computed(() =>
+  props.items
+    .map((item) => {
+      if (item.children) {
+        return { ...item, children: item.children.filter((child) => child.show !== false) };
+      }
+      return item;
+    })
+    .filter((item) => item.show !== false && (item.children?.length ?? 1) > 0),
+);
 
 const handleSelect = (item: DropdownMenuItem): void => {
   if (item.disabled) return;
@@ -54,7 +66,7 @@ const handleSelect = (item: DropdownMenuItem): void => {
 /** 内容区域样式 */
 const contentClass = computed(() =>
   [
-    "z-300 min-w-32 rounded-lg shadow-lg p-1 text-sm data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out",
+    "min-w-32 rounded-lg shadow-lg p-1 text-sm data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out",
     props.cover
       ? "bg-black/55 backdrop-blur-xl backdrop-saturate-160 border border-solid border-white/10"
       : "bg-surface-bright",
@@ -73,7 +85,7 @@ const menuItemClass = computed(() =>
 </script>
 
 <template>
-  <DropdownMenuRoot>
+  <DropdownMenuRoot @update:open="onOpenChange">
     <DropdownMenuTrigger as="div" class="inline-flex">
       <slot name="trigger" />
     </DropdownMenuTrigger>
@@ -85,10 +97,11 @@ const menuItemClass = computed(() =>
         :side-offset="sideOffset"
         :avoid-collisions="true"
         :collision-padding="12"
+        :style="{ zIndex }"
         :class="contentClass"
       >
-        <template v-for="item in visibleItems" :key="item.key">
-          <SDivider v-if="item.separator" class="mx-1.5 my-0.5" />
+        <template v-for="(item, index) in visibleItems" :key="item.key">
+          <SDivider v-if="item.separator && index > 0" class="mx-1.5 my-0.5" />
           <!-- 子菜单 -->
           <DropdownMenuSub v-if="item.children">
             <DropdownMenuSubTrigger :disabled="item.disabled" :class="menuItemClass">
@@ -101,10 +114,11 @@ const menuItemClass = computed(() =>
                 :side-offset="4"
                 :avoid-collisions="true"
                 :collision-padding="12"
+                :style="{ zIndex }"
                 :class="[contentClass, 'max-h-60 overflow-y-auto']"
               >
-                <template v-for="child in item.children" :key="child.key">
-                  <SDivider v-if="child.separator" class="mx-1.5 my-0.5" />
+                <template v-for="(child, childIndex) in item.children" :key="child.key">
+                  <SDivider v-if="child.separator && childIndex > 0" class="mx-1.5 my-0.5" />
                   <DropdownMenuItem
                     v-else
                     :disabled="child.disabled"

@@ -24,6 +24,7 @@ import {
 } from "@main/plugins/playbackBridge";
 import { registerCacheScheme, handleCacheProtocol } from "@main/utils/protocol";
 import { startServer, stopServer } from "@main/server";
+import { startMcpServer, stopMcpServer } from "@main/services/mcp/http";
 import { initUpdater, disposeUpdater } from "@main/services/updater";
 import { coreLog, initLogger } from "@main/utils/logger";
 import {
@@ -31,6 +32,7 @@ import {
   extractOrpheusUrl,
   captureOrpheusUrl,
 } from "@main/services/orpheus";
+import { extractAudioFiles, captureAudioFiles } from "@main/services/externalFile";
 
 /**
  * 配置 Chromium 启动参数以优化内存占用
@@ -81,18 +83,21 @@ export const initApp = (): void => {
     return;
   }
   app.on("second-instance", (_event, commandLine) => {
-    const win = BrowserWindow.getAllWindows()[0];
-    if (win) {
-      if (win.isMinimized()) win.restore();
-      win.focus();
-    }
+    focusMainWindow();
     const url = extractOrpheusUrl(commandLine);
     if (url) captureOrpheusUrl(url);
+    const files = extractAudioFiles(commandLine);
+    if (files.length > 0) captureAudioFiles(files);
   });
   // macOS 通过 open-url 接收协议唤起
   app.on("open-url", (event, url) => {
     event.preventDefault();
     captureOrpheusUrl(url);
+  });
+  // macOS 通过 open-file 接收外部文件打开
+  app.on("open-file", (event, path) => {
+    event.preventDefault();
+    captureAudioFiles([path]);
   });
   // 注册缓存协议方案
   registerCacheScheme();
@@ -106,14 +111,16 @@ export const initApp = (): void => {
     });
     // 注册 IPC
     registerIpcHandlers();
+    // 初始化数据库
+    initDatabase();
     // 创建主窗口
     createMainWindow();
     // 注册 orpheus 协议并处理冷启动唤起
     initOrpheusRegistration();
     const coldOrpheusUrl = extractOrpheusUrl(process.argv);
     if (coldOrpheusUrl) captureOrpheusUrl(coldOrpheusUrl);
-    // 初始化数据库
-    initDatabase();
+    const coldAudioFiles = extractAudioFiles(process.argv);
+    if (coldAudioFiles.length > 0) captureAudioFiles(coldAudioFiles);
     // 启动歌曲缓存
     void initSongCache();
     // 启动下载服务
@@ -131,6 +138,8 @@ export const initApp = (): void => {
     initGlobalHotkey();
     // 启动外部 API 服务
     void startServer();
+    // 启动 AI 集成 MCP 服务
+    void startMcpServer();
     // 初始化自动更新
     initUpdater();
     // 周期记录各进程内存
@@ -158,6 +167,7 @@ export const initApp = (): void => {
     shutdownMedia();
     closeDatabase();
     void stopServer();
+    void stopMcpServer();
     void pluginRegistry.shutdown();
     disposePlaybackBridge();
     disposeUpdater();
