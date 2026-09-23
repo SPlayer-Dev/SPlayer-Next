@@ -51,6 +51,7 @@ mod events;
 mod load;
 mod preload;
 mod seek;
+mod transition;
 mod types;
 pub use types::*;
 

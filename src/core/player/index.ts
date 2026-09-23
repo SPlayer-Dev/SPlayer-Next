@@ -1,4 +1,4 @@
-import type { PlaybackContext, Track } from "@shared/types/player";
+import type { IpcResponse, LoadResult, PlaybackContext, Track } from "@shared/types/player";
 import type { TagEditRequest, TagWriteOutcome } from "@shared/types/tagEditor";
 import type { PersonalFmOptions } from "@/types/netease";
 import { handleEvent } from "./events";
@@ -16,6 +16,7 @@ import * as playback from "@/services/playback";
 import * as lyricLoader from "@/services/lyric/loader";
 import * as coverLoader from "@/services/coverLoader";
 import * as abLoop from "@/services/abLoop";
+import * as autoClose from "@/services/autoClose";
 import * as cacheScheduler from "@/services/cacheScheduler";
 import { getDeviceVolume, setDeviceVolume } from "@/services/deviceVolume";
 import { resolveTrackSource, type ResolvedTrackSource } from "@/services/audioSource";
@@ -23,9 +24,11 @@ import {
   consumePreloadedTrack,
   disposeNextTrackPreload,
   installNextTrackPreloadWatchers,
+  peekPreparedTrack,
   scheduleNextTrackPreload,
 } from "@/services/nextTrackPreloader";
-import { installPlayStats } from "./stats";
+import { getNextTrackCandidate } from "./candidate";
+import { installPlayStats, onTrackEnded } from "./stats";
 import { useFavorite } from "@/composables/useFavorite";
 import { extractColorFromUrl } from "@/utils/color";
 import { handleError, isSkippableError } from "@/utils/errors";
@@ -42,6 +45,8 @@ interface LoadRuntimeOptions {
   suppressErrorToast?: boolean;
   /** 本次播放的来源上下文 */
   context?: PlaybackContext;
+  /** 原生交叉过渡已经完成时直接应用其元数据 */
+  transitionResult?: IpcResponse<LoadResult>;
 }
 
 /** 单次音源兜底过程的重试状态 */
@@ -67,6 +72,7 @@ type LoadSourceResult =
 let loadToken = 0;
 /** loadTrack 竞态 token */
 let trackToken = 0;
+let transitionInFlight = false;
 /** 连续加载失败计数，成功时重置 */
 let consecutiveFailures = 0;
 /** 连续失败硬上限 */
@@ -153,12 +159,14 @@ export const load = async (
     if (meta) void coverLoader.loadCoverForTrack(meta);
   }
   try {
-    const result = await window.api.player.load(source, {
-      autoPlay,
-      meta,
-      context: options.context,
-      preparedId: options.preparedId,
-    });
+    const result =
+      options.transitionResult ??
+      (await window.api.player.load(source, {
+        autoPlay,
+        meta,
+        context: options.context,
+        preparedId: options.preparedId,
+      }));
     // 竞态保护
     if (token !== loadToken) return { ok: false };
     if (result.success && result.data) {
@@ -302,6 +310,8 @@ const loadTrack = async (
   track: Track | null,
   context?: PlaybackContext,
   autoPlay = true,
+  transitionResult?: IpcResponse<LoadResult>,
+  transitionSource?: ResolvedTrackSource,
 ): Promise<void> => {
   if (!track) return;
   // 跳过指定关键词歌曲
@@ -323,19 +333,29 @@ const loadTrack = async (
   lyricLoader.beginLoad();
   resetForLoad(track.duration ?? 0);
   // 已准备的槽位由原生 load 接管；提前 stop 会连同备用槽一起释放
-  if (!preloaded?.preparedId) void window.api.player.stop();
+  if (!transitionResult && !preloaded?.preparedId) void window.api.player.stop();
   // 是否可跳曲
   let shouldSkip = false;
   try {
-    const loaded = await loadTrackSourceWithFallback(
-      track,
-      context,
-      autoPlay,
-      () => myToken === trackToken,
-      false,
-      preloaded?.source,
-      preloaded?.preparedId,
-    );
+    const loaded: LoadSourceResult =
+      transitionResult && transitionSource
+        ? {
+            status: "loaded",
+            result: await load(transitionSource.source, true, track, {
+              context,
+              transitionResult,
+            }),
+            resolved: transitionSource,
+          }
+        : await loadTrackSourceWithFallback(
+            track,
+            context,
+            autoPlay,
+            () => myToken === trackToken,
+            false,
+            preloaded?.source,
+            preloaded?.preparedId,
+          );
     if (loaded.status === "cancelled") return;
     if (loaded.status === "unresolved") {
       const status = useStatusStore();
@@ -853,6 +873,80 @@ export const nextTrack = async (autoPlay = true): Promise<void> => {
     status.playIndex++;
   }
   await loadTrack(status.currentTrack, status.currentPlaybackContext, autoPlay);
+};
+
+/** 当前曲目是否已提交原生交叉过渡 */
+export const isSmartTransitionActive = (): boolean => transitionInFlight;
+
+/**
+ * 在当前曲目尾部尝试以备用槽位进行自动交接
+ * @param positionMs - 当前曲目的展示位置
+ */
+export const trySmartTransition = async (positionMs: number): Promise<void> => {
+  const settings = useSettingsStore();
+  const status = useStatusStore();
+  if (
+    transitionInFlight ||
+    settings.player.transitionMode !== "crossfade" ||
+    !status.isPlaying ||
+    status.trackLoading ||
+    status.fmMode ||
+    status.repeatMode === "one" ||
+    status.abLoop.enable ||
+    autoClose.shouldStopAfterCurrentTrack()
+  ) {
+    return;
+  }
+  const remainingMs = status.duration - positionMs;
+  if (!Number.isFinite(remainingMs) || remainingMs > 6000 || remainingMs < 1000) return;
+  const candidate = getNextTrackCandidate({
+    playIndex: status.playIndex,
+    queue: queue.queue.value,
+    fmMode: status.fmMode,
+    skipKeywordsSongs: settings.preset.skipKeywordsSongs,
+    skipTrackKeywords: settings.preset.skipTrackKeywords,
+    shuffleMode: status.shuffleMode,
+  });
+  if (!candidate) return;
+  const prepared = peekPreparedTrack(candidate.track);
+  if (!prepared?.preparedId || !prepared.source) return;
+  const oldIndex = status.playIndex;
+  const oldTrackId = status.currentTrack?.id;
+  const token = trackToken;
+  transitionInFlight = true;
+  try {
+    const result = await window.api.player.transitionPrepared(
+      prepared.preparedId,
+      prepared.source.source,
+      remainingMs / Math.max(status.speed, 0.1),
+      {
+        meta: candidate.track,
+        context: status.currentPlaybackContext,
+        autoPlay: true,
+      },
+    );
+    if (token !== trackToken) return;
+    if (!result.success || !result.data) {
+      if (result.error) await nextTrack();
+      return;
+    }
+    if (
+      status.playIndex !== oldIndex ||
+      status.currentTrack?.id !== oldTrackId ||
+      queue.queue.value[candidate.index]?.id !== candidate.track.id ||
+      !consumePreloadedTrack(candidate.track)
+    ) {
+      await nextTrack();
+      return;
+    }
+    onTrackEnded(false);
+    const stopAfterTrack = autoClose.onTrackEnded();
+    status.playIndex = candidate.index;
+    await loadTrack(candidate.track, status.currentPlaybackContext, true, result, prepared.source);
+    if (stopAfterTrack) await pause();
+  } finally {
+    transitionInFlight = false;
+  }
 };
 
 /**

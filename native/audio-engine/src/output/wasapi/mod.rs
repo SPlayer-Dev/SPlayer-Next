@@ -34,7 +34,7 @@ use windows::Win32::System::Com::{
 };
 use windows::Win32::System::Threading::{CreateEventW, SetEvent, WaitForMultipleObjects, INFINITE};
 
-use crate::decoder::source::DecoderSource;
+use crate::decoder::transition_source::TransitionSource as DecoderSource;
 
 /// 渲染等待句柄索引：关闭信号
 const SHUTDOWN_EVENT_INDEX: u32 = 1;

@@ -140,6 +140,17 @@ export const consumePreloadedTrack = (track: Track): NextTrackPreloadResult | nu
 };
 
 /**
+ * 查询与候选曲目匹配的原生备用槽位，不改变其所有权
+ * @param track - 即将交接的目标曲目
+ * @returns 仍有效且原生 PCM 已就绪的预载结果
+ */
+export const peekPreparedTrack = (track: Track): NextTrackPreloadResult | null => {
+  if (!useSettingsStore().player.preloadNextTrack) return null;
+  if (cachedResult?.trackId !== track.id || !cachedResult.preparedId) return null;
+  return cachedResult.contextKey === buildContextKey(track) ? cachedResult : null;
+};
+
+/**
  * 调度下一首预载任务
  */
 export const scheduleNextTrackPreload = (): void => {

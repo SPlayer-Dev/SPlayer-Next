@@ -754,6 +754,7 @@
       "update": "Update",
       "language": "Language",
       "playControl": "Playback Control",
+      "playbackTransition": "Playback Transition",
       "audioSource": "Audio Source",
       "scrobble": "Scrobble",
       "lyricContent": "Lyric Content",
@@ -877,6 +878,12 @@
     "loudnessNormalization": {
       "label": "Loudness Normalization",
       "description": "Automatically balance volume levels between tracks"
+    },
+    "transitionMode": {
+      "label": "Transition mode",
+      "description": "Find the handoff point between tracks automatically; crossfade requires next-track preloading",
+      "none": "No transition",
+      "crossfade": "Crossfade"
     },
     "songLevel": {
       "label": "Online Audio Quality",

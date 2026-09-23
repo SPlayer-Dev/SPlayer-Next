@@ -6,14 +6,16 @@ import SettingsItem from "@/components/settings/SettingsItem.vue";
 import playerCategory from "./player";
 
 const mocks = vi.hoisted(() => ({
-  enabled: false,
+  enabled: false as boolean | string,
   cache: { enabled: false, cacheStreaming: false },
+  player: { preloadNextTrack: false, transitionMode: "none" },
   confirm: vi.fn(),
   setSystem: vi.fn(),
 }));
 vi.mock("@/stores/settings", () => ({
   useSettingsStore: () => ({
     system: { cache: { songCache: mocks.cache } },
+    player: mocks.player,
     setSystem: mocks.setSystem,
   }),
 }));
@@ -22,7 +24,7 @@ vi.mock("@/settings/useSettingModel", () => ({
   useSettingModel: () =>
     computed({
       get: () => mocks.enabled,
-      set: (value: boolean) => {
+      set: (value: boolean | string) => {
         mocks.enabled = value;
       },
     }),
@@ -37,6 +39,9 @@ vi.mock("@/stores/status", () => ({ useStatusStore: () => ({ volume: 1 }) }));
 const item = playerCategory
   .sections!.flatMap((section) => section.items)
   .find((item) => item.key === "preloadNextTrack")!;
+const transitionItem = playerCategory
+  .sections!.flatMap((section) => section.items)
+  .find((item) => item.key === "transitionMode")!;
 const Switch = defineComponent({
   name: "SSwitch",
   emits: ["update:modelValue"],
@@ -45,12 +50,22 @@ const Switch = defineComponent({
     () =>
       h("button", { onClick: () => emit("update:modelValue", true) }, "enable"),
 });
+const Select = defineComponent({
+  name: "SSelect",
+  emits: ["update:modelValue"],
+  setup:
+    (_props, { emit }) =>
+    () =>
+      h("button", { onClick: () => emit("update:modelValue", "crossfade") }, "crossfade"),
+});
 
 describe("开启预载的缓存确认", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.enabled = false;
     mocks.cache = { enabled: false, cacheStreaming: false };
+    mocks.player.preloadNextTrack = false;
+    mocks.player.transitionMode = "none";
     mocks.setSystem.mockResolvedValue(undefined);
   });
 
@@ -87,4 +102,36 @@ describe("开启预载的缓存确认", () => {
     expect(item.confirm!.when!(true)).toBe(false);
     expect(item.confirm!.when!(false)).toBe(false);
   });
+});
+
+describe("播放过渡设置", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.enabled = "none";
+    mocks.cache = { enabled: false, cacheStreaming: false };
+    mocks.player.preloadNextTrack = false;
+    mocks.player.transitionMode = "none";
+    mocks.setSystem.mockResolvedValue(undefined);
+  });
+
+  for (const confirmed of [false, true]) {
+    it(confirmed ? "开启交叉过渡时启用预载和缓存" : "取消确认时保留无过渡", async () => {
+      mocks.confirm.mockResolvedValue(confirmed);
+      const wrapper = mount(SettingsItem, {
+        props: { item: transitionItem },
+        global: {
+          plugins: [
+            createI18n({ legacy: false, locale: "zh-CN", missingWarn: false, fallbackWarn: false }),
+          ],
+          stubs: { SSelect: Select },
+        },
+      });
+      await wrapper.get("button").trigger("click");
+      await flushPromises();
+      expect(mocks.enabled).toBe(confirmed ? "crossfade" : "none");
+      expect(mocks.player.preloadNextTrack).toBe(confirmed);
+      expect(mocks.setSystem).toHaveBeenCalledTimes(confirmed ? 2 : 0);
+      wrapper.unmount();
+    });
+  }
 });

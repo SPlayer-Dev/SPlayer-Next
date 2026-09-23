@@ -98,6 +98,7 @@ impl InnerPlayer {
             Some(s) => Arc::clone(s),
             None => return,
         };
+        let transitioning = Arc::clone(&self.transitioning);
         let cb = match &self.event_callback {
             Some(cb) => Arc::clone(cb),
             None => return,
@@ -132,7 +133,7 @@ impl InnerPlayer {
                 cb(PlayerEvent::Position { position, duration });
 
                 // 检测播放结束：all_consumed 表示输出回调已消费完所有数据
-                if shared.is_all_consumed() {
+                if shared.is_all_consumed() && !transitioning.load(Ordering::Acquire) {
                     // 解码因读取失败中止且距末尾尚远 → 音源失效，前端重新解析地址续播；
                     // 距末尾 3s 内的失败按正常结束处理——Content-Length 偏大的转码源
                     // 在曲尾必然提前 EOF，整曲重载只会带来一轮无意义抖动。

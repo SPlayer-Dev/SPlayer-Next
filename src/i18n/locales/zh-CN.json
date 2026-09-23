@@ -742,6 +742,7 @@
       "update": "更新",
       "language": "语言",
       "playControl": "播放控制",
+      "playbackTransition": "播放过渡",
       "audioSource": "播放音源",
       "scrobble": "听歌打卡",
       "lyricContent": "歌词内容",
@@ -865,6 +866,12 @@
     "loudnessNormalization": {
       "label": "音量均衡",
       "description": "自动调节不同歌曲之间的音量差异"
+    },
+    "transitionMode": {
+      "label": "过渡方式",
+      "description": "自动寻找相邻歌曲的交接点，交叉过渡需要开启下一曲预载",
+      "none": "无过渡",
+      "crossfade": "交叉过渡"
     },
     "songLevel": {
       "label": "在线歌曲音质",

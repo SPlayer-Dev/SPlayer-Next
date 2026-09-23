@@ -34,6 +34,10 @@ impl DecoderSampleReader {
         self.started = self.started || self.shared.output_ready();
         self.underrun = !self.started;
     }
+
+    pub fn is_underrun(&self) -> bool {
+        self.underrun
+    }
 }
 
 impl Iterator for DecoderSampleReader {
@@ -95,6 +99,7 @@ impl Drop for DecoderSampleReader {
 }
 
 /// 解码样本读取器别名，作为播放输出链路的输入类型
+#[cfg(test)]
 pub type DecoderSource = DecoderSampleReader;
 
 #[cfg(test)]

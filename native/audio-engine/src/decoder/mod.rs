@@ -5,6 +5,7 @@ use reader::{build_resamplers, open_source, run_decoding_loop};
 
 pub(crate) mod buffer;
 pub(crate) mod source;
+pub(crate) mod transition_source;
 
 use std::fs::File;
 use std::sync::Arc;

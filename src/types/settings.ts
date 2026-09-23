@@ -266,6 +266,8 @@ export interface PlayerSettings {
   showLyricInBar: boolean;
   /** 播放时提前获取下一首的播放数据 */
   preloadNextTrack: boolean;
+  /** 相邻曲目的播放过渡方式 */
+  transitionMode: "none" | "crossfade";
   /** 搜索页播放行为 */
   searchPlayBehavior: SearchPlayBehavior;
 }

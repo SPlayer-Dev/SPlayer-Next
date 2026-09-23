@@ -11,8 +11,9 @@ const { AudioPlayer } = require(process.env.SPLAYER_AUDIO_ENGINE_MODULE || "../a
  * @param {string} file - 测试音频的写入路径
  * @param {number} sampleRate - 采样率，单位为 Hz
  * @param {number} seconds - 音频时长，单位为秒
+ * @param {number} amplitude - 固定样本幅度，零表示静音
  */
-function writeWav(file, sampleRate, seconds) {
+function writeWav(file, sampleRate, seconds, amplitude = 0) {
   const size = sampleRate * seconds * 4;
   const data = Buffer.alloc(44 + size);
   data.write("RIFF");
@@ -27,8 +28,59 @@ function writeWav(file, sampleRate, seconds) {
   data.writeUInt16LE(16, 34);
   data.write("data", 36);
   data.writeUInt32LE(size, 40);
+  if (amplitude !== 0) {
+    const sample = Math.round(amplitude * 32767);
+    for (let offset = 44; offset < data.length; offset += 2) data.writeInt16LE(sample, offset);
+  }
   fs.writeFileSync(file, data);
 }
+
+for (const exclusive of [false, true]) {
+  test(
+    `同一输出流完成交叉过渡（${exclusive ? "独占" : "共享"}输出）`,
+    { skip: exclusive && process.env.SPLAYER_TEST_EXCLUSIVE !== "1", timeout: 30000 },
+    async (t) => {
+      const directory = fs.mkdtempSync(path.join(os.tmpdir(), "splayer-transition-"));
+      const current = path.join(directory, "current.wav");
+      const next = path.join(directory, "next.wav");
+      const player = new AudioPlayer();
+      t.after(() => {
+        player.stop();
+        fs.rmSync(directory, { recursive: true, force: true });
+      });
+      if (exclusive) await player.setExclusiveMode(true);
+      writeWav(current, 48000, 5);
+      writeWav(next, 44100, 6, 0.1);
+      await player.load(current, true);
+      assert.equal(await player.prepareNext("transition", next), true);
+      const result = await player.transitionToPrepared("transition", next, 4);
+      assert.ok(result, "应在当前输出流中提交下一曲");
+      assert.equal(result.duration, 6);
+      assert.equal(player.getStatus().state, "playing");
+      assert.equal(player.getDuration(), 6);
+      assert.ok(player.getPosition() > 0, "交叉过渡期间下一曲应推进位置");
+    },
+  );
+}
+
+test("停止播放会取消尚未完成的交叉过渡", { timeout: 30000 }, async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "splayer-transition-stop-"));
+  const current = path.join(directory, "current.wav");
+  const next = path.join(directory, "next.wav");
+  const player = new AudioPlayer();
+  t.after(() => {
+    player.stop();
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+  writeWav(current, 48000, 8);
+  writeWav(next, 48000, 8, 0.1);
+  await player.load(current, true);
+  assert.equal(await player.prepareNext("cancelled-transition", next), true);
+  const pending = player.transitionToPrepared("cancelled-transition", next, 6);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  player.stop();
+  assert.equal(await pending, null);
+});
 
 for (const exclusive of [false, true]) {
   test(

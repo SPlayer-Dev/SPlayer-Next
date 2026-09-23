@@ -44,6 +44,7 @@ import type {
 } from "@shared/types/player";
 import type { MediaEvent } from "@main/services/media";
 import { JsPlayerEvent } from "@splayer/audio-engine";
+import type { JsMusicMetadata } from "@splayer/audio-engine";
 
 type AudioEngineModule = typeof import("@splayer/audio-engine");
 
@@ -220,12 +221,123 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
 /** 每次 player:load 自增 */
 let loadSeq = 0;
 
+/**
+ * 在原生加载或交叉交接完成后统一更新媒体信息与播放统计
+ * @param source - 当前曲目的实际音源
+ * @param options - 当前曲目的权威元数据和播放上下文
+ * @param meta - 原生解码器返回的音频信息
+ * @param seq - 用于忽略迟到的高清封面请求
+ * @returns 渲染进程使用的曲目信息
+ */
+const completeTrackLoad = (
+  source: string,
+  options: LoadOptions,
+  meta: JsMusicMetadata,
+  seq: number,
+) => {
+  const authoritative = options.meta ?? null;
+  const autoPlay = options.autoPlay ?? true;
+  const isRemote = authoritative != null && authoritative.source !== "local";
+  const remoteCover = isRemote ? (authoritative.coverOriginal ?? authoritative.cover) : undefined;
+  const coverFetchUrl =
+    remoteCover && /^(https?|streaming-cover):\/\//i.test(remoteCover) ? remoteCover : undefined;
+  const coverUrl = coverFetchUrl && /^https?:\/\//i.test(coverFetchUrl) ? coverFetchUrl : undefined;
+  const durationMs = toDisplayDurationMs(toMs(meta.duration));
+  const displayTitle =
+    authoritative?.title ?? (meta.title || source.split(/[/\\]/).pop() || source);
+  const displayArtists = authoritative
+    ? (authoritative.artists ?? [])
+    : parseArtists(meta.artist ?? "");
+  const displayAlbum = authoritative?.album?.name ?? parseAlbum(meta.album ?? "")?.name ?? "";
+  const localCover = isRemote ? null : (getPlayer().getCoverRaw() ?? null);
+  const artistText = formatArtists(displayArtists);
+  const header = artistText ? `${displayTitle} - ${artistText}` : displayTitle || appName;
+  mediaService.setMetadata({
+    title: displayTitle,
+    artists: artistNames(displayArtists),
+    album: displayAlbum,
+    coverData: localCover ?? undefined,
+    coverUrl,
+    durationMs,
+  });
+  mediaService.setPlayState({ status: autoPlay ? "Playing" : "Paused" });
+  getMainWindow()?.setTitle(header);
+  setTraySongName(header);
+  setTrayPlayState(autoPlay ? "playing" : "paused");
+  if (!isRemote) setTaskbarThumbnailCover(meta.cover);
+  lastfm.onTrackLoaded({
+    title: displayTitle,
+    artist: displayArtists[0]?.name ?? "",
+    album: displayAlbum,
+    durationMs,
+    autoPlay,
+  });
+  neteaseScrobble.onTrackLoaded(authoritative, options.context, durationMs, autoPlay);
+  if (coverFetchUrl) {
+    void fetchBytes(coverFetchUrl).then((buf) => {
+      if (!buf || seq !== loadSeq) return;
+      mediaService.setMetadata({
+        title: displayTitle,
+        artists: artistNames(displayArtists),
+        album: displayAlbum,
+        coverData: buf,
+        coverUrl,
+        durationMs,
+      });
+      setTaskbarThumbnailCover(buf);
+    });
+  }
+  const quality = {
+    sampleRate: meta.originalSampleRate,
+    channels: meta.channels,
+    bitsPerSample: meta.bitsPerSample,
+    bitRate: meta.bitRate,
+    codec: meta.codec,
+  };
+  return {
+    success: true as const,
+    data: {
+      detail: {
+        quality,
+        embeddedLyric: meta.embeddedLyric,
+        externalLyrics: meta.externalLyrics,
+      },
+      mediaInfo: {
+        title: meta.title || displayTitle,
+        artists: authoritative?.artists?.length
+          ? authoritative.artists
+          : parseArtists(meta.artist ?? ""),
+        album: authoritative?.album ?? parseAlbum(meta.album ?? ""),
+        duration: durationMs,
+        cover: isRemote ? undefined : toCacheUrl(meta.cover),
+        quality,
+      },
+    },
+  };
+};
+
 /** 播放器相关 IPC */
 export const registerPlayerIpc = (): void => {
   ipcMain.handle("player:prepareNext", (_event, id: string, source: string, startMs?: number) =>
     prepareNextTrack(id, source, startMs),
   );
   ipcMain.handle("player:cancelPrepared", (_event, id: string) => cancelPreparedTrack(id));
+  ipcMain.handle(
+    "player:transitionPrepared",
+    async (_event, id: string, source: string, remainingMs: number, options: LoadOptions = {}) => {
+      try {
+        const meta = await getPlayer().transitionToPrepared(id, source, remainingMs / 1000);
+        if (!meta) return { success: false };
+        activeCueRange = cueRangeFromTrack(options.meta);
+        const seq = ++loadSeq;
+        cancelPreparedTrack(id);
+        return completeTrackLoad(source, { ...options, autoPlay: true }, meta, seq);
+      } catch (error) {
+        cancelPreparedTrack(id);
+        return fail(ErrorCode.UNKNOWN, error);
+      }
+    },
+  );
   // 注册实例创建/重建时的回调
   onPlayerCreated(registerNativeEvents);
   onPlayerCreated(startDeviceMonitoring);
@@ -244,8 +356,6 @@ export const registerPlayerIpc = (): void => {
     const authoritative = options.meta ?? null;
     const cueRange = cueRangeFromTrack(authoritative);
     activeCueRange = cueRange;
-    // 非本地音源
-    const isRemote = authoritative != null && authoritative.source !== "local";
     const seq = ++loadSeq;
     if (!options.preparedId) cancelPreparedTrack();
     try {
@@ -319,70 +429,8 @@ export const registerPlayerIpc = (): void => {
           await inst.seek(cueRange.startMs / 1000);
         if (autoPlay) await inst.play();
       }
-      const nativeDurationMs = toMs(meta.duration);
-      const durationMs = toDisplayDurationMs(nativeDurationMs);
-      const fallbackTitle = meta.title || source.split(/[/\\]/).pop() || source;
-      const displayTitle = authoritative?.title ?? fallbackTitle;
-      const displayArtists = authoritative
-        ? (authoritative.artists ?? [])
-        : parseArtists(meta.artist ?? "");
-      const displayAlbum = authoritative?.album?.name ?? parseAlbum(meta.album ?? "")?.name ?? "";
-      // 本地封面
-      const localCover = isRemote ? null : (inst.getCoverRaw() ?? null);
-      applyDisplay(displayTitle, displayArtists, displayAlbum, localCover ?? undefined, durationMs);
-      if (!isRemote) setTaskbarThumbnailCover(meta.cover);
-      // Last.fm
-      const primaryArtist = displayArtists[0]?.name ?? "";
-      lastfm.onTrackLoaded({
-        title: displayTitle,
-        artist: primaryArtist,
-        album: displayAlbum,
-        durationMs,
-        autoPlay,
-      });
-      neteaseScrobble.onTrackLoaded(authoritative, options.context, durationMs, autoPlay);
-      // 远端高清封面
-      if (coverFetchUrl) {
-        void fetchBytes(coverFetchUrl).then((buf) => {
-          if (!buf) return;
-          if (seq !== loadSeq) return;
-          mediaService.setMetadata({
-            title: displayTitle,
-            artists: artistNames(displayArtists),
-            album: displayAlbum,
-            coverData: buf,
-            coverUrl,
-            durationMs,
-          });
-          setTaskbarThumbnailCover(buf);
-        });
-      }
-      const quality = {
-        sampleRate: meta.originalSampleRate,
-        channels: meta.channels,
-        bitsPerSample: meta.bitsPerSample,
-        bitRate: meta.bitRate,
-        codec: meta.codec,
-      };
-      const data = {
-        detail: {
-          quality,
-          embeddedLyric: meta.embeddedLyric,
-          externalLyrics: meta.externalLyrics,
-        },
-        mediaInfo: {
-          title: meta.title || displayTitle,
-          artists: authoritative?.artists?.length
-            ? authoritative.artists
-            : parseArtists(meta.artist ?? ""),
-          album: authoritative?.album ?? parseAlbum(meta.album ?? ""),
-          duration: durationMs,
-          cover: isRemote ? undefined : toCacheUrl(meta.cover),
-          quality,
-        },
-      };
-      playerLog.debug(`加载成功: ${displayTitle}`);
-      return { success: true, data };
+      playerLog.debug(`加载成功: ${authoritative?.title ?? meta.title ?? source}`);
+      return completeTrackLoad(source, options, meta, seq);
     } catch (error) {
       if (seq === loadSeq) activeCueRange = null;
       const code = classifyLoadError(error, source);

@@ -16,6 +16,7 @@ use crate::output::playback::PlaybackHandle;
 use crate::output::{AudioOutput, ExclusiveFallbackCallback, OutputFailureCallback};
 
 mod background;
+mod crossfade;
 mod events;
 pub(crate) mod preload;
 mod transition;
@@ -28,6 +29,7 @@ pub use transition::{LoadedPlayback, SeekTake};
 /// 内部播放器，管理音频输出、解码和状态
 pub struct InnerPlayer {
     pub(crate) preload: preload::PreloadSlot,
+    transitioning: Arc<AtomicBool>,
     /// 输出设备与配置句柄（不持有流），保证 InnerPlayer 整体是 Send 的
     output: Option<AudioOutput>,
     /// 使用 Arc 包装，允许 fade 线程在 Mutex 外操作音量
@@ -144,6 +146,7 @@ impl InnerPlayer {
 
         Ok(Self {
             preload: preload::PreloadSlot::default(),
+            transitioning: Arc::new(AtomicBool::new(false)),
             output,
             playback: None,
             shared: None,
@@ -368,6 +371,7 @@ impl InnerPlayer {
     }
 
     fn stop_internal(&mut self) {
+        self.transitioning.store(false, Ordering::Release);
         // 1. 取消渐变并等待渐变线程退出（释放 Arc<Sink>）
         self.cancel_fade();
         // 2. 停止定时器并等待线程退出（释放 Arc<Shared> 和 Arc<EventEmitter>）

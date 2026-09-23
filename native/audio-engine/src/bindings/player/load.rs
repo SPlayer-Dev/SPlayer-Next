@@ -211,7 +211,7 @@ impl AudioPlayer {
     }
 
     /// 内部：将 AudioMetadata 转为 JS 结构
-    fn meta_to_js(meta: crate::metadata::AudioMetadata) -> JsMusicMetadata {
+    pub(super) fn meta_to_js(meta: crate::metadata::AudioMetadata) -> JsMusicMetadata {
         JsMusicMetadata {
             prepared_position: None,
             title: meta.title,

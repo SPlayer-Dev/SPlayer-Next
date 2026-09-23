@@ -16,6 +16,7 @@ import {
   getActiveDeviceId,
   hasReachedSeekTarget,
   insertManyToQueue,
+  isSmartTransitionActive,
   isSeeking,
   markSeek,
   nextTrack,
@@ -28,6 +29,7 @@ import {
   seek,
   setRepeatMode,
   setShuffleMode,
+  trySmartTransition,
 } from "./index";
 
 /** 防止 ended 事件重入 */
@@ -109,9 +111,13 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
       abLoop.checkLoop(adjusted);
       // 推进延时缓存调度
       cacheScheduler.tick(adjusted);
+      void trySmartTransition(adjusted).catch((error) => {
+        console.warn("[player] 播放过渡失败", error);
+      });
       const track = useMediaStore().track;
       if (track?.cueEndMs != null && status.isPlaying && status.duration > 0) {
-        if (adjusted >= status.duration - 250) await finishCurrentTrack();
+        if (adjusted >= status.duration - 250 && !isSmartTransitionActive())
+          await finishCurrentTrack();
       }
       break;
     }
@@ -119,6 +125,7 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
       playback.setFftFrame(event.data.ldata, event.data.rdata);
       break;
     case "ended": {
+      if (isSmartTransitionActive()) break;
       await finishCurrentTrack();
       break;
     }

@@ -137,6 +137,14 @@ export declare class AudioPlayer {
    * seek 失败时 fallback 到完整 load
    */
   seek(position: number): Promise<void>
+  /**
+   * 在当前输出流中交叉切换到已准备的下一曲
+   * @param id - 预载槽位标识
+   * @param source - 预载音源路径
+   * @param remainingSeconds - 当前曲目距离有效结束的墙钟秒数
+   * @returns 成功交接时返回下一曲元信息，槽位失效时返回空值
+   */
+  transitionToPrepared(id: string, source: string, remainingSeconds: number): Promise<JsMusicMetadata | null>
   /** 创建新的播放器实例 */
   constructor()
 }

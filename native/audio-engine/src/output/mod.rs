@@ -12,7 +12,7 @@ use cpal::traits::{DeviceTrait, HostTrait};
 use cpal::{FromSample, Sample, SampleFormat, SizedSample, StreamConfig, SupportedStreamConfig};
 use tracing::{debug, info, warn};
 
-use crate::decoder::source::DecoderSource;
+use crate::decoder::transition_source::TransitionSource as DecoderSource;
 use crate::error::{AudioErrorKind, AudioResultExt};
 
 /// 输出失败回调：实时错误线程调用，只允许发送轻量事件。
