@@ -1,5 +1,5 @@
 use std::f32::consts::FRAC_PI_2;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
@@ -8,6 +8,10 @@ use crossbeam_queue::ArrayQueue;
 use super::buffer::Shared;
 use super::source::DecoderSampleReader;
 use crate::dsp::fft::FftAnalyzer;
+
+pub const TRANSITION_DECISION_QUIET: u8 = 1;
+const TRANSITION_DECISION_DEADLINE: u8 = 2;
+const TRANSITION_DECISION_SOURCE_END: u8 = 3;
 
 /// 混音后的柔性峰值保护，避免两首相关音频在等功率曲线中硬削波
 fn soft_ceiling(sample: f32) -> f32 {
@@ -25,21 +29,35 @@ struct TransitionCommand {
     earliest_sample: u64,
     latest_sample: u64,
     fade_samples: u64,
-    quiet_threshold: f32,
+    quiet_threshold_sq: f32,
+    quiet_windows_required: u8,
     started: Arc<AtomicBool>,
     completed: Arc<AtomicBool>,
+    decision: Arc<AtomicU8>,
 }
 
 pub struct TransitionSignals {
     pub started: Arc<AtomicBool>,
     pub completed: Arc<AtomicBool>,
+    pub decision: Arc<AtomicU8>,
+}
+
+/// 输出回调使用的有限交接计划
+pub struct TransitionPlan {
+    pub earliest_sample: u64,
+    pub latest_sample: u64,
+    pub fade_samples: u64,
+    pub quiet_threshold: f32,
+    pub quiet_windows_required: u8,
 }
 
 struct ActiveTransition {
     command: TransitionCommand,
     elapsed: u64,
     faded: u64,
-    quiet_samples: u64,
+    energy_sum: f32,
+    energy_samples: u64,
+    quiet_windows: u8,
     intro_scanned: u64,
     intro_done: bool,
     head_index: usize,
@@ -63,35 +81,37 @@ impl TransitionControl {
     /// 将已就绪的下一曲提交到实时输出回调
     /// @param shared - 下一曲的 PCM 缓冲
     /// @param fft - 输出频谱分析器
-    /// @param earliest_sample - 允许开始过渡的最早输出样本数
-    /// @param latest_sample - 必须开始过渡的最晚输出样本数
-    /// @param fade_samples - 交叉过渡的输出样本数
-    /// @returns 回调完成交接后置位的标志
+    /// @param plan - 输出帧、能量阈值及持续窗口构成的交接计划
+    /// @returns 回调开始和完成交接时置位的状态
     pub fn queue(
         &self,
         shared: Arc<Shared>,
         fft: Arc<FftAnalyzer>,
-        earliest_sample: u64,
-        latest_sample: u64,
-        fade_samples: u64,
-        quiet_threshold: f32,
+        plan: TransitionPlan,
     ) -> Result<TransitionSignals> {
         let started = Arc::new(AtomicBool::new(false));
         let completed = Arc::new(AtomicBool::new(false));
+        let decision = Arc::new(AtomicU8::new(0));
         let command = TransitionCommand {
             intro_frame: vec![0.0; shared.channels() as usize],
             next: Box::new(DecoderSampleReader::new(shared, fft)),
-            earliest_sample,
-            latest_sample,
-            fade_samples: fade_samples.max(1),
-            quiet_threshold,
+            earliest_sample: plan.earliest_sample,
+            latest_sample: plan.latest_sample,
+            fade_samples: plan.fade_samples.max(1),
+            quiet_threshold_sq: plan.quiet_threshold * plan.quiet_threshold,
+            quiet_windows_required: plan.quiet_windows_required,
             started: Arc::clone(&started),
             completed: Arc::clone(&completed),
+            decision: Arc::clone(&decision),
         };
         self.commands
             .push(command)
             .map_err(|_| anyhow!("已有播放过渡正在等待提交"))?;
-        Ok(TransitionSignals { started, completed })
+        Ok(TransitionSignals {
+            started,
+            completed,
+            decision,
+        })
     }
 
     /// 在控制线程回收已经退出混音的旧音源
@@ -106,15 +126,14 @@ pub struct TransitionSource {
     transition: Option<ActiveTransition>,
     control: TransitionControl,
     channels: u64,
-    quiet_window_samples: u64,
+    energy_window_samples: u64,
     max_intro_samples: u64,
 }
 
 impl TransitionSource {
     pub fn new(shared: Arc<Shared>, fft: Arc<FftAnalyzer>) -> Self {
         let channels = u64::from(shared.channels());
-        let quiet_window_samples =
-            u64::from(shared.sample_rate()) * u64::from(shared.channels()) / 5;
+        let energy_window_samples = (u64::from(shared.sample_rate()) / 20).max(1) * channels;
         let max_intro_samples = u64::from(shared.sample_rate()) * u64::from(shared.channels()) * 2;
         Self {
             active: Box::new(DecoderSampleReader::new(shared, fft)),
@@ -124,7 +143,7 @@ impl TransitionSource {
                 retired: Arc::new(ArrayQueue::new(1)),
             },
             channels,
-            quiet_window_samples,
+            energy_window_samples,
             max_intro_samples,
         }
     }
@@ -163,7 +182,9 @@ impl Iterator for TransitionSource {
                     command,
                     elapsed: 0,
                     faded: 0,
-                    quiet_samples: 0,
+                    energy_sum: 0.0,
+                    energy_samples: 0,
+                    quiet_windows: 0,
                     intro_scanned: 0,
                     intro_done: false,
                     head_index: 0,
@@ -209,14 +230,29 @@ impl Iterator for TransitionSource {
         }
 
         let sample = a.unwrap_or(0.0);
-        if sample.abs() < transition.command.quiet_threshold && !self.active.is_underrun() {
-            transition.quiet_samples += 1;
-        } else {
-            transition.quiet_samples = 0;
+        if self.active.is_underrun() {
+            transition.energy_sum = 0.0;
+            transition.energy_samples = 0;
+            transition.quiet_windows = 0;
+        } else if a.is_some() && transition.faded == 0 {
+            transition.energy_sum += sample * sample;
+            transition.energy_samples += 1;
+            if transition.energy_samples >= self.energy_window_samples {
+                if transition.energy_sum
+                    < transition.command.quiet_threshold_sq * transition.energy_samples as f32
+                {
+                    transition.quiet_windows = transition.quiet_windows.saturating_add(1);
+                } else {
+                    transition.quiet_windows = 0;
+                }
+                transition.energy_sum = 0.0;
+                transition.energy_samples = 0;
+            }
         }
+        let quiet_found = transition.quiet_windows >= transition.command.quiet_windows_required;
         let start = transition.faded > 0
             || (frame_start
-                && (transition.quiet_samples >= self.quiet_window_samples
+                && (quiet_found
                     || transition.elapsed >= transition.command.latest_sample
                     || a.is_none()));
         if !start || !transition.intro_done {
@@ -238,10 +274,20 @@ impl Iterator for TransitionSource {
             if transition.command.next.is_underrun() {
                 return Some(0.0);
             }
+            transition
+                .command
+                .decision
+                .store(TRANSITION_DECISION_SOURCE_END, Ordering::Release);
             self.finish_transition();
             return Some(b);
         }
         if transition.faded == 0 {
+            let reason = if transition.elapsed < transition.command.latest_sample && quiet_found {
+                TRANSITION_DECISION_QUIET
+            } else {
+                TRANSITION_DECISION_DEADLINE
+            };
+            transition.command.decision.store(reason, Ordering::Release);
             transition.command.started.store(true, Ordering::Release);
         }
         if transition.faded % self.channels == 0 {

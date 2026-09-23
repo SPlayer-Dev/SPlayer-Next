@@ -225,8 +225,17 @@ impl InnerPlayer {
     }
 
     /// 向应用推送实际输出回调的交叉过渡状态
-    pub fn emit_transition_state(&self, active: bool) {
-        self.emit(PlayerEvent::TransitionChanged { active });
+    pub fn emit_transition_state(
+        &self,
+        active: bool,
+        reason: Option<&str>,
+        fade_seconds: Option<f64>,
+    ) {
+        self.emit(PlayerEvent::TransitionChanged {
+            active,
+            reason: reason.map(str::to_owned),
+            fade_seconds,
+        });
     }
 
     /// 对外发 SourceError：供 NAPI 绑定层在远端源重开失败时通知 JS 重新解析

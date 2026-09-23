@@ -1,6 +1,7 @@
 import { getPlayer } from "@main/services/engine";
 import * as songCache from "@main/services/songCache";
 import { store } from "@main/store";
+import { playerLog } from "@main/utils/logger";
 
 let prepared: { id: string; player: ReturnType<typeof getPlayer> } | null = null;
 
@@ -44,6 +45,7 @@ export const prepareNextTrack = async (
       cancelPreparedTrack(id);
       return false;
     }
+    playerLog.info("下一曲 PCM 预载完成", { id, source });
     return true;
   } catch (error) {
     const current = prepared?.id === id;

@@ -7,7 +7,7 @@ use tracing::warn;
 
 use crate::decoder::buffer::Shared;
 use crate::decoder::transition_source::{
-    TransitionControl, TransitionSignals, TransitionSource as DecoderSource,
+    TransitionControl, TransitionPlan, TransitionSignals, TransitionSource as DecoderSource,
 };
 use crate::dsp::fft::FftAnalyzer;
 use crate::error::{AudioErrorKind, AudioResultExt};
@@ -104,20 +104,10 @@ impl PlaybackHandle {
         &self,
         shared: Arc<Shared>,
         fft: Arc<FftAnalyzer>,
-        earliest_sample: u64,
-        latest_sample: u64,
-        fade_samples: u64,
-        quiet_threshold: f32,
+        plan: TransitionPlan,
     ) -> Result<TransitionSignals> {
         self.transition.drain_retired();
-        self.transition.queue(
-            shared,
-            fft,
-            earliest_sample,
-            latest_sample,
-            fade_samples,
-            quiet_threshold,
-        )
+        self.transition.queue(shared, fft, plan)
     }
 
     /// 在非实时线程回收已经退出混音的旧音源

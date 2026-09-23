@@ -82,7 +82,7 @@ const api = {
      * @param id - 预载槽位标识
      * @param source - 下一曲缓存音源路径
      * @param remainingMs - 当前曲目剩余的墙钟时间
-     * @param preference - 曲尾安静程度偏好
+     * @param preference - 曲尾交接时机与淡化时长偏好
      * @param options - 下一曲的权威元数据和播放上下文
      * @returns 交接成功时返回下一曲信息
      */

@@ -25,6 +25,21 @@ fn stereo_buffered(samples: Vec<f32>) -> Arc<Shared> {
     shared
 }
 
+fn plan(
+    latest_sample: u64,
+    fade_samples: u64,
+    quiet_threshold: f32,
+    windows: u8,
+) -> TransitionPlan {
+    TransitionPlan {
+        earliest_sample: 0,
+        latest_sample,
+        fade_samples,
+        quiet_threshold,
+        quiet_windows_required: windows,
+    }
+}
+
 #[test]
 fn crossfade_keeps_one_output_source_and_skips_quiet_intro() {
     let first = buffered(vec![0.6; 500]);
@@ -35,7 +50,7 @@ fn crossfade_keeps_one_output_source_and_skips_quiet_intro() {
     let mut source = TransitionSource::new(first, Arc::clone(&fft));
     let control = source.control();
     let signals = control
-        .queue(second, fft, 0, 100, 100, 0.005)
+        .queue(second, fft, plan(100, 100, 0.025, 3))
         .expect("应接受备用槽位");
     source.begin_callback();
 
@@ -64,7 +79,7 @@ fn quiet_outro_starts_before_forced_boundary() {
     let mut source = TransitionSource::new(first, Arc::clone(&fft));
     let signals = source
         .control()
-        .queue(second, fft, 0, 400, 100, 0.005)
+        .queue(second, fft, plan(400, 100, 0.025, 3))
         .expect("应接受备用槽位");
     source.begin_callback();
 
@@ -76,24 +91,52 @@ fn quiet_outro_starts_before_forced_boundary() {
 }
 
 #[test]
-fn quiet_preference_changes_handoff_without_changing_fade_length() {
+fn quiet_preference_changes_handoff_before_forced_boundary() {
     let mut first_samples = vec![0.6; 30];
-    first_samples.extend(vec![0.01; 500]);
-    for (threshold, expected_started) in [(0.0025, false), (0.005, false), (0.015, true)] {
+    first_samples.extend(vec![0.04; 500]);
+    for (threshold, windows, expected_started) in
+        [(0.012, 4, false), (0.025, 3, false), (0.06, 2, true)]
+    {
         let first = buffered(first_samples.clone());
         let second = buffered(vec![0.5; 500]);
         let fft = Arc::new(FftAnalyzer::new());
         let mut source = TransitionSource::new(first, Arc::clone(&fft));
         let signals = source
             .control()
-            .queue(second, fft, 0, 400, 100, threshold)
+            .queue(second, fft, plan(400, 100, threshold, windows))
             .expect("应接受备用槽位");
         source.begin_callback();
         for _ in 0..300 {
             source.next();
         }
         assert_eq!(signals.started.load(Ordering::Acquire), expected_started);
+        if expected_started {
+            assert_eq!(signals.decision.load(Ordering::Acquire), 1);
+        }
     }
+}
+
+#[test]
+fn standard_fades_before_digital_silence() {
+    let mut first_samples = vec![0.6; 30];
+    first_samples.extend(vec![0.02; 500]);
+    for index in (80..530).step_by(50) {
+        first_samples[index] = 0.1;
+    }
+    let first = buffered(first_samples);
+    let second = buffered(vec![0.5; 500]);
+    let fft = Arc::new(FftAnalyzer::new());
+    let mut source = TransitionSource::new(first, Arc::clone(&fft));
+    let signals = source
+        .control()
+        .queue(second, fft, plan(400, 100, 0.025, 3))
+        .expect("应接受备用槽位");
+    source.begin_callback();
+    for _ in 0..250 {
+        source.next();
+    }
+    assert!(signals.started.load(Ordering::Acquire));
+    assert_eq!(signals.decision.load(Ordering::Acquire), 1);
 }
 
 #[test]
@@ -108,7 +151,7 @@ fn skipped_stereo_intro_preserves_channel_order() {
     let mut source = TransitionSource::new(first, Arc::clone(&fft));
     source
         .control()
-        .queue(second, fft, 0, 100, 200, 0.005)
+        .queue(second, fft, plan(100, 200, 0.025, 3))
         .expect("应接受双声道备用槽位");
     source.begin_callback();
     let output: Vec<f32> = (0..400).map(|_| source.next().unwrap()).collect();

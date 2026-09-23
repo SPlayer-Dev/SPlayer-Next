@@ -8,7 +8,7 @@ impl AudioPlayer {
     /// @param id - 预载槽位标识
     /// @param source - 预载音源路径
     /// @param remainingSeconds - 当前曲目距离有效结束的墙钟秒数
-    /// @param preference - 曲尾安静程度偏好
+    /// @param preference - 曲尾交接时机与淡化时长偏好
     /// @returns 成功交接时返回下一曲元信息，槽位失效时返回空值
     #[napi]
     pub async fn transition_to_prepared(
@@ -30,6 +30,8 @@ impl AudioPlayer {
         };
         let started = Arc::clone(&armed.started);
         let completed = Arc::clone(&armed.completed);
+        let decision = Arc::clone(&armed.decision);
+        let fade_seconds = armed.fade_seconds;
         let token = armed.token;
         let shared = Arc::clone(&armed.ready.shared);
         let inner = Arc::clone(&self.inner);
@@ -42,7 +44,16 @@ impl AudioPlayer {
                     return (0_u8, announced);
                 }
                 if !announced && started.load(Ordering::Acquire) {
-                    inner.lock().emit_transition_state(true);
+                    let reason = if decision.load(Ordering::Acquire)
+                        == crate::decoder::transition_source::TRANSITION_DECISION_QUIET
+                    {
+                        "quiet"
+                    } else {
+                        "deadline"
+                    };
+                    inner
+                        .lock()
+                        .emit_transition_state(true, Some(reason), Some(fade_seconds));
                     announced = true;
                 }
                 if completed.load(Ordering::Acquire) {
@@ -63,7 +74,7 @@ impl AudioPlayer {
         .await
         .map_err(|error| Error::from_reason(error.to_string()))?;
         if outcome.1 {
-            self.inner.lock().emit_transition_state(false);
+            self.inner.lock().emit_transition_state(false, None, None);
         }
         match outcome.0 {
             0 => return Ok(None),

@@ -206,7 +206,7 @@ export interface AudioDevice {
 }
 
 /** 主进程推送给渲染进程的播放事件 */
-/** 曲尾交接时对安静程度的偏好 */
+/** 曲尾交接时机与淡化时长偏好 */
 export type TransitionPreference = "conservative" | "standard" | "eager";
 
 export type PlayerEvent =
@@ -294,7 +294,7 @@ export interface PlayerApi {
    * @param id - 预载槽位标识
    * @param source - 下一曲缓存音源路径
    * @param remainingMs - 当前曲目剩余的墙钟时间
-   * @param preference - 曲尾安静程度偏好
+   * @param preference - 曲尾交接时机与淡化时长偏好
    * @param options - 下一曲的权威元数据和播放上下文
    * @returns 交接成功时返回下一曲信息，未命中时返回失败响应
    */

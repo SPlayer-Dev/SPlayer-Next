@@ -191,6 +191,12 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
         break;
       }
       case "transitionChanged": {
+        if (event.transitionActive) {
+          playerLog.info("曲尾交接点识别", {
+            reason: event.transitionReason === "quiet" ? "持续低能量" : "最迟交接边界",
+            plannedFadeSeconds: event.transitionFadeSeconds,
+          });
+        }
         const transitionEvent = {
           type: "transition",
           data: { active: event.transitionActive ?? false, mode: "crossfade" },
@@ -343,13 +349,21 @@ export const registerPlayerIpc = (): void => {
       options: LoadOptions = {},
     ) => {
       try {
+        playerLog.info("开始寻找曲尾交接点", {
+          to: options.meta?.title,
+          preference,
+          remainingMs: Math.round(remainingMs),
+        });
         const meta = await getPlayer().transitionToPrepared(
           id,
           source,
           remainingMs / 1000,
           preference,
         );
-        if (!meta) return { success: false };
+        if (!meta) {
+          playerLog.info("交叉过渡未启动，等待正常切歌");
+          return { success: false };
+        }
         activeCueRange = cueRangeFromTrack(options.meta);
         const seq = ++loadSeq;
         cancelPreparedTrack(id);

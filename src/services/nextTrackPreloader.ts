@@ -251,17 +251,13 @@ export const scheduleNextTrackPreload = (): void => {
         nativePreloadId = null;
       }
       cachedResult = { trackId: candidateTrack.id, source, contextKey, preparedId };
-      console.info(
-        preparedId
-          ? "[player:preload] 下一曲 PCM 预载完成"
-          : "[player:preload] 下一曲音源已准备，PCM 未预载",
-        {
+      if (!preparedId) {
+        console.info("[player:preload] 下一曲音源已准备，PCM 未预载", {
           trackId: candidateTrack.id,
           title: candidateTrack.title,
           source: source.provider,
-          pcmReady: Boolean(preparedId),
-        },
-      );
+        });
+      }
     } catch (err) {
       if (token !== currentToken) return;
       console.warn("[player:preload] 下一曲预载失败", {

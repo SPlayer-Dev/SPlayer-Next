@@ -269,7 +269,7 @@ export interface PlayerSettings {
   preloadNextTrack: boolean;
   /** 相邻曲目的播放过渡方式 */
   transitionMode: "none" | "crossfade";
-  /** 曲尾安静段的交接倾向 */
+  /** 曲尾交接时机与淡化时长偏好 */
   transitionPreference: TransitionPreference;
   /** 搜索页播放行为 */
   searchPlayBehavior: SearchPlayBehavior;

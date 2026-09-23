@@ -1,10 +1,11 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::Arc;
 
 use anyhow::{ensure, Result};
 
 use super::preload::PreparedPlayback;
 use super::{InnerPlayer, PlayerState};
+use crate::decoder::transition_source::TransitionPlan;
 use crate::metadata::AudioMetadata;
 
 /// 已交给输出回调、等待音频边界完成的备用槽位
@@ -12,6 +13,8 @@ pub struct ArmedTransition {
     pub ready: PreparedPlayback,
     pub started: Arc<AtomicBool>,
     pub completed: Arc<AtomicBool>,
+    pub decision: Arc<AtomicU8>,
+    pub fade_seconds: f64,
     pub token: u64,
 }
 
@@ -47,26 +50,31 @@ impl InnerPlayer {
         if !next_remaining.is_finite() || next_remaining < 2.0 {
             return Ok(None);
         }
-        let fade_secs = 2.4_f64.min(remaining_secs - 0.35).min(next_remaining / 2.0);
-        let quiet_threshold = match preference {
-            "conservative" => 0.0025,
-            "eager" => 0.015,
-            _ => 0.005,
+        let (fade_limit, quiet_threshold, quiet_windows_required, search_secs) = match preference {
+            "conservative" => (1.8_f64, 0.012_f32, 4_u8, 1.2_f64),
+            "eager" => (3.6, 0.06, 2, 3.0),
+            _ => (2.4, 0.025, 3, 2.0),
         };
+        let fade_secs = fade_limit
+            .min(remaining_secs - 0.35)
+            .min(next_remaining / 2.0);
         let fade_samples = ((fade_secs * sample_rate as f64).round() as u64) * channels;
         let latest_sample =
             (((remaining_secs - fade_secs - 0.35).max(0.0) * sample_rate as f64) as u64) * channels;
-        let earliest_sample =
-            latest_sample.saturating_sub(((1.2 * rate as f64) as u64) / channels * channels);
+        let earliest_sample = latest_sample
+            .saturating_sub(((search_secs * rate as f64) as u64) / channels * channels);
         ready.shared.set_preloading(false);
         self.transitioning.store(true, Ordering::Release);
         let signals = playback.queue_transition(
             Arc::clone(&ready.shared),
             Arc::clone(&self.fft),
-            earliest_sample,
-            latest_sample,
-            fade_samples,
-            quiet_threshold,
+            TransitionPlan {
+                earliest_sample,
+                latest_sample,
+                fade_samples,
+                quiet_threshold,
+                quiet_windows_required,
+            },
         );
         let signals = match signals {
             Ok(signals) => signals,
@@ -79,6 +87,8 @@ impl InnerPlayer {
             ready,
             started: signals.started,
             completed: signals.completed,
+            decision: signals.decision,
+            fade_seconds: fade_secs,
             token: self.load_token.load(Ordering::Acquire),
         }))
     }

@@ -887,7 +887,7 @@
     },
     "transitionPreference": {
       "label": "Handoff preference",
-      "description": "Adjust how quiet the end of a song must be before the transition starts",
+      "description": "Adjust when the transition starts and how long songs overlap; Eager starts earlier and lasts longer",
       "conservative": "Conservative",
       "standard": "Standard",
       "eager": "Eager"

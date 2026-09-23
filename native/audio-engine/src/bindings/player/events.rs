@@ -29,9 +29,15 @@ impl AudioPlayer {
                     duration: Some(duration),
                     ..Default::default()
                 },
-                PlayerEvent::TransitionChanged { active } => JsPlayerEvent {
+                PlayerEvent::TransitionChanged {
+                    active,
+                    reason,
+                    fade_seconds,
+                } => JsPlayerEvent {
                     event_type: "transitionChanged".into(),
                     transition_active: Some(active),
+                    transition_reason: reason,
+                    transition_fade_seconds: fade_seconds,
                     ..Default::default()
                 },
                 PlayerEvent::FftData { ldata, rdata } => JsPlayerEvent {

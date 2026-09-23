@@ -875,7 +875,7 @@
     },
     "transitionPreference": {
       "label": "交接倾向",
-      "description": "调整曲尾需要多安静才提前过渡",
+      "description": "调整曲尾交接时机和过渡长度，积极档更早、更长",
       "conservative": "保守",
       "standard": "标准",
       "eager": "积极"
