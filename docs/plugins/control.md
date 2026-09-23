@@ -104,7 +104,7 @@ splayer.player.on(kind, (data) => { ... });
 
 每行是一个 [`LyricLine`](/types#lyricline)，逐字内容见 [`LyricWord`](/types#lyricword)。整行纯文本：`line.words.map((word) => word.word).join("")`；逐行（LRC 类）歌词通常每行只有一个 word，其始末时间与行时间一致。
 
-`lines` 里包含 TTML 伴唱 / 和声行（`line.isBG === true`），逐行展示主歌词时要先按 `!line.isBG` 过滤，桌面歌词就是这么处理的。`revision` 用于识别同一首歌的歌词被重新匹配或格式升级（例如从逐行 LRC 换成逐字 TTML），比对本地缓存的 `revision` 即可判断是否需要重绘。
+`lines` 里包含 TTML 伴唱 / 和声行（`line.isBG === true`），展示主歌词要先按 `!line.isBG` 过滤。`revision` 用于识别同一首歌的歌词被重新匹配或格式升级（例如逐行 LRC 换成逐字 TTML），比对本地缓存的 `revision` 即可判断是否需要重绘。
 
 ### `lineChange` — 当前歌词行变化
 
@@ -147,12 +147,12 @@ splayer.player.on("lineChange", ({ index }) => {
 
 ## 读取当前封面（apiLevel 4）
 
-在脚本头声明 `@grant control` 且 `@apiLevel 4` 后，可读取当前歌曲的小尺寸封面：
+在脚本头声明 `@type control` 且 `@apiLevel 4` 后，可读取当前歌曲的小尺寸封面：
 
 ```js
 const cover = await splayer.media.getCover();
 if (cover) {
-  // cover.data 是 300px JPEG；跨沙箱递过来的二进制视图不一定是本上下文的 Uint8Array
+  // 跨沙箱递过来的二进制视图不一定是本上下文的 Uint8Array
   const bytes = ArrayBuffer.isView(cover.data) ? new Uint8Array(cover.data) : null;
   splayer.log.info(cover.trackId, cover.hash, bytes?.byteLength);
 }

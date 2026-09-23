@@ -144,7 +144,7 @@ SPlayer-Next 内置一套插件系统，允许用第三方 JavaScript 扩展应�
 | `1`  | 基础音源能力：`register({ sources })`、`musicUrl` 处理器；元数据兜底处理器：`musicSearch` / `musicLyric` / `musicPic`；通用 API：`request` / `storage` / `log` / `getSetting` / `utils` | 播放地址、歌词、封面插件声明 `@apiLevel 1` 即可  |
 | `2`  | 控制能力：`register({ events, controls, settings })`、`splayer.player` 事件订阅与反向控制、`onSettingChange`；界面能力：`register({ menus })`、`menuClick` 处理器（需 `@grant ui`）     | 控制插件或菜单扩展声明 `@apiLevel 2`             |
 | `3`  | 评论能力：`musicComment` 处理器。宿主先用 `musicSearch` 匹配曲目，再向声明了 `musicComment` 的源请求热门 / 最新评论                                                                     | 评论插件能力声明 `@apiLevel 3`                   |
-| `4`  | 高级播放同步：`trackUpdate` / `positionSync`，带来源、加载状态和修订号的 `lyricChange`，以及需 `@grant control` 的只读 `splayer.media.getCover()`                                       | 高级歌词、封面或精确时间轴联动声明 `@apiLevel 4` |
+| `4`  | 高级播放同步：`trackUpdate` / `positionSync`，带来源、加载状态和修订号的 `lyricChange`，以及需 `@type control` 的只读 `splayer.media.getCover()`                                        | 高级歌词、封面或精确时间轴联动声明 `@apiLevel 4` |
 
 当前宿主级别为 **4**。规则：
 

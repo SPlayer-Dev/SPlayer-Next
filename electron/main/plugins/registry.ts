@@ -497,7 +497,13 @@ class PluginRegistry extends EventEmitter {
         }
       },
       onHostCall: (callId, method, args) => {
-        void dispatchHostCall(id, rt.manifest.grant, rt.manifest.apiLevel, callId, method, args);
+        void dispatchHostCall(
+          id,
+          { type: rt.manifest.type, grant: rt.manifest.grant, apiLevel: rt.manifest.apiLevel },
+          callId,
+          method,
+          args,
+        );
       },
       onLog: (level, args) => {
         coreLog[level](`[plugin:${id}]`, ...args);

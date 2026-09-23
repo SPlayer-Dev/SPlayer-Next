@@ -8,11 +8,14 @@ import type { NowPlayingUpdatePayload } from "@shared/types/nowPlaying";
 export const registerNowPlayingIpc = (): void => {
   // 渲染进程同步当前播放状态到主进程
   ipcMain.on("nowPlaying:update", (_event, payload: NowPlayingUpdatePayload) => {
+    // 跨进程入参：缺帧时直接丢弃，避免在 IPC 回调里抛出未捕获异常
+    if (!payload || typeof payload !== "object") return;
     nowPlaying.update(payload);
   });
 
   // 渲染进程只更新当前 Track 的延迟元数据，不重发歌词
   ipcMain.on("nowPlaying:updateTrack", (_event, track: Track) => {
+    if (!track || typeof track !== "object" || !track.id) return;
     nowPlaying.updateTrack(track);
   });
 

@@ -94,7 +94,7 @@ See [`LyricLine`](/en/types#lyricline) and [`LyricWord`](/en/types#lyricword). C
 line.words.map((word) => word.word).join("");
 ```
 
-`lines` includes TTML backing vocal lines (`line.isBG === true`); filter with `!line.isBG` before showing the lead lyric, which is what the desktop lyric window does. Use `revision` to tell when the lyric for the same track was re-matched or upgraded to a finer format, such as line-level LRC replaced by word-level TTML.
+`lines` includes TTML backing vocal lines (`line.isBG === true`); filter with `!line.isBG` before showing the lead lyric. Use `revision` to tell when the lyric for the same track was re-matched or upgraded to a finer format, such as line-level LRC replaced by word-level TTML.
 
 ### `lineChange`
 
@@ -137,13 +137,12 @@ Delivered on the player's position sync cadence (about 5 Hz), meant for external
 
 ## Reading the current cover (apiLevel 4)
 
-Declare `@grant control` with `@apiLevel 4` to read the small cover of the current track:
+Declare `@type control` with `@apiLevel 4` to read the small cover of the current track.
 
 ```js
 const cover = await splayer.media.getCover();
 if (cover) {
-  // cover.data is a 300px JPEG; a binary view crossing the sandbox boundary
-  // is not necessarily a Uint8Array of this context
+  // a binary view crossing the sandbox boundary may not be this context's Uint8Array
   const bytes = ArrayBuffer.isView(cover.data) ? new Uint8Array(cover.data) : null;
   splayer.log.info(cover.trackId, cover.hash, bytes?.byteLength);
 }

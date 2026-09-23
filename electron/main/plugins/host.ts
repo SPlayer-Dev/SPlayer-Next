@@ -5,7 +5,12 @@
  * dispatch 根据 method 去做真实工作（网络/存储），再通过 sandbox.sendHostResult 回传。
  */
 
-import type { HostCallMethod, HostRequestOptions, PluginGrant } from "@shared/types/plugin";
+import type {
+  HostCallMethod,
+  HostRequestOptions,
+  PluginGrant,
+  PluginType,
+} from "@shared/types/plugin";
 import { HOST_CALL_MIN_API_LEVEL, PluginErrorCodes } from "@shared/defaults/plugin-api";
 import { coreLog } from "@main/utils/logger";
 import { pluginHost } from "./host-process";
@@ -19,42 +24,54 @@ import {
 import { playerControl } from "@main/services/playerControl";
 import { getCurrentCover } from "./media";
 
+/** 调用方插件身份，用于权限与能力门控 */
+export interface PluginCaller {
+  /** 插件类型，缺省按 `source` 处理 */
+  type?: PluginType;
+  /** 声明的权限 */
+  grant: PluginGrant[];
+  /** 声明的 `@apiLevel` */
+  apiLevel: number;
+}
+
 /**
  * 处理一次 plugin→host 调用
  * @param pluginId - 调用方插件 ID
- * @param grant - 插件声明的权限
- * @param apiLevel - 插件声明的 `@apiLevel`
+ * @param caller - 调用方的类型 / 权限 / 能力级别
  * @param callId - 本次调用 ID，用于回传结果
  * @param method - 宿主方法名
  * @param args - 方法入参
  */
 export const dispatchHostCall = async (
   pluginId: string,
-  grant: PluginGrant[],
-  apiLevel: number,
+  caller: PluginCaller,
   callId: string,
   method: HostCallMethod,
   args: unknown[],
 ): Promise<void> => {
   try {
     // 权限门控
-    if (method === "request" && !grant.includes("network")) {
+    if (method === "request" && !caller.grant.includes("network")) {
       throw Object.assign(new Error(`plugin "${pluginId}" lacks "network" grant`), {
         code: PluginErrorCodes.PERMISSION_DENIED,
       });
     }
-    if (
-      (method.startsWith("player.") || method.startsWith("media.")) &&
-      !grant.includes("control")
-    ) {
+    if (method.startsWith("player.") && !caller.grant.includes("control")) {
       coreLog.warn(`[plugin:${pluginId}] 缺少 "control" 权限，拒绝调用 ${method}`);
       throw Object.assign(new Error(`plugin "${pluginId}" lacks "control" grant`), {
         code: PluginErrorCodes.PERMISSION_DENIED,
       });
     }
+    // 只读媒体面与播放事件走同一条边界：能订事件就说明用户已允许它读当前播放
+    if (method.startsWith("media.") && caller.type !== "control") {
+      coreLog.warn(`[plugin:${pluginId}] 非控制类插件，拒绝调用 ${method}`);
+      throw Object.assign(new Error(`plugin "${pluginId}" is not a control plugin`), {
+        code: PluginErrorCodes.PERMISSION_DENIED,
+      });
+    }
     // 能力门控：高级方法要求插件声明够用的 @apiLevel
     const minApiLevel = HOST_CALL_MIN_API_LEVEL[method];
-    if (minApiLevel && apiLevel < minApiLevel) {
+    if (minApiLevel && caller.apiLevel < minApiLevel) {
       throw Object.assign(
         new Error(`plugin "${pluginId}" needs apiLevel ${minApiLevel} for ${method}`),
         { code: PluginErrorCodes.API_LEVEL_MISMATCH },

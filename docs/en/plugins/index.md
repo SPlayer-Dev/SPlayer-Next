@@ -119,12 +119,12 @@ Native SPlayer plugins should explicitly declare `@name`, `@version`, and `@id`;
 
 Capabilities accumulate: a higher level includes all lower levels.
 
-| Level | New capabilities                                                                                                                                      |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `1`   | Source registration, `musicUrl`, `musicSearch`, `musicLyric`, `musicPic`, and common APIs                                                             |
-| `2`   | Playback events/control, settings, `onSettingChange`, menus, and `menuClick`                                                                          |
-| `3`   | `musicComment`; the host searches for a candidate before requesting comments                                                                          |
-| `4`   | `trackUpdate` / `positionSync`, `lyricChange` with source, status and revision, and the read-only `splayer.media.getCover()` (needs `@grant control`) |
+| Level | New capabilities                                                                                                                                     |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `1`   | Source registration, `musicUrl`, `musicSearch`, `musicLyric`, `musicPic`, and common APIs                                                            |
+| `2`   | Playback events/control, settings, `onSettingChange`, menus, and `menuClick`                                                                         |
+| `3`   | `musicComment`; the host searches for a candidate before requesting comments                                                                         |
+| `4`   | `trackUpdate` / `positionSync`, `lyricChange` with source, status and revision, and the read-only `splayer.media.getCover()` (needs `@type control`) |
 
 The current host level is **4**. A plugin requiring a newer level is rejected with `PLUGIN_API_LEVEL_MISMATCH`. Declare the lowest level actually used. Control plugins require at least level 2; comment plugins require level 3.
 
