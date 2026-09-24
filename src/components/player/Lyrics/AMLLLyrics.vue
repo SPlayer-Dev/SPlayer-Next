@@ -401,6 +401,11 @@ defineExpose({
   height: 100%;
 }
 
+/* AMLL core 将副行字号硬编码为 max(.5em, 10px)，此处改用应用侧配置 */
+:deep([class*="lyricSubLine"]) {
+  font-size: var(--lp-sub-font-size, max(0.5em, 10px));
+}
+
 :deep(:lang(zh)) {
   font-family: var(--lyric-font-zh, inherit);
 }

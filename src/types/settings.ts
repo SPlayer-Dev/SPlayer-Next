@@ -132,6 +132,8 @@ export interface LyricSettings {
   adaptiveFontSize: boolean;
   /** 歌词字号（px，自适应关闭时生效） */
   fontSize: number;
+  /** 歌词翻译/音译副行字号（px，自适应关闭时生效） */
+  translationFontSize: number;
   /** 歌词字重（100~900） */
   fontWeight: number;
   /** 歌词混合模式 */

@@ -1174,6 +1174,10 @@
       "label": "Font Size",
       "description": "Effective when adaptive is off"
     },
+    "translationFontSize": {
+      "label": "Translation Font Size",
+      "description": "Font size of translated/romanized sub-lines; used as the base size (1080p) when adaptive is on"
+    },
     "fontWeight": {
       "label": "Font Weight",
       "description": "Lyric text weight"
