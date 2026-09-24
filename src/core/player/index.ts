@@ -24,6 +24,7 @@ import { resolveTrackSource, type ResolvedTrackSource } from "@/services/audioSo
 import {
   consumePreloadedTrack,
   disposeNextTrackPreload,
+  invalidateNextTrackPreload,
   installNextTrackPreloadWatchers,
   peekPreparedTrack,
   scheduleNextTrackPreload,
@@ -420,6 +421,7 @@ export const reloadCurrentTrack = async (forcePlay?: boolean): Promise<boolean> 
   const resumePosition = Math.round(playback.getCurrentTime());
   // 抢占加载令牌，与 loadTrack 互相取消
   const myToken = ++trackToken;
+  invalidateNextTrackPreload();
   // resolveTrackSource 联网解析较慢，先置加载态，让播放键立即给出反馈
   status.trackLoading = true;
   const loaded = await loadTrackSourceWithFallback(
@@ -441,6 +443,7 @@ export const reloadCurrentTrack = async (forcePlay?: boolean): Promise<boolean> 
   if (loaded.resolved.cacheRequest) {
     cacheScheduler.schedule(track.id, loaded.resolved.cacheRequest);
   }
+  scheduleNextTrackPreload();
   return true;
 };
 
@@ -759,12 +762,14 @@ const resumeAfterTagWrite = async (
 ): Promise<void> => {
   if (!track.path) return;
   const myToken = ++trackToken;
+  invalidateNextTrackPreload();
   useMediaStore().setTrack(track);
   lyricLoader.beginLoad();
   const result = await load(track.path, false, track);
   if (myToken !== trackToken || !result.ok) return;
   if (resumeMs > 0) await seek(resumeMs);
   if (wasPlaying) await play();
+  scheduleNextTrackPreload();
 };
 
 /**

@@ -14,7 +14,13 @@ const mocks = vi.hoisted(() => ({
     system: { cache: { songCache: { enabled: true, cacheStreaming: true } } },
     preset: { skipKeywordsSongs: false, skipTrackKeywords: [] },
   },
-  status: { currentTrack: { id: "current" }, playIndex: 0, fmMode: false, shuffleMode: "off" },
+  status: {
+    currentTrack: { id: "current" },
+    playIndex: 0,
+    trackLoading: false,
+    fmMode: false,
+    shuffleMode: "off",
+  },
   candidate: { track: { id: "next", source: "netease" } },
   resolve: vi.fn(),
   prepare: vi.fn(),
@@ -38,6 +44,7 @@ describe("下一曲真实预载", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    mocks.status.trackLoading = false;
     mocks.settings.player.preloadNextTrack = true;
     mocks.settings.system.cache.songCache = { enabled: true, cacheStreaming: true };
     mocks.candidate.track = { id: "next", source: "netease" };
@@ -46,6 +53,28 @@ describe("下一曲真实预载", () => {
     Object.assign(window, {
       api: { player: { prepareNext: mocks.prepare, cancelPrepared: mocks.cancel } },
     });
+  });
+
+  it("替换播放列表后等待当前曲加载完成，再准备下一首槽位", async () => {
+    mocks.candidate.track.source = "local";
+    mocks.resolve.mockResolvedValue({
+      source: "C:/music/next.flac",
+      provider: "local",
+      fromCache: false,
+    });
+    const preloader = await import("./nextTrackPreloader");
+
+    mocks.status.trackLoading = true;
+    preloader.scheduleNextTrackPreload();
+    await flushPromises();
+    expect(mocks.resolve).not.toHaveBeenCalled();
+    expect(mocks.prepare).not.toHaveBeenCalled();
+
+    mocks.status.trackLoading = false;
+    preloader.scheduleNextTrackPreload();
+    await flushPromises();
+    expect(mocks.prepare).toHaveBeenCalledOnce();
+    expect(preloader.peekPreparedTrack(mocks.candidate.track as Track)?.preparedId).toBeDefined();
   });
 
   it.each([

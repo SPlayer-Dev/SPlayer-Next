@@ -84,6 +84,7 @@ vi.mock("@/services/audioSource", () => ({ resolveTrackSource: mocks.resolve }))
 vi.mock("@/services/nextTrackPreloader", () => ({
   consumePreloadedTrack: mocks.consume,
   peekPreparedTrack: mocks.peek,
+  invalidateNextTrackPreload: vi.fn(),
   disposeNextTrackPreload: vi.fn(),
   installNextTrackPreloadWatchers: vi.fn(),
   scheduleNextTrackPreload: vi.fn(),
@@ -129,6 +130,21 @@ describe("切歌消费真实预载", () => {
     );
     expect(mocks.resolve).not.toHaveBeenCalled();
     expect(mocks.transition).not.toHaveBeenCalled();
+  });
+
+  it("重载当前音源后作废旧槽位并重新准备下一首", async () => {
+    mocks.status.position = 0;
+    mocks.resolve.mockResolvedValue({
+      source: "https://music/current",
+      fromCache: false,
+      provider: "official",
+    });
+    const { reloadCurrentTrack } = await import("./index");
+    const preloader = await import("@/services/nextTrackPreloader");
+
+    expect(await reloadCurrentTrack(false)).toBe(true);
+    expect(preloader.invalidateNextTrackPreload).toHaveBeenCalledOnce();
+    expect(preloader.scheduleNextTrackPreload).toHaveBeenCalledOnce();
   });
 
   it.each(["nextTrack", "playAtIndex"] as const)(

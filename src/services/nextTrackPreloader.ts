@@ -163,6 +163,7 @@ export const scheduleNextTrackPreload = (): void => {
   }
 
   const status = useStatusStore();
+  if (status.trackLoading) return;
   const currentTrack = status.currentTrack;
   if (!currentTrack || useMediaStore().track?.id !== currentTrack.id) {
     invalidateNextTrackPreload();

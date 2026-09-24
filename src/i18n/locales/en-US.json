@@ -464,6 +464,7 @@
   "player": {
     "prev": "Previous",
     "next": "Next",
+    "transitioning": "Transition",
     "heartMode": {
       "needLogin": "Sign in to use Heart Mode",
       "noSeed": "No seed track available for Heart Mode",

@@ -452,6 +452,7 @@
   "player": {
     "prev": "上一首",
     "next": "下一首",
+    "transitioning": "过渡",
     "heartMode": {
       "needLogin": "登录后才能使用心动模式",
       "noSeed": "暂无可用的心动种子歌曲",
