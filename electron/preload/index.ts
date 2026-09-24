@@ -196,6 +196,9 @@ const api = {
     // 拉取冷启动暂存的外部音频文件列表
     consumePendingAudioFiles: (): Promise<string[]> =>
       ipcRenderer.invoke("system:consumePendingAudioFiles"),
+    // 取走冷启动暂存的任务栏播放动作
+    consumePendingTaskbarAction: (): Promise<("prev" | "play" | "pause" | "next")[]> =>
+      ipcRenderer.invoke("system:consumePendingTaskbarAction"),
     // 获取 File 对象的本地绝对路径（用于拖拽播放）
     getPathForFile: (file: File): string => webUtils.getPathForFile(file),
   },

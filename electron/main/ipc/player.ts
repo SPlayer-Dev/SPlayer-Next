@@ -20,6 +20,7 @@ import {
   requestReinit,
 } from "@main/services/device";
 import { getThumbar } from "@main/services/thumbar";
+import { updateTaskbarUserTasks } from "@main/services/taskbarUserTasks";
 import {
   setTraySongName,
   setTrayPlayState,
@@ -122,6 +123,7 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
         updatePowerBlocker(state === "playing" || state === "loading");
         // 更新缩略图工具栏和托盘菜单
         getThumbar()?.updateThumbar(state === "playing");
+        updateTaskbarUserTasks(state === "playing");
         setTrayPlayState(state === "playing" ? "playing" : "paused");
         if (state === "playing") {
           mediaService.setPlayState({ status: "Playing" });
