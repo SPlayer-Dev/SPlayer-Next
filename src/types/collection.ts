@@ -30,4 +30,6 @@ export interface Collection {
   createTime?: number;
   /** 更新时间（Unix ms） */
   updateTime?: number;
+  /** 播放次数（在线歌单来源） */
+  playCount?: number;
 }
