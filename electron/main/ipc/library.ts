@@ -9,6 +9,8 @@ import {
   deleteTracksByPaths,
   getAlbumList,
   getArtistList,
+  getGenreList,
+  getGenreTracks,
   getAlbumTracks,
   getArtistTracks,
   getTracksByIds,
@@ -77,6 +79,24 @@ export const registerLibraryIpc = (): void => {
   ipcMain.handle("library:getArtists", () => {
     try {
       return { success: true, data: getArtistList() };
+    } catch (_error) {
+      return { success: false, error: ErrorCode.UNKNOWN };
+    }
+  });
+
+  // 获取流派聚合列表
+  ipcMain.handle("library:getGenres", () => {
+    try {
+      return { success: true, data: getGenreList() };
+    } catch (_error) {
+      return { success: false, error: ErrorCode.UNKNOWN };
+    }
+  });
+
+  // 获取某流派下的全部曲目
+  ipcMain.handle("library:getGenreTracks", (_event, genreName: string) => {
+    try {
+      return { success: true, data: getGenreTracks(genreName) };
     } catch (_error) {
       return { success: false, error: ErrorCode.UNKNOWN };
     }

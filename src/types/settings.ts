@@ -98,12 +98,36 @@ export interface SidebarPlaylistOrder {
   subscribed: string[];
 }
 
+/** 导航项默认位置校正记录 */
+export interface SidebarNavPlacementFix {
+  /** 校正记录 id：调整校正规则时换一个新 id 即可再执行一次 */
+  id: string;
+  /** 待校正的导航项 key */
+  key: string;
+}
+
+/**
+ * 需要做一次默认位置校正的新增导航项
+ * 老版本存档会把新增项追加到末组，这里把它们移回默认布局中的相邻位置
+ */
+export const SIDEBAR_NAV_PLACEMENT_FIXES: SidebarNavPlacementFix[] = [
+  { id: "genres-under-albums", key: "/genres/local" },
+];
+
 /** 侧边栏导航项默认分组 */
 export const DEFAULT_SIDEBAR_NAV_GROUPS: SidebarNavGroup[] = [
   {
     name: "",
     showName: false,
-    keys: ["/", "/library", "/artists/local", "/albums/local", "/folders", "/stats"],
+    keys: [
+      "/",
+      "/library",
+      "/artists/local",
+      "/albums/local",
+      "/genres/local",
+      "/folders",
+      "/stats",
+    ],
   },
   {
     name: "",
@@ -284,6 +308,8 @@ export interface AppearanceSettings {
   sidebarNavGroups: SidebarNavGroup[];
   /** 侧边栏隐藏的导航项与歌单分组 */
   sidebarHiddenKeys: string[];
+  /** 已完成的导航项位置校正记录 id（每条只执行一次，之后尊重用户排序） */
+  sidebarNavPlacementFixes: string[];
   /** 无可见项的分组是否保留分隔线（留白） */
   sidebarKeepEmptyDivider: boolean;
   /** 显示分组名时是否叠加分隔线 */

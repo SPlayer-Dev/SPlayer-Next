@@ -13,6 +13,8 @@ export const loadLocalCollection = async (
       ? await usePlaylistStore().get(id)
       : type === "album"
         ? await useLibraryStore().getAlbumCollection(decodeURIComponent(id))
-        : null;
+        : type === "genre"
+          ? await useLibraryStore().getGenreCollection(decodeURIComponent(id))
+          : null;
   if (!options.signal?.aborted) options.onUpdate(result);
 };

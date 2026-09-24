@@ -202,6 +202,7 @@ onUnmounted(() => {
         :search-query="searchQuery"
         :playback-context="playbackContext"
         enable-sort
+        show-genre
         show-size
       />
     </div>

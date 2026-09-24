@@ -507,6 +507,7 @@
   "songList": {
     "title": "标题",
     "album": "专辑",
+    "genre": "流派",
     "actions": "操作",
     "size": "大小",
     "duration": "时长",
@@ -2161,6 +2162,7 @@
     "viewIntroduction": "查看完整简介",
     "album": "专辑",
     "playlist": "歌单",
+    "genre": "流派",
     "radio": "电台",
     "scope": {
       "local": "本地",
@@ -2198,6 +2200,11 @@
         "copyId": "复制歌单 ID",
         "copyUrl": "分享歌单链接"
       },
+      "genre": {
+        "copyTitle": "复制流派名称",
+        "copyId": "复制流派 ID",
+        "copyUrl": "分享流派链接"
+      },
       "radio": {
         "copyTitle": "复制电台名称",
         "copyId": "复制电台 ID",
@@ -2219,6 +2226,11 @@
   "album": {
     "label": "专辑"
   },
+  "genre": {
+    "label": "流派",
+    "totalGenres": "共 {count} 种",
+    "unknown": "未知流派"
+  },
   "folder": {
     "label": "文件夹",
     "totalFolders": "共 {count} 个"
@@ -2228,6 +2240,7 @@
     "songs": "歌曲",
     "albums": "专辑",
     "artists": "歌手",
+    "genres": "流派",
     "totalDuration": "总时长",
     "totalSize": "总大小",
     "topSongs": "最常听的歌曲",

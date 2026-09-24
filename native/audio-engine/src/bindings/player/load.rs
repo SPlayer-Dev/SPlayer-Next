@@ -218,6 +218,7 @@ impl AudioPlayer {
             artist: meta.artist,
             album: meta.album,
             comment: meta.comment,
+            genre: meta.genre,
             duration: meta.duration_secs,
             sample_rate: meta.sample_rate,
             channels: meta.channels as u32,

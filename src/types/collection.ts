@@ -4,7 +4,7 @@ import type { Track, Artist, TrackSource } from "@shared/types/player";
 export type ContentScope = "local" | "online";
 
 /** 合集类型 */
-export type CollectionType = "album" | "playlist" | "radio" | "cloud";
+export type CollectionType = "album" | "playlist" | "genre" | "radio" | "cloud";
 
 /** 合集信息 */
 export interface Collection {

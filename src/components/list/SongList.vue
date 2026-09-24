@@ -14,7 +14,7 @@ import { useFloatingPlayerBar } from "@/composables/useFloatingPlayerBar";
 import { formatTime } from "@/utils/time";
 import { formatFileSize } from "@/utils/format";
 import { isLosslessQuality, getQualityLabel } from "@/utils/quality";
-import { navigateToAlbum, navigateToArtist } from "@/utils/navigate";
+import { navigateToAlbum, navigateToArtist, navigateToGenre } from "@/utils/navigate";
 import type { SVirtualListExposed } from "@/components/ui/SVirtualList.vue";
 import * as player from "@/core/player";
 import IconArrowUpDown from "~icons/lucide/arrow-up-down";
@@ -41,6 +41,8 @@ const props = withDefaults(
     showIndex?: boolean;
     /** 显示专辑 */
     showAlbum?: boolean;
+    /** 显示流派 */
+    showGenre?: boolean;
     /** 显示时长 */
     showDuration?: boolean;
     /** 显示文件大小 */
@@ -66,6 +68,7 @@ const props = withDefaults(
     searchQuery: "",
     showIndex: true,
     showAlbum: true,
+    showGenre: false,
     showDuration: true,
     showSize: false,
     enableSort: false,
@@ -122,6 +125,19 @@ const goAlbum = (item: Track): void => {
   navigateToAlbum(item.album?.name, { source: item.source, albumId: item.album?.id });
 };
 
+/** 有效流派列表 */
+const trackGenres = (item: Track): string[] =>
+  (item.genres ?? []).map((genre) => genre.trim()).filter(Boolean);
+
+/** 流派是否可跳转：流派页仅聚合本地曲库 */
+const isGenreLinkable = (item: Track): boolean => item.source === "local";
+
+/** 跳转到流派页 */
+const goGenre = (item: Track, genre: string): void => {
+  if (!isGenreLinkable(item)) return;
+  navigateToGenre(genre);
+};
+
 /** 排序字段 */
 const { sortField, sortOrder } = storeToRefs(status);
 
@@ -157,7 +173,13 @@ const filteredItems = computed(() => {
       .map((artist) => (artist.name ?? "").toLowerCase())
       .join(" ");
     const album = track.album?.name?.toLowerCase() ?? "";
-    return title.includes(query) || artists.includes(query) || album.includes(query);
+    const genres = (track.genres ?? []).join(" ").toLowerCase();
+    return (
+      title.includes(query) ||
+      artists.includes(query) ||
+      album.includes(query) ||
+      genres.includes(query)
+    );
   });
 });
 
@@ -502,6 +524,7 @@ defineExpose({
                 </div>
               </div>
               <div v-if="showAlbum" class="flex-1 min-w-0">{{ t("songList.album") }}</div>
+              <div v-if="showGenre" class="w-40 shrink-0 min-w-0">{{ t("songList.genre") }}</div>
               <div class="w-7 shrink-0 text-center">{{ t("songList.actions") }}</div>
               <div v-if="showDuration" class="w-16 shrink-0 text-center">
                 {{ t("songList.duration") }}
@@ -669,6 +692,28 @@ defineExpose({
                 >
                   {{ item.album?.name || t("collection.unknownAlbum") }}
                 </span>
+              </div>
+              <!-- 流派 -->
+              <div
+                v-if="showGenre"
+                class="w-40 shrink-0 min-w-0 truncate text-sm"
+                :class="playingId === item.id ? 'text-primary/70' : 'text-on-surface'"
+              >
+                <template v-if="trackGenres(item).length">
+                  <template v-for="(genre, gi) in trackGenres(item)" :key="genre">
+                    <span
+                      class="transition-opacity"
+                      :class="isGenreLinkable(item) ? 'cursor-pointer hover:opacity-70' : ''"
+                      @click.stop="goGenre(item, genre)"
+                    >
+                      {{ genre }}
+                    </span>
+                    <span v-if="gi < trackGenres(item).length - 1" class="mx-0.5 opacity-50">
+                      /
+                    </span>
+                  </template>
+                </template>
+                <span v-else class="opacity-50">{{ t("genre.unknown") }}</span>
               </div>
               <!-- 红心：批量模式下隐藏，其余始终显示 -->
               <div

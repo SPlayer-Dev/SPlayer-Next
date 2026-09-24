@@ -131,6 +131,7 @@ pub fn prepare_decode(
         artist: tags.artist,
         album: tags.album,
         comment: tags.comment,
+        genre: tags.genre,
         duration_secs,
         sample_rate: stream_info.sample_rate,
         channels: source_channels,

@@ -11,14 +11,29 @@ export interface CoverCardProps {
   rounded?: string;
   /** 封面占位图 */
   fallback?: string;
+  /** 封面上的播放按钮是否可点击（未开启时仅作为悬浮装饰） */
+  playable?: boolean;
 }
 
 const props = withDefaults(defineProps<CoverCardProps>(), {
   type: "default",
   rounded: "rounded-xl",
+  playable: false,
 });
 
-defineEmits<{ click: [] }>();
+const emit = defineEmits<{ click: []; play: [] }>();
+
+/** 播放按钮是否可交互：歌手卡片中间是头像占位图，不做播放入口 */
+const canPlay = computed(() => props.playable && props.type !== "artist");
+
+/** 点击封面上的播放按钮：不触发卡片跳转 */
+const handlePlay = (event: MouseEvent): void => {
+  if (!canPlay.value) return;
+  event.stopPropagation();
+  emit("play");
+};
+
+const { t } = useI18n();
 
 const coverRounded = computed(() => (props.type === "artist" ? "rounded-full" : props.rounded));
 const actualFallback = computed(() => (props.type === "artist" ? artistFallback : props.fallback));
@@ -40,12 +55,16 @@ const actualFallback = computed(() => (props.type === "artist" ? artistFallback 
       />
       <!-- 播放按钮 -->
       <div
-        class="absolute size-9 flex items-center justify-center rounded-full opacity-0 transition-[opacity,transform] duration-300 group-hover:opacity-100"
-        :class="
+        class="absolute size-9 flex items-center justify-center rounded-full opacity-0 transition-[opacity,transform,background-color] duration-300 group-hover:opacity-100"
+        :class="[
           type === 'artist'
             ? 'inset-0 m-auto'
-            : 'right-2 bottom-2 bg-white/50 translate-y-1.5 group-hover:translate-y-0'
-        "
+            : 'right-2 bottom-2 bg-white/50 translate-y-1.5 group-hover:translate-y-0',
+          canPlay ? 'hover:bg-white/75 hover:scale-105' : '',
+        ]"
+        :role="canPlay ? 'button' : undefined"
+        :aria-label="canPlay ? t('songList.context.play') : undefined"
+        @click="handlePlay"
       >
         <IconLucidePlay v-if="type !== 'artist'" class="size-4.5 text-white" />
         <IconLucideUser v-else class="size-8 text-white" />

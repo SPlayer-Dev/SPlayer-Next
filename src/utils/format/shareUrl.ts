@@ -47,6 +47,14 @@ export const getCollectionShareUrl = (collection: Collection | null | undefined)
       streaming: null,
       local: null,
     },
+    // 流派仅按本地曲库聚合，没有对应的在线分享链接
+    genre: {
+      netease: null,
+      qqmusic: null,
+      kugou: null,
+      streaming: null,
+      local: null,
+    },
     cloud: {
       netease: null,
       qqmusic: null,

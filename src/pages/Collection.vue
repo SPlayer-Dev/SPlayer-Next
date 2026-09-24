@@ -97,6 +97,7 @@ const typeLabel = computed(() => {
   const map: Record<CollectionType, string> = {
     album: t("collection.album"),
     playlist: t("collection.playlist"),
+    genre: t("collection.genre"),
     radio: t("collection.radio"),
     cloud: t("cloud.title"),
   };
@@ -285,6 +286,7 @@ onBeforeUnmount(() => {
                     class="inline-flex size-6 cursor-default items-center justify-center text-primary/65"
                   >
                     <IconLucideDisc3 v-if="type === 'album'" class="size-4" />
+                    <IconLucideGuitar v-else-if="type === 'genre'" class="size-4" />
                     <IconLucideListMusic v-else-if="type === 'playlist'" class="size-4" />
                     <IconLucideRadio v-else-if="type === 'radio'" class="size-4" />
                     <IconLucideCloud v-else class="size-4" />
@@ -314,7 +316,8 @@ onBeforeUnmount(() => {
                     {{ collection.description }}
                   </span>
                 </SButton>
-                <p v-else class="text-sm text-on-surface-variant/70 truncate">
+                <!-- 流派按标签聚合，没有简介概念，不显示占位文案 -->
+                <p v-else-if="type !== 'genre'" class="text-sm text-on-surface-variant/70 truncate">
                   {{ t("collection.noDescription") }}
                 </p>
                 <div

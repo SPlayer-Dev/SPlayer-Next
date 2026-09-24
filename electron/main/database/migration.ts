@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 
 /** 当前 schema 版本 */
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 6;
 
 type TableInfoRow = { name: string };
 
@@ -50,6 +50,23 @@ export const migrate = (d: Database.Database): void => {
       d.exec("ALTER TABLE tracks ADD COLUMN cue_end_ms INTEGER");
     }
     v = 4;
+  }
+
+  // v4 → v5: 添加流派列
+  if (v < 5) {
+    if (!hasColumn(d, "tracks", "genres")) {
+      // 不设默认值：NULL 表示该曲目尚未解析过流派，扫描器据此触发一次全量回填
+      d.exec("ALTER TABLE tracks ADD COLUMN genres TEXT");
+    }
+    v = 5;
+  }
+
+  // v5 → v6: 早期版本给 genres 写入了空数组，无法区分「无流派」与「未解析」，
+  // 这里统一清空以触发一次全量回填（扫描器检测到空值会自动降级为全量扫描）
+  // 用空串而非 NULL：早期版本建的列可能带 NOT NULL 约束
+  if (v < 6) {
+    d.exec("UPDATE tracks SET genres = ''");
+    v = 6;
   }
 
   // 版本无关部分

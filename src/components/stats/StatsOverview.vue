@@ -4,6 +4,7 @@ import type { LibraryStats } from "@shared/types/stats";
 import IconLucideMusic from "~icons/lucide/music";
 import IconLucideDisc3 from "~icons/lucide/disc-3";
 import IconLucideUser from "~icons/lucide/user";
+import IconLucideGuitar from "~icons/lucide/guitar";
 import IconLucideClock from "~icons/lucide/clock";
 import IconLucideHardDrive from "~icons/lucide/hard-drive";
 
@@ -83,6 +84,12 @@ const overviewCards = computed<OverviewCard[]>(() => {
       value: stats ? String(stats.artistCount) : "--",
       to: "/artists/local",
     },
+    {
+      key: "genres",
+      icon: IconLucideGuitar,
+      value: stats ? String(stats.genreCount) : "--",
+      to: "/genres/local",
+    },
     duration
       ? {
           key: "totalDuration",
@@ -101,7 +108,7 @@ const overviewCards = computed<OverviewCard[]>(() => {
 </script>
 
 <template>
-  <div class="grid grid-cols-2 gap-5 md:grid-cols-3 lg:grid-cols-5">
+  <div class="grid grid-cols-2 gap-5 md:grid-cols-3 lg:grid-cols-6">
     <SCard
       v-for="card in overviewCards"
       :key="card.key"

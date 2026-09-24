@@ -1,6 +1,11 @@
 import localforage from "localforage";
 import type { Track, Artist } from "@shared/types/player";
-import type { AlbumSummary, ArtistSummary, ScanProgress } from "@shared/types/library";
+import type {
+  AlbumSummary,
+  ArtistSummary,
+  GenreSummary,
+  ScanProgress,
+} from "@shared/types/library";
 import type { Collection } from "@/types/collection";
 import type { ArtistProfile, CoverItem } from "@/types/artist";
 import { buildFolderTree, countFolders } from "@/utils/folderTree";
@@ -274,6 +279,35 @@ export const useLibraryStore = defineStore("library", () => {
     return res.success && res.data ? res.data : [];
   };
 
+  /** 流派聚合列表 */
+  const getGenreList = async (): Promise<GenreSummary[]> => {
+    const res = await window.api.library.getGenres();
+    return res.success && res.data ? res.data : [];
+  };
+
+  /** 流派详情 */
+  const getGenreCollection = async (genreName: string): Promise<Collection | null> => {
+    const name = genreName.trim();
+    if (!name) return null;
+    const res = await window.api.library.getGenreTracks(name);
+    if (!res.success || !res.data?.length) return null;
+    const genreTracks = res.data;
+    // 以曲目上记录的写法为准，避免大小写不一致导致标题变形
+    const displayName =
+      genreTracks
+        .flatMap((track) => track.genres ?? [])
+        .find((item) => item.toLowerCase() === name.toLowerCase()) ?? name;
+    return {
+      id: encodeURIComponent(displayName),
+      type: "genre",
+      source: "local",
+      title: displayName,
+      cover: genreTracks.find((track) => track.cover)?.cover,
+      tracks: genreTracks,
+      trackCount: genreTracks.length,
+    };
+  };
+
   /** 专辑详情 */
   const getAlbumCollection = async (albumName: string): Promise<Collection | null> => {
     const res = await window.api.library.getAlbumTracks(albumName);
@@ -360,6 +394,8 @@ export const useLibraryStore = defineStore("library", () => {
     loadArtistAvatars,
     getArtistList,
     getAlbumList,
+    getGenreList,
+    getGenreCollection,
     getAlbumCollection,
     getArtistProfile,
     folderTree,

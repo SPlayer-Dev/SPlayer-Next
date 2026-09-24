@@ -31,7 +31,13 @@ import { getMainWindow, setTaskbarProgress } from "@main/window";
 import { store } from "@main/store";
 import { appName, getSongCacheDir } from "@main/utils/config";
 import * as songCache from "@main/services/songCache";
-import { parseArtists, parseAlbum, formatArtists, artistNames } from "@main/utils/metadata";
+import {
+  parseArtists,
+  parseAlbum,
+  parseGenres,
+  formatArtists,
+  artistNames,
+} from "@main/utils/metadata";
 import { playerLog } from "@main/utils/logger";
 import { updatePowerBlocker, releasePowerBlocker } from "@main/utils/powerBlocker";
 import { ErrorCode } from "@shared/types/errors";
@@ -376,6 +382,7 @@ export const registerPlayerIpc = (): void => {
             ? authoritative.artists
             : parseArtists(meta.artist ?? ""),
           album: authoritative?.album ?? parseAlbum(meta.album ?? ""),
+          genres: authoritative?.genres?.length ? authoritative.genres : parseGenres(meta.genre),
           duration: durationMs,
           cover: isRemote ? undefined : toCacheUrl(meta.cover),
           quality,

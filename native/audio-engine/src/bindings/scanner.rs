@@ -30,6 +30,8 @@ pub struct JsScannedTrack {
     pub album: Option<String>,
     /// 音轨编号
     pub track: Option<u16>,
+    /// 流派原始标签文本（可能包含多个流派，由 JS 侧解析拆分）
+    pub genre: Option<String>,
     /// 时长（秒）
     pub duration: f64,
     pub codec: String,
@@ -55,6 +57,7 @@ impl From<scanner::ScannedTrack> for JsScannedTrack {
             artist: track.artist,
             album: track.album,
             track: track.track,
+            genre: track.genre,
             duration: track.duration,
             codec: track.codec,
             sample_rate: track.sample_rate,

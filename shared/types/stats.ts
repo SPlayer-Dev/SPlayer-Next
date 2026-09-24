@@ -60,6 +60,8 @@ export interface LibraryStats {
   albumCount: number;
   /** 歌手数量（按歌手名去重） */
   artistCount: number;
+  /** 流派数量（按流派名去重，忽略大小写） */
+  genreCount: number;
   /** 总时长（毫秒） */
   totalDurationMs: number;
   /** 总文件大小（字节） */

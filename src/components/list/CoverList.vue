@@ -18,6 +18,8 @@ export interface CoverListProps {
   rounded?: string;
   /** 封面占位图 */
   fallback?: string;
+  /** 封面上的播放按钮是否可点击 */
+  playable?: boolean;
   /** 横向 padding（px） */
   paddingX?: number;
   /** 顶部 padding（px） */
@@ -39,6 +41,7 @@ const props = withDefaults(defineProps<CoverListProps>(), {
   paddingX: 0,
   paddingTop: 0,
   paddingBottom: 0,
+  playable: false,
   hasMore: false,
   loadingMore: false,
 });
@@ -54,6 +57,7 @@ const virtualPaddingBottom = computed(() =>
 
 const emit = defineEmits<{
   click: [item: CoverItem];
+  play: [item: CoverItem];
   reachBottom: [];
 }>();
 
@@ -155,7 +159,9 @@ const getRowKey = (row: Row): string => row.id;
           :type="type"
           :rounded="rounded"
           :fallback="fallback"
+          :playable="playable"
           @click="emit('click', item)"
+          @play="emit('play', item)"
         />
       </div>
     </template>
@@ -177,7 +183,9 @@ const getRowKey = (row: Row): string => row.id;
       :type="type"
       :rounded="rounded"
       :fallback="fallback"
+      :playable="playable"
       @click="emit('click', item)"
+      @play="emit('play', item)"
     />
   </div>
 </template>

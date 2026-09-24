@@ -210,6 +210,10 @@ const api = {
     getAlbums: () => ipcRenderer.invoke("library:getAlbums"),
     // 获取歌手聚合列表
     getArtists: () => ipcRenderer.invoke("library:getArtists"),
+    // 获取流派聚合列表
+    getGenres: () => ipcRenderer.invoke("library:getGenres"),
+    // 获取某流派下的全部曲目
+    getGenreTracks: (genreName: string) => ipcRenderer.invoke("library:getGenreTracks", genreName),
     // 获取某专辑下的全部曲目
     getAlbumTracks: (albumName: string) => ipcRenderer.invoke("library:getAlbumTracks", albumName),
     // 获取某歌手的全部曲目

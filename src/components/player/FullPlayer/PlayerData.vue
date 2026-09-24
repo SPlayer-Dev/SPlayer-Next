@@ -103,6 +103,21 @@ const lyricLabel = computed(() => media.activeLyric?.format.toUpperCase() ?? "NO
 /** 专辑文本 */
 const albumText = computed(() => displayTrack.value?.album?.name ?? "");
 
+/** 流派列表 */
+const genres = computed(() =>
+  (displayTrack.value?.genres ?? []).map((name) => name.trim()).filter(Boolean),
+);
+
+/** 生成流派详情页跳转目标（仅本地曲目按流派聚合） */
+const genreTarget = (genre: string): ResourceNavigationTarget => ({
+  type: "genre",
+  source: displayTrack.value?.source,
+  name: genre,
+});
+
+/** 流派是否可跳转 */
+const isGenreLinkable = (genre: string): boolean => canNavigateToResource(genreTarget(genre));
+
 /** 当前实际加载歌曲的播放来源 */
 const playbackSource = computed(() => media.playbackContext);
 const playbackSourceTarget = computed<ResourceNavigationTarget | null>(() => {
@@ -209,6 +224,26 @@ const alignItems = computed(() => {
         @click="goToResource(albumTarget)"
       >
         {{ albumText }}
+      </span>
+    </div>
+    <!-- 流派 -->
+    <div
+      v-if="genres.length"
+      class="max-w-full flex items-center gap-1.5 text-[1.2em] text-cover/60"
+    >
+      <IconLucideGuitar class="shrink-0 translate-y-px text-cover/40" />
+      <span class="truncate">
+        <template v-for="(genre, index) in genres" :key="genre">
+          <span
+            :class="
+              isGenreLinkable(genre) ? 'cursor-pointer transition-colors hover:text-cover' : ''
+            "
+            @click="goToResource(genreTarget(genre))"
+          >
+            {{ genre }}
+          </span>
+          <span v-if="index < genres.length - 1" class="mx-0.5 opacity-50">/</span>
+        </template>
       </span>
     </div>
     <!-- 播放来源 -->

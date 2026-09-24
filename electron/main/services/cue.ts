@@ -1,10 +1,13 @@
 import path from "node:path";
 import type { Artist } from "@shared/types/player";
+import { parseGenres } from "../utils/metadata";
 
 export interface CueTrackInfo {
   title: string;
   artists: Artist[];
   album?: { name: string; artist?: string };
+  /** 流派列表（来自 REM GENRE） */
+  genres: string[];
   track: number;
   path: string;
   cuePath: string;
@@ -23,12 +26,14 @@ interface ParsedCueTrack {
   number: number;
   title?: string;
   performer?: string;
+  genre?: string;
   index01?: number;
 }
 
 interface CueSheetState {
   albumTitle?: string;
   albumPerformer?: string;
+  albumGenre?: string;
   files: CueFile[];
 }
 
@@ -113,6 +118,17 @@ const parseState = (content: string): CueSheetState => {
       continue;
     }
 
+    // REM GENRE Classical：CUE 的流派写在注释指令里
+    if (command === "REM") {
+      const remMatch = value.match(commandPattern);
+      if (remMatch && remMatch[1].toUpperCase() === "GENRE") {
+        const genre = readToken(remMatch[2] ?? "") || (remMatch[2] ?? "").trim();
+        if (currentTrack) currentTrack.genre = genre;
+        else state.albumGenre = genre;
+      }
+      continue;
+    }
+
     if (command === "INDEX" && currentTrack) {
       const parts = value.trim().split(/\s+/);
       if (parts[0] !== "01") continue;
@@ -169,6 +185,7 @@ export const parseCueSheet = (
         title: track.title || `${path.basename(cuePath, path.extname(cuePath))} #${track.number}`,
         artists,
         album,
+        genres: parseGenres(track.genre || state.albumGenre),
         track: track.number,
         path: toCueTrackPath(cuePath, track.number),
         cuePath,
