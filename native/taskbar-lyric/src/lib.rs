@@ -8,7 +8,10 @@ use napi::{
     threadsafe_function::{ThreadsafeFunctionCallMode, UnknownReturnValue},
 };
 use napi_derive::napi;
-use windows::Win32::{Foundation::HWND, UI::WindowsAndMessaging::IsWindow};
+use windows::Win32::{
+    Foundation::HWND,
+    UI::WindowsAndMessaging::{GA_PARENT, GetAncestor, IsWindow},
+};
 
 /// 任务列表和歌词之间的微小间距
 pub const GAP: i32 = 10;
@@ -100,6 +103,41 @@ pub(crate) fn take_valid_hwnd(hwnd_ptr: usize) -> Option<HWND> {
     } else {
         warn!("无效 HWND (0x{hwnd_ptr:x})，跳过");
         None
+    }
+}
+
+/// 窗口的嵌入状态
+#[napi(object)]
+#[derive(Debug, Clone)]
+pub struct JsEmbedState {
+    /// HWND 是否仍然有效
+    pub alive: bool,
+    /// 是否仍嵌在 explorer 的任务栏上
+    pub embedded: bool,
+}
+
+/// 探测窗口是否仍挂在 explorer 的任务栏上
+///
+/// 任务栏歌词窗口的位置坐标是「相对任务栏」的（y=0 即任务栏顶边），父关系一旦被解除，
+/// 同一组坐标会被按屏幕坐标解释，窗口就停在屏幕顶部且不会自行恢复
+/// @param hwnd_ptr - Electron BrowserWindow 的 native handle
+/// @returns 窗口是否存活、是否仍嵌在任务栏上
+#[napi]
+pub fn probe_window(hwnd_ptr: f64) -> JsEmbedState {
+    let Some(hwnd) = take_valid_hwnd(hwnd_ptr as usize) else {
+        return JsEmbedState {
+            alive: false,
+            embedded: false,
+        };
+    };
+
+    // SAFETY: hwnd 已由 take_valid_hwnd 校验有效
+    let embedded = utils::find_taskbar_hwnd()
+        .is_some_and(|taskbar| unsafe { GetAncestor(hwnd, GA_PARENT) == taskbar });
+
+    JsEmbedState {
+        alive: true,
+        embedded,
     }
 }
 
