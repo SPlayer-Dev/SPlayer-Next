@@ -22,7 +22,11 @@ import type {
   PluginStatus,
   PluginUpdateInfo,
 } from "@shared/types/plugin";
-import { PluginErrorCodes, RESTART_MAX_ATTEMPTS } from "@shared/defaults/plugin-api";
+import {
+  PLAYBACK_EVENT_MIN_API_LEVEL,
+  PluginErrorCodes,
+  RESTART_MAX_ATTEMPTS,
+} from "@shared/defaults/plugin-api";
 import { store } from "@main/store";
 import { getLocale } from "@main/utils/i18n";
 import { coreLog } from "@main/utils/logger";
@@ -493,7 +497,13 @@ class PluginRegistry extends EventEmitter {
         }
       },
       onHostCall: (callId, method, args) => {
-        void dispatchHostCall(id, rt.manifest.grant, callId, method, args);
+        void dispatchHostCall(
+          id,
+          { type: rt.manifest.type, grant: rt.manifest.grant, apiLevel: rt.manifest.apiLevel },
+          callId,
+          method,
+          args,
+        );
       },
       onLog: (level, args) => {
         coreLog[level](`[plugin:${id}]`, ...args);
@@ -654,10 +664,12 @@ class PluginRegistry extends EventEmitter {
    * @param data - 事件载荷
    */
   broadcastPlaybackEvent(event: PlaybackEventKind, data: unknown): void {
+    const minApiLevel = PLAYBACK_EVENT_MIN_API_LEVEL[event] ?? 1;
     for (const rt of this.runtimes.values()) {
       if (
         rt.enabled &&
         rt.manifest.type === "control" &&
+        rt.manifest.apiLevel >= minApiLevel &&
         rt.status.state === "ready" &&
         rt.events.includes(event)
       ) {
@@ -674,10 +686,12 @@ class PluginRegistry extends EventEmitter {
    */
   sendPlaybackEventTo(id: string, event: PlaybackEventKind, data: unknown): void {
     const rt = this.runtimes.get(id);
+    const minApiLevel = PLAYBACK_EVENT_MIN_API_LEVEL[event] ?? 1;
     if (
       rt &&
       rt.enabled &&
       rt.manifest.type === "control" &&
+      rt.manifest.apiLevel >= minApiLevel &&
       rt.status.state === "ready" &&
       rt.events.includes(event)
     ) {

@@ -492,6 +492,8 @@ const api = {
   nowPlaying: {
     // 渲染进程同步当前播放状态到主进程
     update: (payload: unknown) => ipcRenderer.send("nowPlaying:update", payload),
+    // 渲染进程只同步当前 Track 的延迟元数据
+    updateTrack: (track: unknown) => ipcRenderer.send("nowPlaying:updateTrack", track),
     // 拉取当前完整快照
     requestSnapshot: () => ipcRenderer.invoke("nowPlaying:requestSnapshot"),
     // 写入指定曲目的歌词偏移（ms），0 视为清除
@@ -500,6 +502,9 @@ const api = {
     // 订阅歌曲切换事件
     onTrackChange: (callback: (data: unknown) => void) =>
       subscribe("nowPlaying:track-change", callback),
+    // 订阅当前曲目的延迟元数据更新
+    onTrackUpdate: (callback: (data: unknown) => void) =>
+      subscribe("nowPlaying:track-update", callback),
     // 订阅歌词内容变化事件
     onLyricChange: (callback: (snapshot: unknown) => void) =>
       subscribe("nowPlaying:lyric-change", callback),

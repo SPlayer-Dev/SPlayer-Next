@@ -95,7 +95,7 @@ Metadata is declared in a leading JSDoc block:
 | `@homepage`    |          | Homepage URL                                                                   |
 | `@grant`       |          | Comma-separated `network`, `control`, and `ui` permissions                     |
 | `@type`        |          | `source` (default) or `control`; explicit declaration recommended              |
-| `@apiLevel`    |          | Required host API level; current level is `3`                                  |
+| `@apiLevel`    |          | Required host API level; current level is `4`                                  |
 | `@updateUrl`   |          | Update script URL                                                              |
 | `@changelog`   |          | Release notes                                                                  |
 
@@ -119,13 +119,16 @@ Native SPlayer plugins should explicitly declare `@name`, `@version`, and `@id`;
 
 Capabilities accumulate: a higher level includes all lower levels.
 
-| Level | New capabilities                                                                          |
-| ----- | ----------------------------------------------------------------------------------------- |
-| `1`   | Source registration, `musicUrl`, `musicSearch`, `musicLyric`, `musicPic`, and common APIs |
-| `2`   | Playback events/control, settings, `onSettingChange`, menus, and `menuClick`              |
-| `3`   | `musicComment`; the host searches for a candidate before requesting comments              |
+| Level | New capabilities                                                                                                                                     |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `1`   | Source registration, `musicUrl`, `musicSearch`, `musicLyric`, `musicPic`, and common APIs                                                            |
+| `2`   | Playback events/control, settings, `onSettingChange`, menus, and `menuClick`                                                                         |
+| `3`   | `musicComment`; the host searches for a candidate before requesting comments                                                                         |
+| `4`   | `trackUpdate` / `positionSync`, `lyricChange` with source, status and revision, and the read-only `splayer.media.getCover()` (needs `@type control`) |
 
-The current host level is **3**. A plugin requiring a newer level is rejected with `PLUGIN_API_LEVEL_MISMATCH`. Declare the lowest level actually used. Control plugins require at least level 2; comment plugins require level 3.
+The current host level is **4**. A plugin requiring a newer level is rejected with `PLUGIN_API_LEVEL_MISMATCH`. Declare the lowest level actually used. Control plugins require at least level 2; comment plugins require level 3.
+
+Level `4` capabilities are also enforced at runtime: a plugin declaring a lower level receives neither `trackUpdate` nor `positionSync`, and `media.getCover()` fails with `PLUGIN_API_LEVEL_MISMATCH`.
 
 ## Sandbox environment
 

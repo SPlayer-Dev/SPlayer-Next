@@ -53,7 +53,14 @@ splayer.player.on("playStateChange", ({ state, position }) => {
 
 ```js
 splayer.register({
-  events: ["trackChange", "lyricChange", "lineChange", "playStateChange"],
+  events: [
+    "trackChange",
+    "trackUpdate",
+    "lyricChange",
+    "lineChange",
+    "playStateChange",
+    "positionSync",
+  ],
   controls: true,
   settings: [/* PluginSettingItem[] */],
 });
@@ -80,15 +87,24 @@ splayer.player.on(kind, (data) => { ... });
 
 ### `trackChange` — 曲目切换
 
-`track` 为当前曲目 [`Track`](/types#track)（`artists` 是 [`Artist[]`](/types#artist)），`null` 表示无曲目。
+`track` 为当前曲目 [`Track`](/types#track)（`artists` 是 [`Artist[]`](/types#artist)），`null` 表示无曲目；`revision` 是曲目元数据修订号。
+
+### `trackUpdate` — 当前曲目元数据更新（apiLevel 4）
+
+歌曲身份不变，但封面、时长或音质等延迟元数据补全时下发。载荷同样包含完整 `track` 与 `revision`，不会重复触发 `trackChange`。
 
 ### `lyricChange` — 歌词整体变化
 
-| 字段    | 类型          | 说明                   |
-| ------- | ------------- | ---------------------- |
-| `lines` | `LyricLine[]` | 当前曲目的完整解析歌词 |
+| 字段       | 类型                             | 说明                                   |
+| ---------- | -------------------------------- | -------------------------------------- |
+| `lines`    | `LyricLine[]`                    | 当前曲目的完整解析歌词                 |
+| `source`   | `LyricData`                      | 歌词来源、格式与在线平台（apiLevel 4） |
+| `status`   | `"loading" \| "ready" \| "none"` | 当前歌词加载状态（apiLevel 4）         |
+| `revision` | `number`                         | 歌词文档修订号（apiLevel 4）           |
 
 每行是一个 [`LyricLine`](/types#lyricline)，逐字内容见 [`LyricWord`](/types#lyricword)。整行纯文本：`line.words.map((word) => word.word).join("")`；逐行（LRC 类）歌词通常每行只有一个 word，其始末时间与行时间一致。
+
+`lines` 里包含 TTML 伴唱 / 和声行（`line.isBG === true`），展示主歌词要先按 `!line.isBG` 过滤。`revision` 用于识别同一首歌的歌词被重新匹配或格式升级（例如逐行 LRC 换成逐字 TTML），比对本地缓存的 `revision` 即可判断是否需要重绘。
 
 ### `lineChange` — 当前歌词行变化
 
@@ -117,6 +133,33 @@ splayer.player.on("lineChange", ({ index }) => {
 
 `stopped` 与 `paused` 区分开：停止（如播放结束）为 `stopped`，暂停为 `paused`。
 
+### `positionSync` — 播放位置锚点（apiLevel 4）
+
+按播放器位置同步节奏（约 5Hz）下发，适合外部歌词窗口在本地插值；只有订阅了该事件的插件会收到。`@apiLevel` 低于 `4` 的插件即使订阅也收不到 `positionSync` 与 `trackUpdate`。
+
+| 字段            | 类型                                 | 说明                                   |
+| --------------- | ------------------------------------ | -------------------------------------- |
+| `position`      | `number`                             | 播放进度（毫秒）                       |
+| `state`         | `"playing" \| "paused" \| "stopped"` | 播放态                                 |
+| `speed`         | `number`                             | 播放速度倍率                           |
+| `lyricOffsetMs` | `number`                             | 当前歌词偏移，正值表示歌词提前         |
+| `sendTimestamp` | `number`                             | 该位置成立时的 `Date.now()` 毫秒时间戳 |
+
+## 读取当前封面（apiLevel 4）
+
+在脚本头声明 `@type control` 且 `@apiLevel 4` 后，可读取当前歌曲的小尺寸封面：
+
+```js
+const cover = await splayer.media.getCover();
+if (cover) {
+  // 跨沙箱递过来的二进制视图不一定是本上下文的 Uint8Array
+  const bytes = ArrayBuffer.isView(cover.data) ? new Uint8Array(cover.data) : null;
+  splayer.log.info(cover.trackId, cover.hash, bytes?.byteLength);
+}
+```
+
+返回值还包含 `source`、`mimeType` 与内容哈希 `hash`；无可用封面或读取失败时返回 `null`。本地（含内嵌封面）、在线平台与流媒体服务器（Jellyfin / Emby / Subsonic 系）的封面都会覆盖，统一由宿主解码成 300px JPEG，不返回原始高清图。同一首曲目封面未变时 `hash` 不变，宿主侧会复用上一次结果，插件轮询不会重复触发解码。
+
 ## 反向控制播放
 
 在脚本头声明 `@grant control` 后，可调用 `splayer.player` 控制播放器；未授权时控制调用会被宿主忽略。`register({ controls: true })` 用于向宿主和用户表明插件包含反向控制能力，但当前权限门控以 `@grant control` 为准：
@@ -134,7 +177,7 @@ splayer.player.on("lineChange", ({ index }) => {
 以上控制方法（除 `getPosition`）均为「即发即忘」，不返回结果；非法入参（如负的 `seek`、越界音量）会被宿主忽略。
 
 ::: tip getPosition 的正确用法
-`getPosition()` 每次调用都有一次往返开销，**仅用于偶发的一次性查询**。需要持续跟踪进度时，请直接读 `lineChange` / `playStateChange` 载荷里已经带上的 `position`，不要高频轮询 `getPosition`。
+`getPosition()` 每次调用都有一次往返开销，**仅用于偶发的一次性查询**。需要持续跟踪进度时，apiLevel 4 插件应订阅 `positionSync` 并在本地插值，不要高频轮询 `getPosition`。
 :::
 
 ## 设置项

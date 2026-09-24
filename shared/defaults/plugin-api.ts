@@ -1,7 +1,21 @@
-import type { PluginsConfig } from "../types/plugin";
+import type { HostCallMethod, PlaybackEventKind, PluginsConfig } from "../types/plugin";
 
 /** 当前 Host API 级别；插件 `@apiLevel` 必须 ≤ 此值才加载 */
-export const HOST_API_LEVEL = 3;
+export const HOST_API_LEVEL = 4;
+
+/**
+ * 宿主方法所需的最低 `@apiLevel`
+ * 未列出的方法对全部级别开放；此表把 `@apiLevel` 从加载门槛扩展为运行时能力门槛
+ */
+export const HOST_CALL_MIN_API_LEVEL: Partial<Record<HostCallMethod, number>> = {
+  "media.getCover": 4,
+};
+
+/** 高层播放事件所需的最低 `@apiLevel`，未列出的事件对全部级别开放 */
+export const PLAYBACK_EVENT_MIN_API_LEVEL: Partial<Record<PlaybackEventKind, number>> = {
+  trackUpdate: 4,
+  positionSync: 4,
+};
 
 /** 各动作的默认超时（毫秒）。新增动作时在此追加。 */
 export const ACTION_TIMEOUTS = {
