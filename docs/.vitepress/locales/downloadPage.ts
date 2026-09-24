@@ -10,6 +10,8 @@ export const DOWNLOAD_PAGE_COPY = {
     download: "下载",
     otherVersions: "需要其他版本？",
     allReleases: "查看全部 Releases",
+    archHint: "Arch Linux / CachyOS 用户请参考",
+    archHintLink: "archlinuxcn 源安装指南",
     channelEmpty: (name: string) => `当前还没有 ${name}，请切换其他通道或稍后再试。`,
     channels: {
       stable: { name: "Stable 正式版", description: "稳定通道，只提供正式发布版本。" },
@@ -40,6 +42,8 @@ export const DOWNLOAD_PAGE_COPY = {
     download: "Download",
     otherVersions: "Looking for another version?",
     allReleases: "View all releases",
+    archHint: "On Arch Linux and CachyOS, see the",
+    archHintLink: "archlinuxcn installation guide",
     channelEmpty: (name: string) =>
       `There is no ${name} release yet. Choose another channel or try again later.`,
     channels: {
