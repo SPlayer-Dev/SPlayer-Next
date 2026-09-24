@@ -545,6 +545,7 @@ export const pause = async (): Promise<void> => {
 
 /** 停止播放并重置进度 */
 export const stop = async (): Promise<void> => {
+  invalidateNextTrackPreload();
   const status = useStatusStore();
   status.trackLoading = false;
   const result = await window.api.player.stop();
@@ -1026,6 +1027,7 @@ export const prevTrack = async (): Promise<void> => {
 
 /** 队列播放结束，通知主进程停止并更新状态 */
 const onQueueEnded = async (): Promise<void> => {
+  invalidateNextTrackPreload();
   const status = useStatusStore();
   status.trackLoading = false;
   playback.setPlaying(false);

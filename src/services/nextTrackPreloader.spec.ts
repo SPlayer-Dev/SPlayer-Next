@@ -1,23 +1,36 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises } from "@vue/test-utils";
+import { reactive } from "vue";
 import type { Track } from "@shared/types/player";
 
 const mocks = vi.hoisted(() => ({
   settings: {
     player: {
       preloadNextTrack: true,
-      transitionMode: "crossfade",
-      transitionPreference: "standard",
       songLevel: "hq",
       allowTrialPlay: false,
+      transitionMode: "crossfade",
+      transitionPreference: "standard",
     },
-    system: { cache: { songCache: { enabled: true, cacheStreaming: true } } },
+    system: {
+      cache: { songCache: { enabled: true, cacheStreaming: true } },
+      lyric: { enableOnlineTTMLLyric: false },
+      localLyric: { enableLocalTTMLOverride: false, repoDir: "" },
+    },
+    lyric: {
+      lyricSourcePreference: "auto",
+      lyricSourceOrder: [],
+      lyricFormatOrder: [],
+      smartPreferOnline: false,
+      preferPluginLyric: false,
+    },
     preset: { skipKeywordsSongs: false, skipTrackKeywords: [] },
   },
   status: {
     currentTrack: { id: "current" },
-    playIndex: 0,
+    state: "playing",
     trackLoading: false,
+    playIndex: 0,
     fmMode: false,
     shuffleMode: "off",
   },
@@ -44,7 +57,8 @@ describe("下一曲真实预载", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-    mocks.status.trackLoading = false;
+    mocks.resolve.mockReset();
+    mocks.status = reactive({ ...mocks.status, state: "playing", trackLoading: false });
     mocks.settings.player.preloadNextTrack = true;
     mocks.settings.system.cache.songCache = { enabled: true, cacheStreaming: true };
     mocks.candidate.track = { id: "next", source: "netease" };
@@ -53,6 +67,148 @@ describe("下一曲真实预载", () => {
     Object.assign(window, {
       api: { player: { prepareNext: mocks.prepare, cancelPrepared: mocks.cancel } },
     });
+  });
+
+  afterEach(async () => {
+    const preloader = await import("./nextTrackPreloader");
+    preloader.disposeNextTrackPreload();
+  });
+
+  it("解析返回空值后允许同一候选重新预载", async () => {
+    mocks.resolve.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      source: "C:/cache/next.bin",
+      provider: "cache",
+      fromCache: true,
+    });
+    const preloader = await import("./nextTrackPreloader");
+    preloader.scheduleNextTrackPreload();
+    await flushPromises();
+    preloader.scheduleNextTrackPreload();
+    await flushPromises();
+    expect(mocks.resolve).toHaveBeenCalledTimes(2);
+    expect(mocks.prepare).toHaveBeenCalledOnce();
+    expect(
+      preloader.consumePreloadedTrack(mocks.candidate.track as Track)?.preparedId,
+    ).toBeTruthy();
+  });
+
+  it("当前歌曲加载完成前不启动下一曲预载", async () => {
+    mocks.status.state = "loading";
+    mocks.resolve.mockResolvedValue({
+      source: "C:/cache/next.bin",
+      provider: "cache",
+      fromCache: true,
+    });
+    const preloader = await import("./nextTrackPreloader");
+    preloader.installNextTrackPreloadWatchers();
+    preloader.scheduleNextTrackPreload();
+    await flushPromises();
+    expect(mocks.resolve).not.toHaveBeenCalled();
+    mocks.status.state = "playing";
+    await flushPromises();
+    expect(mocks.prepare).toHaveBeenCalledOnce();
+  });
+
+  it("停止播放会取消在途下载，迟到结果不能创建槽位，恢复后可重新预载", async () => {
+    let finish!: (path: string) => void;
+    const cacheRequest = vi.fn(
+      (_id: string, _signal: AbortSignal) =>
+        new Promise<string>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    mocks.resolve.mockResolvedValueOnce({
+      source: "https://music/next",
+      provider: "official",
+      fromCache: false,
+      cacheRequest,
+    });
+    const preloader = await import("./nextTrackPreloader");
+    preloader.installNextTrackPreloadWatchers();
+    preloader.scheduleNextTrackPreload();
+    await flushPromises();
+    mocks.status.state = "stopped";
+    await flushPromises();
+    const [id, signal] = cacheRequest.mock.calls[0]!;
+    expect(signal.aborted).toBe(true);
+    expect(mocks.cancel).toHaveBeenCalledWith(id);
+    finish("C:/cache/next.bin");
+    await flushPromises();
+    expect(mocks.prepare).not.toHaveBeenCalled();
+    mocks.resolve.mockResolvedValue({
+      source: "C:/cache/next.bin",
+      provider: "cache",
+      fromCache: true,
+    });
+    mocks.status.state = "playing";
+    await flushPromises();
+    expect(mocks.prepare).toHaveBeenCalledOnce();
+  });
+
+  it("停止后迟到的解析结果不能恢复预载", async () => {
+    let finish!: (source: unknown) => void;
+    mocks.resolve.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const preloader = await import("./nextTrackPreloader");
+    preloader.installNextTrackPreloadWatchers();
+    preloader.scheduleNextTrackPreload();
+    mocks.status.state = "stopped";
+    await flushPromises();
+    finish({ source: "C:/cache/next.bin", provider: "cache", fromCache: true });
+    await flushPromises();
+    expect(mocks.prepare).not.toHaveBeenCalled();
+    expect(preloader.consumePreloadedTrack(mocks.candidate.track as Track)).toBeNull();
+  });
+
+  it("暂停保留在途预载，暂停后的结果仍可消费", async () => {
+    let finish!: (source: unknown) => void;
+    mocks.resolve.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const preloader = await import("./nextTrackPreloader");
+    preloader.installNextTrackPreloadWatchers();
+    preloader.scheduleNextTrackPreload();
+    mocks.status.state = "paused";
+    await flushPromises();
+    expect(mocks.resolve).toHaveBeenCalledOnce();
+    expect(mocks.cancel).not.toHaveBeenCalled();
+    finish({ source: "C:/cache/next.bin", provider: "cache", fromCache: true });
+    await flushPromises();
+    expect(
+      preloader.consumePreloadedTrack(mocks.candidate.track as Track)?.preparedId,
+    ).toBeTruthy();
+  });
+
+  it("旧任务返回空值不会清理新任务的预载结果", async () => {
+    let finish!: (source: null) => void;
+    mocks.resolve.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const preloader = await import("./nextTrackPreloader");
+    preloader.scheduleNextTrackPreload();
+    preloader.invalidateNextTrackPreload();
+    mocks.resolve.mockResolvedValueOnce({
+      source: "C:/cache/next.bin",
+      provider: "cache",
+      fromCache: true,
+    });
+    preloader.scheduleNextTrackPreload();
+    await flushPromises();
+    const id = mocks.prepare.mock.calls[0]![0];
+    finish(null);
+    await flushPromises();
+    expect(mocks.cancel).not.toHaveBeenCalledWith(id);
+    expect(preloader.consumePreloadedTrack(mocks.candidate.track as Track)?.preparedId).toBe(id);
   });
 
   it("替换播放列表后等待当前曲加载完成，再准备下一首槽位", async () => {

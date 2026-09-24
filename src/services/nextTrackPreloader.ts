@@ -163,7 +163,11 @@ export const scheduleNextTrackPreload = (): void => {
   }
 
   const status = useStatusStore();
-  if (status.trackLoading) return;
+  if (status.state === "stopped" || status.state === "idle") {
+    invalidateNextTrackPreload();
+    return;
+  }
+  if (status.trackLoading || status.state === "loading") return;
   const currentTrack = status.currentTrack;
   if (!currentTrack || useMediaStore().track?.id !== currentTrack.id) {
     invalidateNextTrackPreload();
@@ -234,6 +238,7 @@ export const scheduleNextTrackPreload = (): void => {
           trackId: candidateTrack.id,
           title: candidateTrack.title,
         });
+        invalidateNextTrackPreload();
         return;
       }
       if (source.cacheRequest) {
@@ -296,6 +301,7 @@ export const installNextTrackPreloadWatchers = (): void => {
       settings.player.songLevel,
       settings.player.allowTrialPlay,
       status.playIndex,
+      status.state,
       status.fmMode,
       status.shuffleMode,
       settings.preset.skipKeywordsSongs,

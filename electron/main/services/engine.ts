@@ -11,6 +11,17 @@ let playerInstance: PlayerInstance | null = null;
 /** 实例创建后的回调列表（注册事件、启动轮询等） */
 const onCreatedCallbacks: Array<(inst: PlayerInstance) => void> = [];
 
+/** 重置前释放依赖播放器实例的资源 */
+const onResetCallbacks: Array<() => void> = [];
+
+/**
+ * 注册播放器重置前的资源清理回调
+ * @param callback - 释放实例引用和外部资源的回调
+ */
+export const onPlayerReset = (callback: () => void): void => {
+  onResetCallbacks.push(callback);
+};
+
 /** 获取原生音频引擎模块 */
 export const getEngine = (): AudioEngineModule => {
   if (!audioEngine) {
@@ -47,6 +58,13 @@ export const getPlayer = (): PlayerInstance => {
 
 /** 销毁播放器实例，下次 getPlayer 时自动重建 */
 export const resetPlayer = (): void => {
+  for (const callback of onResetCallbacks) {
+    try {
+      callback();
+    } catch (error) {
+      playerLog.warn("重置播放器时清理关联资源失败:", error);
+    }
+  }
   if (playerInstance) {
     try {
       playerInstance.stop();

@@ -1,4 +1,4 @@
-import { getPlayer } from "@main/services/engine";
+import { getPlayer, onPlayerReset } from "@main/services/engine";
 import * as songCache from "@main/services/songCache";
 import { playerLog } from "@main/utils/logger";
 import type { TransitionPreference } from "@shared/types/player";
@@ -61,12 +61,16 @@ export const takeTransitionReady = (remainingMs: number, speed = 1): string | nu
  */
 export const cancelPreparedTrack = (id = prepared?.id): void => {
   if (!id) return;
-  if (prepared?.id === id) {
-    prepared.player.cancelPrepared(id);
-    prepared = null;
+  const current = prepared?.id === id ? prepared : null;
+  if (current) prepared = null;
+  try {
+    current?.player.cancelPrepared(id);
+  } finally {
+    songCache.cancelPreload(id);
   }
-  songCache.cancelPreload(id);
 };
+
+onPlayerReset(cancelPreparedTrack);
 
 /**
  * 将本地或缓存完成的音源交给原生备用槽位解码

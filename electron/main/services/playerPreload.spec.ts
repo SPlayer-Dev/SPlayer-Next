@@ -3,6 +3,7 @@ import { flushPromises } from "@vue/test-utils";
 
 const mocks = vi.hoisted(() => ({ prepare: vi.fn(), cancel: vi.fn(), analyze: vi.fn() }));
 vi.mock("@main/services/engine", () => ({
+  onPlayerReset: vi.fn(),
   getPlayer: () => ({
     prepareNext: mocks.prepare,
     cancelPrepared: mocks.cancel,
