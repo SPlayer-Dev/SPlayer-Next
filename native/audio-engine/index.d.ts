@@ -130,11 +130,8 @@ export declare class AudioPlayer {
   /**
    * 跳转到指定播放位置（秒）
    *
-   * 异步三段式：与 load 同样的设计原则
-   * 1. 主线程瞬时持锁：take 旧解码线程 + 拿归一化参数
-   * 2. 工作线程：join 旧线程 → ffmpeg seek → resume_decode 启动新解码线程
-   * 3. 主线程瞬时持锁：attach 新 sink + emit 状态
-   * seek 失败时 fallback 到完整 load
+   * 解码与提交均在阻塞线程执行，避免过期网络解码器在异步上下文释放。
+   * seek 失败时回退到完整加载。
    */
   seek(position: number): Promise<void>
   /**

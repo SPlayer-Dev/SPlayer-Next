@@ -9,7 +9,7 @@ vi.mock("@main/services/songCache", () => ({
   cancelPreload: vi.fn(),
   invalidate: vi.fn(),
 }));
-vi.mock("@main/store", () => ({ store: { get: () => true } }));
+vi.mock("@main/store", () => ({ store: { get: () => false } }));
 vi.mock("@main/utils/logger", () => ({ playerLog: { info: vi.fn() } }));
 
 describe("后台曲尾交接通知", () => {
@@ -17,6 +17,13 @@ describe("后台曲尾交接通知", () => {
     vi.resetModules();
     vi.clearAllMocks();
     mocks.prepare.mockResolvedValue(true);
+  });
+
+  it("关闭歌曲缓存也允许本地文件进入备用槽位", async () => {
+    const service = await import("./playerPreload");
+    expect(await service.prepareNextTrack("local", "C:/music/album.flac", 120000)).toBe(true);
+    expect(mocks.prepare).toHaveBeenCalledWith("local", "C:/music/album.flac", 120);
+    expect(service.takeTransitionReady(5000)).toBe("local");
   });
 
   it("就绪槽位在曲尾只通知一次，回退进度后可再次通知", async () => {

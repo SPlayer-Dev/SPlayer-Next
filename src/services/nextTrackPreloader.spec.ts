@@ -34,11 +34,51 @@ describe("下一曲真实预载", () => {
     vi.clearAllMocks();
     mocks.settings.player.preloadNextTrack = true;
     mocks.settings.system.cache.songCache = { enabled: true, cacheStreaming: true };
+    mocks.candidate.track = { id: "next", source: "netease" };
     mocks.prepare.mockResolvedValue(true);
     mocks.cancel.mockResolvedValue(undefined);
     Object.assign(window, {
       api: { player: { prepareNext: mocks.prepare, cancelPrepared: mocks.cancel } },
     });
+  });
+
+  it.each([
+    { enabled: false, cacheStreaming: false },
+    { enabled: true, cacheStreaming: false },
+    { enabled: false, cacheStreaming: true },
+  ])("本地歌曲不依赖网络缓存开关：%j", async (cache) => {
+    mocks.settings.system.cache.songCache = cache;
+    mocks.candidate.track.source = "local";
+    mocks.resolve.mockResolvedValue({
+      source: "C:/music/next.flac",
+      provider: "local",
+      fromCache: false,
+    });
+    const preloader = await import("./nextTrackPreloader");
+    preloader.scheduleNextTrackPreload();
+    await flushPromises();
+    expect(mocks.prepare).toHaveBeenCalledWith(expect.any(String), "C:/music/next.flac", undefined);
+    expect(preloader.peekPreparedTrack(mocks.candidate.track as Track)?.preparedId).toBeDefined();
+  });
+
+  it("关闭缓存时本地 CUE 仍按片段起点准备", async () => {
+    mocks.settings.system.cache.songCache = { enabled: false, cacheStreaming: false };
+    Object.assign(mocks.candidate.track, {
+      source: "local",
+      cueAudioPath: "C:/music/album.flac",
+      cueStartMs: 120000,
+      cueEndMs: 240000,
+    });
+    mocks.resolve.mockResolvedValue({
+      source: "C:/music/album.flac",
+      provider: "local",
+      fromCache: false,
+    });
+    const preloader = await import("./nextTrackPreloader");
+    preloader.scheduleNextTrackPreload();
+    await flushPromises();
+    expect(mocks.prepare).toHaveBeenCalledWith(expect.any(String), "C:/music/album.flac", 120000);
+    expect(preloader.peekPreparedTrack(mocks.candidate.track as Track)?.preparedId).toBeDefined();
   });
 
   it("等待缓存完成后才准备原生槽位，并将缓存路径与代次交给切歌", async () => {

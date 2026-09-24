@@ -2,13 +2,8 @@ use super::*;
 
 /// async seek 阶段 2 的输出
 enum SeekOutcome {
-    /// seek 成功 + 已启动新解码线程
-    Resumed {
-        shared: Arc<crate::decoder::buffer::Shared>,
-        handle: JoinHandle<crate::decoder::DecoderData>,
-        output: Box<output::AudioOutput>,
-        playback: Arc<PlaybackHandle>,
-    },
+    /// 提交完成或被新的播放操作取代，资源已经在阻塞线程处理
+    Committed(Result<bool>),
     /// seek 失败，需要 fallback 到完整 load
     Fallback,
     OutputFailed {
@@ -20,11 +15,8 @@ enum SeekOutcome {
 impl AudioPlayer {
     /// 跳转到指定播放位置（秒）
     ///
-    /// 异步三段式：与 load 同样的设计原则
-    /// 1. 主线程瞬时持锁：take 旧解码线程 + 拿归一化参数
-    /// 2. 工作线程：join 旧线程 → ffmpeg seek → resume_decode 启动新解码线程
-    /// 3. 主线程瞬时持锁：attach 新 sink + emit 状态
-    /// seek 失败时 fallback 到完整 load
+    /// 解码与提交均在阻塞线程执行，避免过期网络解码器在异步上下文释放。
+    /// seek 失败时回退到完整加载。
     #[napi]
     pub async fn seek(&self, position: f64) -> Result<()> {
         let take = {
@@ -53,6 +45,7 @@ impl AudioPlayer {
             tempo,
         } = take;
 
+        let inner = Arc::clone(&self.inner);
         let outcome: SeekOutcome = tokio::task::spawn_blocking(move || {
             let decoder_data = old_threads.join_aux().and_then(|h| h.join().ok());
             let mut decoder_data = match decoder_data {
@@ -94,27 +87,19 @@ impl AudioPlayer {
                         return SeekOutcome::Fallback;
                     }
                 };
-            SeekOutcome::Resumed {
-                shared,
-                handle,
-                output: Box::new(output),
-                playback,
-            }
+            SeekOutcome::Committed(
+                inner
+                    .lock()
+                    .commit_seeked(token, position, shared, handle, output, playback)
+                    .into_napi(),
+            )
         })
         .await
         .map_err(|e| Error::from_reason(format!("seek task join error: {e}")))?;
 
         match outcome {
-            SeekOutcome::Resumed {
-                shared,
-                handle,
-                output,
-                playback,
-            } => {
-                let mut player = self.inner.lock();
-                let committed = player
-                    .commit_seeked(token, position, shared, handle, *output, playback)
-                    .into_napi()?;
+            SeekOutcome::Committed(result) => {
+                let committed = result?;
                 if !committed {
                     info!(position, "seek 已被更新的 load/seek/stop 取代，丢弃结果");
                 }

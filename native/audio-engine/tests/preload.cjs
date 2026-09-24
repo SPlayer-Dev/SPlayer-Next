@@ -4,7 +4,50 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { test } = require("node:test");
+const http = require("node:http");
 const { AudioPlayer } = require(process.env.SPLAYER_AUDIO_ENGINE_MODULE || "../audio-engine.node");
+
+test("网络曲目交叉到本地曲目时安全释放旧解码器", { timeout: 20000 }, async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "splayer-transition-http-"));
+  const current = path.join(directory, "current.wav");
+  const next = path.join(directory, "next.wav");
+  writeWav(current, 48000, 3, 0.2);
+  writeWav(next, 48000, 6, 0.1);
+  const audio = fs.readFileSync(current);
+  const server = http.createServer((request, response) => {
+    const range = /bytes=(\d+)-(\d*)/.exec(request.headers.range || "");
+    const start = range ? Number(range[1]) : 0;
+    const end = range?.[2] ? Math.min(Number(range[2]), audio.length - 1) : audio.length - 1;
+    response.writeHead(range ? 206 : 200, {
+      "Content-Type": "audio/wav",
+      "Accept-Ranges": "bytes",
+      "Content-Length": end - start + 1,
+      ...(range ? { "Content-Range": `bytes ${start}-${end}/${audio.length}` } : {}),
+    });
+    response.end(audio.subarray(start, end + 1));
+  });
+  const player = new AudioPlayer();
+  t.after(async () => {
+    player.stop();
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const source = `http://127.0.0.1:${server.address().port}/current.wav`;
+  for (let round = 0; round < 3; round++) {
+    await player.load(source, true);
+    if (round === 1) await player.seek(0.2);
+    if (round === 2) await player.reinitOutput();
+    assert.equal(await player.prepareNext(`http-${round}`, next), true);
+    await new Promise((resolve) => setTimeout(resolve, 1600));
+    const result = await player.transitionToPrepared(`http-${round}`, next, 1.4, "eager");
+    assert.ok(result);
+    assert.equal(player.getDuration(), 6);
+    assert.ok(player.getPosition() > 0);
+    player.stop();
+  }
+});
 
 /**
  * 生成可精确核对时长的双声道静音 WAV

@@ -155,11 +155,7 @@ export const peekPreparedTrack = (track: Track): NextTrackPreloadResult | null =
  */
 export const scheduleNextTrackPreload = (): void => {
   const settings = useSettingsStore();
-  if (
-    !settings.player.preloadNextTrack ||
-    !settings.system.cache.songCache.enabled ||
-    !settings.system.cache.songCache.cacheStreaming
-  ) {
+  if (!settings.player.preloadNextTrack) {
     invalidateNextTrackPreload();
     return;
   }
@@ -185,6 +181,13 @@ export const scheduleNextTrackPreload = (): void => {
   }
 
   const candidateTrack = candidateResult.track;
+  if (
+    candidateTrack.source !== "local" &&
+    (!settings.system.cache.songCache.enabled || !settings.system.cache.songCache.cacheStreaming)
+  ) {
+    invalidateNextTrackPreload();
+    return;
+  }
   const contextKey = buildContextKey(candidateTrack);
   // 上下文指纹一致且已有缓存，避免重复触发
   if (cachedResult && cachedResult.contextKey === contextKey) {

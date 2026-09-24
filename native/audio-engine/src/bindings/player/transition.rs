@@ -22,86 +22,89 @@ impl AudioPlayer {
         next_end_seconds: Option<f64>,
         current_end_seconds: Option<f64>,
     ) -> Result<Option<JsMusicMetadata>> {
-        let (armed, token_handle) = {
-            let mut player = self.inner.lock();
-            let armed = player
-                .arm_prepared_transition(
-                    &id,
-                    &source,
-                    remaining_seconds,
-                    &preference,
-                    next_end_seconds,
-                    current_end_seconds,
-                )
-                .into_napi()?;
-            (armed, player.load_token_handle())
-        };
-        let Some(armed) = armed else {
-            return Ok(None);
-        };
-        let started = Arc::clone(&armed.started);
-        let completed = Arc::clone(&armed.completed);
-        let decision = Arc::clone(&armed.decision);
-        let fade_seconds = armed.fade_seconds;
-        let token = armed.token;
-        let shared = Arc::clone(&armed.ready.shared);
         let inner = Arc::clone(&self.inner);
-        let outcome = tokio::task::spawn_blocking(move || {
-            let mut deadline =
-                Instant::now() + Duration::from_secs_f64(remaining_seconds.max(0.0) + 10.0);
-            let mut last_poll = Instant::now();
-            let mut announced = false;
-            loop {
-                let now = Instant::now();
-                if inner.lock().state() == PlayerState::Paused {
-                    deadline += now.duration_since(last_poll);
-                }
-                last_poll = now;
-                if token_handle.load(Ordering::Acquire) != token {
-                    return (0_u8, announced);
-                }
-                if !announced && started.load(Ordering::Acquire) {
-                    let reason = if decision.load(Ordering::Acquire)
-                        == crate::decoder::transition_source::TRANSITION_DECISION_QUIET
+        // 网络解码器持有阻塞 HTTP 客户端，交接及取消时必须在阻塞线程释放
+        tokio::task::spawn_blocking(move || {
+            let (armed, token_handle) = {
+                let mut player = inner.lock();
+                let armed = player
+                    .arm_prepared_transition(
+                        &id,
+                        &source,
+                        remaining_seconds,
+                        &preference,
+                        next_end_seconds,
+                        current_end_seconds,
+                    )
+                    .into_napi()?;
+                (armed, player.load_token_handle())
+            };
+            let Some(armed) = armed else {
+                return Ok(None);
+            };
+            let started = Arc::clone(&armed.started);
+            let completed = Arc::clone(&armed.completed);
+            let decision = Arc::clone(&armed.decision);
+            let fade_seconds = armed.fade_seconds;
+            let token = armed.token;
+            let shared = Arc::clone(&armed.ready.shared);
+            let outcome = {
+                let mut deadline =
+                    Instant::now() + Duration::from_secs_f64(remaining_seconds.max(0.0) + 10.0);
+                let mut last_poll = Instant::now();
+                let mut announced = false;
+                loop {
+                    let now = Instant::now();
+                    if inner.lock().state() == PlayerState::Paused {
+                        deadline += now.duration_since(last_poll);
+                    }
+                    last_poll = now;
+                    if token_handle.load(Ordering::Acquire) != token {
+                        break (0_u8, announced);
+                    }
+                    if !announced && started.load(Ordering::Acquire) {
+                        let reason = if decision.load(Ordering::Acquire)
+                            == crate::decoder::transition_source::TRANSITION_DECISION_QUIET
+                        {
+                            "quiet"
+                        } else {
+                            "deadline"
+                        };
+                        inner
+                            .lock()
+                            .emit_transition_state(true, Some(reason), Some(fade_seconds));
+                        announced = true;
+                    }
+                    if completed.load(Ordering::Acquire) {
+                        break (1_u8, announced);
+                    }
+                    if shared.is_decode_failed()
+                        || shared.is_all_consumed()
+                        || Instant::now() >= deadline
                     {
-                        "quiet"
-                    } else {
-                        "deadline"
-                    };
-                    inner
-                        .lock()
-                        .emit_transition_state(true, Some(reason), Some(fade_seconds));
-                    announced = true;
+                        break (2_u8, announced);
+                    }
+                    std::thread::sleep(Duration::from_millis(20));
                 }
-                if completed.load(Ordering::Acquire) {
-                    return (1_u8, announced);
-                }
-                if shared.is_decode_failed()
-                    || shared.is_all_consumed()
-                    || Instant::now() >= deadline
-                {
-                    return (2_u8, announced);
-                }
-                std::thread::sleep(Duration::from_millis(20));
+            };
+            if outcome.1 {
+                inner.lock().emit_transition_state(false, None, None);
             }
+            match outcome.0 {
+                0 => return Ok(None),
+                2 => {
+                    let mut player = inner.lock();
+                    if player.is_load_token_current(token) {
+                        player.stop();
+                    }
+                    return Err(Error::from_reason("播放过渡未能完成，已停止失效输出"));
+                }
+                _ => {}
+            }
+            let metadata = inner.lock().commit_prepared_transition(armed);
+            Ok(metadata.map(Self::meta_to_js))
         })
         .await
-        .map_err(|error| Error::from_reason(error.to_string()))?;
-        if outcome.1 {
-            self.inner.lock().emit_transition_state(false, None, None);
-        }
-        match outcome.0 {
-            0 => return Ok(None),
-            2 => {
-                let mut player = self.inner.lock();
-                if player.is_load_token_current(token) {
-                    player.stop();
-                }
-                return Err(Error::from_reason("播放过渡未能完成，已停止失效输出"));
-            }
-            _ => {}
-        }
-        let metadata = self.inner.lock().commit_prepared_transition(armed);
-        Ok(metadata.map(Self::meta_to_js))
+        .map_err(|error| Error::from_reason(error.to_string()))?
     }
 }

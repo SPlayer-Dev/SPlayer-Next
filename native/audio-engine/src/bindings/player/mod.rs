@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::thread::JoinHandle;
 
 use ffmpeg_audio::HttpCancelHandle;
 use napi::bindgen_prelude::*;

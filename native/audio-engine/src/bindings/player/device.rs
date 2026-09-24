@@ -2,13 +2,8 @@ use super::*;
 
 /// 输出恢复阶段 2 的输出
 enum ReinitOutcome {
-    /// 恢复成功：新输出 + 新解码线程，等待提交
-    Resumed {
-        shared: Arc<crate::decoder::buffer::Shared>,
-        handle: JoinHandle<crate::decoder::DecoderData>,
-        output: Box<output::AudioOutput>,
-        playback: Arc<PlaybackHandle>,
-    },
+    /// 提交完成或被新的播放操作取代，资源已经在阻塞线程处理
+    Committed(Result<bool>),
     /// 无法从原位置恢复解码（或输出采样率已变），需要重新加载音源
     Reload {
         source: Option<String>,
@@ -78,6 +73,7 @@ impl AudioPlayer {
                 tempo,
             } = take;
 
+            let inner = Arc::clone(&self.inner);
             let outcome: ReinitOutcome = tokio::task::spawn_blocking(move || {
                 let decoder_data = old_threads.join_aux().and_then(|h| h.join().ok());
                 drop(old_output);
@@ -146,27 +142,19 @@ impl AudioPlayer {
                     }
                 };
 
-                ReinitOutcome::Resumed {
-                    shared,
-                    handle,
-                    output: Box::new(output),
-                    playback,
-                }
+                ReinitOutcome::Committed(
+                    inner
+                        .lock()
+                        .commit_seeked(token, position, shared, handle, output, playback)
+                        .into_napi(),
+                )
             })
             .await
             .map_err(|e| Error::from_reason(format!("reinit task join error: {e}")))?;
 
             match outcome {
-                ReinitOutcome::Resumed {
-                    shared,
-                    handle,
-                    output,
-                    playback,
-                } => {
-                    let mut player = self.inner.lock();
-                    let committed = player
-                        .commit_seeked(token, position, shared, handle, *output, playback)
-                        .into_napi()?;
+                ReinitOutcome::Committed(result) => {
+                    let committed = result?;
                     if !committed {
                         info!("reinit 已被更新的 load/seek/stop 取代，丢弃结果");
                     }

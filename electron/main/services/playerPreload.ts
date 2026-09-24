@@ -1,6 +1,5 @@
 import { getPlayer } from "@main/services/engine";
 import * as songCache from "@main/services/songCache";
-import { store } from "@main/store";
 import { playerLog } from "@main/utils/logger";
 
 let prepared: { id: string; player: ReturnType<typeof getPlayer>; ready: boolean } | null = null;
@@ -33,7 +32,7 @@ export const cancelPreparedTrack = (id = prepared?.id): void => {
 };
 
 /**
- * 将缓存完成的音源交给原生备用槽位解码
+ * 将本地或缓存完成的音源交给原生备用槽位解码
  * @param id - 用于取消和消费预载资源的任务标识
  * @param source - 本地音频文件或已完成下载的缓存文件路径
  * @param startMs - 预载起点，单位为毫秒，CUE 子曲目使用对应的起始位置
@@ -45,10 +44,6 @@ export const prepareNextTrack = async (
   startMs = 0,
 ): Promise<boolean> => {
   cancelPreparedTrack();
-  if (!store.get("cache.songCache.enabled")) {
-    songCache.cancelPreload(id);
-    return false;
-  }
   const player = getPlayer();
   prepared = { id, player, ready: false };
   songCache.pinPreload(id, source);
