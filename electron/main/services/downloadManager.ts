@@ -81,9 +81,9 @@ const resolutionGates = new Map<string, ResolutionGate>();
 /** 临时分片目录（与用户下载目录隔离） */
 const tmpDir = (): string => path.join(getAppCacheDir(), "downloads-tmp");
 
-/** 去重键：同一首歌同一档位只下一次 */
+/** 去重键：同一首歌同一档位同一位置只下一次 */
 const dedupeKeyOf = (req: DownloadRequest): string =>
-  `${req.track.source}:${req.track.id}:${req.qualityLevel}`;
+  `${req.track.source}:${req.track.id}:${req.qualityLevel}:${req.customDir ?? ""}`;
 
 /** 合并艺术家名 */
 const artistString = (req: DownloadRequest): string =>
@@ -271,7 +271,8 @@ const runTask = async (
         album: req.track.album?.name ?? "",
       },
     );
-    const targetDir = path.join(downloadDir, relDir);
+    // 若用户自定义了下载目录则直接采用
+    const targetDir = req.customDir ?? path.join(downloadDir, relDir);
     const finalNoExt = path.join(targetDir, baseName);
     const policy = store.get("download.overwritePolicy");
 
@@ -371,7 +372,10 @@ const enqueueOne = (
     completedByQuality?.set(req.qualityLevel, completed);
   }
   const downloaded = completed.find(
-    (task) => task.track.source === req.track.source && task.track.id === req.track.id,
+    (task) =>
+      task.track.source === req.track.source &&
+      task.track.id === req.track.id &&
+      (task.customDir ?? null) === (req.customDir ?? null),
   );
   if (downloaded?.filePath && fs.existsSync(downloaded.filePath)) {
     return { ok: false, reason: "downloaded" };
@@ -384,6 +388,7 @@ const enqueueOne = (
     received: 0,
     total: req.declaredSize ?? 0,
     createdAt: Date.now(),
+    customDir: req.customDir,
   };
   tasks.set(req.taskId, { req, task, controller: new AbortController(), dedupeKey });
   queue.push(req.taskId);

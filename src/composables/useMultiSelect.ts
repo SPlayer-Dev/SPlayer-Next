@@ -199,6 +199,17 @@ export const useMultiSelect = (items: Ref<Track[]>, options: MultiSelectOptions)
     exit();
   };
 
+  /** 批量下载到自定义目录 */
+  const batchDownloadCustomDir = async (): Promise<void> => {
+    const result = await window.api.system.pickDir("选择下载目录");
+    if (result.ok) {
+      const tracks = selectedItems.value.filter((track) => track.source !== "local");
+      if (tracks.length === 0) return;
+      void enqueueMany(tracks, { customDir: result.dir });
+      exit();
+    }
+  };
+
   return {
     // 选择状态
     active,
@@ -231,5 +242,6 @@ export const useMultiSelect = (items: Ref<Track[]>, options: MultiSelectOptions)
     batchDelete,
     batchRemoveFromCloud,
     batchDownload,
+    batchDownloadCustomDir,
   };
 };
