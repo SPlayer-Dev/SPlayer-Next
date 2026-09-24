@@ -18,6 +18,10 @@ const modules: NativeModule[] = [
     name: "media-ctrl",
   },
   {
+    name: "linux-portal",
+    enabled: process.platform === "linux",
+  },
+  {
     name: "taskbar-lyric",
     enabled: process.platform === "win32",
   },

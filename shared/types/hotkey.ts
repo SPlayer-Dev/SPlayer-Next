@@ -37,6 +37,8 @@ export type HotkeyBindingsMap = Record<HotkeyActionId, HotkeyBinding>;
 export interface HotkeyConfig {
   /** 是否启用全局快捷键（关闭时不向系统注册任何 globalShortcut） */
   globalEnabled: boolean;
+  /** Linux 下是否优先使用 XDG Desktop Portal 托管全局快捷键 */
+  portalShortcuts: boolean;
   /** 各动作的绑定 */
   bindings: HotkeyBindingsMap;
 }
@@ -61,6 +63,16 @@ export interface HotkeyConflict {
   conflictWith?: HotkeyActionId;
 }
 
+/** 全局快捷键实现模式 */
+export type HotkeyGlobalMode = "electron" | "portal";
+
+/** 全局快捷键模式快照 */
+export interface HotkeyGlobalModeSnapshot {
+  mode: HotkeyGlobalMode;
+  /** 当前为 portal 模式时，后端是否支持 ConfigureShortcuts（version >= 2） */
+  portalConfigureSupported: boolean;
+}
+
 export interface HotkeyApi {
   /** 拉取完整配置 */
   getAll: () => Promise<HotkeyConfig>;
@@ -70,12 +82,22 @@ export interface HotkeyApi {
   reset: (id?: HotkeyActionId) => Promise<HotkeyConfig>;
   /** 切换全局快捷键总开关 */
   setGlobalEnabled: (enabled: boolean) => Promise<HotkeyConfig>;
+  /** 切换使用 XDG Desktop Portal 托管全局快捷键（Linux），主进程按配置切换实现模式 */
+  setPortalShortcuts: (enabled: boolean) => Promise<HotkeyConfig>;
   /** 探测某 accelerator 在系统层是否可注册（仅 global 录入预校验用） */
   probe: (accelerator: string) => Promise<boolean>;
   /** 拉取当前冲突快照（init 时使用，避免错过启动时已 broadcast 的事件） */
   getConflicts: () => Promise<HotkeyConflict[]>;
+  /** 当前全局快捷键实现模式（electron | portal） */
+  getGlobalMode: () => Promise<HotkeyGlobalModeSnapshot>;
+  /** 打开系统侧快捷键设置（portal 模式，后端支持 ConfigureShortcuts 时） */
+  configureShortcuts: () => Promise<{ ok: boolean; error?: string }>;
+  /** 上报当前语言的快捷键描述（portal 绑定用，语言切换时重报） */
+  setPortalDescriptions: (descriptions: Record<HotkeyActionId, string>) => Promise<void>;
   /** 主进程触发某动作（global 命中后转回渲染端 dispatch） */
   onTrigger: (callback: (id: HotkeyActionId) => void) => () => void;
   /** 主进程上报当前冲突列表 */
   onConflicts: (callback: (conflicts: HotkeyConflict[]) => void) => () => void;
+  /** 主进程上报全局快捷键模式变化 */
+  onGlobalModeChange: (callback: (snapshot: HotkeyGlobalModeSnapshot) => void) => () => void;
 }
