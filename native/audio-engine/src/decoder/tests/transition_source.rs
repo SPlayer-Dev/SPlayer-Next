@@ -13,6 +13,50 @@ fn buffered(samples: Vec<f32>) -> Arc<Shared> {
     shared
 }
 
+#[test]
+fn completed_handoff_releases_retired_pcm_and_active_slot_on_drop() {
+    let first = buffered(vec![0.5; 100]);
+    let second = buffered(vec![0.4; 100]);
+    let first_weak = Arc::downgrade(&first);
+    let second_weak = Arc::downgrade(&second);
+    let mut source = TransitionSource::new(first, Arc::new(FftAnalyzer::new()));
+    let control = source.control();
+    let signals = control.queue(second, plan(0, 10, 0.04, 4)).unwrap();
+    source.begin_callback();
+    for _ in 0..20 {
+        source.next();
+    }
+    assert!(signals.completed.load(Ordering::Acquire));
+    assert!(first_weak.upgrade().is_some());
+    control.drain_retired();
+    assert!(first_weak.upgrade().is_none());
+    assert!(second_weak.upgrade().is_some());
+    drop(source);
+    drop(control);
+    assert!(second_weak.upgrade().is_none());
+}
+
+#[test]
+fn cancelling_queued_or_active_handoff_releases_both_slots() {
+    for start in [false, true] {
+        let first = buffered(vec![0.5; 100]);
+        let second = buffered(vec![0.4; 100]);
+        let first_weak = Arc::downgrade(&first);
+        let second_weak = Arc::downgrade(&second);
+        let mut source = TransitionSource::new(first, Arc::new(FftAnalyzer::new()));
+        let control = source.control();
+        control.queue(second, plan(0, 50, 0.04, 4)).unwrap();
+        if start {
+            source.begin_callback();
+            source.next();
+        }
+        drop(source);
+        drop(control);
+        assert!(first_weak.upgrade().is_none());
+        assert!(second_weak.upgrade().is_none());
+    }
+}
+
 fn stereo_buffered(samples: Vec<f32>) -> Arc<Shared> {
     let shared = Shared::new(1_000, 2);
     let count = samples.len() as u64;

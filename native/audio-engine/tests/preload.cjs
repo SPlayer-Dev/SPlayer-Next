@@ -7,6 +7,40 @@ const { test } = require("node:test");
 const http = require("node:http");
 const { AudioPlayer } = require(process.env.SPLAYER_AUDIO_ENGINE_MODULE || "../audio-engine.node");
 
+test("长静音尾部提前交接但保留原始媒体时长", { timeout: 10000 }, async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "splayer-tail-transition-"));
+  const current = path.join(directory, "current.wav");
+  const next = path.join(directory, "next.wav");
+  writeWav(current, 96000, 20, 0.1);
+  const data = fs.readFileSync(current);
+  data.fill(0, 44 + 96000 * 4 * 5);
+  fs.writeFileSync(current, data);
+  writeWav(next, 48000, 10, 0.1);
+  const player = new AudioPlayer();
+  t.after(() => {
+    player.stop();
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+  await player.load(current, true);
+  const began = performance.now();
+  const end = await player.analyzeTail(0, 20);
+  t.diagnostic(`96 kHz 双声道曲尾分析耗时：${Math.round(performance.now() - began)}ms`);
+  assert.ok(Math.abs(end - 5.25) < 0.02, `${end}`);
+  assert.equal(player.getDuration(), 20);
+  await player.prepareNext("tail", next);
+  const result = await player.transitionToPrepared(
+    "tail",
+    next,
+    end - player.getPosition(),
+    "eager",
+    undefined,
+    end,
+  );
+  assert.ok(result);
+  assert.equal(player.getDuration(), 10);
+  assert.ok(player.getPosition() > 0);
+});
+
 test("网络曲目交叉到本地曲目时安全释放旧解码器", { timeout: 20000 }, async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "splayer-transition-http-"));
   const current = path.join(directory, "current.wav");

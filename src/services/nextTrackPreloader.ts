@@ -51,6 +51,8 @@ const buildContextKey = (track: Track): string => {
     track.cueStartMs ?? "",
     track.cueEndMs ?? "",
     settings.player.songLevel,
+    settings.player.transitionMode,
+    settings.player.transitionPreference,
     settings.player.allowTrialPlay,
     streaming.activeServerId ?? "",
     plugins.list
@@ -244,6 +246,9 @@ export const scheduleNextTrackPreload = (): void => {
           id,
           source.source,
           candidateTrack.cueStartMs,
+          settings.player.transitionMode === "crossfade"
+            ? settings.player.transitionPreference
+            : undefined,
         );
         if (token !== currentToken) return;
         if (ready) preparedId = id;
@@ -283,6 +288,8 @@ export const installNextTrackPreloadWatchers = (): void => {
   stopContextWatch = watch(
     () => [
       settings.player.preloadNextTrack,
+      settings.player.transitionMode,
+      settings.player.transitionPreference,
       settings.system.cache.songCache.enabled,
       settings.system.cache.songCache.cacheStreaming,
       settings.player.songLevel,

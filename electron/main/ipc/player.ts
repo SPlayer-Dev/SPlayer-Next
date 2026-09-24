@@ -2,6 +2,8 @@ import {
   prepareNextTrack,
   cancelPreparedTrack,
   takeTransitionReady,
+  setCurrentTransitionRange,
+  getTransitionEndMs,
 } from "@main/services/playerPreload";
 import { extname } from "node:path";
 import { app, ipcMain, powerMonitor } from "electron";
@@ -180,11 +182,18 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
       case "position": {
         const posMs = toDisplayPositionMs(toMs(event.position ?? 0));
         const durMs = toDisplayDurationMs(toMs(event.duration ?? 0));
-        const readyId = takeTransitionReady(durMs - posMs);
+        const endPosition = toDisplayPositionMs(
+          getTransitionEndMs(
+            activeCueRange ? activeCueRange.startMs + durMs : durMs,
+            toMs(event.position ?? 0),
+            inst.getSpeed(),
+          ),
+        );
+        const readyId = takeTransitionReady(endPosition - posMs, inst.getSpeed());
         if (readyId) {
           sendToMain("player:event", {
             type: "transitionReady",
-            data: { id: readyId, position: posMs },
+            data: { id: readyId, position: posMs, endPosition },
           });
         }
         const positionEvent = {
@@ -270,6 +279,8 @@ const completeTrackLoad = (
     remoteCover && /^(https?|streaming-cover):\/\//i.test(remoteCover) ? remoteCover : undefined;
   const coverUrl = coverFetchUrl && /^https?:\/\//i.test(coverFetchUrl) ? coverFetchUrl : undefined;
   const durationMs = toDisplayDurationMs(toMs(meta.duration));
+  const startMs = activeCueRange?.startMs ?? 0;
+  setCurrentTransitionRange(startMs, startMs + durationMs);
   const displayTitle =
     authoritative?.title ?? (meta.title || source.split(/[/\\]/).pop() || source);
   const displayArtists = authoritative
@@ -345,8 +356,10 @@ const completeTrackLoad = (
 
 /** 播放器相关 IPC */
 export const registerPlayerIpc = (): void => {
-  ipcMain.handle("player:prepareNext", (_event, id: string, source: string, startMs?: number) =>
-    prepareNextTrack(id, source, startMs),
+  ipcMain.handle(
+    "player:prepareNext",
+    (_event, id: string, source: string, startMs?: number, preference?: TransitionPreference) =>
+      prepareNextTrack(id, source, startMs, preference),
   );
   ipcMain.handle("player:cancelPrepared", (_event, id: string) => cancelPreparedTrack(id));
   ipcMain.handle(
@@ -366,21 +379,22 @@ export const registerPlayerIpc = (): void => {
           remainingMs: Math.round(remainingMs),
         });
         const current = getPlayer();
+        const endMs = getTransitionEndMs(
+          activeCueRange
+            ? activeCueRange.startMs + activeCueRange.durationMs
+            : toMs(current.getDuration()),
+          toMs(current.getPosition()),
+          current.getSpeed(),
+        );
         const remainingSeconds =
-          Math.max(
-            0,
-            toDisplayDurationMs(toMs(current.getDuration())) -
-              toDisplayPositionMs(toMs(current.getPosition())),
-          ) /
-          1000 /
-          current.getSpeed();
+          Math.max(0, endMs - toMs(current.getPosition())) / 1000 / current.getSpeed();
         const meta = await current.transitionToPrepared(
           id,
           source,
           remainingSeconds,
           preference,
           options.meta?.cueEndMs == null ? undefined : options.meta.cueEndMs / 1000,
-          activeCueRange ? (activeCueRange.startMs + activeCueRange.durationMs) / 1000 : undefined,
+          endMs / 1000,
         );
         if (!meta) {
           playerLog.info("交叉过渡未启动，等待正常切歌");
@@ -439,6 +453,7 @@ export const registerPlayerIpc = (): void => {
     const authoritative = options.meta ?? null;
     const cueRange = cueRangeFromTrack(authoritative);
     activeCueRange = cueRange;
+    setCurrentTransitionRange();
     const seq = ++loadSeq;
     if (!options.preparedId) cancelPreparedTrack();
     try {
@@ -558,6 +573,7 @@ export const registerPlayerIpc = (): void => {
       cancelPreparedTrack();
       cancelPendingReinit();
       activeCueRange = null;
+      setCurrentTransitionRange();
       getPlayer().stop();
       return { success: true };
     } catch (error) {

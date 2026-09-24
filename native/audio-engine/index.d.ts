@@ -135,6 +135,13 @@ export declare class AudioPlayer {
    */
   seek(position: number): Promise<void>
   /**
+   * 后台检查当前本地音源的连续近静音拖尾，不改变实际时长或播放位置
+   * @param startSeconds - 当前曲目或 CUE 分轨的起点
+   * @param endSeconds - 当前曲目或 CUE 分轨的终点
+   * @returns 确认的交接终点，未确认或已切歌时为空
+   */
+  analyzeTail(startSeconds: number, endSeconds: number): Promise<number | null>
+  /**
    * 在当前输出流中交叉切换到已准备的下一曲
    * @param id - 预载槽位标识
    * @param source - 预载音源路径

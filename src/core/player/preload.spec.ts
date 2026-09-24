@@ -255,6 +255,37 @@ describe("交叉过渡的队列交接", () => {
     expect(mocks.consume).toHaveBeenCalledTimes(1);
   });
 
+  it("长静音尾部按有效结尾提前交接，保留原始时长", async () => {
+    mocks.status.duration = 40000;
+    mocks.transition.mockResolvedValue({ success: false });
+    const { trySmartTransition } = await import("./index");
+    await trySmartTransition(20000, "next-slot", 25250);
+    expect(mocks.transition).toHaveBeenCalledWith(
+      "next-slot",
+      "C:/cache/next.bin",
+      5250,
+      "standard",
+      expect.any(Object),
+    );
+    expect(mocks.status.duration).toBe(40000);
+  });
+
+  it("积极档在两倍速下也能提前安排九秒窗口内的交接", async () => {
+    mocks.status.duration = 40000;
+    mocks.status.speed = 2;
+    mocks.transitionPreference = "eager";
+    mocks.transition.mockResolvedValue({ success: false });
+    const { trySmartTransition } = await import("./index");
+    await trySmartTransition(23000, "next-slot");
+    expect(mocks.transition).toHaveBeenCalledWith(
+      "next-slot",
+      "C:/cache/next.bin",
+      8500,
+      "eager",
+      expect.any(Object),
+    );
+  });
+
   it("忽略后台迟到的其他槽位通知", async () => {
     const { trySmartTransition } = await import("./index");
     await trySmartTransition(5000, "old-slot");

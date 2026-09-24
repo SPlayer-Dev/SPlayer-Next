@@ -81,9 +81,9 @@ impl InnerPlayer {
             ready.shared.set_end_position(next_remaining);
         }
         let (fade_limit, quiet_threshold, quiet_windows_required, search_secs) = match preference {
-            "conservative" => (1.8_f64, 0.012_f32, 4_u8, 0.25_f64),
-            "eager" => (3.6, 0.04, 4, 2.0),
-            _ => (3.0, 0.04, 4, 1.0),
+            "conservative" => (3.0_f64, 0.04_f32, 4_u8, 1.0_f64),
+            "eager" => (5.0, 0.06, 3, 3.0),
+            _ => (3.6, 0.04, 4, 2.0),
         };
         let fade_secs = fade_limit
             .min(remaining_secs)

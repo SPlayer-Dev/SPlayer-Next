@@ -214,7 +214,7 @@ export type TransitionPreference = "conservative" | "standard" | "eager";
 export type PlayerEvent =
   | { type: "status"; data: PlayerStatus }
   | { type: "position"; data: { position: number; duration: number } }
-  | { type: "transitionReady"; data: { id: string; position: number } }
+  | { type: "transitionReady"; data: { id: string; position: number; endPosition?: number } }
   | { type: "transition"; data: { active: boolean; mode: "crossfade" } }
   | { type: "seek"; data: { position: number } }
   | { type: "ended" }
@@ -286,7 +286,12 @@ export interface PlayerApi {
    * @param startMs - 预载起点，单位为毫秒，默认为 0
    * @returns 预载就绪时返回 true，任务被取消或取代时返回 false
    */
-  prepareNext(id: string, source: string, startMs?: number): Promise<boolean>;
+  prepareNext(
+    id: string,
+    source: string,
+    startMs?: number,
+    preference?: TransitionPreference,
+  ): Promise<boolean>;
   /**
    * 取消指定预载任务并释放缓存租约，不影响其他代次的任务
    * @param id - 要取消的预载任务标识

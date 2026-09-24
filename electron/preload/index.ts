@@ -68,10 +68,16 @@ const api = {
      * @param id - 预载任务标识
      * @param source - 本地音频文件或缓存文件路径
      * @param startMs - 预载起点，单位为毫秒
+     * @param preference - 交接偏好，省略时只预载音频
      * @returns 音频就绪时返回 true，取消或失效时返回 false
      */
-    prepareNext: (id: string, source: string, startMs?: number): Promise<boolean> =>
-      ipcRenderer.invoke("player:prepareNext", id, source, startMs),
+    prepareNext: (
+      id: string,
+      source: string,
+      startMs?: number,
+      preference?: TransitionPreference,
+    ): Promise<boolean> =>
+      ipcRenderer.invoke("player:prepareNext", id, source, startMs, preference),
     /**
      * 请求主进程取消预载并释放对应的缓存租约
      * @param id - 要取消的预载任务标识

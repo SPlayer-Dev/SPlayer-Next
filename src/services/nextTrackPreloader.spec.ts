@@ -4,7 +4,13 @@ import type { Track } from "@shared/types/player";
 
 const mocks = vi.hoisted(() => ({
   settings: {
-    player: { preloadNextTrack: true, songLevel: "hq", allowTrialPlay: false },
+    player: {
+      preloadNextTrack: true,
+      transitionMode: "crossfade",
+      transitionPreference: "standard",
+      songLevel: "hq",
+      allowTrialPlay: false,
+    },
     system: { cache: { songCache: { enabled: true, cacheStreaming: true } } },
     preset: { skipKeywordsSongs: false, skipTrackKeywords: [] },
   },
@@ -57,7 +63,12 @@ describe("下一曲真实预载", () => {
     const preloader = await import("./nextTrackPreloader");
     preloader.scheduleNextTrackPreload();
     await flushPromises();
-    expect(mocks.prepare).toHaveBeenCalledWith(expect.any(String), "C:/music/next.flac", undefined);
+    expect(mocks.prepare).toHaveBeenCalledWith(
+      expect.any(String),
+      "C:/music/next.flac",
+      undefined,
+      "standard",
+    );
     expect(preloader.peekPreparedTrack(mocks.candidate.track as Track)?.preparedId).toBeDefined();
   });
 
@@ -77,7 +88,12 @@ describe("下一曲真实预载", () => {
     const preloader = await import("./nextTrackPreloader");
     preloader.scheduleNextTrackPreload();
     await flushPromises();
-    expect(mocks.prepare).toHaveBeenCalledWith(expect.any(String), "C:/music/album.flac", 120000);
+    expect(mocks.prepare).toHaveBeenCalledWith(
+      expect.any(String),
+      "C:/music/album.flac",
+      120000,
+      "standard",
+    );
     expect(preloader.peekPreparedTrack(mocks.candidate.track as Track)?.preparedId).toBeDefined();
   });
 
@@ -102,7 +118,7 @@ describe("下一曲真实预载", () => {
     finish("C:/cache/next.bin");
     await flushPromises();
     const id = mocks.prepare.mock.calls[0]![0];
-    expect(mocks.prepare).toHaveBeenCalledWith(id, "C:/cache/next.bin", undefined);
+    expect(mocks.prepare).toHaveBeenCalledWith(id, "C:/cache/next.bin", undefined, "standard");
     const result = preloader.consumePreloadedTrack(mocks.candidate.track as Track);
     expect(result?.preparedId).toBe(id);
     expect(result?.source?.source).toBe("C:/cache/next.bin");

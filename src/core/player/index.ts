@@ -1,4 +1,5 @@
 import type { IpcResponse, LoadResult, PlaybackContext, Track } from "@shared/types/player";
+import { TRANSITION_LOOKAHEAD_MS } from "@shared/constants/playback";
 import type { TagEditRequest, TagWriteOutcome } from "@shared/types/tagEditor";
 import type { PersonalFmOptions } from "@/types/netease";
 import { handleEvent } from "./events";
@@ -899,6 +900,7 @@ export const isSmartTransitionActive = (): boolean => transitionInFlight;
 export const trySmartTransition = async (
   positionMs: number,
   preparedId?: string,
+  endPositionMs?: number,
 ): Promise<void> => {
   const settings = useSettingsStore();
   const status = useStatusStore();
@@ -914,8 +916,14 @@ export const trySmartTransition = async (
   ) {
     return;
   }
-  const remainingMs = status.duration - positionMs;
-  if (!Number.isFinite(remainingMs) || remainingMs > 6000 || remainingMs < 1000) return;
+  const remainingMs = (endPositionMs ?? status.duration) - positionMs;
+  const remainingWallMs = remainingMs / Math.max(status.speed, 0.1);
+  if (
+    !Number.isFinite(remainingWallMs) ||
+    remainingWallMs > TRANSITION_LOOKAHEAD_MS[settings.player.transitionPreference] ||
+    remainingWallMs < 1000
+  )
+    return;
   const candidate = getNextTrackCandidate({
     playIndex: status.playIndex,
     queue: queue.queue.value,

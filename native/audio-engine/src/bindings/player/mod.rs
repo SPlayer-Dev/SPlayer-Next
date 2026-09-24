@@ -50,6 +50,7 @@ mod events;
 mod load;
 mod preload;
 mod seek;
+mod tail;
 mod transition;
 mod types;
 pub use types::*;

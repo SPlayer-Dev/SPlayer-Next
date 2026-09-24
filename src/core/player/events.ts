@@ -102,7 +102,7 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
       if (event.data.active) console.info("[player:transition] 实际淡化开始");
       break;
     case "transitionReady":
-      await trySmartTransition(event.data.position, event.data.id);
+      await trySmartTransition(event.data.position, event.data.id, event.data.endPosition);
       break;
     case "position": {
       // 歌曲加载中不更新进度
