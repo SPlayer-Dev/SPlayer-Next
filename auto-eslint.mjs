@@ -188,7 +188,6 @@ export default {
     "useElementBounding": true,
     "useElementByPoint": true,
     "useElementHover": true,
-    "useElementOverflow": true,
     "useElementSize": true,
     "useElementVisibility": true,
     "useEventBus": true,
