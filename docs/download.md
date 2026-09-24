@@ -29,15 +29,42 @@ title: 下载
 - **macOS**：首次打开若提示「应用已损坏」或无法验证，请参考 [Mac 应用显示已损坏](/troubleshooting/macos-damaged)。
 - **Linux**：不确定发行版格式时优先选择 AppImage；启动异常可参考 [Ubuntu 沙箱启动失败](/troubleshooting/ubuntu-sandbox)。
 
+## Linux 安装
+
+### Arch Linux
+
+本软件现已收录于 [Arch Linux 中文社区仓库](https://www.archlinuxcn.org/archlinux-cn-repo-and-mirror/)
+
+若还未配置 Arch Linux 中文社区仓库，前往 [Wiki](https://wiki.archlinuxcn.org/zh/Arch_Linux_%E4%B8%AD%E6%96%87%E7%A4%BE%E5%8C%BA%E4%BB%93%E5%BA%93) 进行配置
+
+若已配置，可直接安装：
+
+```bash
+sudo pacman -S splayer-next
+```
+
+该仓库另提供调试符号包，排查崩溃时可用：
+
+```bash
+sudo pacman -S splayer-next-debug
+```
+
+> [!IMPORTANT]
+> 如果遇到软件包过期（out-of-date）或者打包问题造成的运行错误，**请不要在本项目仓库反馈，而是向 Arch Linux 中文社区仓库反馈**
+>
+> 前往 [此处](https://github.com/archlinuxcn/repo/issues/new/choose) 建立 issue
+>
+> 或者向软件包维护者[发送邮件](mailto:nlsdt@archlinuxcn.org)\<nlsdt@archlinuxcn.org>进行反馈
+
 ### Linux 安装包选择
 
-| 格式     | 适用发行版                       |
-| -------- | -------------------------------- |
-| AppImage | 通用 Linux，无需安装             |
-| deb      | Debian、Ubuntu、Linux Mint       |
-| rpm      | Fedora、RHEL、openSUSE           |
-| pacman   | Arch Linux、Manjaro、EndeavourOS |
-| tar.gz   | 通用压缩包，适合手动解压运行     |
+| 格式     | 适用发行版                   |
+| -------- | ---------------------------- |
+| AppImage | 通用 Linux，无需安装         |
+| deb      | Debian、Ubuntu、Linux Mint   |
+| rpm      | Fedora、RHEL、openSUSE       |
+| pacman   | Manjaro                      |
+| tar.gz   | 通用压缩包，适合手动解压运行 |
 
 ```bash
 # AppImage
