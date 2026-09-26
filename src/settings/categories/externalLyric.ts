@@ -378,13 +378,15 @@ const taskbarLyricSection: SettingSection = {
       type: "switch",
       binding: { store: "settings", path: "system.taskbarLyric.doubleLine" },
       defaultValue: true,
-    },
-    {
-      key: "taskbarLyricShowTranslation",
-      type: "switch",
-      binding: { store: "settings", path: "system.taskbarLyric.showTranslation" },
-      defaultValue: true,
-      visible: () => useSettingsStore().system.taskbarLyric.doubleLine === true,
+      children: [
+        {
+          key: "taskbarLyricShowTranslation",
+          type: "switch",
+          binding: { store: "settings", path: "system.taskbarLyric.showTranslation" },
+          defaultValue: true,
+          disabled: () => !useSettingsStore().system.taskbarLyric.doubleLine,
+        },
+      ],
     },
   ],
 };
