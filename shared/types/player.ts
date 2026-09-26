@@ -132,6 +132,8 @@ export interface Track {
   fee?: TrackFee;
   /** 云盘歌曲 */
   cloud?: boolean;
+  /** 国际标准音像制品编码（ISRC） */
+  isrc?: string;
 }
 
 /** 播放队列项，将曲目元数据与本次播放上下文分离 */
