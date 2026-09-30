@@ -2,6 +2,7 @@ import { BrowserWindow, screen } from "electron";
 import { join } from "path";
 import { is } from "@electron-toolkit/utils";
 import { createWindow } from "./create";
+import { resolveEmbedAction } from "./taskbarLyricEmbed";
 import { loadNativeModule } from "@main/utils/nativeLoader";
 import { broadcast } from "@main/utils/broadcast";
 import { setTrayTaskbarLyric } from "@main/services/tray";
@@ -52,6 +53,10 @@ interface ActiveWindowRegion {
 let activeWindowRegion: ActiveWindowRegion | null = null;
 let contentWidth: number | null = null;
 
+/** 上次成功嵌入任务栏时的窗口 HWND，null 表示尚未完成首次嵌入 */
+let embeddedHwnd: number | null = null;
+let embedWatchTimer: ReturnType<typeof setInterval> | null = null;
+
 /** 从设置读取当前歌词宽度（Win10 据此从 tasklist 划空间，Win11 忽略） */
 const resolveLyricWidth = (): number => {
   const width = store.get("taskbarLyric.maxWidth");
@@ -74,6 +79,25 @@ const INITIAL_HEIGHT = 200;
  * 视觉很糟，直接隐藏窗口；空间回升后再 show
  */
 const MIN_LYRIC_WIDTH_DIP = 120;
+
+/**
+ * 嵌入健康校验间隔
+ *
+ * 窗口的位置坐标是「相对任务栏」的，父关系被外部解除后同一组坐标会按屏幕坐标解释，
+ * 窗口停在屏幕顶部且不会自行恢复，因此需要持续校验
+ */
+const EMBED_CHECK_INTERVAL_MS = 500;
+
+/**
+ * 读取窗口的 HWND
+ * @param win - 目标窗口
+ * @returns HWND 数值；超出 JS Number 安全整数范围时返回 null
+ */
+const readHwnd = (win: BrowserWindow): number | null => {
+  // Windows 上 HWND 可能是 64 位值，先按 BigInt 读取，避免直接转 number 产生静默精度丢失
+  const value = win.getNativeWindowHandle().readBigUInt64LE(0);
+  return value > BigInt(Number.MAX_SAFE_INTEGER) ? null : Number(value);
+};
 
 /** 获取任务栏歌词窗口实例（未创建或已销毁时返回 null） */
 export const getTaskbarLyricWindow = (): BrowserWindow | null =>
@@ -328,19 +352,17 @@ export const createTaskbarLyricWindow = (): BrowserWindow | null => {
     const mod = nativeModule;
     if (!win || !svc || !mod) return;
 
-    // Windows 上 HWND 可能是 64 位值，先保留为 BigInt，避免直接转成 number 产生静默精度丢失
-    const hwndPtrBigInt = win.getNativeWindowHandle().readBigUInt64LE(0);
-    if (hwndPtrBigInt > BigInt(Number.MAX_SAFE_INTEGER)) {
-      taskbarLog.error(
-        `嵌入窗口失败：hwnd=${hwndPtrBigInt.toString()} 超出 JS Number 安全整数范围`,
-      );
+    const hwndPtr = readHwnd(win);
+    if (hwndPtr === null) {
+      taskbarLog.error("嵌入窗口失败：HWND 超出 JS Number 安全整数范围");
       return;
     }
-    const hwndPtr = Number(hwndPtrBigInt);
     taskbarLog.info(`嵌入窗口 hwnd=${hwndPtr}`);
     svc.embedWindowByPtr(hwndPtr);
+    embeddedHwnd = hwndPtr;
     svc.update(resolveLyricWidth());
     startWatchers(mod);
+    startEmbedWatch();
     taskbarCreatedWatcher = tryStart(
       "TaskbarCreatedWatcher",
       () => new mod.TaskbarCreatedWatcher(onExplorerRestart),
@@ -352,6 +374,8 @@ export const createTaskbarLyricWindow = (): BrowserWindow | null => {
     firstLayoutDone = false;
     activeWindowRegion = null;
     contentWidth = null;
+    embeddedHwnd = null;
+    stopEmbedWatch();
     cleanupWatchers();
     setTrayTaskbarLyric(false);
     broadcast("taskbarLyric:visibilityChange", false);
@@ -394,4 +418,48 @@ export const toggleTaskbarLyricWindow = (): boolean => {
 /** 触发一次布局重算（配置变更后调用） */
 export const applyTaskbarLyricLayout = (): void => {
   service?.update(resolveLyricWidth());
+};
+
+/**
+ * 嵌入失效后的自愈：先隐藏避免残影，再重新附着到任务栏并重放布局
+ * @param win - 任务栏歌词窗口
+ * @param hwnd - 需要重新嵌入的 HWND
+ */
+const recoverEmbed = (win: BrowserWindow, hwnd: number): void => {
+  const svc = service;
+  if (!svc) return;
+  win.hide();
+  svc.embedWindowByPtr(hwnd);
+  embeddedHwnd = hwnd;
+  applyTaskbarLyricLayout();
+};
+
+/** 校验窗口是否仍嵌在任务栏上，失效则自愈 */
+const verifyEmbed = (): void => {
+  const win = getTaskbarLyricWindow();
+  const mod = nativeModule;
+  if (!win || !mod || embeddedHwnd === null) return;
+
+  const state = mod.probeWindow(embeddedHwnd);
+  // HWND 已失效时不对窗口做任何操作（重建窗口不在本次范围内）
+  if (!state.alive) return;
+
+  const hwnd = readHwnd(win);
+  if (hwnd === null) return;
+
+  const action = resolveEmbedAction(state, hwnd, embeddedHwnd);
+  if (action === "reattach" || action === "reembed") recoverEmbed(win, hwnd);
+};
+
+/** 启动嵌入健康校验 */
+const startEmbedWatch = (): void => {
+  if (embedWatchTimer !== null) return;
+  embedWatchTimer = setInterval(verifyEmbed, EMBED_CHECK_INTERVAL_MS);
+};
+
+/** 停止嵌入健康校验 */
+const stopEmbedWatch = (): void => {
+  if (embedWatchTimer === null) return;
+  clearInterval(embedWatchTimer);
+  embedWatchTimer = null;
 };
