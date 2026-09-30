@@ -48,6 +48,11 @@ const router = createRouter({
           component: () => import("@/pages/Daily.vue"),
         },
         {
+          path: "new-releases",
+          name: "new-releases",
+          component: () => import("@/pages/NewReleases.vue"),
+        },
+        {
           path: "favorites",
           name: "favorites",
           component: () => import("@/pages/Favorites.vue"),

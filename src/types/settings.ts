@@ -109,7 +109,15 @@ export const DEFAULT_SIDEBAR_NAV_GROUPS: SidebarNavGroup[] = [
   {
     name: "",
     showName: false,
-    keys: ["/liked", "/favorites", "/cloud", "/download", "/streaming", "/history"],
+    keys: [
+      "/liked",
+      "/favorites",
+      "/new-releases",
+      "/cloud",
+      "/download",
+      "/streaming",
+      "/history",
+    ],
   },
 ];
 
