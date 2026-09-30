@@ -502,7 +502,9 @@ defineExpose({
                 </div>
               </div>
               <div v-if="showAlbum" class="flex-1 min-w-0">{{ t("songList.album") }}</div>
-              <div class="w-7 shrink-0 text-center">{{ t("songList.actions") }}</div>
+              <div class="shrink-0 text-center text-xs leading-6" style="min-width: fit-content">
+                {{ t("songList.actions") }}
+              </div>
               <div v-if="showDuration" class="w-16 shrink-0 text-center">
                 {{ t("songList.duration") }}
               </div>
