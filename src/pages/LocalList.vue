@@ -2,11 +2,13 @@
 defineOptions({ name: "LocalList" });
 
 import type { CoverItem } from "@/types/artist";
+import type { PlaybackContext, Track } from "@shared/types/player";
 import type { SSelectOption } from "@/components/ui/SSelect.vue";
 import type { AlbumSummary, ArtistSummary } from "@shared/types/library";
 import { useLibraryStore } from "@/stores/library";
 import CoverList from "@/components/list/CoverList.vue";
 import { navigateToAlbum, navigateToArtist } from "@/utils/navigate";
+import * as player from "@/core/player";
 import IconLucideUsers from "~icons/lucide/users";
 import IconLucideUserRound from "~icons/lucide/user-round";
 import IconLucideMusic from "~icons/lucide/music";
@@ -87,6 +89,38 @@ const handleClick = (item: CoverItem): void => {
   else navigateToAlbum(item.title);
 };
 
+/** 正在加载曲目的卡片，避免重复点击 */
+const playingItem = ref("");
+
+/** 取卡片对应的曲目列表 */
+const loadItemTracks = async (item: CoverItem): Promise<Track[]> => {
+  if (mode === "artist") {
+    const profile = await libraryStore.getArtistProfile(item.title);
+    return profile?.tracks ?? [];
+  }
+  const collection = await libraryStore.getAlbumCollection(item.title);
+  return collection?.tracks ?? [];
+};
+
+/** 点击封面播放按钮：直接播放该歌手/专辑下的全部曲目 */
+const handlePlay = async (item: CoverItem): Promise<void> => {
+  if (playingItem.value === item.id) return;
+  playingItem.value = item.id;
+  try {
+    const tracks = await loadItemTracks(item);
+    if (tracks.length === 0) return;
+    const context: PlaybackContext = {
+      provider: "local",
+      originId: item.title,
+      originType: mode,
+      originName: item.title,
+    };
+    await player.playFrom(tracks, 0, context);
+  } finally {
+    playingItem.value = "";
+  }
+};
+
 onMounted(async () => {
   source.value =
     mode === "artist" ? await libraryStore.getArtistList() : await libraryStore.getAlbumList();
@@ -129,7 +163,9 @@ onMounted(async () => {
         :min-size="config.minSize"
         :padding-x="20"
         :padding-bottom="24"
+        playable
         @click="handleClick"
+        @play="handlePlay"
       />
       <div v-else class="h-full flex items-center justify-center">
         <div class="text-center text-on-surface-variant/50">
