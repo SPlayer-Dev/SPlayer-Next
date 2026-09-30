@@ -1,15 +1,21 @@
 import { app } from "electron";
 import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
+import { extractPortableDir } from "@shared/utils/taskbarAction";
 
 /**
  * 便携模式：将 userData 重定向到 exe 同级 UserData 目录
  *
  * electron-builder 的便携版会注入 PORTABLE_EXECUTABLE_DIR，此时把整个 userData
- * （含 Chromium 缓存与下方 app-data）落到 exe 同级目录，实现免安装、可整体拷贝
+ * （含 Chromium 缓存与下方 app-data）落到 exe 同级目录，实现免安装、可整体拷贝。
+ *
+ * 便携版 Jump List 直接拉起内层 exe 时不带该环境变量，但会透传
+ * --splayer-portable-dir=<外层目录>，据此重定向到同一 UserData，确保新进程命中
+ * 同一把单例锁、把任务栏动作经 second-instance 投递给原进程。
  */
-if (process.env.PORTABLE_EXECUTABLE_DIR) {
-  const portableUserData = path.join(process.env.PORTABLE_EXECUTABLE_DIR, "UserData");
+const portableDir = process.env.PORTABLE_EXECUTABLE_DIR || extractPortableDir(process.argv);
+if (portableDir) {
+  const portableUserData = path.join(portableDir, "UserData");
   if (!existsSync(portableUserData)) mkdirSync(portableUserData, { recursive: true });
   app.setPath("userData", portableUserData);
 }
