@@ -10,6 +10,7 @@ import {
   parseLyric,
 } from "lyric-kit";
 import { applyLyricExclude } from "@/utils/lyric/lyricStripper";
+import { stripPinyinFromTTML } from "@/utils/preset/pinyin";
 import { applyLyricCjkTransform } from "@/utils/lyric/cjkTransform";
 
 export const useMediaStore = defineStore("media", () => {
@@ -136,9 +137,9 @@ export const useMediaStore = defineStore("media", () => {
   /** 简繁转换竞态 token */
   let transformToken = 0;
 
-  // 监听简繁转换设置变化并重新解析当前歌词
+  // 监听简繁转换及强迫症设置变化并重新解析当前歌词
   watch(
-    () => useSettingsStore().lyric.cjkTransform,
+    () => [useSettingsStore().lyric.cjkTransform, useSettingsStore().preset.noPinyin],
     () => {
       if (activeLyric.value && lyricContent.value) {
         setLyric(activeLyric.value, lyricContent.value);
@@ -157,9 +158,13 @@ export const useMediaStore = defineStore("media", () => {
     const settings = useSettingsStore();
     if (source && input) {
       try {
+        const content =
+          settings.preset.noPinyin && (source.format === "ttml" || input.content.includes("<tt"))
+            ? stripPinyinFromTTML(input.content)
+            : input.content;
         const result = parseLyric(
           {
-            content: input.content,
+            content,
             format: source.format,
             translation: input.translation,
             translationFormat: input.translationFormat,
