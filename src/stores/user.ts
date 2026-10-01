@@ -26,6 +26,7 @@ import {
   addToPlaylist,
   removeFromPlaylist,
   subscribePlaylist,
+  reorderPlaylists,
 } from "@/apis/playlist/netease";
 import { subscribeAlbum } from "@/apis/album/netease";
 import { subscribeArtist } from "@/apis/artist/netease";
@@ -400,6 +401,19 @@ export const useUserStore = defineStore(
     };
 
     /**
+     * 把当前歌单元数据写回缓存
+     * @param uid 用户 ID
+     */
+    const persistPlaylistsCache = (uid: number): void => {
+      const payload: PlaylistsCache = {
+        userId: uid,
+        playlists: playlists.value,
+        cachedAt: Date.now(),
+      };
+      cacheDb.setItem(PLAYLISTS_CACHE_KEY, payload).catch(() => {});
+    };
+
+    /**
      * 拉取并应用用户歌单
      * @param uid 用户 ID
      */
@@ -409,12 +423,7 @@ export const useUserStore = defineStore(
       const total = (sub.createdPlaylistCount || 0) + (sub.subPlaylistCount || 0) || 50;
       const list = await fetchUserPlaylists(uid, total);
       playlists.value = list;
-      const payload: PlaylistsCache = {
-        userId: uid,
-        playlists: list,
-        cachedAt: Date.now(),
-      };
-      cacheDb.setItem(PLAYLISTS_CACHE_KEY, payload).catch(() => {});
+      persistPlaylistsCache(uid);
     };
 
     /**
@@ -502,6 +511,37 @@ export const useUserStore = defineStore(
       } catch (err) {
         console.warn("[user] refreshPlaylists failed:", err);
       }
+    };
+
+    /**
+     * 同步某个歌单分组的顺序到网易云，并即时更新本地状态
+     * 接口按分组独立重排，只提交该分组的 id；「我喜欢的音乐」固定置顶不参与
+     * @param ids 该分组期望顺序的歌单 id
+     * @param scope created 自建 / subscribed 收藏
+     */
+    const syncPlaylistOrder = async (
+      ids: string[],
+      scope: "created" | "subscribed",
+    ): Promise<void> => {
+      if (ids.length === 0) return;
+      await reorderPlaylists(ids);
+      const uid = profile.value?.userId;
+      if (!uid) return;
+      const byId = new Map(ids.map((id, index) => [id, index]));
+      const boundary = createdPlaylists.value.length;
+      const reorderSlice = (slice: Playlist[]): Playlist[] =>
+        [...slice].sort((a, b) => (byId.get(String(a.id)) ?? 0) - (byId.get(String(b.id)) ?? 0));
+      const list = playlists.value;
+      if (scope === "created") {
+        playlists.value = [
+          list[0],
+          ...reorderSlice(list.slice(1, boundary)),
+          ...list.slice(boundary),
+        ];
+      } else {
+        playlists.value = [...list.slice(0, boundary), ...reorderSlice(list.slice(boundary))];
+      }
+      persistPlaylistsCache(uid);
     };
 
     /**
@@ -708,6 +748,7 @@ export const useUserStore = defineStore(
       createPlaylist,
       deletePlaylist,
       updatePlaylist,
+      syncPlaylistOrder,
       addTracksToPlaylist,
       removeTracksFromPlaylist,
       togglePlaylistSubscribe,

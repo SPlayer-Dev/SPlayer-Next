@@ -9,12 +9,17 @@ import {
   SIDEBAR_GROUP_MY_PLAYLISTS,
   SIDEBAR_GROUP_SUBSCRIBED,
 } from "@/types/settings";
-import { SIDEBAR_NAV_META, applySavedOrder } from "@/components/layout/sidebarNav";
+import {
+  SIDEBAR_NAV_META,
+  applySavedOrder,
+  resolveNeteaseIds,
+} from "@/components/layout/sidebarNav";
 import { useSettingsStore } from "@/stores/settings";
 import { useStatusStore } from "@/stores/status";
 import { usePlaylistStore } from "@/stores/playlist";
 import { useUserStore } from "@/stores/user";
 import { dialog } from "@/composables/useDialog";
+import { toast } from "@/composables/useToast";
 
 defineOptions({ inheritAttrs: false });
 
@@ -280,7 +285,39 @@ const removeGroup = (index: number): void => {
   bump();
 };
 
+/** 两组 key 顺序是否一致 */
+const sameKeyOrder = (a: string[], b: string[]): boolean =>
+  a.length === b.length && a.every((key, i) => key === b[i]);
+
+/**
+ * 在线歌单（自建 + 收藏）顺序发生变更时回写网易云
+ * 接口按分组独立重排，自建与收藏各自提交本组 id
+ * @param prevOrder - 保存前的顺序存档
+ */
+const syncOnlineOrderToNetease = (prevOrder: SidebarPlaylistOrder): void => {
+  if (!userStore.isLoggedIn) return;
+  const next = playlistOrder.value;
+  const tasks: Promise<void>[] = [];
+  if (!sameKeyOrder(prevOrder.myOnline, next.myOnline)) {
+    const ids = resolveNeteaseIds(userStore.createdPlaylists.slice(1), next.myOnline);
+    if (ids.length > 0) tasks.push(userStore.syncPlaylistOrder(ids, "created"));
+  }
+  if (!sameKeyOrder(prevOrder.subscribed, next.subscribed)) {
+    const ids = resolveNeteaseIds(userStore.subscribedPlaylists, next.subscribed);
+    if (ids.length > 0) tasks.push(userStore.syncPlaylistOrder(ids, "subscribed"));
+  }
+  if (tasks.length === 0) return;
+  Promise.all(tasks)
+    .then(() => toast.success(t("settings.sidebarCustomize.orderSynced")))
+    .catch(() => toast.error(t("settings.sidebarCustomize.orderSyncFailed")));
+};
+
 const handleConfirm = (): void => {
+  const prevOrder: SidebarPlaylistOrder = {
+    myLocal: [...settings.appearance.sidebarPlaylistOrder.myLocal],
+    myOnline: [...settings.appearance.sidebarPlaylistOrder.myOnline],
+    subscribed: [...settings.appearance.sidebarPlaylistOrder.subscribed],
+  };
   settings.appearance.sidebarNavGroups = groups.value.map((group) => ({
     name: group.name.trim(),
     showName: group.showName,
@@ -295,6 +332,7 @@ const handleConfirm = (): void => {
     subscribed: [...playlistOrder.value.subscribed],
   };
   open.value = false;
+  syncOnlineOrderToNetease(prevOrder);
 };
 
 const handleReset = async (): Promise<void> => {

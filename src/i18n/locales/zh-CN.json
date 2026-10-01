@@ -1615,6 +1615,8 @@
       "showName": "在侧栏显示分组名",
       "confirmResetTitle": "确认恢复默认？",
       "confirmResetDesc": "分组、命名、排序与显隐都将重置为默认！",
+      "orderSynced": "已同步歌单顺序到网易云",
+      "orderSyncFailed": "歌单顺序同步失败",
       "featureDisabled": "功能未开启"
     },
     "showQualitySwitch": {

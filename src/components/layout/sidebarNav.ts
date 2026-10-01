@@ -67,3 +67,33 @@ export const applySavedOrder = <T extends { key: string }>(items: T[], order: st
   }
   return [...map.values(), ...ordered];
 };
+
+/** 网易云在线歌单的路由 key 前缀 */
+export const NETEASE_PLAYLIST_PREFIX = "/collection/netease/playlist/";
+
+/**
+ * 把某个分组的歌单按存档 key 顺序解析为提交排序接口的 id 顺序
+ * 接口按分组独立重排，只需传入该分组的 id；未在顺序中的（隐藏项）追加末尾
+ * @param playlists - 该分组的歌单列表
+ * @param order - 存档的 key 顺序
+ * @returns 该分组的歌单 id 顺序
+ */
+export const resolveNeteaseIds = (
+  playlists: { id?: string | number }[],
+  order: string[],
+): string[] => {
+  const byKey = new Map<string, string>();
+  for (const pl of playlists) {
+    if (pl.id === undefined) continue;
+    byKey.set(`${NETEASE_PLAYLIST_PREFIX}${pl.id}`, String(pl.id));
+  }
+  const ids: string[] = [];
+  for (const key of order) {
+    const id = byKey.get(key);
+    if (id === undefined) continue;
+    ids.push(id);
+    byKey.delete(key);
+  }
+  for (const id of byKey.values()) ids.push(id);
+  return ids;
+};
