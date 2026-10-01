@@ -2,6 +2,7 @@
 import type { LyricLine } from "@shared/types/lyrics";
 import { DEFAULTS, type SpringParams, LyricRenderer } from "lyric-dom";
 import "lyric-dom/renderer.css";
+import { useLyricScrollBound } from "@/composables/useLyricScrollBound";
 import LyricCredit from "./LyricCredit.vue";
 
 const props = withDefaults(
@@ -137,6 +138,9 @@ let renderer: LyricRenderer | null = null;
 let isFrozen = false;
 /** 冻结期间收到的待应用歌词（父容器 display:none 时无法测量，需延迟） */
 let pendingLyrics: LyricLine[] | null = null;
+
+// 限制手动滚动的首尾边界，避免滚出歌词范围后出现大片空白
+useLyricScrollBound(containerRef);
 
 /**
  * 推送当前播放时间（毫秒）

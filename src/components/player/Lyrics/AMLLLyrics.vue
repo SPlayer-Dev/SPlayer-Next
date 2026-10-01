@@ -7,6 +7,7 @@ import {
 import { useSettingsStore } from "@/stores/settings";
 import { useStatusStore } from "@/stores/status";
 import { getCurrentTime } from "@/services/playback";
+import { useLyricScrollBound } from "@/composables/useLyricScrollBound";
 import "@applemusic-like-lyrics/core/style.css";
 import LyricCredit from "./LyricCredit.vue";
 
@@ -77,6 +78,9 @@ let pendingLyrics: LyricLine[] | null = null;
 const isPageHidden = ref(false);
 // 之前隐藏的标记，用于检测从隐藏恢复的时刻
 const isPreviousHidden = ref(false);
+
+// 限制手动滚动的首尾边界，开启「隐藏已播放行」后不越过已隐藏区域
+useLyricScrollBound(wrapperRef);
 
 const nextFrame = (): Promise<void> =>
   new Promise((resolve) => requestAnimationFrame(() => resolve()));
