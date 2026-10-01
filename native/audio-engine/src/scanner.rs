@@ -38,6 +38,8 @@ pub struct ScannedTrack {
     pub artist: Option<String>,
     pub album: Option<String>,
     pub track: Option<u16>,
+    /// 流派原始标签文本（可能包含多个流派）
+    pub genre: Option<String>,
     pub duration: f64,
     pub codec: String,
     pub sample_rate: u32,
@@ -138,6 +140,7 @@ pub(crate) fn probe_fast(path: &str, cover_cache_dir: Option<&str>) -> Option<Sc
         artist: tags.artist,
         album: tags.album,
         track: tags.track,
+        genre: tags.genre,
         duration,
         codec,
         sample_rate: stream_info.sample_rate,

@@ -6,12 +6,14 @@ fn common_tags_are_matched_case_insensitively() {
         ("TITLE".to_string(), "Track".to_string()),
         ("Album_Artist".to_string(), "Artist".to_string()),
         ("TRACK".to_string(), "7".to_string()),
+        ("Genre".to_string(), "Pop Rock".to_string()),
     ]);
 
     let tags = extract_tags(&dict);
     assert_eq!(tags.title.as_deref(), Some("Track"));
     assert_eq!(tags.artist.as_deref(), Some("Artist"));
     assert_eq!(tags.track, Some(7));
+    assert_eq!(tags.genre.as_deref(), Some("Pop Rock"));
 }
 
 #[test]

@@ -17,6 +17,8 @@ pub struct JsMusicMetadata {
     pub title: Option<String>,
     pub artist: Option<String>,
     pub album: Option<String>,
+    /// 流派原始标签文本（可能包含多个流派，由 JS 侧解析拆分）
+    pub genre: Option<String>,
     /// 注释/副标题
     pub comment: Option<String>,
     /// 时长（秒）

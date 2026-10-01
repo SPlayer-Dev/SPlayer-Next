@@ -221,6 +221,7 @@ impl AudioPlayer {
             title: meta.title,
             artist: meta.artist,
             album: meta.album,
+            genre: meta.genre,
             comment: meta.comment,
             duration: meta.duration_secs,
             sample_rate: meta.sample_rate,

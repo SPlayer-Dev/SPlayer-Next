@@ -17,6 +17,14 @@ export interface ArtistSummary {
   cover?: string;
 }
 
+/** 流派聚合项 */
+export interface GenreSummary {
+  name: string;
+  trackCount: number;
+  /** 该流派任一曲目的封面 */
+  cover?: string;
+}
+
 /** 扫描进度事件 */
 export interface ScanProgress {
   phase: "scanning" | "done" | "error";
@@ -45,10 +53,14 @@ export interface LibraryApi {
   getAlbums: () => Promise<IpcResponse<AlbumSummary[]>>;
   /** 获取歌手聚合列表 */
   getArtists: () => Promise<IpcResponse<ArtistSummary[]>>;
+  /** 获取流派聚合列表 */
+  getGenres: () => Promise<IpcResponse<GenreSummary[]>>;
   /** 获取某专辑下的全部曲目 */
   getAlbumTracks: (albumName: string) => Promise<IpcResponse<Track[]>>;
   /** 获取某歌手的全部曲目 */
   getArtistTracks: (artistName: string) => Promise<IpcResponse<Track[]>>;
+  /** 获取某流派下的全部曲目 */
+  getGenreTracks: (genreName: string) => Promise<IpcResponse<Track[]>>;
   /** 按 ID 批量获取曲目 */
   getTracksByIds: (ids: string[]) => Promise<IpcResponse<Track[]>>;
   /** 搜索曲目 */

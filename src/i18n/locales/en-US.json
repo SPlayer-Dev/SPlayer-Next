@@ -521,6 +521,7 @@
   "songList": {
     "title": "Title",
     "album": "Album",
+    "genre": "Genre",
     "actions": "Actions",
     "size": "Size",
     "duration": "Duration",
@@ -2185,6 +2186,7 @@
     "viewIntroduction": "View full description",
     "album": "Album",
     "playlist": "Playlist",
+    "genre": "Genre",
     "radio": "Radio",
     "scope": {
       "local": "Local",
@@ -2222,6 +2224,11 @@
         "copyId": "Copy Playlist ID",
         "copyUrl": "Share Playlist Link"
       },
+      "genre": {
+        "copyTitle": "Copy Genre Name",
+        "copyId": "Copy Genre ID",
+        "copyUrl": "Share Genre Link"
+      },
       "radio": {
         "copyTitle": "Copy Radio Title",
         "copyId": "Copy Radio ID",
@@ -2243,6 +2250,11 @@
   "album": {
     "label": "Albums"
   },
+  "genre": {
+    "label": "Genres",
+    "totalGenres": "{count} genres",
+    "unknown": "Unknown genre"
+  },
   "folder": {
     "label": "Folders",
     "totalFolders": "{count} folders"
@@ -2252,6 +2264,7 @@
     "songs": "Songs",
     "albums": "Albums",
     "artists": "Artists",
+    "genres": "Genres",
     "totalDuration": "Total Duration",
     "totalSize": "Total Size",
     "topSongs": "Most Played Songs",

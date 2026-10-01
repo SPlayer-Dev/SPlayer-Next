@@ -100,6 +100,7 @@ export const useMediaStore = defineStore("media", () => {
           ? info.artists
           : track.value.artists,
       album: track.value.album ?? info.album,
+      genres: track.value.genres?.length ? track.value.genres : info.genres,
       duration: track.value.duration > 0 ? track.value.duration : info.duration,
       cover: isStreaming ? track.value.cover : (track.value.cover ?? info.cover),
       quality: track.value.quality ?? info.quality,

@@ -78,6 +78,11 @@ const router = createRouter({
           component: () => import("@/pages/LocalList.vue"),
         },
         {
+          path: "genres/local",
+          name: "genre-list",
+          component: () => import("@/pages/LocalList.vue"),
+        },
+        {
           path: "folders",
           name: "folders",
           component: () => import("@/pages/Folders.vue"),

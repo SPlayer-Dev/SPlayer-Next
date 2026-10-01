@@ -9,12 +9,13 @@ import {
   deleteTracksByPaths,
   getFileRecords,
   getCueTrackPathsByDirs,
+  hasTracksMissingGenres,
   type UpsertTrack,
 } from "@main/database";
 import { broadcast } from "@main/utils/broadcast";
 import { toCacheUrl } from "@main/utils/protocol";
 import { toMs } from "@main/utils/time";
-import { parseArtists, parseAlbum } from "@main/utils/metadata";
+import { parseArtists, parseAlbum, parseGenres } from "@main/utils/metadata";
 import { getCoverCacheDir, isWin } from "@main/utils/config";
 import { libraryLog } from "@main/utils/logger";
 import { getCueAudioPath, parseCueSheet, extractCuePath } from "./cue";
@@ -41,6 +42,7 @@ export const scannedToUpsert = (track: JsScannedTrack): UpsertTrack => {
     track: track.track,
     artists: parseArtists(track.artist ?? ""),
     album: parseAlbum(track.album ?? ""),
+    genres: parseGenres(track.genre),
     duration: toMs(track.duration),
     cover: toCacheUrl(track.cover),
     codec: track.codec,
@@ -110,6 +112,7 @@ const syncCueTracks = async (
           track: cueTrack.track,
           artists: cueTrack.artists,
           album: cueTrack.album,
+          genres: cueTrack.genres,
           duration: cueTrack.duration,
           cover: audio.cover,
           codec: audio.quality?.codec,
@@ -178,11 +181,18 @@ export const startScan = (dirs: string[], incremental = true): void => {
     return;
   }
 
+  // 老库升级后曲目没有流派数据，增量扫描会因 mtime/size 未变化而整体跳过，这里强制全量回填一次
+  let useIncremental = incremental;
+  if (useIncremental && hasTracksMissingGenres()) {
+    useIncremental = false;
+    libraryLog.info("检测到曲目缺少流派数据，本次改为全量扫描以回填");
+  }
+
   scanning = true;
-  libraryLog.info(`开始扫描 ${dirs.length} 个目录 (增量=${incremental})`);
+  libraryLog.info(`开始扫描 ${dirs.length} 个目录 (增量=${useIncremental})`);
 
   // 增量扫描时传入已有文件记录，Rust 端会比对 mtime/size 跳过未变化的文件
-  const incrementalData = incremental ? getFileRecords() : undefined;
+  const incrementalData = useIncremental ? getFileRecords() : undefined;
 
   const engine = getEngine();
   engine.scanDirs(

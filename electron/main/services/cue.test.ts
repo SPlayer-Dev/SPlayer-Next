@@ -36,6 +36,13 @@ describe("parseCueSheet", () => {
     assert.equal(tracks[2].cueEndMs, 1_200_000);
   });
 
+  it("从 REM GENRE 解析流派", () => {
+    const cuePath = path.join("C:", "Music", "Archive Recordings.cue");
+    const tracks = parseCueSheet(sample, cuePath, 1_200_000);
+
+    assert.deepEqual(tracks[0].genres, ["Classical"]);
+  });
+
   it("生成稳定且可入库的虚拟路径", () => {
     assert.equal(toCueTrackPath("D:/a/b.cue", 7), "cue://D:/a/b.cue#track=07");
   });

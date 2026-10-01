@@ -4,6 +4,7 @@ import type { LibraryStats } from "@shared/types/stats";
 import IconLucideMusic from "~icons/lucide/music";
 import IconLucideDisc3 from "~icons/lucide/disc-3";
 import IconLucideUser from "~icons/lucide/user";
+import IconLucideGuitar from "~icons/lucide/guitar";
 import IconLucideClock from "~icons/lucide/clock";
 import IconLucideHardDrive from "~icons/lucide/hard-drive";
 
@@ -19,6 +20,8 @@ const router = useRouter();
 interface OverviewCard {
   key: string;
   icon: Component;
+  /** 衬底图标的方向类（默认向左倾斜；吉他需水平翻转，避免琴头朝向卡片外侧） */
+  iconClass?: string;
   /** 主数字 */
   value: string;
   /** 主数字单位（h / m / GB） */
@@ -83,6 +86,13 @@ const overviewCards = computed<OverviewCard[]>(() => {
       value: stats ? String(stats.artistCount) : "--",
       to: "/artists/local",
     },
+    {
+      key: "genres",
+      icon: IconLucideGuitar,
+      iconClass: "rotate-14 -scale-x-100",
+      value: stats ? String(stats.genreCount) : "--",
+      to: "/genres/local",
+    },
     duration
       ? {
           key: "totalDuration",
@@ -101,7 +111,7 @@ const overviewCards = computed<OverviewCard[]>(() => {
 </script>
 
 <template>
-  <div class="grid grid-cols-2 gap-5 md:grid-cols-3 lg:grid-cols-5">
+  <div class="grid grid-cols-2 gap-5 md:grid-cols-3 lg:grid-cols-6">
     <SCard
       v-for="card in overviewCards"
       :key="card.key"
@@ -113,7 +123,8 @@ const overviewCards = computed<OverviewCard[]>(() => {
       <!-- 衬底图标 -->
       <component
         :is="card.icon"
-        class="pointer-events-none absolute -right-2 -bottom-3 size-18 -rotate-14 text-primary/20"
+        :class="card.iconClass ?? '-rotate-14'"
+        class="pointer-events-none absolute -right-2 -bottom-3 size-18 text-primary/20"
       />
       <div class="relative flex h-full flex-col justify-between">
         <div class="flex items-baseline gap-0.5">

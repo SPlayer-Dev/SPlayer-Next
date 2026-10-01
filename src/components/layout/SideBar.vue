@@ -282,6 +282,8 @@ const activeKey = computed(() => {
   if (route.path.startsWith("/artist/streaming/")) return "/streaming";
   // 专辑详情页归属专辑列表
   if (route.path.startsWith("/collection/local/album/")) return "/albums/local";
+  // 流派详情页归属流派列表
+  if (route.path.startsWith("/collection/local/genre/")) return "/genres/local";
   // 音乐库子页面
   if (route.path.startsWith("/collection/") && !route.path.includes("/playlist/"))
     return "/library";

@@ -22,6 +22,8 @@ pub struct AudioMetadata {
     pub album: Option<String>,
     /// 注释/副标题
     pub comment: Option<String>,
+    /// 流派原始标签文本（可能包含多个流派，交由 JS 侧解析）
+    pub genre: Option<String>,
     pub duration_secs: f64,
     /// 播放采样率（重采样后，用于音频输出）
     pub sample_rate: u32,
@@ -60,6 +62,8 @@ pub struct Tags {
     pub album: Option<String>,
     pub track: Option<u16>,
     pub comment: Option<String>,
+    /// 流派原始标签文本
+    pub genre: Option<String>,
 }
 
 /// 把 ffmpeg_audio 的 SourceAudioInfo 转成内部 StreamInfo
@@ -81,12 +85,18 @@ pub fn extract_tags(dict: &HashMap<String, String>) -> Tags {
     let album = dict_get(dict, "album").map(ToString::to_string);
     let track = dict_get(dict, "track").and_then(|s| s.parse().ok());
     let comment = dict_get(dict, "comment").map(ToString::to_string);
+    // 不同容器的流派键名不一致：ID3 为 genre/TCON，Vorbis 为 GENRE，部分工具写 style
+    let genre = dict_get(dict, "genre")
+        .or_else(|| dict_get(dict, "TCON"))
+        .or_else(|| dict_get(dict, "style"))
+        .map(ToString::to_string);
     Tags {
         title,
         artist,
         album,
         track,
         comment,
+        genre,
     }
 }
 

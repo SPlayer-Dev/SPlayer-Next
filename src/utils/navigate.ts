@@ -36,7 +36,8 @@ const resolveResourceId = (target: ResourceNavigationTarget): string | null => {
   }
   const source = target.source ?? "local";
   const candidate =
-    source === "local" && (target.type === "album" || target.type === "artist")
+    source === "local" &&
+    (target.type === "album" || target.type === "artist" || target.type === "genre")
       ? target.name
       : target.id;
   return candidate?.trim() || null;
@@ -116,6 +117,14 @@ export const navigateToArtist = (
     id: options.artistId,
     name: artistName,
   });
+
+/**
+ * 跳转到流派页
+ * @param genreName - 流派名称
+ * @returns 是否发起跳转
+ */
+export const navigateToGenre = (genreName?: string): boolean =>
+  navigateToResource({ type: "genre", source: "local", name: genreName });
 
 /**
  * 跳转到歌单页

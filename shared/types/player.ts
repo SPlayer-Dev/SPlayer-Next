@@ -14,7 +14,8 @@ export type ShuffleMode = "off" | "on";
 export type TrackSource = "local" | "streaming" | Platform;
 
 /** 播放来源类型 */
-export type PlaybackOriginType = "track" | "playlist" | "album" | "artist" | "radio" | "page";
+export type PlaybackOriginType =
+  "track" | "playlist" | "album" | "artist" | "genre" | "radio" | "page";
 
 /** 本次播放的来源上下文 */
 export interface PlaybackContext {
@@ -112,6 +113,8 @@ export interface Track {
   artists: Artist[];
   /** 专辑 */
   album?: Album;
+  /** 流派列表（已按分隔符解析拆分） */
+  genres?: string[];
   /** 曲目编号 */
   track?: number;
   /** 时长（毫秒） */
@@ -156,6 +159,8 @@ export interface MediaInfo {
   artists?: Artist[];
   /** 专辑 */
   album?: Album;
+  /** 流派列表（已按分隔符解析拆分） */
+  genres?: string[];
   /** 时长（毫秒） */
   duration: number;
   /** 缩略封面（cache:// URL 或 base64） */
