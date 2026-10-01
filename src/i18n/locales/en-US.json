@@ -1627,6 +1627,8 @@
       "showName": "Show group name in sidebar",
       "confirmResetTitle": "Reset to defaults?",
       "confirmResetDesc": "Groups, names, order and visibility will be reset to defaults!",
+      "orderSynced": "Playlist order synced to NetEase",
+      "orderSyncFailed": "Failed to sync playlist order",
       "featureDisabled": "Feature disabled"
     },
     "showQualitySwitch": {

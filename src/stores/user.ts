@@ -26,6 +26,7 @@ import {
   addToPlaylist,
   removeFromPlaylist,
   subscribePlaylist,
+  reorderPlaylists,
 } from "@/apis/playlist/netease";
 import { subscribeAlbum } from "@/apis/album/netease";
 import { subscribeArtist } from "@/apis/artist/netease";
@@ -400,6 +401,19 @@ export const useUserStore = defineStore(
     };
 
     /**
+     * 把当前歌单元数据写回缓存
+     * @param uid 用户 ID
+     */
+    const persistPlaylistsCache = (uid: number): void => {
+      const payload: PlaylistsCache = {
+        userId: uid,
+        playlists: playlists.value,
+        cachedAt: Date.now(),
+      };
+      cacheDb.setItem(PLAYLISTS_CACHE_KEY, payload).catch(() => {});
+    };
+
+    /**
      * 拉取并应用用户歌单
      * @param uid 用户 ID
      */
@@ -409,12 +423,7 @@ export const useUserStore = defineStore(
       const total = (sub.createdPlaylistCount || 0) + (sub.subPlaylistCount || 0) || 50;
       const list = await fetchUserPlaylists(uid, total);
       playlists.value = list;
-      const payload: PlaylistsCache = {
-        userId: uid,
-        playlists: list,
-        cachedAt: Date.now(),
-      };
-      cacheDb.setItem(PLAYLISTS_CACHE_KEY, payload).catch(() => {});
+      persistPlaylistsCache(uid);
     };
 
     /**
@@ -502,6 +511,33 @@ export const useUserStore = defineStore(
       } catch (err) {
         console.warn("[user] refreshPlaylists failed:", err);
       }
+    };
+
+    /**
+     * 同步自建歌单顺序到网易云，并即时更新本地歌单状态
+     * 「我喜欢的音乐」固定置顶不参与重排，收藏歌单保持原位
+     * @param ids 期望顺序的自建歌单 id（不含「我喜欢的音乐」）
+     */
+    const reorderCreatedPlaylists = async (ids: string[]): Promise<void> => {
+      if (ids.length === 0) return;
+      await reorderPlaylists(ids);
+      const uid = profile.value?.userId;
+      const created = createdPlaylists.value;
+      const [liked, ...restCreated] = created;
+      const remaining = new Map(restCreated.map((pl) => [String(pl.id), pl]));
+      const reordered: Playlist[] = [];
+      for (const id of ids) {
+        const pl = remaining.get(id);
+        if (!pl) continue;
+        reordered.push(pl);
+        remaining.delete(id);
+      }
+      for (const pl of remaining.values()) reordered.push(pl);
+      const subscribed = playlists.value.slice(created.length);
+      playlists.value = liked
+        ? [liked, ...reordered, ...subscribed]
+        : [...reordered, ...subscribed];
+      if (uid) persistPlaylistsCache(uid);
     };
 
     /**
@@ -708,6 +744,7 @@ export const useUserStore = defineStore(
       createPlaylist,
       deletePlaylist,
       updatePlaylist,
+      reorderCreatedPlaylists,
       addTracksToPlaylist,
       removeTracksFromPlaylist,
       togglePlaylistSubscribe,

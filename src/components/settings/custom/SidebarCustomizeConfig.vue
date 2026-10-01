@@ -15,6 +15,7 @@ import { useStatusStore } from "@/stores/status";
 import { usePlaylistStore } from "@/stores/playlist";
 import { useUserStore } from "@/stores/user";
 import { dialog } from "@/composables/useDialog";
+import { toast } from "@/composables/useToast";
 
 defineOptions({ inheritAttrs: false });
 
@@ -280,7 +281,39 @@ const removeGroup = (index: number): void => {
   bump();
 };
 
+/** 在线歌单行的 key 前缀 */
+const ONLINE_PLAYLIST_PREFIX = "/collection/netease/playlist/";
+
+/**
+ * 把存档顺序解析为当前在线自建歌单的完整 id 顺序
+ * @param order - 存档的 key 顺序
+ * @returns 重排后的歌单 id 列表
+ */
+const resolveOnlineIds = (order: string[]): string[] => {
+  const rows = userStore.createdPlaylists
+    .slice(1)
+    .map((pl) => ({ key: `${ONLINE_PLAYLIST_PREFIX}${pl.id}` }));
+  return applySavedOrder(rows, order).map((row) => row.key.slice(ONLINE_PLAYLIST_PREFIX.length));
+};
+
+/**
+ * 在线歌单顺序发生变更时回写网易云
+ * @param prevOrder - 保存前的存档顺序
+ * @param nextOrder - 本次保存的存档顺序
+ */
+const syncOnlineOrderToNetease = (prevOrder: string[], nextOrder: string[]): void => {
+  if (!userStore.isLoggedIn) return;
+  const nextIds = resolveOnlineIds(nextOrder);
+  const prevIds = resolveOnlineIds(prevOrder);
+  if (nextIds.length !== prevIds.length || nextIds.every((id, i) => id === prevIds[i])) return;
+  userStore
+    .reorderCreatedPlaylists(nextIds)
+    .then(() => toast.success(t("settings.sidebarCustomize.orderSynced")))
+    .catch(() => toast.error(t("settings.sidebarCustomize.orderSyncFailed")));
+};
+
 const handleConfirm = (): void => {
+  const prevOnlineOrder = [...settings.appearance.sidebarPlaylistOrder.myOnline];
   settings.appearance.sidebarNavGroups = groups.value.map((group) => ({
     name: group.name.trim(),
     showName: group.showName,
@@ -295,6 +328,7 @@ const handleConfirm = (): void => {
     subscribed: [...playlistOrder.value.subscribed],
   };
   open.value = false;
+  syncOnlineOrderToNetease(prevOnlineOrder, playlistOrder.value.myOnline);
 };
 
 const handleReset = async (): Promise<void> => {
