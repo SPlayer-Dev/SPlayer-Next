@@ -9,7 +9,11 @@ import {
   SIDEBAR_GROUP_MY_PLAYLISTS,
   SIDEBAR_GROUP_SUBSCRIBED,
 } from "@/types/settings";
-import { SIDEBAR_NAV_META, applySavedOrder } from "@/components/layout/sidebarNav";
+import {
+  SIDEBAR_NAV_META,
+  applySavedOrder,
+  resolveNeteaseIds,
+} from "@/components/layout/sidebarNav";
 import { useSettingsStore } from "@/stores/settings";
 import { useStatusStore } from "@/stores/status";
 import { usePlaylistStore } from "@/stores/playlist";
@@ -281,39 +285,39 @@ const removeGroup = (index: number): void => {
   bump();
 };
 
-/** 在线歌单行的 key 前缀 */
-const ONLINE_PLAYLIST_PREFIX = "/collection/netease/playlist/";
+/** 两组 key 顺序是否一致 */
+const sameKeyOrder = (a: string[], b: string[]): boolean =>
+  a.length === b.length && a.every((key, i) => key === b[i]);
 
 /**
- * 把存档顺序解析为当前在线自建歌单的完整 id 顺序
- * @param order - 存档的 key 顺序
- * @returns 重排后的歌单 id 列表
+ * 在线歌单（自建 + 收藏）顺序发生变更时回写网易云
+ * 接口按分组独立重排，自建与收藏各自提交本组 id
+ * @param prevOrder - 保存前的顺序存档
  */
-const resolveOnlineIds = (order: string[]): string[] => {
-  const rows = userStore.createdPlaylists
-    .slice(1)
-    .map((pl) => ({ key: `${ONLINE_PLAYLIST_PREFIX}${pl.id}` }));
-  return applySavedOrder(rows, order).map((row) => row.key.slice(ONLINE_PLAYLIST_PREFIX.length));
-};
-
-/**
- * 在线歌单顺序发生变更时回写网易云
- * @param prevOrder - 保存前的存档顺序
- * @param nextOrder - 本次保存的存档顺序
- */
-const syncOnlineOrderToNetease = (prevOrder: string[], nextOrder: string[]): void => {
+const syncOnlineOrderToNetease = (prevOrder: SidebarPlaylistOrder): void => {
   if (!userStore.isLoggedIn) return;
-  const nextIds = resolveOnlineIds(nextOrder);
-  const prevIds = resolveOnlineIds(prevOrder);
-  if (nextIds.length !== prevIds.length || nextIds.every((id, i) => id === prevIds[i])) return;
-  userStore
-    .reorderCreatedPlaylists(nextIds)
+  const next = playlistOrder.value;
+  const tasks: Promise<void>[] = [];
+  if (!sameKeyOrder(prevOrder.myOnline, next.myOnline)) {
+    const ids = resolveNeteaseIds(userStore.createdPlaylists.slice(1), next.myOnline);
+    if (ids.length > 0) tasks.push(userStore.syncPlaylistOrder(ids, "created"));
+  }
+  if (!sameKeyOrder(prevOrder.subscribed, next.subscribed)) {
+    const ids = resolveNeteaseIds(userStore.subscribedPlaylists, next.subscribed);
+    if (ids.length > 0) tasks.push(userStore.syncPlaylistOrder(ids, "subscribed"));
+  }
+  if (tasks.length === 0) return;
+  Promise.all(tasks)
     .then(() => toast.success(t("settings.sidebarCustomize.orderSynced")))
     .catch(() => toast.error(t("settings.sidebarCustomize.orderSyncFailed")));
 };
 
 const handleConfirm = (): void => {
-  const prevOnlineOrder = [...settings.appearance.sidebarPlaylistOrder.myOnline];
+  const prevOrder: SidebarPlaylistOrder = {
+    myLocal: [...settings.appearance.sidebarPlaylistOrder.myLocal],
+    myOnline: [...settings.appearance.sidebarPlaylistOrder.myOnline],
+    subscribed: [...settings.appearance.sidebarPlaylistOrder.subscribed],
+  };
   settings.appearance.sidebarNavGroups = groups.value.map((group) => ({
     name: group.name.trim(),
     showName: group.showName,
@@ -328,7 +332,7 @@ const handleConfirm = (): void => {
     subscribed: [...playlistOrder.value.subscribed],
   };
   open.value = false;
-  syncOnlineOrderToNetease(prevOnlineOrder, playlistOrder.value.myOnline);
+  syncOnlineOrderToNetease(prevOrder);
 };
 
 const handleReset = async (): Promise<void> => {

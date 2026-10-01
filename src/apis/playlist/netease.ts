@@ -135,9 +135,9 @@ export const subscribePlaylist = async (id: string, subscribe: boolean): Promise
 };
 
 /**
- * 重排自建歌单顺序
- * @param ids 期望顺序的歌单 id 数组
+ * 重排歌单全局顺序（自建 + 收藏）
+ * @param ids 期望全局顺序的歌单 id（不含「我喜欢的音乐」）
  */
 export const reorderPlaylists = async (ids: string[]): Promise<void> => {
-  ensureOk(await neteaseApi.playlist_order_update({ ids: JSON.stringify(ids) }));
+  ensureOk(await neteaseApi.playlist_order_update({ ids: `[${ids.join(",")}]` }));
 };

@@ -514,30 +514,34 @@ export const useUserStore = defineStore(
     };
 
     /**
-     * 同步自建歌单顺序到网易云，并即时更新本地歌单状态
-     * 「我喜欢的音乐」固定置顶不参与重排，收藏歌单保持原位
-     * @param ids 期望顺序的自建歌单 id（不含「我喜欢的音乐」）
+     * 同步某个歌单分组的顺序到网易云，并即时更新本地状态
+     * 接口按分组独立重排，只提交该分组的 id；「我喜欢的音乐」固定置顶不参与
+     * @param ids 该分组期望顺序的歌单 id
+     * @param scope created 自建 / subscribed 收藏
      */
-    const reorderCreatedPlaylists = async (ids: string[]): Promise<void> => {
+    const syncPlaylistOrder = async (
+      ids: string[],
+      scope: "created" | "subscribed",
+    ): Promise<void> => {
       if (ids.length === 0) return;
       await reorderPlaylists(ids);
       const uid = profile.value?.userId;
-      const created = createdPlaylists.value;
-      const [liked, ...restCreated] = created;
-      const remaining = new Map(restCreated.map((pl) => [String(pl.id), pl]));
-      const reordered: Playlist[] = [];
-      for (const id of ids) {
-        const pl = remaining.get(id);
-        if (!pl) continue;
-        reordered.push(pl);
-        remaining.delete(id);
+      if (!uid) return;
+      const byId = new Map(ids.map((id, index) => [id, index]));
+      const boundary = createdPlaylists.value.length;
+      const reorderSlice = (slice: Playlist[]): Playlist[] =>
+        [...slice].sort((a, b) => (byId.get(String(a.id)) ?? 0) - (byId.get(String(b.id)) ?? 0));
+      const list = playlists.value;
+      if (scope === "created") {
+        playlists.value = [
+          list[0],
+          ...reorderSlice(list.slice(1, boundary)),
+          ...list.slice(boundary),
+        ];
+      } else {
+        playlists.value = [...list.slice(0, boundary), ...reorderSlice(list.slice(boundary))];
       }
-      for (const pl of remaining.values()) reordered.push(pl);
-      const subscribed = playlists.value.slice(created.length);
-      playlists.value = liked
-        ? [liked, ...reordered, ...subscribed]
-        : [...reordered, ...subscribed];
-      if (uid) persistPlaylistsCache(uid);
+      persistPlaylistsCache(uid);
     };
 
     /**
@@ -744,7 +748,7 @@ export const useUserStore = defineStore(
       createPlaylist,
       deletePlaylist,
       updatePlaylist,
-      reorderCreatedPlaylists,
+      syncPlaylistOrder,
       addTracksToPlaylist,
       removeTracksFromPlaylist,
       togglePlaylistSubscribe,

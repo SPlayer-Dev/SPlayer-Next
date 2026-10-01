@@ -5,7 +5,11 @@ import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import type { ContentScope } from "@/types/collection";
 import type { SidebarDragGroup } from "@/composables/useSidebarPlaylistDrag";
 import { SIDEBAR_GROUP_MY_PLAYLISTS, SIDEBAR_GROUP_SUBSCRIBED } from "@/types/settings";
-import { SIDEBAR_NAV_META, applySavedOrder } from "@/components/layout/sidebarNav";
+import {
+  SIDEBAR_NAV_META,
+  applySavedOrder,
+  resolveNeteaseIds,
+} from "@/components/layout/sidebarNav";
 import { useSettingsStore } from "@/stores/settings";
 import { useStatusStore } from "@/stores/status";
 import { usePlaylistStore } from "@/stores/playlist";
@@ -152,26 +156,15 @@ const subscribedItems = computed<SMenuItem[]>(() => {
 /** 滚动容器引用，供长按拖拽定位与自动滚动 */
 const containerRef = ref<HTMLElement | null>(null);
 
-/** 在线歌单行的 key 前缀 */
-const ONLINE_PLAYLIST_PREFIX = "/collection/netease/playlist/";
-
 /**
- * 在线自建歌单顺序回写网易云
- * 隐藏项排在可见项之后，保证提交给接口的是完整顺序
- * @param visibleKeys - 拖拽后的可见歌单 key 顺序
+ * 把某个分组的歌单顺序回写网易云
+ * @param ids 该分组期望顺序的歌单 id
+ * @param scope created 自建 / subscribed 收藏
  */
-const syncOnlineOrderToNetease = (visibleKeys: string[]): void => {
-  if (!userStore.isLoggedIn) return;
-  const visibleIds = visibleKeys
-    .filter((key) => key.startsWith(ONLINE_PLAYLIST_PREFIX))
-    .map((key) => key.slice(ONLINE_PLAYLIST_PREFIX.length));
-  const visibleSet = new Set(visibleIds);
-  const restIds = userStore.createdPlaylists
-    .slice(1)
-    .map((pl) => String(pl.id))
-    .filter((id) => !visibleSet.has(id));
+const syncNeteaseOrder = (ids: string[], scope: "created" | "subscribed"): void => {
+  if (!userStore.isLoggedIn || ids.length === 0) return;
   userStore
-    .reorderCreatedPlaylists([...visibleIds, ...restIds])
+    .syncPlaylistOrder(ids, scope)
     .then(() => toast.success(t("settings.sidebarCustomize.orderSynced")))
     .catch(() => toast.error(t("settings.sidebarCustomize.orderSyncFailed")));
 };
@@ -184,13 +177,14 @@ const commitMyOrder = (keys: string[]): void => {
     return;
   }
   appearance.sidebarPlaylistOrder = { ...order, myOnline: keys };
-  syncOnlineOrderToNetease(keys);
+  syncNeteaseOrder(resolveNeteaseIds(userStore.createdPlaylists.slice(1), keys), "created");
 };
 
-/** 提交「收藏的歌单」新顺序（仅本地） */
+/** 提交「收藏的歌单」新顺序，同步网易云 */
 const commitSubscribedOrder = (keys: string[]): void => {
   const order = appearance.sidebarPlaylistOrder;
   appearance.sidebarPlaylistOrder = { ...order, subscribed: keys };
+  syncNeteaseOrder(resolveNeteaseIds(userStore.subscribedPlaylists, keys), "subscribed");
 };
 
 /** 当前可拖拽的歌单分组 */
