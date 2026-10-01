@@ -13,6 +13,7 @@ import { isMac } from "@main/utils/config";
 import { registerIpcHandlers } from "@main/ipc";
 import { init as initMedia, shutdown as shutdownMedia } from "@main/services/media";
 import { init as initLastfm } from "@main/services/lastfm";
+import * as neteaseScrobble from "@main/services/neteaseScrobble";
 import { initGlobalHotkey } from "@main/services/globalHotkey";
 import { initDatabase, closeDatabase } from "@main/database";
 import { init as initSongCache } from "@main/services/songCache";
@@ -162,7 +163,21 @@ export const initApp = (): void => {
     }
   });
   // 退出前清理
-  app.on("before-quit", () => {
+  /** 退出前补报是否已接管过退出流程，避免 app.quit() 二次进入本分支 */
+  let quitFlushed = false;
+  app.on("before-quit", (event) => {
+    // 先按本轮最终时长补上已达标未结算的听歌打卡，再执行清理
+    if (!quitFlushed) {
+      quitFlushed = true;
+      const request = neteaseScrobble.flush();
+      if (request) {
+        event.preventDefault();
+        void request
+          .catch((err) => coreLog.warn("退出前补报听歌打卡失败:", err))
+          .finally(() => app.quit());
+        return;
+      }
+    }
     coreLog.info("应用即将退出，清理资源");
     shutdownMedia();
     closeDatabase();
