@@ -3,6 +3,7 @@ import type { SMenuItem } from "@/components/ui/SMenu.vue";
 import type { SSelectOption } from "@/components/ui/SSelect.vue";
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import type { ContentScope } from "@/types/collection";
+import type { SidebarDragGroup } from "@/composables/useSidebarPlaylistDrag";
 import { SIDEBAR_GROUP_MY_PLAYLISTS, SIDEBAR_GROUP_SUBSCRIBED } from "@/types/settings";
 import { SIDEBAR_NAV_META, applySavedOrder } from "@/components/layout/sidebarNav";
 import { useSettingsStore } from "@/stores/settings";
@@ -12,6 +13,8 @@ import { useUserStore } from "@/stores/user";
 import { useDownloadStore } from "@/stores/download";
 import { useHeartMode } from "@/composables/useHeartMode";
 import { useSettingsDialog } from "@/settings/useSettingsDialog";
+import { useSidebarPlaylistDrag } from "@/composables/useSidebarPlaylistDrag";
+import { toast } from "@/composables/useToast";
 import * as player from "@/core/player";
 import IconLucideListMusic from "~icons/lucide/list-music";
 import IconLucidePlus from "~icons/lucide/plus";
@@ -144,6 +147,75 @@ const subscribedItems = computed<SMenuItem[]>(() => {
   return applySavedOrder(items, appearance.sidebarPlaylistOrder.subscribed).filter(
     (item) => !hidden.has(item.key),
   );
+});
+
+/** 滚动容器引用，供长按拖拽定位与自动滚动 */
+const containerRef = ref<HTMLElement | null>(null);
+
+/** 在线歌单行的 key 前缀 */
+const ONLINE_PLAYLIST_PREFIX = "/collection/netease/playlist/";
+
+/**
+ * 在线自建歌单顺序回写网易云
+ * 隐藏项排在可见项之后，保证提交给接口的是完整顺序
+ * @param visibleKeys - 拖拽后的可见歌单 key 顺序
+ */
+const syncOnlineOrderToNetease = (visibleKeys: string[]): void => {
+  if (!userStore.isLoggedIn) return;
+  const visibleIds = visibleKeys
+    .filter((key) => key.startsWith(ONLINE_PLAYLIST_PREFIX))
+    .map((key) => key.slice(ONLINE_PLAYLIST_PREFIX.length));
+  const visibleSet = new Set(visibleIds);
+  const restIds = userStore.createdPlaylists
+    .slice(1)
+    .map((pl) => String(pl.id))
+    .filter((id) => !visibleSet.has(id));
+  userStore
+    .reorderCreatedPlaylists([...visibleIds, ...restIds])
+    .then(() => toast.success(t("settings.sidebarCustomize.orderSynced")))
+    .catch(() => toast.error(t("settings.sidebarCustomize.orderSyncFailed")));
+};
+
+/** 提交「我的歌单」新顺序，在线来源额外同步网易云 */
+const commitMyOrder = (keys: string[]): void => {
+  const order = appearance.sidebarPlaylistOrder;
+  if (status.myPlaylistSource === "local") {
+    appearance.sidebarPlaylistOrder = { ...order, myLocal: keys };
+    return;
+  }
+  appearance.sidebarPlaylistOrder = { ...order, myOnline: keys };
+  syncOnlineOrderToNetease(keys);
+};
+
+/** 提交「收藏的歌单」新顺序（仅本地） */
+const commitSubscribedOrder = (keys: string[]): void => {
+  const order = appearance.sidebarPlaylistOrder;
+  appearance.sidebarPlaylistOrder = { ...order, subscribed: keys };
+};
+
+/** 当前可拖拽的歌单分组 */
+const getPlaylistGroups = (): SidebarDragGroup[] => {
+  const toItems = (list: SMenuItem[]) =>
+    list.map((item) => ({ key: item.key, label: item.label ?? "" }));
+  const groups: SidebarDragGroup[] = [];
+  if (myPlaylistItems.value.length > 0)
+    groups.push({ items: toItems(myPlaylistItems.value), commit: commitMyOrder });
+  if (subscribedItems.value.length > 0)
+    groups.push({ items: toItems(subscribedItems.value), commit: commitSubscribedOrder });
+  return groups;
+};
+
+const {
+  isDragging: isPlaylistDragging,
+  dragLabel,
+  labelPos: dragLabelPos,
+  lineStyle: dropLineStyle,
+  onPointerDown: onPlaylistPointerDown,
+  shouldSuppressClick,
+} = useSidebarPlaylistDrag({
+  containerRef,
+  getGroups: getPlaylistGroups,
+  enabled: () => !appearance.sidebarCollapsed,
 });
 
 /** 「我喜欢」行尾的心动模式按钮 */
@@ -295,6 +367,7 @@ const activeKey = computed(() => {
 });
 
 const onSelect = (key: string) => {
+  if (shouldSuppressClick()) return;
   router.push(key);
 };
 
@@ -349,13 +422,16 @@ onMounted(() => {
     <SideBarLogo :collapsed="appearance.sidebarCollapsed" />
     <SContextMenu :items="contextMenuItems" @select="onContextMenuSelect">
       <div
+        ref="containerRef"
         class="flex-1 min-h-0 pb-3 overflow-y-auto transition-[padding] duration-300"
-        :class="
+        :class="[
           appearance.sidebarCollapsed
             ? 'px-2 [&::-webkit-scrollbar]:hidden'
-            : 'px-3 [scrollbar-gutter:stable]'
-        "
+            : 'px-3 [scrollbar-gutter:stable]',
+          isPlaylistDragging ? 'cursor-grabbing select-none' : '',
+        ]"
         @contextmenu.capture="onMenuContextMenu"
+        @pointerdown="onPlaylistPointerDown"
       >
         <SMenu
           :items="menuItems"
@@ -371,5 +447,24 @@ onMounted(() => {
       :mode="createMode"
       @created="handleCreated"
     />
+    <!-- 拖拽插入线与跟随标签 -->
+    <Teleport to="body">
+      <div
+        v-if="isPlaylistDragging && dropLineStyle"
+        class="fixed z-9999 h-0.5 rounded-full bg-primary pointer-events-none"
+        :style="{
+          top: `${dropLineStyle.top}px`,
+          left: `${dropLineStyle.left}px`,
+          width: `${dropLineStyle.width}px`,
+        }"
+      />
+      <div
+        v-if="isPlaylistDragging && dragLabel"
+        class="fixed z-9999 pointer-events-none max-w-60 truncate px-4 py-2 rounded-full text-sm font-medium shadow-lg bg-surface-bright text-on-surface"
+        :style="{ top: `${dragLabelPos.top + 12}px`, left: `${dragLabelPos.left + 12}px` }"
+      >
+        {{ dragLabel.label }}
+      </div>
+    </Teleport>
   </div>
 </template>
