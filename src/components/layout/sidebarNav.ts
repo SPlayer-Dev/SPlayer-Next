@@ -8,6 +8,7 @@ import IconLucideChartPie from "~icons/lucide/chart-pie";
 import IconLucideLibrary from "~icons/lucide/library";
 import IconMaterialSymbolsFavoriteOutline from "~icons/material-symbols/favorite-outline-rounded";
 import IconLucideStar from "~icons/lucide/star";
+import IconLucideTrendingUp from "~icons/lucide/trending-up";
 import IconLucideHistory from "~icons/lucide/history";
 import IconLucideDownload from "~icons/lucide/download";
 import IconLucideCloud from "~icons/lucide/cloud";
@@ -36,6 +37,7 @@ const SIDEBAR_NAV_ENTRIES: SidebarNavEntry[] = [
     icon: IconMaterialSymbolsFavoriteOutline,
     hideable: true,
   },
+  { key: "/ranking", labelKey: "nav.ranking", icon: IconLucideTrendingUp, hideable: true },
   { key: "/favorites", labelKey: "nav.favorites", icon: IconLucideStar, hideable: true },
   { key: "/cloud", labelKey: "nav.cloud", icon: IconLucideCloud, hideable: true },
   { key: "/download", labelKey: "nav.download", icon: IconLucideDownload, hideable: true },

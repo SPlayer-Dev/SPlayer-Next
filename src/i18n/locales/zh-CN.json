@@ -186,6 +186,7 @@
     "home": "首页",
     "library": "音乐库",
     "liked": "我喜欢的音乐",
+    "ranking": "听歌排行",
     "history": "播放历史",
     "download": "下载管理",
     "favorites": "我的收藏",
@@ -685,6 +686,21 @@
     "refresh": "刷新日推",
     "empty": "暂无每日推荐内容",
     "needLogin": "登录后查看每日推荐"
+  },
+  "ranking": {
+    "title": "听歌排行",
+    "tabs": {
+      "week": "最近一周",
+      "all": "所有时间"
+    },
+    "plays": "播放次数",
+    "refresh": "刷新排行",
+    "addToQueue": "添加到播放列表",
+    "empty": "暂无听歌排行数据",
+    "needLogin": "登录后查看听歌排行",
+    "toast": {
+      "added": "已添加到播放列表"
+    }
   },
   "favorites": {
     "title": "我的收藏",

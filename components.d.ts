@@ -163,6 +163,7 @@ declare module 'vue' {
     IconLucideTextQuote: typeof import('~icons/lucide/text-quote')['default']
     IconLucideTrash: typeof import('~icons/lucide/trash')['default']
     IconLucideTrash2: typeof import('~icons/lucide/trash2')['default']
+    IconLucideTrendingUp: typeof import('~icons/lucide/trending-up')['default']
     IconLucideTriangleAlert: typeof import('~icons/lucide/triangle-alert')['default']
     IconLucideType: typeof import('~icons/lucide/type')['default']
     IconLucideUnlock: typeof import('~icons/lucide/unlock')['default']
