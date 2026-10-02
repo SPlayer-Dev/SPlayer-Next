@@ -198,6 +198,7 @@
     "home": "Home",
     "library": "Library",
     "liked": "Liked Songs",
+    "ranking": "Listening Ranking",
     "history": "Play History",
     "download": "Downloads",
     "favorites": "Favorites",
@@ -697,6 +698,21 @@
     "refresh": "Refresh",
     "empty": "No daily recommendations available",
     "needLogin": "Sign in to see daily recommendations"
+  },
+  "ranking": {
+    "title": "Listening Ranking",
+    "tabs": {
+      "week": "Last Week",
+      "all": "All Time"
+    },
+    "plays": "Plays",
+    "refresh": "Refresh Ranking",
+    "addToQueue": "Add to Play Queue",
+    "empty": "No listening ranking data",
+    "needLogin": "Sign in to view your listening ranking",
+    "toast": {
+      "added": "Added to play queue"
+    }
   },
   "favorites": {
     "title": "Favorites",

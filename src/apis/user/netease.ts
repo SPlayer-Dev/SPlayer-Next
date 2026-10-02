@@ -1,7 +1,15 @@
 import type { Album, Artist, Playlist } from "@shared/types/player";
-import type { UserSubcount } from "@/types/user";
+import type { PlayRankingEntry, PlayRankingRange, UserSubcount } from "@/types/user";
+import type { NeteaseSong } from "@/types/netease";
 import { netease as neteaseApi } from "@/apis/netease";
-import { ensureOk, toAlbum, toArtist, toPlaylist, toSubcount } from "@/utils/format/netease";
+import {
+  ensureOk,
+  songToTrack,
+  toAlbum,
+  toArtist,
+  toPlaylist,
+  toSubcount,
+} from "@/utils/format/netease";
 
 const PAGE_SIZE = 50;
 
@@ -74,6 +82,26 @@ export const toggleLikeSong = async (trackId: string, like: boolean): Promise<vo
     if (res && (res.code === 200 || Number(res.code) === 200)) return;
   } catch {}
   ensureOk(await neteaseApi.like({ id: trackId, like }));
+};
+
+/**
+ * 听歌排行
+ * type=1 与 type=0 返回的字段名不同（weekData / allData）
+ * @param uid - 用户 ID
+ * @param range - 1 最近一周；0 所有时间
+ */
+export const fetchPlayRanking = async (
+  uid: number,
+  range: PlayRankingRange,
+): Promise<PlayRankingEntry[]> => {
+  const body = await neteaseApi.user_record<{
+    weekData?: { playCount?: number; song: NeteaseSong }[];
+    allData?: { playCount?: number; song: NeteaseSong }[];
+  }>({ uid, type: range });
+  const list = (range === 1 ? body?.weekData : body?.allData) ?? [];
+  return list
+    .filter((item) => item?.song?.id != null)
+    .map((item) => ({ track: songToTrack(item.song), playCount: item.playCount ?? 0 }));
 };
 
 /** 用户等级 */
