@@ -119,6 +119,55 @@ window-rule {
 
 锁定时鼠标穿透不生效是已知问题。可以尝试[使用 Xwayland](#使用-xwayland)
 
+## Niri 下让灵动岛保持水平居中
+
+Niri 下，歌词改变窗口宽度时，Electron 请求的新窗口坐标可能不生效。可以使用仓库中的可选脚本 [`scripts/niri-island-center.mjs`](https://github.com/SPlayer-Dev/SPlayer-Next/blob/dev/scripts/niri-island-center.mjs)，由合成器将灵动岛保持在**所在显示器的水平中心**，保留纵向位置。它适用于 Niri，不适用于 KDE / GNOME，也不会修改 Windows、macOS 或其他桌面环境的窗口行为。
+
+要求：Node.js 22 或更新版本，以及提供窗口 `layout` 信息的 Niri IPC。已在 Niri 26.04 上验证。脚本只匹配应用 ID `top.imsyy.splayer_next`、标题 `Dynamic Island` 的浮动窗口；不会移动播放器主窗口或桌面歌词窗口。
+
+从仓库目录运行：
+
+```bash
+node scripts/niri-island-center.mjs
+```
+
+保持终端运行，打开灵动岛并播放歌曲。按 `Ctrl+C` 停止，窗口即恢复原有定位行为。脚本不修改播放器设置。
+
+若灵动岛没有自动浮动，在 Niri 配置中添加：
+
+```kdl
+window-rule {
+    match app-id=r"^top\.imsyy\.splayer_next$" title="^Dynamic Island$"
+    open-floating true
+}
+```
+
+需要登录后自动运行时，先将脚本复制到固定位置：
+
+```bash
+mkdir -p ~/.local/share/splayer-next
+cp scripts/niri-island-center.mjs ~/.local/share/splayer-next/
+```
+
+在 Niri 配置中添加以下一行，将路径中的 `/home/your-user` 替换为自己的主目录：
+
+```kdl
+spawn-at-startup "node" "/home/your-user/.local/share/splayer-next/niri-island-center.mjs"
+```
+
+该启动项在下次登录生效；当前会话仍可手动执行 `node` 命令。只运行一个实例。卸载时停止脚本并移除启动项即可。
+
+脚本订阅 Niri 窗口事件，不定时轮询，不调用外部命令。每次修正都重新读取合成器的窗口、工作区和显示器信息，使用逻辑坐标处理多屏及缩放，并保持窗口原有宽高和鼠标区域。横向拖动后会重新居中，纵向拖动仍然有效。
+
+> [!NOTE]
+> Niri 26.04 对超过 10 个逻辑像素的浮动窗口位移添加动画。脚本将修正拆成连续的小步位移，避免歌词换行时叠加第二层弹簧动画。这个动画阈值属于 Niri 的实现细节，升级 Niri 后若再次出现瞬时晃动，需要重新验证。它不解决 Wayland 下的鼠标穿透或跨工作区置顶限制；IPC 缺少布局信息时跳过定位，连接错误时退出。
+
+开发者可运行脚本的独立测试：
+
+```bash
+node --test scripts/niri-island-center.test.mjs
+```
+
 ## 全局快捷键
 
 在原生 Wayland 下，Electron 的全局快捷键通过 `xdg-desktop-portal` 实现。

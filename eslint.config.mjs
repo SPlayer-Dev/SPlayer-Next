@@ -64,5 +64,9 @@ export default defineConfig(
       "@typescript-eslint/no-require-imports": "off",
     },
   },
+  {
+    files: ["scripts/niri-island-center*.mjs"],
+    rules: { "@typescript-eslint/explicit-function-return-type": "off" },
+  },
   eslintConfigPrettier,
 );
