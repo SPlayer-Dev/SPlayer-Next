@@ -163,6 +163,45 @@ const computeSnappedPos = (
 };
 
 /**
+ * 显示器指标变化处理函数
+ * 当任务栏位置切换、分辨率调整或外接显示器变化时触发
+ * 吸附态窗口需要重新对齐到新的工作区边界
+ */
+const handleDisplayMetricsChanged = (): void => {
+  const win = getDynamicIslandWindow();
+  if (!win || win.isDestroyed()) return;
+
+  const saved = store.get("windowStates.dynamicIsland");
+  // 仅吸附态需要跟随 workArea 变化；浮动态保留用户拖动的位置
+  if (saved.mode !== "snapped") return;
+
+  const display = getCurrentDisplay();
+
+  // workArea 变化可能同时影响宽度上限（竖排任务栏 / 小屏），先重新 clamp
+  const newWidth = clampWidth(cachedSize.width, display);
+  if (newWidth !== cachedSize.width) {
+    cachedSize.width = newWidth;
+  }
+
+  const pos = computeSnappedPos(display);
+  win.setBounds({
+    x: pos.x,
+    y: pos.y,
+    width: cachedSize.width,
+    height: cachedSize.height,
+  });
+  updateDynamicIslandShape();
+};
+
+/** 全局只注册一次 display-metrics-changed 监听 */
+let displayMetricsListenerRegistered = false;
+const ensureDisplayMetricsListener = (): void => {
+  if (displayMetricsListenerRegistered) return;
+  displayMetricsListenerRegistered = true;
+  screen.on("display-metrics-changed", handleDisplayMetricsChanged);
+};
+
+/**
  * 应用窗口置顶
  * @param alwaysOnTop 是否置顶
  */
@@ -582,6 +621,7 @@ export const createDynamicIslandWindow = (): BrowserWindow => {
     }
   });
 
+  ensureDisplayMetricsListener();
   setTrayDynamicIsland(true);
   broadcast("dynamicIsland:visibilityChange", true);
   store.set("windowStates.dynamicIsland.visible", true);
