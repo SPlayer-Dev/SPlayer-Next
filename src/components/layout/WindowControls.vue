@@ -12,7 +12,8 @@ const props = defineProps<{
   directQuit?: boolean;
 }>();
 
-const { isMaximized, isBorderless, minimize, toggleMaximize, close, quit } = useWindowControls();
+const { isMaximized, showCustomControls, minimize, toggleMaximize, close, quit } =
+  useWindowControls();
 
 const onClose = (): void => {
   props.directQuit ? quit() : close();
@@ -20,7 +21,7 @@ const onClose = (): void => {
 </script>
 
 <template>
-  <div v-if="isBorderless" class="flex items-center gap-3 shrink-0">
+  <div v-if="showCustomControls" class="flex items-center gap-3 shrink-0">
     <SButton
       class="window-control-button app-no-drag"
       :type="cover ? 'cover' : undefined"

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useSettingsDialog } from "@/settings/useSettingsDialog";
 import { useWindowControls } from "@/composables/useWindowControls";
+import { useSettingsStore } from "@/stores/settings";
 import { useThemeStore } from "@/stores/theme";
 import { useUpdateStore } from "@/stores/update";
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
@@ -17,7 +18,13 @@ const { t } = useI18n();
 const { show: showSettings } = useSettingsDialog();
 const theme = useThemeStore();
 const update = useUpdateStore();
-const { isBorderless } = useWindowControls();
+const { isFullscreen, usesNativeTrafficLights, showCustomControls } = useWindowControls();
+const { appearance } = useSettingsStore();
+
+/** 侧栏收起时红绿灯伸入主顶栏，左侧内容让位 */
+const trafficLightsOffset = computed(
+  () => usesNativeTrafficLights.value && !isFullscreen.value && appearance.sidebarCollapsed,
+);
 
 /** 界面缩放弹窗开关 */
 const uiZoomOpen = ref(false);
@@ -59,7 +66,10 @@ const onMenuSelect = (key: string): void => {
 <template>
   <div class="flex items-center justify-between flex-1 h-full min-w-0 app-drag-region">
     <!-- 左侧 -->
-    <div class="flex items-center gap-2 sm:gap-3 min-w-0 shrink-0">
+    <div
+      class="flex items-center gap-2 sm:gap-3 min-w-0 shrink-0"
+      :class="{ 'ml-6': trafficLightsOffset }"
+    >
       <SButton
         class="app-no-drag shrink-0"
         variant="tertiary"
@@ -106,7 +116,7 @@ const onMenuSelect = (key: string): void => {
           </SButton>
         </template>
       </SDropdownMenu>
-      <SDivider v-if="isBorderless" vertical />
+      <SDivider v-if="showCustomControls" vertical />
       <WindowControls />
     </div>
     <UiZoomDialog v-model:open="uiZoomOpen" />

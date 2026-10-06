@@ -4,6 +4,7 @@ import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
 import { useOrpheusProtocol } from "@/composables/useOrpheusProtocol";
 import { useExternalFileHandler } from "@/composables/useExternalFileHandler";
+import { useWindowControls } from "@/composables/useWindowControls";
 
 const route = useRoute();
 const status = useStatusStore();
@@ -17,6 +18,16 @@ useExternalFileHandler();
 const showPlayerBar = computed(() => !!useMediaStore().track);
 const { isPlayerExpanded } = storeToRefs(status);
 const { appearance } = settings;
+const { isFullscreen, usesNativeTrafficLights } = useWindowControls();
+
+/** 红绿灯可见且侧栏收起：顶部与主区域连成一体，避免红绿灯横跨面板底色与分隔线 */
+const nativeTitlebarInset = computed(
+  () =>
+    usesNativeTrafficLights.value &&
+    !isFullscreen.value &&
+    appearance.sidebarCollapsed &&
+    appearance.layoutMode !== "floating",
+);
 
 /** 路由切换动效 */
 const routeTransitionName = computed(() => {
@@ -71,9 +82,15 @@ const handleAfterEnter = (): void => {
 const sidebarClass = computed(() => {
   const classes: string[] = [];
   if (appearance.layoutMode === "floating") {
-    classes.push("ml-3 mt-3 mb-3 rounded-xl border border-solid border-primary/10");
+    classes.push("bg-surface-panel");
+    // macOS 原生红绿灯让位：悬浮面板整体下移
+    const topInset = usesNativeTrafficLights.value && !isFullscreen.value ? "mt-13" : "mt-3";
+    classes.push(`ml-3 ${topInset} mb-3 rounded-xl border border-solid border-primary/10`);
+  } else if (nativeTitlebarInset.value) {
+    classes.push("app-sidebar-native-titlebar");
+    if (showPlayerBar.value && appearance.layoutMode === "default") classes.push("mb-20");
   } else {
-    classes.push("border-r border-r-solid border-r-primary/10");
+    classes.push("bg-surface-panel", "border-r border-r-solid border-r-primary/10");
     if (showPlayerBar.value && appearance.layoutMode === "default") classes.push("mb-20");
   }
   return classes.join(" ");
@@ -119,7 +136,7 @@ const playerBarInnerClass = computed(() => {
   >
     <!-- 侧边栏 -->
     <aside
-      class="shrink-0 bg-surface-panel overflow-y-auto z-10 transition-[width,margin] duration-300"
+      class="shrink-0 overflow-y-auto z-10 transition-[width,margin] duration-300"
       :class="[appearance.sidebarCollapsed ? 'w-16' : 'w-60', sidebarClass]"
     >
       <SideBar />

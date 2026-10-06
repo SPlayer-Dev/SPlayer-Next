@@ -129,7 +129,10 @@ const lyricFontSize = computed(() =>
 const { immersive, onPlayerMouseEnter, onPlayerMouseLeave, onMainMove, onBarEnter, onBarLeave } =
   useImmersiveMode(isPlayerExpanded);
 
-const { isFullscreen, toggleFullscreen } = useWindowControls();
+const { isFullscreen, usesNativeTrafficLights, toggleFullscreen } = useWindowControls();
+
+/** 红绿灯按 64px 顶栏居中，顶栏同步抬升以与控件对齐 */
+const nativeLightBar = computed(() => usesNativeTrafficLights.value && !isFullscreen.value);
 
 const canDownload = computed(
   () =>
@@ -225,12 +228,18 @@ const showComments = (): void => {
         />
         <!-- 顶栏 -->
         <div
-          class="absolute top-0 inset-x-0 h-14 z-10 app-drag-region transition-opacity duration-400 flex items-center justify-between px-3"
-          :class="immersive ? 'opacity-0 pointer-events-none' : 'opacity-100'"
+          class="absolute top-0 inset-x-0 z-10 app-drag-region transition-opacity duration-400 flex items-center justify-between px-3"
+          :class="[
+            immersive ? 'opacity-0 pointer-events-none' : 'opacity-100',
+            nativeLightBar ? 'h-16' : 'h-14',
+          ]"
           @mouseenter="onBarEnter"
           @mouseleave="onBarLeave"
         >
-          <div class="app-no-drag flex items-center gap-2">
+          <div
+            class="app-no-drag flex items-center gap-2"
+            :class="{ 'app-traffic-lights-offset': nativeLightBar }"
+          >
             <SButton
               type="cover"
               variant="ghost"
@@ -254,7 +263,11 @@ const showComments = (): void => {
           </div>
         </div>
         <!-- 主区域 -->
-        <div class="absolute top-14 inset-x-0 bottom-20" @mousemove="onMainMove">
+        <div
+          class="absolute inset-x-0 bottom-20"
+          :class="nativeLightBar ? 'top-16' : 'top-14'"
+          @mousemove="onMainMove"
+        >
           <!-- 左侧 -->
           <div
             v-if="!fullscreenCover"

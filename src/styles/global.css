@@ -29,6 +29,28 @@ img {
 .app-no-drag {
   -webkit-app-region: no-drag;
 }
+/* macOS 原生红绿灯占位：按钮组约占 24~78px，左侧内容让出到 92px 之后 */
+.app-traffic-lights-offset {
+  margin-left: 80px;
+}
+
+/* 侧栏收起时顶部让出红绿灯：面板带顶边与圆角，与分隔线连成半包围 */
+.app-sidebar-native-titlebar {
+  position: relative;
+}
+.app-sidebar-native-titlebar::before {
+  content: "";
+  position: absolute;
+  inset: 64px 0 0 0;
+  z-index: -1;
+  background-color: rgb(var(--s-surface-panel));
+  border-top: 1px solid rgb(var(--s-primary) / 0.1);
+  border-right: 1px solid rgb(var(--s-primary) / 0.1);
+  border-top-right-radius: 10px;
+}
+html[data-appearance-style="image"] .app-sidebar-native-titlebar::before {
+  background-color: rgb(var(--s-surface-bright) / 0.22);
+}
 
 /* 应用主背景 */
 :root {

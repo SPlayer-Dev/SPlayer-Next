@@ -1,4 +1,4 @@
-import { BrowserWindow, shell } from "electron";
+import { BrowserWindow, BrowserWindowConstructorOptions, shell } from "electron";
 import { join } from "path";
 import { is } from "@electron-toolkit/utils";
 import { createWindow } from "./create";
@@ -9,7 +9,7 @@ import { store } from "@main/store";
 import { handleCacheProtocolOnPartition, MAIN_PARTITION } from "@main/utils/protocol";
 import { isAppQuitting } from "@main/utils/lifecycle";
 import { broadcast } from "@main/utils/broadcast";
-import { isWin } from "@main/utils/config";
+import { isMac, isWin } from "@main/utils/config";
 import { CURRENT_AGREEMENT_VERSION } from "@shared/constants/agreement";
 
 /** 判断是否应用内部导航 */
@@ -32,11 +32,17 @@ export const createMainWindow = (): BrowserWindow => {
   handleCacheProtocolOnPartition(MAIN_PARTITION);
   const borderlessWindow = store.get("system.borderlessWindow") ?? true;
 
+  // macOS 无边框模式保留系统红绿灯并垂直居中于顶栏，Windows / Linux 使用自绘控制按钮
+  const frameOptions: BrowserWindowConstructorOptions =
+    isMac && borderlessWindow
+      ? { titleBarStyle: "hidden", trafficLightPosition: { x: 24, y: 24 } }
+      : { frame: !borderlessWindow };
+
   mainWindow = createWindow({
     width: saved?.width ?? 1280,
     height: saved?.height ?? 800,
     ...(saved?.x != null && saved?.y != null ? { x: saved.x, y: saved.y } : {}),
-    frame: !borderlessWindow,
+    ...frameOptions,
     webPreferences: {
       partition: MAIN_PARTITION,
       webgl: true,
