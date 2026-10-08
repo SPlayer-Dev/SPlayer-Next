@@ -20,6 +20,8 @@ const PLATFORM_TO_PLUGIN_SOURCE: Record<Platform, string> = {
 
 /** 解析选项 */
 export interface ResolveTrackSourceOptions {
+  /** 将解析失败原因交给播放流程，供提示和跳曲决策使用 */
+  onError?: (error: string) => void;
   /** 要跳过的插件 ID 列表 */
   skipPluginIds?: readonly string[];
   /** 是否跳过官方在线接口，直接进入插件兜底 */
@@ -105,7 +107,7 @@ export const resolveByPlugin = async (
   const songId = track.id;
   const isHash =
     typeof songId === "string" && songId.length === 32 && /^[0-9a-fA-F]{32}$/.test(songId);
-  const hash = isHash || track.source === "kugou" ? songId : "";
+  const hash = isHash || track.source === "kugou" ? songId : undefined;
   const musicInfo = {
     id: songId,
     songmid: songId,
@@ -115,7 +117,7 @@ export const resolveByPlugin = async (
     source: pluginSource,
     interval,
     img: track.cover ?? null,
-    hash,
+    ...(hash ? { hash } : {}),
     albumId: track.album?.id ?? "",
     albumName: track.album?.name ?? "",
     meta: {
@@ -123,7 +125,7 @@ export const resolveByPlugin = async (
       albumName: track.album?.name ?? "",
       albumId: track.album?.id ?? "",
       picUrl: track.cover ?? null,
-      hash,
+      ...(hash ? { hash } : {}),
     },
   };
   for (const plugin of candidates) {
@@ -179,7 +181,7 @@ const resolveOnlineUrl = async (
       }
     } catch (err) {
       console.warn("[audio-source] official URL resolve failed:", err);
-      officialErrorCode = ErrorCode.URL_RESOLVE_FAILED;
+      officialErrorCode = ErrorCode.NETWORK_ERROR;
     }
   }
   if (track.source === "qqmusic" && !options.skipOfficialOnline) {
@@ -191,7 +193,7 @@ const resolveOnlineUrl = async (
       officialErrorCode = resolved.errorCode;
     } catch (err) {
       console.warn("[audio-source] official QQMusic URL resolve failed:", err);
-      officialErrorCode = ErrorCode.URL_RESOLVE_FAILED;
+      officialErrorCode = ErrorCode.NETWORK_ERROR;
     }
   }
   if (track.source === "kugou" && !options.skipOfficialOnline) {
@@ -203,7 +205,7 @@ const resolveOnlineUrl = async (
       officialErrorCode = resolved.errorCode;
     } catch (err) {
       console.warn("[audio-source] official Kugou URL resolve failed:", err);
-      officialErrorCode = ErrorCode.URL_RESOLVE_FAILED;
+      officialErrorCode = ErrorCode.NETWORK_ERROR;
     }
   }
   const pluginResolved = await resolveByPlugin(track, songLevel, options.skipPluginIds ?? []);
@@ -226,21 +228,30 @@ export interface ResolvedTrackSource {
   fromCache: boolean;
   provider: "local" | "cache" | "streaming" | "official" | "plugin" | "trial";
   pluginId?: string;
-  cacheRequest?: () => Promise<void>;
+  /**
+   * 下载音源并返回可供原生预载使用的缓存路径
+   * @param preloadId - 可选的预载消费者标识，用于缓存租约和独立取消
+   * @param signal - 在解析下载地址期间取消任务的信号
+   * @returns 缓存路径，未完成下载或已取消时返回 null
+   */
+  cacheRequest?: (preloadId?: string, signal?: AbortSignal) => Promise<string | null>;
 }
 
 /**
  * 记录解析错误，支持静默模式抑制
  * @param err - 错误信息或错误码
- * @param silent - 是否开启静默模式
+ * @param options - 提示方式和错误接收回调
  */
-const reportLoadError = (err: ErrorCode | string, silent?: boolean): void => {
-  if (!silent) handleError(err);
+const reportLoadError = (err: ErrorCode | string, options: ResolveTrackSourceOptions): void => {
+  options.onError?.(err);
+  if (!options.silent) handleError(err);
 };
 
 /**
- * 根据 track 信息解析出最终的音频源 URL
- * @param track - 要解析的 track
+ * 解析歌曲的可播放音源及缓存下载入口
+ * @param track - 要解析的歌曲
+ * @param options - 错误提示、流媒体会话及在线来源重试选项
+ * @returns 本地路径或远端地址及缓存入口，无法解析时返回 null
  */
 export const resolveTrackSource = async (
   track: Track,
@@ -249,6 +260,7 @@ export const resolveTrackSource = async (
   // 本地文件
   if (track.source === "local") {
     const localPath = track.cueAudioPath ?? track.path;
+    if (!localPath) reportLoadError(ErrorCode.FILE_NOT_FOUND, options);
     return localPath ? { source: localPath, fromCache: false, provider: "local" } : null;
   }
   const settings = useSettingsStore();
@@ -276,20 +288,22 @@ export const resolveTrackSource = async (
       };
       if (cacheEnabled && settings.system.cache.songCache.cacheStreaming) {
         // 缓存下载用独立 PlaySessionId
-        result.cacheRequest = async () => {
+        result.cacheRequest = async (preloadId, signal) => {
           try {
             const cacheUrl = await store.getStreamUrl(track, {
               playSessionId: crypto.randomUUID(),
             });
-            void window.api.cache.song.fetch(cacheKey, "streaming", cacheUrl);
+            if (signal?.aborted) return null;
+            return await window.api.cache.song.fetch(cacheKey, "streaming", cacheUrl, preloadId);
           } catch (err) {
             console.warn("[cache] streaming getStreamUrl failed", err);
+            return null;
           }
         };
       }
       return result;
     } catch (err) {
-      reportLoadError(err instanceof Error ? err.message : String(err), options.silent);
+      reportLoadError(err instanceof Error ? err.message : String(err), options);
       return null;
     }
   }
@@ -298,7 +312,7 @@ export const resolveTrackSource = async (
     try {
       const resolved = await resolveOnlineUrl(track, songLevel, options);
       if (!resolved.ok) {
-        reportLoadError(resolved.errorCode, options.silent);
+        reportLoadError(resolved.errorCode, options);
         return null;
       }
       const url = resolved.url;
@@ -309,13 +323,14 @@ export const resolveTrackSource = async (
         pluginId: resolved.pluginId,
       };
       if (cacheEnabled && !resolved.isTrial) {
-        result.cacheRequest = async () => {
-          void window.api.cache.song.fetch(cacheKey, track.source, url);
+        result.cacheRequest = async (preloadId, signal) => {
+          if (signal?.aborted) return null;
+          return window.api.cache.song.fetch(cacheKey, track.source, url, preloadId);
         };
       }
       return result;
     } catch (err) {
-      reportLoadError(err instanceof Error ? err.message : String(err), options.silent);
+      reportLoadError(err instanceof Error ? err.message : String(err), options);
       return null;
     }
   }

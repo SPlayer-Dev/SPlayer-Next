@@ -173,4 +173,6 @@ const playerBarInnerClass = computed(() => {
   <UpdateDialog />
   <!-- 评论弹窗 -->
   <MusicCommentsDialog />
+  <!-- 输出信息弹窗 -->
+  <AudioInfoDialog />
 </template>

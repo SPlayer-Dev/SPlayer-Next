@@ -97,14 +97,6 @@ const showLosslessIcon = computed(() => {
   return level === "hi-res" || level === "lossless";
 });
 
-/** 声道描述 */
-const channelText = computed(() => {
-  const ch = quality.value?.channels ?? 0;
-  if (ch === 2) return t("quality.stereo");
-  if (ch === 1) return t("quality.mono");
-  return t("quality.multiChannel");
-});
-
 /** 歌词格式标签 */
 const lyricLabel = computed(() => media.activeLyric?.format.toUpperCase() ?? "NO-LRC");
 
@@ -165,41 +157,13 @@ const alignItems = computed(() => {
       >
         {{ sourceLabel }}
       </span>
-      <SPopover side="top" :side-offset="8" cover trigger="hover">
-        <template #trigger>
-          <span
-            class="inline-flex items-center gap-1 leading-none px-1.5 py-1.2 rounded-md border border-solid border-cover/30 cursor-pointer transition-colors hover:border-cover/60"
-          >
-            <IconSpLossless v-if="showLosslessIcon" class="text-[1.4em] -my-[0.4em]" />
-            {{ qualityLabel }}
-          </span>
-        </template>
-        <div v-if="quality" class="min-w-48 text-xs">
-          <div class="font-medium text-sm mb-2 text-cover">{{ t("quality.details") }}</div>
-          <div class="flex flex-col gap-1.5 text-cover/70">
-            <div class="flex justify-between">
-              <span class="text-cover/40">{{ t("quality.codec") }}</span>
-              <span>{{ quality.codec.toUpperCase() }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-cover/40">{{ t("quality.sampleRate") }}</span>
-              <span>{{ (quality.sampleRate / 1000).toFixed(1) }} kHz</span>
-            </div>
-            <div v-if="quality.bitsPerSample > 0" class="flex justify-between">
-              <span class="text-cover/40">{{ t("quality.bitDepth") }}</span>
-              <span>{{ quality.bitsPerSample }} bit</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-cover/40">{{ t("quality.bitRate") }}</span>
-              <span>{{ Math.round(quality.bitRate / 1000) }} kbps</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-cover/40">{{ t("quality.channels") }}</span>
-              <span>{{ channelText }} · {{ quality.channels }}</span>
-            </div>
-          </div>
-        </div>
-      </SPopover>
+      <span
+        class="inline-flex items-center gap-1 leading-none px-1.5 py-1.2 rounded-md border border-solid border-cover/30 cursor-pointer transition-colors hover:border-cover/60"
+        @click="status.audioInfoOpen = true"
+      >
+        <IconSpLossless v-if="showLosslessIcon" class="text-[1.4em] -my-[0.4em]" />
+        {{ qualityLabel }}
+      </span>
       <SPopselect
         v-model="settings.lyric.lyricSourcePreference"
         :options="lyricSourceOptions"

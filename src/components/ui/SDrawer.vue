@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { usePopupZIndex } from "@/composables/useZIndex";
+
 export interface SDrawerProps {
   /** 控制打开状态（v-model:open） */
   open?: boolean;
@@ -30,6 +32,8 @@ const emit = defineEmits<{
   "update:open": [value: boolean];
 }>();
 
+const { zIndex, onOpenChange } = usePopupZIndex();
+
 const isOpen = ref(props.open ?? false);
 
 watch(
@@ -39,6 +43,8 @@ watch(
   },
 );
 
+watch(isOpen, onOpenChange, { immediate: true });
+
 const setOpen = (val: boolean): void => {
   isOpen.value = val;
   emit("update:open", val);
@@ -46,7 +52,7 @@ const setOpen = (val: boolean): void => {
 
 const contentClass = computed(() => {
   const base = [
-    "fixed top-0 bottom-0 z-300 flex flex-col focus:outline-none",
+    "fixed top-0 bottom-0 flex flex-col focus:outline-none",
     props.cover
       ? "bg-transparent text-cover shadow-none"
       : "bg-surface-bright text-on-surface shadow-xl",
@@ -79,15 +85,16 @@ const contentClass = computed(() => {
       <!-- 遮罩层 -->
       <DialogOverlay
         v-if="modal"
+        :style="{ zIndex }"
         :class="[
-          'fixed inset-0 z-300',
+          'fixed inset-0',
           'data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out',
           cover ? 'bg-black/30 backdrop-blur-xl' : 'bg-black/40',
         ]"
       />
 
       <!-- 抽屉面板 -->
-      <DialogContent :class="contentClass" :style="{ width }">
+      <DialogContent :class="contentClass" :style="{ width, zIndex }">
         <!-- 无障碍标题（始终存在，视觉隐藏） -->
         <DialogTitle class="sr-only">{{ title ?? "抽屉" }}</DialogTitle>
         <DialogDescription class="sr-only">{{ description ?? "" }}</DialogDescription>

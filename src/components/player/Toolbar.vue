@@ -9,6 +9,7 @@ import IconLucideMoreVertical from "~icons/lucide/more-vertical";
 import IconLucideClock from "~icons/lucide/clock";
 import IconLucideRepeat2 from "~icons/lucide/repeat-2";
 import IconLucideRadio from "~icons/lucide/radio";
+import IconLucideAudioWaveform from "~icons/lucide/audio-waveform";
 
 const props = withDefaults(
   defineProps<{
@@ -61,6 +62,7 @@ const abLoopOpen = ref(false);
 const fmModeOpen = ref(false);
 
 const moreMenuItems = computed<DropdownMenuItem[]>(() => [
+  { key: "audioInfo", label: t("quality.outputInfo"), icon: IconLucideAudioWaveform },
   { key: "equalizer", label: t("equalizer.title"), icon: IconLucideSliders },
   { key: "speed", label: t("speed.title"), icon: IconLucideGauge },
   { key: "abLoop", label: t("abLoop.title"), icon: IconLucideRepeat2 },
@@ -68,7 +70,8 @@ const moreMenuItems = computed<DropdownMenuItem[]>(() => [
 ]);
 
 const onMoreMenuSelect = (key: string): void => {
-  if (key === "equalizer") equalizerOpen.value = true;
+  if (key === "audioInfo") status.audioInfoOpen = true;
+  else if (key === "equalizer") equalizerOpen.value = true;
   else if (key === "speed") speedOpen.value = true;
   else if (key === "abLoop") abLoopOpen.value = true;
   else if (key === "autoClose") autoCloseOpen.value = true;

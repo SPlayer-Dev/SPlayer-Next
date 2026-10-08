@@ -7,9 +7,10 @@
     "installNow": "Restart & Install",
     "goDownload": "Go to Download",
     "goStore": "Update in Store",
-    "upToDate": "You're on the latest version",
+    "upToDate": "No newer version is available on this channel",
     "readyToast": "Update ready — restart to install",
-    "failed": "Update failed, please try again later"
+    "failed": "Update failed, please try again later",
+    "installing": "Starting installer"
   },
   "onboarding": {
     "next": "Next",
@@ -106,6 +107,7 @@
     "delete": "Delete",
     "enable": "Enable",
     "enabled": "Enabled",
+    "disabled": "Disabled",
     "active": "Active",
     "saveAndRelaunch": "Save & Relaunch",
     "reset": "Reset",
@@ -217,6 +219,10 @@
       "copy": "Copy",
       "paste": "Paste",
       "pasteSearch": "Paste and Search"
+    },
+    "menu": {
+      "hideFromSidebar": "Hide from sidebar",
+      "customizeSidebar": "Customize sidebar"
     },
     "link": {
       "song": "Play [{id}]",
@@ -459,6 +465,7 @@
   "player": {
     "prev": "Previous",
     "next": "Next",
+    "transitioning": "Transition",
     "heartMode": {
       "needLogin": "Sign in to use Heart Mode",
       "noSeed": "No seed track available for Heart Mode",
@@ -570,7 +577,11 @@
     }
   },
   "quality": {
-    "details": "Audio Quality",
+    "outputInfo": "Output Information",
+    "outputSection": "Output Information",
+    "outputMode": "Output Mode",
+    "dspSection": "Audio Processing",
+    "details": "Audio Details",
     "codec": "Codec",
     "sampleRate": "Sample Rate",
     "bitDepth": "Bit Depth",
@@ -578,7 +589,10 @@
     "channels": "Channels",
     "stereo": "Stereo",
     "mono": "Mono",
-    "multiChannel": "Multi-channel"
+    "multiChannel": "Multi-channel",
+    "tempoPitch": "Speed & Pitch",
+    "limiter": "Output Limiter",
+    "resampling": "Resampling"
   },
   "playlist": {
     "title": "Playlist",
@@ -741,8 +755,8 @@
       "community": "Community",
       "update": "Update",
       "language": "Language",
-      "playback": "Player",
       "playControl": "Playback Control",
+      "playbackTransition": "Playback Transition",
       "audioSource": "Audio Source",
       "scrobble": "Scrobble",
       "lyricContent": "Lyric Content",
@@ -760,6 +774,8 @@
       "appearanceStyle": "Appearance Style",
       "layout": "Layout",
       "font": "Fonts",
+      "playerBar": "Player Bar",
+      "nowPlaying": "Now Playing",
       "media": "Media Controls",
       "device": "Output Device",
       "hotkeys": "Hotkeys",
@@ -805,13 +821,23 @@
       "label": "Auto Play",
       "description": "Automatically start playback after loading a track"
     },
-    "fuckDjMode": {
-      "label": "Fuck DJ Mode",
-      "description": "Auto skip songs with DJ, TikTok, 0.9, 0.8, viral, car, hot, slow rock in the title"
+    "skipKeywordsSongs": {
+      "label": "Skip Songs by Keywords",
+      "description": "Automatically skip tracks when title or artist matches specified keywords",
+      "button": "Manage",
+      "enable": "Enable Skip by Keywords",
+      "enableDesc": "Automatically skip to next track when keywords match"
     },
-    "uncensorProfanity": {
-      "label": "Fuck ** Mode",
-      "description": "Restore masked profanity in lyrics to original words"
+    "skipKeywordsRules": {
+      "label": "Keyword List",
+      "description": "Customize song keywords to skip",
+      "button": "Manage",
+      "hint": "Tracks containing these keywords in title or artist will be skipped",
+      "placeholder": "Enter keyword",
+      "add": "Add",
+      "clear": "Clear list",
+      "empty": "No keywords configured",
+      "duplicate": "Keyword already exists"
     },
     "hideVipTag": {
       "label": "Hide VIP Tag",
@@ -828,6 +854,12 @@
     "rememberLastTrack": {
       "label": "Remember Progress",
       "description": "Restore playback position on startup"
+    },
+    "searchPlayBehavior": {
+      "label": "Search Playback Behavior",
+      "description": "Playback strategy when double-clicking a track on the search page",
+      "current": "Play Current Track Only",
+      "all": "Play All Results"
     },
     "showLyricInBar": {
       "label": "Show Lyric While Playing",
@@ -849,6 +881,19 @@
       "label": "Loudness Normalization",
       "description": "Automatically balance volume levels between tracks"
     },
+    "transitionMode": {
+      "label": "Transition mode",
+      "description": "Adjust how songs sound when they change",
+      "none": "No transition",
+      "crossfade": "Crossfade"
+    },
+    "transitionPreference": {
+      "label": "Handoff preference",
+      "description": "Adjust when the transition starts and how long songs overlap; Eager starts earlier and lasts longer",
+      "conservative": "Conservative",
+      "standard": "Standard",
+      "eager": "Eager"
+    },
     "songLevel": {
       "label": "Online Audio Quality",
       "description": "Preferred quality for online tracks; the actual level depends on what your account supports",
@@ -867,12 +912,27 @@
     },
     "preloadNextTrack": {
       "label": "Preload next track",
-      "description": "Fetch the next track's playback info in advance, which may increase network usage"
+      "description": "Cache and decode the next track in advance, which may increase network usage"
     },
     "outputDevice": {
       "label": "Output Device",
       "description": "Select audio output device",
       "default": "System Default"
+    },
+    "rememberDeviceVolume": {
+      "label": "Remember Device Volume",
+      "description": "Independently save and restore volume for each audio output device"
+    },
+    "audioOutputMode": {
+      "label": "Audio Output Mode",
+      "description": "Select the current Windows WASAPI audio output mode",
+      "shared": "Shared Mode",
+      "exclusive": "WASAPI Exclusive Mode",
+      "fallback": {
+        "deviceBusy": "The device could not be opened exclusively and has fallen back to shared mode",
+        "formatUnsupported": "The device does not support the required exclusive-mode format, falling back to shared mode",
+        "unavailable": "Exclusive mode is currently unavailable, falling back to shared mode"
+      }
     },
     "pauseOnDeviceSwitch": {
       "label": "Pause on Device Switch",
@@ -1056,7 +1116,11 @@
       "testChannelTitle": "Switch to a Test Channel",
       "testChannelContent": "Beta and Alpha channels receive test releases early. Alpha releases may be highly unstable. Switch anyway?",
       "kugouLoginVersionTitle": "Switch KG Login Version",
-      "kugouLoginVersionContent": "After switching, the current credentials will not match the new version. You must log out and scan the QR code again, or VIP privileges and high-quality playback will stop working. Switch anyway?"
+      "kugouLoginVersionContent": "After switching, the current credentials will not match the new version. You must log out and scan the QR code again, or VIP privileges and high-quality playback will stop working. Switch anyway?",
+      "exclusiveModeTitle": "Switch to Exclusive Mode",
+      "exclusiveModeContent": "Exclusive mode bypasses the system mixer and prefers the source sample rate and bit depth, making it suitable for external DACs / Hi-Fi gear. Player volume, EQ and other processing still apply, so bit-perfect output is not guaranteed. Other apps may be unable to play audio while exclusive. If exclusive mode is unavailable, shared mode will be attempted; it may also fail if another app holds the device exclusively. Switch anyway?",
+      "preloadCacheTitle": "Enable the caches required for preloading?",
+      "preloadCacheContent": "Preloading requires caching the next track's audio. Continuing will enable both song caching and streaming caching, which may increase network traffic and disk usage"
     },
     "useAMSpring": {
       "label": "Spring Animation Debug Switch",
@@ -1101,10 +1165,6 @@
     "amllTryAdvanceStartTime": {
       "label": "Advance Animation Start Time",
       "description": "Advance lyric entry animation (up to 1s) for smoother transitions"
-    },
-    "amllConvertExcessiveBackgroundLines": {
-      "label": "Convert Excessive Background Lines",
-      "description": "Convert consecutive multi-line background vocals into a single-line background vocal attached to the main line"
     },
     "amllSyncMainAndBackgroundLines": {
       "label": "Sync Background Lines Timing",
@@ -1153,17 +1213,25 @@
       "label": "Show Translation",
       "description": "Display translated lyrics"
     },
-    "showRomanization": {
-      "label": "Show Romanization",
-      "description": "Display romanized lyrics"
+    "showRuby": {
+      "label": "Show Ruby",
+      "description": "Display ruby annotation text (furigana/pinyin) above words"
     },
-    "amllShowLineRomanization": {
+    "showRomanization": {
       "label": "Show Line Romanization",
       "description": "Display romanized lyrics for each line"
     },
-    "amllShowWordRomanization": {
+    "showWordRomanization": {
       "label": "Show Word Romanization",
       "description": "Display romanized lyrics for each word in word-by-word lyrics"
+    },
+    "enableScale": {
+      "label": "Lyric Scale",
+      "description": "Scale down inactive lines slightly to highlight current line"
+    },
+    "bgAlwaysBelow": {
+      "label": "Background Lyrics Always Below",
+      "description": "Always place background vocal lines below the main lyric line"
     },
     "enableWordHighlight": {
       "label": "Word Highlight",
@@ -1436,6 +1504,13 @@
       "solid": "Solid",
       "animation": "Fluid"
     },
+    "playerBgRenderer": {
+      "label": "Render Engine",
+      "description": "Select the rendering engine for fluid animation background",
+      "mesh": "Mesh Gradient Renderer",
+      "isolation": "Isolation Renderer",
+      "pixi": "PixiJS Renderer"
+    },
     "playerBgFlowSpeed": {
       "label": "Flow Speed",
       "description": "Animation flow speed of the fluid background"
@@ -1461,6 +1536,10 @@
       "description": "Cover presentation in the full-screen player",
       "default": "Default",
       "fullscreen": "Fullscreen"
+    },
+    "coverLyricRatio": {
+      "label": "Cover/Lyrics Ratio",
+      "description": "Width ratio between cover and lyric areas in Now Playing"
     },
     "themeMode": {
       "label": "Theme Mode",
@@ -1533,9 +1612,22 @@
       "label": "Show Playlist Covers",
       "description": "Show playlist covers instead of default icons in the sidebar"
     },
-    "showStatsInSidebar": {
-      "label": "Show Play Stats Entry",
-      "description": "Show the play statistics page entry in the sidebar"
+    "sidebarCustomize": {
+      "label": "Customize Sidebar",
+      "description": "Group, reorder and toggle sidebar navigation items",
+      "hint": "Drag handles to reorder and regroup; click the eye to toggle visibility",
+      "nav": "Navigation",
+      "groups": "Playlist Groups",
+      "group": "Group {n}",
+      "addGroup": "Add Group",
+      "emptyGroup": "Drag items here",
+      "noPlaylists": "No playlists",
+      "keepEmptyDivider": "Keep dividers for empty groups",
+      "nameWithDivider": "Show dividers alongside group names",
+      "showName": "Show group name in sidebar",
+      "confirmResetTitle": "Reset to defaults?",
+      "confirmResetDesc": "Groups, names, order and visibility will be reset to defaults!",
+      "featureDisabled": "Feature disabled"
     },
     "showQualitySwitch": {
       "label": "Show Quick Quality Switch",
@@ -1660,14 +1752,11 @@
     },
     "updateChannel": {
       "label": "Update Channel",
-      "description": "Choose Stable, Beta preview, or Alpha experimental updates",
+      "description": "Choose which releases to receive. Switching channels never automatically downgrades the app.",
       "stable": "Stable",
       "beta": "Beta Preview",
-      "alpha": "Alpha Experimental"
-    },
-    "checkUpdate": {
-      "label": "Check for Updates",
-      "description": "Check for a new version now"
+      "alpha": "Alpha Experimental",
+      "nightly": "Nightly Build"
     },
     "showPerformanceMonitor": {
       "label": "Performance Monitor",

@@ -54,7 +54,7 @@ const SELECT_PLAYLIST = `
 export const getPlaylists = (): PlaylistSummary[] => {
   const rows = getDb()
     .prepare(
-      `${SELECT_PLAYLIST} WHERE p.type = 'local' GROUP BY p.id ORDER BY p.updated_at DESC, p.id`,
+      `${SELECT_PLAYLIST} WHERE p.type = 'local' GROUP BY p.id ORDER BY p.created_at DESC, p.id`,
     )
     .all() as PlaylistRow[];
   return rows.map(toSummary);

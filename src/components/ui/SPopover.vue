@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { usePopupZIndex } from "@/composables/useZIndex";
+
 export interface SPopoverProps {
   /** 弹出位置 */
   side?: "top" | "right" | "bottom" | "left";
@@ -41,6 +43,8 @@ const emit = defineEmits<{
   "update:open": [value: boolean];
 }>();
 
+const { zIndex, onOpenChange } = usePopupZIndex();
+
 const isOpen = ref(props.open ?? false);
 
 // 同步外部 open prop
@@ -50,6 +54,8 @@ watch(
     if (val !== undefined) isOpen.value = val;
   },
 );
+
+watch(isOpen, onOpenChange, { immediate: true });
 
 const setOpen = (val: boolean): void => {
   isOpen.value = val;
@@ -135,8 +141,9 @@ const bridgeClasses = computed(() =>
         :side-offset="sideOffset"
         :avoid-collisions="true"
         :collision-padding="12"
+        :style="{ zIndex }"
         :class="[
-          'z-300 rounded-xl shadow-lg p-3 text-sm data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out',
+          'rounded-xl shadow-lg p-3 text-sm data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out',
           cover
             ? 'bg-black/55 backdrop-blur-xl backdrop-saturate-160 border border-solid border-white/10 text-cover'
             : 'bg-surface-bright text-on-surface',

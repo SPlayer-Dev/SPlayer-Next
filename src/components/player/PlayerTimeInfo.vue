@@ -29,10 +29,31 @@ const abLoopOpen = ref(false);
 <template>
   <div class="flex flex-col items-end shrink-0">
     <span
-      class="text-xs text-on-surface-variant tabular-nums cursor-pointer px-1.5 py-0.5 rounded-md transition-colors hover:bg-on-surface/8"
-      @click="toggleTimeFormat"
+      class="relative inline-grid overflow-hidden px-1.5 py-0.5 rounded-md text-xs text-on-surface-variant tabular-nums transition-colors"
+      :class="status.transitioning ? 'cursor-default' : 'cursor-pointer hover:bg-on-surface/8'"
+      @click="!status.transitioning && toggleTimeFormat()"
     >
-      {{ timeDisplay[0] }} / {{ timeDisplay[1] }}
+      <span
+        class="transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none"
+        :class="status.transitioning ? 'opacity-0 -translate-y-1' : 'opacity-100 translate-y-0'"
+        :aria-hidden="status.transitioning"
+      >
+        {{ timeDisplay[0] }} / {{ timeDisplay[1] }}
+      </span>
+      <Transition
+        enter-active-class="transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none"
+        leave-active-class="transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none"
+        enter-from-class="opacity-0 translate-y-1"
+        leave-to-class="opacity-0 translate-y-1"
+      >
+        <span
+          v-if="status.transitioning"
+          class="player-transition-shine absolute inset-0 flex items-center justify-end pr-1.5"
+          role="status"
+        >
+          {{ $t("player.transitioning") }}
+        </span>
+      </Transition>
     </span>
     <div
       v-if="isSpeedActive || isAbLoopActive"
@@ -62,3 +83,35 @@ const abLoopOpen = ref(false);
   <SpeedDialog v-model:open="speedOpen" />
   <AbLoopDialog v-model:open="abLoopOpen" />
 </template>
+
+<style scoped>
+.player-transition-shine {
+  color: transparent;
+  background: linear-gradient(
+    100deg,
+    rgb(var(--s-on-surface) / 0.7) 40%,
+    rgb(var(--s-primary)) 50%,
+    rgb(var(--s-on-surface) / 0.7) 60%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  animation: player-transition-shine 1.4s linear infinite;
+}
+
+@keyframes player-transition-shine {
+  from {
+    background-position: 100% center;
+  }
+  to {
+    background-position: -100% center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-transition-shine {
+    animation: none;
+    background: none;
+    color: rgb(var(--s-on-surface));
+  }
+}
+</style>

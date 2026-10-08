@@ -6,6 +6,11 @@
 
 import { randomUUID } from "node:crypto";
 import { qmRequest, mergeQQMusicCookies } from "../core/request";
+import {
+  credentialToSession,
+  getCredentialMusicId,
+  type QQMusicCredential,
+} from "../core/credential";
 import { coreLog } from "@main/utils/logger";
 import type { QMModule, QMParams } from "../core/types";
 
@@ -169,47 +174,24 @@ export const login_qr_check: QMModule = async (params: QMParams) => {
       return { code: 200, status: 0 }; // 已过期或已取消
     }
     if (errcode === 405 && wxCode) {
-      const wxLoginData = await qmRequest<{
-        musickey?: string;
-        musicid?: number | string;
-        str_musicid?: string;
-        refresh_key?: string;
-        refresh_token?: string;
-        access_token?: string;
-        encryptUin?: string;
-        openid?: string;
-        unionid?: string;
-        expired_at?: number;
-      }>(
+      const wxLoginData = await qmRequest<QQMusicCredential>(
         "music.login.LoginServer",
         "Login",
         { code: wxCode, strAppid: "wx48db31d50e334801" },
         { session: false, comm: { tmeLoginType: 1 } },
       );
 
-      const uinStr = String(wxLoginData.musicid || wxLoginData.str_musicid || "").replace(/^o/, "");
-      const savedCookies: Record<string, string> = {
-        uin: uinStr,
-        wxuin: uinStr,
-        qm_keyst: wxLoginData.musickey || "",
-        qqmusic_key: wxLoginData.musickey || "",
-        tmeLoginType: "1",
-      };
-      if (wxLoginData.encryptUin) savedCookies.euin = wxLoginData.encryptUin;
-      if (wxLoginData.openid) savedCookies.wxopenid = wxLoginData.openid;
-      if (wxLoginData.unionid) savedCookies.psrf_qqunionid = wxLoginData.unionid;
-      if (wxLoginData.refresh_token) savedCookies.wxrefresh_token = wxLoginData.refresh_token;
-      if (wxLoginData.access_token) savedCookies.psrf_qqaccess_token = wxLoginData.access_token;
-      if (wxLoginData.refresh_key) savedCookies.qm_refresh_key = wxLoginData.refresh_key;
-      if (wxLoginData.expired_at)
-        savedCookies.psrf_access_token_expiresAt = String(wxLoginData.expired_at);
+      const uinStr = getCredentialMusicId(wxLoginData);
+      if (!uinStr || !wxLoginData.musickey) throw new Error("微信登录响应缺少有效凭据");
+      const savedCookies = credentialToSession(wxLoginData, 1);
       mergeQQMusicCookies(savedCookies);
       coreLog.info(`[qm-login] 微信扫码登录成功 (uin: ${uinStr})`);
 
       return {
         code: 200,
         status: 4,
-        nickname: `微信用户_${uinStr.slice(-4)}`,
+        nickname: wxLoginData.nick || wxLoginData.nickname,
+        avatarUrl: wxLoginData.logo || wxLoginData.avatarUrl,
       };
     }
 
@@ -332,18 +314,7 @@ export const login_qr_check: QMModule = async (params: QMParams) => {
     const code = codeMatch[1];
 
     // QQLogin 换取音乐凭据
-    const qqLoginData = await qmRequest<{
-      musickey?: string;
-      musicid?: number | string;
-      str_musicid?: string;
-      refresh_key?: string;
-      refresh_token?: string;
-      access_token?: string;
-      encryptUin?: string;
-      openid?: string;
-      unionid?: string;
-      expired_at?: number;
-    }>(
+    const qqLoginData = await qmRequest<QQMusicCredential>(
       "QQConnectLogin.LoginServer",
       "QQLogin",
       { code },
@@ -352,29 +323,20 @@ export const login_qr_check: QMModule = async (params: QMParams) => {
 
     const uinMatch = /(?:\?|&)uin=(.+?)&/.exec(jumpUrl);
     const uin = uinMatch?.[1] || "";
-    const uinStr = String(qqLoginData.musicid || uin).replace(/^o/, "");
-    const savedCookies: Record<string, string> = {
-      uin: uinStr,
-      qm_keyst: qqLoginData.musickey || "",
-      qqmusic_key: qqLoginData.musickey || "",
-      tmeLoginType: "2",
-    };
-    if (qqLoginData.encryptUin) savedCookies.euin = qqLoginData.encryptUin;
-    if (qqLoginData.openid) savedCookies.psrf_qqopenid = qqLoginData.openid;
-    if (qqLoginData.unionid) savedCookies.psrf_qqunionid = qqLoginData.unionid;
-    if (qqLoginData.refresh_token) savedCookies.psrf_qqrefresh_token = qqLoginData.refresh_token;
-    if (qqLoginData.access_token) savedCookies.psrf_qqaccess_token = qqLoginData.access_token;
-    if (qqLoginData.refresh_key) savedCookies.qm_refresh_key = qqLoginData.refresh_key;
-    if (qqLoginData.expired_at)
-      savedCookies.psrf_access_token_expiresAt = String(qqLoginData.expired_at);
+    const uinStr = getCredentialMusicId(qqLoginData, uin);
+    if (!uinStr || !qqLoginData.musickey) throw new Error("QQ 登录响应缺少有效凭据");
+    const savedCookies = credentialToSession(qqLoginData, 2, uin);
     mergeQQMusicCookies(savedCookies);
     coreLog.info(`[qm-login] QQ 扫码登录成功 (uin: ${uinStr})`);
 
     return {
       code: 200,
       status: 4,
-      nickname: nickname || `QQ用户_${uinStr.slice(-4)}`,
-      avatarUrl: `https://q.qlogo.cn/headimg_dl?dst_uin=${uinStr}&spec=100`,
+      nickname: qqLoginData.nick || qqLoginData.nickname || nickname,
+      avatarUrl:
+        qqLoginData.logo ||
+        qqLoginData.avatarUrl ||
+        `https://q.qlogo.cn/headimg_dl?dst_uin=${uinStr}&spec=100`,
     };
   }
 

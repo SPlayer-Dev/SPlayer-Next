@@ -4,7 +4,7 @@ import type { LyricLine } from "@shared/types/lyrics";
 import { DYNAMIC_ISLAND_BASE_HEIGHT } from "@shared/defaults/settings";
 import DEFAULT_COVER from "@/assets/images/song.jpg";
 import IslandLyricLine from "./components/IslandLyricLine.vue";
-import { pickAdvanceOnEndIndex } from "@shared/utils/lyricSync";
+import { pickAdvanceOnEndIndex } from "lyric-kit";
 import { useNowPlayingSync } from "@windows/shared/composables/useNowPlayingSync";
 import { useDragWindow } from "./composables/useDragWindow";
 import { isMac } from "@/utils/config";

@@ -205,31 +205,40 @@ const lyricCategory: SettingCategory = {
           defaultValue: true,
         },
         {
+          key: "showRuby",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.showRuby" },
+          defaultValue: true,
+        },
+        {
           key: "showRomanization",
           type: "switch",
           binding: { store: "settings", path: "lyric.showRomanization" },
           defaultValue: true,
-          visible: () => lyricEngine() === "physics",
         },
         {
-          key: "amllShowLineRomanization",
+          key: "showWordRomanization",
           type: "switch",
-          binding: { store: "settings", path: "lyric.amllShowLineRomanization" },
+          binding: { store: "settings", path: "lyric.showWordRomanization" },
           defaultValue: true,
-          visible: () => lyricEngine() === "amll",
-        },
-        {
-          key: "amllShowWordRomanization",
-          type: "switch",
-          binding: { store: "settings", path: "lyric.amllShowWordRomanization" },
-          defaultValue: true,
-          visible: () => lyricEngine() === "amll",
         },
       ],
     },
     {
       id: "lyricDisplay",
       items: [
+        {
+          key: "enableScale",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.enableScale" },
+          defaultValue: true,
+        },
+        {
+          key: "bgAlwaysBelow",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.bgAlwaysBelow" },
+          defaultValue: false,
+        },
         {
           key: "enableWordHighlight",
           type: "switch",
@@ -279,12 +288,6 @@ const lyricCategory: SettingCategory = {
           key: "amllTryAdvanceStartTime",
           type: "switch",
           binding: { store: "settings", path: "lyric.amllTryAdvanceStartTime" },
-          defaultValue: true,
-        },
-        {
-          key: "amllConvertExcessiveBackgroundLines",
-          type: "switch",
-          binding: { store: "settings", path: "lyric.amllConvertExcessiveBackgroundLines" },
           defaultValue: true,
         },
         {

@@ -28,6 +28,16 @@ export const formatArtists = (artists: Artist[], separator = " / "): string => {
 };
 
 /**
+ * 提取歌手名称数组
+ * @param artists - Artist 数组
+ * @returns 名称数组，已去除空白与空项
+ */
+export const artistNames = (artists: Artist[]): string[] => {
+  // 已缓存的云盘歌曲可能包含空歌手名称，不能因此中断播放
+  return artists.map((artist) => artist.name?.trim()).filter((name): name is string => !!name);
+};
+
+/**
  * 将专辑字符串转为 Album 对象
  * @param raw - 原始专辑名
  * @returns Album 对象，空字符串返回 undefined

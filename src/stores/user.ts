@@ -465,6 +465,25 @@ export const useUserStore = defineStore(
         persistLikedSongIds();
         return true;
       } catch (err) {
+        // 仅在明确为 401（下架歌曲无法通过红心接口收藏）且存在喜欢歌单时尝试降级操作
+        const is401 =
+          (err as { status?: number })?.status === 401 ||
+          (err as { body?: { code?: number } })?.body?.code === 401 ||
+          (err instanceof Error && err.message.includes("401"));
+
+        if (is401 && likedPlaylistId.value) {
+          try {
+            if (!wasLiked) {
+              await addTracksToPlaylist(likedPlaylistId.value, [trackId]);
+            } else {
+              await removeTracksFromPlaylist(likedPlaylistId.value, [trackId]);
+            }
+            persistLikedSongIds();
+            return true;
+          } catch (plErr) {
+            console.warn("[user] fallback to playlist add failed:", plErr);
+          }
+        }
         const rollback = new Set(likedSongIds.value);
         if (wasLiked) rollback.add(trackId);
         else rollback.delete(trackId);

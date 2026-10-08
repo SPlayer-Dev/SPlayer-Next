@@ -1,5 +1,6 @@
 import type { SettingCategory } from "@/types/settings-schema";
 import PlatformAccount from "@/components/settings/custom/PlatformAccount.vue";
+import SkipKeywordsConfig from "@/components/settings/custom/SkipKeywordsConfig.vue";
 import IconLucideSettings from "~icons/lucide/settings";
 
 const otherCategory: SettingCategory = {
@@ -63,16 +64,9 @@ const otherCategory: SettingCategory = {
       id: "preset",
       items: [
         {
-          key: "fuckDjMode",
-          type: "switch",
-          binding: { store: "settings", path: "preset.fuckDjMode" },
-          defaultValue: false,
-        },
-        {
-          key: "uncensorProfanity",
-          type: "switch",
-          binding: { store: "settings", path: "preset.uncensorProfanity" },
-          defaultValue: false,
+          key: "skipKeywordsSongs",
+          type: "custom",
+          component: SkipKeywordsConfig,
         },
         {
           key: "hideVipTag",

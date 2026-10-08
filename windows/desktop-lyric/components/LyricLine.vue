@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { LyricLine } from "@shared/types/lyrics";
 import type { DesktopLyricAlign } from "@shared/types/settings";
-import { getWordSweepProgress } from "@shared/utils/lyricSync";
+import { getWordSweepProgress } from "lyric-kit";
 import { getNowPlayingCurrentMs } from "@windows/shared/composables/useNowPlayingSync";
 import { computeHorizontalScrollOffset, measureHorizontalScrollRange } from "../utils";
 

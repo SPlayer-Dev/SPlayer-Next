@@ -53,7 +53,8 @@ export type MediaEventType =  'Play'|
 /** NAPI 层接收的元数据参数 */
 export interface MetadataParam {
   title: string
-  artist: string
+  /** 歌手列表（MPRIS 需要多值，其余平台内部拼接） */
+  artists: Array<string>
   album: string
   /** 封面原始字节（用于系统媒体控件） */
   coverData?: Buffer

@@ -23,6 +23,7 @@ interface MobileSong {
     size_ape?: number;
     size_flac?: number;
     size_192ogg?: number;
+    size_hires?: number;
     size_new?: number[];
     hires_sample?: number;
     hires_bitdepth?: number;
@@ -74,14 +75,40 @@ interface MobilePlaylist {
   nickname?: string;
 }
 
+/** 生成移动端搜索请求所需的会话 ID */
+const createSearchId = (): string => {
+  const group = BigInt(Math.floor(Math.random() * 20) + 1);
+  const random = BigInt(Math.floor(Math.random() * 4194305));
+  const todayMs = BigInt(Date.now() % 86400000);
+  return String(group * 18014398509481984n + random * 4294967296n + todayMs);
+};
+
 const searchMobile = (keywords: string, page: number, limit: number, searchType: number) =>
-  qmRequest<MobileSearchResponse>("music.search.SearchCgiService", "DoSearchForQQMusicMobile", {
-    query: keywords,
-    page_num: page,
-    num_per_page: limit,
-    search_type: searchType,
-    grp: 1,
-  });
+  qmRequest<MobileSearchResponse>(
+    "music.search.SearchCgiService",
+    "DoSearchForQQMusicLite",
+    {
+      search_id: createSearchId(),
+      remoteplace: "search.android.keyboard",
+      query: keywords,
+      page_num: page,
+      num_per_page: limit,
+      search_type: searchType,
+      highlight: 0,
+      nqc_flag: 0,
+      page_id: 1,
+      grp: 1,
+    },
+    {
+      session: false,
+      auth: false,
+      comm: {
+        tmeAppID: "qqmusiclight",
+        cv: "1003006",
+        v: "1003006",
+      },
+    },
+  );
 
 const searchSongs = async (keywords: string, page: number, limit: number) => {
   const data = await searchMobile(keywords, page, limit, 0);
@@ -108,7 +135,7 @@ const searchSongs = async (keywords: string, page: number, limit: number) => {
       sizeApe: song.file?.size_ape ?? 0,
       sizeFlac: song.file?.size_flac ?? 0,
       sizeOgg: song.file?.size_192ogg ?? 0,
-      sizeHiRes: song.file?.size_new?.[0] ?? 0,
+      sizeHiRes: song.file?.size_hires || song.file?.size_new?.[0] || 0,
       hiResSampleRate: song.file?.hires_sample ?? 0,
       hiResBitDepth: song.file?.hires_bitdepth ?? 0,
       cover: pictureMid

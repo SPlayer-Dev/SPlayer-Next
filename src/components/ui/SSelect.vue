@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { StyleValue } from "vue";
+import { usePopupZIndex } from "@/composables/useZIndex";
 
 export interface SSelectOption {
   value: string | number | boolean;
@@ -28,6 +29,8 @@ const emit = defineEmits<{
   "update:modelValue": [value: string | number | boolean];
 }>();
 
+const { zIndex, onOpenChange } = usePopupZIndex();
+
 const selectedLabel = computed(
   () => props.options.find((o) => o.value === props.modelValue)?.label ?? props.placeholder,
 );
@@ -43,6 +46,7 @@ const handleChange = (val: string) => {
     :model-value="String(modelValue)"
     :disabled="disabled"
     @update:model-value="handleChange"
+    @update:open="onOpenChange"
   >
     <SelectTrigger
       class="group flex w-full items-center justify-between gap-2 h-8.5 px-3 text-sm text-on-surface bg-field border border-solid border-on-surface/20 cursor-pointer outline-none focus-visible:outline-none transition-[border-color,box-shadow,opacity] duration-250 hover:border-on-surface/50 data-[state=open]:border-primary data-[state=open]:ring-2 data-[state=open]:ring-primary/25 disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
@@ -63,7 +67,8 @@ const handleChange = (val: string) => {
         position="popper"
         :side-offset="4"
         :collision-padding="12"
-        class="z-400 max-h-60 w-[var(--reka-select-trigger-width)] overflow-hidden rounded-xl bg-surface-bright shadow-lg data-[state=open]:animate-select-in data-[state=closed]:animate-select-out"
+        :style="{ zIndex }"
+        class="max-h-60 w-[var(--reka-select-trigger-width)] overflow-hidden rounded-xl bg-surface-bright shadow-lg data-[state=open]:animate-select-in data-[state=closed]:animate-select-out"
       >
         <SelectViewport class="p-1">
           <SelectItem

@@ -1,3 +1,4 @@
+import { cancelPreparedTrack } from "@main/services/playerPreload";
 import { dialog, ipcMain } from "electron";
 import path from "node:path";
 import fs from "node:fs/promises";
@@ -137,7 +138,10 @@ const categoryHandlers: Record<
     kind: "file",
     path: getSongCacheDir,
     size: () => songCache.stats().size,
-    clear: () => songCache.clearAll(),
+    clear: () => {
+      cancelPreparedTrack();
+      return songCache.clearAll();
+    },
   },
   lyric: {
     kind: "db",
@@ -250,8 +254,13 @@ export const registerCacheIpc = (): void => {
   /** 歌曲文件级缓存：排队下载 */
   ipcMain.handle(
     "cache:song:fetch",
-    (_event, cacheKey: string, source: TrackSource, streamUrl: string): Promise<string | null> =>
-      songCache.fetchAsync(cacheKey, source, streamUrl),
+    (
+      _event,
+      cacheKey: string,
+      source: TrackSource,
+      streamUrl: string,
+      preloadId?: string,
+    ): Promise<string | null> => songCache.fetchAsync(cacheKey, source, streamUrl, preloadId),
   );
 
   /** 歌曲文件级缓存：取消进行中的下载 */

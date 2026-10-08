@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import type { Track, PlayerState } from "@shared/types/player";
+import type { Track, PlayerState, LoadResult } from "@shared/types/player";
 import type { LyricLine, LyricData } from "@shared/types/lyrics";
 import type {
   NowPlayingSnapshot,
@@ -29,6 +29,20 @@ let currentSource: LyricData = null;
 let lastPosition = 0;
 /** lastPosition 真实成立的墙钟时刻（Date.now 毫秒），用于补偿其过期时长 */
 let lastPositionAt = 0;
+let pendingTransition: { trackId: string; anchor: NonNullable<LoadResult["playback"]> } | null =
+  null;
+
+/**
+ * 保留新曲的真实锚点，等界面提交对应歌词时一起切换
+ * @param trackId - 新曲标识
+ * @param anchor - 引擎交接时的位置与状态
+ */
+export const prepareTransition = (
+  trackId: string,
+  anchor: NonNullable<LoadResult["playback"]>,
+): void => {
+  pendingTransition = { trackId, anchor };
+};
 /** 当前是否处于播放态 */
 let playing = false;
 /** 完整播放状态，区分 stopped 与 paused */
@@ -78,10 +92,21 @@ export const update = (track: Track | null, lyric: LyricLine[], source: LyricDat
   currentTrack = track;
   currentLyric = lyric;
   currentSource = source;
-  if (trackChanged) {
+  if (pendingTransition && pendingTransition.trackId === track?.id) {
+    const { anchor } = pendingTransition;
+    lastPosition = anchor.position;
+    lastPositionAt = anchor.timestamp;
+    playing = anchor.state === "playing";
+    playState = anchor.state;
+    playSpeed = anchor.speed;
+    pendingTransition = null;
+  } else if (trackChanged) {
     // 重置播放进度
     lastPosition = 0;
     lastPositionAt = Date.now();
+    pendingTransition = null;
+  }
+  if (trackChanged) {
     emitter.emit("track-change", { track });
   }
   // 曲目或歌词源任一变化都重读偏移并广播
@@ -216,6 +241,7 @@ export const lyricSnapshot = () => ({
 
 /** 清空 */
 export const clear = (): void => {
+  pendingTransition = null;
   currentTrack = null;
   currentLyric = [];
   currentSource = null;

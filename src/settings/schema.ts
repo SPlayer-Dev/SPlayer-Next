@@ -12,6 +12,7 @@ import downloadCategory from "./categories/download";
 import localCacheCategory from "./categories/localCache";
 import pluginsCategory from "./categories/plugins";
 import otherCategory from "./categories/other";
+import { updateSection } from "./sections/update";
 import AboutSettings from "@/components/settings/custom/AboutSettings.vue";
 import IconLucideInfo from "~icons/lucide/info";
 
@@ -29,5 +30,5 @@ export const settingsSchema: SettingCategory[] = [
   localCacheCategory,
   pluginsCategory,
   otherCategory,
-  { id: "about", icon: IconLucideInfo, component: AboutSettings },
+  { id: "about", icon: IconLucideInfo, component: AboutSettings, sections: [updateSection] },
 ];

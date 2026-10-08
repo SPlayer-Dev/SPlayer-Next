@@ -65,6 +65,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -72,7 +73,7 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "native/audio-engine -> target\nnative/audio-capture -> target\nnative/media-ctrl -> target"
+          workspaces: ". -> target"
 
       # 校验标签、版本和更新通道
       - name: Verify release metadata
@@ -109,14 +110,8 @@ jobs:
             rpm libarchive-tools
 
       # 清理旧构建产物
-      - name: Clean workspace on Windows
-        if: runner.os == 'Windows'
-        run: |
-          if (Test-Path dist) { Remove-Item -Recurse -Force dist }
-          if (Test-Path out) { Remove-Item -Recurse -Force out }
-
-      - name: Clean workspace on macOS & Linux
-        if: runner.os != 'Windows'
+      - name: Clean workspace
+        shell: bash
         run: rm -rf dist out
 
       # CI 不需要国内镜像
@@ -126,7 +121,7 @@ jobs:
 
       # 安装项目依赖
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       # 仅构建本机架构
       - name: Build ${{ matrix.name }}

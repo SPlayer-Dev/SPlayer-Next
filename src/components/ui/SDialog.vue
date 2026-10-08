@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { CSSProperties } from "vue";
+import { usePopupZIndex } from "@/composables/useZIndex";
 
 export interface SDialogProps {
   /** 控制打开状态（v-model:open） */
@@ -26,6 +27,8 @@ export interface SDialogProps {
   lazy?: boolean;
   /** 关闭后销毁内容 */
   destroyOnClose?: boolean;
+  /** 自定义固定层级 */
+  zIndex?: number;
 }
 
 const props = withDefaults(defineProps<SDialogProps>(), {
@@ -55,12 +58,16 @@ const isOpen = ref(props.open ?? false);
 const mounted = ref((!props.lazy && !props.destroyOnClose) || isOpen.value);
 let destroyTimer: ReturnType<typeof setTimeout> | undefined;
 
-/** 更新内容挂载状态 */
+const { zIndex: activeZIndex, onOpenChange } = usePopupZIndex(toRef(props, "zIndex"));
+
+/** 更新内容挂载状态与动态层级 */
 const syncMounted = (open: boolean): void => {
   if (destroyTimer) {
     clearTimeout(destroyTimer);
     destroyTimer = undefined;
   }
+
+  onOpenChange(open);
 
   if (open) {
     mounted.value = true;
@@ -104,15 +111,16 @@ const setOpen = (val: boolean): void => {
     <DialogPortal v-if="mounted">
       <!-- 遮罩层 -->
       <DialogOverlay
+        :style="{ zIndex: activeZIndex }"
         :class="[
-          'fixed inset-0 z-300 data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out',
+          'fixed inset-0 data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out',
           cover ? 'bg-black/50' : 'bg-black/40',
         ]"
       />
       <DialogContent
-        :style="containerStyle"
+        :style="[containerStyle, { zIndex: activeZIndex }]"
         :class="[
-          'fixed left-1/2 z-300 -translate-x-1/2',
+          'fixed left-1/2 -translate-x-1/2',
           top ? '' : 'top-1/2 -translate-y-1/2',
           'rounded-xl shadow-xl overflow-hidden',
           'flex flex-col',

@@ -41,7 +41,7 @@ const isRejectedMime = (mime: string | null): boolean => {
 /**
  * 文件头是否像音频
  *
- * 反向看首字节，挡 HTML/JSON 错误页冒充音频的常见骗局。
+ * 反向看首字节，挡 HTML/JSON 错误页冒充音频的常见骗局
  * 不做正向 magic 枚举（容器太多枚举不全反而漏判），剩余漏网坏文件由 player.ts:228
  * 的解码失败 invalidate 兜底
  */
@@ -64,6 +64,7 @@ const looksLikeAudio = async (filePath: string): Promise<boolean> => {
 interface InFlight {
   promise: Promise<string | null>;
   controller: AbortController;
+  owners: Set<string>;
 }
 
 /** 当前生效的歌曲缓存目录 */
@@ -72,6 +73,8 @@ let cacheDir = getSongCacheDir();
 const inFlight = new Map<string, InFlight>();
 /** 等待槽位的队列；只存 starter，槽位空出来时取队头执行 */
 const waiting: Array<() => void> = [];
+let activeDownloads = 0;
+let preloadPin: { id: string; filename: string } | null = null;
 
 /** sizeLimit 字节数；0/负数视为不限制 */
 const sizeLimitBytes = (): number => {
@@ -99,21 +102,57 @@ const filenameFor = (cacheKey: string): string => {
 const absPath = (filename: string): string => path.join(cacheDir, filename);
 
 /**
- * 占一个并发槽位
- * @returns
+ * 等待可用下载槽位，排队期间支持取消
+ * @param signal - 下载任务的取消信号
+ * @returns 成功取得槽位时返回 true，取得槽位前被取消时返回 false
  */
-const acquireSlot = async (): Promise<void> => {
-  if (inFlight.size < MAX_CONCURRENT) return;
-  await new Promise<void>((resolve) => waiting.push(resolve));
+const acquireSlot = async (signal: AbortSignal): Promise<boolean> => {
+  if (signal.aborted) return false;
+  if (activeDownloads < MAX_CONCURRENT) {
+    activeDownloads++;
+    return true;
+  }
+  return new Promise((resolve) => {
+    const start = (): void => {
+      signal.removeEventListener("abort", abort);
+      resolve(true);
+    };
+    const abort = (): void => {
+      const index = waiting.indexOf(start);
+      if (index >= 0) waiting.splice(index, 1);
+      resolve(false);
+    };
+    waiting.push(start);
+    signal.addEventListener("abort", abort, { once: true });
+  });
 };
 
-/**
- * 释放槽位并唤醒一个等待者
- * @returns
- */
+/** 将下载槽位交给下一个等待者，没有等待者时减少活跃下载数 */
 const releaseSlot = (): void => {
   const next = waiting.shift();
   if (next) next();
+  else activeDownloads--;
+};
+
+/**
+ * 为备用槽位保留缓存文件，防止切歌前被 LRU 淘汰
+ * @param id - 持有缓存租约的预载任务标识
+ * @param sourcePath - 预载音源路径，仅缓存目录内的文件会被保留
+ */
+export const pinPreload = (id: string, sourcePath: string): void => {
+  if (path.dirname(sourcePath) === cacheDir)
+    preloadPin = { id, filename: path.basename(sourcePath) };
+};
+
+/**
+ * 释放预载租约，仅在没有其他消费者时中止共用下载
+ * @param id - 要取消的预载任务标识
+ */
+export const cancelPreload = (id: string): void => {
+  if (preloadPin?.id === id) preloadPin = null;
+  for (const pending of inFlight.values()) {
+    if (pending.owners.delete(id) && pending.owners.size === 0) pending.controller.abort();
+  }
 };
 
 /**
@@ -178,9 +217,12 @@ const evictIfNeeded = async (): Promise<void> => {
   let evicted = 0;
   let freed = 0;
   while (current > cap) {
-    const victims = listLruVictims(EVICT_BATCH);
+    const victims = listLruVictims(EVICT_BATCH + 1).filter(
+      (row) => row.filename !== preloadPin?.filename,
+    );
     if (victims.length === 0) break;
     for (const victim of victims) {
+      if (victim.filename === preloadPin?.filename) continue;
       try {
         await fsp.unlink(absPath(victim.filename));
       } catch {}
@@ -188,6 +230,7 @@ const evictIfNeeded = async (): Promise<void> => {
       current -= victim.size;
       freed += victim.size;
       evicted += 1;
+      if (current <= cap) break;
     }
   }
   if (evicted > 0) songCacheLog.info(`[evict] count=${evicted} freed=${freed}`);
@@ -235,7 +278,7 @@ const runDownload = async (
 
     const nodeStream = Readable.fromWeb(response.body as never);
     const writeStream = fs.createWriteStream(partPath);
-    await pipeline(nodeStream, writeStream);
+    await pipeline(nodeStream, writeStream, { signal: controller.signal });
 
     const stat = await fsp.stat(partPath);
     if (stat.size === 0) {
@@ -315,28 +358,44 @@ export const lookup = async (cacheKey: string): Promise<string | null> => {
  * @param cacheKey - 缓存键
  * @param source - 来源
  * @param streamUrl - 流 URL
- * @returns 文件路径
+ * @param preloadId - 可选的预载消费者标识，用于保留缓存文件和独立取消下载
+ * @returns 已存在或下载完成的缓存路径，下载失败、被取消或不允许缓存时返回 null
  */
 export const fetchAsync = (
   cacheKey: string,
   source: TrackSource,
   streamUrl: string,
+  preloadId?: string,
 ): Promise<string | null> => {
   if (!isCacheEnabled()) return Promise.resolve(null);
+  if (source === "streaming" && !store.get("cache.songCache.cacheStreaming"))
+    return Promise.resolve(null);
+  if (preloadId) preloadPin = { id: preloadId, filename: filenameFor(cacheKey) };
+  const owner = preloadId ?? "background";
   const existing = inFlight.get(cacheKey);
-  if (existing) return existing.promise;
-
+  if (existing) {
+    existing.owners.add(owner);
+    return existing.promise;
+  }
   const controller = new AbortController();
   const promise = (async () => {
-    await acquireSlot();
+    const acquired = await acquireSlot(controller.signal);
+    if (!acquired) return null;
     try {
-      return await runDownload(cacheKey, source, streamUrl, controller);
+      if (controller.signal.aborted) return null;
+      const cached = await lookup(cacheKey);
+      return cached ?? (await runDownload(cacheKey, source, streamUrl, controller));
     } finally {
-      inFlight.delete(cacheKey);
+      if (inFlight.get(cacheKey)?.controller === controller) inFlight.delete(cacheKey);
       releaseSlot();
     }
   })();
-  inFlight.set(cacheKey, { promise, controller });
+  inFlight.set(cacheKey, { promise, controller, owners: new Set([owner]) });
+  void promise
+    .finally(() => {
+      if (inFlight.get(cacheKey)?.controller === controller) inFlight.delete(cacheKey);
+    })
+    .catch(() => {});
   return promise;
 };
 
@@ -355,6 +414,7 @@ export const cancel = (cacheKey: string): void => {
  * @param sourcePath - 传入原始来源路径（streamUrl 或本地路径），用来找到对应的 cacheKey 和文件
  */
 export const invalidate = async (sourcePath: string): Promise<void> => {
+  if (path.dirname(sourcePath) !== cacheDir) return;
   const filename = path.basename(sourcePath);
   const row = findByFilename(filename);
   if (!row) return;
@@ -365,8 +425,10 @@ export const invalidate = async (sourcePath: string): Promise<void> => {
 
 /** 清空全部 */
 export const clearAll = async (): Promise<void> => {
-  for (const entry of inFlight.values()) entry.controller.abort();
-  inFlight.clear();
+  preloadPin = null;
+  const pending = [...inFlight.values()];
+  for (const entry of pending) entry.controller.abort();
+  await Promise.allSettled(pending.map((entry) => entry.promise));
   dbClearAll();
   try {
     const entries = await fsp.readdir(cacheDir);

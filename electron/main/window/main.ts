@@ -210,6 +210,11 @@ export const minimizeMainWindow = (): void => {
 export const toggleMaximizeMainWindow = (): void => {
   const win = getMainWindow();
   if (!win) return;
+  if (win.isFullScreen()) {
+    win.setFullScreen(false);
+    if (!win.isMaximized()) win.maximize();
+    return;
+  }
   if (win.isMaximized()) win.unmaximize();
   else win.maximize();
 };

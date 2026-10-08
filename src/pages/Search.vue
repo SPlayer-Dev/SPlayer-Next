@@ -1,7 +1,7 @@
 <script setup lang="ts">
 defineOptions({ name: "SearchPage" });
 
-import type { Track } from "@shared/types/player";
+import type { PlaybackContext, Track } from "@shared/types/player";
 import { ALL_PLATFORMS, PLATFORM_SHORT_NAME, type Platform } from "@shared/types/platform";
 import type { CoverItem } from "@/types/artist";
 import { searchSongs, searchAlbums, searchArtists, searchPlaylists } from "@/apis/search";
@@ -186,6 +186,14 @@ const isEmptyResult = computed(() => {
   const state = states[activeTab.value];
   return state.loaded && state.items.length === 0;
 });
+
+/** 搜索页播放来源上下文 */
+const playbackContext = computed<PlaybackContext>(() => ({
+  provider: status.searchPlatform,
+  originId: `search:${status.searchPlatform}:${keyword.value}`,
+  originType: "page",
+  originName: keyword.value ? `${t("search.title")}: ${keyword.value}` : t("search.title"),
+}));
 </script>
 
 <template>
@@ -266,6 +274,7 @@ const isEmptyResult = computed(() => {
         v-if="activeTab === 'songs'"
         :items="states.songs.items"
         :source="status.searchPlatform"
+        :playback-context="playbackContext"
         :show-size="false"
         :has-more="states.songs.hasMore"
         :loading-more="states.songs.loadingMore"

@@ -30,6 +30,8 @@ export const useStatusStore = defineStore(
     const outputDevices = ref<AudioDevice[]>([]);
     /** 歌曲加载 */
     const trackLoading = ref(false);
+    /** 原生输出回调正在混合相邻两曲 */
+    const transitioning = ref(false);
     /** 全屏播放器展开状态 */
     const isPlayerExpanded = ref(false);
     /** 外层播放队列 */
@@ -42,6 +44,8 @@ export const useStatusStore = defineStore(
     const commentsOpen = ref(false);
     /** 评论弹窗当前歌曲 */
     const commentsTrack = shallowRef<Track | null>(null);
+    /** 音频输出信息弹窗状态 */
+    const audioInfoOpen = ref(false);
     /** 全屏播放器是否展示歌词 */
     const showLyric = ref(true);
     /** 当前播放索引 */
@@ -124,12 +128,14 @@ export const useStatusStore = defineStore(
       isLoading,
       progress,
       trackLoading,
+      transitioning,
       isPlayerExpanded,
       outerQueueOpen,
       fullQueueOpen,
       searchOpen,
       commentsOpen,
       commentsTrack,
+      audioInfoOpen,
       showLyric,
       outputDevices,
       playIndex,

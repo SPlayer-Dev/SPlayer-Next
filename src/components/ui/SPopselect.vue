@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { SSelectOption } from "./SSelect.vue";
+import { usePopupZIndex } from "@/composables/useZIndex";
 
 export interface SPopselectProps {
   modelValue?: string | number | boolean;
@@ -32,6 +33,13 @@ const emit = defineEmits<{
   "update:open": [value: boolean];
 }>();
 
+const { zIndex, onOpenChange } = usePopupZIndex();
+
+const handleOpenChange = (open: boolean): void => {
+  onOpenChange(open);
+  emit("update:open", open);
+};
+
 const selectedOption = computed(() => props.options.find((o) => o.value === props.modelValue));
 
 const handleChange = (val: string): void => {
@@ -45,7 +53,7 @@ const handleChange = (val: string): void => {
     :model-value="String(modelValue)"
     :disabled="disabled"
     @update:model-value="handleChange"
-    @update:open="emit('update:open', $event)"
+    @update:open="handleOpenChange"
   >
     <SelectTrigger as-child :disabled="disabled">
       <slot name="trigger" :selected="selectedOption">
@@ -62,9 +70,9 @@ const handleChange = (val: string): void => {
         :align="align"
         :side-offset="sideOffset"
         :collision-padding="12"
-        :style="{ minWidth: `${minWidth}px` }"
+        :style="{ minWidth: `${minWidth}px`, zIndex }"
         :class="[
-          'z-400 rounded-lg shadow-lg text-sm data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out',
+          'rounded-lg shadow-lg text-sm data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out',
           cover
             ? 'bg-black/55 backdrop-blur-xl backdrop-saturate-160 border border-solid border-white/10'
             : 'bg-surface-bright',

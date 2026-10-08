@@ -20,6 +20,7 @@ export const defaultSystemConfig: SystemConfig = {
     outputDevice: null,
     volume: 1,
     loudnessNormalization: false,
+    audioOutputMode: "shared",
     equalizer: {
       enabled: false,
       preset: "flat",

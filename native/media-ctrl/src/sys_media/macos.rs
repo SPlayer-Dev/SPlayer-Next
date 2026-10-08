@@ -331,7 +331,7 @@ impl SystemMediaControls for MacosImpl {
                 ProtocolObject::from_ref(MPMediaItemPropertyTitle),
             );
             info.setObject_forKey(
-                &NSString::from_str(&payload.artist),
+                &NSString::from_str(&payload.artist_text()),
                 ProtocolObject::from_ref(MPMediaItemPropertyArtist),
             );
             info.setObject_forKey(

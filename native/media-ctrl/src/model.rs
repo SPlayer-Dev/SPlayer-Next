@@ -64,22 +64,32 @@ impl MediaEvent {
     }
 }
 
+/// 多歌手拼接分隔符（与前端 formatArtists 保持一致）
+const ARTIST_SEPARATOR: &str = " / ";
+
 /// 内部使用的元数据（cover_data 已转为 Vec<u8>）
 #[derive(Clone, PartialEq)]
 pub struct MetadataPayload {
     pub title: String,
-    pub artist: String,
+    pub artists: Vec<String>,
     pub album: String,
     pub cover_data: Option<Vec<u8>>,
     pub cover_url: Option<String>,
     pub duration_ms: Option<f64>,
 }
 
+impl MetadataPayload {
+    /// 拼接后的歌手文本，供只接受单一字符串的平台（SMTC / MPNowPlaying / Discord）使用
+    pub fn artist_text(&self) -> String {
+        self.artists.join(ARTIST_SEPARATOR)
+    }
+}
+
 impl fmt::Debug for MetadataPayload {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MetadataPayload")
             .field("title", &self.title)
-            .field("artist", &self.artist)
+            .field("artists", &self.artists)
             .field("album", &self.album)
             .field(
                 "cover_data",
@@ -98,7 +108,8 @@ impl fmt::Debug for MetadataPayload {
 #[napi(object)]
 pub struct MetadataParam {
     pub title: String,
-    pub artist: String,
+    /// 歌手列表（MPRIS 需要多值，其余平台内部拼接）
+    pub artists: Vec<String>,
     pub album: String,
     /// 封面原始字节（用于系统媒体控件）
     pub cover_data: Option<Buffer>,
@@ -112,7 +123,7 @@ impl From<MetadataParam> for MetadataPayload {
     fn from(p: MetadataParam) -> Self {
         Self {
             title: p.title,
-            artist: p.artist,
+            artists: p.artists,
             album: p.album,
             cover_data: p.cover_data.map(|b| b.to_vec()),
             cover_url: p.cover_url,

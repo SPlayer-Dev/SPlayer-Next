@@ -23,8 +23,8 @@ export interface Query {
   e_r?: boolean;
   /** 自定义 Referer/域名覆盖 */
   domain?: string;
-  /** 强制附加 anti-cheat token（暂未启用） */
-  checkToken?: boolean;
+  /** 强制附加 anti-cheat token */
+  checkToken?: string | boolean;
   /** 其他可选参数 */
   [key: string]: unknown;
 }
@@ -33,9 +33,14 @@ export interface Query {
  * 创建请求 options
  * @param query 调用方传入的可选参数
  * @param crypto 加密方式
+ * @param checkToken 是否附加 anti-cheat token（如 "v3"）
  * @returns 请求 options
  */
-export const createOption = (query: Query, crypto: CryptoMode | "" = ""): RequestOptions => ({
+export const createOption = (
+  query: Query,
+  crypto: CryptoMode | "" = "",
+  checkToken: string | boolean = false,
+): RequestOptions => ({
   crypto: (query.crypto as CryptoMode | undefined) || crypto,
   cookie: query.cookie,
   ua: query.ua || "",
@@ -43,5 +48,5 @@ export const createOption = (query: Query, crypto: CryptoMode | "" = ""): Reques
   ip: query.ip,
   e_r: query.e_r,
   domain: query.domain || "",
-  checkToken: query.checkToken || false,
+  checkToken: query.checkToken || checkToken,
 });

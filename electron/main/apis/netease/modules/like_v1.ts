@@ -13,11 +13,11 @@ const like_v1: NeteaseModule = (query, request) => {
   const isLike = query.like !== false && query.like !== "false";
   const data = {
     alg: "itembased",
-    trackId: query.id,
+    trackId: String(query.id),
     like: isLike,
     time: "3",
   };
-  return request("/api/v1/radio/like", data, createOption(query, "xeapi"));
+  return request("/api/v1/radio/like", data, createOption(query, "xeapi", "v3"));
 };
 
 export default like_v1;

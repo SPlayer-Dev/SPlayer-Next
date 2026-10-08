@@ -1,12 +1,15 @@
 import type { LyricFormat } from "@shared/types/lyrics";
 import { DEFAULT_LYRIC_FORMAT_ORDER as DEFAULT_LYRIC_FORMAT_ORDER_SHARED } from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
+import type { TransitionPreference } from "@shared/types/player";
 import { ALL_PLATFORMS } from "@shared/types/platform";
 import type { CjkTransformMode } from "@shared/types/opencc";
 import type { QualityLevel } from "@/utils/quality";
 
 /** 播放器背景类型 */
 export type PlayerBgType = "blur" | "solid" | "animation";
+/** 流体背景渲染引擎 */
+export type PlayerBgRenderer = "mesh" | "isolation" | "pixi";
 export type CoverLayout = "default" | "fullscreen";
 
 /**
@@ -16,6 +19,13 @@ export type CoverLayout = "default" | "fullscreen";
  * - current-remaining: 播放时间 / 剩余时间
  */
 export type TimeFormat = "current-total" | "remaining-total" | "current-remaining";
+
+/**
+ * 搜索页播放行为
+ * - current: 仅播放当前
+ * - all: 播放全部
+ */
+export type SearchPlayBehavior = "current" | "all";
 
 /**
  * 歌词来源偏好
@@ -63,6 +73,46 @@ export const DEFAULT_LYRIC_SOURCE_ORDER: LyricSourceOrder = [...ALL_PLATFORMS];
 /** 默认格式优先级 */
 export const DEFAULT_LYRIC_FORMAT_ORDER: LyricFormatOrder = [...DEFAULT_LYRIC_FORMAT_ORDER_SHARED];
 
+/** 侧边栏「我的歌单」分组 key（仅显隐，不参与排序） */
+export const SIDEBAR_GROUP_MY_PLAYLISTS = "group-my-playlists";
+
+/** 侧边栏「收藏的歌单」分组 key（仅显隐，不参与排序） */
+export const SIDEBAR_GROUP_SUBSCRIBED = "group-subscribed";
+
+/** 侧边栏导航分组（匿名分组，可命名；组间以分隔线或分组名区分） */
+export interface SidebarNavGroup {
+  /** 分组名，空字符串为未命名 */
+  name: string;
+  /** 是否在侧栏显示分组名 */
+  showName: boolean;
+  /** 组内导航项 key（路由路径） */
+  keys: string[];
+}
+
+/** 侧边栏歌单显示顺序（key 为歌单路由路径；空数组为自然顺序） */
+export interface SidebarPlaylistOrder {
+  /** 我的歌单 - 本地 */
+  myLocal: string[];
+  /** 我的歌单 - 在线 */
+  myOnline: string[];
+  /** 收藏的歌单 */
+  subscribed: string[];
+}
+
+/** 侧边栏导航项默认分组 */
+export const DEFAULT_SIDEBAR_NAV_GROUPS: SidebarNavGroup[] = [
+  {
+    name: "",
+    showName: false,
+    keys: ["/", "/library", "/artists/local", "/albums/local", "/folders", "/stats"],
+  },
+  {
+    name: "",
+    showName: false,
+    keys: ["/liked", "/favorites", "/cloud", "/download", "/streaming", "/history"],
+  },
+];
+
 /** 歌词设置 */
 export interface LyricSettings {
   /** 歌词来源偏好 */
@@ -99,12 +149,16 @@ export interface LyricSettings {
   fontFamilyChinese: string;
   /** 是否显示翻译歌词 */
   showTranslation: boolean;
-  /** 是否显示音译歌词 */
+  /** 是否显示词内注音 */
+  showRuby: boolean;
+  /** 是否显示逐行音译 */
   showRomanization: boolean;
-  /** AMLL 是否显示逐行音译 */
-  amllShowLineRomanization: boolean;
-  /** AMLL 是否显示逐词音译 */
-  amllShowWordRomanization: boolean;
+  /** 是否显示逐词音译 */
+  showWordRomanization: boolean;
+  /** 是否启用歌词缩放效果 */
+  enableScale: boolean;
+  /** 是否始终将背景行置于主行下方 */
+  bgAlwaysBelow: boolean;
   /** 逐字高亮效果 */
   enableWordHighlight: boolean;
   /** 逐字上浮动画 */
@@ -152,7 +206,6 @@ export interface LyricSettings {
   /** AMLL 歌词优化 */
   amllCleanUnintentionalOverlaps: boolean;
   amllTryAdvanceStartTime: boolean;
-  amllConvertExcessiveBackgroundLines: boolean;
   amllSyncMainAndBackgroundLines: boolean;
   amllNormalizeSpaces: boolean;
   amllResetLineTimestamps: boolean;
@@ -162,6 +215,8 @@ export interface LyricSettings {
 export interface PlayerSettings {
   /** 播放器背景类型 */
   playerBgType: PlayerBgType;
+  /** 流体背景渲染引擎 */
+  playerBgRenderer: PlayerBgRenderer;
   /** 流体背景帧率（fps） */
   playerBgFps: number;
   /** 流体背景流动速度 */
@@ -174,6 +229,8 @@ export interface PlayerSettings {
   playerBgBeat: boolean;
   /** 全屏播放器封面布局 */
   coverLayout: CoverLayout;
+  /** 播放页封面/歌词分栏占比（0-1，封面侧宽度） */
+  coverLyricRatio: number;
   /** 无歌词时自动居中封面并隐藏歌词区域 */
   autoCenterCover: boolean;
   /** 全屏播放器显示当前播放来源 */
@@ -186,6 +243,8 @@ export interface PlayerSettings {
   outputDevice: string | null;
   /** 切换输出设备时暂停播放 */
   pauseOnDeviceSwitch: boolean;
+  /** 是否为不同输出设备独立记忆音量 */
+  rememberDeviceVolume: boolean;
   /** 是否启用音乐频谱可视化 */
   enableSpectrum: boolean;
   /** 频谱单条宽度（px） */
@@ -208,6 +267,12 @@ export interface PlayerSettings {
   showLyricInBar: boolean;
   /** 播放时提前获取下一首的播放数据 */
   preloadNextTrack: boolean;
+  /** 相邻曲目的播放过渡方式 */
+  transitionMode: "none" | "crossfade";
+  /** 曲尾交接时机与淡化时长偏好 */
+  transitionPreference: TransitionPreference;
+  /** 搜索页播放行为 */
+  searchPlayBehavior: SearchPlayBehavior;
 }
 
 /** 外观设置 */
@@ -220,8 +285,16 @@ export interface AppearanceSettings {
   sidebarCollapsed: boolean;
   /** 侧边栏歌单项显示封面 */
   sidebarPlaylistCover: boolean;
-  /** 侧边栏显示播放统计入口 */
-  showStatsInSidebar: boolean;
+  /** 侧边栏导航分组（匿名分组，可命名；组间以分隔线或分组名区分） */
+  sidebarNavGroups: SidebarNavGroup[];
+  /** 侧边栏隐藏的导航项与歌单分组 */
+  sidebarHiddenKeys: string[];
+  /** 无可见项的分组是否保留分隔线（留白） */
+  sidebarKeepEmptyDivider: boolean;
+  /** 显示分组名时是否叠加分隔线 */
+  sidebarNameWithDivider: boolean;
+  /** 侧边栏歌单显示顺序 */
+  sidebarPlaylistOrder: SidebarPlaylistOrder;
   /** 播放栏显示快捷音质切换 */
   showQualitySwitch: boolean;
   /** 点击关闭按钮的行为 */
@@ -236,10 +309,10 @@ export interface AppearanceSettings {
 
 /** 强迫症设置 */
 export interface PresetSettings {
-  /** Fuck DJ Mode */
-  fuckDjMode: boolean;
-  /** Fuck ** Mode */
-  uncensorProfanity: boolean;
+  /** 跳过指定关键词歌曲 */
+  skipKeywordsSongs: boolean;
+  /** 跳过指定关键词列表 */
+  skipTrackKeywords: string[];
   /** 隐藏歌曲列表的 VIP 标签 */
   hideVipTag: boolean;
   /** 隐藏歌曲列表的音质标签 */

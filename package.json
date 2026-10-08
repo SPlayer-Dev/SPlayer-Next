@@ -1,8 +1,9 @@
 {
+  "$schema": "https://www.schemastore.org/package.json",
   "name": "splayer-next",
   "productName": "SPlayer-Next",
   "desktopName": "top.imsyy.splayer_next",
-  "version": "1.0.0",
+  "version": "1.2.0-beta.1",
   "description": "Cross-platform desktop music player with rich lyric support and wide audio format compatibility",
   "type": "module",
   "packageManager": "pnpm@11.5.2",
@@ -44,14 +45,15 @@
     "start": "electron-vite preview",
     "dev": "pnpm build:native --dev && tsx scripts/dev.ts",
     "build": "rimraf dist && pnpm build:native && pnpm typecheck && electron-vite build",
-    "postinstall": "electron-rebuild -f -w better-sqlite3",
+    "postinstall": "node node_modules/electron/install.js && electron-rebuild -f -w better-sqlite3",
     "build:unpack": "pnpm build && electron-builder --dir --config electron-builder.config.ts",
     "build:win": "pnpm build && tsx scripts/gen-license.ts && electron-builder --config electron-builder.config.ts --win",
     "build:mac": "pnpm build && electron-builder --config electron-builder.config.ts --mac",
     "build:linux": "pnpm build && electron-builder --config electron-builder.config.ts --linux",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:preview": "vitepress preview docs",
+    "prepare": "husky"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
@@ -62,15 +64,15 @@
     "better-sqlite3": "^13.0.3",
     "electron-log": "^5.4.4",
     "electron-updater": "^6.8.9",
-    "fast-xml-parser": "^5.10.1",
     "font-list": "^2.1.0",
     "hono": "^4.13.0",
+    "lyric-kit": "^0.6.0",
     "undici": "^8.10.0",
     "ws": "^8.21.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@applemusic-like-lyrics/core": "^0.5.2",
+    "@applemusic-like-lyrics/core": "^0.6.0",
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
     "@electron-toolkit/tsconfig": "^2.0.0",
     "@electron/rebuild": "^4.2.0",
@@ -97,11 +99,14 @@
     "electron": "~43.2.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
-    "eslint": "^9.39.4",
+    "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-vue": "^10.10.0",
+    "eslint-plugin-vue": "^10.11.0",
     "happy-dom": "^20.11.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.5.1",
     "localforage": "^1.10.0",
+    "lyric-dom": "^0.2.0",
     "marked": "^18.0.9",
     "pinia": "^4.0.2",
     "pinia-plugin-persistedstate": "^4.7.1",
@@ -120,9 +125,18 @@
     "vitepress": "2.0.0-alpha.15",
     "vitest": "^4.1.10",
     "vue": "^3.5.41",
-    "vue-eslint-parser": "^10.4.0",
+    "vue-eslint-parser": "^10.4.1",
     "vue-i18n": "^11.4.8",
     "vue-router": "^5.2.0",
     "vue-tsc": "^3.3.9"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,vue,mjs,cjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,yaml,yml,md,css,scss}": [
+      "prettier --write"
+    ]
   }
 }

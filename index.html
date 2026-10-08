@@ -50,57 +50,44 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 18px;
-        transform: translateZ(0);
+        gap: 24px;
       }
       .splash-logo {
-        width: 72px;
-        height: 72px;
-        will-change: transform, opacity;
-        animation:
-          splash-rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both,
-          splash-flicker 1.8s ease-in-out 0.5s infinite;
-      }
-      .splash-brand {
-        display: flex;
-        align-items: center;
-        gap: 10px;
+        width: 80px;
+        height: 80px;
+        filter: drop-shadow(
+          0 0 20px color-mix(in srgb, var(--splash-primary, #fe7971) 45%, transparent)
+        );
+        animation: splash-rise 0.6s cubic-bezier(0.33, 1, 0.68, 1) 0.1s both;
       }
       .splash-name {
         font-family: "logo", sans-serif;
-        font-size: 34px;
+        font-size: 36px;
         line-height: 1;
-        will-change: transform, opacity;
-        animation: splash-rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.12s both;
+        animation: splash-rise 0.6s cubic-bezier(0.33, 1, 0.68, 1) 0.26s both;
       }
-      .splash-next {
-        width: 98px;
-        height: 24px;
-        will-change: transform, opacity;
-        animation: splash-rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.24s both;
+      .splash-dots {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 65px;
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        animation: splash-rise 0.6s cubic-bezier(0.33, 1, 0.68, 1) 0.42s both;
       }
-      .splash-next .letter {
-        stroke: currentColor;
-        stroke-width: 10;
-        fill: none;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-        stroke-dasharray: 400;
-        stroke-dashoffset: 400;
-        will-change: stroke-dashoffset;
-        animation: splash-draw 1s ease forwards;
+      .splash-dots i {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--splash-primary, #fe7971);
+        animation: splash-dot 1.1s ease-in-out infinite;
       }
-      .splash-next .letter:nth-child(1) {
-        animation-delay: 0.2s;
+      .splash-dots i:nth-child(2) {
+        animation-delay: 0.18s;
       }
-      .splash-next .letter:nth-child(2) {
-        animation-delay: 0.45s;
-      }
-      .splash-next .letter:nth-child(3) {
-        animation-delay: 0.7s;
-      }
-      .splash-next .letter:nth-child(4) {
-        animation-delay: 0.95s;
+      .splash-dots i:nth-child(3) {
+        animation-delay: 0.36s;
       }
       .splash-footer {
         position: absolute;
@@ -112,53 +99,61 @@
         font-family:
           -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei",
           sans-serif;
-        animation: splash-rise-footer 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.36s both;
+        animation: splash-rise-footer 0.6s cubic-bezier(0.33, 1, 0.68, 1) 0.5s both;
       }
       @keyframes splash-rise {
         from {
           opacity: 0;
-          transform: translateY(12px);
+          transform: translateY(16px) scale(0.97);
         }
         to {
           opacity: 1;
-          transform: translateY(0);
+          transform: translateY(0) scale(1);
         }
       }
       @keyframes splash-rise-footer {
         from {
           opacity: 0;
-          transform: translateY(12px);
+          transform: translateY(16px) scale(0.97);
         }
         to {
           opacity: 0.4;
+          transform: translateY(0) scale(1);
+        }
+      }
+      @keyframes splash-dot {
+        0%,
+        70%,
+        100% {
+          opacity: 0.25;
           transform: translateY(0);
         }
-      }
-      @keyframes splash-flicker {
-        0%,
-        100% {
+        35% {
           opacity: 1;
-        }
-        50% {
-          opacity: 0.6;
-        }
-      }
-      @keyframes splash-draw {
-        to {
-          stroke-dashoffset: 0;
+          transform: translateY(-3px);
         }
       }
     </style>
     <script>
-      // 记录 splash 动画起点
-      window.__splashStart = performance.now();
-      // 确定明暗模式
+      // 确定明暗模式与主色
       (function () {
         let mode = "system";
+        let primary = "#fe7971";
         try {
           const raw = localStorage.getItem("theme");
-          if (raw) mode = JSON.parse(raw).mode || "system";
+          if (raw) {
+            const theme = JSON.parse(raw);
+            mode = theme.mode || "system";
+            if (
+              theme.source === "custom" &&
+              typeof theme.customColor === "string" &&
+              theme.customColor.startsWith("#")
+            ) {
+              primary = theme.customColor;
+            }
+          }
         } catch (e) {}
+        document.documentElement.style.setProperty("--splash-primary", primary);
         const isDark =
           mode === "dark" ||
           (mode === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
@@ -171,18 +166,12 @@
     <div id="app-loading">
       <div class="splash">
         <img src="/icons/logo.svg" alt="SPlayer" class="splash-logo" />
-        <div class="splash-brand">
-          <span class="splash-name">SPlayer</span>
-          <svg class="splash-next" viewBox="15 15 450 110" aria-hidden="true">
-            <path d="M20 120 L20 20 L100 120 L100 20" class="letter" />
-            <path
-              d="M140 20 L140 120 M140 20 L220 20 M140 70 L200 70 M140 120 L220 120"
-              class="letter"
-            />
-            <path d="M260 20 L340 120 M340 20 L260 120" class="letter" />
-            <path d="M380 20 L460 20 M420 20 L420 120" class="letter" />
-          </svg>
-        </div>
+        <div class="splash-name">SPlayer Next</div>
+      </div>
+      <div class="splash-dots">
+        <i></i>
+        <i></i>
+        <i></i>
       </div>
       <div class="splash-footer">SPlayer Next · © 2026 imsyy</div>
     </div>

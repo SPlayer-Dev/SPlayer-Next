@@ -7,9 +7,10 @@
     "installNow": "立即重启安装",
     "goDownload": "前往下载页",
     "goStore": "前往商店更新",
-    "upToDate": "已是最新版本",
+    "upToDate": "当前通道暂无更高版本",
     "readyToast": "更新已就绪，可重启安装",
-    "failed": "更新失败，请稍后重试"
+    "failed": "更新失败，请稍后重试",
+    "installing": "正在启动安装程序"
   },
   "onboarding": {
     "next": "下一步",
@@ -94,6 +95,7 @@
     "delete": "删除",
     "enable": "启用",
     "enabled": "已启用",
+    "disabled": "未启用",
     "active": "已启用",
     "saveAndRelaunch": "保存并重启",
     "reset": "重置",
@@ -205,6 +207,10 @@
       "copy": "复制",
       "paste": "粘贴",
       "pasteSearch": "粘贴并搜索"
+    },
+    "menu": {
+      "hideFromSidebar": "在侧边栏中隐藏",
+      "customizeSidebar": "自定义侧边栏"
     },
     "link": {
       "song": "直接播放「{id}」",
@@ -447,6 +453,7 @@
   "player": {
     "prev": "上一首",
     "next": "下一首",
+    "transitioning": "过渡",
     "heartMode": {
       "needLogin": "登录后才能使用心动模式",
       "noSeed": "暂无可用的心动种子歌曲",
@@ -558,6 +565,10 @@
     }
   },
   "quality": {
+    "outputInfo": "输出信息",
+    "outputSection": "输出信息",
+    "outputMode": "输出模式",
+    "dspSection": "音频处理",
     "details": "音质详情",
     "codec": "编码格式",
     "sampleRate": "采样率",
@@ -566,7 +577,10 @@
     "channels": "声道",
     "stereo": "立体声",
     "mono": "单声道",
-    "multiChannel": "多声道"
+    "multiChannel": "多声道",
+    "tempoPitch": "变速变调",
+    "limiter": "输出限幅器",
+    "resampling": "重采样"
   },
   "playlist": {
     "title": "播放列表",
@@ -729,8 +743,8 @@
       "community": "社区与资讯",
       "update": "更新",
       "language": "语言",
-      "playback": "播放器",
       "playControl": "播放控制",
+      "playbackTransition": "播放过渡",
       "audioSource": "播放音源",
       "scrobble": "听歌打卡",
       "lyricContent": "歌词内容",
@@ -748,6 +762,8 @@
       "appearanceStyle": "外观风格",
       "layout": "布局",
       "font": "字体",
+      "playerBar": "播放栏",
+      "nowPlaying": "播放页",
       "media": "媒体控制",
       "device": "输出设备",
       "hotkeys": "快捷键",
@@ -793,13 +809,23 @@
       "label": "自动播放",
       "description": "加载歌曲后自动开始播放"
     },
-    "fuckDjMode": {
-      "label": "Fuck DJ Mode",
-      "description": "歌曲名字带有 DJ 抖音 0.9 0.8 网红 车载 热歌 慢摇 自动跳过"
+    "skipKeywordsSongs": {
+      "label": "跳过指定关键词歌曲",
+      "description": "检测到歌曲标题或歌手名包含指定关键词时自动跳过",
+      "button": "管理",
+      "enable": "启用跳过关键词歌曲",
+      "enableDesc": "播放时若命中关键词列表则自动跳至下一首"
     },
-    "uncensorProfanity": {
-      "label": "Fuck ** Mode",
-      "description": "把歌词里的 f**k 等屏蔽词还原为原词"
+    "skipKeywordsRules": {
+      "label": "关键词列表",
+      "description": "自定义需要跳过的歌曲关键词列表",
+      "button": "管理",
+      "hint": "当歌曲标题或歌手名包含以下关键词时将自动跳过",
+      "placeholder": "输入关键词",
+      "add": "添加",
+      "clear": "清空当前列表",
+      "empty": "尚未配置任何关键词",
+      "duplicate": "已存在该关键词"
     },
     "hideVipTag": {
       "label": "隐藏 VIP 标签",
@@ -816,6 +842,12 @@
     "rememberLastTrack": {
       "label": "记忆播放进度",
       "description": "启动时恢复上次歌曲的播放进度"
+    },
+    "searchPlayBehavior": {
+      "label": "搜索页播放行为",
+      "description": "设置在搜索页面双击歌曲时的播放与添加策略",
+      "current": "仅播放当前",
+      "all": "播放全部"
     },
     "showLyricInBar": {
       "label": "播放时显示歌词",
@@ -837,6 +869,19 @@
       "label": "音量均衡",
       "description": "自动调节不同歌曲之间的音量差异"
     },
+    "transitionMode": {
+      "label": "过渡方式",
+      "description": "调整歌曲在交替时的播放效果",
+      "none": "无过渡",
+      "crossfade": "交叉过渡"
+    },
+    "transitionPreference": {
+      "label": "交接倾向",
+      "description": "调整曲尾交接时机和过渡长度，积极档更早、更长",
+      "conservative": "保守",
+      "standard": "标准",
+      "eager": "积极"
+    },
     "songLevel": {
       "label": "在线歌曲音质",
       "description": "在线歌曲的音质偏好，取决于账号实际可用级别",
@@ -855,12 +900,27 @@
     },
     "preloadNextTrack": {
       "label": "预载下一首歌曲",
-      "description": "提前获取下一首的播放信息，可能会增加网络占用"
+      "description": "提前缓存并解码下一曲，可能会增加网络占用"
     },
     "outputDevice": {
       "label": "输出设备",
       "description": "选择音频输出设备",
       "default": "系统默认"
+    },
+    "rememberDeviceVolume": {
+      "label": "独立设备音量记忆",
+      "description": "切换或插拔不同音频输出设备时，分别保存并恢复各自的音量大小"
+    },
+    "audioOutputMode": {
+      "label": "音频输出模式",
+      "description": "切换当前 Windows WASAPI 音频的输出模式",
+      "shared": "共享模式",
+      "exclusive": "WASAPI 独占模式",
+      "fallback": {
+        "deviceBusy": "设备无法以独占模式打开，已回退共享模式",
+        "formatUnsupported": "设备不支持独占模式所需的音频格式，已回退共享模式",
+        "unavailable": "独占模式暂不可用，已回退共享模式"
+      }
     },
     "pauseOnDeviceSwitch": {
       "label": "切换时暂停播放",
@@ -1044,7 +1104,11 @@
       "testChannelTitle": "切换到测试通道",
       "testChannelContent": "Beta 与 Alpha 通道会提前收到测试版本，其中 Alpha 版本可能非常不稳定。确定切换吗？",
       "kugouLoginVersionTitle": "切换 KG 登录版本",
-      "kugouLoginVersionContent": "切换后当前登录凭据与新版本不匹配，需退出登录并重新扫码，否则会员权益与高音质解析会失效。确定切换吗？"
+      "kugouLoginVersionContent": "切换后当前登录凭据与新版本不匹配，需退出登录并重新扫码，否则会员权益与高音质解析会失效。确定切换吗？",
+      "exclusiveModeTitle": "切换到独占模式",
+      "exclusiveModeContent": "独占模式绕过系统混音器，优先使用音源采样率与位深，适合外接 DAC / Hi-Fi 设备。播放器的音量、均衡器等处理仍然生效，不保证逐位无损输出。独占期间其他应用可能无法播放声音；独占不可用时会尝试共享模式，若设备被其他应用独占，共享模式也可能无法播放。确定切换吗？",
+      "preloadCacheTitle": "开启预载所需的缓存？",
+      "preloadCacheContent": "歌曲预载需要缓存下一首音频。继续将同时开启歌曲缓存和流媒体缓存，可能增加网络流量和磁盘占用"
     },
     "useAMSpring": {
       "label": "弹簧动画调试开关",
@@ -1089,10 +1153,6 @@
     "amllTryAdvanceStartTime": {
       "label": "提前入场动画",
       "description": "尝试让歌词入场动画提前开始（最多 1 秒），使过渡更加平滑"
-    },
-    "amllConvertExcessiveBackgroundLines": {
-      "label": "合并背景人声",
-      "description": "将多行连续背景人声转换为单行背景人声与主歌词行的形式"
     },
     "amllSyncMainAndBackgroundLines": {
       "label": "同步背景人声时间",
@@ -1141,17 +1201,25 @@
       "label": "显示翻译",
       "description": "显示歌词的翻译文本"
     },
-    "showRomanization": {
-      "label": "显示音译",
-      "description": "显示歌词的音译文本"
+    "showRuby": {
+      "label": "显示词内注音",
+      "description": "显示歌词中汉字词语的假名或拼音注音"
     },
-    "amllShowLineRomanization": {
+    "showRomanization": {
       "label": "显示逐行音译",
       "description": "显示歌词行的音译文本"
     },
-    "amllShowWordRomanization": {
+    "showWordRomanization": {
       "label": "显示逐词音译",
       "description": "在逐字歌词中，显示每个字词的音译文本"
+    },
+    "enableScale": {
+      "label": "歌词缩放",
+      "description": "聚焦播放行，非激活行轻微缩小"
+    },
+    "bgAlwaysBelow": {
+      "label": "背景歌词置于下方",
+      "description": "始终将背景和声歌词显示在主歌词行下方"
     },
     "enableWordHighlight": {
       "label": "逐字高亮",
@@ -1424,6 +1492,13 @@
       "solid": "纯色",
       "animation": "流体"
     },
+    "playerBgRenderer": {
+      "label": "渲染引擎",
+      "description": "选择流体背景渲染引擎",
+      "mesh": "网格渐变渲染器",
+      "isolation": "isolation 渲染器",
+      "pixi": "PixiJS 渲染器"
+    },
     "playerBgFlowSpeed": {
       "label": "流动速度",
       "description": "流体背景的动画流动速度"
@@ -1449,6 +1524,10 @@
       "description": "全屏播放器封面的呈现方式",
       "default": "默认",
       "fullscreen": "全屏封面"
+    },
+    "coverLyricRatio": {
+      "label": "封面/歌词占比",
+      "description": "播放页封面与歌词区域的宽度比例"
     },
     "themeMode": {
       "label": "主题模式",
@@ -1521,9 +1600,22 @@
       "label": "歌单显示封面",
       "description": "侧边栏的歌单项以歌单封面替代默认图标"
     },
-    "showStatsInSidebar": {
-      "label": "显示播放统计入口",
-      "description": "在侧边栏显示播放统计页面入口"
+    "sidebarCustomize": {
+      "label": "自定义侧边栏",
+      "description": "调整侧边栏导航项的分组、顺序与显示",
+      "hint": "拖动手柄调整顺序与分组，点击眼睛切换显示",
+      "nav": "导航项",
+      "groups": "歌单分组",
+      "group": "分组 {n}",
+      "addGroup": "新增分组",
+      "emptyGroup": "拖动导航项到此处",
+      "noPlaylists": "暂无歌单",
+      "keepEmptyDivider": "空分组保留分隔线",
+      "nameWithDivider": "分组名与分隔线叠加显示",
+      "showName": "在侧栏显示分组名",
+      "confirmResetTitle": "确认恢复默认？",
+      "confirmResetDesc": "分组、命名、排序与显隐都将重置为默认！",
+      "featureDisabled": "功能未开启"
     },
     "showQualitySwitch": {
       "label": "显示快捷音质切换",
@@ -1648,14 +1740,11 @@
     },
     "updateChannel": {
       "label": "更新通道",
-      "description": "选择正式版、Beta 预览版或 Alpha 内测版更新",
+      "description": "选择接收更新的通道，切换通道不会自动降级",
       "stable": "正式版",
       "beta": "Beta 预览版",
-      "alpha": "Alpha 内测版"
-    },
-    "checkUpdate": {
-      "label": "检查更新",
-      "description": "立即检查是否有新版本"
+      "alpha": "Alpha 内测版",
+      "nightly": "Nightly 持续构建"
     },
     "showPerformanceMonitor": {
       "label": "性能监视器",

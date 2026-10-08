@@ -110,6 +110,7 @@ const handleSelect = (item: SMenuItem) => {
       >
         <div
           :ref="(el) => setItemEl(item.key, el)"
+          :data-menu-key="item.key"
           class="relative flex items-center rounded-lg cursor-pointer select-none overflow-hidden whitespace-nowrap transition-[background-color,color,height,padding] duration-250"
           :class="[
             item.showCover ? sizeClass.coverItem : sizeClass.item,
