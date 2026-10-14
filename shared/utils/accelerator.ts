@@ -39,6 +39,8 @@ const keyToCode = (token: string): string => {
   if (/^[A-Za-z]$/.test(t)) return `Key${t.toUpperCase()}`;
   // 数字
   if (/^[0-9]$/.test(t)) return `Digit${t}`;
+  // Electron 的 num0-num9 对应独立的小键盘物理键码。
+  if (/^num[0-9]$/i.test(t)) return `Numpad${t.slice(3)}`;
   // 方向键
   const arrow: Record<string, string> = {
     left: "ArrowLeft",
@@ -220,6 +222,8 @@ export const formatAccelerator = (accel: string | null, isMac: boolean): string 
       out.push(isMac ? "↵" : "Enter");
     } else if (lower === "space" || lower === "spacebar") {
       out.push("Space");
+    } else if (/^num[0-9]$/.test(lower)) {
+      out.push(`Numpad${lower.slice(3)}`);
     } else if (/^[a-z]$/.test(lower)) {
       out.push(lower.toUpperCase());
     } else {
@@ -250,10 +254,11 @@ export const eventToAccelerator = (event: KeyboardEvent, isMac: boolean): string
     event.code === "OSRight";
   if (isModifierKey) return null;
 
-  // 按 code 反向算 token
+  /** 将物理键码转换为 Electron 支持的 key token。 */
   const codeToToken = (code: string): string => {
     if (code.startsWith("Key")) return code.slice(3); // KeyA → A
     if (code.startsWith("Digit")) return code.slice(5);
+    if (/^Numpad[0-9]$/.test(code)) return `num${code.slice(6)}`;
     if (code.startsWith("Arrow")) return code.slice(5); // ArrowLeft → Left
     if (code.startsWith("F") && /^F[0-9]+$/.test(code)) return code; // F1
     const map: Record<string, string> = {
