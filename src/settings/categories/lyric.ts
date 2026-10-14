@@ -120,6 +120,17 @@ const lyricCategory: SettingCategory = {
               component: LocalLyricRepoConfig,
               binding: { store: "settings", path: "system.localLyric.repoDir" },
             },
+            {
+              key: "localLyricMatchLevel",
+              type: "select",
+              binding: { store: "settings", path: "system.localLyric.matchLevel" },
+              options: [
+                { value: "strict", labelKey: "settings.localLyricMatchLevel.strict" },
+                { value: "standard", labelKey: "settings.localLyricMatchLevel.standard" },
+                { value: "loose", labelKey: "settings.localLyricMatchLevel.loose" },
+              ],
+              defaultValue: "standard",
+            },
           ],
         },
       ],
