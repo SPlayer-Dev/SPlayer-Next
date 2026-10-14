@@ -172,6 +172,8 @@ export const normalizeAccelerator = (accel: string): string => {
   if (!key) return "";
   // 字母统一大写
   if (/^[a-z]$/.test(key)) key = key.toUpperCase();
+  // 兼容旧版应用内保存的 Numpad 标识，使冲突检查按同一物理键比较。
+  if (/^(?:num|numpad)[0-9]$/i.test(key)) key = `num${key.slice(-1)}`;
   const parts: string[] = [];
   if (mods.cmdOrCtrl) parts.push("CommandOrControl");
   if (mods.cmd) parts.push("Cmd");

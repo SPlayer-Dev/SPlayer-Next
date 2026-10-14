@@ -796,6 +796,7 @@ const api = {
       ipcRenderer.invoke("hotkey:set", id, binding),
     reset: (id?: HotkeyActionId) => ipcRenderer.invoke("hotkey:reset", id),
     setGlobalEnabled: (enabled: boolean) => ipcRenderer.invoke("hotkey:setGlobalEnabled", enabled),
+    setRecording: (recording: boolean) => ipcRenderer.invoke("hotkey:setRecording", recording),
     probe: (accelerator: string) => ipcRenderer.invoke("hotkey:probe", accelerator),
     getConflicts: () => ipcRenderer.invoke("hotkey:getConflicts"),
     onTrigger: (callback: (id: HotkeyActionId) => void) =>

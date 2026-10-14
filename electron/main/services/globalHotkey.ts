@@ -23,6 +23,8 @@ import { defaultHotkeyConfig, HOTKEY_ACTIONS } from "@shared/defaults/hotkeys";
 import { normalizeAccelerator } from "@shared/utils/accelerator";
 
 let conflicts: HotkeyConflict[] = [];
+let recordingSuspended = false;
+let registrationVersion = 0;
 
 /** 取当前完整配置（store 兜底默认） */
 const readConfig = (): HotkeyConfig => {
@@ -45,6 +47,7 @@ const writeConfig = (next: HotkeyConfig): HotkeyConfig => {
 
 /** 卸载所有 globalShortcut + 清空冲突 */
 const unregisterAll = (): void => {
+  registrationVersion++;
   globalShortcut.unregisterAll();
   conflicts = [];
 };
@@ -57,11 +60,12 @@ const unregisterAll = (): void => {
 const applyAll = (): void => {
   unregisterAll();
   const config = readConfig();
-  if (!config.globalEnabled) {
+  if (!config.globalEnabled || recordingSuspended) {
     broadcast("hotkey:conflicts", conflicts);
     return;
   }
   const seenAccel = new Map<string, HotkeyActionId>();
+  const currentVersion = registrationVersion;
   const ids = Object.keys(config.bindings) as HotkeyActionId[];
 
   for (const id of ids) {
@@ -87,7 +91,9 @@ const applyAll = (): void => {
 
     try {
       const ok = globalShortcut.register(norm, () => {
-        broadcast("hotkey:trigger", id);
+        if (!recordingSuspended && currentVersion === registrationVersion) {
+          broadcast("hotkey:trigger", id);
+        }
       });
       if (ok) {
         seenAccel.set(norm, id);
@@ -113,6 +119,16 @@ export const initGlobalHotkey = (): void => {
 /** 退出清理 */
 export const cleanupGlobalHotkey = (): void => {
   unregisterAll();
+};
+
+/**
+ * 录入时临时解除全局注册，让按键进入录入框，不修改持久化的总开关。
+ * @param suspended - 是否暂停全局快捷键
+ */
+export const setGlobalHotkeySuspended = (suspended: boolean): void => {
+  if (recordingSuspended === suspended) return;
+  recordingSuspended = suspended;
+  applyAll();
 };
 
 /** 当前冲突列表 */

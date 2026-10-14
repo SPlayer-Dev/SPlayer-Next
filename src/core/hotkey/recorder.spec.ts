@@ -3,6 +3,7 @@ import {
   eventToAccelerator,
   formatAccelerator,
   matchParsed,
+  normalizeAccelerator,
   parseAccelerator,
 } from "@shared/utils/accelerator";
 import { useHotkeyRecorder } from "./recorder";
@@ -116,6 +117,7 @@ describe("小键盘数字快捷键", () => {
 
   it("不区分 Electron 小键盘标识大小写并在显示时区分主键盘数字", () => {
     expect(parseAccelerator("Ctrl+Alt+NUM3", false)?.code).toBe("Numpad3");
+    expect(normalizeAccelerator("CommandOrControl+Alt+Numpad3")).toBe("CommandOrControl+Alt+num3");
     expect(formatAccelerator("CommandOrControl+Alt+num3", false)).toBe("Ctrl + Alt + Numpad3");
     expect(formatAccelerator("CommandOrControl+Alt+3", false)).toBe("Ctrl + Alt + 3");
   });
