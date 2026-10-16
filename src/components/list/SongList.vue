@@ -515,6 +515,7 @@ defineExpose({
                 </div>
               </div>
               <div v-if="showAlbum" class="flex-1 min-w-0">{{ t("songList.album") }}</div>
+              <slot name="extraHeader" />
               <div class="shrink-0 text-center text-xs leading-6" style="min-width: fit-content">
                 {{ t("songList.actions") }}
               </div>
@@ -699,6 +700,7 @@ defineExpose({
                   {{ item.album?.name || t("collection.unknownAlbum") }}
                 </span>
               </div>
+              <slot name="extra" :item="item" />
               <!-- 收藏 -->
               <div
                 v-if="!batch.active.value && item.source !== 'plugin'"
