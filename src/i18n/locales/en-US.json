@@ -1190,11 +1190,11 @@
     },
     "adaptiveFontSize": {
       "label": "Adaptive Font Size",
-      "description": "Auto-adjust lyric font size based on window size"
+      "description": "Auto-adjust lyric font size based on window height"
     },
     "fontSize": {
       "label": "Font Size",
-      "description": "Effective when adaptive is off"
+      "description": "Font size of main lyric lines; used as the base size (1080p) when adaptive is on"
     },
     "translationFontSize": {
       "label": "Translation Font Size",

@@ -1178,11 +1178,11 @@
     },
     "adaptiveFontSize": {
       "label": "自适应字号",
-      "description": "歌词字号根据窗口大小自动调整"
+      "description": "歌词字号根据窗口高度自动调整"
     },
     "fontSize": {
       "label": "歌词字号",
-      "description": "关闭自适应后生效"
+      "description": "歌词主行的字号，自适应开启时作为基准大小 (以 1080p 高度为准)"
     },
     "translationFontSize": {
       "label": "翻译/音译字号",
