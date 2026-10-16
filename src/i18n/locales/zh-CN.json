@@ -22,10 +22,22 @@
       "subtitle": "一个现代化的桌面音乐播放器，完成几步设置即可开始享用",
       "start": "开始设置",
       "features": {
-        "local": { "title": "本地音乐库", "desc": "扫描本地目录，自动整理音乐库" },
-        "quality": { "title": "无损音质", "desc": "原生音频引擎，支持多种无损格式" },
-        "streaming": { "title": "流媒体服务器", "desc": "Subsonic / Jellyfin / Emby 等" },
-        "lyrics": { "title": "丰富歌词体验", "desc": "AMLL 逐字歌词，桌面歌词、灵动岛、任务栏歌词" }
+        "local": {
+          "title": "本地音乐库",
+          "desc": "扫描本地目录，自动整理音乐库"
+        },
+        "quality": {
+          "title": "无损音质",
+          "desc": "原生音频引擎，支持多种无损格式"
+        },
+        "streaming": {
+          "title": "流媒体服务器",
+          "desc": "Subsonic / Jellyfin / Emby 等"
+        },
+        "lyrics": {
+          "title": "丰富歌词体验",
+          "desc": "AMLL 逐字歌词，桌面歌词、灵动岛、任务栏歌词"
+        }
       }
     },
     "agreement": {
@@ -1503,6 +1515,10 @@
       "label": "逐字高亮",
       "description": "按单词进度逐字渲染高亮"
     },
+    "taskbarLyricProgressPoint": {
+      "label": "进度点位置",
+      "description": "歌词溢出滚动时进度点在窗口中的水平位置"
+    },
     "playerBgType": {
       "label": "播放器背景",
       "description": "全屏播放器的背景类型",
@@ -2032,9 +2048,18 @@
         "homepage": "主页"
       },
       "grant": {
-        "network": { "label": "联网", "desc": "插件可发起网络请求" },
-        "control": { "label": "控制", "desc": "插件可控制播放器" },
-        "ui": { "label": "界面", "desc": "插件可扩展或修改应用界面" }
+        "network": {
+          "label": "联网",
+          "desc": "插件可发起网络请求"
+        },
+        "control": {
+          "label": "控制",
+          "desc": "插件可控制播放器"
+        },
+        "ui": {
+          "label": "界面",
+          "desc": "插件可扩展或修改应用界面"
+        }
       }
     },
     "pluginManager": {

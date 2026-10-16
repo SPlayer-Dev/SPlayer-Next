@@ -1515,6 +1515,10 @@
       "label": "Word by Word",
       "description": "Render highlight progress per word"
     },
+    "taskbarLyricProgressPoint": {
+      "label": "Progress Point Position",
+      "description": "Horizontal position of the progress point when the lyric scrolls"
+    },
     "playerBgType": {
       "label": "Player Background",
       "description": "Background type of the full-screen player",
@@ -2044,9 +2048,18 @@
         "homepage": "Homepage"
       },
       "grant": {
-        "network": { "label": "Network", "desc": "Can make network requests" },
-        "control": { "label": "Control", "desc": "Can control the player" },
-        "ui": { "label": "Interface", "desc": "Can extend or modify the app interface" }
+        "network": {
+          "label": "Network",
+          "desc": "Can make network requests"
+        },
+        "control": {
+          "label": "Control",
+          "desc": "Can control the player"
+        },
+        "ui": {
+          "label": "Interface",
+          "desc": "Can extend or modify the app interface"
+        }
       }
     },
     "pluginManager": {

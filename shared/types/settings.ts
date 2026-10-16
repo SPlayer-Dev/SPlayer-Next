@@ -216,6 +216,8 @@ export interface TaskbarLyricSettings {
   fontWeight: number;
   /** 字体 */
   fontFamily: string;
+  /** 进度点在溢出滚动窗口中的水平位置比例*/
+  progressPoint: number;
 }
 
 /** 音乐库配置 */
