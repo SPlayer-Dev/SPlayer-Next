@@ -76,6 +76,55 @@ If normal mouse dragging does not work, enable **Settings → External Lyrics �
 
 Click-through while locked is a known issue; Xwayland may help.
 
+## Keep the Dynamic Island centered on Niri
+
+On Niri, changing the lyric window's width may not apply the new position requested by Electron. The optional repository helper [`scripts/niri-island-center.mjs`](https://github.com/SPlayer-Dev/SPlayer-Next/blob/dev/scripts/niri-island-center.mjs) keeps the Island at the **horizontal center of its own output**, preserving its vertical position. It is specific to Niri and does not change window behavior on KDE, GNOME, Windows, or macOS.
+
+Requirements: Node.js 22 or newer and Niri IPC with window `layout` information. Tested on Niri 26.04. Only floating windows with app ID `top.imsyy.splayer_next` and title `Dynamic Island` are matched; the main player and desktop lyric windows are excluded.
+
+Run from the repository directory:
+
+```bash
+node scripts/niri-island-center.mjs
+```
+
+Keep the terminal open, enable the Island, and play a song. Press `Ctrl+C` to stop and restore the original positioning behavior. The helper does not modify player settings.
+
+If the Island does not float automatically, add this Niri rule:
+
+```kdl
+window-rule {
+    match app-id=r"^top\.imsyy\.splayer_next$" title="^Dynamic Island$"
+    open-floating true
+}
+```
+
+To start at login, copy the script to a permanent location:
+
+```bash
+mkdir -p ~/.local/share/splayer-next
+cp scripts/niri-island-center.mjs ~/.local/share/splayer-next/
+```
+
+Add the following line to the Niri configuration, replacing `/home/your-user` with your home directory:
+
+```kdl
+spawn-at-startup "node" "/home/your-user/.local/share/splayer-next/niri-island-center.mjs"
+```
+
+This takes effect at the next login; run the `node` command manually for the current session. Run only one instance. Stop the helper and remove the startup entry to uninstall it.
+
+The helper subscribes to Niri events without polling or spawning external commands. It reads current window, workspace, and output geometry for each correction and uses compositor logical coordinates for multiple outputs and scaling. Window sizes and mouse input regions are preserved. Horizontal dragging is recentered; vertical dragging still works.
+
+> [!NOTE]
+> Niri 26.04 animates floating-window moves larger than 10 logical pixels. Corrections are split into consecutive small moves to avoid an additional spring animation during lyric transitions. This threshold is a Niri implementation detail; revalidate after upgrading Niri if transient movement returns. The helper does not fix Wayland click-through or cross-workspace stacking limitations. Missing layout information is skipped, and IPC connection errors stop the helper.
+
+Run the standalone tests with:
+
+```bash
+node --test scripts/niri-island-center.test.mjs
+```
+
 ## Global shortcuts
 
 On native Wayland, Electron registers global shortcuts through `xdg-desktop-portal`. New shortcuts should trigger a permission request when the app starts. KDE lists them under **System Settings → Keyboard → Shortcuts → SPlayer-Next**.
