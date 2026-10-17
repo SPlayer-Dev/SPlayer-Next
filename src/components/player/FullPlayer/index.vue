@@ -194,8 +194,9 @@ const toggleLyric = (): void => {
   }
 };
 
-const showComments = (): void => {
-  if (displayTrack.value) status.showComments(displayTrack.value);
+/** 切换全屏内嵌评论，与播放队列互斥 */
+const toggleFullComments = (): void => {
+  status.toggleFullComments();
 };
 </script>
 
@@ -397,7 +398,8 @@ const showComments = (): void => {
               size="large"
               circle
               :disabled="!hasTrack"
-              @click="showComments"
+              :class="status.fullCommentsOpen ? 'opacity-100' : 'opacity-40'"
+              @click="toggleFullComments"
             >
               <template #icon><IconLucideMessageCircle /></template>
             </SButton>

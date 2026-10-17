@@ -1,10 +1,4 @@
-import type {
-  PlayerState,
-  AudioDevice,
-  RepeatMode,
-  ShuffleMode,
-  Track,
-} from "@shared/types/player";
+import type { PlayerState, AudioDevice, RepeatMode, ShuffleMode } from "@shared/types/player";
 import type { Platform } from "@shared/types/platform";
 import type { ContentScope } from "@/types/collection";
 import type { SortField, SortOrder } from "@/types/list";
@@ -38,12 +32,10 @@ export const useStatusStore = defineStore(
     const fullQueueOpen = ref(false);
     /** 搜索弹窗状态 */
     const searchOpen = ref(false);
-    /** 评论弹窗状态 */
-    const commentsOpen = ref(false);
-    /** 评论弹窗当前歌曲 */
-    const commentsTrack = shallowRef<Track | null>(null);
     /** 音频输出信息弹窗状态 */
     const audioInfoOpen = ref(false);
+    /** 全屏播放器内嵌评论开关 */
+    const fullCommentsOpen = ref(false);
     /** 全屏播放器是否展示歌词 */
     const showLyric = ref(true);
     /** 当前播放索引 */
@@ -111,11 +103,16 @@ export const useStatusStore = defineStore(
     /** 当前队列项对应的播放来源上下文 */
     const currentPlaybackContext = computed(() => queue.getQueueItem(playIndex.value)?.context);
 
-    /** 打开指定歌曲评论 */
-    const showComments = (track: Track): void => {
-      commentsTrack.value = track;
-      commentsOpen.value = true;
+    /** 切换全屏播放器内嵌评论，与播放队列互斥 */
+    const toggleFullComments = (): void => {
+      if (fullQueueOpen.value) fullQueueOpen.value = false;
+      fullCommentsOpen.value = !fullCommentsOpen.value;
     };
+
+    // 播放队列打开时收起评论，覆盖所有打开队列的入口
+    watch(fullQueueOpen, (open) => {
+      if (open) fullCommentsOpen.value = false;
+    });
 
     return {
       state,
@@ -133,9 +130,9 @@ export const useStatusStore = defineStore(
       outerQueueOpen,
       fullQueueOpen,
       searchOpen,
-      commentsOpen,
-      commentsTrack,
       audioInfoOpen,
+      fullCommentsOpen,
+      toggleFullComments,
       showLyric,
       outputDevices,
       playIndex,
@@ -159,7 +156,6 @@ export const useStatusStore = defineStore(
       currentTrack,
       currentIndex,
       currentPlaybackContext,
-      showComments,
     };
   },
   {

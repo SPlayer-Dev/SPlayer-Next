@@ -130,14 +130,12 @@
   },
   "comments": {
     "name": "Song Comments",
-    "title": "Comments for \"{name}\"",
     "hot": "Top Comments",
     "new": "Latest Comments",
     "loading": "Loading comments...",
     "empty": "No comments yet",
     "noSource": "No comment source available",
     "location": "From {location}",
-    "page": "Page {page} / {total}",
     "creator": "Creator Says",
     "creatorBadge": "Creator",
     "playTrack": "Play Track"
