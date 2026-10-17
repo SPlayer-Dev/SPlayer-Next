@@ -13,11 +13,15 @@ import type { WSContext } from "hono/ws";
 import { serverLog } from "@main/utils/logger";
 import { playerControl } from "@main/services/playerControl";
 import { addWsClient, removeWsClient, getWsClientCount } from "./broadcast";
+import { subscribeDisplay, unsubscribeDisplay } from "./display";
 
 interface ClientMessage {
   op: string;
   positionMs?: number;
   volume?: number;
+  visible?: boolean;
+  spectrum?: boolean;
+  clientTime?: number;
 }
 
 const ack = (ws: WSContext, op: string): void => {
@@ -31,6 +35,20 @@ const fail = (ws: WSContext, op: string, error: string): void => {
 const dispatchCommand = async (ws: WSContext, msg: ClientMessage): Promise<void> => {
   try {
     switch (msg.op) {
+      case "subscribe-display":
+        if (msg.visible === false) unsubscribeDisplay(ws);
+        else subscribeDisplay(ws, msg.spectrum === true);
+        return ack(ws, msg.op);
+      case "display-ping":
+        if (!Number.isFinite(msg.clientTime)) return fail(ws, msg.op, "clientTime required");
+        ws.send(
+          JSON.stringify({
+            kind: "display-pong",
+            clientTime: msg.clientTime,
+            serverTime: Date.now(),
+          }),
+        );
+        return;
       case "play":
         playerControl.play();
         return ack(ws, msg.op);
@@ -82,13 +100,17 @@ export const wsHandlers = {
     } catch {
       return fail(ws, "?", "invalid json");
     }
+    if (!msg || typeof msg !== "object" || typeof msg.op !== "string")
+      return fail(ws, "?", "invalid command");
     await dispatchCommand(ws, msg);
   },
   onClose(_evt: CloseEvent, ws: WSContext) {
+    unsubscribeDisplay(ws);
     removeWsClient(ws);
   },
   onError(_evt: Event, ws: WSContext) {
     serverLog.warn("WS 客户端错误");
+    unsubscribeDisplay(ws);
     removeWsClient(ws);
   },
 };

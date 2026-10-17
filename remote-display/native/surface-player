@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /usr/bin/python3 /usr/share/surface-player/native/player.py "$@"

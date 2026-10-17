@@ -14,6 +14,7 @@ import type { ExternalApiStatus } from "@shared/types/settings";
 import { externalControlGate, wsGate } from "./gate";
 import { buildRoutes } from "./routes";
 import { wsHandlers } from "./ws";
+import { installDisplayRoutes, closeDisplaySubscriptions } from "./display";
 
 let runningServer: Server | null = null;
 let runningWss: WebSocketServer | null = null;
@@ -72,6 +73,7 @@ export const startServer = (): Promise<ExternalApiStatus> => {
     const app = new Hono();
     app.use("/api/*", externalControlGate);
     app.route("/api", buildRoutes());
+    installDisplayRoutes(app);
     app.get(
       "/ws",
       externalControlGate,
@@ -131,6 +133,7 @@ export const startServer = (): Promise<ExternalApiStatus> => {
 /** 停止外部 API 服务 */
 export const stopServer = (): Promise<void> => {
   if (!runningServer) return Promise.resolve();
+  closeDisplaySubscriptions();
   const server = runningServer;
   const wss = runningWss;
   runningServer = null;
@@ -140,6 +143,8 @@ export const stopServer = (): Promise<void> => {
   runningAllowLan = false;
   publishStatus();
   const serverClosed = new Promise<void>((resolve) => {
+    // 长连接不会随 HTTP close 自动退出，先断开以允许 API 配置重启。
+    for (const client of wss?.clients ?? []) client.terminate();
     wss?.close();
     server.close((err) => {
       if (err) serverLog.warn("外部 API 关闭异常:", err);

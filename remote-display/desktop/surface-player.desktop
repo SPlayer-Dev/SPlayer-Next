@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Surface Player
+Comment=SPlayer-Next 远程播放界面
+Exec=surface-player
+Icon=surface-player
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+StartupWMClass=org.neclyon.SurfacePlayer
