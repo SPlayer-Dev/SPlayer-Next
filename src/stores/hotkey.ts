@@ -5,6 +5,7 @@ import type {
   HotkeyConfig,
   HotkeyConflict,
 } from "@shared/types/hotkey";
+import { normalizeAccelerator } from "@shared/utils/accelerator";
 
 /**
  * 快捷键状态
@@ -14,8 +15,10 @@ export const useHotkeyStore = defineStore("hotkey", () => {
   const globalEnabled = ref(true);
   const conflicts = ref<HotkeyConflict[]>([]);
   const initialized = ref(false);
+  const isRecording = ref(false);
 
   let unsubscribeConflicts: (() => void) | null = null;
+  let recordingUpdate: Promise<void> = Promise.resolve();
 
   /** 初始化 */
   const init = async (): Promise<void> => {
@@ -54,6 +57,14 @@ export const useHotkeyStore = defineStore("hotkey", () => {
     applyConfig(await window.api.hotkey.setGlobalEnabled(enabled));
   };
 
+  /** 同步录入状态；重复请求等待已有 IPC 完成，避免提前开始捕获。 */
+  const setRecording = (recording: boolean): Promise<void> => {
+    if (isRecording.value === recording) return recordingUpdate;
+    isRecording.value = recording;
+    recordingUpdate = window.api.hotkey.setRecording(recording);
+    return recordingUpdate;
+  };
+
   /** 探测某 accelerator 在系统层是否可注册 */
   const probe = async (accelerator: string): Promise<boolean> => {
     return window.api.hotkey.probe(accelerator);
@@ -71,9 +82,10 @@ export const useHotkeyStore = defineStore("hotkey", () => {
     excludeId?: HotkeyActionId,
   ): HotkeyActionId | null => {
     const ids = Object.keys(bindings.value) as HotkeyActionId[];
+    const normalized = normalizeAccelerator(accelerator);
     for (const id of ids) {
       if (id === excludeId) continue;
-      if (bindings.value[id]?.inApp === accelerator) return id;
+      if (normalizeAccelerator(bindings.value[id]?.inApp ?? "") === normalized) return id;
     }
     return null;
   };
@@ -89,12 +101,13 @@ export const useHotkeyStore = defineStore("hotkey", () => {
     excludeId?: HotkeyActionId,
   ): { id: HotkeyActionId; scope: "inApp" | "global" } | null => {
     const ids = Object.keys(bindings.value) as HotkeyActionId[];
+    const normalized = normalizeAccelerator(accelerator);
     for (const id of ids) {
       if (id === excludeId) continue;
       const b = bindings.value[id];
       if (!b) continue;
-      if (b.global === accelerator) return { id, scope: "global" };
-      if (b.inApp === accelerator) return { id, scope: "inApp" };
+      if (normalizeAccelerator(b.global ?? "") === normalized) return { id, scope: "global" };
+      if (normalizeAccelerator(b.inApp ?? "") === normalized) return { id, scope: "inApp" };
     }
     return null;
   };
@@ -102,11 +115,13 @@ export const useHotkeyStore = defineStore("hotkey", () => {
   return {
     bindings,
     globalEnabled,
+    isRecording,
     conflicts,
     init,
     updateBinding,
     resetBinding,
     setGlobalEnabled,
+    setRecording,
     probe,
     findInAppDuplicate,
     findGlobalConflict,

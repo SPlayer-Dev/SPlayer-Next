@@ -52,6 +52,7 @@ let stopWatchBindings: (() => void) | null = null;
 
 /** 全局 keydown 处理 */
 const onKeyDown = (event: KeyboardEvent): void => {
+  if (useHotkeyStore().isRecording) return;
   if (event.isComposing) return;
   if (isInputFocused(event)) return;
   for (const entry of compiled) {
@@ -73,7 +74,9 @@ export const installHotkeyManager = (): void => {
   recompile();
   stopWatchBindings = watch(() => useHotkeyStore().bindings, recompile, { deep: true });
   window.addEventListener("keydown", onKeyDown, { capture: true });
-  offGlobalTrigger = window.api.hotkey.onTrigger((id) => dispatch(id));
+  offGlobalTrigger = window.api.hotkey.onTrigger((id) => {
+    if (!useHotkeyStore().isRecording) dispatch(id);
+  });
 };
 
 /** 卸载（仅测试 / HMR 用） */

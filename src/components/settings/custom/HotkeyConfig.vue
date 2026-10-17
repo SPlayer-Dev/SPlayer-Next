@@ -59,44 +59,49 @@ const recorder = useHotkeyRecorder({
     const target = recordingTarget.value;
     if (!target) return;
     recordingTarget.value = null;
-    /** 冲突检测：in-app 仅查同 scope 重复；global 同时查跨 scope 与 OS 占用 */
-    if (target.scope === "inApp") {
-      const dup = hotkey.findInAppDuplicate(accel, target.id);
-      if (dup) {
-        errorFor.value = { id: target.id, scope: "inApp", kind: "duplicate", conflictWith: dup };
-        toast.error(t("settings.hotkeys.duplicateWith", { action: labelOf(dup) }));
-        return;
+    try {
+      /** 冲突检测：in-app 仅查同 scope 重复；global 同时查跨 scope 与 OS 占用 */
+      if (target.scope === "inApp") {
+        const dup = hotkey.findInAppDuplicate(accel, target.id);
+        if (dup) {
+          errorFor.value = { id: target.id, scope: "inApp", kind: "duplicate", conflictWith: dup };
+          toast.error(t("settings.hotkeys.duplicateWith", { action: labelOf(dup) }));
+          return;
+        }
+      } else {
+        const conflict = hotkey.findGlobalConflict(accel, target.id);
+        if (conflict) {
+          const kind = conflict.scope === "global" ? "duplicate" : "crossScope";
+          errorFor.value = {
+            id: target.id,
+            scope: "global",
+            kind,
+            conflictWith: conflict.id,
+          };
+          const msgKey =
+            kind === "crossScope"
+              ? "settings.hotkeys.crossScopeWith"
+              : "settings.hotkeys.duplicateWith";
+          toast.error(t(msgKey, { action: labelOf(conflict.id) }));
+          return;
+        }
+        const ok = await hotkey.probe(accel);
+        if (!ok) {
+          errorFor.value = { id: target.id, scope: "global", kind: "osOccupied" };
+          toast.error(t("settings.hotkeys.osOccupied"));
+          return;
+        }
       }
-    } else {
-      const conflict = hotkey.findGlobalConflict(accel, target.id);
-      if (conflict) {
-        const kind = conflict.scope === "global" ? "duplicate" : "crossScope";
-        errorFor.value = {
-          id: target.id,
-          scope: "global",
-          kind,
-          conflictWith: conflict.id,
-        };
-        const msgKey =
-          kind === "crossScope"
-            ? "settings.hotkeys.crossScopeWith"
-            : "settings.hotkeys.duplicateWith";
-        toast.error(t(msgKey, { action: labelOf(conflict.id) }));
-        return;
-      }
-      const ok = await hotkey.probe(accel);
-      if (!ok) {
-        errorFor.value = { id: target.id, scope: "global", kind: "osOccupied" };
-        toast.error(t("settings.hotkeys.osOccupied"));
-        return;
-      }
+      /** 更新绑定 */
+      const cur = hotkey.bindings[target.id] ?? { inApp: null, global: null };
+      await hotkey.updateBinding(target.id, { ...cur, [target.scope]: accel });
+    } finally {
+      if (!recordingTarget.value) await hotkey.setRecording(false);
     }
-    /** 更新绑定 */
-    const cur = hotkey.bindings[target.id] ?? { inApp: null, global: null };
-    await hotkey.updateBinding(target.id, { ...cur, [target.scope]: accel });
   },
   onCancel: () => {
     recordingTarget.value = null;
+    void hotkey.setRecording(false);
   },
   onClear: async () => {
     const target = recordingTarget.value;
@@ -104,12 +109,16 @@ const recorder = useHotkeyRecorder({
     if (!target) return;
     clearError();
     const cur = hotkey.bindings[target.id] ?? { inApp: null, global: null };
-    await hotkey.updateBinding(target.id, { ...cur, [target.scope]: null });
+    try {
+      await hotkey.updateBinding(target.id, { ...cur, [target.scope]: null });
+    } finally {
+      if (!recordingTarget.value) await hotkey.setRecording(false);
+    }
   },
 });
 
 /** 开始录入 */
-const startRecord = (id: HotkeyActionId, scope: Scope): void => {
+const startRecord = async (id: HotkeyActionId, scope: Scope): Promise<void> => {
   if (scope === "global" && !hotkey.globalEnabled) return;
   clearError();
   if (
@@ -117,19 +126,30 @@ const startRecord = (id: HotkeyActionId, scope: Scope): void => {
     recordingTarget.value.id === id &&
     recordingTarget.value.scope === scope
   ) {
-    recorder.cancel();
+    stopRecord();
     return;
   }
   if (recordingTarget.value) recorder.cancel();
   recordingTarget.value = { id, scope };
-  recorder.start();
+  const target = recordingTarget.value;
+  try {
+    await hotkey.setRecording(true);
+    if (recordingTarget.value === target) recorder.start();
+  } catch (error) {
+    stopRecord();
+    toast.error(error instanceof Error ? error.message : String(error));
+  }
 };
 
 /** 停止录入 */
 const stopRecord = (): void => {
   if (recorder.isRecording.value) recorder.cancel();
+  recordingTarget.value = null;
+  void hotkey.setRecording(false);
   clearError();
 };
+
+onBeforeUnmount(stopRecord);
 
 /** 重置单个动作 */
 const resetSingle = async (id: HotkeyActionId): Promise<void> => {
