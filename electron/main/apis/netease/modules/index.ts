@@ -32,6 +32,8 @@ import user_playlist from "./user_playlist";
 import user_record from "./user_record";
 import record_recent_song from "./record_recent_song";
 import user_subcount from "./user_subcount";
+import daily_signin from "./daily_signin";
+import signin_progress from "./signin_progress";
 
 import cloudsearch from "./cloudsearch";
 import search from "./search";
@@ -123,6 +125,8 @@ export const modules: Record<string, NeteaseModule> = {
   user_record,
   record_recent_song,
   user_subcount,
+  daily_signin,
+  signin_progress,
 
   cloudsearch,
   search,
