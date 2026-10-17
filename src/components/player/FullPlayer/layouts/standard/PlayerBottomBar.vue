@@ -56,11 +56,6 @@ const {
   mode: pickerMode,
   openPicker,
 } = usePlaylistPicker();
-
-/** 切换全屏内嵌评论，与播放队列互斥 */
-const toggleFullComments = (): void => {
-  status.toggleFullComments();
-};
 </script>
 
 <template>
@@ -93,12 +88,11 @@ const toggleFullComments = (): void => {
       </SButton>
       <SButton
         type="cover"
-        variant="ghost"
+        :variant="status.fullCommentsOpen ? 'tertiary' : 'ghost'"
         size="large"
         circle
         :disabled="!hasTrack"
-        :class="status.fullCommentsOpen ? 'opacity-100' : 'opacity-40'"
-        @click="toggleFullComments"
+        @click="status.toggleFullComments"
       >
         <template #icon><IconLucideMessageCircle /></template>
       </SButton>

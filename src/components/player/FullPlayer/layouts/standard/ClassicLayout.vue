@@ -2,6 +2,7 @@
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
+import PlayerComments from "../../shared/PlayerComments.vue";
 
 const status = useStatusStore();
 const media = useMediaStore();
@@ -18,7 +19,16 @@ const centeredWithoutQueue = computed(
   () => !showLyric.value || (settings.player.autoCenterCover && !hasLyric.value),
 );
 
-const coverCentered = computed(() => !status.fullQueueOpen && centeredWithoutQueue.value);
+const coverCentered = computed(
+  () => !status.fullQueueOpen && !status.fullCommentsOpen && centeredWithoutQueue.value,
+);
+
+/** 全屏内嵌评论布局：off 关闭、half 左半屏、full 全屏 */
+const commentsMode = computed<"off" | "half" | "full">(() => {
+  if (!status.fullCommentsOpen) return "off";
+  // 以实际就绪的歌词判定，避免歌词加载中导致面板宽度反复切换
+  return media.parsedLyric.length > 0 && showLyric.value ? "half" : "full";
+});
 
 const lyricVisible = computed(() => showLyric.value && hasLyric.value && !status.fullQueueOpen);
 
@@ -51,7 +61,8 @@ const toggleLyric = (): void => {
   <div class="absolute top-14 inset-x-0 bottom-20">
     <!-- 左侧封面与信息 -->
     <div
-      class="absolute inset-y-0 left-0 flex items-center justify-center px-12 transition-transform duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
+      class="absolute inset-y-0 left-0 flex items-center justify-center px-12 transition-[transform,opacity] duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
+      :class="status.fullCommentsOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'"
       :style="{
         width: coverWidth,
         transform: coverCentered ? 'translateX(calc(50vw - 50%))' : undefined,
@@ -75,13 +86,17 @@ const toggleLyric = (): void => {
     <div
       class="group absolute inset-y-0 right-0 pr-20 flex flex-col transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
       :class="
-        coverCentered || status.fullQueueOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
+        coverCentered || status.fullQueueOpen || commentsMode === 'full'
+          ? 'opacity-0 pointer-events-none'
+          : 'opacity-100'
       "
       :style="{ width: `calc(100% - ${coverWidth})` }"
     >
       <PlayerLyric :visible="lyricVisible" />
       <LyricActions />
     </div>
+    <!-- 全屏内嵌评论 -->
+    <PlayerComments :mode="commentsMode === 'full' ? 'full' : 'half'" :width="coverWidth" />
     <!-- 播放队列 -->
     <div
       class="absolute inset-y-0 right-0 pl-4 py-6 flex items-center"
