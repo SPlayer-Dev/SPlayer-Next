@@ -2099,16 +2099,17 @@
       "label": "Plugin Manager",
       "description": "Import, enable, or uninstall extension scripts"
     },
-    "enableLocalTTMLOverride": {
-      "label": "Enable Local TTML Library",
-      "description": "Match .ttml in a chosen folder by song metadata; takes priority over online lyrics when found"
+    "enableLocalLyricOverride": {
+      "label": "Enable Local Lyrics Library",
+      "description": "Match lyric files in the chosen folders by song metadata or the song ID in the file name; takes priority over online lyrics when found"
     },
-    "localLyricRepoDir": {
-      "label": "Library Folder",
-      "description": "Choose a folder containing TTML lyrics; the app searches it by metadata",
-      "choose": "Choose",
-      "clear": "Clear",
-      "unset": "Not set"
+    "localLyricRepoDirs": {
+      "label": "Library Folders",
+      "description": "Choose folders containing lyric files (.ttml / .lrc / .lys / .ass / .srt); the app scans them recursively and matches by metadata or song ID",
+      "hint": "Name a file \"songID.ext\" or \"any-prefix.songID.ext\" to match it by song ID (digits only)",
+      "choose": "Add Folder",
+      "clear": "Remove",
+      "unset": "No folder added"
     },
     "fileCacheManager": {
       "label": "Cache Manager",

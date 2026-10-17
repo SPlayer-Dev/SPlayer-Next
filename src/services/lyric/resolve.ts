@@ -272,21 +272,20 @@ export const resolveStreamingByPreference = async (
 };
 
 /**
- * 从本地 TTML 仓库解析歌词
+ * 从本地歌词库解析歌词
  * @param track - 歌曲信息
- * @returns 本地仓库歌词，不存在则返回 null
+ * @returns 本地歌词库歌词，不存在则返回 null
  */
 export const resolveLocalRepoLyric = async (track: Track): Promise<ResolvedLyric | null> => {
   const settings = useSettingsStore();
-  if (
-    !settings.system.localLyric?.enableLocalTTMLOverride ||
-    !settings.system.localLyric?.repoDir
-  ) {
-    return null;
-  }
-  const resp = await window.api.lyrics.matchLocalTTML(track);
+  const localLyric = settings.system.localLyric;
+  if (!localLyric?.enableLocalLyricOverride || localLyric.repoDirs.length === 0) return null;
+  const resp = await window.api.lyrics.matchLocalLyric(track);
   if (!resp.ok || !resp.data) return null;
-  return { source: { source: "external", format: "ttml" }, input: { content: resp.data } };
+  return {
+    source: { source: "external", format: detectFormat(resp.data) },
+    input: { content: resp.data },
+  };
 };
 
 /**

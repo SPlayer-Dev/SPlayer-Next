@@ -516,9 +516,9 @@ const api = {
     // 获取 AMLL TTML DB 的 TTML
     fetchTTMLOverlay: (track: unknown, platform: string) =>
       ipcRenderer.invoke("lyrics:fetchTTMLOverlay", track, platform),
-    // 在本地 TTML 歌词库目录中按元信息匹配
-    matchLocalTTML: (track: unknown) => ipcRenderer.invoke("lyrics:matchLocalTTML", track),
-    // 选择本地 TTML 歌词库目录
+    // 在本地歌词库目录中按元信息或歌曲 ID 匹配
+    matchLocalLyric: (track: unknown) => ipcRenderer.invoke("lyrics:matchLocalLyric", track),
+    // 选择本地歌词库目录
     pickLyricRepoDir: () => ipcRenderer.invoke("lyrics:pickLyricRepoDir"),
   },
   opencc: {

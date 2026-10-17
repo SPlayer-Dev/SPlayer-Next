@@ -39,8 +39,8 @@ const buildContextKey = (): string => {
     settings.lyric.smartPreferOnline,
     settings.lyric.preferPluginLyric,
     settings.system.lyric.enableOnlineTTMLLyric,
-    settings.system.localLyric.enableLocalTTMLOverride,
-    settings.system.localLyric.repoDir,
+    settings.system.localLyric.enableLocalLyricOverride,
+    settings.system.localLyric.repoDirs,
     streaming.activeServerId ?? "",
     plugins.list.map((plugin) => [
       plugin.manifest.id,
