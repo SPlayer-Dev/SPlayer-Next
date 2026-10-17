@@ -9,6 +9,7 @@ import { pluginLog } from "@main/utils/logger";
 import type { CommentSource, MusicCommentPage, MusicCommentQuery } from "@shared/types/comment";
 import type { MusicSearchCandidate } from "@shared/types/plugin";
 import type { Track } from "@shared/types/player";
+import { BoundedMap, coalesce } from "./cache";
 import {
   buildCommentSources,
   normalizeNeteaseCommentPage,
@@ -22,6 +23,21 @@ const NETEASE_SOURCE_ID = "builtin:netease";
 const QQMUSIC_SOURCE_ID = "builtin:qqmusic";
 const KUGOU_SOURCE_ID = "builtin:kugou";
 const NETEASE_RESOURCE_TYPE = "R_SO_4_";
+
+const SONG_META_CACHE_LIMIT = 200;
+
+/** 网易云歌曲元信息 */
+export type NeteaseSongMeta = { songId: string; artistIds: string[] };
+
+/** 曲目 key → 网易云歌曲元信息（null 表示负缓存），分页与主创说复用同一次搜索 */
+const songMetaCache = new BoundedMap<string, NeteaseSongMeta | null>(SONG_META_CACHE_LIMIT);
+/** 元信息解析在途请求 */
+const songMetaInflight = new Map<string, Promise<NeteaseSongMeta | null>>();
+/** QQ / 酷狗 id 解析在途请求，避免两个 tab 同时搜索同一曲目 */
+const trackIdInflight = new Map<string, Promise<string | null>>();
+
+const makeTrackKey = (track: Track): string =>
+  `${track.source}\n${track.serverId ?? ""}\n${track.id}`;
 
 const PLATFORM_TO_PLUGIN_SOURCE: Record<string, string> = {
   netease: "wy",
@@ -80,46 +96,73 @@ const findPluginMatch = async (
   return pickBestCandidate(candidates, track)?.extra ?? null;
 };
 
-const findNeteaseId = async (track: Track): Promise<string | null> => {
-  if (track.source === "netease" && track.id) return track.id;
-  const keyword = toKeyword(track);
-  if (!keyword) return null;
-  const { status, body } = await callNetease("search", {
-    keywords: keyword,
-    type: 1,
-    limit: 20,
+/**
+ * 解析曲目对应的网易云歌曲元信息
+ * 曲目本身来自网易云时直接取自身信息，其余来源走一次搜索同时取歌曲 id 与歌手 id
+ * @param track - 待解析曲目
+ * @returns 歌曲元信息，无匹配结果时返回 null
+ */
+export const findNeteaseSongMeta = async (track: Track): Promise<NeteaseSongMeta | null> => {
+  const cacheKey = makeTrackKey(track);
+  const cached = songMetaCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  if (track.source === "netease" && track.id) {
+    const meta: NeteaseSongMeta = {
+      songId: track.id,
+      artistIds: track.artists
+        .map((artist) => artist.id)
+        .filter((id): id is string => Boolean(id) && id !== "undefined"),
+    };
+    songMetaCache.set(cacheKey, meta);
+    return meta;
+  }
+  return coalesce(songMetaInflight, cacheKey, async () => {
+    const keyword = toKeyword(track);
+    if (!keyword) return null;
+    const { status, body } = await callNetease("search", {
+      keywords: keyword,
+      type: 1,
+      limit: 20,
+    });
+    if (status !== 200) return null;
+    const songs = body.result?.songs ?? [];
+    const candidates: LyricCandidate<NeteaseSongMeta>[] = songs.map(
+      (song: {
+        id: string | number;
+        name?: string;
+        artists?: { id?: string | number; name: string }[];
+        album?: { name?: string };
+        duration?: number;
+      }) => ({
+        name: song.name ?? "",
+        artist: (song.artists ?? []).map((artist) => artist.name).join(" / "),
+        album: song.album?.name,
+        duration: song.duration,
+        extra: {
+          songId: String(song.id),
+          artistIds: (song.artists ?? [])
+            .map((artist) => (artist.id ? String(artist.id) : ""))
+            .filter(Boolean),
+        },
+      }),
+    );
+    const meta = pickBestCandidate(candidates, track)?.extra ?? null;
+    songMetaCache.set(cacheKey, meta);
+    return meta;
   });
-  if (status !== 200) return null;
-  const songs = body.result?.songs ?? [];
-  const candidates: LyricCandidate<{ id: string }>[] = songs.map(
-    (song: {
-      id: string | number;
-      name?: string;
-      artists?: { name: string }[];
-      album?: { name?: string };
-      duration?: number;
-    }) => ({
-      name: song.name ?? "",
-      artist: (song.artists ?? []).map((artist) => artist.name).join(" / "),
-      album: song.album?.name,
-      duration: song.duration,
-      extra: { id: String(song.id) },
-    }),
-  );
-  return pickBestCandidate(candidates, track)?.extra.id ?? null;
 };
 
 const getNeteaseComments = async (args: MusicCommentQuery): Promise<MusicCommentPage> => {
-  const id = await findNeteaseId(args.track);
-  if (!id) return { list: [], total: 0, page: args.page, limit: args.limit };
-
+  const meta = await findNeteaseSongMeta(args.track);
+  if (!meta) return { list: [], total: 0, page: args.page, limit: args.limit, hasMore: false };
   const apiName = args.type === "hot" ? "comment_hot" : "comment_music";
-  const { body } = await callNetease(apiName, {
-    id,
+  const { status, body } = await callNetease(apiName, {
+    id: meta.songId,
     type: NETEASE_RESOURCE_TYPE,
     limit: args.limit,
     offset: (args.page - 1) * args.limit,
   });
+  if (status !== 200) throw new Error(`netease comment request failed: ${status}`);
   return normalizeNeteaseCommentPage(body, args.type, args.page, args.limit);
 };
 
@@ -129,22 +172,30 @@ const findQQMusicId = async (track: Track): Promise<string | null> => {
   }
   const keyword = toKeyword(track);
   if (!keyword) return null;
-  const body = await callQQMusic("search", { keywords: keyword, type: 0, page: 1, limit: 20 });
-  const candidates: LyricCandidate<{ id: string }>[] = (body.songs ?? []).map(
-    (song: { id?: string; name?: string; artist?: string; album?: string; duration?: number }) => ({
-      name: song.name ?? "",
-      artist: song.artist ?? "",
-      album: song.album,
-      duration: song.duration,
-      extra: { id: song.id ?? "" },
-    }),
-  );
-  return pickBestCandidate(candidates, track)?.extra.id || null;
+  return coalesce(trackIdInflight, `qqmusic\n${makeTrackKey(track)}`, async () => {
+    const body = await callQQMusic("search", { keywords: keyword, type: 0, page: 1, limit: 20 });
+    const candidates: LyricCandidate<{ id: string }>[] = (body.songs ?? []).map(
+      (song: {
+        id?: string;
+        name?: string;
+        artist?: string;
+        album?: string;
+        duration?: number;
+      }) => ({
+        name: song.name ?? "",
+        artist: song.artist ?? "",
+        album: song.album,
+        duration: song.duration,
+        extra: { id: song.id ?? "" },
+      }),
+    );
+    return pickBestCandidate(candidates, track)?.extra.id || null;
+  });
 };
 
 const getQQMusicComments = async (args: MusicCommentQuery): Promise<MusicCommentPage> => {
   const id = await findQQMusicId(args.track);
-  if (!id) return { list: [], total: 0, page: args.page, limit: args.limit };
+  if (!id) return { list: [], total: 0, page: args.page, limit: args.limit, hasMore: false };
   const body = await callQQMusic("comment", {
     id,
     type: args.type,
@@ -159,26 +210,29 @@ const findKugouId = async (track: Track): Promise<string | null> => {
   if (track.source === "kugou" && track.extId) return track.extId;
   const keyword = toKeyword(track);
   if (!keyword) return null;
-  const body = await callKugou<{ songs?: KGSong[] }>("search", {
-    keywords: keyword,
-    type: 0,
-    page: 1,
-    limit: 20,
+  return coalesce(trackIdInflight, `kugou\n${makeTrackKey(track)}`, async () => {
+    const body = await callKugou<{ songs?: KGSong[] }>("search", {
+      keywords: keyword,
+      type: 0,
+      page: 1,
+      limit: 20,
+    });
+    const candidates: LyricCandidate<{ id: string }>[] = (body.songs ?? []).map((song) => ({
+      name: song.name,
+      artist: song.artist,
+      album: song.album,
+      duration: song.duration,
+      extra: { id: song.albumAudioId ? String(song.albumAudioId) : "" },
+    }));
+    return pickBestCandidate(candidates, track)?.extra.id || null;
   });
-  const candidates: LyricCandidate<{ id: string }>[] = (body.songs ?? []).map((song) => ({
-    name: song.name,
-    artist: song.artist,
-    album: song.album,
-    duration: song.duration,
-    extra: { id: song.albumAudioId ? String(song.albumAudioId) : "" },
-  }));
-  return pickBestCandidate(candidates, track)?.extra.id || null;
 };
 
 const getKugouComments = async (args: MusicCommentQuery): Promise<MusicCommentPage> => {
-  if (args.type !== "hot") return { list: [], total: 0, page: args.page, limit: args.limit };
+  if (args.type !== "hot")
+    return { list: [], total: 0, page: args.page, limit: args.limit, hasMore: false };
   const id = await findKugouId(args.track);
-  if (!id) return { list: [], total: 0, page: args.page, limit: args.limit };
+  if (!id) return { list: [], total: 0, page: args.page, limit: args.limit, hasMore: false };
   const body = await callKugou<KugouCommentBody>("comment", {
     id,
     page: args.page,
@@ -195,7 +249,8 @@ const getPluginComments = async (
   if (!rt || rt.status.state !== "ready") throw new Error("plugin comment source is not ready");
   try {
     const musicInfo = await findPluginMatch(rt, parsed.source, args.track);
-    if (!musicInfo) return { list: [], total: 0, page: args.page, limit: args.limit };
+    if (!musicInfo)
+      return { list: [], total: 0, page: args.page, limit: args.limit, hasMore: false };
     return await callMusicComment(rt, {
       source: parsed.source,
       musicInfo,

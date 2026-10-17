@@ -33,6 +33,8 @@ export interface MusicCommentItem {
   replyTotal?: number;
   reply?: MusicCommentItem[];
   hasMoreReply?: boolean;
+  /** 主创评论对应的歌手名，仅主创说结果携带 */
+  creatorName?: string;
 }
 
 /** 歌曲评论分页 */
@@ -43,6 +45,8 @@ export interface MusicCommentPage {
   limit: number;
   /** 下一页游标 */
   nextCursor?: string;
+  /** 是否还有下一页，由各来源的原生信号给出 */
+  hasMore?: boolean;
 }
 
 /** 评论查询参数 */
@@ -60,8 +64,19 @@ export interface MusicCommentQuery {
 export type MusicCommentResponse =
   { ok: true; data: MusicCommentPage } | { ok: false; error: string };
 
+/** 主创说查询参数 */
+export interface MusicCommentCreatorQuery {
+  sourceId: string;
+  track: Track;
+}
+
+/** 主创说 IPC 响应 */
+export type MusicCommentCreatorResponse =
+  { ok: true; data: MusicCommentItem[] } | { ok: false; error: string };
+
 /** 渲染端评论 API */
 export interface CommentsApi {
   sources: () => Promise<CommentSource[]>;
   get: (args: MusicCommentQuery) => Promise<MusicCommentResponse>;
+  creator: (args: MusicCommentCreatorQuery) => Promise<MusicCommentCreatorResponse>;
 }
