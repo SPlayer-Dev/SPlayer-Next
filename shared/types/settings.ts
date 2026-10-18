@@ -441,6 +441,8 @@ export type KugouLoginVersion = "standard" | "concept";
 
 /** 后端配置汇总 */
 export interface SystemConfig {
+  /** 迈从 K20 GT 音箱歌词 */
+  k20gt: import("./k20gt").K20GTSettings;
   /** 播放器配置 */
   player: PlayerSettings;
   /** 媒体集成配置 */

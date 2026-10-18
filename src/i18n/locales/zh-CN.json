@@ -804,7 +804,8 @@
       "backupReset": "备份与重置",
       "debug": "调试",
       "preset": "强迫症配置",
-      "envInfo": "环境信息"
+      "envInfo": "环境信息",
+      "k20gt": "迈从 K20 GT 音箱"
     },
     "about": {
       "checkUpdate": "检查更新",
@@ -2238,6 +2239,26 @@
       "button": "清空全部",
       "confirmTitle": "清空全部数据库缓存？",
       "confirmDesc": "将删除上方全部数据库缓存，操作不可恢复"
+    },
+    "k20gtEnabled": {
+      "label": "音箱歌词同步",
+      "description": "通过 USB 向 K20 GT 显示当前歌词，隐藏到托盘后继续同步，长句自动分页；请关闭 MCHOSE HUB 的歌词同步以避免互相覆盖"
+    },
+    "k20gtLanguage": {
+      "label": "音箱歌词语言",
+      "description": "翻译或音译缺失时显示原文",
+      "original": "原文",
+      "translation": "翻译",
+      "romanization": "音译"
+    },
+    "k20gtStatus": {
+      "label": "音箱连接状态",
+      "disabled": "歌词同步已关闭",
+      "connecting": "正在连接音箱",
+      "connected": "音箱已连接，正在跟随当前歌词",
+      "disconnected": "未连接，请检查音箱 USB 连接，插入后会自动重连",
+      "error": "音箱通信失败，可尝试重新连接",
+      "reconnect": "重新连接"
     }
   },
   "collection": {

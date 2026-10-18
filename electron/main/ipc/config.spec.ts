@@ -34,6 +34,7 @@ vi.mock("@main/server", () => ({}));
 vi.mock("@main/services/mcp/http", () => ({}));
 vi.mock("@main/services/orpheus", () => ({}));
 vi.mock("@main/services/thumbnail", () => ({}));
+vi.mock("@main/services/k20gt", () => ({ reloadK20GTConfig: vi.fn() }));
 
 import { registerConfigIpc } from "./config";
 

@@ -2,6 +2,37 @@ import type { SettingCategory, SettingSection } from "@/types/settings-schema";
 import { useSettingsStore } from "@/stores/settings";
 import { isMac } from "@/utils/config";
 import IconLucideMonitor from "~icons/lucide/monitor";
+import K20GTStatus from "@/components/settings/custom/K20GTStatus.vue";
+
+const k20gtSection: SettingSection = {
+  id: "k20gt",
+  tag: { text: "Beta" },
+  items: [
+    {
+      key: "k20gtEnabled",
+      type: "switch",
+      binding: { store: "settings", path: "system.k20gt.enabled" },
+      defaultValue: false,
+    },
+    {
+      key: "k20gtLanguage",
+      type: "select",
+      binding: { store: "settings", path: "system.k20gt.language" },
+      defaultValue: "original",
+      options: [
+        { value: "original", labelKey: "settings.k20gtLanguage.original" },
+        { value: "translation", labelKey: "settings.k20gtLanguage.translation" },
+        { value: "romanization", labelKey: "settings.k20gtLanguage.romanization" },
+      ],
+    },
+    {
+      key: "k20gtStatus",
+      type: "custom",
+      component: K20GTStatus,
+      fullWidth: true,
+    },
+  ],
+};
 
 const desktopLyricSection: SettingSection = {
   id: "desktopLyric",
@@ -392,6 +423,7 @@ const externalLyricCategory: SettingCategory = {
   id: "externalLyric",
   icon: IconLucideMonitor,
   sections: [
+    k20gtSection,
     desktopLyricSection,
     dynamicIslandSection,
     // taskbarLyric 仅 Windows 可用

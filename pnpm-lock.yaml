@@ -108,6 +108,9 @@ importers:
       '@types/sortablejs':
         specifier: ^1.15.9
         version: 1.15.9
+      '@types/w3c-web-hid':
+        specifier: ^1.0.7
+        version: 1.0.7
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
@@ -2238,6 +2241,9 @@ packages:
 
   '@types/unist@3.0.3':
     resolution: {integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==}
+
+  '@types/w3c-web-hid@1.0.7':
+    resolution: {integrity: sha512-/y97wBH7fYB5vKoDIn11O1ZDMNFLCAVqZ9af0OWDN7VSO2ClErEN2HlGbBuPgHBTUmZOVx1og2ZHX1U2gEJM4Q==}
 
   '@types/web-bluetooth@0.0.21':
     resolution: {integrity: sha512-oIQLCGWtcFZy2JW77j9k8nHzAOpqMHLQejDA48XXMWH6tjCQHz5RCFz1bzsmROyL6PUm+LLnUiI4BCn221inxA==}
@@ -7268,6 +7274,8 @@ snapshots:
   '@types/sortablejs@1.15.9': {}
 
   '@types/unist@3.0.3': {}
+
+  '@types/w3c-web-hid@1.0.7': {}
 
   '@types/web-bluetooth@0.0.21': {}
 

@@ -32,11 +32,13 @@ import { CommentsApi } from "@shared/types/comment";
 import { AiModelApi } from "@shared/types/ai";
 import { PlaylistApi } from "@shared/types/playlist";
 import { OpenccApi } from "@shared/types/opencc";
+import type { K20GTApi } from "@shared/types/k20gt";
 
 declare global {
   interface Window {
     electron: ElectronAPI;
     api: {
+      k20gt: K20GTApi;
       config: ConfigApi;
       player: PlayerApi;
       system: {

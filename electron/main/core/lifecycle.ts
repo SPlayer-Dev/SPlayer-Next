@@ -8,8 +8,10 @@ import { stopMcpServer } from "@main/services/mcp/http";
 import { stopStreamingPlayback } from "@main/services/streaming/playback";
 import { disposeUpdater } from "@main/services/updater";
 import { coreLog } from "@main/utils/logger";
+import { shutdownK20GT } from "@main/services/k20gt";
 
 const cleanupTasks: Array<[string, () => void | Promise<void>]> = [
+  ["K20 GT 音箱", shutdownK20GT],
   ["外部 API", stopServer],
   ["MCP", stopMcpServer],
   ["插件", () => pluginRegistry.shutdown()],

@@ -32,6 +32,7 @@ import {
   captureOrpheusUrl,
 } from "@main/services/orpheus";
 import { extractAudioFiles, captureAudioFiles } from "@main/services/externalFile";
+import { reloadK20GTConfig } from "@main/services/k20gt";
 
 /**
  * 配置 Chromium 启动参数以优化内存占用
@@ -146,6 +147,7 @@ export const initApp = (): void => {
     initPlaybackBridge();
     // 恢复歌词相关窗口
     restoreLyricWindows();
+    void reloadK20GTConfig();
     // 注册全局快捷键
     initGlobalHotkey();
     initUpdater();

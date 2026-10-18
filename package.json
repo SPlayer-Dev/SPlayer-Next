@@ -90,6 +90,7 @@
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.19.17",
     "@types/sortablejs": "^1.15.9",
+    "@types/w3c-web-hid": "^1.0.7",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-vue": "^6.0.8",
     "@vue/test-utils": "^2.4.11",

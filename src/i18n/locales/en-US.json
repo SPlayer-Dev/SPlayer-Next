@@ -804,7 +804,8 @@
       "backupReset": "Backup & Reset",
       "debug": "Debug",
       "preset": "OCD Settings",
-      "envInfo": "Environment Info"
+      "envInfo": "Environment Info",
+      "k20gt": "MCHOSE K20 GT speaker"
     },
     "about": {
       "checkUpdate": "Check for Updates",
@@ -2238,6 +2239,26 @@
       "button": "Clear All",
       "confirmTitle": "Clear all database caches?",
       "confirmDesc": "All database caches above will be cleared. This cannot be undone."
+    },
+    "k20gtEnabled": {
+      "label": "Speaker lyric sync",
+      "description": "Display lyrics on K20 GT over USB, including while SPlayer is in the tray. Long lines are paginated. Turn off lyric sync in MCHOSE HUB to avoid competing updates."
+    },
+    "k20gtLanguage": {
+      "label": "Speaker lyric language",
+      "description": "Use the original text when translation or romanization is unavailable",
+      "original": "Original",
+      "translation": "Translation",
+      "romanization": "Romanization"
+    },
+    "k20gtStatus": {
+      "label": "Speaker connection",
+      "disabled": "Lyric sync is off",
+      "connecting": "Connecting to speaker",
+      "connected": "Speaker connected, following current lyrics",
+      "disconnected": "Speaker disconnected. Check USB connection; reconnects automatically when plugged in.",
+      "error": "Speaker communication failed. Try reconnecting.",
+      "reconnect": "Reconnect"
     }
   },
   "collection": {

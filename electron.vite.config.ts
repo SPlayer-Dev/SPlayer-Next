@@ -64,6 +64,7 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, "electron/preload/index.ts"),
+          k20gt: resolve(__dirname, "electron/preload/k20gt.ts"),
         },
       },
     },
@@ -100,6 +101,7 @@ export default defineConfig({
           "desktop-lyric": resolve(__dirname, "windows/desktop-lyric/index.html"),
           "dynamic-island": resolve(__dirname, "windows/dynamic-island/index.html"),
           "taskbar-lyric": resolve(__dirname, "windows/taskbar-lyric/index.html"),
+          k20gt: resolve(__dirname, "windows/k20gt/index.html"),
         },
       },
     },

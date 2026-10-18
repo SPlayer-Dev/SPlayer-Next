@@ -12,6 +12,7 @@ export const DYNAMIC_ISLAND_BASE_HEIGHT = 40;
 
 /** 默认配置 */
 export const defaultSystemConfig: SystemConfig = {
+  k20gt: { enabled: false, language: "original" },
   player: {
     autoPlay: false,
     rememberLastTrack: true,

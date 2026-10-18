@@ -36,6 +36,7 @@ import { setTaskbarThumbnailEnabled } from "@main/services/thumbnail";
 import { getUpdateState, syncUpdateChannel } from "@main/services/updater";
 import { UPDATE_CHANNELS } from "@shared/types/settings";
 import { refreshPowerBlocker } from "@main/utils/powerBlocker";
+import { reloadK20GTConfig } from "@main/services/k20gt";
 
 /**
  * 应用配置写入后的副作用
@@ -44,6 +45,10 @@ import { refreshPowerBlocker } from "@main/utils/powerBlocker";
  */
 const applyConfigChange = (keyPath: string, value: unknown): void => {
   switch (keyPath) {
+    case "k20gt.enabled":
+    case "k20gt.language":
+      void reloadK20GTConfig();
+      break;
     case "player.keepScreenAwake":
       refreshPowerBlocker();
       break;
@@ -158,6 +163,7 @@ export const registerConfigIpc = (): void => {
   ipcMain.handle("config:reset", () => {
     if (getUpdateState().phase === "installing") throw new Error("安装启动中，无法重置配置");
     store.clear();
+    void reloadK20GTConfig();
     syncUpdateChannel();
     refreshPowerBlocker();
   });
@@ -166,6 +172,7 @@ export const registerConfigIpc = (): void => {
   ipcMain.handle("config:replaceAll", (_event, payload: unknown) => {
     if (getUpdateState().phase === "installing") throw new Error("安装启动中，无法替换配置");
     store.replaceAll(payload);
+    void reloadK20GTConfig();
     syncUpdateChannel();
     refreshPowerBlocker();
   });

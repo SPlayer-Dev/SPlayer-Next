@@ -23,6 +23,7 @@ import { registerAiModelIpc } from "./aiModel";
 import { registerPlaylistIpc } from "./playlist";
 import { registerRecognitionIpc } from "./recognition";
 import { registerOpenccIpc } from "./opencc";
+import { registerK20GTIpc } from "@main/services/k20gt";
 
 /**
  * 注册所有 IPC 处理
@@ -30,6 +31,7 @@ import { registerOpenccIpc } from "./opencc";
  */
 export const registerIpcHandlers = (onStartupComplete: () => void): void => {
   registerSystemIpc();
+  registerK20GTIpc();
   registerPlayerIpc();
   registerConfigIpc();
   registerLibraryIpc();

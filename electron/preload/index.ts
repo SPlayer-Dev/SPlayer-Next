@@ -34,6 +34,7 @@ import type {
 } from "@shared/types/playlist";
 import type { CjkTransformMode } from "@shared/types/opencc";
 import type { DownloadTrackIdentity } from "@shared/types/download";
+import type { K20GTStatus } from "@shared/types/k20gt";
 
 /** 订阅主进程推送的事件 */
 const subscribe = <T>(channel: string, callback: (data: T) => void): (() => void) => {
@@ -56,6 +57,21 @@ const getInstallType = (): "nsis" | "portable" | "appx" | "dmg" | "appimage" => 
 
 // 暴露给渲染进程的自定义 API
 const api = {
+  k20gt: {
+    /** 获取音箱连接状态 */
+    getStatus: (): Promise<K20GTStatus> => ipcRenderer.invoke("k20gt:getStatus"),
+    /** 重新连接音箱 */
+    reconnect: (): Promise<void> => ipcRenderer.invoke("k20gt:reconnect"),
+    /**
+     * 订阅音箱状态并在卸载时解除监听
+     * @param callback - 状态处理函数
+     * @returns 解除监听函数
+     */
+    onStatus: (callback: (status: K20GTStatus) => void): (() => void) => {
+      ipcRenderer.removeAllListeners("k20gt:status");
+      return subscribe<K20GTStatus>("k20gt:status", callback);
+    },
+  },
   config: {
     get: (keyPath: string) => ipcRenderer.invoke("config:get", keyPath),
     set: (keyPath: string, value: unknown) => ipcRenderer.invoke("config:set", keyPath, value),
