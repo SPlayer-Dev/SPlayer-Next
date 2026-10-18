@@ -7,8 +7,10 @@ import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import { useLibraryStore } from "@/stores/library";
 import { useUserStore } from "@/stores/user";
 import { useStatusStore } from "@/stores/status";
+import { useCopyText } from "@/composables/useCopyText";
 import SongList from "@/components/list/SongList.vue";
 import * as player from "@/core/player";
+import IconLucideCopy from "~icons/lucide/copy";
 import IconLucideListChecks from "~icons/lucide/list-checks";
 import IconLucideRefreshCw from "~icons/lucide/refresh-cw";
 
@@ -16,6 +18,7 @@ const { t } = useI18n();
 const library = useLibraryStore();
 const user = useUserStore();
 const status = useStatusStore();
+const { copy } = useCopyText();
 
 /** 当前 tab */
 const tab = computed({
@@ -98,14 +101,34 @@ const moreMenuItems = computed<DropdownMenuItem[]>(() => {
     label: t("songList.batch.manage"),
     icon: markRaw(IconLucideListChecks),
   });
+  items.push({
+    key: "copy",
+    label: t("liked.copyToClipboard"),
+    icon: markRaw(IconLucideCopy),
+    disabled: !songListRef.value?.sortedItems.length,
+  });
   return items;
 });
 
-const handleMoreMenu = (key: string): void => {
+/**
+ * 处理喜欢列表的刷新、批量管理与复制操作
+ * @param key - 所选菜单操作
+ */
+const handleMoreMenu = async (key: string): Promise<void> => {
   if (key === "refresh") {
     user.ensureLikedPlaylist(true);
   } else if (key === "batch") {
     songListRef.value?.enterBatch();
+  } else if (key === "copy") {
+    const tracks = songListRef.value?.sortedItems;
+    if (!tracks?.length) return;
+    await copy(
+      tracks
+        .map(
+          (track) => `${track.title} - ${track.artists.map((artist) => artist.name).join(" / ")}`,
+        )
+        .join("\n"),
+    );
   }
 };
 </script>

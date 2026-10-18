@@ -610,6 +610,7 @@
   },
   "liked": {
     "title": "我喜欢的音乐",
+    "copyToClipboard": "复制到剪贴板",
     "tabs": {
       "local": "本地",
       "online": "在线"
