@@ -137,7 +137,10 @@
     "empty": "No comments yet",
     "noSource": "No comment source available",
     "location": "From {location}",
-    "page": "Page {page} / {total}"
+    "page": "Page {page} / {total}",
+    "copy": "Copy",
+    "copyComment": "Copy Comment",
+    "copyReply": "Copy Reply"
   },
   "equalizer": {
     "title": "Equalizer",
