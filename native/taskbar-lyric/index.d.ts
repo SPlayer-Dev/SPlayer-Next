@@ -44,6 +44,14 @@ export interface JsAvailableSpace {
   right: JsRect
 }
 
+/** 窗口的嵌入状态 */
+export interface JsEmbedState {
+  /** HWND 是否仍然有效 */
+  alive: boolean
+  /** 是否仍嵌在 explorer 的任务栏上 */
+  embedded: boolean
+}
+
 export interface JsExtraLayoutInfo {
   /** "win10" | "win11" */
   systemType: string
@@ -63,3 +71,13 @@ export interface JsTaskbarLayout {
   space: JsAvailableSpace
   extra: JsExtraLayoutInfo
 }
+
+/**
+ * 探测窗口是否仍挂在 explorer 的任务栏上
+ *
+ * 任务栏歌词窗口的位置坐标是「相对任务栏」的（y=0 即任务栏顶边），父关系一旦被解除，
+ * 同一组坐标会被按屏幕坐标解释，窗口就停在屏幕顶部且不会自行恢复
+ * @param hwnd_ptr - Electron BrowserWindow 的 native handle
+ * @returns 窗口是否存活、是否仍嵌在任务栏上
+ */
+export declare function probeWindow(hwndPtr: number): JsEmbedState
