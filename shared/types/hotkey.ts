@@ -71,6 +71,8 @@ export interface HotkeyApi {
   reset: (id?: HotkeyActionId) => Promise<HotkeyConfig>;
   /** 切换全局快捷键总开关 */
   setGlobalEnabled: (enabled: boolean) => Promise<HotkeyConfig>;
+  /** 临时暂停或恢复录入期间的全局注册，不修改配置 */
+  setRecording: (recording: boolean) => Promise<void>;
   /** 探测某 accelerator 在系统层是否可注册（仅 global 录入预校验用） */
   probe: (accelerator: string) => Promise<boolean>;
   /** 拉取当前冲突快照（init 时使用，避免错过启动时已 broadcast 的事件） */
