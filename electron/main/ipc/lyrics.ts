@@ -13,10 +13,14 @@ import * as netease from "@main/apis/common/lyric/netease";
 import * as qqmusic from "@main/apis/common/lyric/qqmusic";
 import * as kugou from "@main/apis/common/lyric/kugou";
 import { fetchTTML } from "@main/apis/common/lyric/ttml";
-import { matchLocalTTML } from "@main/services/localLyricRepo";
+import { matchLocalLyric } from "@main/services/localLyricRepo";
 import { buildFingerprint, getMatchedId } from "@main/database/lyricMatchCache";
 import { coreLog } from "@main/utils/logger";
-import type { LyricMatchResponse, LyricTTMLResponse } from "@shared/types/lyrics";
+import type {
+  LyricMatchResponse,
+  LyricRepoResponse,
+  LyricTTMLResponse,
+} from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
 import type { Track } from "@shared/types/player";
 
@@ -122,19 +126,19 @@ export const registerLyricsIpc = (): void => {
     dedup(`ttml:${platform}:${track.id}`, () => resolveTTMLOverlay(track, platform)),
   );
   ipcMain.handle(
-    "lyrics:matchLocalTTML",
-    async (_evt, track: Track): Promise<LyricTTMLResponse> => {
+    "lyrics:matchLocalLyric",
+    async (_evt, track: Track): Promise<LyricRepoResponse> => {
       try {
-        return { ok: true, data: await matchLocalTTML(track) };
+        return { ok: true, data: await matchLocalLyric(track) };
       } catch (err) {
-        coreLog.warn(`[lyrics] matchLocalTTML(${track.title}) failed:`, err);
+        coreLog.warn(`[lyrics] matchLocalLyric(${track.title}) failed:`, err);
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
       }
     },
   );
   ipcMain.handle("lyrics:pickLyricRepoDir", async (): Promise<string | null> => {
     const result = await dialog.showOpenDialog({
-      title: "选择本地 TTML 歌词库目录",
+      title: "选择本地歌词库目录",
       properties: ["openDirectory"],
     });
     if (result.canceled || result.filePaths.length === 0) return null;

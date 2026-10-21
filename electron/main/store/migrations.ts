@@ -12,11 +12,21 @@ export interface Migration {
  * 新增字段已由 deepMerge 自动补全，此处仅用于字段重命名、数据转换等
  */
 export const migrations: Migration[] = [
-  // 示例：
-  // {
-  //   version: 1,
-  //   migrate: (data) => {
-  //     // 重命名字段、转换数据格式等
-  //   },
-  // },
+  {
+    version: 1,
+    migrate: (data) => {
+      const localLyric = data.localLyric as unknown as {
+        repoDir?: string;
+        repoDirs?: string[];
+        enableLocalTTMLOverride?: boolean;
+        enableLocalLyricOverride?: boolean;
+      };
+      if (localLyric.repoDir) localLyric.repoDirs = [localLyric.repoDir];
+      if (localLyric.enableLocalTTMLOverride !== undefined) {
+        localLyric.enableLocalLyricOverride = localLyric.enableLocalTTMLOverride;
+      }
+      delete localLyric.repoDir;
+      delete localLyric.enableLocalTTMLOverride;
+    },
+  },
 ];

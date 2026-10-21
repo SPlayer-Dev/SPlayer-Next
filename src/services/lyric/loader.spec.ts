@@ -276,7 +276,7 @@ describe("lyric loader", () => {
     expect(lastCall?.[0].lyric[0].words[0].word).toContain("现有有效歌词");
   });
 
-  it("本地 TTML 歌词库具有最高优先级，命中时直接展示并跳过在线查询", async () => {
+  it("本地歌词库具有最高优先级，命中时直接展示并跳过在线查询", async () => {
     const media = useMediaStore();
     const track = createTrack("song_6");
     media.track = track;

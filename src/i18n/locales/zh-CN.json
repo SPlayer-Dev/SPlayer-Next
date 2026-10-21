@@ -2108,16 +2108,17 @@
       "label": "插件管理",
       "description": "导入、启用或卸载扩展脚本"
     },
-    "enableLocalTTMLOverride": {
-      "label": "启用本地 TTML 歌词库",
-      "description": "从指定目录按歌曲元信息匹配 .ttml，命中后优先于在线歌词"
+    "enableLocalLyricOverride": {
+      "label": "启用本地歌词库",
+      "description": "从指定目录按歌曲元信息或文件名中的歌曲 ID 匹配歌词文件，命中后优先于在线歌词"
     },
-    "localLyricRepoDir": {
+    "localLyricRepoDirs": {
       "label": "歌词库目录",
-      "description": "选择一个存放 TTML 歌词的目录，软件会按元信息在其中查找",
-      "choose": "选择目录",
-      "clear": "清除",
-      "unset": "未设置目录"
+      "description": "选择存放歌词文件的目录，支持 .ttml / .lrc / .lys / .ass / .srt，应用会递归查找并按元信息或歌曲 ID 匹配",
+      "hint": "文件命名为「歌曲ID.后缀名」或「任意前缀.歌曲ID.后缀名」即可按歌曲 ID 命中（ID 为纯数字）",
+      "choose": "添加目录",
+      "clear": "移除",
+      "unset": "尚未添加目录"
     },
     "fileCacheManager": {
       "label": "缓存管理",

@@ -345,8 +345,8 @@ export const installNextTrackPreloadWatchers = (): void => {
       settings.lyric.smartPreferOnline,
       settings.lyric.preferPluginLyric,
       settings.system.lyric.enableOnlineTTMLLyric,
-      settings.system.localLyric.enableLocalTTMLOverride,
-      settings.system.localLyric.repoDir,
+      settings.system.localLyric.enableLocalLyricOverride,
+      settings.system.localLyric.repoDirs.join(","),
       plugins.list
         .map((plugin) =>
           JSON.stringify([
