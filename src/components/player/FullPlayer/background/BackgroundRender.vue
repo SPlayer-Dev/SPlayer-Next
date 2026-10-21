@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import {
-  type AbstractBaseRenderer,
   type BaseRenderer,
+  type TitaniumRendererOptions,
   BackgroundRender as CoreBackgroundRender,
   MeshGradientRenderer,
-  IsolationRenderer,
   PixiRenderer,
+  IsolationRenderer,
+  TitaniumRenderer,
 } from "@applemusic-like-lyrics/core";
 import type { PlayerBgRenderer } from "@/types/settings";
 import { getFftFrame } from "@/services/playback";
@@ -14,8 +15,9 @@ import { getBassPulse, toAmllLowFreqVolume } from "@/services/audioFeatures";
 
 const RENDERER_MAP: Record<PlayerBgRenderer, new (canvas: HTMLCanvasElement) => BaseRenderer> = {
   mesh: MeshGradientRenderer,
-  isolation: IsolationRenderer,
   pixi: PixiRenderer,
+  isolation: IsolationRenderer,
+  titanium: TitaniumRenderer,
 };
 
 export interface BackgroundRenderProps {
@@ -37,6 +39,8 @@ export interface BackgroundRenderProps {
   renderEngine?: PlayerBgRenderer;
   /** 自定义渲染器类（若指定则优先于 renderEngine） */
   renderer?: new (...args: ConstructorParameters<typeof BaseRenderer>) => BaseRenderer;
+  /** Titanium 渲染器选项，仅在 titanium 引擎下生效 */
+  titaniumOptions?: Partial<TitaniumRendererOptions>;
 }
 
 const props = withDefaults(defineProps<BackgroundRenderProps>(), {
@@ -55,7 +59,17 @@ const wrapperRef = ref<HTMLDivElement | null>(null);
 const visibility = useDocumentVisibility();
 
 // 外部渲染器实例引用
-const bgRenderRef = shallowRef<AbstractBaseRenderer>();
+const bgRenderRef = shallowRef<CoreBackgroundRender<BaseRenderer>>();
+
+/**
+ * 将 Titanium 专属选项同步到底层渲染器
+ */
+const applyRendererOptions = () => {
+  const inner = bgRenderRef.value?.getRenderer();
+  if (inner instanceof TitaniumRenderer && props.titaniumOptions) {
+    inner.setOptions(props.titaniumOptions);
+  }
+};
 
 /**
  * 统一同步更新属性状态到底层渲染器
@@ -81,6 +95,7 @@ const updateRendererState = () => {
   renderer.setFPS(props.fps);
   renderer.setRenderScale(props.renderScale);
   renderer.setHasLyric(props.hasLyric);
+  applyRendererOptions();
   syncRendererMotion();
 };
 
@@ -284,6 +299,11 @@ watch(
   (val) => {
     bgRenderRef.value?.setHasLyric(val);
   },
+);
+
+watch(
+  () => props.titaniumOptions,
+  () => applyRendererOptions(),
 );
 
 defineExpose({

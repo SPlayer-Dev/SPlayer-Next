@@ -1,3 +1,4 @@
+import type { PaletteAlgorithm } from "@applemusic-like-lyrics/core";
 import type { LyricFormat } from "lyric-kit";
 
 import { DEFAULT_LYRIC_FORMAT_ORDER as DEFAULT_LYRIC_FORMAT_ORDER_SHARED } from "@shared/types/lyrics";
@@ -12,7 +13,7 @@ import type { LyricAlignment } from "lyric-dom";
 /** 播放器背景类型 */
 export type PlayerBgType = "blur" | "solid" | "animation";
 /** 流体背景渲染引擎 */
-export type PlayerBgRenderer = "mesh" | "isolation" | "pixi";
+export type PlayerBgRenderer = "mesh" | "pixi" | "isolation" | "titanium";
 /** 全屏播放器布局 */
 export type PlayerLayout = "classic" | "fullCover" | "fullLyric" | "apple";
 
@@ -244,6 +245,20 @@ export interface PlayerSettings {
   playerBgFreezeOnPause: boolean;
   /** 流体背景随低频节拍脉动 */
   playerBgBeat: boolean;
+  /** Titanium 渲染器取色算法 */
+  playerBgTitaniumPaletteAlgorithm: PaletteAlgorithm;
+  /** Titanium 渲染器颗粒强度 */
+  playerBgTitaniumGrain: number;
+  /** Titanium 渲染器闪粉强度 */
+  playerBgTitaniumSparkle: number;
+  /** Titanium 渲染器金属高光强度 */
+  playerBgTitaniumSheen: number;
+  /** Titanium 渲染器金属化程度 */
+  playerBgTitaniumMetalness: number;
+  /** Titanium 渲染器锋线迁移时长（毫秒） */
+  playerBgTitaniumCrestShiftMs: number;
+  /** Titanium 渲染器抖动开关 */
+  playerBgTitaniumDithering: boolean;
   /** 全屏播放器布局 */
   layout: PlayerLayout;
   /** 播放页封面/歌词分栏占比（0-1，封面侧宽度） */

@@ -1616,8 +1616,9 @@
       "label": "渲染引擎",
       "description": "选择流体背景渲染引擎",
       "mesh": "网格渐变渲染器",
-      "isolation": "isolation 渲染器",
-      "pixi": "PixiJS 渲染器"
+      "pixi": "PixiJS 渲染器",
+      "isolation": "Isolation 渲染器",
+      "titanium": "Titanium 流沙渲染器"
     },
     "playerBgFlowSpeed": {
       "label": "流动速度",
@@ -1638,6 +1639,32 @@
     "playerBgBeat": {
       "label": "背景跳动",
       "description": "使流体背景随音乐低频节拍产生脉动效果"
+    },
+    "playerBgTitaniumPaletteAlgorithm": {
+      "label": "取色算法",
+      "auto": "自动择优（K-Means / 八叉树）",
+      "kmeans": "K-Means",
+      "octtree": "八叉树"
+    },
+    "playerBgTitaniumGrain": {
+      "label": "颗粒强度"
+    },
+    "playerBgTitaniumSparkle": {
+      "label": "闪粉强度"
+    },
+    "playerBgTitaniumSheen": {
+      "label": "金属高光"
+    },
+    "playerBgTitaniumMetalness": {
+      "label": "金属化"
+    },
+    "playerBgTitaniumCrestShiftMs": {
+      "label": "锋线迁移时长",
+      "description": "换封面时锋线迁移的时长（毫秒）"
+    },
+    "playerBgTitaniumDithering": {
+      "label": "抖动",
+      "description": "叠加极弱噪声消除颗粒产生的色带"
     },
     "playerLayout": {
       "label": "播放器布局",

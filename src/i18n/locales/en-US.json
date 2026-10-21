@@ -1616,8 +1616,9 @@
       "label": "Render Engine",
       "description": "Select the rendering engine for fluid animation background",
       "mesh": "Mesh Gradient Renderer",
+      "pixi": "PixiJS Renderer",
       "isolation": "Isolation Renderer",
-      "pixi": "PixiJS Renderer"
+      "titanium": "Titanium Renderer"
     },
     "playerBgFlowSpeed": {
       "label": "Flow Speed",
@@ -1638,6 +1639,32 @@
     "playerBgBeat": {
       "label": "Beat Pulse",
       "description": "Make the fluid background pulse with the low-frequency beat of the music"
+    },
+    "playerBgTitaniumPaletteAlgorithm": {
+      "label": "Palette Algorithm",
+      "auto": "Auto (K-Means / Octree)",
+      "kmeans": "K-Means",
+      "octtree": "Octree"
+    },
+    "playerBgTitaniumGrain": {
+      "label": "Grain Strength"
+    },
+    "playerBgTitaniumSparkle": {
+      "label": "Sparkle Strength"
+    },
+    "playerBgTitaniumSheen": {
+      "label": "Metallic Sheen"
+    },
+    "playerBgTitaniumMetalness": {
+      "label": "Metalness"
+    },
+    "playerBgTitaniumCrestShiftMs": {
+      "label": "Crest Shift Duration",
+      "description": "Duration of the crest shift when the cover changes (ms)"
+    },
+    "playerBgTitaniumDithering": {
+      "label": "Dithering",
+      "description": "Add very faint noise to remove banding caused by grain"
     },
     "playerLayout": {
       "label": "Player Layout",
