@@ -1447,6 +1447,10 @@
       "label": "窗口置顶",
       "description": "灵动岛窗口始终保持在最前"
     },
+    "dynamicIslandHideOnFullscreen": {
+      "label": "全屏时隐藏",
+      "description": "其他应用进入全屏（游戏、视频、浏览器全屏）时自动隐藏灵动岛，退出全屏后恢复显示并置顶"
+    },
     "dynamicIslandNotchFusion": {
       "label": "刘海融合",
       "description": "在 MacBook 刘海屏上让灵动岛从物理刘海向下扩展"

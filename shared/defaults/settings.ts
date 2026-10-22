@@ -72,6 +72,7 @@ export const defaultSystemConfig: SystemConfig = {
     unplayedColor: "rgba(255, 255, 255, 0.5)",
     backgroundColor: "rgba(0, 0, 0, 1)",
     alwaysOnTop: true,
+    hideOnFullscreen: true,
     snapCentered: true,
     notchFusion: false,
     nonOcclusive: false,

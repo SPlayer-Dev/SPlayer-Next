@@ -1,6 +1,6 @@
 import type { SettingCategory, SettingSection } from "@/types/settings-schema";
 import { useSettingsStore } from "@/stores/settings";
-import { isMac } from "@/utils/config";
+import { isMac, isWin } from "@/utils/config";
 import IconLucideMonitor from "~icons/lucide/monitor";
 
 const desktopLyricSection: SettingSection = {
@@ -225,6 +225,19 @@ const dynamicIslandSection: SettingSection = {
       binding: { store: "settings", path: "system.dynamicIsland.alwaysOnTop" },
       defaultValue: true,
     },
+    ...(isWin
+      ? [
+          {
+            key: "dynamicIslandHideOnFullscreen",
+            type: "switch" as const,
+            binding: {
+              store: "settings" as const,
+              path: "system.dynamicIsland.hideOnFullscreen",
+            },
+            defaultValue: true,
+          },
+        ]
+      : []),
     ...(isMac
       ? [
           {

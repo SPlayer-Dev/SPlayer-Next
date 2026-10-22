@@ -1447,6 +1447,10 @@
       "label": "Always On Top",
       "description": "Keep the Dynamic Island window above others"
     },
+    "dynamicIslandHideOnFullscreen": {
+      "label": "Hide on Fullscreen",
+      "description": "Hide the island when another app goes fullscreen (games, video, browser fullscreen) and restore it on exit"
+    },
     "dynamicIslandNotchFusion": {
       "label": "Notch Fusion",
       "description": "Expand the island from the physical MacBook notch"

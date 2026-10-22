@@ -26,6 +26,10 @@ const modules: NativeModule[] = [
     enabled: process.platform === "win32",
   },
   {
+    name: "window-monitor",
+    enabled: process.platform === "win32",
+  },
+  {
     name: "opencc",
   },
 ];
