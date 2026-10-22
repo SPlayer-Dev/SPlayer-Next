@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import type { LyricLine } from "@shared/types/lyrics";
-import { LyricPlayer as CoreLyricPlayer } from "@applemusic-like-lyrics/core";
+import type { LyricLine } from "lyric-kit";
+
+import {
+  LyricPlayer as CoreLyricPlayer,
+  type LyricLineMouseEvent,
+} from "@applemusic-like-lyrics/core";
 import { useSettingsStore } from "@/stores/settings";
 import { useStatusStore } from "@/stores/status";
 import { getCurrentTime } from "@/services/playback";
 import "@applemusic-like-lyrics/core/style.css";
-import "./renderer.css";
 
 const props = withDefaults(
   defineProps<{
@@ -23,10 +26,14 @@ const props = withDefaults(
     enableBlur?: boolean;
     /** 是否显示翻译歌词 */
     showTranslation?: boolean;
+    /** 是否显示词内注音 */
+    showRuby?: boolean;
     /** 是否显示逐行音译 */
-    showLineRomanization?: boolean;
+    showRomanization?: boolean;
     /** 是否显示逐词音译 */
     showWordRomanization?: boolean;
+    /** 是否始终将背景行置于主行下方 */
+    bgAlwaysBelow?: boolean;
     /** 挂载时的初始播放时间（毫秒） */
     initialTime?: number;
   }>(),
@@ -37,8 +44,10 @@ const props = withDefaults(
     hidePassedLines: false,
     enableBlur: false,
     showTranslation: true,
-    showLineRomanization: true,
+    showRuby: true,
+    showRomanization: true,
     showWordRomanization: true,
+    bgAlwaysBelow: false,
     initialTime: 0,
   },
 );
@@ -46,6 +55,8 @@ const props = withDefaults(
 interface Emits {
   /** 点击歌词行进行播放进度跳转 */
   (e: "seek", timeMs: number): void;
+  /** 首次布局完成 */
+  (e: "ready"): void;
 }
 
 const emit = defineEmits<Emits>();
@@ -56,7 +67,7 @@ const status = useStatusStore();
 const wrapperRef = ref<HTMLDivElement | null>(null);
 const playerRef = ref<CoreLyricPlayer>();
 const bottomLineEl = ref<HTMLElement>();
-const clockInitialized = ref(false);
+
 // 播放器是否已初始化完成
 const initialized = ref(false);
 const contentVisible = ref(false);
@@ -76,16 +87,22 @@ const nextFrame = (): Promise<void> =>
 const processedLyrics = computed(() => {
   if (!props.lyricLines) return [];
   return props.lyricLines.map((line) => {
+    const hasWordRoman = line.words.some((w) => Boolean(w.romanWord?.trim()));
+    const showWordRomanForLine = props.showWordRomanization && hasWordRoman;
+    const showLineRomanForLine = props.showRomanization && !showWordRomanForLine;
     const newLine = {
       ...line,
       translatedLyric: props.showTranslation ? line.translatedLyric : "",
-      romanLyric: props.showLineRomanization ? line.romanLyric : "",
+      romanLyric: showLineRomanForLine ? line.romanLyric : "",
     };
     if (line.words) {
       newLine.words = line.words.map((word) => {
         const newWord = { ...word };
         if (!props.showWordRomanization) {
           delete newWord.romanWord;
+        }
+        if (!props.showRuby) {
+          delete newWord.ruby;
         }
         return newWord;
       });
@@ -95,8 +112,8 @@ const processedLyrics = computed(() => {
 });
 
 // 行点击事件回调
-const handleLineClick = (e: Event) => {
-  const amllEvent = e as Event & { line?: { getLine: () => { startTime?: number } } };
+const handleLineClick = (event: Event) => {
+  const amllEvent = event as LyricLineMouseEvent;
   const lineData = amllEvent.line?.getLine();
   if (lineData && typeof lineData.startTime === "number") {
     emit("seek", lineData.startTime);
@@ -137,6 +154,7 @@ const syncPlayerOptions = (player = playerRef.value): void => {
   const useSpring = settings.lyric.useAMSpring;
   player.setEnableSpring(useSpring);
   player.setEnableScale(useSpring);
+  player.setAlwaysPostpositionBackground(props.bgAlwaysBelow ?? false);
   player.setLinePosYSpringParams({
     mass: settings.lyric.amllVerticalSpringMass,
     damping: settings.lyric.amllVerticalSpringDamping,
@@ -167,11 +185,10 @@ const handleVisibility = () => {
     playerRef.value?.pause();
     isPreviousHidden.value = true;
   } else if (isPreviousHidden.value && !isFrozen.value && playerRef.value) {
-    // 从隐藏恢复：校准 Core 内部时钟到当前播放位置，避免逐词效果从头开始
+    // 从隐藏恢复
     const currentTime = getCurrentTime() + status.lyricOffsetMs;
     playerRef.value.setCurrentTime(currentTime, true);
     isPreviousHidden.value = false;
-    // 恢复后根据当前状态决定 resume/pause（由 watchEffect 处理，这里只需确保 state sync）
   }
 };
 
@@ -196,7 +213,6 @@ onMounted(async () => {
   player.setOptimizeOptions({
     cleanUnintentionalOverlaps: settings.lyric.amllCleanUnintentionalOverlaps,
     tryAdvanceStartTime: settings.lyric.amllTryAdvanceStartTime,
-    convertExcessiveBackgroundLines: settings.lyric.amllConvertExcessiveBackgroundLines,
     syncMainAndBackgroundLines: settings.lyric.amllSyncMainAndBackgroundLines,
     normalizeSpaces: settings.lyric.amllNormalizeSpaces,
     resetLineTimestamps: settings.lyric.amllResetLineTimestamps,
@@ -206,28 +222,22 @@ onMounted(async () => {
 
   await nextTick();
   await nextFrame();
-  if (playerRef.value !== player) return;
-
-  if (processedLyrics.value.length > 0) {
-    player.setLyricLines(processedLyrics.value, props.initialTime);
-    processLyricLanguage(player);
-  } else if (Number.isFinite(props.initialTime) && props.initialTime >= 0) {
-    player.setCurrentTime(props.initialTime, true);
-  }
-
+  // RAF 回调先于 ResizeObserver，再等一帧让 Core 获得容器尺寸
   await nextFrame();
   if (playerRef.value !== player) return;
-  if (pendingLyrics) {
-    player.setLyricLines(pendingLyrics, getCurrentTime() + status.lyricOffsetMs);
-    pendingLyrics = null;
-    processLyricLanguage(player);
-    await nextFrame();
-    if (playerRef.value !== player) return;
-  }
-  player.setCurrentTime(getCurrentTime() + status.lyricOffsetMs, true);
+
+  const currentTime = Math.round(props.initialTime);
+  if (props.playing) player.resume();
+  else player.pause();
+  // 等待期间可能更新歌词，使用此时的最新数据避免再次重建视图
+  pendingLyrics = null;
+  player.setLyricLines(processedLyrics.value, currentTime);
+  player.setCurrentTime(currentTime, true);
   player.update(0);
+  processLyricLanguage(player);
   initialized.value = true;
   contentVisible.value = true;
+  emit("ready");
 });
 
 onUnmounted(() => {
@@ -247,12 +257,6 @@ onUnmounted(() => {
 watchEffect(() => {
   const player = playerRef.value;
   if (!player || !initialized.value) return;
-
-  // 首次运行时校准一次（避免重复）
-  if (!clockInitialized.value) {
-    player.update(0);
-    clockInitialized.value = true;
-  }
 
   const playing = props.playing;
   const frozen = isFrozen.value;
@@ -278,6 +282,7 @@ watch(
     props.wordFadeWidth,
     props.hidePassedLines,
     props.enableBlur,
+    props.bgAlwaysBelow,
     settings.lyric.useAMSpring,
     settings.lyric.amllVerticalSpringMass,
     settings.lyric.amllVerticalSpringDamping,
@@ -308,7 +313,6 @@ watch(
   () => ({
     cleanUnintentionalOverlaps: settings.lyric.amllCleanUnintentionalOverlaps,
     tryAdvanceStartTime: settings.lyric.amllTryAdvanceStartTime,
-    convertExcessiveBackgroundLines: settings.lyric.amllConvertExcessiveBackgroundLines,
     syncMainAndBackgroundLines: settings.lyric.amllSyncMainAndBackgroundLines,
     normalizeSpaces: settings.lyric.amllNormalizeSpaces,
     resetLineTimestamps: settings.lyric.amllResetLineTimestamps,
@@ -317,8 +321,6 @@ watch(
     if (!playerRef.value) return;
     playerRef.value.setOptimizeOptions(options);
     if (processedLyrics.value.length > 0 && !isFrozen.value) {
-      const currentTime = getCurrentTime() + status.lyricOffsetMs;
-      playerRef.value.setLyricLines(processedLyrics.value, currentTime);
       processLyricLanguage();
     }
   },
@@ -361,7 +363,9 @@ defineExpose({
 <template>
   <div ref="wrapperRef" class="amll-lyrics-container" :class="contentVisible ? 'is-visible' : ''" />
   <Teleport v-if="bottomLineEl" :to="bottomLineEl">
-    <slot name="bottom" />
+    <slot name="bottom">
+      <LyricCredit />
+    </slot>
   </Teleport>
 </template>
 
@@ -385,6 +389,11 @@ defineExpose({
   --amll-lp-color: var(--lp-color, #fff);
   width: 100%;
   height: 100%;
+}
+
+/* AMLL core 将副行字号硬编码为 max(.5em, 10px)，此处改用应用侧配置 */
+:deep([class*="lyricSubLine"]) {
+  font-size: var(--lp-sub-font-size, max(0.5em, 10px));
 }
 
 :deep(:lang(zh)) {

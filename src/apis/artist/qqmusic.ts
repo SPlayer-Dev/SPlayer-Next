@@ -1,13 +1,8 @@
+import type { QMAlbumItem, QMSong } from "@shared/types/platform/qqmusic";
 import type { Track } from "@shared/types/player";
 import type { ArtistProfile } from "@/types/artist";
 import { qqmusic as qmApi } from "@/apis/qqmusic";
-import {
-  qqAlbumCover,
-  qqArtistCover,
-  qqSongsToTracks,
-  type QMAlbumItem,
-  type QMSong,
-} from "@/utils/format/qqmusic";
+import { qqAlbumCover, qqArtistCover, qqSongsToTracks } from "@/utils/format/qqmusic";
 
 interface ArtistResponse {
   code?: number;
@@ -19,7 +14,7 @@ interface ArtistResponse {
     albumCount?: number;
   };
   songs?: QMSong[];
-  albums?: Array<QMAlbumItem & { publishTime?: string }>;
+  albums?: QMAlbumItem[];
 }
 
 export const fetchQQMusicArtist = async (

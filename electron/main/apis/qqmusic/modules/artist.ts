@@ -1,39 +1,14 @@
 /** QM 歌手详情、热门歌曲与专辑 */
 
 import { qmRequest } from "../core/request";
-import { formatSingerName } from "../core/config";
+import { normalizeQMSong, type QMAudioInfo } from "../core/song";
+import type { QMAlbumItem } from "@shared/types/platform/qqmusic";
 import type { QMModule } from "../core/types";
-
-interface SingerSong {
-  id?: number;
-  mid?: string;
-  title?: string;
-  name?: string;
-  interval?: number;
-  singer?: Array<{ id?: number; mid?: string; name?: string }>;
-  album?: { mid?: string; name?: string };
-  file?: {
-    media_mid?: string;
-    size_128mp3?: number;
-    size_320mp3?: number;
-    size_ape?: number;
-    size_flac?: number;
-    size_192ogg?: number;
-    size_new?: number[];
-    hires_sample?: number;
-    hires_bitdepth?: number;
-  };
-  pay?: {
-    pay_month?: number;
-    pay_play?: number;
-    price_album?: number;
-  };
-}
 
 interface SingerSongList {
   singerMid?: string;
   totalNum?: number;
-  songList?: Array<{ songInfo?: SingerSong }>;
+  songList?: Array<{ songInfo?: QMAudioInfo }>;
 }
 
 interface SingerAlbum {
@@ -44,6 +19,11 @@ interface SingerAlbum {
   latest_song?: { song_count?: number };
 }
 
+/**
+ * 获取 QM 歌手的歌曲分页与专辑列表
+ * @param params - 歌手 MID、分页与专辑加载选项
+ * @returns 歌手资料、歌曲与专辑列表
+ */
 const artist: QMModule = async (params) => {
   const mid = String(params.mid ?? "");
   if (!mid) return { code: 400, message: "mid required" };
@@ -70,33 +50,9 @@ const artist: QMModule = async (params) => {
   const songs = (songsData.songList ?? []).flatMap((entry) => {
     const song = entry.songInfo;
     if (!song?.mid) return [];
-    return [
-      {
-        id: String(song.id ?? ""),
-        mid: song.mid,
-        name: song.title ?? song.name ?? "",
-        artist: formatSingerName(song.singer),
-        artists: song.singer ?? [],
-        album: song.album?.name ?? "",
-        albumMid: song.album?.mid ?? "",
-        duration: (song.interval ?? 0) * 1000,
-        mediaMid: song.file?.media_mid ?? "",
-        pay: {
-          payalbum: song.pay?.pay_month === 0 && (song.pay.price_album ?? 0) > 0 ? 1 : 0,
-          payplay: song.pay?.pay_play ?? 0,
-        },
-        size128: song.file?.size_128mp3 ?? 0,
-        size320: song.file?.size_320mp3 ?? 0,
-        sizeApe: song.file?.size_ape ?? 0,
-        sizeFlac: song.file?.size_flac ?? 0,
-        sizeOgg: song.file?.size_192ogg ?? 0,
-        sizeHiRes: song.file?.size_new?.[0] ?? 0,
-        hiResSampleRate: song.file?.hires_sample ?? 0,
-        hiResBitDepth: song.file?.hires_bitdepth ?? 0,
-      },
-    ];
+    return [normalizeQMSong(song)];
   });
-  const albums = (albumsData.list ?? []).map((album) => ({
+  const albums: QMAlbumItem[] = (albumsData.list ?? []).map((album) => ({
     id: album.album_mid ?? "",
     name: album.album_name ?? "",
     artist: album.singer_name ?? "",

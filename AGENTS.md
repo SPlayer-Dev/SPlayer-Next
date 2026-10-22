@@ -71,9 +71,18 @@ Server protocol clients live in the main process (`electron/main/services/stream
 - `electron/main/services/streaming/connection.ts` — connection tests, connect, and authenticated adapter requests.
 - `electron/main/services/streaming/coverProtocol.ts` — `streaming-cover://` proxy registered for the default and `persist:main` sessions.
 - `electron/main/services/streaming/adapters/` — Server response → unified `Track / Album / Artist / Playlist`. Trusts server's artist field; no client-side splitting.
-- `services/streaming/session.ts` — Jellyfin/Emby `/Sessions/Playing` heartbeat + PlaySessionId state machine; called from `core/player.ts`.
+- `electron/main/services/streaming/sync.ts` + `snapshot.ts` — cancellable enumeration into temporary SQLite staging, then atomically publish all four indexes; failed or interrupted sync keeps the previous snapshot
+- `electron/main/services/streaming/playback.ts` + `playbackSession.ts` — native event driven playback sessions, unique PlaySessionId per play, Jellyfin/Emby start/progress/stop and Subsonic now-playing/scrobble; download and preload never report playback
+- Favorites — server responses are authoritative; SQLite and renderer consume per-track updates, with sync-time overrides preventing late pages from overwriting user actions
 - `stores/streaming.ts` — Server list, active state, and complete shallowRef arrays; main-process update events trigger SQLite snapshot reloads, with no polling or direct media-server access.
 - Credentials — `electron/main/services/streaming/config.ts` encrypts via Electron `safeStorage` to `{userData}/app-data/config/streaming.json`. `accessToken / userId` remain in the bounded main-process session cache and are re-acquired on connect.
+
+Playback resolves remote streaming sources in the main process from `Track.serverId / originalId`; the renderer only passes a `streaming://` identity placeholder or a cached local path. Albums, artists, playlists and navigation retain the originating server ID
+
+Server identity changes advance `mediaRevision`, which is copied to `Track.serverRevision` and
+used to isolate playback, song caches, and completed downloads. Renaming a server preserves
+its media identity and active playback. Downloads use the protocol's original-file endpoint,
+with authentication recovery and permission checks performed in the main process
 
 ### Lyric Windows
 
@@ -89,7 +98,7 @@ Don't reimplement these inside individual windows.
 
 - `shared/types/player.ts` — `Track`, `TrackDetail`, `Artist`, `Album`, `AudioQuality`, `PlayerState`, `PlayerStatus`, `PlayerEvent`, `LoadOptions`, `LoadResult`, `IpcResponse`
 - `shared/types/lyrics.ts` — `LyricFormat`, `LyricSource (external | embedded | online)`, `LyricData`, `LyricLine`, `LyricWord`, `LyricSpan`
-- `shared/types/platform.ts` — `Platform (netease | qqmusic | kugou)`
+- `shared/types/platform/` — `index.ts` defines `Platform (netease | qqmusic | kugou)`; `netease.ts / qqmusic.ts / kugou.ts` hold platform data contracts shared by main and renderer
 - `shared/types/streaming.ts` — `StreamingServerType`, `StreamingServerConfig`, `StreamingPingResult`, `StreamingAuthResult`, etc.
 
 `Track` is for queue storage (no heavy data); `TrackDetail` loads on demand.
@@ -145,8 +154,13 @@ Renderer uses `vue-i18n` with `src/i18n/locales/{zh-CN,en-US}.json`. Main proces
 
 ### Comments — Chinese, with JSDoc
 
-All comments in Chinese. Methods use standard JSDoc with `@param name - description` and
-`@returns` when meaningful:
+All comments in Chinese. Every newly added or modified method must have a concise, meaningful
+JSDoc description of its purpose and parameters, using `@param name - description` and
+`@returns` when meaningful. This applies to internal helpers, class methods, adapter methods,
+and exported APIs. Anonymous callbacks do not need redundant explanations of obvious logic
+
+Avoid trailing periods in Chinese comments, JSDoc descriptions, and UI copy whenever possible.
+Keep the wording concise and natural
 
 ```ts
 /**

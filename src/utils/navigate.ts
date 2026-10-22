@@ -12,6 +12,7 @@ export type ResourceNavigationTarget =
   | {
       type: NavigableResourceType;
       source?: TrackSource;
+      serverId?: string;
       id?: string;
       name?: string;
     }
@@ -64,7 +65,10 @@ export const navigateToResource = (target: ResourceNavigationTarget): boolean =>
   }
   const source = target.source ?? "local";
   const name = target.name?.trim();
-  const query = name && name !== id ? { name } : undefined;
+  const query = {
+    ...(name && name !== id ? { name } : {}),
+    ...(target.serverId ? { serverId: target.serverId } : {}),
+  };
   if (target.type === "artist") {
     router.push({
       name: "artist",
@@ -90,11 +94,12 @@ export const navigateToResource = (target: ResourceNavigationTarget): boolean =>
  */
 export const navigateToAlbum = (
   albumName?: string,
-  options: { source?: TrackSource; albumId?: string } = {},
+  options: { source?: TrackSource; albumId?: string; serverId?: string } = {},
 ): boolean =>
   navigateToResource({
     type: "album",
     source: options.source,
+    serverId: options.serverId,
     id: options.albumId,
     name: albumName,
   });
@@ -108,11 +113,12 @@ export const navigateToAlbum = (
  */
 export const navigateToArtist = (
   artistName?: string,
-  options: { source?: TrackSource; artistId?: string } = {},
+  options: { source?: TrackSource; artistId?: string; serverId?: string } = {},
 ): boolean =>
   navigateToResource({
     type: "artist",
     source: options.source,
+    serverId: options.serverId,
     id: options.artistId,
     name: artistName,
   });
@@ -126,11 +132,12 @@ export const navigateToArtist = (
  */
 export const navigateToPlaylist = (
   playlistId: string | undefined,
-  options: { source?: TrackSource; name?: string } = {},
+  options: { source?: TrackSource; name?: string; serverId?: string } = {},
 ): boolean =>
   navigateToResource({
     type: "playlist",
     source: options.source,
+    serverId: options.serverId,
     id: playlistId,
     name: options.name,
   });

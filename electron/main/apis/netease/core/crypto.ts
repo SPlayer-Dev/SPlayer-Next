@@ -69,7 +69,7 @@ export const aesDecrypt = (
 /**
  * RSA 加密
  *
- * 网易云的 weapi 要求「裸 RSA」：将明文左侧补 0 到 128 字节（1024bit 模长），
+ * NCM 的 weapi 要求「裸 RSA」：将明文左侧补 0 到 128 字节（1024bit 模长），
  * 再用公钥做一次模幂运算，输出 hex。node:crypto 的 RSA_NO_PADDING 正好对应
  */
 export const rsaEncrypt = (str: string, publicKey: string = PUBLIC_KEY): string => {
@@ -184,6 +184,9 @@ export interface XeapiOptions {
   sessionId?: string;
   sessionKey?: string;
   os?: string;
+  appver?: string;
+  deviceId?: string;
+  uid?: string;
   method?: string;
   contentType?: string;
 }
@@ -221,14 +224,13 @@ export const xeapiSign = (timestamp: string | number, nonce: string): string =>
     .update(String(timestamp) + nonce)
     .digest("base64");
 
-/** 中间层变换：随机 XOR → base64 → 随机旋转 */
+/** 中间层变换：随机 XOR 后按原始字节旋转 */
 const xeapiMidTransform = (ciphertext: Buffer): Buffer => {
   const random = randomBytes(16);
   const xored = Buffer.alloc(ciphertext.length);
   for (let i = 0; i < ciphertext.length; i++) xored[i] = ciphertext[i] ^ random[i & 0x0f];
-  const b64 = Buffer.from(xored.toString("base64"));
-  const rot = b64.length ? (random[0] & 0x0f) % b64.length : 0;
-  return Buffer.concat([random, b64.subarray(rot), b64.subarray(0, rot)]);
+  const rot = xored.length ? (random[0] & 0x0f) % xored.length : 0;
+  return Buffer.concat([random, xored.subarray(rot), xored.subarray(0, rot)]);
 };
 
 /** 用 X25519 ECDH + AES-GCM 封装动态密钥（S 字段） */
@@ -255,7 +257,8 @@ const buildXeapiPlaintext = (
 ): string => {
   const fields: Record<string, string> = {};
   const contentType = options.contentType || "application/x-www-form-urlencoded;charset=utf-8";
-  if (contentType.split(";", 1)[0].toLowerCase() !== "application/x-www-form-urlencoded") {
+  const mediaType = contentType.split(";", 1)[0].toLowerCase();
+  if (mediaType !== "application/x-www-form-urlencoded") {
     fields.contentType = contentType;
   }
   const method = (options.method || "POST").toUpperCase();
@@ -266,24 +269,27 @@ const buildXeapiPlaintext = (
     const bodyData = { ...data };
     delete bodyData.e_r;
     const body = new URLSearchParams(bodyData as Record<string, string>).toString();
-    fields.body = Buffer.from(body).toString("base64");
+    if (body.length) {
+      if (mediaType === "application/x-www-form-urlencoded") fields.content = body;
+      else fields.body = Buffer.from(body).toString("base64");
+    }
   }
   fields.queryString = fields.queryString ? `${fields.queryString}&e_r=true` : "e_r=true";
   return JSON.stringify(fields);
 };
 
-/** xeapi 加密：返回 B / S / R 三段 base64 */
+/** xeapi 加密：C 使用 base64url，S / R 使用 base64 */
 export const xeapi = (
   uri: string,
   data: Record<string, unknown>,
   options: XeapiOptions,
-): { B: string; S: string; R: string } => {
+): { C: string; S: string; R: string } => {
   const { publicKeyState } = options;
   const activeSessionKey = options.sessionKey ? Buffer.from(String(options.sessionKey)) : null;
   const activeSessionId = options.sessionId || "";
   const dynamicKey = activeSessionKey || randomBytes(16);
   const plaintext = Buffer.from(buildXeapiPlaintext(uri, data, options));
-  const b = aesEcbEncrypt(
+  const c = aesEcbEncrypt(
     dynamicKey,
     xeapiMidTransform(aesEcbEncrypt(XEAPI_STATIC_KEY, plaintext)),
   );
@@ -292,7 +298,7 @@ export const xeapi = (
     XEAPI_STATIC_KEY,
     Buffer.from(`${publicKeyState.version}|${activeSessionKey ? activeSessionId : ""}`),
   );
-  return { B: b.toString("base64"), S: s.toString("base64"), R: r.toString("base64") };
+  return { C: c.toString("base64url"), S: s.toString("base64"), R: r.toString("base64") };
 };
 
 /** xeapi 响应解密：AES-ECB(eapiKey) + 可选 gunzip + JSON */

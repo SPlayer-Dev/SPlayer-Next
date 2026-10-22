@@ -20,6 +20,8 @@ export const defaultSystemConfig: SystemConfig = {
     outputDevice: null,
     volume: 1,
     loudnessNormalization: false,
+    audioOutputMode: "shared",
+    keepScreenAwake: false,
     equalizer: {
       enabled: false,
       preset: "flat",
@@ -165,7 +167,7 @@ export const defaultSystemConfig: SystemConfig = {
       port: 7890,
     },
     neteaseScrobbleEnabled: false,
-    neteaseScrobbleMode: "ncbl",
+    neteaseScrobbleMode: "legacy",
     registerOrpheusProtocol: false,
   },
   windowStates: {

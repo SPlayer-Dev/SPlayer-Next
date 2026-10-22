@@ -43,7 +43,7 @@ const trackCount = computed(() => user.cloudCount || user.cloudTracks.length);
 
 const handlePlayAll = (): void => {
   if (user.cloudTracks.length === 0) return;
-  player.playFrom(user.cloudTracks, 0, playbackContext.value);
+  player.playFrom(user.cloudTracks, { context: playbackContext.value });
 };
 
 const songListRef = shallowRef<InstanceType<typeof SongList> | null>(null);
@@ -166,6 +166,7 @@ watch(
           :playback-context="playbackContext"
           source="netease"
           collection-type="cloud"
+          sort-key="cloud"
           enable-sort
         />
       </div>

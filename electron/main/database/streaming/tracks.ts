@@ -13,6 +13,24 @@ interface TrackRow {
 }
 
 /**
+ * 更新已缓存歌曲的收藏状态，不创建缺少元数据的占位曲目
+ * @param serverId - 服务器 ID
+ * @param remoteId - 服务端歌曲 ID
+ * @param favorite - 服务端确认的收藏状态
+ */
+export const updateStreamingFavorite = (
+  serverId: string,
+  remoteId: string,
+  favorite: boolean,
+): void => {
+  getDb()
+    .prepare(
+      "UPDATE remote_tracks SET data = json_set(data, '$.favorite', json(?)), updated_at = ? WHERE server_id = ? AND remote_id = ?",
+    )
+    .run(JSON.stringify(favorite), Date.now(), serverId, remoteId);
+};
+
+/**
  * 批量写入流媒体歌曲
  * @param records - 流媒体歌曲记录
  */

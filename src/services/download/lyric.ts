@@ -5,7 +5,8 @@
  */
 
 import type { Track } from "@shared/types/player";
-import type { LyricFormat, LyricInput } from "@shared/types/lyrics";
+import type { LyricFormat, LyricInput } from "lyric-kit";
+
 import { isPlatform } from "@shared/types/platform";
 import { buildDownloadLyric } from "@/utils/lyric/serialize";
 import {

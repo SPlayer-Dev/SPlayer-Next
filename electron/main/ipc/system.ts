@@ -1,11 +1,14 @@
-import { app, ipcMain, shell } from "electron";
-import { writeFile } from "node:fs/promises";
+import { app, clipboard, ipcMain, shell } from "electron";
+import { stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join, basename } from "node:path";
+import { join, basename, normalize } from "node:path";
+import { pathToFileURL } from "node:url";
+import type { Track } from "@shared/types/player";
 import { getFonts } from "font-list";
 import type { LocaleCode } from "@shared/types/settings";
 import { setLocale } from "@main/utils/i18n";
 import { systemLog } from "@main/utils/logger";
+import { isWin, isMac } from "@main/utils/config";
 import { refreshTray } from "@main/services/tray";
 import { getThumbar } from "@main/services/thumbar";
 import { getMainWindow, focusMainWindow } from "@main/window";
@@ -15,6 +18,7 @@ import { consumePendingOrpheusUrl } from "@main/services/orpheus";
 import { consumePendingAudioFiles } from "@main/services/externalFile";
 import { testNetworkProxy } from "@main/utils/proxy";
 import { store } from "@main/store";
+import { lookupDownloadedFile } from "@main/services/downloadManager";
 
 /**
  * 注册系统相关的 IPC 事件
@@ -40,6 +44,34 @@ export const registerSystemIpc = (): void => {
   // 在文件管理器中显示文件
   ipcMain.handle("system:showInExplorer", (_event, filePath: string) => {
     shell.showItemInFolder(filePath);
+  });
+
+  ipcMain.handle("system:copyTrackFile", async (_event, track: Track): Promise<boolean> => {
+    try {
+      const filePath =
+        track.source === "local"
+          ? (track.cueAudioPath ?? track.path)
+          : await lookupDownloadedFile(track);
+      if (!filePath) return false;
+      if (track.source === "local") {
+        const file = await stat(filePath);
+        if (!file.isFile() || file.size === 0) return false;
+      }
+
+      if (isWin) {
+        clipboard.writeBuffer("FileNameW", Buffer.from(`${normalize(filePath)}\0`, "utf16le"));
+      } else {
+        const url = pathToFileURL(filePath).href;
+        clipboard.writeBuffer(
+          isMac ? "public.file-url" : "text/uri-list",
+          Buffer.from(isMac ? url : `${url}\r\n`),
+        );
+      }
+      return true;
+    } catch (error) {
+      systemLog.error("复制歌曲文件失败", error);
+      return false;
+    }
   });
 
   // 打开日志目录

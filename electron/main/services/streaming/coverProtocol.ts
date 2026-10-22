@@ -2,6 +2,7 @@ import { net, protocol, session } from "electron";
 import { streamingLog } from "@main/utils/logger";
 import { MAIN_PARTITION } from "@main/utils/protocol";
 import { withStreamingAdapter } from "./connection";
+import { StreamingRequestError } from "./errors";
 
 const SCHEME = "streaming-cover";
 
@@ -18,10 +19,17 @@ const handleCover = async (request: Request): Promise<Response> => {
     const size = Math.min(2000, Math.max(32, Number(url.searchParams.get("size")) || 300));
     if (!serverId || !coverId) return new Response(null, { status: 400 });
     const response = await withStreamingAdapter(serverId, async (config, adapter) => {
-      const coverUrl = await adapter.getCoverUrl(config, coverId, size);
-      const result = await net.fetch(coverUrl);
+      const coverUrl = await adapter.getCoverUrl(
+        config,
+        coverId,
+        size,
+        url.searchParams.get("tag") ?? undefined,
+      );
+      const result = await net.fetch(coverUrl, {
+        signal: AbortSignal.any([request.signal, AbortSignal.timeout(15_000)]),
+      });
       if (result.status === 401 || result.status === 403) {
-        throw new Error(`HTTP ${result.status}`);
+        throw new StreamingRequestError(`HTTP ${result.status}`, result.status);
       }
       return result;
     });

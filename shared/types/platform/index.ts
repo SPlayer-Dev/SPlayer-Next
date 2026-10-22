@@ -1,0 +1,31 @@
+/** 平台类型 */
+export type Platform = "netease" | "qqmusic" | "kugou";
+
+/** 平台简写 */
+export const PLATFORM_SHORT_NAME: Record<Platform, string> = {
+  netease: "NCM",
+  qqmusic: "QM",
+  kugou: "KG",
+};
+
+/** 全部平台 */
+export const ALL_PLATFORMS: Platform[] = ["netease", "qqmusic", "kugou"];
+
+const PLATFORM_SET = new Set<string>(ALL_PLATFORMS);
+
+/**
+ * 判断来源是否为在线平台并收窄类型
+ * @param source - 歌曲来源
+ * @returns 是否为支持的在线平台
+ */
+export const isPlatform = (source: string | undefined): source is Platform =>
+  source !== undefined && PLATFORM_SET.has(source);
+
+/** 平台用户账号资料 */
+export interface PlatformProfile {
+  userId: string;
+  nickname: string;
+  avatarUrl: string;
+  isVip: boolean;
+  vipLevel?: number;
+}

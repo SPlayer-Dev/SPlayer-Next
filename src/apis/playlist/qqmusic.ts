@@ -1,6 +1,7 @@
+import type { QMSong } from "@shared/types/platform/qqmusic";
 import type { Playlist, Track } from "@shared/types/player";
 import { qqmusic as qmApi } from "@/apis/qqmusic";
-import { qqSongsToTracks, type QMSong } from "@/utils/format/qqmusic";
+import { qqSongsToTracks } from "@/utils/format/qqmusic";
 
 interface PlaylistResponse {
   code?: number;

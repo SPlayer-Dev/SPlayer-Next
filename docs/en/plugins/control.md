@@ -1,284 +1,385 @@
-# Control Plugins
+# Playback control
 
-A control plugin (`@type control`) can subscribe to track, lyric, and playback events; control playback; expose user settings; and add track menu items. Typical uses include smart-home integration, scrobbling, external displays, and track actions.
-
-Read [Plugin Overview](/en/plugins/) for common APIs.
-
-::: warning API level 2 required
-Declare `@type control` and at least `@apiLevel 2`, otherwise control capabilities are unavailable.
-:::
+Subscribe to playback events and control the player. Settings, menus, and other shared methods are covered in [Common APIs](/en/plugins/api).
 
 ## Quick start
 
 ```js
 /**
- * @name        Example Control
- * @id          you.example-control
- * @version     1.0.0
- * @description Example control plugin
- * @author      you
- * @type        control
- * @apiLevel    2
- * @grant       control
+ * @name Playback example
+ * @id you.playback-example
+ * @version 1.0.0
+ * @apiLevel 2
+ * @grant control
  */
-
 splayer.register({
-  events: ["trackChange", "playStateChange", "lineChange"],
+  events: ["trackChange"],
   controls: true,
-  settings: [{ key: "enabled", type: "switch", label: "Enable sync", default: true }],
 });
-
 splayer.player.on("trackChange", ({ track }) => {
-  if (!track) return;
-  splayer.log.info(
-    "Now playing:",
-    track.title,
-    "-",
-    track.artists.map((artist) => artist.name).join(" / "),
-  );
+  if (track) splayer.log.info(track.title);
 });
-
-splayer.player.on("playStateChange", ({ state, position }) => {
-  splayer.log.info("Playback:", state, "@", position, "ms");
-});
+splayer.player.setVolume(0.5);
 ```
 
-## `splayer.register(args)`
+## Registration {#register}
 
-Call registration synchronously while the plugin loads.
+Use [`splayer.register`](/en/plugins/api#register) to declare `events` subscriptions and the `controls` playback-control marker. See [Event types](#event-types) for supported events.
 
-| Field      | Type                  | Description                                            |
-| ---------- | --------------------- | ------------------------------------------------------ |
-| `events`   | `PlaybackEventKind[]` | Events to receive                                      |
-| `controls` | `boolean`             | Declares that the plugin uses reverse playback control |
-| `settings` | `PluginSettingItem[]` | Settings rendered in Plugin Management                 |
-| `menus`    | `PluginMenuItem[]`    | Track menu items; requires `@grant ui`                 |
+## Playback events {#events}
 
-Only declared events are delivered. When enabled, the host immediately sends current track, lyrics, playback state, and line snapshots.
+### Subscribing {#subscribe}
 
-## Playback events {#playback-events}
+Listens to events declared in `register.events`. Initial snapshots of subscribed events are sent when the plugin becomes ready.
 
-```js
-splayer.player.on(kind, (data) => {
-  // ...
-});
-```
+**Call:** `splayer.player.on(kind, handler)`
 
-### `trackChange`
+**API version:** 2
 
-`track` is the current [`Track`](/en/types#track), or `null` when no track exists.
+**Permission:** None
 
-### `lyricChange`
+**Parameters:**
 
-The payload contains `lines: LyricLine[]`. See [`LyricLine`](/en/types#lyricline) and [`LyricWord`](/en/types#lyricword). Convert a line to text with:
+- `kind` ([PlaybackEventKind](#event-types)): Event to observe.
+- `handler` (`(data) => void`): Callback receiving the payload; multiple handlers can observe the same event.
 
-```js
-line.words.map((word) => word.word).join("");
-```
+**Returns:** `void`.
 
-### `lineChange`
+### Event types {#event-types}
 
-Sent only when the current lyric line index changes.
+Use these four values in the `events` array and as `player.on`’s `kind`:
 
-| Field      | Type     | Description                             |
-| ---------- | -------- | --------------------------------------- |
-| `index`    | `number` | Current line index; `-1` means no match |
-| `position` | `number` | Playback position in milliseconds       |
+| `kind`            | Payload                                                           | Description                                                                 |
+| ----------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `trackChange`     | `{ track: Track \| null }`                                        | Current track, or `null`                                                    |
+| `lyricChange`     | `{ lines: LyricLine[] }`                                          | Complete parsed lyrics for the current track                                |
+| `lineChange`      | `{ index: number, position: number }`                             | Lyric line index change; `-1` means no match, `position` is in milliseconds |
+| `playStateChange` | `{ state: "playing" \| "paused" \| "stopped", position: number }` | Playback state change, position in milliseconds                             |
+
+See [Track](/en/types#track) and [LyricLine](/en/types#lyricline) for data structures.
 
 ```js
+splayer.register({ events: ["lyricChange", "lineChange"] });
 let lines = [];
-splayer.player.on("lyricChange", (data) => (lines = data.lines));
+splayer.player.on("lyricChange", (data) => {
+  lines = data.lines;
+});
 splayer.player.on("lineChange", ({ index }) => {
-  const text = index >= 0 ? lines[index].words.map((word) => word.word).join("") : "";
-  splayer.log.info("Current lyric:", text);
+  const text = lines[index]?.words.map((word) => word.word).join("") ?? "";
+  splayer.log.info(text);
 });
 ```
 
-### `playStateChange`
+## Playback controls {#playback}
 
-| Field      | Type                                 | Description              |
-| ---------- | ------------------------------------ | ------------------------ |
-| `state`    | `"playing" \| "paused" \| "stopped"` | Playback state           |
-| `position` | `number`                             | Position in milliseconds |
+Methods returning `void` are fire-and-forget; invalid parameters are ignored. For ongoing progress updates, use event `position` values.
 
-`stopped` is distinct from `paused`, for example after playback ends.
+### Resume playback {#play}
 
-## Controlling playback
+Resumes playback of the current track.
 
-Declare `@grant control` to use these methods. Without the permission, calls are ignored. `register({ controls: true })` describes the plugin's capability, while the grant is the current enforcement boundary.
+**Call:** `splayer.player.play()`
 
-| Method                     | Description                                 |
-| -------------------------- | ------------------------------------------- |
-| `player.play()`            | Play                                        |
-| `player.pause()`           | Pause                                       |
-| `player.next()`            | Next track                                  |
-| `player.prev()`            | Previous track                              |
-| `player.seek(positionMs)`  | Seek in milliseconds                        |
-| `player.setVolume(volume)` | Set volume from `0` to `1`                  |
-| `player.getPosition()`     | `Promise<number>` with the current position |
+**API version:** 2
 
-All methods except `getPosition` are fire-and-forget. Invalid positions or volumes are ignored. Use `getPosition` only for occasional queries; rely on event positions for continuous tracking.
+**Permission:** `control`
 
-## Settings
+**Parameters:** None.
 
-```js
-splayer.register({
-  settings: [
-    { key: "token", type: "text", label: "Access token", default: "" },
-    { key: "interval", type: "number", label: "Interval (seconds)", default: 30, min: 5, max: 600 },
-    { key: "enabled", type: "switch", label: "Enable reporting", default: true },
-    {
-      key: "mode",
-      type: "select",
-      label: "Mode",
-      default: "auto",
-      options: [
-        { label: "Automatic", value: "auto" },
-        { label: "Manual", value: "manual" },
-      ],
-    },
-  ],
-});
+**Returns:** `void`.
+
+### Pause playback {#pause}
+
+Pauses the current track.
+
+**Call:** `splayer.player.pause()`
+
+**API version:** 2
+
+**Permission:** `control`
+
+**Parameters:** None.
+
+**Returns:** `void`.
+
+### Next track {#next}
+
+Switches to the next track in the queue.
+
+**Call:** `splayer.player.next()`
+
+**API version:** 2
+
+**Permission:** `control`
+
+**Parameters:** None.
+
+**Returns:** `void`.
+
+### Previous track {#prev}
+
+Switches to the previous track in the queue.
+
+**Call:** `splayer.player.prev()`
+
+**API version:** 2
+
+**Permission:** `control`
+
+**Parameters:** None.
+
+**Returns:** `void`.
+
+### Seek {#seek}
+
+Seeks to the specified playback position.
+
+**Call:** `splayer.player.seek(positionMs)`
+
+**API version:** 2
+
+**Permission:** `control`
+
+**Parameters:**
+
+- `positionMs` (`number`): Non-negative playback position in milliseconds.
+
+**Returns:** `void`.
+
+### Set volume {#volume}
+
+Adjusts the player volume.
+
+**Call:** `splayer.player.setVolume(volume)`
+
+**API version:** 2
+
+**Permission:** `control`
+
+**Parameters:**
+
+- `volume` (`number`): Volume from 0 to 1.
+
+**Returns:** `void`.
+
+### Read position {#position}
+
+Reads the current playback position in milliseconds.
+
+**Call:** `splayer.player.getPosition()`
+
+**API version:** 2
+
+**Permission:** `control`
+
+**Parameters:** None.
+
+**Returns:** `Promise<number>`.
+
+### Stop playback {#stop}
+
+Stops playback of the current track.
+
+**Call:** `splayer.player.stop()`
+
+**API version:** 4
+
+**Permission:** `control`
+
+**Parameters:** None.
+
+**Returns:** `Promise<void>`.
+
+::: code-group
+
+```js [Play and pause]
+splayer.player.play();
+splayer.player.pause();
 ```
 
-| `type`   | Value type | Specific fields | Behavior                             |
-| -------- | ---------- | --------------- | ------------------------------------ |
-| `switch` | `boolean`  | —               | Toggle                               |
-| `number` | `number`   | `min`, `max`    | Number clamped to the declared range |
-| `text`   | `string`   | `placeholder`   | Single-line text                     |
-| `select` | `string`   | `options`       | One declared option value            |
-
-Every setting requires `key`, `type`, `label`, and a type-compatible `default`. Optional common fields include `description`; number and text controls support the fields above. Labels are literal strings and are not localized by the host.
-
-```js
-const token = splayer.getSetting("token");
-
-splayer.onSettingChange("enabled", (value) => {
-  splayer.log.info("Enabled:", value);
-});
+```js [Change tracks]
+splayer.player.next();
+splayer.player.prev();
 ```
 
-The host normalizes values before delivering them to the plugin.
+```js [Position and volume]
+splayer.player.seek(30000);
+splayer.player.setVolume(0.5);
+const position = await splayer.player.getPosition();
+```
 
-## Menu extensions {#menu-extensions}
+```js [Stop]
+await splayer.player.stop();
+```
 
-Custom items appear in the player More menu and track-list context menus, grouped under the plugin name.
-
-::: warning UI permission required
-Declare `@grant ui`. Otherwise menu declarations are ignored.
 :::
 
-```js
-/**
- * @name     Track Tools
- * @id       you.track-tools
- * @version  1.0.0
- * @type     control
- * @apiLevel 2
- * @grant    ui network
- */
-splayer.register({
-  menus: [
-    { id: "open", label: "Open on the web" },
-    { id: "copy", label: "Copy track information" },
-    { id: "local-only", label: "Local tracks only", sources: ["local"] },
-  ],
-});
-```
+### Play a track {#play-track}
 
-| Field     | Type        | Required | Description                       |
-| --------- | ----------- | -------- | --------------------------------- |
-| `id`      | `string`    | Yes      | Unique within the plugin          |
-| `label`   | `string`    | Yes      | Literal display text              |
-| `sources` | `string[]?` |          | Show only for these track sources |
+Requests playback of a track.
 
-Handle clicks with `menuClick`:
+**Call:** `splayer.player.playTrack(track)`
 
-```js
-splayer.on("menuClick", async ({ menuId, track }) => {
-  switch (menuId) {
-    case "open":
-      return { openUrl: `https://music.example.com/song/${track.id}` };
-    case "copy":
-      return {
-        copyText: `${track.title} - ${track.artists.map((artist) => artist.name).join(" / ")}`,
-      };
-  }
-});
-```
+**API version:** 4
 
-The optional result can combine:
+**Permission:** `control`
 
-| Field      | Type      | Effect                                    |
-| ---------- | --------- | ----------------------------------------- |
-| `toast`    | `string?` | Show a toast                              |
-| `openUrl`  | `string?` | Open an HTTP(S) URL in the system browser |
-| `copyText` | `string?` | Copy text to the clipboard                |
+**Parameters:**
 
-Handlers have no DOM and cannot create custom windows. Network requests require `network`; playback controls require `control`; menu registration itself requires `ui`.
+- `track` ([Track](/en/types#track)): Complete track to play, from search results or a playback event.
 
-## Update support
-
-Declare `@updateUrl` for host-managed version checks and in-place updates that preserve settings and data. See [Plugin Updates](/en/plugins/update).
-
-## Complete example
-
-This plugin sends the current lyric and optional translation to a local service:
+**Returns:** `Promise<{ id: string; source: Track["source"] }>`. Resolution confirms the request was sent; observe [playback events](#events) for the actual state.
 
 ```js
 /**
- * @name Lyric Bridge
- * @id you.lyric-bridge
+ * @name Search and play
+ * @id you.search-and-play
  * @version 1.0.0
- * @type control
- * @apiLevel 2
- * @grant network
+ * @apiLevel 4
+ * @grant network control
  */
-splayer.register({
-  events: ["trackChange", "lyricChange", "lineChange"],
-  settings: [
-    { key: "port", type: "number", label: "Port", default: 50063, min: 1024, max: 65535 },
-    { key: "showTranslation", type: "switch", label: "Show translation", default: true },
-    { key: "showNextLine", type: "switch", label: "Show next line as fallback", default: true },
-  ],
-});
-
-const post = (lyric, extra) => {
-  const port = splayer.getSetting("port") || 50063;
-  splayer
-    .request(`http://127.0.0.1:${port}/component/lyrics/lyrics/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lyric, extra }),
-    })
-    .catch(() => {});
-};
-
-const lineText = (line) => (line?.words ? line.words.map((word) => word.word).join("") : "");
-let lines = [];
-
-splayer.player.on("trackChange", ({ track }) => {
-  if (track) post(track.title, track.artists.map((artist) => artist.name).join(" / "));
-});
-splayer.player.on("lyricChange", (data) => (lines = data.lines || []));
-splayer.player.on("lineChange", ({ index }) => {
-  const current = lines[index];
-  const lyric = lineText(current);
-  const extra =
-    splayer.getSetting("showTranslation") && current?.translatedLyric
-      ? current.translatedLyric
-      : splayer.getSetting("showNextLine")
-        ? lineText(lines[index + 1])
-        : "";
-  post(lyric, extra);
-});
+splayer.register({ controls: true });
+async function playFirst(query) {
+  const { tracks } = await splayer.music.searchOnline({ platform: "netease", query, limit: 1 });
+  if (tracks.length) await splayer.player.playTrack(tracks[0]);
+}
+playFirst("demo").catch((error) => splayer.log.error(error));
 ```
 
-## Debugging
+### Add to queue {#queue}
+
+Adds tracks to the playback queue.
+
+**Call:** `splayer.player.addToQueue(tracks, position?)`
+
+**API version:** 4
+
+**Permission:** `control`
+
+**Parameters:**
+
+- `tracks` (`Track[]`): 1–50 complete track objects
+- `position` (`"next" | "end"`): Optional; default `next` (after the current track), or `end`
+
+**Returns:** `Promise<{ count: number }>`, with the number of tracks submitted.
 
 ```js
-await window.api.plugins.setSetting("lyric-bridge-splayer", "showTranslation", false);
-await window.api.plugins.list();
+const { tracks } = await splayer.music.searchLibrary("demo", 10);
+if (tracks.length) await splayer.player.addToQueue(tracks, "end");
 ```
 
-Plugin logs are written to `{userData}/app-data/logs/`.
+This example also uses `music.searchLibrary`, which requires `library`.
+
+### Playback modes {#play-mode}
+
+Sets playback modes. Supply at least one field; omitted fields remain unchanged.
+
+**Call:** `splayer.player.setPlayMode(mode)`
+
+**API version:** 4
+
+**Permission:** `control`
+
+**Parameters:**
+
+- `mode.repeat` (`"list" | "one"`): Optional list or single-track repeat
+- `mode.shuffle` (`"on" | "off"`): Optional shuffle switch
+
+**Returns:** `Promise<void>`.
+
+```js
+await splayer.player.setPlayMode({ repeat: "list", shuffle: "on" });
+```
+
+## Status queries {#queries}
+
+### Playback status {#status}
+
+Reads playback status. No parameters.
+
+**Call:** `splayer.player.getStatus()`
+
+**API version:** 4
+
+**Permission:** `control`
+
+**Returns:** `Promise<PlaybackStatusSnapshot>`.
+
+| Field                       | Type              | Description                                                                     |
+| --------------------------- | ----------------- | ------------------------------------------------------------------------------- |
+| `state`                     | `PlayerState`     | `idle`, `loading`, `playing`, `paused`, or `stopped`                            |
+| `positionMs` / `durationMs` | `number`          | Position / duration in milliseconds                                             |
+| `volume`                    | `number`          | Volume, 0–1                                                                     |
+| `isFinished`                | `boolean`         | Whether playback has finished                                                   |
+| `currentIndex`              | `number`          | Zero-based index in the entire queue; -1 when no queue item is selected. API 5+ |
+| `repeat`                    | `"list" \| "one"` | Repeat mode                                                                     |
+| `shuffle`                   | `"on" \| "off"`   | Shuffle mode                                                                    |
+
+```js
+const status = await splayer.player.getStatus();
+splayer.log.info(status.state, status.positionMs);
+```
+
+### Playback queue {#get-queue}
+
+Read the queue in its current playback order, including the shuffled order when shuffle is on.
+
+**Call:** `splayer.player.getQueue(options?)`
+
+**API version:** 5
+
+**Permission:** `control`
+
+**Parameters:**
+
+- `options.offset` (`number`): Optional, zero-based queue offset; defaults to `0`
+- `options.limit` (`number`): Optional, number of tracks to return, from 1 to 100; defaults to `50`
+
+**Returns:** `Promise<PlaybackQueueSnapshot>`.
+
+| Field          | Type      | Description                                                                                    |
+| -------------- | --------- | ---------------------------------------------------------------------------------------------- |
+| `tracks`       | `Track[]` | Tracks in this page; see [Track](/en/types#track)                                              |
+| `total`        | `number`  | Total tracks in the queue                                                                      |
+| `currentIndex` | `number`  | Zero-based index of the current track in the entire queue; `-1` when no queue item is selected |
+| `offset`       | `number`  | Queue offset used for this request                                                             |
+
+```js
+const status = await splayer.player.getStatus();
+const queue = await splayer.player.getQueue({
+  offset: Math.max(0, status.currentIndex - 10),
+  limit: 21,
+});
+splayer.log.info(queue.tracks, queue.currentIndex, queue.total);
+```
+
+An offset beyond the queue returns an empty `tracks` array. Each call reads the queue at that moment. The Promise rejects if the main window is unavailable or does not respond.
+
+### Current track {#now-playing}
+
+Reads a lightweight current-track snapshot without full lyrics. No parameters.
+
+**Call:** `splayer.player.getNowPlaying()`
+
+**API version:** 4
+
+**Permission:** `control`
+
+**Returns:** A Promise containing the following fields.
+
+| Field            | Type            | Description                                 |
+| ---------------- | --------------- | ------------------------------------------- |
+| `track`          | `Track \| null` | Current track                               |
+| `position`       | `number`        | Position in milliseconds                    |
+| `state`          | `PlayerState`   | Playback state, as in `getStatus.state`     |
+| `playing`        | `boolean`       | Whether playback is active                  |
+| `speed`          | `number`        | Playback speed multiplier                   |
+| `lyricOffsetMs`  | `number`        | Lyric offset in milliseconds                |
+| `lyricAvailable` | `boolean`       | Whether lyrics are available                |
+| `lyricLineCount` | `number`        | Number of lyric lines                       |
+| `sendTimestamp`  | `number`        | Position snapshot timestamp in milliseconds |
+
+```js
+const now = await splayer.player.getNowPlaying();
+splayer.log.info(now.track?.title, now.position);
+```

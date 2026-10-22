@@ -6,6 +6,7 @@
  */
 
 import type { DownloadTask, DownloadProgress, DownloadStatus } from "@shared/types/download";
+import type { Track } from "@shared/types/player";
 import { initDownloadResolver } from "@/services/download/resolver";
 
 export const useDownloadStore = defineStore("download", () => {
@@ -30,6 +31,18 @@ export const useDownloadStore = defineStore("download", () => {
 
   /** 进行中任务数（侧边栏角标） */
   const activeCount = computed(() => activeTasks.value.length);
+
+  // 流媒体曲目的 id 已包含服务器 ID，可与在线歌曲共用来源和 ID 匹配
+  const downloadedIds = computed(() => {
+    const ids = new Set<string>();
+    for (const task of historyTasks.value) {
+      if (task.status === "done" && task.filePath) ids.add(`${task.track.source}:${task.track.id}`);
+    }
+    return ids;
+  });
+
+  const isDownloaded = (track: Track): boolean =>
+    downloadedIds.value.has(`${track.source}:${track.id}`);
 
   /** 替换或插入一条任务 */
   const applyTask = (task: DownloadTask): void => {
@@ -83,5 +96,14 @@ export const useDownloadStore = defineStore("download", () => {
     unsubscribers.length = 0;
   });
 
-  return { activeTasks, historyTasks, activeCount, init, cancel, remove, clearFinished };
+  return {
+    activeTasks,
+    historyTasks,
+    activeCount,
+    isDownloaded,
+    init,
+    cancel,
+    remove,
+    clearFinished,
+  };
 });

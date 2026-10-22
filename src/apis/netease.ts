@@ -44,8 +44,13 @@ export const neteaseRaw = async (
   options?: NeteaseCallOptions,
 ): Promise<{ status: number; body: unknown }> => {
   const res: ApiCallResponse = await window.api.apis.call("netease", name, params);
-  if (!res.ok) {
-    const error = new NeteaseApiError(res.error, res.status, res.body);
+  const authFailure = isExplicitNeteaseAuthFailure({ status: res.status, body: res.body });
+  if (!res.ok || authFailure) {
+    const error = new NeteaseApiError(
+      !res.ok ? res.error : "NCM登录状态已失效",
+      res.status,
+      res.body,
+    );
     if (
       options?.notifyAuthFailure !== false &&
       name !== "login_status" &&

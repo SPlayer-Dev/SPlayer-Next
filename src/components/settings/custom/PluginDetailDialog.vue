@@ -1,40 +1,58 @@
 <script setup lang="ts">
 import type { Component } from "vue";
 import type { PluginInfo, PluginGrant } from "@shared/types/plugin";
+import { usePluginsStore } from "@/stores/plugins";
+import { toast } from "@/composables/useToast";
 import { isExternalUrl, openExternal } from "@/utils/url";
 import IconGlobe from "~icons/lucide/globe";
 import IconGamepad from "~icons/lucide/gamepad-2";
 import IconMenu from "~icons/lucide/menu";
 
-const props = defineProps<{ open: boolean; info: PluginInfo | null }>();
+const props = defineProps<{
+  open: boolean;
+  info: PluginInfo | null;
+}>();
 const emit = defineEmits<{
   (event: "update:open", value: boolean): void;
 }>();
 
 const { t } = useI18n();
+const pluginsStore = usePluginsStore();
+const savingGrant = ref<PluginGrant | null>(null);
+
+/**
+ * 保存权限开关并反馈失败原因
+ * @param grant - 权限名称
+ * @param enabled - 是否允许该权限
+ */
+const setPermission = async (grant: PluginGrant, enabled: boolean): Promise<void> => {
+  if (!props.info || savingGrant.value) return;
+  savingGrant.value = grant;
+  try {
+    await pluginsStore.setPermission(props.info.manifest.id, grant, enabled);
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : String(error));
+  } finally {
+    savingGrant.value = null;
+  }
+};
 
 /** 权限图标 */
 const GRANT_ICONS: Record<PluginGrant, Component> = {
   network: IconGlobe,
   control: IconGamepad,
   ui: IconMenu,
+  library: IconMenu,
+  api: IconGlobe,
 };
 
 /** ready 时的状态对象（含 sources/events/controls/settings/ui） */
 const ready = computed(() => (props.info?.status.state === "ready" ? props.info.status : null));
 
-/** 已声明的权限行（只展示声明的）：图标 + 是否 lx 自动授予 */
-const grantRows = computed(() => {
-  // 音源类的 network 是自动授予（非作者声明），标注出来
-  const isSource = props.info?.manifest.type !== "control";
-  return (props.info?.manifest.grant ?? []).map((key) => ({
-    key,
-    icon: GRANT_ICONS[key],
-    auto: isSource && key === "network",
-  }));
-});
+const grantRows = computed(() =>
+  (props.info?.manifest.grant ?? []).map((key) => ({ key, icon: GRANT_ICONS[key] })),
+);
 
-const hasGrant = computed(() => (props.info?.manifest.grant?.length ?? 0) > 0);
 const sourceNames = computed(() => (ready.value ? Object.keys(ready.value.sources) : []));
 const events = computed(() => ready.value?.events ?? []);
 const hasControls = computed(() => !!ready.value?.controls);
@@ -98,18 +116,26 @@ const setOpen = (value: boolean): void => emit("update:open", value);
           <div
             v-for="row in grantRows"
             :key="row.key"
-            class="flex items-center gap-2 text-sm text-on-surface"
+            class="flex items-center gap-3 min-h-10 text-sm text-on-surface"
           >
             <component :is="row.icon" class="size-4 shrink-0" />
-            <span class="font-medium">{{ t(`settings.plugins.grant.${row.key}.label`) }}</span>
-            <span class="text-xs text-on-surface-variant/60">
-              {{ t(`settings.plugins.grant.${row.key}.desc`) }}
-            </span>
-            <span v-if="row.auto" class="ml-auto text-xs text-on-surface-variant/60">
-              {{ t("settings.plugins.detail.autoGranted") }}
-            </span>
+            <div class="flex-1 min-w-0">
+              <label :for="`plugin-permission-${info.manifest.id}-${row.key}`" class="font-medium">
+                {{ t(`settings.plugins.grant.${row.key}.label`) }}
+              </label>
+              <p class="m-0 text-xs leading-relaxed text-on-surface-variant/60">
+                {{ t(`settings.plugins.grant.${row.key}.desc`) }}
+              </p>
+            </div>
+            <SSwitch
+              :id="`plugin-permission-${info.manifest.id}-${row.key}`"
+              :aria-label="t(`settings.plugins.grant.${row.key}.label`)"
+              :model-value="info.permissions?.[row.key] === true"
+              :aria-disabled="savingGrant !== null"
+              @update:model-value="setPermission(row.key, $event)"
+            />
           </div>
-          <p v-if="!hasGrant" class="m-0 text-xs text-on-surface-variant/50">
+          <p v-if="!grantRows.length" class="m-0 text-xs text-on-surface-variant/50">
             {{ t("settings.plugins.detail.grantNone") }}
           </p>
         </div>
@@ -184,7 +210,7 @@ const setOpen = (value: boolean): void => emit("update:open", value);
             <span class="text-on-surface-variant/50">
               {{ t("settings.plugins.detail.apiLevel") }}
             </span>
-            <span>{{ info.manifest.apiLevel }}</span>
+            <span>{{ info.manifest.apiLevel ?? "—" }}</span>
           </div>
           <div class="flex gap-2">
             <span class="text-on-surface-variant/50">

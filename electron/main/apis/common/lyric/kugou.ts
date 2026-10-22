@@ -10,7 +10,7 @@
  */
 
 import { callKugou } from "@main/apis/kugou";
-import type { KGSong } from "@main/apis/kugou/core/types";
+import type { KGSong } from "@shared/types/platform/kugou";
 import { getCachedLyric, setCachedLyric } from "@main/database/lyricCache";
 import { buildFingerprint, getMatchedId, setMatchedId } from "@main/database/lyricMatchCache";
 import { coreLog } from "@main/utils/logger";

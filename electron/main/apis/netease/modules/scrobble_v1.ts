@@ -1,9 +1,3 @@
-/**
- * 听歌打卡 - NCBL 加密版
- *
- * 仿桌面客户端 PLV/PLD 上报。
- */
-
 import type { NeteaseModule } from "../core/types";
 import {
   buildCookieStr,
@@ -20,6 +14,11 @@ import {
   type PlaybackLogResource,
 } from "../core/playLog";
 
+/**
+ * 保留 NCBL 日志协议供手动选择，上传成功只表示服务端接收文件
+ * @param query - 曲目、来源、实际收听时长与会话凭据
+ * @returns 两类日志的上传结果
+ */
 const scrobbleV1: NeteaseModule = async (query) => {
   const resourceId = Number(query.id);
   if (!resourceId || Number.isNaN(resourceId)) {

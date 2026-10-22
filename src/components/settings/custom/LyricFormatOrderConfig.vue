@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { LyricFormat } from "@shared/types/lyrics";
+import type { LyricFormat } from "lyric-kit";
+
 import { useSortable } from "@vueuse/integrations/useSortable";
 import { DEFAULT_LYRIC_FORMAT_ORDER } from "@/types/settings";
 import { useSettingsStore } from "@/stores/settings";

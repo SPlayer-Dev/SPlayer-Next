@@ -1,6 +1,6 @@
 import type { Track } from "@shared/types/player";
 import type { CoverItem } from "@/types/artist";
-import type { NeteaseSong, PersonalFmOptions } from "@/types/netease";
+import type { NeteaseSong, PersonalFmOptions } from "@shared/types/platform/netease";
 import { netease as neteaseApi } from "@/apis/netease";
 import { songsToTracks, withPicSize, toPlaylist, toArtist, toAlbum } from "@/utils/format/netease";
 import { playlistToCoverItem, artistToCoverItem, albumToCoverItem } from "@/utils/format/coverItem";

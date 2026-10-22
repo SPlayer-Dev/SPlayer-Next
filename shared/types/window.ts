@@ -2,6 +2,17 @@ import type { DesktopLyricSettings, DynamicIslandSettings, TaskbarLyricSettings 
 
 /** 窗口管理 API */
 export interface WindowApi {
+  /** 静态启动层就绪后显示主窗口 */
+  ready: () => Promise<void>;
+  /** 启动层退出后启动非必要后台服务 */
+  startupComplete: () => Promise<void>;
+  /** 报告无法完成启动的致命错误，由主进程提示并退出 */
+  startupFailed: (error: string) => void;
+  /**
+   * 同步主窗口播放页展开状态
+   * @param expanded - 播放页是否展开
+   */
+  setPlayerExpanded: (expanded: boolean) => void;
   /** 切换桌面歌词窗口 */
   toggleDesktopLyric: () => Promise<boolean>;
   /** 关闭桌面歌词窗口 */

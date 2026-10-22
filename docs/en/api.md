@@ -23,6 +23,7 @@ MCP has its own switch, port, and lifecycle and does not depend on this API.
 | ------ | ------------------ | ----------------------------------------- |
 | `GET`  | `/api/info`        | Application and connection information    |
 | `GET`  | `/api/status`      | Playback status                           |
+| `GET`  | `/api/queue`       | Playback queue                            |
 | `GET`  | `/api/volume`      | Current volume                            |
 | `GET`  | `/api/now-playing` | Lightweight snapshot without full lyrics  |
 | `GET`  | `/api/lyrics`      | Fully parsed lyrics for the current track |
@@ -58,17 +59,43 @@ GET /api/status
   "position": 12000,
   "duration": 240000,
   "volume": 1,
-  "isFinished": false
+  "isFinished": false,
+  "currentIndex": 3
 }
 ```
 
-| Field        | Type      | Description                         |
-| ------------ | --------- | ----------------------------------- |
-| `state`      | `string`  | State such as `playing` or `paused` |
-| `position`   | `number`  | Current position in milliseconds    |
-| `duration`   | `number`  | Total duration in milliseconds      |
-| `volume`     | `number`  | Volume from 0 to 1                  |
-| `isFinished` | `boolean` | Whether the current track has ended |
+| Field          | Type      | Description                                                                           |
+| -------------- | --------- | ------------------------------------------------------------------------------------- |
+| `state`        | `string`  | State such as `playing` or `paused`                                                   |
+| `position`     | `number`  | Current position in milliseconds                                                      |
+| `duration`     | `number`  | Total duration in milliseconds                                                        |
+| `volume`       | `number`  | Volume from 0 to 1                                                                    |
+| `isFinished`   | `boolean` | Whether the current track has ended                                                   |
+| `currentIndex` | `number`  | Zero-based current-track index in the entire queue; -1 when no queue item is selected |
+
+### Playback queue
+
+Reads the queue in its current playback order, including the shuffled order.
+
+```http
+GET /api/queue?offset=0&limit=20
+```
+
+**Parameters:**
+
+- `offset` (`number`): Optional integer offset, starting at 0; defaults to 0.
+- `limit` (`number`): Optional number of tracks, from 1 to 100; defaults to 50.
+
+**Response:**
+
+| Field          | Type      | Description                                                             |
+| -------------- | --------- | ----------------------------------------------------------------------- |
+| `tracks`       | `Track[]` | Tracks in this page; see [Track](/en/types#track)                       |
+| `total`        | `number`  | Total tracks in the queue                                               |
+| `currentIndex` | `number`  | Zero-based index in the entire queue; -1 when no queue item is selected |
+| `offset`       | `number`  | Offset used for this request                                            |
+
+An offset beyond the queue returns an empty tracks array. Invalid parameters return 400; an unavailable or unresponsive playback window returns 500.
 
 ### Volume
 

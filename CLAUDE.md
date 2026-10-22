@@ -84,7 +84,7 @@ Don't reimplement these inside individual windows.
 
 - `shared/types/player.ts` — `Track`, `TrackDetail`, `Artist`, `Album`, `AudioQuality`, `PlayerState`, `PlayerStatus`, `PlayerEvent`, `LoadOptions`, `LoadResult`, `IpcResponse`
 - `shared/types/lyrics.ts` — `LyricFormat`, `LyricSource (external | embedded | online)`, `LyricData`, `LyricLine`, `LyricWord`, `LyricSpan`
-- `shared/types/platform.ts` — `Platform (netease | qqmusic | kugou)`
+- `shared/types/platform/` — `index.ts` defines `Platform (netease | qqmusic | kugou)`; `netease.ts / qqmusic.ts / kugou.ts` hold platform data contracts shared by main and renderer
 - `shared/types/streaming.ts` — `StreamingServerType`, `StreamingServerConfig`, `StreamingPingResult`, `StreamingAuthResult`, etc.
 
 `Track` is for queue storage (no heavy data); `TrackDetail` loads on demand.

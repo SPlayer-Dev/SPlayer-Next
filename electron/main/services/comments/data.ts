@@ -104,7 +104,7 @@ const optionalString = (value: unknown): string | undefined => {
   return text || undefined;
 };
 
-/** 转换网易云评论项 */
+/** 转换 NCM 评论项 */
 export const normalizeNeteaseComment = (raw: NeteaseComment): MusicCommentItem | null => {
   const id = toStringId(raw.commentId ?? raw.beRepliedCommentId);
   const text = optionalString(raw.content);
@@ -132,7 +132,7 @@ export const normalizeNeteaseComment = (raw: NeteaseComment): MusicCommentItem |
   return item;
 };
 
-/** 转换网易云评论分页 */
+/** 转换 NCM 评论分页 */
 export const normalizeNeteaseCommentPage = (
   body: NeteaseCommentBody,
   type: CommentTab,

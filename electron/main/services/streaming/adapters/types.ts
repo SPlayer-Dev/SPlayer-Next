@@ -8,6 +8,52 @@ import type {
 /** 主进程流媒体协议适配器 */
 export interface StreamingAdapter {
   /**
+   * 生成原始文件下载地址，由服务端检查下载权限
+   * @param config - 已鉴权配置
+   * @param trackId - 服务端歌曲 ID
+   * @returns 原文件下载地址
+   */
+  getDownloadUrl(config: StreamingRuntimeConfig, trackId: string): Promise<string>;
+  /**
+   * 遍历协议特有的全量歌曲索引
+   * @param config - 配置与取消信号
+   * @returns 完整歌曲分页
+   */
+  scanSongs?(config: StreamingRuntimeConfig): AsyncGenerator<Track[]>;
+  /**
+   * 读取服务端收藏状态
+   * @param config - 已鉴权配置
+   * @param trackId - 服务端歌曲 ID
+   * @returns 收藏状态
+   */
+  getFavorite(config: StreamingRuntimeConfig, trackId: string): Promise<boolean>;
+  /**
+   * 写入服务端收藏状态
+   * @param config - 已鉴权配置
+   * @param trackId - 服务端歌曲 ID
+   * @param favorite - 目标状态
+   * @returns 服务端确认的状态
+   */
+  setFavorite(config: StreamingRuntimeConfig, trackId: string, favorite: boolean): Promise<boolean>;
+  /**
+   * 准备单次播放的音频源
+   * @param config - 已鉴权配置
+   * @param trackId - 服务端歌曲 ID
+   * @param sessionId - 独立播放会话 ID
+   * @returns 音频源
+   */
+  preparePlayback(
+    config: StreamingRuntimeConfig,
+    trackId: string,
+    sessionId: string,
+  ): Promise<StreamingPlaybackSource>;
+  /**
+   * 上报原生播放事件
+   * @param config - 已鉴权配置
+   * @param report - 当前会话事件
+   */
+  reportPlayback(config: StreamingRuntimeConfig, report: StreamingPlaybackReport): Promise<void>;
+  /**
    * 检查服务器连通性
    * @param config - 主进程服务器配置
    * @returns 连通性结果
@@ -96,7 +142,30 @@ export interface StreamingAdapter {
    * @param config - 主进程服务器配置
    * @param coverId - 服务端封面 ID
    * @param size - 目标尺寸
+   * @param tag - 服务端封面版本标识
    * @returns 真实封面地址
    */
-  getCoverUrl(config: StreamingRuntimeConfig, coverId: string, size: number): Promise<string>;
+  getCoverUrl(
+    config: StreamingRuntimeConfig,
+    coverId: string,
+    size: number,
+    tag?: string,
+  ): Promise<string>;
+}
+
+export interface StreamingPlaybackSource {
+  url: string;
+  mediaSourceId?: string;
+}
+
+/** 原生播放生命周期产生的上报；下载和预加载不进入此流程 */
+export interface StreamingPlaybackReport {
+  reason?: "TimeUpdate" | "Pause" | "Unpause";
+  event: "start" | "progress" | "stop" | "scrobble";
+  trackId: string;
+  sessionId: string;
+  mediaSourceId?: string;
+  positionMs: number;
+  paused: boolean;
+  startedAt: number;
 }

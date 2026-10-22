@@ -73,14 +73,7 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: |
-            . -> target
-            native/audio-engine -> target
-            native/audio-capture -> target
-            native/media-ctrl -> target
-            native/taskbar-lyric -> target
-            native/taskbar-thumbnail -> target
-            native/opencc -> target
+          workspaces: ". -> target"
 
       # 校验标签、版本和更新通道
       - name: Verify release metadata
@@ -128,7 +121,7 @@ jobs:
 
       # 安装项目依赖
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       # 仅构建本机架构
       - name: Build ${{ matrix.name }}

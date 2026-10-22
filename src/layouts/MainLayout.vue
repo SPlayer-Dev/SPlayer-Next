@@ -4,8 +4,15 @@ import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
 import { useOrpheusProtocol } from "@/composables/useOrpheusProtocol";
 import { useExternalFileHandler } from "@/composables/useExternalFileHandler";
+import { coverTransitionActive, installCoverTransitions } from "@/services/coverTransition";
+import {
+  fullPlayerReady,
+  playerTransitionActive,
+  cancelPlayerTransition,
+} from "@/services/playerTransition";
 
 const route = useRoute();
+const router = useRouter();
 const status = useStatusStore();
 const settings = useSettingsStore();
 
@@ -16,6 +23,18 @@ useExternalFileHandler();
 /** 有歌曲信息时显示播放栏 */
 const showPlayerBar = computed(() => !!useMediaStore().track);
 const { isPlayerExpanded } = storeToRefs(status);
+
+/** 播放页展开状态同步与懒加载 */
+const FullPlayer = defineAsyncComponent(() => import("@/components/player/FullPlayer/index.vue"));
+const fullPlayerLoaded = ref(isPlayerExpanded.value);
+watch(
+  isPlayerExpanded,
+  (expanded) => {
+    if (expanded) fullPlayerLoaded.value = true;
+    window.api.window.setPlayerExpanded(expanded);
+  },
+  { immediate: true },
+);
 const { appearance } = settings;
 
 /** 路由切换动效 */
@@ -24,10 +43,12 @@ const routeTransitionName = computed(() => {
   return transition === "none" ? "" : `route-${transition}`;
 });
 
-/** 路由 key */
+/** 详情按路径和服务器隔离实例，列表沿用父路由缓存 */
 const routeKey = computed(() => {
   const hasParam = route.matched.some((m) => m.path.includes(":"));
-  return hasParam ? route.path : (route.matched[1]?.path ?? route.path);
+  return hasParam
+    ? `${route.path}:${route.query.serverId ?? ""}`
+    : (route.matched[1]?.path ?? route.path);
 });
 
 /** 需要受控缓存的页面组件白名单 */
@@ -56,16 +77,38 @@ watch(
   (_newPath, oldPath) => {
     if (oldPath && mainContainerRef.value) {
       mainScrollMap.set(oldPath, mainContainerRef.value.scrollTop);
+      if (mainScrollMap.size > 10) {
+        mainScrollMap.delete(mainScrollMap.keys().next().value!);
+      }
     }
   },
 );
 
-// 路由切换完成后恢复滚动位置
+/** 路由切换完成后恢复主内容区滚动位置 */
 const handleAfterEnter = (): void => {
   if (!mainContainerRef.value) return;
   const saved = mainScrollMap.get(route.fullPath) ?? 0;
   mainContainerRef.value.scrollTop = saved;
 };
+
+let disposeCoverTransitions: (() => void) | undefined;
+watch(
+  () => appearance.seamlessTransition && !settings.reducedMotion,
+  (enabled) => {
+    if (!enabled) cancelPlayerTransition();
+    disposeCoverTransitions?.();
+    disposeCoverTransitions = enabled
+      ? installCoverTransitions(router, () => mainContainerRef.value, handleAfterEnter)
+      : undefined;
+  },
+  { immediate: true },
+);
+onBeforeUnmount(() => {
+  window.api.window.setPlayerExpanded(false);
+  disposeCoverTransitions?.();
+  cancelPlayerTransition();
+  fullPlayerReady.value = false;
+});
 
 /** 侧边栏样式 */
 const sidebarClass = computed(() => {
@@ -114,8 +157,9 @@ const playerBarInnerClass = computed(() => {
 <template>
   <!-- 主界面 -->
   <div
-    class="h-screen flex overflow-hidden bg-app text-on-surface transition-[transform,opacity] duration-500 ease-[cubic-bezier(0.7,0,0.3,1)] origin-center"
-    :class="isPlayerExpanded ? 'scale-95 opacity-0 pointer-events-none' : ''"
+    class="player-shell h-screen flex overflow-hidden bg-app text-on-surface transition-[transform,opacity] duration-500 ease-[cubic-bezier(0.7,0,0.3,1)] origin-center"
+    :style="playerTransitionActive ? { transition: 'none' } : undefined"
+    :class="isPlayerExpanded && fullPlayerReady ? 'scale-95 opacity-0 pointer-events-none' : ''"
   >
     <!-- 侧边栏 -->
     <aside
@@ -133,9 +177,18 @@ const playerBarInnerClass = computed(() => {
       </header>
 
       <!-- 主内容区 -->
-      <main ref="mainContainerRef" class="flex-1 overflow-y-auto overflow-x-hidden">
+      <main
+        ref="mainContainerRef"
+        class="flex-1 overflow-y-auto overflow-x-hidden"
+        :data-cover-transition="coverTransitionActive ? '' : undefined"
+      >
         <RouterView v-slot="{ Component }">
-          <Transition :name="routeTransitionName" mode="out-in" @after-enter="handleAfterEnter">
+          <Transition
+            :name="routeTransitionName"
+            :css="!coverTransitionActive"
+            :mode="coverTransitionActive ? undefined : 'out-in'"
+            @after-enter="handleAfterEnter"
+          >
             <KeepAlive :max="10" :include="cachedViews">
               <component :is="Component" :key="routeKey" />
             </KeepAlive>
@@ -166,11 +219,68 @@ const playerBarInnerClass = computed(() => {
   <!-- Dialog -->
   <SDialogProvider />
   <!-- 全屏播放器 -->
-  <FullPlayer />
+  <FullPlayer v-if="fullPlayerLoaded" @vue:mounted="fullPlayerReady = true" />
   <!-- 全局设置 -->
   <SettingsDialog />
   <!-- 更新弹窗 -->
   <UpdateDialog />
   <!-- 评论弹窗 -->
   <MusicCommentsDialog />
+  <!-- 输出信息弹窗 -->
+  <AudioInfoDialog />
 </template>
+
+<style scoped>
+:deep([data-cover-shared]) {
+  view-transition-name: detail-cover;
+}
+
+main[data-cover-transition]::view-transition-group(detail-cover) {
+  animation-duration: 320ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  overflow: clip;
+  border-radius: var(--cover-transition-radius);
+}
+
+main[data-cover-transition]::view-transition-old(detail-cover),
+main[data-cover-transition]::view-transition-new(detail-cover) {
+  height: 100%;
+}
+</style>
+
+<style>
+html[data-player-transition] {
+  [data-player-shared] {
+    view-transition-name: player-cover;
+  }
+
+  [data-player-cover="bar"] + div {
+    visibility: hidden;
+  }
+
+  &::view-transition-group(*) {
+    animation-duration: 320ms;
+    animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  &::view-transition-image-pair(player-cover) {
+    overflow: clip;
+    animation: player-cover-radius 320ms cubic-bezier(0.2, 0, 0, 1) both;
+  }
+
+  &::view-transition-old(player-cover),
+  &::view-transition-new(player-cover) {
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+@keyframes player-cover-radius {
+  from {
+    border-radius: var(--player-cover-from-radius);
+  }
+  to {
+    border-radius: var(--player-cover-to-radius);
+  }
+}
+</style>

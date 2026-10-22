@@ -86,6 +86,16 @@ export const onEnded = (): void => {
   if (cfg().enabled) scrobbler.onEnded();
 };
 
+/** 单曲循环由播放流程明确通知，不依赖托盘模式推断 */
+export const onRepeatOneRestart = (): void => {
+  if (cfg().enabled) scrobbler.onRepeatOneRestart();
+};
+
+/** 主动停止后清理当前轮次 */
+export const onStopped = (): void => {
+  if (cfg().enabled) scrobbler.onStopped();
+};
+
 /** 查询连接状态 */
 export const getStatus = (): LastfmStatus => ({
   connected: Boolean(session),

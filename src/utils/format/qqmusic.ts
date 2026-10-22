@@ -1,55 +1,11 @@
+import type {
+  QMSong,
+  QMAlbumItem,
+  QMArtistItem,
+  QMPlaylistItem,
+} from "@shared/types/platform/qqmusic";
 import type { AudioQuality, Track, TrackFee } from "@shared/types/player";
 import type { CoverItem } from "@/types/artist";
-
-export interface QMSong {
-  id: string;
-  mid?: string;
-  mediaMid?: string;
-  name: string;
-  artist: string;
-  artists?: Array<{ mid?: string; name?: string }>;
-  album?: string;
-  albumMid?: string;
-  cover?: string;
-  coverOriginal?: string;
-  duration: number;
-  pay?: {
-    payalbum?: number;
-    payplay?: number;
-  };
-  size128?: number;
-  size320?: number;
-  sizeApe?: number;
-  sizeFlac?: number;
-  sizeOgg?: number;
-  sizeHiRes?: number;
-  hiResSampleRate?: number;
-  hiResBitDepth?: number;
-}
-
-export interface QMAlbumItem {
-  id: string;
-  name: string;
-  cover?: string;
-  artist?: string;
-  trackCount?: number;
-}
-
-export interface QMArtistItem {
-  id: string;
-  name: string;
-  cover?: string;
-  albumCount?: number;
-  songCount?: number;
-}
-
-export interface QMPlaylistItem {
-  id: string;
-  name: string;
-  cover?: string;
-  creator?: string;
-  trackCount?: number;
-}
 
 export const qqAlbumCover = (mid: string, size = 300): string =>
   `https://y.gtimg.cn/music/photo_new/T002R${size}x${size}M000${mid}.jpg`;

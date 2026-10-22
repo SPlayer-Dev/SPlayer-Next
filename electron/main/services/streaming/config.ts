@@ -2,7 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { safeStorage } from "electron";
 import { writeFileSync as atomicWriteSync } from "atomically";
-import { streamingLog } from "@main/utils/logger";
 import { configDir } from "@main/utils/paths";
 import type {
   StreamingServerConfig,
@@ -13,6 +12,8 @@ import type {
 const STORAGE_FILE = path.join(configDir, "streaming.json");
 
 interface PersistedServer {
+  revision?: number;
+  mediaRevision?: number;
   id: string;
   name: string;
   type: StreamingServerConfig["type"];
@@ -61,10 +62,12 @@ const save = (): void => {
 const encryptPassword = (password: string): string => {
   if (!password) return "";
   if (!safeStorage.isEncryptionAvailable()) {
-    streamingLog.warn("系统安全存储不可用，流媒体密码将以 base64 形式保存");
-    return Buffer.from(password, "utf-8").toString("base64");
+    throw new Error("系统安全存储不可用，无法保存流媒体密码");
   }
-  return safeStorage.encryptString(password).toString("base64");
+  if (process.platform === "linux" && safeStorage.getSelectedStorageBackend() === "basic_text") {
+    throw new Error("请启用系统密钥环后保存流媒体密码");
+  }
+  return `safe:v1:${safeStorage.encryptString(password).toString("base64")}`;
 };
 
 /**
@@ -74,10 +77,14 @@ const encryptPassword = (password: string): string => {
  */
 const decryptPassword = (encrypted: string): string => {
   if (!encrypted) return "";
-  const buffer = Buffer.from(encrypted, "base64");
-  return safeStorage.isEncryptionAvailable()
-    ? safeStorage.decryptString(buffer)
-    : buffer.toString("utf-8");
+  if (!safeStorage.isEncryptionAvailable())
+    throw new Error("系统安全存储不可用，无法读取流媒体密码");
+  const buffer = Buffer.from(encrypted.replace(/^safe:v1:/, ""), "base64");
+  try {
+    return safeStorage.decryptString(buffer);
+  } catch {
+    throw new Error("无法解密流媒体密码，请在服务器设置中重新输入密码");
+  }
 };
 
 /**
@@ -86,6 +93,8 @@ const decryptPassword = (encrypted: string): string => {
  * @returns 不含凭据的配置
  */
 const toServerConfig = (server: PersistedServer): StreamingServerConfig => ({
+  revision: server.revision ?? 0,
+  mediaRevision: server.mediaRevision ?? 0,
   id: server.id,
   name: server.name,
   type: server.type,
@@ -159,12 +168,25 @@ export const updateStreamingServer = (
 ): StreamingServerConfig => {
   const server = getState().servers.find((item) => item.id === serverId);
   if (!server) throw new Error("找不到流媒体服务器");
+  const encryptedPassword = input.password
+    ? encryptPassword(input.password)
+    : server.encryptedPassword;
+  const identityChanged = Boolean(
+    server.type !== input.type ||
+    server.url !== input.url.trim().replace(/\/+$/, "") ||
+    server.username !== input.username ||
+    input.password,
+  );
+  if (identityChanged) {
+    server.mediaRevision = (server.mediaRevision ?? 0) + 1;
+    server.revision = (server.revision ?? 0) + 1;
+    server.lastConnected = undefined;
+  }
   server.name = input.name.trim();
   server.type = input.type;
   server.url = input.url.trim().replace(/\/+$/, "");
   server.username = input.username;
-  if (input.password) server.encryptedPassword = encryptPassword(input.password);
-  server.lastConnected = undefined;
+  server.encryptedPassword = encryptedPassword;
   save();
   return toServerConfig(server);
 };

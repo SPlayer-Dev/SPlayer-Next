@@ -60,6 +60,7 @@ class PluginHost {
   private startTimer: NodeJS.Timeout | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private heartbeatMisses = 0;
+  private healthyHeartbeats = 0;
 
   private readonly callbacks = new Map<string, PluginHostCallbacks>();
   /** 已 ready 的插件 id（区别于"已登记 callbacks"） */
@@ -77,6 +78,16 @@ class PluginHost {
   private onHostLostGlobal: (() => void) | null = null;
   setOnHostLost(cb: () => void): void {
     this.onHostLostGlobal = cb;
+  }
+
+  private onHostStableGlobal: (() => void) | null = null;
+
+  /**
+   * 登记宿主稳定运行后的回调
+   * @param cb - 恢复自动重启额度的回调
+   */
+  setOnHostStable(cb: () => void): void {
+    this.onHostStableGlobal = cb;
   }
 
   /** 懒启动 host 进程，resolve 于 hostReady */
@@ -120,13 +131,21 @@ class PluginHost {
     return this.startPromise;
   }
 
-  /** 加载一个插件，resolve 于其 ready */
+  /**
+   * 加载插件并等待就绪
+   * @param spec - 脚本与沙箱初始化参数
+   * @param callbacks - 插件消息处理回调
+   * @returns 插件注册的音源能力
+   */
   async loadPlugin(
     spec: PluginLoadSpec,
     callbacks: PluginHostCallbacks,
   ): Promise<Record<string, SourceCapability>> {
-    await this.ensureStarted();
     this.callbacks.set(spec.pluginId, callbacks);
+    await this.ensureStarted();
+    if (this.callbacks.get(spec.pluginId) !== callbacks) {
+      throw Object.assign(new Error("plugin unloaded"), { code: PluginErrorCodes.NOT_READY });
+    }
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pendingLoads.delete(spec.pluginId);
@@ -225,6 +244,10 @@ class PluginHost {
     }
   }
 
+  /**
+   * 分发宿主进程上报的消息
+   * @param msg - 宿主消息
+   */
   private onMessage(msg: SandboxOut): void {
     switch (msg.kind) {
       case "hostReady": {
@@ -239,6 +262,12 @@ class PluginHost {
       }
       case "pong":
         this.heartbeatMisses = 0;
+        if (
+          this.healthyHeartbeats < HEARTBEAT_MAX_MISSES &&
+          ++this.healthyHeartbeats === HEARTBEAT_MAX_MISSES
+        ) {
+          this.onHostStableGlobal?.();
+        }
         return;
       case "ready": {
         const pending = this.pendingLoads.get(msg.pluginId);
@@ -332,11 +361,16 @@ class PluginHost {
     this.onHostLostGlobal?.();
   }
 
+  /**
+   * 启动心跳检测并清除上一轮健康计数
+   */
   private startHeartbeat(): void {
     this.stopHeartbeat();
     this.heartbeatMisses = 0;
+    this.healthyHeartbeats = 0;
     this.heartbeatTimer = setInterval(() => {
       if (!this.child) return;
+      if (this.heartbeatMisses > 0) this.healthyHeartbeats = 0;
       this.heartbeatMisses++;
       if (this.heartbeatMisses > HEARTBEAT_MAX_MISSES) {
         coreLog.warn("[plugin-host] 心跳丢失，重启 host");

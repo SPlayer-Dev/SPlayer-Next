@@ -1,4 +1,4 @@
-import type { PluginInfo, MarketPlugin } from "@shared/types/plugin";
+import type { PluginInfo, MarketPlugin, PluginGrant } from "@shared/types/plugin";
 
 /** 插件管理 Pinia store */
 export const usePluginsStore = defineStore("plugins", () => {
@@ -8,22 +8,15 @@ export const usePluginsStore = defineStore("plugins", () => {
   const marketLoaded = ref(false);
   let unsubscribe: (() => void) | null = null;
 
-  /** 仅 manifest.type 不为 "control" 的插件（音源类，含 type 缺省） */
-  const sourcePlugins = computed(() =>
-    list.value.filter((info) => info.manifest.type !== "control"),
-  );
-
-  /** manifest.type === "control" 的插件（控制类） */
-  const controlPlugins = computed(() =>
-    list.value.filter((info) => info.manifest.type === "control"),
-  );
-
-  /** 启用且就绪的插件贡献的歌曲菜单项，按插件归组（无 ui 权限的已被主进程过滤为空，不在此出现） */
+  /** 按实时授权展示已就绪插件的菜单 */
   const menuContributions = computed(() =>
     list.value
       .filter(
         (info) =>
-          info.enabled && info.status.state === "ready" && (info.status.menus?.length ?? 0) > 0,
+          info.enabled &&
+          info.permissions?.ui === true &&
+          info.status.state === "ready" &&
+          (info.status.menus?.length ?? 0) > 0,
       )
       .map((info) => ({
         pluginId: info.manifest.id,
@@ -32,9 +25,12 @@ export const usePluginsStore = defineStore("plugins", () => {
       })),
   );
 
-  /** 拉取列表并建立状态订阅 */
-  const load = async (): Promise<void> => {
-    list.value = await window.api.plugins.list();
+  /**
+   * 拉取插件状态并建立唯一的状态订阅
+   * @param waitForPluginId - 需要等待首次加载完成的插件标识
+   */
+  const load = async (waitForPluginId?: string): Promise<void> => {
+    list.value = await window.api.plugins.list(waitForPluginId);
     loaded.value = true;
     if (!unsubscribe) {
       unsubscribe = window.api.plugins.onStatus((info) => {
@@ -104,7 +100,7 @@ export const usePluginsStore = defineStore("plugins", () => {
   };
 
   /**
-   * 写入控制类插件的单个配置项。
+   * 写入插件的单个配置项。
    * @param id - 插件 ID
    * @param key - 配置项 key
    * @param value - 新值
@@ -159,11 +155,34 @@ export const usePluginsStore = defineStore("plugins", () => {
     unsubscribe = null;
   };
 
+  /**
+   * 即时更新权限开关，保存失败时恢复原值
+   * @param id - 插件标识
+   * @param grant - 权限名称
+   * @param enabled - 是否允许该权限
+   */
+  const setPermission = async (id: string, grant: PluginGrant, enabled: boolean): Promise<void> => {
+    const previous = list.value.find((info) => info.manifest.id === id)?.permissions?.[grant];
+    list.value = list.value.map((info) =>
+      info.manifest.id === id
+        ? { ...info, permissions: { ...info.permissions, [grant]: enabled } }
+        : info,
+    );
+    try {
+      await window.api.plugins.setPermission(id, grant, enabled);
+    } catch (error) {
+      list.value = list.value.map((info) =>
+        info.manifest.id === id
+          ? { ...info, permissions: { ...info.permissions, [grant]: previous } }
+          : info,
+      );
+      throw error;
+    }
+  };
+
   return {
     list,
     loaded,
-    sourcePlugins,
-    controlPlugins,
     menuContributions,
     marketPlugins,
     fetchMarket,
@@ -174,6 +193,7 @@ export const usePluginsStore = defineStore("plugins", () => {
     uninstall,
     setEnabled,
     setSetting,
+    setPermission,
     checkUpdate,
     applyUpdate,
     dispose,

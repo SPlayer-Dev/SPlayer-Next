@@ -31,7 +31,7 @@ const walk = (dir, out = []) => {
  * @param {string} name - 文件名
  * @returns {boolean} 是否需要合并
  */
-const shouldMergeManifest = (name) => /^(latest|beta|alpha)(-mac)?\.yml$/.test(name);
+const shouldMergeManifest = (name) => /^(latest|beta|alpha|nightly)(-mac)?\.yml$/.test(name);
 
 /**
  * 合并同平台不同架构的更新清单
@@ -61,22 +61,35 @@ const mergeManifests = (docs) => {
 /**
  * 从版本号解析发布通道
  * @param {string} version - 应用版本
- * @returns {"latest" | "beta" | "alpha"} 发布通道
+ * @returns {"latest" | "beta" | "alpha" | "nightly"} 发布通道
  */
 const resolveChannel = (version) => {
+  if (/-nightly(?:\.|$)/.test(version)) return "nightly";
   if (/-alpha(?:\.|$)/.test(version)) return "alpha";
   if (/-beta(?:\.|$)/.test(version)) return "beta";
   if (version.includes("-")) throw new Error(`不支持的预发布版本格式: ${version}`);
   return "latest";
 };
 
+const ALIAS_CHANNELS_MAP = {
+  latest: ["beta", "alpha"],
+  beta: ["alpha"],
+};
+
+const VALIDATE_CHANNELS_MAP = {
+  latest: ["latest", "beta", "alpha"],
+  beta: ["beta", "alpha"],
+  alpha: ["alpha"],
+  nightly: ["nightly"],
+};
+
 /**
  * 为更不稳定的订阅通道创建清单别名
  * @param {string} outDir - 发布资源目录
- * @param {"latest" | "beta" | "alpha"} channel - 发布通道
+ * @param {"latest" | "beta" | "alpha" | "nightly"} channel - 发布通道
  */
 const createChannelAliases = (outDir, channel) => {
-  const aliases = channel === "latest" ? ["beta", "alpha"] : channel === "beta" ? ["alpha"] : [];
+  const aliases = ALIAS_CHANNELS_MAP[channel] ?? [];
   for (const suffix of MANIFEST_SUFFIXES) {
     const source = path.join(outDir, `${channel}${suffix}.yml`);
     if (!fs.existsSync(source)) throw new Error(`缺少更新清单: ${path.basename(source)}`);
@@ -90,15 +103,10 @@ const createChannelAliases = (outDir, channel) => {
  * 校验清单结构和引用资源
  * @param {string} outDir - 发布资源目录
  * @param {string} version - 应用版本
- * @param {"latest" | "beta" | "alpha"} channel - 发布通道
+ * @param {"latest" | "beta" | "alpha" | "nightly"} channel - 发布通道
  */
 const validateManifests = (outDir, version, channel) => {
-  const channels =
-    channel === "latest"
-      ? ["latest", "beta", "alpha"]
-      : channel === "beta"
-        ? ["beta", "alpha"]
-        : ["alpha"];
+  const channels = VALIDATE_CHANNELS_MAP[channel] ?? [channel];
   for (const current of channels) {
     for (const suffix of MANIFEST_SUFFIXES) {
       const name = `${current}${suffix}.yml`;
@@ -130,8 +138,9 @@ const validateManifests = (outDir, version, channel) => {
  * @param {string} srcDir - 构建产物目录
  * @param {string} outDir - 发布资源目录
  * @param {string} version - 应用版本
+ * @param {string} [releaseNotes] - 与发布页共用的更新说明
  */
-const prepareReleaseAssets = (srcDir, outDir, version) => {
+const prepareReleaseAssets = (srcDir, outDir, version, releaseNotes) => {
   const channel = resolveChannel(version);
   fs.mkdirSync(outDir, { recursive: true });
 
@@ -157,18 +166,34 @@ const prepareReleaseAssets = (srcDir, outDir, version) => {
     console.log(`合并清单 ${name}（files: ${merged.files.length}）`);
   }
 
+  if (releaseNotes !== undefined) {
+    for (const suffix of MANIFEST_SUFFIXES) {
+      const manifest = path.join(outDir, `${channel}${suffix}.yml`);
+      const doc = yaml.load(fs.readFileSync(manifest, "utf8"));
+      doc.releaseNotes = releaseNotes;
+      fs.writeFileSync(manifest, yaml.dump(doc, { lineWidth: -1 }));
+    }
+  }
+
   createChannelAliases(outDir, channel);
   validateManifests(outDir, version, channel);
   console.log(`release-assets 校验完成，共 ${fs.readdirSync(outDir).length} 个文件`);
 };
 
 if (require.main === module) {
-  const [srcDir, outDir, version] = process.argv.slice(2);
+  const [srcDir, outDir, version, notesFile] = process.argv.slice(2);
   if (!srcDir || !outDir || !version) {
-    console.error("用法: node prepare-release-assets.cjs <artifactsDir> <outDir> <version>");
+    console.error(
+      "用法: node prepare-release-assets.cjs <artifactsDir> <outDir> <version> [releaseNotesFile]",
+    );
     process.exit(1);
   }
-  prepareReleaseAssets(srcDir, outDir, version);
+  prepareReleaseAssets(
+    srcDir,
+    outDir,
+    version,
+    notesFile ? fs.readFileSync(notesFile, "utf8") : undefined,
+  );
 }
 
 module.exports = { mergeManifests, prepareReleaseAssets, resolveChannel };

@@ -77,7 +77,7 @@ const openAlbum = (item: CoverItem): void => {
 </script>
 
 <template>
-  <div class="h-full overflow-y-auto">
+  <div class="h-full overflow-y-auto [scrollbar-gutter:stable]">
     <div
       class="mx-auto flex max-w-[1400px] flex-col gap-6 px-6 pt-6"
       :class="isFloatingBar ? 'pb-28' : 'pb-10'"

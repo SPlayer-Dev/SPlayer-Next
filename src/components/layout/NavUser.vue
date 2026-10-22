@@ -14,10 +14,21 @@ const user = useUserStore();
 const loginOpen = ref(false);
 const popoverOpen = ref(false);
 
-/** 启动时同步登录状态 */
+/** 启动、恢复窗口及可见期间校验凭据 */
 onMounted(() => {
   void user.fetchStatus();
 });
+useEventListener(window, "focus", () => {
+  if (user.isLoggedIn) void user.fetchStatus();
+});
+useIntervalFn(
+  () => {
+    if (document.visibilityState === "visible" && user.isLoggedIn) {
+      void user.fetchStatus(false);
+    }
+  },
+  5 * 60 * 1000,
+);
 
 const isVip = computed(() => !!user.profile?.vipType && user.profile.vipType !== 0);
 

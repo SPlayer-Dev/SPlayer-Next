@@ -1,6 +1,6 @@
-type CacheKind = "file" | "db";
+export type CacheKind = "file" | "db";
 
-interface CacheStat {
+export interface CacheStat {
   id: string;
   kind: CacheKind;
   path: string;
@@ -53,5 +53,3 @@ export const useCacheStats = () => ({
   refresh,
   setCacheDir,
 });
-
-export type { CacheKind, CacheStat };

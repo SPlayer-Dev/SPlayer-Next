@@ -9,7 +9,7 @@ import * as player from "@/core/player";
 /**
  * 心动模式
  *
- * 以种子歌曲 + 「我喜欢的音乐」歌单调用网易云智能播放接口，
+ * 以种子歌曲 + 「我喜欢的音乐」歌单调用 NCM 智能播放接口，
  * 生成推荐队列并进入心动模式。
  */
 export const useHeartMode = () => {
@@ -20,7 +20,7 @@ export const useHeartMode = () => {
 
   /**
    * 进入心动模式
-   * @param seed - 指定种子歌曲；缺省时取当前播放的网易云歌曲，再退而取随机红心歌曲 id
+   * @param seed - 指定种子歌曲；缺省时取当前播放的 NCM 歌曲，再退而取随机红心歌曲 id
    */
   const enterHeartMode = async (seed?: Track): Promise<void> => {
     if (status.heartMode) {

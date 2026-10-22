@@ -1,12 +1,7 @@
+import type { KGAlbumItem, KGArtistItem, KGSong } from "@shared/types/platform/kugou";
 import type { ArtistProfile } from "@/types/artist";
 import { kugou as kgApi } from "@/apis/kugou";
-import {
-  kgAlbumToCoverItem,
-  kgSongsToTracks,
-  type KGAlbumItem,
-  type KGArtistItem,
-  type KGSong,
-} from "@/utils/format/kugou";
+import { kgAlbumToCoverItem, kgSongsToTracks } from "@/utils/format/kugou";
 
 interface KGArtistDetailResponse {
   code?: number;
@@ -17,7 +12,7 @@ interface KGArtistDetailResponse {
 }
 
 /**
- * 获取KG歌手详情、热门单曲与专辑
+ * 获取 KG 歌手详情、热门单曲与专辑
  * @param id - 歌手 ID
  * @param fallbackName - 兜底名称
  * @returns 歌手资料 profile

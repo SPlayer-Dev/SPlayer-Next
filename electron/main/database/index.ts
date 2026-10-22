@@ -136,6 +136,9 @@ export const initDatabase = (): void => {
       finished_at INTEGER
     );
     CREATE INDEX IF NOT EXISTS idx_download_tasks_created ON download_tasks(created_at);
+    CREATE INDEX IF NOT EXISTS idx_download_tasks_completed_track
+      ON download_tasks(json_extract(track_json, '$.source'), json_extract(track_json, '$.id'))
+      WHERE status = 'done' AND file_path IS NOT NULL;
 
     CREATE TABLE IF NOT EXISTS playlists (
       id TEXT PRIMARY KEY,
@@ -248,5 +251,3 @@ export {
   getRandomTracks,
   getLibraryStats,
 } from "./queries";
-
-export type { FileRecord, UpsertTrack } from "./queries";

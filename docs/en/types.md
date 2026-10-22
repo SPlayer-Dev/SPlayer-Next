@@ -6,42 +6,55 @@ These are the objects delivered to plugin callbacks and handlers. A `?` marks an
 
 ### Track
 
-The `track` payload for [`trackChange`](/en/plugins/control#playback-events) and [`menuClick`](/en/plugins/control#menu-extensions).
+The `track` payload for [`trackChange`](/en/plugins/control#events) and [`menuClick`](/en/plugins/api#menus).
 
-| Field           | Type                               | Description                            |
-| --------------- | ---------------------------------- | -------------------------------------- |
-| `id`            | `string`                           | Track ID                               |
-| `extId`         | `string?`                          | Secondary ID                           |
-| `source`        | [`TrackSource`](#tracksource)      | Track source                           |
-| `path`          | `string?`                          | Local file path                        |
-| `cuePath`       | `string?`                          | CUE file path                          |
-| `cueAudioPath`  | `string?`                          | Audio file referenced by the CUE       |
-| `cueStartMs`    | `number?`                          | CUE segment start in milliseconds      |
-| `cueEndMs`      | `number?`                          | CUE segment end in milliseconds        |
-| `serverId`      | `string?`                          | Streaming server instance ID           |
-| `originalId`    | `string?`                          | Server-native track ID                 |
-| `title`         | `string`                           | Title                                  |
-| `comment`       | `string?`                          | Comment or subtitle                    |
-| `artists`       | [`Artist[]`](#artist)              | Artists                                |
-| `album`         | [`Album`](#album)`?`               | Album                                  |
-| `track`         | `number?`                          | Track number                           |
-| `duration`      | `number`                           | Duration in milliseconds               |
-| `cover`         | `string?`                          | Cover URL                              |
-| `coverOriginal` | `string?`                          | Original cover URL                     |
-| `fileSize`      | `number?`                          | File size in bytes                     |
-| `mtime`         | `number?`                          | Modification time in Unix milliseconds |
-| `ctime`         | `number?`                          | Creation time in Unix milliseconds     |
-| `quality`       | [`AudioQuality`](#audioquality)`?` | Audio quality                          |
-| `fee`           | [`TrackFee`](#trackfee)`?`         | Access fee flag                        |
-| `cloud`         | `boolean?`                         | Whether this is a cloud-library track  |
+| Field           | Type                               | Description                                           |
+| --------------- | ---------------------------------- | ----------------------------------------------------- |
+| `id`            | `string`                           | Track ID                                              |
+| `extId`         | `string?`                          | Secondary ID                                          |
+| `source`        | [`TrackSource`](#tracksource)      | Track source                                          |
+| `plugin`        | [Plugin source](#plugin-source)`?` | Independent plugin source information, added in API 5 |
+| `path`          | `string?`                          | Local file path                                       |
+| `cuePath`       | `string?`                          | CUE file path                                         |
+| `cueAudioPath`  | `string?`                          | Audio file referenced by the CUE                      |
+| `cueStartMs`    | `number?`                          | CUE segment start in milliseconds                     |
+| `cueEndMs`      | `number?`                          | CUE segment end in milliseconds                       |
+| `serverId`      | `string?`                          | Streaming server instance ID                          |
+| `originalId`    | `string?`                          | Server-native track ID                                |
+| `title`         | `string`                           | Title                                                 |
+| `comment`       | `string?`                          | Comment or subtitle                                   |
+| `artists`       | [`Artist[]`](#artist)              | Artists                                               |
+| `album`         | [`Album`](#album)`?`               | Album                                                 |
+| `track`         | `number?`                          | Track number                                          |
+| `duration`      | `number`                           | Duration in milliseconds                              |
+| `cover`         | `string?`                          | Cover URL                                             |
+| `coverOriginal` | `string?`                          | Original cover URL                                    |
+| `fileSize`      | `number?`                          | File size in bytes                                    |
+| `mtime`         | `number?`                          | Modification time in Unix milliseconds                |
+| `ctime`         | `number?`                          | Creation time in Unix milliseconds                    |
+| `quality`       | [`AudioQuality`](#audioquality)`?` | Audio quality                                         |
+| `fee`           | [`TrackFee`](#trackfee)`?`         | Access fee flag                                       |
+| `cloud`         | `boolean?`                         | Whether this is a cloud-library track                 |
 
 ### TrackSource
 
-`"local"`, `"streaming"`, or one of the built-in platforms: `"netease"`, `"qqmusic"`, and `"kugou"`. Plugin source keys are not stored as `TrackSource`.
+`"local"`, `"streaming"`, `"plugin"` for independent plugin sources, or one of the built-in platforms: `"netease"`, `"qqmusic"`, and `"kugou"`.
+
+### Plugin source {#plugin-source}
+
+For `source: "plugin"`, the `plugin` field is required. The host generates it from a [search candidate](/en/plugins/source#musicsearch).
+
+| Field       | Type        | Description                                                                                        |
+| ----------- | ----------- | -------------------------------------------------------------------------------------------------- |
+| `pluginId`  | `string`    | Owning plugin's `@id`                                                                              |
+| `source`    | `string`    | Registered source key                                                                              |
+| `musicInfo` | `Candidate` | Original search candidate, including the source track ID and fields needed for subsequent requests |
+
+The host generates a unique `Track.id`; the original track ID remains in `plugin.musicInfo.id`. Pass the complete `Track` when playing or adding it to the queue, preserving `plugin` for queue recovery and later resolution.
 
 ### TrackFee
 
-NetEase-compatible fee flag: `0` free, `1` VIP, `4` purchase required, and `8` quality restricted.
+Fee flag: `0` free, `1` VIP, `4` purchase required, and `8` quality restricted.
 
 ### Artist
 
@@ -77,7 +90,7 @@ NetEase-compatible fee flag: `0` free, `1` VIP, `4` purchase required, and `8` q
 
 ### LyricLine
 
-One parsed lyric line. The `lines` payload in [`lyricChange`](/en/plugins/control#playback-events) is `LyricLine[]`.
+One parsed lyric line. The `lines` payload in [`lyricChange`](/en/plugins/control#events) is `LyricLine[]`.
 
 | Field             | Type                                     | Description                             |
 | ----------------- | ---------------------------------------- | --------------------------------------- |

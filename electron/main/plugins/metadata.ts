@@ -25,15 +25,22 @@ const PLATFORM_TO_PLUGIN_SOURCE: Record<string, string> = {
 };
 
 /**
- * 在某插件源里定位与 track 对应的曲目
- * 同源（track 平台映射后 == source）直接用 track.id 省一次搜索；否则 musicSearch + 时长门槛打分
- * @returns 匹配中的候选（含源内 id），无命中返回 null
+ * 在指定插件来源中匹配曲目，所属插件的曲目直接复用来源数据
+ * @param rt - 插件运行时
+ * @param source - 音源标识
+ * @param track - 待匹配曲目
+ * @returns 匹配到的插件曲目数据，无匹配时为 null
  */
 const findMatch = async (
   rt: PluginRuntime,
   source: string,
   track: Track,
 ): Promise<MusicSearchCandidate | null> => {
+  if (track.source === "plugin") {
+    return track.plugin?.pluginId === rt.manifest.id && track.plugin.source === source
+      ? track.plugin.musicInfo
+      : null;
+  }
   if (PLATFORM_TO_PLUGIN_SOURCE[track.source] === source && track.id) {
     return {
       id: track.id,

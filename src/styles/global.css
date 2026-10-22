@@ -1,5 +1,6 @@
 @import "/fonts/font.css";
 @import "./markdown.css";
+@import "./reduced-motion.css";
 
 * {
   margin: 0;

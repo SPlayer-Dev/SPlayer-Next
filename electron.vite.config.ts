@@ -83,8 +83,14 @@ export default defineConfig({
     server: {
       port: 14558,
       watch: {
-        ignored: ["**/native/**/target/**"],
+        // Rust workspace 在根目录生成 target，避免监听大量构建产物
+        ignored: ["**/target/**"],
       },
+    },
+    optimizeDeps: {
+      // 自动注册的组件不在 HTML 的静态导入图中，需扫描其惰性加载依赖
+      entries: ["index.html", "windows/**/index.html", "src/components/**/*.vue"],
+      include: ["reka-ui"],
     },
     publicDir: resolve(__dirname, "public"),
     build: {

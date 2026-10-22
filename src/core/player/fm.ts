@@ -3,7 +3,7 @@
  */
 
 import type { Track } from "@shared/types/player";
-import type { PersonalFmOptions } from "@/types/netease";
+import type { PersonalFmOptions } from "@shared/types/platform/netease";
 import { fetchPersonalFm, submitFmTrash } from "@/apis/recommend/netease";
 import { useStatusStore } from "@/stores/status";
 

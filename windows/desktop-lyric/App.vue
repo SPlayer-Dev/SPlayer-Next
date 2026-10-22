@@ -10,7 +10,7 @@ import {
   resolveWordByWord,
   type DisplayItem,
 } from "./utils";
-import { pickPrimaryIndex } from "@shared/utils/lyricSync";
+import { pickPrimaryIndex } from "lyric-kit";
 import { useNowPlayingSync } from "@windows/shared/composables/useNowPlayingSync";
 import { useDragWindow } from "./composables/useDragWindow";
 import { useHoverState } from "./composables/useHoverState";

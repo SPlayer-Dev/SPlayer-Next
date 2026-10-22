@@ -49,7 +49,7 @@ const itemStyle = (i: number) => {
         v-for="(item, i) in visibleItems"
         :key="item.key"
         :item="item"
-        :highlighted="item.key === highlightKey"
+        :highlight-key="highlightKey"
         class="animate-slide-in-item"
         :style="itemStyle(i + 1)"
       />

@@ -100,8 +100,8 @@ class ThumbarImpl implements Thumbar {
       clearTimeout(this.retryTimeout);
       this.retryTimeout = null;
     }
-    // 隐藏期间调用会污染 Electron 的按钮注册状态，待 show/restore 后统一下发
-    if (!this.win.isVisible()) return;
+    // 仅在完全隐藏到托盘时拦截
+    if (!this.win.isVisible() && !this.win.isMinimized()) return;
 
     this.like.icon = thumbarIcon(this.isLiked ? "like" : "unlike");
     this.like.tooltip = t(this.isLiked ? "removeFromLiked" : "addToLiked");

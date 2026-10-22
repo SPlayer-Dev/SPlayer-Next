@@ -5,6 +5,7 @@ import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
 import { navigateToArtist } from "@/utils/navigate";
 import { getValidArtists } from "@shared/utils/track";
+import { setPlayerExpanded } from "@/services/playerTransition";
 
 withDefaults(
   defineProps<{
@@ -17,7 +18,7 @@ withDefaults(
 const status = useStatusStore();
 const media = useMediaStore();
 const settings = useSettingsStore();
-const { isPlayerExpanded, isPlaying } = storeToRefs(status);
+const { isPlaying } = storeToRefs(status);
 
 /** 当前歌曲中可展示的歌手 */
 const artists = computed(() => getValidArtists(media.track?.artists));
@@ -58,9 +59,9 @@ const isArtistLinkable = (artist: Artist): boolean => {
     <div
       class="relative shrink-0 rounded-lg overflow-hidden cursor-pointer group"
       :class="compact ? 'size-10 shadow-sm' : 'size-14'"
-      @click="isPlayerExpanded = true"
+      @click="setPlayerExpanded(true)"
     >
-      <SImg :src="media.track?.cover" class="size-full" />
+      <SImg :src="media.track?.cover" class="size-full rounded-lg" data-player-cover="bar" />
       <div
         class="absolute inset-0 z-10 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-colors duration-200"
       >
@@ -113,6 +114,7 @@ const isArtistLinkable = (artist: Artist): boolean => {
                     navigateToArtist(artist.name, {
                       source: media.track?.source,
                       artistId: artist.id,
+                      serverId: media.track?.serverId,
                     })
                   "
                 >

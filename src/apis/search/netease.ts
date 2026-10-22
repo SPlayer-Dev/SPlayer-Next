@@ -1,6 +1,6 @@
 import type { Track } from "@shared/types/player";
 import type { CoverItem } from "@/types/artist";
-import type { NeteaseSong } from "@/types/netease";
+import type { NeteaseSong } from "@shared/types/platform/netease";
 import { netease as neteaseApi } from "@/apis/netease";
 import { songsToTracks, withPicSize } from "@/utils/format/netease";
 import type { SearchResult } from "./index";

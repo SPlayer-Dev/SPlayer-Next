@@ -1,61 +1,12 @@
 import type { AudioQuality, Track, TrackFee } from "@shared/types/player";
 import type { CoverItem } from "@/types/artist";
 
-export interface KGSong {
-  id: string;
-  audioId?: number;
-  albumAudioId?: number;
-  hash: string;
-  name: string;
-  artist: string;
-  artistId?: string | number;
-  artists?: Array<{ id?: string | number; name: string }>;
-  album?: string;
-  albumId?: string | number;
-  cover?: string;
-  coverOriginal?: string;
-  interval?: number;
-  duration: number;
-  qualities?: string[];
-  hashes?: Partial<Record<string, string>>;
-  sizes?: Partial<Record<string, number>>;
-  pay?: {
-    payplay?: number;
-    privilege?: number;
-    feetype?: number;
-    pkg_price?: number;
-    price?: number;
-  };
-}
-
-export interface KGAlbumItem {
-  id: string;
-  name: string;
-  cover?: string;
-  artist?: string;
-  artistId?: string;
-  trackCount?: number;
-  publishTime?: string;
-  intro?: string;
-}
-
-export interface KGArtistItem {
-  id: string;
-  name: string;
-  cover?: string;
-  albumCount?: number;
-  songCount?: number;
-  fansCount?: number;
-}
-
-export interface KGPlaylistItem {
-  id: string;
-  name: string;
-  cover?: string;
-  creator?: string;
-  trackCount?: number;
-  playCount?: number;
-}
+import type {
+  KGSong,
+  KGAlbumItem,
+  KGArtistItem,
+  KGPlaylistItem,
+} from "@shared/types/platform/kugou";
 
 /**
  * 将 KG 付费标识转换为应用层等级
@@ -82,28 +33,6 @@ const kgTrackFee = (song: KGSong): TrackFee => {
     return 1;
   }
 
-  return 0;
-};
-
-/**
- * 标准化歌曲时长为毫秒
- * @param duration - 时长（可能是秒或毫秒）
- * @param interval - 时长（秒）
- * @returns 统一毫秒数
- */
-export const normalizeDurationMs = (duration?: number, interval?: number): number => {
-  if (duration !== undefined && duration > 0) {
-    if (interval && interval > 0 && duration === interval) {
-      return interval * 1000;
-    }
-    if (duration < 10000) {
-      return duration * 1000;
-    }
-    return duration;
-  }
-  if (interval !== undefined && interval > 0) {
-    return interval * 1000;
-  }
   return 0;
 };
 
@@ -149,8 +78,9 @@ const kgTrackQuality = (
  * @returns Track 实例
  */
 export const kgSongToTrack = (song: KGSong): Track => {
-  const durationMs = normalizeDurationMs(song.duration, song.interval);
+  const durationMs = song.duration;
   const audio = kgTrackQuality(song, durationMs);
+  const albumId = Number(song.albumId) > 0 ? String(song.albumId) : undefined;
 
   const artists = song.artists?.length
     ? song.artists.map((a) => ({
@@ -172,13 +102,14 @@ export const kgSongToTrack = (song: KGSong): Track => {
     source: "kugou",
     title: song.name,
     artists,
-    album: song.album
-      ? {
-          id: song.albumId ? String(song.albumId) : undefined,
-          name: song.album,
-          cover: song.cover,
-        }
-      : undefined,
+    album:
+      song.album || albumId
+        ? {
+            id: albumId,
+            name: song.album,
+            cover: song.cover,
+          }
+        : undefined,
     duration: durationMs,
     quality: audio?.quality,
     fileSize: audio?.fileSize,

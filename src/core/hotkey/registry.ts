@@ -6,10 +6,11 @@
 
 import type { HotkeyActionId } from "@shared/types/hotkey";
 import { useStatusStore } from "@/stores/status";
+import { useSettingsDialog } from "@/settings/useSettingsDialog";
 import * as player from "@/core/player";
+import { VOLUME_STEP, volumeGainToPosition, volumePositionToGain } from "@/utils/volume";
+import { setPlayerExpanded } from "@/services/playerTransition";
 
-/** 调音量步长 */
-const VOLUME_STEP = 0.05;
 /** 快进/快退步长（毫秒） */
 const SEEK_STEP_MS = 5000;
 
@@ -45,12 +46,12 @@ export const buildRegistry = (): void => {
   // 音量增加
   handlers.set("player.volumeUp", () => {
     const status = useStatusStore();
-    player.setVolume(Math.min(1, status.volume + VOLUME_STEP));
+    player.setVolume(volumePositionToGain(volumeGainToPosition(status.volume) + VOLUME_STEP));
   });
   // 音量减少
   handlers.set("player.volumeDown", () => {
     const status = useStatusStore();
-    player.setVolume(Math.max(0, status.volume - VOLUME_STEP));
+    player.setVolume(volumePositionToGain(volumeGainToPosition(status.volume) - VOLUME_STEP));
   });
   // 循环模式
   handlers.set("player.cycleRepeat", () => player.cycleRepeatMode());
@@ -70,13 +71,13 @@ export const buildRegistry = (): void => {
   });
   // 打开播放器
   handlers.set("view.openPlayer", () => {
-    useStatusStore().isPlayerExpanded = true;
+    setPlayerExpanded(true);
   });
   // 关闭播放器
   handlers.set("view.closePlayer", (): boolean => {
     const status = useStatusStore();
     if (!status.isPlayerExpanded) return false;
-    status.isPlayerExpanded = false;
+    setPlayerExpanded(false);
     return true;
   });
   // 切换播放列表
@@ -101,6 +102,10 @@ export const buildRegistry = (): void => {
     if (document.activeElement !== el) return false;
     el.select();
     return true;
+  });
+  // 打开设置
+  handlers.set("view.openSettings", () => {
+    useSettingsDialog().show();
   });
 };
 

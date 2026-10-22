@@ -7,9 +7,10 @@
     "installNow": "立即重启安装",
     "goDownload": "前往下载页",
     "goStore": "前往商店更新",
-    "upToDate": "已是最新版本",
+    "upToDate": "当前通道暂无更高版本",
     "readyToast": "更新已就绪，可重启安装",
-    "failed": "更新失败，请稍后重试"
+    "failed": "更新失败，请稍后重试",
+    "installing": "正在启动安装程序"
   },
   "onboarding": {
     "next": "下一步",
@@ -21,10 +22,22 @@
       "subtitle": "一个现代化的桌面音乐播放器，完成几步设置即可开始享用",
       "start": "开始设置",
       "features": {
-        "local": { "title": "本地音乐库", "desc": "扫描本地目录，自动整理音乐库" },
-        "quality": { "title": "无损音质", "desc": "原生音频引擎，支持多种无损格式" },
-        "streaming": { "title": "流媒体服务器", "desc": "Subsonic / Jellyfin / Emby 等" },
-        "lyrics": { "title": "丰富歌词体验", "desc": "AMLL 逐字歌词，桌面歌词、灵动岛、任务栏歌词" }
+        "local": {
+          "title": "本地音乐库",
+          "desc": "扫描本地目录，自动整理音乐库"
+        },
+        "quality": {
+          "title": "无损音质",
+          "desc": "原生音频引擎，支持多种无损格式"
+        },
+        "streaming": {
+          "title": "流媒体服务器",
+          "desc": "Subsonic / Jellyfin / Emby 等"
+        },
+        "lyrics": {
+          "title": "丰富歌词体验",
+          "desc": "AMLL 逐字歌词，桌面歌词、灵动岛、任务栏歌词"
+        }
       }
     },
     "agreement": {
@@ -94,6 +107,7 @@
     "delete": "删除",
     "enable": "启用",
     "enabled": "已启用",
+    "disabled": "未启用",
     "active": "已启用",
     "saveAndRelaunch": "保存并重启",
     "reset": "重置",
@@ -379,6 +393,8 @@
   },
   "search": {
     "title": "搜索",
+    "plugins": "插件",
+    "pluginSource": "选择音源",
     "titleSuffix": "的搜索结果",
     "emptyKeyword": "请输入关键词开始搜索",
     "noResults": "没有找到匹配内容",
@@ -392,6 +408,7 @@
     }
   },
   "streaming": {
+    "favoritesOnly": "仅看收藏",
     "hint": "连接到媒体源",
     "hintDetail": "添加个人流媒体服务器，配置内容全程加密",
     "errorCode": {
@@ -407,6 +424,7 @@
       "playlists": "歌单"
     },
     "empty": {
+      "noFavorites": "当前服务器暂无收藏歌曲",
       "noServer": "尚未配置流媒体服务器",
       "addHint": "点击右上角添加一个开始使用",
       "goToSettings": "前往设置添加",
@@ -451,6 +469,7 @@
   "player": {
     "prev": "上一首",
     "next": "下一首",
+    "transitioning": "过渡",
     "heartMode": {
       "needLogin": "登录后才能使用心动模式",
       "noSeed": "暂无可用的心动种子歌曲",
@@ -532,6 +551,7 @@
       "play": "播放",
       "playNext": "下一首播放",
       "showInExplorer": "打开文件位置",
+      "copyFile": "复制歌曲文件",
       "copyPath": "复制文件路径",
       "editTags": "编辑元数据",
       "download": "下载歌曲",
@@ -562,6 +582,10 @@
     }
   },
   "quality": {
+    "outputInfo": "输出信息",
+    "outputSection": "输出信息",
+    "outputMode": "输出模式",
+    "dspSection": "音频处理",
     "details": "音质详情",
     "codec": "编码格式",
     "sampleRate": "采样率",
@@ -570,7 +594,10 @@
     "channels": "声道",
     "stereo": "立体声",
     "mono": "单声道",
-    "multiChannel": "多声道"
+    "multiChannel": "多声道",
+    "tempoPitch": "变速变调",
+    "limiter": "输出限幅器",
+    "resampling": "重采样"
   },
   "playlist": {
     "title": "播放列表",
@@ -734,6 +761,7 @@
       "update": "更新",
       "language": "语言",
       "playControl": "播放控制",
+      "playbackTransition": "播放过渡",
       "audioSource": "播放音源",
       "scrobble": "听歌打卡",
       "lyricContent": "歌词内容",
@@ -750,6 +778,7 @@
       "theme": "主题与颜色",
       "appearanceStyle": "外观风格",
       "layout": "布局",
+      "softwareAnimations": "过渡与动画",
       "font": "字体",
       "playerBar": "播放栏",
       "nowPlaying": "播放页",
@@ -787,7 +816,11 @@
       "showMore": "更多贡献者",
       "collapse": "收起",
       "commit": "提交",
-      "date": "日期"
+      "date": "日期",
+      "dependencies": {
+        "lyrics": "类 Apple Music 歌词显示组件库",
+        "neteaseApi": "NCM API 备份 + 增强"
+      }
     },
     "storeVersion": "Store",
     "language": {
@@ -798,13 +831,23 @@
       "label": "自动播放",
       "description": "加载歌曲后自动开始播放"
     },
-    "fuckDjMode": {
-      "label": "Fuck DJ Mode",
-      "description": "歌曲名字带有 DJ 抖音 0.9 0.8 网红 车载 热歌 慢摇 自动跳过"
+    "skipKeywordsSongs": {
+      "label": "跳过指定关键词歌曲",
+      "description": "检测到歌曲标题或歌手名包含指定关键词时自动跳过",
+      "button": "管理",
+      "enable": "启用跳过关键词歌曲",
+      "enableDesc": "播放时若命中关键词列表则自动跳至下一首"
     },
-    "uncensorProfanity": {
-      "label": "Fuck ** Mode",
-      "description": "把歌词里的 f**k 等屏蔽词还原为原词"
+    "skipKeywordsRules": {
+      "label": "关键词列表",
+      "description": "自定义需要跳过的歌曲关键词列表",
+      "button": "管理",
+      "hint": "当歌曲标题或歌手名包含以下关键词时将自动跳过",
+      "placeholder": "输入关键词",
+      "add": "添加",
+      "clear": "清空当前列表",
+      "empty": "尚未配置任何关键词",
+      "duplicate": "已存在该关键词"
     },
     "hideVipTag": {
       "label": "隐藏 VIP 标签",
@@ -848,6 +891,19 @@
       "label": "音量均衡",
       "description": "自动调节不同歌曲之间的音量差异"
     },
+    "transitionMode": {
+      "label": "过渡方式",
+      "description": "调整歌曲在交替时的播放效果",
+      "none": "无过渡",
+      "crossfade": "交叉过渡"
+    },
+    "transitionPreference": {
+      "label": "交接倾向",
+      "description": "调整曲尾交接时机和过渡长度，积极档更早、更长",
+      "conservative": "保守",
+      "standard": "标准",
+      "eager": "积极"
+    },
     "songLevel": {
       "label": "在线歌曲音质",
       "description": "在线歌曲的音质偏好，取决于账号实际可用级别",
@@ -866,12 +922,27 @@
     },
     "preloadNextTrack": {
       "label": "预载下一首歌曲",
-      "description": "提前获取下一首的播放信息，可能会增加网络占用"
+      "description": "提前缓存并解码下一曲，可能会增加网络占用"
     },
     "outputDevice": {
       "label": "输出设备",
       "description": "选择音频输出设备",
       "default": "系统默认"
+    },
+    "rememberDeviceVolume": {
+      "label": "独立设备音量记忆",
+      "description": "切换或插拔不同音频输出设备时，分别保存并恢复各自的音量大小"
+    },
+    "audioOutputMode": {
+      "label": "音频输出模式",
+      "description": "切换当前 Windows WASAPI 音频的输出模式",
+      "shared": "共享模式",
+      "exclusive": "WASAPI 独占模式",
+      "fallback": {
+        "deviceBusy": "设备无法以独占模式打开，已回退共享模式",
+        "formatUnsupported": "设备不支持独占模式所需的音频格式，已回退共享模式",
+        "unavailable": "独占模式暂不可用，已回退共享模式"
+      }
     },
     "pauseOnDeviceSwitch": {
       "label": "切换时暂停播放",
@@ -1036,7 +1107,8 @@
         "closePlayer": "关闭播放界面",
         "togglePlaylist": "展开 / 收起播放列表",
         "openSearch": "打开搜索",
-        "searchInPage": "页面内搜索"
+        "searchInPage": "页面内搜索",
+        "openSettings": "打开设置"
       }
     },
     "engine": {
@@ -1049,13 +1121,19 @@
     },
     "confirm": {
       "highResourceTitle": "高占用功能",
+      "enableTitle": "确认开启",
+      "scrobbleRiskContent": "听歌打卡功能目前仍处于测试阶段，不保证上报记录会计入有效听歌次数，相关风险尚不明确\n开启后可能触发账号风控等账号安全问题，请充分了解潜在风险后谨慎开启",
       "highResourceContent": "开启后可能明显增加内存与 CPU 占用，低配设备上或出现卡顿。确定开启吗？",
       "restartRequiredTitle": "需要重启应用",
       "restartRequiredContent": "此设置需要重启应用后生效。确定保存并立即重启吗？",
       "testChannelTitle": "切换到测试通道",
       "testChannelContent": "Beta 与 Alpha 通道会提前收到测试版本，其中 Alpha 版本可能非常不稳定。确定切换吗？",
       "kugouLoginVersionTitle": "切换 KG 登录版本",
-      "kugouLoginVersionContent": "切换后当前登录凭据与新版本不匹配，需退出登录并重新扫码，否则会员权益与高音质解析会失效。确定切换吗？"
+      "kugouLoginVersionContent": "切换后当前登录凭据与新版本不匹配，需退出登录并重新扫码，否则会员权益与高音质解析会失效。确定切换吗？",
+      "exclusiveModeTitle": "切换到独占模式",
+      "exclusiveModeContent": "独占模式绕过系统混音器，优先使用音源采样率与位深，适合外接 DAC / Hi-Fi 设备。播放器的音量、均衡器等处理仍然生效，不保证逐位无损输出。独占期间其他应用可能无法播放声音；独占不可用时会尝试共享模式，若设备被其他应用独占，共享模式也可能无法播放。确定切换吗？",
+      "preloadCacheTitle": "开启预载所需的缓存？",
+      "preloadCacheContent": "歌曲预载需要缓存下一首音频。继续将同时开启歌曲缓存和流媒体缓存，可能增加网络流量和磁盘占用"
     },
     "useAMSpring": {
       "label": "弹簧动画调试开关",
@@ -1101,10 +1179,6 @@
       "label": "提前入场动画",
       "description": "尝试让歌词入场动画提前开始（最多 1 秒），使过渡更加平滑"
     },
-    "amllConvertExcessiveBackgroundLines": {
-      "label": "合并背景人声",
-      "description": "将多行连续背景人声转换为单行背景人声与主歌词行的形式"
-    },
     "amllSyncMainAndBackgroundLines": {
       "label": "同步背景人声时间",
       "description": "自动同步主歌词与背景人声的时间轴"
@@ -1123,11 +1197,19 @@
     },
     "adaptiveFontSize": {
       "label": "自适应字号",
-      "description": "歌词字号根据窗口大小自动调整"
+      "description": "歌词字号随窗口高度调整"
     },
     "fontSize": {
       "label": "歌词字号",
-      "description": "关闭自适应后生效"
+      "description": "主行文字大小"
+    },
+    "translationFontSizeFollowMain": {
+      "label": "副行字号跟随主行",
+      "description": "副行字号为主行的一半"
+    },
+    "translationFontSize": {
+      "label": "翻译/音译字号",
+      "description": "关闭跟随主行后生效"
     },
     "fontWeight": {
       "label": "歌词字重",
@@ -1148,21 +1230,41 @@
       "label": "自动沉浸模式",
       "description": "鼠标静止或离开窗口时，自动隐藏全屏播放器顶/底栏与鼠标"
     },
+    "keepScreenAwake": {
+      "label": "播放时保持屏幕常亮",
+      "description": "仅在播放页展开时生效"
+    },
     "showTranslation": {
       "label": "显示翻译",
       "description": "显示歌词的翻译文本"
     },
-    "showRomanization": {
-      "label": "显示音译",
-      "description": "显示歌词的音译文本"
+    "showRuby": {
+      "label": "显示词内注音",
+      "description": "显示歌词中汉字词语的假名或拼音注音"
     },
-    "amllShowLineRomanization": {
+    "showRomanization": {
       "label": "显示逐行音译",
       "description": "显示歌词行的音译文本"
     },
-    "amllShowWordRomanization": {
+    "showWordRomanization": {
       "label": "显示逐词音译",
       "description": "在逐字歌词中，显示每个字词的音译文本"
+    },
+    "enableScale": {
+      "label": "歌词缩放",
+      "description": "聚焦播放行，非激活行轻微缩小"
+    },
+    "lyricAlignment": {
+      "label": "歌词水平对齐",
+      "description": "自动按演唱声部分左右显示，也可统一靠左、居中或靠右",
+      "auto": "自动",
+      "left": "靠左",
+      "center": "居中",
+      "right": "靠右"
+    },
+    "bgAlwaysBelow": {
+      "label": "背景歌词置于下方",
+      "description": "始终将背景和声歌词显示在主歌词行下方"
     },
     "enableWordHighlight": {
       "label": "逐字高亮",
@@ -1217,7 +1319,7 @@
     },
     "inactiveAlpha": {
       "label": "非激活行透明度",
-      "description": "非当前行的基础透明度"
+      "description": "非当前行的基础透明度，同时影响翻译和音译的透明度"
     },
     "desktopLyricEnabled": {
       "label": "开启桌面歌词",
@@ -1435,6 +1537,13 @@
       "solid": "纯色",
       "animation": "流体"
     },
+    "playerBgRenderer": {
+      "label": "渲染引擎",
+      "description": "选择流体背景渲染引擎",
+      "mesh": "网格渐变渲染器",
+      "isolation": "isolation 渲染器",
+      "pixi": "PixiJS 渲染器"
+    },
     "playerBgFlowSpeed": {
       "label": "流动速度",
       "description": "流体背景的动画流动速度"
@@ -1521,12 +1630,20 @@
       "floating": "灵动悬浮"
     },
     "routeTransition": {
-      "label": "页面切换动效",
+      "label": "页面切换",
       "description": "切换页面时的过渡动画效果",
       "none": "无",
       "fade": "淡入淡出",
       "slide": "滑动",
       "zoom": "缩放"
+    },
+    "reduceMotion": {
+      "label": "减弱动画",
+      "description": "减少界面动态效果，降低性能消耗"
+    },
+    "seamlessTransition": {
+      "label": "共享元素过渡",
+      "description": "支持两个页面之间的元素无缝过渡"
     },
     "sidebarCollapsed": {
       "label": "折叠侧边栏",
@@ -1552,10 +1669,6 @@
       "confirmResetTitle": "确认恢复默认？",
       "confirmResetDesc": "分组、命名、排序与显隐都将重置为默认！",
       "featureDisabled": "功能未开启"
-    },
-    "showStatsInSidebar": {
-      "label": "显示播放统计入口",
-      "description": "在侧边栏显示播放统计页面入口"
     },
     "showQualitySwitch": {
       "label": "显示快捷音质切换",
@@ -1628,6 +1741,9 @@
       "label": "同步喜欢",
       "description": "点击喜欢时同步为 Last.fm 的 Love / Unlove"
     },
+    "lastfmAccount": {
+      "label": "Last.fm 账号"
+    },
     "lastfm": {
       "connect": "连接账号",
       "connecting": "请在浏览器中完成授权…",
@@ -1643,6 +1759,12 @@
         "failed": "连接失败，请重试",
         "disconnected": "已断开 Last.fm 连接"
       }
+    },
+    "qmAccount": {
+      "label": "QQ 音乐账号"
+    },
+    "kgAccount": {
+      "label": "酷狗音乐账号"
     },
     "platformLogin": {
       "title": "登录 {name} 账号",
@@ -1680,14 +1802,11 @@
     },
     "updateChannel": {
       "label": "更新通道",
-      "description": "选择正式版、Beta 预览版或 Alpha 内测版更新",
+      "description": "选择接收更新的通道，切换通道不会自动降级",
       "stable": "正式版",
       "beta": "Beta 预览版",
-      "alpha": "Alpha 内测版"
-    },
-    "checkUpdate": {
-      "label": "检查更新",
-      "description": "立即检查是否有新版本"
+      "alpha": "Alpha 内测版",
+      "nightly": "Nightly 持续构建"
     },
     "showPerformanceMonitor": {
       "label": "性能监视器",
@@ -1736,17 +1855,20 @@
     },
     "neteaseScrobbleEnabled": {
       "label": "启用听歌打卡",
-      "description": "播放达到一定时长后，自动向 NCM 上报听歌记录"
+      "description": "按实际收听时长同步 NCM 播放记录"
     },
     "neteaseScrobbleMode": {
       "label": "NCM 听歌打卡方式",
-      "description": "选择自动同步 NCM 听歌记录时使用的上报接口",
-      "legacy": "原版日志接口",
+      "description": "选择同步播放记录时使用的上报协议",
+      "legacy": "网页日志接口",
       "ncbl": "NCBL 加密接口"
     },
     "orpheusProtocol": {
       "label": "通过 Orpheus 协议唤起本应用",
       "description": "该协议通常用于官方网页端唤起官方客户端，启用后可能导致官方客户端无法被唤起"
+    },
+    "streamingServerList": {
+      "label": "媒体源管理"
     },
     "streamingEnabled": {
       "label": "启用流媒体",
@@ -1884,6 +2006,12 @@
       "confirmDesc": "将清空全部歌单、登录状态、缓存并重置设置，操作不可恢复",
       "done": "全部数据已清除"
     },
+    "pluginImport": {
+      "label": "导入插件"
+    },
+    "pluginList": {
+      "label": "已安装插件"
+    },
     "plugins": {
       "securityWarningTitle": "安装前请注意安全风险",
       "securityWarning": "插件为第三方代码，软件已尽可能做了沙箱隔离，但仍无法完全杜绝风险，恶意插件可能访问你的数据或执行危险操作。请仅安装来自可信来源的插件。",
@@ -1932,8 +2060,6 @@
         "disabled": "已禁用",
         "unloaded": "未加载"
       },
-      "sectionSource": "音源插件",
-      "sectionControl": "控制插件",
       "detail": {
         "title": "插件详情",
         "intro": "简介",
@@ -1942,7 +2068,6 @@
         "info": "信息",
         "noDescription": "暂无简介",
         "grantNone": "该插件未声明任何权限",
-        "autoGranted": "自动授予",
         "sources": "音源",
         "events": "事件",
         "controls": "反向控制",
@@ -1957,9 +2082,26 @@
         "homepage": "主页"
       },
       "grant": {
-        "network": { "label": "联网", "desc": "插件可发起网络请求" },
-        "control": { "label": "控制", "desc": "插件可控制播放器" },
-        "ui": { "label": "界面", "desc": "插件可扩展或修改应用界面" }
+        "network": {
+          "label": "联网",
+          "desc": "插件可发起网络请求"
+        },
+        "control": {
+          "label": "控制",
+          "desc": "插件可控制播放器"
+        },
+        "ui": {
+          "label": "界面",
+          "desc": "插件可添加歌曲菜单并发送系统通知"
+        },
+        "library": {
+          "label": "曲库",
+          "desc": "插件可搜索本地曲库并读取歌曲信息"
+        },
+        "api": {
+          "label": "平台接口",
+          "desc": "使用当前登录态调用音乐平台接口"
+        }
       }
     },
     "pluginManager": {
@@ -2207,6 +2349,7 @@
     "last90Days": "近 90 天"
   },
   "errors": {
+    "PERMISSION_DENIED": "当前账号没有执行此操作的权限",
     "dialogTitle": "出错了",
     "deviceHint": "未检测到可用的音频输出设备，请连接耳机或音箱后重试。",
     "DEVICE_NOT_FOUND": "未找到音频输出设备",
@@ -2218,7 +2361,7 @@
     "NETWORK_ERROR": "音源连接失败，请检查网络或更换音源",
     "NETWORK_TIMEOUT": "音源响应超时，请检查网络或更换音源",
     "URL_RESOLVE_FAILED": "无法获取播放地址",
-    "NO_PLUGIN_AVAILABLE": "未找到支持该平台的插件",
+    "NO_PLUGIN_AVAILABLE": "未找到可用的音源插件",
     "NETEASE_LOGIN_EXPIRED": "登录已失效，已切换为游客模式",
     "NETEASE_VIP_REQUIRED": "该歌曲需要会员或单独购买",
     "NETEASE_TRIAL_DISABLED": "该歌曲仅提供试听，请在设置中允许试听播放",

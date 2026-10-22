@@ -1,3 +1,9 @@
+import type {
+  QMAlbumItem,
+  QMArtistItem,
+  QMPlaylistItem,
+  QMSong,
+} from "@shared/types/platform/qqmusic";
 import type { Track } from "@shared/types/player";
 import type { CoverItem } from "@/types/artist";
 import { qqmusic as qmApi } from "@/apis/qqmusic";
@@ -6,10 +12,6 @@ import {
   qqArtistToCoverItem,
   qqPlaylistToCoverItem,
   qqSongToTrack,
-  type QMAlbumItem,
-  type QMArtistItem,
-  type QMPlaylistItem,
-  type QMSong,
 } from "@/utils/format/qqmusic";
 import type { SearchResult } from "./index";
 

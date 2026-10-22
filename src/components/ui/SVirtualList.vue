@@ -383,7 +383,7 @@ defineExpose({
         ref="scrollRef"
         class="flex-1 min-h-0 overflow-y-auto"
         :class="[
-          hideScrollbar ? '[&::-webkit-scrollbar]:hidden' : '',
+          hideScrollbar ? '[&::-webkit-scrollbar]:hidden' : '[scrollbar-gutter:stable]',
           cover
             ? '[&::-webkit-scrollbar-thumb]:bg-cover/25 [&::-webkit-scrollbar-thumb:hover]:bg-cover/45'
             : '',

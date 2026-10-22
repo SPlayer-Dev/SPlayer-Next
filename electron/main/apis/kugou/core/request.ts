@@ -3,7 +3,7 @@
  *
  * 提供两种请求方式：
  * - kgRequest: 基础 HTTP GET 请求（用于 mobilecdn、songsearch、lyrics 等公开接口）
- * - kgGatewayRequest: KG网关鉴权请求（自动注入设备标识、时间戳、签名与网关路由头）
+ * - kgGatewayRequest: KG 网关鉴权请求（自动注入设备标识、时间戳、签名与网关路由头）
  */
 
 import { KG_GATEWAY_URL, getKgAppid, getKgClientver } from "./config";
@@ -63,7 +63,7 @@ export interface GatewayRequestOptions {
 }
 
 /**
- * 发送带 Android 签名的KG网关请求
+ * 发送带 Android 签名的 KG 网关请求
  * @param path - 网关相对路径（如 /v1/search/album）
  * @param options - 请求配置项
  * @returns 解析后的 JSON body
@@ -153,7 +153,7 @@ export const kgGatewayRequest = async <T = KGRawBody>(
   const code = body.error_code ?? body.errcode ?? body.err_code ?? 0;
   if (code !== 0 && code !== 200) {
     throw new Error(
-      `KG Gateway API error: code=${code}, msg=${body.msg || body.error || "unknown"}`,
+      `KG Gateway API error: code=${code}, msg=${body.msg || body.errmsg || body.error_msg || body.error || "unknown"}`,
     );
   }
 

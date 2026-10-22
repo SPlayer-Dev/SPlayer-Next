@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::shared::Shared;
+use crate::decoder::buffer::Shared;
 
 /// 播放器推送给 JS 侧的事件类型
 #[derive(Clone, Debug)]
@@ -13,12 +13,20 @@ pub enum PlayerEvent {
     SourceError,
     /// 位置更新（秒）—— 由内部定时器推送
     Position { position: f64, duration: f64 },
+    /// 实际交叉淡化开始或结束
+    TransitionChanged {
+        active: bool,
+        reason: Option<String>,
+        fade_seconds: Option<f64>,
+    },
     /// FFT 频谱数据推送
     FftData { ldata: Vec<f32>, rdata: Vec<f32> },
     /// 输出流停滞（输出回调长时间未消费样本，需要外部重建输出）
     OutputStalled,
     /// 输出流在运行期失效（CPAL 流错误），由 JS 侧触发输出重建
     OutputFailed,
+    /// WASAPI 独占模式打开失败已回退共享模式，reason 为分类键
+    OutputFallback { reason: String },
 }
 
 /// 事件发射器类型（跨线程安全）

@@ -104,6 +104,7 @@ const sections = computed<RankSection[]>(() => [
     onClick: (item) =>
       navigateToAlbum(item.title, {
         source: item.track.source,
+        serverId: item.track.serverId,
         albumId: item.track.album?.id,
       }),
   },
@@ -116,6 +117,7 @@ const sections = computed<RankSection[]>(() => [
     onClick: (item) =>
       navigateToArtist(item.title, {
         source: item.track.source,
+        serverId: item.track.serverId,
         artistId: item.artistId,
       }),
   },

@@ -8,7 +8,7 @@ defineOptions({ inheritAttrs: false });
 
 const { t } = useI18n();
 const pluginsStore = usePluginsStore();
-const { sourcePlugins, controlPlugins, loaded } = storeToRefs(pluginsStore);
+const { list, loaded } = storeToRefs(pluginsStore);
 
 const confirmOpen = ref(false);
 const pendingUninstallId = ref<string | null>(null);
@@ -33,8 +33,6 @@ const pluginSettings = (info: PluginInfo) => {
 
 /**
  * 切换插件启用状态
- * - 音源类：允许多开，播放时按候选顺序尝试
- * - 控制类：独立切换
  * @param id - 插件 ID
  * @param currentlyEnabled - 当前是否已启用
  */
@@ -92,8 +90,7 @@ const confirmUpdate = (): void => {
 /** 当前更新弹窗对应的插件 */
 const updateDialogInfo = computed(() => {
   if (!updateDialogId.value) return null;
-  const allPlugins = [...sourcePlugins.value, ...controlPlugins.value];
-  return allPlugins.find((info) => info.manifest.id === updateDialogId.value) ?? null;
+  return list.value.find((info) => info.manifest.id === updateDialogId.value) ?? null;
 });
 
 /** 更新地址（用于「查看更新」外链） */
@@ -108,8 +105,7 @@ const openDetailDialog = (id: string): void => {
 /** 当前详情弹窗对应的插件 */
 const detailDialogInfo = computed(() => {
   if (!detailDialogId.value) return null;
-  const all = [...sourcePlugins.value, ...controlPlugins.value];
-  return all.find((info) => info.manifest.id === detailDialogId.value) ?? null;
+  return list.value.find((info) => info.manifest.id === detailDialogId.value) ?? null;
 });
 
 const openUninstallConfirm = (id: string): void => {
@@ -127,16 +123,15 @@ const handleConfirmUninstall = async (): Promise<void> => {
   else toast.error(res.error ?? t("settings.plugins.uninstallFailed"));
 };
 
-/** 写入控制类插件的单个设置项 */
+/** 写入插件的单个设置项 */
 const onSettingChange = async (pluginId: string, key: string, value: unknown): Promise<void> => {
   await pluginsStore.setSetting(pluginId, key, value);
 };
 
-/** 当前打开配置弹窗的插件（支持音源类与控制类） */
+/** 当前打开配置弹窗的插件 */
 const settingsDialogInfo = computed(() => {
   if (!settingsDialogId.value) return null;
-  const allPlugins = [...sourcePlugins.value, ...controlPlugins.value];
-  return allPlugins.find((info) => info.manifest.id === settingsDialogId.value) ?? null;
+  return list.value.find((info) => info.manifest.id === settingsDialogId.value) ?? null;
 });
 /** 弹窗内设置表单的 schema 与当前值 */
 const settingsDialogSchema = computed(() =>
@@ -144,7 +139,7 @@ const settingsDialogSchema = computed(() =>
 );
 const settingsDialogValues = computed(() => settingsDialogInfo.value?.settingsValues ?? {});
 
-/** 打开某控制类插件的配置弹窗 */
+/** 打开某插件的配置弹窗 */
 const openSettingsDialog = (id: string): void => {
   settingsDialogId.value = id;
   settingsDialogOpen.value = true;
@@ -158,16 +153,12 @@ const onDialogSettingChange = (key: string, value: unknown): void => {
 /** 当前待卸载的插件名（对话框提示） */
 const pendingName = computed(() => {
   if (!pendingUninstallId.value) return "";
-  const allPlugins = [...sourcePlugins.value, ...controlPlugins.value];
   return (
-    allPlugins.find((info) => info.manifest.id === pendingUninstallId.value)?.manifest.name ?? ""
+    list.value.find((info) => info.manifest.id === pendingUninstallId.value)?.manifest.name ?? ""
   );
 });
 
-/** 两个分区均无插件 */
-const isEmpty = computed(
-  () => sourcePlugins.value.length === 0 && controlPlugins.value.length === 0,
-);
+const isEmpty = computed(() => list.value.length === 0);
 
 /** 插件开发文档 */
 const DOCS_URL = "https://splayer-next.imsyy.top/plugins/";
@@ -223,46 +214,19 @@ const refreshMarket = async (): Promise<void> => {
         <div class="text-xs text-on-surface-variant/60">{{ t("settings.plugins.emptyHint") }}</div>
       </div>
 
-      <!-- 音源插件分区 -->
-      <div v-if="sourcePlugins.length > 0" class="flex flex-col gap-2">
-        <div class="text-sm font-medium text-on-surface-variant/70 px-1">
-          {{ t("settings.plugins.sectionSource") }}
-        </div>
-        <div class="grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
-          <PluginCard
-            v-for="info in sourcePlugins"
-            :key="info.manifest.id"
-            :info="info"
-            :checking="checkingId === info.manifest.id"
-            @toggle="handleToggleEnabled"
-            @uninstall="openUninstallConfirm"
-            @configure="openSettingsDialog"
-            @check="handleCheckUpdate"
-            @view-update="openUpdateDialog"
-            @detail="openDetailDialog"
-          />
-        </div>
-      </div>
-
-      <!-- 控制插件分区 -->
-      <div v-if="controlPlugins.length > 0" class="flex flex-col gap-2">
-        <div class="text-sm font-medium text-on-surface-variant/70 px-1">
-          {{ t("settings.plugins.sectionControl") }}
-        </div>
-        <div class="grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
-          <PluginCard
-            v-for="info in controlPlugins"
-            :key="info.manifest.id"
-            :info="info"
-            :checking="checkingId === info.manifest.id"
-            @toggle="handleToggleEnabled"
-            @uninstall="openUninstallConfirm"
-            @configure="openSettingsDialog"
-            @check="handleCheckUpdate"
-            @view-update="openUpdateDialog"
-            @detail="openDetailDialog"
-          />
-        </div>
+      <div class="grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
+        <PluginCard
+          v-for="info in list"
+          :key="info.manifest.id"
+          :info="info"
+          :checking="checkingId === info.manifest.id"
+          @toggle="handleToggleEnabled"
+          @uninstall="openUninstallConfirm"
+          @configure="openSettingsDialog"
+          @check="handleCheckUpdate"
+          @view-update="openUpdateDialog"
+          @detail="openDetailDialog"
+        />
       </div>
     </div>
 
@@ -302,7 +266,7 @@ const refreshMarket = async (): Promise<void> => {
       </template>
     </SDialog>
 
-    <!-- 控制类插件配置 -->
+    <!-- 插件配置 -->
     <SDialog
       v-model:open="settingsDialogOpen"
       :title="settingsDialogInfo?.manifest.name ?? ''"

@@ -29,6 +29,30 @@ Change the channel under **Settings → General → Release channel**. Alpha bui
 - **macOS:** If macOS reports that the app is damaged or cannot verify it, see [macOS reports a damaged app](/en/troubleshooting/macos-damaged).
 - **Linux:** Choose AppImage if you are unsure which package format your distribution uses. See [Ubuntu sandbox startup failure](/en/troubleshooting/ubuntu-sandbox) for launch errors.
 
+## Linux installation
+
+### Arch Linux
+
+SPlayer-Next is now available in the [Arch Linux Chinese Community Repository](https://www.archlinuxcn.org/archlinux-cn-repo-and-mirror/).
+
+If the repository is not configured yet, follow the [wiki](https://wiki.archlinuxcn.org/zh/Arch_Linux_%E4%B8%AD%E6%96%87%E7%A4%BE%E5%8C%BA%E4%BB%93%E5%BA%93) to set it up.
+
+Once configured, install it directly:
+
+```bash
+sudo pacman -S splayer-next
+```
+
+The repository also provides a debug symbols package, useful when investigating crashes:
+
+```bash
+sudo pacman -S splayer-next-debug
+```
+
+> [!IMPORTANT]
+> If the package is out of date, or you run into an error caused by packaging, **please do not report it in this project's repository, but to the Arch Linux Chinese Community Repository**.
+> Open an issue [here](https://github.com/archlinuxcn/repo/issues/new/choose), or [email the package maintainer](mailto:nlsdt@archlinuxcn.org).
+
 ### Linux package formats
 
 | Format   | Distributions                                    |
@@ -36,7 +60,7 @@ Change the channel under **Settings → General → Release channel**. Alpha bui
 | AppImage | Distribution-independent; no installation needed |
 | deb      | Debian, Ubuntu, Linux Mint                       |
 | rpm      | Fedora, RHEL, openSUSE                           |
-| pacman   | Arch Linux, Manjaro, EndeavourOS                 |
+| pacman   | Manjaro                                          |
 | tar.gz   | Generic archive for manual extraction            |
 
 ```bash

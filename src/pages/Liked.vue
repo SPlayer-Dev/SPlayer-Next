@@ -74,7 +74,7 @@ const playbackContext = computed<PlaybackContext | undefined>(() => {
 
 const handlePlayAll = (): void => {
   if (currentTracks.value.length === 0) return;
-  player.playFrom(currentTracks.value, 0, playbackContext.value);
+  player.playFrom(currentTracks.value, { context: playbackContext.value });
 };
 
 onMounted(() => {
@@ -179,6 +179,7 @@ const handleMoreMenu = (key: string): void => {
           :search-query="searchQuery"
           :show-size="false"
           source="local"
+          sort-key="liked.local"
           enable-sort
         />
       </div>
@@ -216,6 +217,7 @@ const handleMoreMenu = (key: string): void => {
           :collection-id="user.likedPlaylistId ?? undefined"
           :playback-context="playbackContext"
           collection-type="playlist"
+          sort-key="liked.online"
           enable-sort
         />
       </div>

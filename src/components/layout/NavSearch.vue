@@ -13,10 +13,10 @@ import IconLucideMusic from "~icons/lucide/music";
 import IconLucideUser from "~icons/lucide/user";
 import IconLucideDisc from "~icons/lucide/disc";
 import IconLucideListMusic from "~icons/lucide/list-music";
-import IconLucideAudioWaveform from "~icons/lucide/audio-waveform";
 
 const { t, locale } = useI18n();
 const router = useRouter();
+const route = useRoute();
 const data = useDataStore();
 const status = useStatusStore();
 
@@ -96,12 +96,27 @@ const suggestSections = computed(() => {
   ].filter((sec) => sec.items.length > 0);
 });
 
-/** 跳转到搜索页 */
+/**
+ * 提交关键词并保留当前搜索来源
+ * @param raw - 输入的搜索关键词
+ */
 const submit = (raw: string): void => {
   const word = raw.trim();
   if (!word) return;
   data.addSearchHistory(word);
-  router.push({ name: "search", query: { q: word } });
+  router.push({
+    name: "search",
+    query: {
+      q: word,
+      ...(route.name === "search"
+        ? {
+            platform: route.query.platform,
+            plugin: route.query.plugin,
+            source: route.query.source,
+          }
+        : {}),
+    },
+  });
   dialogOpen.value = false;
 };
 

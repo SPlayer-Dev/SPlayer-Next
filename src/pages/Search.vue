@@ -5,15 +5,15 @@ import type { PlaybackContext, Track } from "@shared/types/player";
 import { ALL_PLATFORMS, PLATFORM_SHORT_NAME, type Platform } from "@shared/types/platform";
 import type { CoverItem } from "@/types/artist";
 import { searchSongs, searchAlbums, searchArtists, searchPlaylists } from "@/apis/search";
-import SongList from "@/components/list/SongList.vue";
-import CoverList from "@/components/list/CoverList.vue";
 import { useStatusStore } from "@/stores/status";
+import { usePluginsStore } from "@/stores/plugins";
 import { navigateToAlbum, navigateToArtist, navigateToPlaylist } from "@/utils/navigate";
 
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const status = useStatusStore();
+const plugins = usePluginsStore();
 
 type TabKey = "songs" | "albums" | "artists" | "playlists";
 
@@ -34,32 +34,101 @@ const tabs = computed(() => [
   { key: "playlists", label: t("search.tabs.playlists") },
 ]);
 
-const platformTabs = ALL_PLATFORMS.map((key) => ({ key, label: PLATFORM_SHORT_NAME[key] }));
+const platformTabs = computed(() => [
+  ...ALL_PLATFORMS.map((key) => ({ key, label: PLATFORM_SHORT_NAME[key] })),
+  ...(pluginSources.value.length ? [{ key: "plugin", label: t("search.plugins") }] : []),
+]);
+const pluginSources = computed(() => {
+  const sources = plugins.list.flatMap((info) => {
+    if (!info.enabled || info.status.state !== "ready") return [];
+    return Object.entries(info.status.sources)
+      .filter(([, capability]) => capability.actions.includes("musicSearch"))
+      .map(([source, capability]) => ({
+        value: JSON.stringify([info.manifest.id, source]),
+        label:
+          capability.name === info.manifest.name
+            ? capability.name
+            : `${capability.name} · ${info.manifest.name}`,
+        pluginId: info.manifest.id,
+        source,
+      }));
+  });
+  const labelCounts = new Map<string, number>();
+  for (const source of sources) {
+    labelCounts.set(source.label, (labelCounts.get(source.label) ?? 0) + 1);
+  }
+  return sources.map((source) => ({
+    ...source,
+    label:
+      labelCounts.get(source.label)! > 1
+        ? `${source.label} (${source.pluginId}/${source.source})`
+        : source.label,
+  }));
+});
+const pluginSelection = computed(() =>
+  typeof route.query.plugin === "string" && typeof route.query.source === "string"
+    ? { pluginId: route.query.plugin, source: route.query.source }
+    : null,
+);
+const selectedSource = computed(() =>
+  pluginSelection.value
+    ? JSON.stringify([pluginSelection.value.pluginId, pluginSelection.value.source])
+    : "",
+);
+const isPluginTab = computed(
+  () =>
+    pluginSources.value.length > 0 &&
+    (route.query.platform === "plugin" || !!pluginSelection.value),
+);
+const selectedPlatform = computed(() => (isPluginTab.value ? "plugin" : status.searchPlatform));
+const searchSource = computed(() =>
+  isPluginTab.value ? selectedSource.value || "plugin" : status.searchPlatform,
+);
+const pluginAvailable = computed(
+  () =>
+    !isPluginTab.value ||
+    !pluginSelection.value ||
+    pluginSources.value.some((source) => source.value === selectedSource.value),
+);
+const sourceOptions = computed(() => {
+  const options: { value: string; label: string }[] = [...pluginSources.value];
+  if (pluginSelection.value && !pluginAvailable.value) {
+    options.push({ value: selectedSource.value, label: pluginSelection.value.source });
+  }
+  return options;
+});
 
 interface TabState<T> {
   items: T[];
   total: number;
+  page: number;
   hasMore: boolean;
   loaded: boolean;
   loading: boolean;
   loadingMore: boolean;
 }
 
+/**
+ * 创建搜索分类的分页状态
+ * @returns 空的搜索状态
+ */
 const createState = <T,>(): TabState<T> => ({
   items: [],
   total: 0,
+  page: 0,
   hasMore: false,
   loaded: false,
   loading: false,
   loadingMore: false,
 });
 
-const states = reactive({
-  songs: createState<Track>(),
-  albums: createState<CoverItem>(),
-  artists: createState<CoverItem>(),
-  playlists: createState<CoverItem>(),
-});
+const states = {
+  songs: shallowReactive(createState<Track>()),
+  albums: shallowReactive(createState<CoverItem>()),
+  artists: shallowReactive(createState<CoverItem>()),
+  playlists: shallowReactive(createState<CoverItem>()),
+};
+let searchGeneration = 0;
 
 const error = ref("");
 
@@ -72,13 +141,23 @@ const fetchers = {
 } as const;
 
 /**
- * 拉取指定 tab
- * @param tab - 要拉取的 tab
+ * 读取指定搜索分类并忽略已过期的请求结果
+ * @param tab - 搜索分类
  * @param append - 是否追加下一页
  */
 const fetchTab = async (tab: TabKey, append: boolean): Promise<void> => {
   if (!keyword.value) return;
   const state = states[tab];
+  if (isPluginTab.value && (!pluginSelection.value || tab !== "songs")) {
+    state.loaded = true;
+    error.value = "";
+    return;
+  }
+  if (!pluginAvailable.value) {
+    error.value = t("errors.NO_PLUGIN_AVAILABLE");
+    return;
+  }
+  const generation = searchGeneration;
   if (append) {
     if (!state.loaded || state.loadingMore || !state.hasMore) return;
     state.loadingMore = true;
@@ -89,33 +168,50 @@ const fetchTab = async (tab: TabKey, append: boolean): Promise<void> => {
   error.value = "";
   try {
     const offset = append ? state.items.length : 0;
-    const result = await (fetchers[tab] as typeof searchSongs)(
-      status.searchPlatform,
-      keyword.value,
-      offset,
-      PAGE_SIZE,
-    );
+    const page = append ? state.page + 1 : 1;
+    const selection = isPluginTab.value ? pluginSelection.value : null;
+    const result = selection
+      ? await window.api.plugins.search({
+          ...selection,
+          keyword: keyword.value,
+          page,
+          limit: PAGE_SIZE,
+        })
+      : await (fetchers[tab] as typeof searchSongs)(
+          status.searchPlatform,
+          keyword.value,
+          offset,
+          PAGE_SIZE,
+        );
+    if (generation !== searchGeneration) return;
     const items = result.items.map((item) => markRaw(item));
-    if (append) {
-      (state.items as Track[]).push(...(items as Track[]));
-    } else {
-      state.items = items as Track[];
-    }
+    state.items = append ? ([...state.items, ...items] as Track[]) : (items as Track[]);
+    state.page = page;
     state.total = result.total;
     state.hasMore = result.hasMore;
     state.loaded = true;
   } catch (err) {
-    error.value = err instanceof Error ? err.message : String(err);
+    if (generation !== searchGeneration) return;
+    if (activeTab.value === tab) {
+      error.value = err instanceof Error ? err.message : String(err);
+    }
   } finally {
-    state.loading = false;
-    state.loadingMore = false;
+    if (generation === searchGeneration) {
+      state.loading = false;
+      state.loadingMore = false;
+    }
   }
 };
 
+/**
+ * 清空各分类结果并使旧搜索请求失效
+ */
 const resetStates = (): void => {
+  searchGeneration++;
   (Object.keys(states) as TabKey[]).forEach((tab) => {
     states[tab].items = [];
     states[tab].total = 0;
+    states[tab].page = 0;
     states[tab].hasMore = false;
     states[tab].loaded = false;
     states[tab].loading = false;
@@ -125,7 +221,8 @@ const resetStates = (): void => {
 };
 
 let lastLoadedKeyword = "";
-let lastLoadedPlatform = status.searchPlatform;
+let lastLoadedSource = "";
+let lastAvailable = true;
 
 /** 仅在当前处于搜索路由时同步路由参数，避免离开到其他页面时因 query 为空而误清空状态 */
 const syncFromRoute = (): void => {
@@ -136,15 +233,18 @@ const syncFromRoute = (): void => {
       ? (route.query.tab as TabKey)
       : "songs";
 
+  if (activeTab.value !== tab) error.value = "";
   activeTab.value = tab;
   keyword.value = q;
 
   const keywordChanged = q !== lastLoadedKeyword;
-  const platformChanged = status.searchPlatform !== lastLoadedPlatform;
+  const sourceChanged =
+    searchSource.value !== lastLoadedSource || pluginAvailable.value !== lastAvailable;
 
-  if (keywordChanged || platformChanged) {
+  if (keywordChanged || sourceChanged) {
     lastLoadedKeyword = q;
-    lastLoadedPlatform = status.searchPlatform;
+    lastLoadedSource = searchSource.value;
+    lastAvailable = pluginAvailable.value;
     resetStates();
     if (q) fetchTab(tab, false);
   } else if (q && !states[tab].loaded) {
@@ -152,16 +252,54 @@ const syncFromRoute = (): void => {
   }
 };
 
-watch(() => [route.name, route.query.q, route.query.tab, status.searchPlatform], syncFromRoute, {
-  immediate: true,
-});
+watch(
+  () => [route.name, route.query.q, route.query.tab, searchSource.value, pluginAvailable.value],
+  syncFromRoute,
+  {
+    immediate: true,
+  },
+);
 
 const onTabSwitch = (key: string): void => {
   router.replace({ query: { ...route.query, tab: key } });
 };
 
+/**
+ * 切换内置平台或插件搜索入口
+ * @param key - 平台标识或插件入口
+ */
 const onPlatformSwitch = (key: string): void => {
-  status.searchPlatform = key as Platform;
+  const source =
+    key === "plugin"
+      ? (pluginSources.value.find((item) => item.value === selectedSource.value) ??
+        pluginSources.value[0])
+      : undefined;
+  if (key !== "plugin") status.searchPlatform = key as Platform;
+  router.replace({
+    query: {
+      ...route.query,
+      platform: key === "plugin" ? "plugin" : undefined,
+      plugin: source?.pluginId,
+      source: source?.source,
+    },
+  });
+};
+
+/**
+ * 切换插件提供的搜索来源
+ * @param key - 来源选项的唯一标识
+ */
+const onPluginSourceSwitch = (key: string | number | boolean): void => {
+  const source = pluginSources.value.find((item) => item.value === key);
+  if (!source) return;
+  router.replace({
+    query: {
+      ...route.query,
+      platform: "plugin",
+      plugin: source.pluginId,
+      source: source.source,
+    },
+  });
 };
 
 /** 失败后重试加载当前 tab */
@@ -189,8 +327,8 @@ const isEmptyResult = computed(() => {
 
 /** 搜索页播放来源上下文 */
 const playbackContext = computed<PlaybackContext>(() => ({
-  provider: status.searchPlatform,
-  originId: `search:${status.searchPlatform}:${keyword.value}`,
+  provider: isPluginTab.value ? "plugin" : status.searchPlatform,
+  originId: `search:${searchSource.value}:${keyword.value}`,
   originType: "page",
   originName: keyword.value ? `${t("search.title")}: ${keyword.value}` : t("search.title"),
 }));
@@ -213,14 +351,32 @@ const playbackContext = computed<PlaybackContext>(() => ({
           </span>
         </h1>
         <!-- 平台切换 -->
-        <div class="shrink-0 w-40">
-          <STabs
-            :model-value="status.searchPlatform"
-            :tabs="platformTabs"
-            type="segment"
-            round
-            @update:model-value="onPlatformSwitch"
-          />
+        <div class="shrink-0 flex items-center">
+          <div
+            class="transition-[width] duration-200 ease-out motion-reduce:transition-none"
+            :class="pluginSources.length ? 'w-56' : 'w-40'"
+          >
+            <STabs
+              :model-value="selectedPlatform"
+              :tabs="platformTabs"
+              type="segment"
+              round
+              @update:model-value="onPlatformSwitch"
+            />
+          </div>
+          <Transition name="plugin-source">
+            <div v-if="isPluginTab" class="ml-2 w-40 shrink-0">
+              <div class="w-40">
+                <SSelect
+                  :model-value="selectedSource"
+                  :options="sourceOptions"
+                  :placeholder="t('search.pluginSource')"
+                  round
+                  @update:model-value="onPluginSourceSwitch"
+                />
+              </div>
+            </div>
+          </Transition>
         </div>
       </div>
       <STabs :model-value="activeTab" :tabs="tabs" @update:model-value="onTabSwitch" />
@@ -273,7 +429,7 @@ const playbackContext = computed<PlaybackContext>(() => ({
       <SongList
         v-if="activeTab === 'songs'"
         :items="states.songs.items"
-        :source="status.searchPlatform"
+        :source="isPluginTab ? 'plugin' : status.searchPlatform"
         :playback-context="playbackContext"
         :show-size="false"
         :has-more="states.songs.hasMore"
@@ -325,3 +481,30 @@ const playbackContext = computed<PlaybackContext>(() => ({
     </div>
   </div>
 </template>
+
+<style scoped>
+.plugin-source-enter-active,
+.plugin-source-leave-active {
+  overflow: hidden;
+  transition:
+    width 200ms cubic-bezier(0.2, 0, 0, 1),
+    margin-left 200ms cubic-bezier(0.2, 0, 0, 1),
+    opacity 150ms ease-out,
+    transform 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.plugin-source-enter-from,
+.plugin-source-leave-to {
+  width: 0;
+  margin-left: 0;
+  opacity: 0;
+  transform: translateX(4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plugin-source-enter-active,
+  .plugin-source-leave-active {
+    transition: none;
+  }
+}
+</style>

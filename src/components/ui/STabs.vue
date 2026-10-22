@@ -261,15 +261,12 @@ const panelTransitionClasses = computed(() => {
   <div
     v-if="hasContent"
     ref="tabsPaneWrapperRef"
-    :style="
+    :style="animated ? { height: panelHeight } : undefined"
+    :class="
       animated
-        ? {
-            height: panelHeight,
-            transition: 'height 240ms cubic-bezier(0.4, 0, 0.2, 1)',
-          }
-        : undefined
+        ? 'relative overflow-hidden transition-[height] duration-240 ease-[cubic-bezier(0.4,0,0.2,1)]'
+        : ''
     "
-    :class="animated ? 'relative overflow-hidden' : ''"
   >
     <Transition
       :css="animated"
@@ -281,7 +278,7 @@ const panelTransitionClasses = computed(() => {
       @enter="onPanelEnter"
       @after-enter="onPanelAfterEnter"
     >
-      <div :key="modelValue">
+      <div :key="modelValue" class="motion-enter">
         <slot :name="modelValue" />
       </div>
     </Transition>

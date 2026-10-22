@@ -1,375 +1,385 @@
-# 控制插件
+# 播放控制
 
-控制插件（`@type control`）不提供音源，而是**监听播放器状态**（曲目 / 歌词 / 播放态）、**反向控制播放**（播放、暂停、切歌、跳转、音量），**声明自己的设置项**让用户在插件管理里配置，还能**向歌曲菜单添加自定义项**。典型用途如：将播放状态同步到 Discord、智能家居/灯效联动、第三方上报，或给歌曲加一键外链/上报入口等。
-
-阅读本文前请先了解 [插件总览与架构](/plugins/)，其中的通用 API 对控制插件同样适用。
-
-::: warning 需要 apiLevel 2
-脚本头部必须声明 `@type control` 与 `@apiLevel 2`，否则控制能力在运行时不可用。各级别新增能力见[插件总览 · API 级别与变更记录](/plugins/#api-级别与变更记录)。
-:::
+通过订阅播放事件、调用播放方法控制播放器。设置、菜单和其他共用方法见[通用 API](/plugins/api)。
 
 ## 快速开始
 
 ```js
 /**
- * @name        Example Control
- * @version     1.0.0
- * @description 示例控制插件
- * @author      you
- * @type        control
- * @apiLevel    2
- * @grant       control
- */
-
-splayer.register({
-  // 订阅需要的播放事件
-  events: ["trackChange", "playStateChange", "lineChange"],
-  // 声明会反向控制播放器
-  controls: true,
-  // 声明用户可配置项
-  settings: [{ key: "enabled", type: "switch", label: "启用同步", default: true }],
-});
-
-splayer.player.on("trackChange", ({ track }) => {
-  if (!track) return;
-  splayer.log.info(
-    "正在播放：",
-    track.title,
-    "-",
-    track.artists.map((artist) => artist.name).join(" / "),
-  );
-});
-
-splayer.player.on("playStateChange", ({ state, position }) => {
-  splayer.log.info("播放态：", state, "@", position, "ms");
-});
-```
-
-保存为 `.js`，在 **设置 → 插件管理 → 本地导入** 即可使用。
-
-## `splayer.register(args)`
-
-控制插件用 `register` 声明要用到的能力，请在脚本同步执行阶段调用：
-
-```js
-splayer.register({
-  events: ["trackChange", "lyricChange", "lineChange", "playStateChange"],
-  controls: true,
-  settings: [/* PluginSettingItem[] */],
-});
-```
-
-| 字段       | 类型                  | 必填 | 说明                                                                |
-| ---------- | --------------------- | ---- | ------------------------------------------------------------------- |
-| `events`   | `PlaybackEventKind[]` |      | 要订阅的播放事件，未声明的事件不会下发                              |
-| `controls` | `boolean`             |      | 是否使用反向播放控制（`splayer.player.play()` 等）                  |
-| `settings` | `PluginSettingItem[]` |      | 用户可配置项，渲染到插件管理的设置弹窗                              |
-| `menus`    | `PluginMenuItem[]`    |      | 向歌曲菜单添加的菜单项，需声明 `@grant ui`；见[菜单扩展](#菜单扩展) |
-
-::: tip 只发订阅的事件
-宿主只会向插件推送它在 `events` 里声明过的事件，未声明的不会推送。插件启用时，宿主会立即补发一次当前状态快照（当前曲目、歌词、播放态、当前行），无需自己拉取初始值。
-:::
-
-## 监听播放事件
-
-```js
-splayer.player.on(kind, (data) => { ... });
-```
-
-支持的事件类型与载荷：
-
-### `trackChange` — 曲目切换
-
-`track` 为当前曲目 [`Track`](/types#track)（`artists` 是 [`Artist[]`](/types#artist)），`null` 表示无曲目。
-
-### `lyricChange` — 歌词整体变化
-
-| 字段    | 类型          | 说明                   |
-| ------- | ------------- | ---------------------- |
-| `lines` | `LyricLine[]` | 当前曲目的完整解析歌词 |
-
-每行是一个 [`LyricLine`](/types#lyricline)，逐字内容见 [`LyricWord`](/types#lyricword)。整行纯文本：`line.words.map((word) => word.word).join("")`；逐行（LRC 类）歌词通常每行只有一个 word，其始末时间与行时间一致。
-
-### `lineChange` — 当前歌词行变化
-
-仅当**当前行索引**改变时下发，配合 `lyricChange` 缓存的 `lines` 使用。
-
-| 字段       | 类型     | 说明                        |
-| ---------- | -------- | --------------------------- |
-| `index`    | `number` | 当前行索引，`-1` 表示无匹配 |
-| `position` | `number` | 该帧播放进度（毫秒）        |
-
-```js
-let lines = [];
-splayer.player.on("lyricChange", (data) => (lines = data.lines));
-splayer.player.on("lineChange", ({ index }) => {
-  const text = index >= 0 ? lines[index].words.map((w) => w.word).join("") : "";
-  splayer.log.info("当前歌词：", text);
-});
-```
-
-### `playStateChange` — 播放态变化
-
-| 字段       | 类型                                 | 说明                 |
-| ---------- | ------------------------------------ | -------------------- |
-| `state`    | `"playing" \| "paused" \| "stopped"` | 播放态               |
-| `position` | `number`                             | 该帧播放进度（毫秒） |
-
-`stopped` 与 `paused` 区分开：停止（如播放结束）为 `stopped`，暂停为 `paused`。
-
-## 反向控制播放
-
-在脚本头声明 `@grant control` 后，可调用 `splayer.player` 控制播放器；未授权时控制调用会被宿主忽略。`register({ controls: true })` 用于向宿主和用户表明插件包含反向控制能力，但当前权限门控以 `@grant control` 为准：
-
-| 方法                       | 说明                                    |
-| -------------------------- | --------------------------------------- |
-| `player.play()`            | 播放                                    |
-| `player.pause()`           | 暂停                                    |
-| `player.next()`            | 下一首                                  |
-| `player.prev()`            | 上一首                                  |
-| `player.seek(positionMs)`  | 跳转到指定毫秒位置                      |
-| `player.setVolume(volume)` | 设置音量，`volume ∈ [0, 1]`             |
-| `player.getPosition()`     | `Promise<number>`，查询当前进度（毫秒） |
-
-以上控制方法（除 `getPosition`）均为「即发即忘」，不返回结果；非法入参（如负的 `seek`、越界音量）会被宿主忽略。
-
-::: tip getPosition 的正确用法
-`getPosition()` 每次调用都有一次往返开销，**仅用于偶发的一次性查询**。需要持续跟踪进度时，请直接读 `lineChange` / `playStateChange` 载荷里已经带上的 `position`，不要高频轮询 `getPosition`。
-:::
-
-## 设置项
-
-控制插件可声明设置项，渲染到插件管理的设置弹窗，让用户配置。
-
-### 声明
-
-```js
-splayer.register({
-  settings: [
-    { key: "token", type: "text", label: "访问令牌", default: "", placeholder: "粘贴 token" },
-    { key: "interval", type: "number", label: "上报间隔(秒)", default: 30, min: 5, max: 600 },
-    { key: "enabled", type: "switch", label: "启用上报", default: true },
-    {
-      key: "mode",
-      type: "select",
-      label: "模式",
-      default: "auto",
-      options: [
-        { label: "自动", value: "auto" },
-        { label: "手动", value: "manual" },
-      ],
-    },
-  ],
-});
-```
-
-先按 `type` 选一种控件，它决定了渲染出的界面、设置值的类型，以及哪些专用字段生效：
-
-| `type`   | 渲染控件   | 设置值类型 | 专用字段      | 说明                            |
-| -------- | ---------- | ---------- | ------------- | ------------------------------- |
-| `switch` | 开关       | `boolean`  | —             | 布尔开关                        |
-| `number` | 数字输入框 | `number`   | `min` / `max` | 超出范围会被夹取到 `[min, max]` |
-| `text`   | 单行文本框 | `string`   | `placeholder` | 任意文本                        |
-| `select` | 下拉选择   | `string`   | `options`     | 从 `options` 里选一个 `value`   |
-
-`PluginSettingItem` 的全部字段：
-
-| 字段          | 类型                                         | 必填 | 适用 `type` | 说明                                 |
-| ------------- | -------------------------------------------- | ---- | ----------- | ------------------------------------ |
-| `key`         | `string`                                     | ✅   | 全部        | 设置键名，`getSetting(key)` 用它     |
-| `type`        | `"switch" \| "number" \| "text" \| "select"` | ✅   | 全部        | 控件类型，见上表                     |
-| `label`       | `string`                                     | ✅   | 全部        | 展示名（纯字符串，不做多语言）       |
-| `default`     | `boolean \| number \| string`                | ✅   | 全部        | 默认值，类型需与 `type` 的值类型一致 |
-| `description` | `string?`                                    |      | 全部        | 副标题说明，显示在标题下方           |
-| `min` / `max` | `number?`                                    |      | `number`    | 取值范围                             |
-| `placeholder` | `string?`                                    |      | `text`      | 输入框占位提示                       |
-| `options`     | `{ label: string; value: string }[]`         |      | `select`    | 下拉项；`label` 展示、`value` 存储   |
-
-### 读取与监听
-
-```js
-// 同步读取当前值（用户改动后亦会同步更新缓存）
-const token = splayer.getSetting("token");
-
-// 监听某项变化，用户在 UI 改动后实时触发
-splayer.onSettingChange("enabled", (value) => {
-  splayer.log.info("启用状态变为：", value);
-});
-```
-
-宿主会按声明的 `type` 对写入值做校验/强转（如 `switch` 转布尔、`number` 按 `min`/`max` 夹取、`select` 校验合法选项），插件读到的始终是规范化后的值。
-
-## 菜单扩展
-
-控制插件可向**歌曲菜单**添加自定义菜单项：底栏「更多」菜单与歌曲列表的右键菜单都会显示，同一插件的菜单项折叠在一个以**插件名**命名的子菜单下。
-
-::: warning 需要 ui 权限
-菜单属界面扩展，必须在脚本头声明 `@grant ui`，否则声明的菜单项会被宿主忽略。
-:::
-
-### 声明菜单项
-
-在 `register` 里传 `menus`（纯菜单插件无需 `events` / `controls`）：
-
-```js
-/**
- * @name     歌曲工具
- * @version  1.0.0
- * @type     control
- * @apiLevel 2
- * @grant    ui network
- */
-splayer.register({
-  menus: [
-    { id: "open", label: "在网页打开" },
-    { id: "copy", label: "复制歌曲信息" },
-    { id: "local-only", label: "仅本地歌曲", sources: ["local"] },
-  ],
-});
-```
-
-`PluginMenuItem` 字段：
-
-| 字段      | 类型        | 必填 | 说明                                                         |
-| --------- | ----------- | ---- | ------------------------------------------------------------ |
-| `id`      | `string`    | ✅   | 菜单项标识，插件内唯一；点击时随 `menuClick` 回传            |
-| `label`   | `string`    | ✅   | 展示文本（纯字符串，不做多语言）                             |
-| `sources` | `string[]?` |      | 仅对这些来源的歌曲显示（如 `["local"]`）；缺省对全部歌曲显示 |
-
-### 响应点击
-
-注册 `menuClick` 处理器，用户点菜单项时触发：
-
-```js
-splayer.on("menuClick", async ({ menuId, track }) => {
-  switch (menuId) {
-    case "open":
-      return { openUrl: `https://music.example.com/song/${track.id}` };
-    case "copy":
-      return {
-        copyText: `${track.title} - ${track.artists.map((artist) => artist.name).join(" / ")}`,
-      };
-  }
-});
-```
-
-入参 `req.track` 是当前曲目 [`Track`](/types#track)（与 `trackChange` 事件里的 `track` 同一类型）；常用的有 `id` / `title` / `artists`（[`Artist[]`](/types#artist)）/ `album`（[`Album`](/types#album)）/ `source` / `duration`。
-
-处理器**可选**返回 `MenuClickRes`，三个字段都可省略、可组合，由宿主在界面侧代为执行：
-
-| 字段       | 类型      | 效果                                      |
-| ---------- | --------- | ----------------------------------------- |
-| `toast`    | `string?` | 弹出一条轻提示                            |
-| `openUrl`  | `string?` | 用系统浏览器打开链接（仅 `http`/`https`） |
-| `copyText` | `string?` | 写入剪贴板（自带「已复制」提示）          |
-
-```js
-splayer.on("menuClick", async ({ menuId, track }) => {
-  if (menuId === "report") {
-    await splayer.request("https://my.api/scrobble", {
-      method: "POST",
-      body: JSON.stringify(track),
-    });
-    return { toast: `已上报：${track.title}` };
-  }
-});
-```
-
-::: tip 处理器在沙箱里运行
-`menuClick` 与其它处理器一样跑在隔离子进程中，**没有 DOM**：不能弹自定义窗口/面板，面向用户的反馈只有上面三种返回动作。要联网（`splayer.request`）需 `@grant network`，要控制播放（`splayer.player.*`）需 `@grant control`——菜单本身只需 `ui`。
-:::
-
-## 更新支持
-
-控制插件在脚本头声明 `@updateUrl` 后，宿主会拉取它读 `@version` 与本地比对，发现新版即在卡片上提示，用户可一键原地更新（保留已配置的设置项与插件数据）。完整说明见 [插件更新](/plugins/update)。
-
-## 完整示例
-
-比如这是一个把当前歌词（含翻译）推送到 [ClassIsland](https://github.com/ClassIsland/ClassIsland) 主界面的控制插件：订阅曲目/歌词/行变化，按用户设置决定端口、是否带翻译、无翻译时是否回退到下一行。
-
-```js
-/**
- * @name ClassIsland 联动
+ * @name 播放控制示例
+ * @id you.playback-example
  * @version 1.0.0
- * @author imsyy
- * @type control
  * @apiLevel 2
- * @grant network
- * @description 把当前歌词推送到 ClassIsland 主界面
+ * @grant control
  */
 splayer.register({
-  events: ["trackChange", "lyricChange", "lineChange"],
-  settings: [
-    {
-      key: "port",
-      type: "number",
-      label: "端口",
-      default: 50063,
-      min: 1024,
-      max: 65535,
-    },
-    {
-      key: "showTranslation",
-      type: "switch",
-      label: "显示翻译",
-      default: true,
-    },
-    {
-      key: "showNextLine",
-      type: "switch",
-      label: "无翻译时显示下一行",
-      default: true,
-    },
-  ],
+  events: ["trackChange"],
+  controls: true,
 });
-
-const post = (lyric, extra) => {
-  const port = splayer.getSetting("port") || 50063;
-  splayer
-    .request(`http://127.0.0.1:${port}/component/lyrics/lyrics/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lyric, extra }),
-    })
-    .catch(() => {});
-};
-
-/** 一行歌词 → 纯文本 */
-const lineText = (line) => (line && line.words ? line.words.map((w) => w.word).join("") : "");
-
-let lines = [];
-
 splayer.player.on("trackChange", ({ track }) => {
-  if (track) post(track.title, track.artists.map((artist) => artist.name).join(" / "));
+  if (track) splayer.log.info(track.title);
 });
-
-splayer.player.on("lyricChange", ({ lines: ls }) => {
-  lines = ls || [];
-});
-
-splayer.player.on("lineChange", ({ index }) => {
-  const cur = lines[index];
-  const lyric = lineText(cur);
-  let extra = "";
-  if (splayer.getSetting("showTranslation") && cur && cur.translatedLyric) {
-    extra = cur.translatedLyric;
-  } else if (splayer.getSetting("showNextLine") && lines[index + 1]) {
-    extra = lineText(lines[index + 1]);
-  }
-  post(lyric, extra);
-});
+splayer.player.setVolume(0.5);
 ```
 
-## 调试
+## 能力注册 {#register}
 
-在应用的 DevTools 控制台改设置、观察插件日志：
+通过 [`splayer.register`](/plugins/api#register) 声明要订阅的 `events`，以及播放控制标记 `controls`。事件取值见[事件类型](#event-types)。
+
+## 播放事件 {#events}
+
+### 订阅方式 {#subscribe}
+
+监听已在 `register.events` 声明的播放事件。插件就绪时会收到订阅事件的当前状态快照。
+
+**调用：** `splayer.player.on(kind, handler)`
+
+**API 版本：** 2
+
+**权限：** 无
+
+**参数：**
+
+- `kind`（[PlaybackEventKind](#event-types)）：要监听的事件。
+- `handler`（`(data) => void`）：接收对应事件载荷的回调，可为同一事件注册多个回调。
+
+**返回：** `void`。
+
+### 事件类型 {#event-types}
+
+`events` 数组和 `player.on` 的 `kind` 使用以下四种值：
+
+| `kind`            | 载荷                                                              | 说明                                                     |
+| ----------------- | ----------------------------------------------------------------- | -------------------------------------------------------- |
+| `trackChange`     | `{ track: Track \| null }`                                        | 当前曲目；无曲目时为 `null`                              |
+| `lyricChange`     | `{ lines: LyricLine[] }`                                          | 当前曲目的完整解析歌词                                   |
+| `lineChange`      | `{ index: number, position: number }`                             | 歌词行索引变化；`-1` 表示无匹配行，`position` 为毫秒进度 |
+| `playStateChange` | `{ state: "playing" \| "paused" \| "stopped", position: number }` | 播放状态变化，`position` 为毫秒进度                      |
+
+曲目结构见 [Track](/types#track)，歌词结构见 [LyricLine](/types#lyricline)。
 
 ```js
-// 实时下发一次设置变更（触发 onSettingChange）
-await window.api.plugins.setSetting("classisland-splayer", "showTranslation", false);
-
-// 查看插件状态（含已订阅事件 / 是否声明控制 / 设置项）
-await window.api.plugins.list();
+splayer.register({ events: ["lyricChange", "lineChange"] });
+let lines = [];
+splayer.player.on("lyricChange", (data) => {
+  lines = data.lines;
+});
+splayer.player.on("lineChange", ({ index }) => {
+  const text = lines[index]?.words.map((word) => word.word).join("") ?? "";
+  splayer.log.info(text);
+});
 ```
 
-插件日志汇入应用主日志（`{userData}/app-data/logs/`）。更多调试方式见 [总览 · 调试](/plugins/#调试)。
+## 播放控制 {#playback}
+
+返回 `void` 的方法为即发即忘，参数无效时不执行。连续跟踪进度可使用事件中的 `position`。
+
+### 恢复播放 {#play}
+
+恢复当前曲目的播放。
+
+**调用：** `splayer.player.play()`
+
+**API 版本：** 2
+
+**权限：** `control`
+
+**参数：** 无。
+
+**返回：** `void`。
+
+### 暂停播放 {#pause}
+
+暂停当前曲目。
+
+**调用：** `splayer.player.pause()`
+
+**API 版本：** 2
+
+**权限：** `control`
+
+**参数：** 无。
+
+**返回：** `void`。
+
+### 下一首 {#next}
+
+切换到队列中的下一首。
+
+**调用：** `splayer.player.next()`
+
+**API 版本：** 2
+
+**权限：** `control`
+
+**参数：** 无。
+
+**返回：** `void`。
+
+### 上一首 {#prev}
+
+切换到队列中的上一首。
+
+**调用：** `splayer.player.prev()`
+
+**API 版本：** 2
+
+**权限：** `control`
+
+**参数：** 无。
+
+**返回：** `void`。
+
+### 跳转进度 {#seek}
+
+跳转到指定播放位置。
+
+**调用：** `splayer.player.seek(positionMs)`
+
+**API 版本：** 2
+
+**权限：** `control`
+
+**参数：**
+
+- `positionMs`（`number`）：非负播放位置，单位为毫秒。
+
+**返回：** `void`。
+
+### 设置音量 {#volume}
+
+调整播放器音量。
+
+**调用：** `splayer.player.setVolume(volume)`
+
+**API 版本：** 2
+
+**权限：** `control`
+
+**参数：**
+
+- `volume`（`number`）：音量，范围为 0–1。
+
+**返回：** `void`。
+
+### 读取进度 {#position}
+
+读取当前播放进度，单位为毫秒。
+
+**调用：** `splayer.player.getPosition()`
+
+**API 版本：** 2
+
+**权限：** `control`
+
+**参数：** 无。
+
+**返回：** `Promise<number>`。
+
+### 停止播放 {#stop}
+
+停止当前曲目的播放。
+
+**调用：** `splayer.player.stop()`
+
+**API 版本：** 4
+
+**权限：** `control`
+
+**参数：** 无。
+
+**返回：** `Promise<void>`。
+
+::: code-group
+
+```js [播放与暂停]
+splayer.player.play();
+splayer.player.pause();
+```
+
+```js [切换曲目]
+splayer.player.next();
+splayer.player.prev();
+```
+
+```js [进度与音量]
+splayer.player.seek(30000);
+splayer.player.setVolume(0.5);
+const position = await splayer.player.getPosition();
+```
+
+```js [停止]
+await splayer.player.stop();
+```
+
+:::
+
+### 播放曲目 {#play-track}
+
+播放指定曲目。
+
+**调用：** `splayer.player.playTrack(track)`
+
+**API 版本：** 4
+
+**权限：** `control`
+
+**参数：**
+
+- `track`（[Track](/types#track)）：要播放的完整曲目，使用搜索结果或播放事件中的曲目对象。
+
+**返回：** `Promise<{ id: string; source: Track["source"] }>`。完成表示已发送播放请求，实际状态见[播放事件](#events)。
+
+```js
+/**
+ * @name 搜索并播放
+ * @id you.search-and-play
+ * @version 1.0.0
+ * @apiLevel 4
+ * @grant network control
+ */
+splayer.register({ controls: true });
+async function playFirst(query) {
+  const { tracks } = await splayer.music.searchOnline({ platform: "netease", query, limit: 1 });
+  if (tracks.length) await splayer.player.playTrack(tracks[0]);
+}
+playFirst("demo").catch((error) => splayer.log.error(error));
+```
+
+### 加入队列 {#queue}
+
+将曲目加入播放队列。
+
+**调用：** `splayer.player.addToQueue(tracks, position?)`
+
+**API 版本：** 4
+
+**权限：** `control`
+
+**参数：**
+
+- `tracks`（`Track[]`）：1–50 个完整曲目对象
+- `position`（`"next" | "end"`）：可选，默认 `next`（当前曲目之后），`end` 为队列末尾
+
+**返回：** `Promise<{ count: number }>`，`count` 为提交入队的曲目数。
+
+```js
+const { tracks } = await splayer.music.searchLibrary("demo", 10);
+if (tracks.length) await splayer.player.addToQueue(tracks, "end");
+```
+
+此示例同时使用 `music.searchLibrary`，对应权限为 `library`。
+
+### 播放模式 {#play-mode}
+
+设置播放模式，至少传入一个字段，未传入的字段保持不变。
+
+**调用：** `splayer.player.setPlayMode(mode)`
+
+**API 版本：** 4
+
+**权限：** `control`
+
+**参数：**
+
+- `mode.repeat`（`"list" | "one"`）：可选，列表循环或单曲循环
+- `mode.shuffle`（`"on" | "off"`）：可选，开启或关闭随机播放
+
+**返回：** `Promise<void>`。
+
+```js
+await splayer.player.setPlayMode({ repeat: "list", shuffle: "on" });
+```
+
+## 状态查询 {#queries}
+
+### 播放状态 {#status}
+
+读取播放状态，无参数。
+
+**调用：** `splayer.player.getStatus()`
+
+**API 版本：** 4
+
+**权限：** `control`
+
+**返回：** `Promise<PlaybackStatusSnapshot>`。
+
+| 字段                        | 类型              | 说明                                                                     |
+| --------------------------- | ----------------- | ------------------------------------------------------------------------ |
+| `state`                     | `PlayerState`     | `idle`、`loading`、`playing`、`paused` 或 `stopped`                      |
+| `positionMs` / `durationMs` | `number`          | 当前进度 / 总时长，毫秒                                                  |
+| `volume`                    | `number`          | 音量，0–1                                                                |
+| `isFinished`                | `boolean`         | 是否播放结束                                                             |
+| `currentIndex`              | `number`          | 当前曲目在整个队列中的索引，从 0 开始；无当前队列项时为 -1。API 5 起支持 |
+| `repeat`                    | `"list" \| "one"` | 循环模式                                                                 |
+| `shuffle`                   | `"on" \| "off"`   | 随机模式                                                                 |
+
+```js
+const status = await splayer.player.getStatus();
+splayer.log.info(status.state, status.positionMs);
+```
+
+### 播放队列 {#get-queue}
+
+按当前播放顺序读取队列，随机播放时返回打乱后的顺序。
+
+**调用：** `splayer.player.getQueue(options?)`
+
+**API 版本：** 5
+
+**权限：** `control`
+
+**参数：**
+
+- `options.offset`（`number`）：可选，从 0 开始的队列偏移，默认 `0`
+- `options.limit`（`number`）：可选，返回条数，范围 1–100，默认 `50`
+
+**返回：** `Promise<PlaybackQueueSnapshot>`。
+
+| 字段           | 类型      | 说明                                                         |
+| -------------- | --------- | ------------------------------------------------------------ |
+| `tracks`       | `Track[]` | 当前页曲目，结构见 [Track](/types#track)                     |
+| `total`        | `number`  | 整个队列的曲目数                                             |
+| `currentIndex` | `number`  | 当前曲目在整个队列中的索引，从 0 开始；无当前队列项时为 `-1` |
+| `offset`       | `number`  | 本次查询的队列偏移                                           |
+
+```js
+const status = await splayer.player.getStatus();
+const queue = await splayer.player.getQueue({
+  offset: Math.max(0, status.currentIndex - 10),
+  limit: 21,
+});
+splayer.log.info(queue.tracks, queue.currentIndex, queue.total);
+```
+
+偏移超出队列时，`tracks` 为空。每次调用读取当时的队列；主窗口尚未就绪或未响应时，Promise 拒绝。
+
+### 当前曲目 {#now-playing}
+
+读取当前曲目的轻量快照，无参数，不含完整歌词。
+
+**调用：** `splayer.player.getNowPlaying()`
+
+**API 版本：** 4
+
+**权限：** `control`
+
+**返回：** Promise，包含下列字段。
+
+| 字段             | 类型            | 说明                           |
+| ---------------- | --------------- | ------------------------------ |
+| `track`          | `Track \| null` | 当前曲目                       |
+| `position`       | `number`        | 进度，毫秒                     |
+| `state`          | `PlayerState`   | 播放状态，同 `getStatus.state` |
+| `playing`        | `boolean`       | 是否正在播放                   |
+| `speed`          | `number`        | 播放速度倍率                   |
+| `lyricOffsetMs`  | `number`        | 歌词偏移，毫秒                 |
+| `lyricAvailable` | `boolean`       | 是否有歌词                     |
+| `lyricLineCount` | `number`        | 歌词行数                       |
+| `sendTimestamp`  | `number`        | 进度快照时间戳，毫秒           |
+
+```js
+const now = await splayer.player.getNowPlaying();
+splayer.log.info(now.track?.title, now.position);
+```

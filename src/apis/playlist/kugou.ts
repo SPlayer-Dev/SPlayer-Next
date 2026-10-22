@@ -1,6 +1,7 @@
+import type { KGSong } from "@shared/types/platform/kugou";
 import type { Playlist, Track } from "@shared/types/player";
 import { kugou as kgApi } from "@/apis/kugou";
-import { kgSongsToTracks, type KGSong } from "@/utils/format/kugou";
+import { kgSongsToTracks } from "@/utils/format/kugou";
 
 interface KGPlaylistDetailResponse {
   code?: number;
@@ -17,7 +18,7 @@ interface KGPlaylistDetailResponse {
 }
 
 /**
- * 获取KG歌单详情与歌曲列表
+ * 获取 KG 歌单详情与歌曲列表
  * @param id - 歌单 ID (specialid)
  * @param fallbackName - 兜底名称
  * @returns 歌单元数据与 Track 列表

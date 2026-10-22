@@ -16,6 +16,11 @@
   --vp-c-brand-dimm: rgba(255, 147, 138, 0.1);
 }
 
+.DocSearch-Button {
+  --docsearch-search-button-background: var(--docsearch-searchbox-background);
+  --docsearch-search-button-text-color: var(--docsearch-muted-color);
+}
+
 summary {
   cursor: pointer;
 }

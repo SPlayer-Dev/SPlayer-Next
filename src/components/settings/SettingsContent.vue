@@ -36,14 +36,23 @@ const onCategorySelect = (id: string) => {
   nextTick(() => scrollRef.value?.scrollTo({ top: 0 }));
 };
 
-const onSearchSelect = (categoryId: string, itemKey: string) => {
+/**
+ * 定位设置项，子项收起时定位最近的父项
+ * @param categoryId - 设置分类
+ * @param itemKey - 设置项键名
+ * @param parentKeys - 从外到内的父项键名
+ */
+const onSearchSelect = (categoryId: string, itemKey: string, parentKeys: string[] = []) => {
   highlightKey.value = itemKey;
   if (activeId.value !== categoryId) {
     activeId.value = categoryId;
   }
   nextTick(() => {
     setTimeout(() => {
-      const el = document.getElementById(`setting-${itemKey}`);
+      const el = [itemKey, ...parentKeys.toReversed()]
+        .map((key) => document.getElementById(`setting-${key}`))
+        .find((element) => element !== null);
+      if (el) highlightKey.value = el.id.slice("setting-".length);
       el?.scrollIntoView({ block: "center", behavior: "smooth" });
       setTimeout(() => {
         highlightKey.value = undefined;
@@ -75,7 +84,10 @@ onMounted(() => {
 
       <!-- 菜单 -->
       <Transition name="fade">
-        <div v-show="!isSearchActive" class="flex-1 min-h-0 overflow-y-auto -mr-5 pr-5">
+        <div
+          v-show="!isSearchActive"
+          class="flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable] -mr-5 pr-5"
+        >
           <SettingsMenu
             :categories="settingsSchema"
             :active-id="activeId"
@@ -96,9 +108,16 @@ onMounted(() => {
     </div>
 
     <!-- 右侧 -->
-    <div ref="scrollRef" class="flex-1 overflow-y-auto bg-surface py-6 px-8">
+    <div
+      ref="scrollRef"
+      class="flex-1 overflow-y-auto [scrollbar-gutter:stable] bg-surface py-6 px-8"
+    >
       <div v-if="activeCategory" :key="activeCategory.id" class="animate-fade-in">
-        <component :is="activeCategory.component" v-if="activeCategory.component" />
+        <component
+          :is="activeCategory.component"
+          v-if="activeCategory.component"
+          :highlight-key="highlightKey"
+        />
         <template v-else>
           <SettingsSection
             v-for="(sec, si) in activeCategory.sections"

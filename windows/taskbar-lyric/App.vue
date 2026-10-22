@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { LyricLine } from "@shared/types/lyrics";
+import type { LyricLine } from "lyric-kit";
+
 import type { TaskbarLyricSettings } from "@shared/types/settings";
 import DEFAULT_COVER from "@/assets/images/song.jpg";
 import IconSkipBack from "~icons/lucide/skip-back";
@@ -7,7 +8,7 @@ import IconSkipForward from "~icons/lucide/skip-forward";
 import IconPlay from "~icons/lucide/play";
 import IconPause from "~icons/lucide/pause";
 import TaskbarLyricLine from "./components/TaskbarLyricLine.vue";
-import { pickPrimaryIndex } from "@shared/utils/lyricSync";
+import { pickPrimaryIndex } from "lyric-kit";
 import { useNowPlayingSync } from "@windows/shared/composables/useNowPlayingSync";
 import { formatArtists } from "@shared/utils/track";
 

@@ -1,7 +1,7 @@
 import { callNetease } from "@main/apis/netease";
 import { callQQMusic } from "@main/apis/qqmusic";
 import { callKugou } from "@main/apis/kugou";
-import type { KGSong } from "@main/apis/kugou/core/types";
+import type { KGSong } from "@shared/types/platform/kugou";
 import { pickBestCandidate, type LyricCandidate } from "@main/apis/common/lyric/utils";
 import { pluginRegistry, type PluginRuntime } from "@main/plugins/registry";
 import { callMusicComment, callMusicSearch } from "@main/plugins/router";

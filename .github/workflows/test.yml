@@ -89,7 +89,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libdbus-1-dev libpipewire-0.3-dev libpulse-dev pkg-config clang
+            libasound2-dev libdbus-1-dev libpipewire-0.3-dev libpulse-dev pkg-config clang \
+            pipewire pipewire-bin wireplumber dbus-daemon
 
       - name: Check audio engine
         run: cargo test -p audio-engine
+
+      - name: Test PipeWire output
+        run: bash scripts/test-pipewire.sh

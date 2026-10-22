@@ -43,7 +43,7 @@ export interface CloudUploadResult {
   instant: boolean;
   /** 云盘歌曲 id */
   songId?: string;
-  /** 失败时的网易错误码 */
+  /** 失败时的 NCM 错误码 */
   errorCode?: number;
 }
 

@@ -140,6 +140,8 @@ export const stopServer = (): Promise<void> => {
   runningAllowLan = false;
   publishStatus();
   const serverClosed = new Promise<void>((resolve) => {
+    // 活跃 WebSocket 不会被 server.close 关闭，先断开以免退出任务一直等待。
+    for (const client of wss?.clients ?? []) client.terminate();
     wss?.close();
     server.close((err) => {
       if (err) serverLog.warn("外部 API 关闭异常:", err);

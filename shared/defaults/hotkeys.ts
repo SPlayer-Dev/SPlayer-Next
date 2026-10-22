@@ -139,6 +139,12 @@ export const HOTKEY_ACTIONS: HotkeyActionMeta[] = [
     defaultBinding: { inApp: "/", global: null },
     allowGlobal: false,
   },
+  {
+    id: "view.openSettings",
+    labelKey: "settings.hotkeys.actions.openSettings",
+    defaultBinding: { inApp: "CommandOrControl+,", global: null },
+    allowGlobal: false,
+  },
 ];
 
 /** 默认绑定表（HotkeyBindingsMap） */

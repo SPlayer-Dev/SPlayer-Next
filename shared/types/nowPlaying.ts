@@ -1,5 +1,6 @@
 import type { Track, PlayerState } from "./player";
-import type { LyricLine, LyricData } from "./lyrics";
+import type { LyricLine } from "lyric-kit";
+import type { LyricData } from "./lyrics";
 
 /** 渲染进程 → 主进程：同步当前播放状态（track + 歌词 + 源） */
 export interface NowPlayingUpdatePayload {

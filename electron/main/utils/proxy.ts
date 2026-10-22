@@ -1,12 +1,13 @@
 import { store } from "@main/store";
 import { systemLog } from "@main/utils/logger";
-import { fetch as undiciFetch, ProxyAgent, Socks5ProxyAgent } from "undici";
 import type { Dispatcher } from "undici";
+import crypto from "node:crypto";
 
 const PROXY_TEST_URL = "https://www.baidu.com";
 
 let proxyAgent: Dispatcher | null = null;
 let proxyAgentUrl = "";
+let defaultDispatcher: Dispatcher | null = null;
 
 const isManualProxyProtocol = (value: string): value is "http" | "https" | "socks5" =>
   value === "http" || value === "https" || value === "socks5";
@@ -21,24 +22,32 @@ export const getNetworkProxyUrl = (): string | null => {
   return `${config.protocol}://${host}:${port}`;
 };
 
-const getProxyDispatcher = (): Dispatcher | undefined => {
+/** Node fetch 包装：首次请求才加载网络库，并复用当前代理连接池 */
+export const fetchWithProxy = async (
+  input: string | URL,
+  init?: RequestInit,
+): Promise<Response> => {
+  const { fetch, Agent, ProxyAgent, Socks5ProxyAgent } = await import("undici");
   const url = getNetworkProxyUrl();
-  if (!url) return undefined;
-  if (!proxyAgent || proxyAgentUrl !== url) {
-    proxyAgent?.close().catch(() => {});
-    proxyAgent = url.startsWith("socks5://") ? new Socks5ProxyAgent(url) : new ProxyAgent(url);
-    proxyAgentUrl = url;
-    systemLog.info(`[proxy] node fetch proxy=${url}`);
+  let dispatcher: Dispatcher;
+  if (url) {
+    if (!proxyAgent || proxyAgentUrl !== url) {
+      proxyAgent?.close().catch(() => {});
+      proxyAgent = url.startsWith("socks5://") ? new Socks5ProxyAgent(url) : new ProxyAgent(url);
+      proxyAgentUrl = url;
+      systemLog.info(`[proxy] node fetch proxy=${url}`);
+    }
+    dispatcher = proxyAgent;
+  } else {
+    defaultDispatcher ??= new Agent({
+      connect: {
+        secureOptions: crypto.constants.SSL_OP_LEGACY_SERVER_CONNECT,
+      },
+    });
+    dispatcher = defaultDispatcher;
   }
-  return proxyAgent;
-};
-
-/** Node fetch 包装：关闭代理时完全等价于原生 fetch，开启代理时才注入 dispatcher */
-export const fetchWithProxy = (input: string | URL, init?: RequestInit): Promise<Response> => {
-  const dispatcher = getProxyDispatcher();
-  if (!dispatcher) return fetch(input, init);
-  return undiciFetch(input, { ...(init as RequestInit), dispatcher } as Parameters<
-    typeof undiciFetch
+  return fetch(input, { ...(init as RequestInit), dispatcher } as Parameters<
+    typeof fetch
   >[1]) as unknown as Promise<Response>;
 };
 

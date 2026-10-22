@@ -185,7 +185,6 @@ const navItems = computed<SMenuItem[]>(() => {
       if (!entry) continue;
       if (key === "/download" && !systemSettings.download.enabled) continue;
       if (key === "/streaming" && !systemSettings.streaming.enabled) continue;
-      if (key === "/stats" && !appearance.showStatsInSidebar) continue;
       const item: SMenuItem = { key, label: t(entry.labelKey), icon: markRaw(entry.icon) };
       if (key === "/liked") item.trailing = renderHeartModeTrailing;
       if (key === "/download" && downloadStore.activeCount > 0)

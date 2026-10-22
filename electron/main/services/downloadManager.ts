@@ -16,6 +16,8 @@ import { broadcast } from "@main/utils/broadcast";
 import { downloadLog } from "@main/utils/logger";
 import { getEngine } from "@main/services/engine";
 import { fetchBytes } from "@main/utils/fetchBytes";
+import { fetchStreamingDownload } from "@main/services/streaming/mediaSource";
+import { StreamingRequestError } from "@main/services/streaming/errors";
 import { renderDownloadPath, dedupePath, resolveExtension } from "@main/utils/filename";
 import * as db from "@main/database/downloads";
 import { ErrorCode } from "@shared/types/errors";
@@ -25,6 +27,7 @@ import type {
   DownloadResolvePayload,
   DownloadResolution,
   DownloadTask,
+  DownloadTrackIdentity,
   EnqueueResult,
 } from "@shared/types/download";
 
@@ -81,9 +84,13 @@ const resolutionGates = new Map<string, ResolutionGate>();
 /** 临时分片目录（与用户下载目录隔离） */
 const tmpDir = (): string => path.join(getAppCacheDir(), "downloads-tmp");
 
-/** 去重键：同一首歌同一档位只下一次 */
+/**
+ * 生成下载去重键，流媒体账号变化后允许重新下载
+ * @param req - 下载请求
+ * @returns 歌曲、音质与媒体身份对应的任务键
+ */
 const dedupeKeyOf = (req: DownloadRequest): string =>
-  `${req.track.source}:${req.track.id}:${req.qualityLevel}`;
+  `${req.track.source}:${req.track.id}:${req.qualityLevel}:${req.track.source === "streaming" ? (req.track.serverRevision ?? 0) : ""}`;
 
 /** 合并艺术家名 */
 const artistString = (req: DownloadRequest): string =>
@@ -234,7 +241,13 @@ export const failResolution = (taskId: string): void => {
   resolutionGates.get(taskId)?.reject(new Error("resolve failed"));
 };
 
-/** 实际下载 + 落盘 + 写标签 */
+/**
+ * 获取音频并落盘，成功后按设置写入标签
+ * @param req - 下载参数与歌曲身份
+ * @param task - 任务进度和最终结果
+ * @param controller - 网络和文件写入的取消控制器
+ * @returns 任务执行完成
+ */
 const runTask = async (
   req: DownloadRequest,
   task: DownloadTask,
@@ -258,6 +271,9 @@ const runTask = async (
       broadcast("download:resolve", payload);
       Object.assign(req, await resolution);
     }
+    const streamingDownload = req.track.source === "streaming";
+    if (streamingDownload && (!req.track.serverId || !req.track.originalId))
+      throw new Error("流媒体歌曲缺少服务器身份");
     const audioUrl = req.url;
     if (!audioUrl) throw new Error("missing download url");
 
@@ -277,7 +293,7 @@ const runTask = async (
 
     // skip 策略：用预估扩展名提前命中已存在文件则跳过
     const guessExt = resolveExtension(req.declaredFormat, null, audioUrl);
-    if (policy === "skip" && fs.existsSync(`${finalNoExt}${guessExt}`)) {
+    if (!streamingDownload && policy === "skip" && fs.existsSync(`${finalNoExt}${guessExt}`)) {
       task.status = "done";
       task.filePath = `${finalNoExt}${guessExt}`;
       task.finishedAt = Date.now();
@@ -288,12 +304,39 @@ const runTask = async (
     await fsp.mkdir(tmpDir(), { recursive: true });
     await fsp.mkdir(targetDir, { recursive: true });
 
-    const response = await fetch(audioUrl, { signal: controller.signal });
+    const response = streamingDownload
+      ? await fetchStreamingDownload(
+          req.track.serverId!,
+          req.track.originalId!,
+          controller.signal,
+          req.track.serverRevision,
+        )
+      : await fetch(audioUrl, { signal: controller.signal });
     if (!response.ok || !response.body) {
       throw new Error(`HTTP ${response.status}`);
     }
     const mime = response.headers.get("content-type");
-    if (isRejectedMime(mime)) throw new Error(`rejected mime ${mime}`);
+    if (isRejectedMime(mime)) {
+      await response.body.cancel();
+      throw new Error(
+        streamingDownload
+          ? "服务器未返回可下载的音频文件，请检查下载权限"
+          : `rejected mime ${mime}`,
+      );
+    }
+    // 原文件格式以服务器文件名或 MIME 为准，不能套用界面选择的在线音质
+    const format = streamingDownload
+      ? response.headers.get("content-disposition")?.match(/\.([a-z\d]{2,5})(?="|;|$)/i)?.[1]
+      : req.declaredFormat;
+    const ext = resolveExtension(format, mime, audioUrl);
+    if (policy === "skip" && fs.existsSync(`${finalNoExt}${ext}`)) {
+      await response.body.cancel();
+      task.status = "done";
+      task.filePath = `${finalNoExt}${ext}`;
+      task.finishedAt = Date.now();
+      broadcastState(task);
+      return;
+    }
     const total = Number(response.headers.get("content-length")) || req.declaredSize || 0;
 
     const received = await streamToFile(
@@ -306,7 +349,6 @@ const runTask = async (
     if (received === 0) throw new Error("empty body");
     if (!(await looksLikeAudio(partPath))) throw new Error("not audio");
 
-    const ext = resolveExtension(req.declaredFormat, mime, audioUrl);
     const finalPath = policy === "rename" ? dedupePath(finalNoExt, ext) : `${finalNoExt}${ext}`;
     await moveFile(partPath, finalPath);
 
@@ -327,7 +369,10 @@ const runTask = async (
       task.status = "canceled";
     } else {
       task.status = "failed";
-      task.errorCode = ErrorCode.UNKNOWN;
+      task.errorCode =
+        err instanceof StreamingRequestError && (err.status === 403 || err.code === 50)
+          ? ErrorCode.PERMISSION_DENIED
+          : ErrorCode.UNKNOWN;
       downloadLog.error(`失败 ${req.track.title}:`, err);
     }
     task.finishedAt = Date.now();
@@ -371,7 +416,11 @@ const enqueueOne = (
     completedByQuality?.set(req.qualityLevel, completed);
   }
   const downloaded = completed.find(
-    (task) => task.track.source === req.track.source && task.track.id === req.track.id,
+    (task) =>
+      task.track.source === req.track.source &&
+      task.track.id === req.track.id &&
+      (req.track.source !== "streaming" ||
+        (task.track.serverRevision ?? 0) === (req.track.serverRevision ?? 0)),
   );
   if (downloaded?.filePath && fs.existsSync(downloaded.filePath)) {
     return { ok: false, reason: "downloaded" };
@@ -456,6 +505,26 @@ export const clearFinished = (): void => db.clearFinished();
 
 /** 列出全部任务 */
 export const list = (): DownloadTask[] => db.listAll();
+
+/**
+ * 查找仍存在的已下载文件，失效记录继续尝试下一条
+ * @param track - 待播放歌曲的身份
+ * @returns 最近完成且仍存在的非空文件路径，未命中返回 null
+ */
+export const lookupDownloadedFile = async (
+  track: DownloadTrackIdentity,
+): Promise<string | null> => {
+  if (track.source === "local") return null;
+  for (const filePath of db.listCompletedPaths(track)) {
+    try {
+      const stat = await fsp.stat(filePath);
+      if (stat.isFile() && stat.size > 0) return filePath;
+    } catch {
+      // 下载文件可能已被用户移动或删除，保留记录供下载页查看
+    }
+  }
+  return null;
+};
 
 /** 启动初始化 */
 export const init = async (): Promise<void> => {

@@ -139,18 +139,6 @@ const appearanceCategory: SettingCategory = {
           defaultValue: "default",
         },
         {
-          key: "routeTransition",
-          type: "select",
-          binding: { store: "settings", path: "appearance.routeTransition" },
-          options: [
-            { value: "none", labelKey: "settings.routeTransition.none" },
-            { value: "fade", labelKey: "settings.routeTransition.fade" },
-            { value: "slide", labelKey: "settings.routeTransition.slide" },
-            { value: "zoom", labelKey: "settings.routeTransition.zoom" },
-          ],
-          defaultValue: "fade",
-        },
-        {
           key: "sidebarCollapsed",
           type: "switch",
           binding: { store: "settings", path: "appearance.sidebarCollapsed" },
@@ -168,15 +156,38 @@ const appearanceCategory: SettingCategory = {
           component: SidebarCustomizeConfig,
         },
         {
-          key: "showStatsInSidebar",
-          type: "switch",
-          binding: { store: "settings", path: "appearance.showStatsInSidebar" },
-          defaultValue: true,
-        },
-        {
           key: "showQualitySwitch",
           type: "switch",
           binding: { store: "settings", path: "appearance.showQualitySwitch" },
+          defaultValue: false,
+        },
+      ],
+    },
+    {
+      id: "softwareAnimations",
+      items: [
+        {
+          key: "reduceMotion",
+          type: "switch",
+          binding: { store: "settings", path: "appearance.reduceMotion" },
+          defaultValue: false,
+        },
+        {
+          key: "routeTransition",
+          type: "select",
+          binding: { store: "settings", path: "appearance.routeTransition" },
+          options: [
+            { value: "none", labelKey: "settings.routeTransition.none" },
+            { value: "fade", labelKey: "settings.routeTransition.fade" },
+            { value: "slide", labelKey: "settings.routeTransition.slide" },
+            { value: "zoom", labelKey: "settings.routeTransition.zoom" },
+          ],
+          defaultValue: "fade",
+        },
+        {
+          key: "seamlessTransition",
+          type: "switch",
+          binding: { store: "settings", path: "appearance.seamlessTransition" },
           defaultValue: false,
         },
       ],
@@ -247,6 +258,17 @@ const appearanceCategory: SettingCategory = {
           hideChildren: true,
           children: [
             {
+              key: "playerBgRenderer",
+              type: "select",
+              binding: { store: "settings", path: "player.playerBgRenderer" },
+              options: [
+                { value: "mesh", labelKey: "settings.playerBgRenderer.mesh" },
+                { value: "isolation", labelKey: "settings.playerBgRenderer.isolation" },
+                { value: "pixi", labelKey: "settings.playerBgRenderer.pixi" },
+              ],
+              defaultValue: "mesh",
+            },
+            {
               key: "playerBgFlowSpeed",
               type: "slider",
               binding: { store: "settings", path: "player.playerBgFlowSpeed" },
@@ -286,6 +308,7 @@ const appearanceCategory: SettingCategory = {
               key: "playerBgBeat",
               type: "switch",
               binding: { store: "settings", path: "player.playerBgBeat" },
+              visible: () => useSettingsStore().player.playerBgRenderer === "mesh",
               defaultValue: false,
             },
           ],
@@ -332,6 +355,12 @@ const appearanceCategory: SettingCategory = {
           key: "autoImmersive",
           type: "switch",
           binding: { store: "settings", path: "player.autoImmersive" },
+          defaultValue: false,
+        },
+        {
+          key: "keepScreenAwake",
+          type: "switch",
+          binding: { store: "settings", path: "system.player.keepScreenAwake" },
           defaultValue: false,
         },
       ],

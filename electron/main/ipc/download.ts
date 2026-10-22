@@ -10,7 +10,11 @@ import { ipcMain, dialog } from "electron";
 import { store } from "@main/store";
 import { getDownloadDir } from "@main/utils/config";
 import * as downloadManager from "@main/services/downloadManager";
-import type { DownloadRequest, DownloadResolution } from "@shared/types/download";
+import type {
+  DownloadRequest,
+  DownloadResolution,
+  DownloadTrackIdentity,
+} from "@shared/types/download";
 
 export const registerDownloadIpc = (): void => {
   ipcMain.handle("download:start", (_evt, req: DownloadRequest) => downloadManager.enqueue(req));
@@ -28,6 +32,9 @@ export const registerDownloadIpc = (): void => {
   ipcMain.handle("download:remove", (_evt, taskId: string) => downloadManager.remove(taskId));
   ipcMain.handle("download:clearFinished", () => downloadManager.clearFinished());
   ipcMain.handle("download:list", () => downloadManager.list());
+  ipcMain.handle("download:lookup", (_evt, track: DownloadTrackIdentity) =>
+    downloadManager.lookupDownloadedFile(track),
+  );
 
   ipcMain.handle("download:getDir", () => getDownloadDir());
   ipcMain.handle("download:resetDir", () => {

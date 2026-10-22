@@ -10,6 +10,8 @@ const SONG_DETAIL_BATCH = 500;
 export interface FetchPlaylistOptions {
   /** 元数据回调 */
   onMeta?: (meta: Playlist) => void;
+  /** 全量曲目 ID 回调，包含未返回详情的歌曲 */
+  onTrackIds?: (ids: string[]) => void;
   /** 曲目分批回调 */
   onBatch?: (batch: Track[]) => void;
   /** 中断信号 */
@@ -30,12 +32,13 @@ export const fetchPlaylist = async (
   options: FetchPlaylistOptions = {},
 ): Promise<void> => {
   if (options.signal?.aborted) return;
-  const body = await neteaseApi.playlist_detail({ id: playlistId });
+  const body = ensureOk(await neteaseApi.playlist_detail({ id: playlistId }));
   if (options.signal?.aborted) return;
   const raw = body?.playlist;
-  if (!raw) return;
+  if (!raw) throw new Error("NCM歌单响应缺少 playlist");
 
   options.onMeta?.(toPlaylist(raw));
+  options.onTrackIds?.((raw.trackIds ?? []).map((item: { id: number }) => String(item.id)));
 
   const firstBatch = songsToTracks(raw.tracks);
   if (firstBatch.length > 0) options.onBatch?.(firstBatch);

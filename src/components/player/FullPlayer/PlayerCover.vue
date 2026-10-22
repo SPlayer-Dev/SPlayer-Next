@@ -8,7 +8,7 @@ const media = useMediaStore();
 const status = useStatusStore();
 const { isPlaying } = storeToRefs(status);
 
-/** 加载中的歌曲使用队列当前项作为封面兜底。 */
+/** 加载中的歌曲使用队列当前项作为封面兜底 */
 const displayTrack = computed(() => media.track ?? status.currentTrack);
 
 /** 高清封面缓存 */
@@ -32,6 +32,7 @@ watchEffect(async () => {
 
 <template>
   <div
+    data-player-cover="full"
     :class="
       fullscreen
         ? 'player-cover-fullscreen w-full h-full aspect-auto rounded-none bg-transparent overflow-hidden shrink-0'
@@ -43,7 +44,7 @@ watchEffect(async () => {
           ]
     "
   >
-    <SImg :src="coverSrc" class="size-full" />
+    <DetailCover :src="coverSrc" :fallback="displayTrack?.cover" class="size-full" />
   </div>
 </template>
 

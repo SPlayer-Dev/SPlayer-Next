@@ -1,0 +1,142 @@
+html[data-reduced-motion] {
+  :is(.transition, .transition-all, .transition-transform, [class*="transition-["]) {
+    /* 只保留透明度过渡，位移与缩放直接到位 */
+    transition-property: opacity;
+    transition-duration: 150ms;
+    transition-delay: 0s;
+  }
+
+  :is(
+    [class*="route-"],
+    [class*="slide-left-"],
+    [class*="slide-up-"],
+    [class*="scale-switch-"],
+    [class*="plugin-source-"],
+    .motion-enter
+  ) {
+    /* 覆盖 TransitionGroup 重排时写入的内联位移 */
+    transform: none !important;
+    transition: opacity 150ms ease;
+  }
+
+  .player-shell {
+    --un-scale-x: 1;
+    --un-scale-y: 1;
+    transition: opacity 240ms ease;
+  }
+
+  .player-panel {
+    transition:
+      opacity 240ms ease,
+      transform 240ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .player-panel.translate-y-full {
+    --un-translate-y: 12px;
+    opacity: 0;
+  }
+
+  /* 保留弹层原有定位与结束事件，仅用透明度完成进出场 */
+  :is(
+    [class*="animate-popover-"],
+    [class*="animate-dialog-"],
+    [class*="animate-panel-"],
+    [class*="animate-select-"],
+    [class*="animate-drawer-"],
+    [class*="animate-overlay-"]
+  ) {
+    animation-duration: 150ms;
+    animation-timing-function: ease;
+
+    &[data-state$="open"] {
+      animation-name: reduced-motion-in;
+    }
+
+    &[data-state="closed"] {
+      animation-name: reduced-motion-out;
+    }
+  }
+
+  :is(.animate-slide-in-item, .animate-fade-in) {
+    animation: reduced-motion-in 150ms ease both;
+  }
+
+  .animate-highlight-pulse {
+    animation: none;
+    outline: 2px solid rgb(var(--s-primary) / 0.3);
+  }
+
+  /* 覆盖 group-hover 与多重伪类工具样式 */
+  :is([class*="hover:scale-"], [class*="active:scale-"]) {
+    --un-scale-x: 1 !important;
+    --un-scale-y: 1 !important;
+  }
+
+  [data-cover-action] {
+    --un-translate-y: 0px;
+  }
+
+  :is(.cover-card-image, .blur-1, .blur-4) {
+    filter: none !important;
+  }
+
+  :is(.will-change-transform, [class*="hover:will-change-"], .s-marquee-scrolling) {
+    will-change: auto !important;
+  }
+
+  :is(.s-marquee-scrolling, .s-marquee-mask) {
+    animation: none;
+  }
+
+  .s-marquee-scrolling > [aria-hidden="true"] {
+    display: none;
+  }
+
+  :is(.glass-panel, [class*="backdrop-blur-"]) {
+    backdrop-filter: none;
+  }
+
+  footer.glass-panel {
+    background-color: rgb(var(--s-surface-panel) / 0.92);
+  }
+
+  /* 移除毛玻璃后用更实的底色保证可读性 */
+  &[data-appearance-style="image"]
+    :is(
+      .glass-panel,
+      .bg-surface-bright,
+      .bg-field,
+      footer.bg-surface-panel,
+      [role="dialog"].bg-surface-panel,
+      [role="dialog"].bg-surface-alt,
+      [role="alertdialog"].bg-surface-panel,
+      [role="alertdialog"].bg-surface-alt
+    ) {
+    backdrop-filter: none;
+    background-color: rgb(var(--s-surface-panel) / 0.92);
+  }
+
+  .player-transition-shine {
+    animation: none;
+    background: none;
+    color: rgb(var(--s-on-surface));
+  }
+}
+
+@keyframes reduced-motion-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes reduced-motion-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}

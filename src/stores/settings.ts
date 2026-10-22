@@ -19,6 +19,7 @@ import type { SystemConfig, LocaleCode } from "@shared/types/settings";
 import { ALL_PLATFORMS } from "@shared/types/platform";
 import { defaultSystemConfig } from "@shared/defaults/settings";
 import { setByPath } from "@shared/utils/path";
+import { DEFAULT_SKIP_TRACK_KEYWORDS } from "@/utils/preset/skipKeywords";
 
 /**
  * 对账有序集合：保留存档中仍有效的项（顺序不变），
@@ -106,6 +107,8 @@ export const useSettingsStore = defineStore(
     const appearance = reactive<AppearanceSettings>({
       layoutMode: "default",
       routeTransition: "fade",
+      seamlessTransition: false,
+      reduceMotion: false,
       sidebarCollapsed: false,
       sidebarPlaylistCover: false,
       sidebarNavGroups: DEFAULT_SIDEBAR_NAV_GROUPS.map((group) => ({
@@ -116,7 +119,6 @@ export const useSettingsStore = defineStore(
       sidebarKeepEmptyDivider: false,
       sidebarNameWithDivider: false,
       sidebarPlaylistOrder: { myLocal: [], myOnline: [], subscribed: [] },
-      showStatsInSidebar: true,
       showQualitySwitch: false,
       closeAction: "hide",
       rememberCloseChoice: false,
@@ -124,9 +126,15 @@ export const useSettingsStore = defineStore(
       showPerformanceMonitor: false,
     });
 
+    const systemMotion = usePreferredReducedMotion();
+    const reducedMotion = computed(
+      () => appearance.reduceMotion || systemMotion.value === "reduce",
+    );
+
     /** 播放器 */
     const player = reactive<PlayerSettings>({
       playerBgType: "blur",
+      playerBgRenderer: "mesh",
       playerBgFps: 30,
       playerBgFlowSpeed: 4,
       playerBgRenderScale: 0.5,
@@ -140,6 +148,7 @@ export const useSettingsStore = defineStore(
       autoImmersive: true,
       outputDevice: null,
       pauseOnDeviceSwitch: false,
+      rememberDeviceVolume: false,
       enableSpectrum: false,
       spectrumBarWidth: 4,
       reverseSpectrum: false,
@@ -151,13 +160,15 @@ export const useSettingsStore = defineStore(
       snapToLyric: false,
       showLyricInBar: true,
       preloadNextTrack: false,
+      transitionMode: "none",
+      transitionPreference: "standard",
       searchPlayBehavior: "current",
     });
 
     /** 强迫症设置 */
     const preset = reactive<PresetSettings>({
-      fuckDjMode: false,
-      uncensorProfanity: false,
+      skipKeywordsSongs: false,
+      skipTrackKeywords: [...DEFAULT_SKIP_TRACK_KEYWORDS],
       hideVipTag: false,
       hideQualityTag: false,
       showSubtitle: true,
@@ -174,6 +185,8 @@ export const useSettingsStore = defineStore(
       cjkTransform: "none",
       adaptiveFontSize: true,
       fontSize: 48,
+      translationFontSizeFollowMain: true,
+      translationFontSize: 24,
       fontWeight: 700,
       lyricBlendMode: "normal",
       fontFamily: "",
@@ -182,9 +195,11 @@ export const useSettingsStore = defineStore(
       fontFamilyKorean: "",
       fontFamilyChinese: "",
       showTranslation: true,
+      showRuby: true,
       showRomanization: true,
-      amllShowLineRomanization: true,
-      amllShowWordRomanization: true,
+      showWordRomanization: true,
+      enableScale: true,
+      bgAlwaysBelow: false,
       enableWordHighlight: true,
       enableFloatAnimation: false,
       enableEmphasizeEffect: false,
@@ -195,6 +210,7 @@ export const useSettingsStore = defineStore(
       springDamping: 15,
       springStiffness: 90,
       alignPosition: 0.35,
+      alignment: "auto",
       wordFadeWidth: 0.5,
       inactiveAlpha: 0.2,
       enableExcludeLyrics: true,
@@ -212,7 +228,6 @@ export const useSettingsStore = defineStore(
       amllScaleSpringSoft: false,
       amllCleanUnintentionalOverlaps: true,
       amllTryAdvanceStartTime: true,
-      amllConvertExcessiveBackgroundLines: true,
       amllSyncMainAndBackgroundLines: true,
       amllNormalizeSpaces: true,
       amllResetLineTimestamps: true,
@@ -343,6 +358,7 @@ export const useSettingsStore = defineStore(
     return {
       locale,
       appearance,
+      reducedMotion,
       player,
       preset,
       lyric,
@@ -360,12 +376,24 @@ export const useSettingsStore = defineStore(
       storage: localStorage,
       omit: ["system"],
       afterHydrate: ({ store }) => {
-        const { lyric, appearance } = store as unknown as {
+        const { lyric, appearance, preset, player } = store as unknown as {
           lyric: LyricSettings;
           appearance: AppearanceSettings;
+          preset: PresetSettings;
+          player: PlayerSettings;
         };
+        if (player.transitionMode !== "crossfade") player.transitionMode = "none";
+        if (
+          player.transitionPreference !== "conservative" &&
+          player.transitionPreference !== "eager"
+        ) {
+          player.transitionPreference = "standard";
+        }
         if (typeof lyric.detectBackgroundLyrics !== "boolean") {
           lyric.detectBackgroundLyrics = true;
+        }
+        if (!Array.isArray(preset.skipTrackKeywords)) {
+          preset.skipTrackKeywords = [...DEFAULT_SKIP_TRACK_KEYWORDS];
         }
         lyric.lyricSourceOrder = reconcileOrder(lyric.lyricSourceOrder, ALL_PLATFORMS);
         lyric.lyricFormatOrder = reconcileOrder(lyric.lyricFormatOrder, DEFAULT_LYRIC_FORMAT_ORDER);

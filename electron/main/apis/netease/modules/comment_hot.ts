@@ -2,7 +2,7 @@
  * 热门评论
  * params:
  * - id 资源 id
- * - type 网易云资源类型前缀，歌曲为 R_SO_4_
+ * - type NCM 资源类型前缀，歌曲为 R_SO_4_
  */
 
 import { createOption } from "../core/option";
