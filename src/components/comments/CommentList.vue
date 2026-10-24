@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { MusicCommentItem } from "@shared/types/comment";
 import type { CommentDensity } from "@shared/types/settings";
-import { getMasonryRowSpan } from "@/utils/commentMasonry";
+import { layoutMasonry } from "@/utils/commentMasonry";
 import CommentCard from "./CommentCard.vue";
 
 interface Props {
@@ -24,106 +24,147 @@ const props = withDefaults(defineProps<Props>(), {
   cover: false,
 });
 
-const GRID_ROW_HEIGHT = 1;
 const GAPS: Record<CommentDensity, number> = { compact: 8, standard: 12, comfortable: 16 };
-const itemElements = new Map<string, HTMLElement>();
-const rowSpans = reactive(new Map<string, number>());
-let resizeObserver: ResizeObserver | undefined;
-
 const gap = computed(() => GAPS[props.density]);
-const gridStyle = computed(() => ({
-  display: "grid",
-  gridTemplateColumns: `repeat(auto-fill, minmax(${props.columnMinWidth}px, 1fr))`,
-  gridAutoRows: `${GRID_ROW_HEIGHT}px`,
-  gap: `${gap.value}px`,
-}));
 
-/**
- * 按卡片实际高度更新占用的网格行数
- * @param id - 评论 id
- * @param element - 卡片外层元素
- */
-const updateItemSpan = (id: string, element: HTMLElement): void => {
-  const content = element.firstElementChild;
-  if (!(content instanceof HTMLElement)) return;
-  rowSpans.set(
-    id,
-    getMasonryRowSpan(content.getBoundingClientRect().height, GRID_ROW_HEIGHT, gap.value),
-  );
+const rootRef = ref<HTMLElement | null>(null);
+const itemElements = new Map<string, HTMLElement>();
+const positions = reactive(new Map<string, { x: number; y: number }>());
+const columnWidth = ref(0);
+const containerHeight = ref(0);
+
+let resizeObserver: ResizeObserver | undefined;
+let rootObserver: ResizeObserver | undefined;
+let layoutFrame = 0;
+let layoutToken = 0;
+
+/** 合并同一帧内的多次布局请求 */
+const scheduleLayout = (): void => {
+  if (layoutFrame) return;
+  layoutFrame = requestAnimationFrame(() => {
+    layoutFrame = 0;
+    void runLayout();
+  });
 };
 
 /**
- * 记录卡片元素引用并立即测量，避免首帧闪烁为一行高
+ * 测量卡片高度并重新计算绝对位置
+ * 列宽变化时先等待 DOM 更新，确保按新宽度测量换行后的高度
+ */
+const runLayout = async (): Promise<void> => {
+  const root = rootRef.value;
+  if (!root) return;
+  const width = root.clientWidth;
+  if (width <= 0) return;
+
+  const token = ++layoutToken;
+  const gapValue = gap.value;
+  const columns = Math.max(1, Math.floor((width + gapValue) / (props.columnMinWidth + gapValue)));
+  const nextColumnWidth = (width - gapValue * (columns - 1)) / columns;
+  if (nextColumnWidth !== columnWidth.value) {
+    columnWidth.value = nextColumnWidth;
+    await nextTick();
+    if (token !== layoutToken) return;
+  }
+
+  const heights = props.items.map((item) => {
+    const element = itemElements.get(item.id);
+    return element ? element.getBoundingClientRect().height : 0;
+  });
+  const layout = layoutMasonry(heights, columns, nextColumnWidth, gapValue);
+
+  positions.clear();
+  props.items.forEach((item, index) => {
+    const position = layout.positions[index];
+    if (position) positions.set(item.id, position);
+  });
+  containerHeight.value = layout.height;
+};
+
+/**
+ * 记录卡片元素引用并触发重新布局
  * @param id - 评论 id
  * @param value - 模板 ref 值
  */
 const setItemRef = (id: string, value: unknown): void => {
   const element = value instanceof HTMLElement ? value : null;
   const previous = itemElements.get(id);
-  if (previous && previous !== element) {
-    const previousContent = previous.firstElementChild;
-    if (previousContent) resizeObserver?.unobserve(previousContent);
+  if (previous === element) return;
+  if (previous) {
+    const content = previous.firstElementChild;
+    if (content) resizeObserver?.unobserve(content);
+    itemElements.delete(id);
   }
   if (!element) {
-    itemElements.delete(id);
-    rowSpans.delete(id);
+    positions.delete(id);
+    scheduleLayout();
     return;
   }
   itemElements.set(id, element);
   const content = element.firstElementChild;
   if (content) resizeObserver?.observe(content);
-  updateItemSpan(id, element);
+  scheduleLayout();
 };
 
-// 仅剪枝过期条目，尺寸变化交给逐元素 ResizeObserver
+// 列表变化后清理已移除的卡片并重新排布
 watch(
   () => props.items,
   (items) => {
     const ids = new Set(items.map((item) => item.id));
-    for (const id of rowSpans.keys()) {
-      if (!ids.has(id)) rowSpans.delete(id);
+    for (const id of positions.keys()) {
+      if (!ids.has(id)) positions.delete(id);
     }
-  },
-);
-
-// 密度变化会同时改变卡片高度与间隙，DOM 更新后重新测量所有行跨度
-watch(
-  gap,
-  () => {
-    for (const [id, element] of itemElements) updateItemSpan(id, element);
+    scheduleLayout();
   },
   { flush: "post" },
 );
 
+// 密度或最小列宽变化会改变卡片尺寸与列数，DOM 更新后重新测量
+watch([gap, () => props.columnMinWidth], scheduleLayout, { flush: "post" });
+
 onMounted(() => {
-  resizeObserver = new ResizeObserver((entries) => {
-    for (const entry of entries) {
-      const wrapper = entry.target.parentElement;
-      const id = wrapper?.getAttribute("data-comment-id");
-      if (id && wrapper) updateItemSpan(id, wrapper);
-    }
-  });
+  resizeObserver = new ResizeObserver(() => scheduleLayout());
   for (const element of itemElements.values()) {
     const content = element.firstElementChild;
     if (content) resizeObserver.observe(content);
   }
+
+  let lastWidth = 0;
+  rootObserver = new ResizeObserver(([entry]) => {
+    if (!entry || Math.abs(entry.contentRect.width - lastWidth) < 0.5) return;
+    lastWidth = entry.contentRect.width;
+    scheduleLayout();
+  });
+  if (rootRef.value) {
+    lastWidth = rootRef.value.clientWidth;
+    rootObserver.observe(rootRef.value);
+  }
+  scheduleLayout();
 });
 
 onBeforeUnmount(() => {
+  layoutToken += 1;
+  cancelAnimationFrame(layoutFrame);
   resizeObserver?.disconnect();
+  rootObserver?.disconnect();
   itemElements.clear();
-  rowSpans.clear();
+  positions.clear();
 });
 </script>
 
 <template>
-  <div :style="gridStyle">
+  <div ref="rootRef" class="relative w-full" :style="{ height: `${containerHeight}px` }">
     <div
       v-for="item in items"
       :key="item.id"
       :ref="(value) => setItemRef(item.id, value)"
-      :data-comment-id="item.id"
-      :style="{ gridRowEnd: `span ${rowSpans.get(item.id) ?? 1}` }"
+      class="absolute"
+      :style="{
+        left: `${positions.get(item.id)?.x ?? 0}px`,
+        top: `${positions.get(item.id)?.y ?? 0}px`,
+        width: `${columnWidth}px`,
+        visibility: positions.has(item.id) ? 'visible' : 'hidden',
+      }"
     >
       <CommentCard
         :item="item"
