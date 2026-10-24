@@ -54,6 +54,8 @@ export const useStatusStore = defineStore(
     const shuffleMode = ref<ShuffleMode>("off");
     /** 心动模式 */
     const heartMode = ref(false);
+    /** 心动模式：整轮听完后是否自动追加「更多推荐」 */
+    const heartModeWantMore = ref(true);
     /** 私人 FM 模式 */
     const fmMode = ref(false);
     /** 私人 FM 选项偏好 */
@@ -163,6 +165,7 @@ export const useStatusStore = defineStore(
       repeatMode,
       shuffleMode,
       heartMode,
+      heartModeWantMore,
       fmMode,
       fmOptions,
       speed,
@@ -192,6 +195,7 @@ export const useStatusStore = defineStore(
         "repeatMode",
         "shuffleMode",
         "heartMode",
+        "heartModeWantMore",
         "fmOptions",
         "volume",
         "position",

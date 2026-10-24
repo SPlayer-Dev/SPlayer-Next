@@ -17,6 +17,7 @@ const {
   playAt,
   removeAt,
   clearConfirmOpen,
+  moreRcmdSepIndex,
   clearAll,
   scrollToCurrent,
 } = useQueuePanel({ listRef });
@@ -58,6 +59,17 @@ const onClear = (): void => {
         <span class="text-xs text-on-surface-variant leading-tight mt-0.5">
           {{ t("common.totalSongs", { count: queueLength }) }}
         </span>
+        <div
+          v-if="statusStore.heartMode"
+          class="mt-1 flex items-center gap-1.5 text-[11px] leading-tight text-on-surface-variant"
+          :title="t('player.heartMode.wantMoreHint')"
+        >
+          <SSwitch
+            :model-value="statusStore.heartModeWantMore"
+            @update:model-value="player.setHeartModeWantMore"
+          />
+          <span>{{ t("player.heartMode.wantMore") }}</span>
+        </div>
       </div>
       <div class="shrink-0 flex items-center gap-0.5">
         <SButton
@@ -97,7 +109,18 @@ const onClear = (): void => {
         height="100%"
         :default-scroll-index="Math.max(0, statusStore.playIndex)"
         :get-item-key="(item: Track) => item.id"
+        :separator-index="moreRcmdSepIndex"
+        :separator-height="28"
       >
+        <template #separator>
+          <div class="flex h-full items-center gap-2 px-3">
+            <div class="h-px flex-1 bg-on-surface/10" />
+            <span class="shrink-0 text-[10px] leading-none text-on-surface-variant/70">
+              {{ t("player.heartMode.moreRcmd") }}
+            </span>
+            <div class="h-px flex-1 bg-on-surface/10" />
+          </div>
+        </template>
         <template #default="{ item, index }: { item: Track; index: number }">
           <div class="relative px-2 py-0.5">
             <div
@@ -121,7 +144,15 @@ const onClear = (): void => {
             >
               <SImg :src="item.cover" class="size-9 rounded shrink-0" />
               <div class="flex-1 min-w-0">
-                <div class="text-xs truncate font-medium leading-tight">{{ item.title }}</div>
+                <div class="text-xs font-medium leading-tight flex items-center gap-1">
+                  <span class="truncate">{{ item.title }}</span>
+                  <span
+                    v-if="item.recommended && !item.moreRcmd"
+                    class="shrink-0 rounded px-1 text-[9px] leading-4 bg-on-surface/10 text-on-surface-variant"
+                  >
+                    {{ t("player.heartMode.aiRcmd") }}
+                  </span>
+                </div>
                 <div
                   class="text-[11px] truncate leading-tight mt-0.5"
                   :class="

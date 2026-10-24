@@ -35,6 +35,10 @@ export interface SVirtualListProps<T> {
   hideScrollbar?: boolean;
   /** 封面主题色 */
   cover?: boolean;
+  /** 分隔条插入位置（该项之前），-1 表示不显示 */
+  separatorIndex?: number;
+  /** 分隔条高度（px），仅定高模式生效 */
+  separatorHeight?: number;
 }
 
 const props = withDefaults(defineProps<SVirtualListProps<T>>(), {
@@ -44,6 +48,8 @@ const props = withDefaults(defineProps<SVirtualListProps<T>>(), {
   paddingBottom: 0,
   bufferSize: 5,
   getItemKey: (_item: T, index: number) => index,
+  separatorIndex: -1,
+  separatorHeight: 0,
 });
 
 const emit = defineEmits<{
@@ -66,6 +72,16 @@ const containerHeightStyle = computed(() =>
 );
 
 const viewportHeight = computed(() => scrollViewportHeight.value || 0);
+
+/** 定高模式下分隔条占用的额外高度 */
+const separatorOffset = computed(() =>
+  props.itemFixed &&
+  props.separatorHeight > 0 &&
+  props.separatorIndex >= 0 &&
+  props.separatorIndex < props.items.length
+    ? props.separatorHeight
+    : 0,
+);
 
 // 每项实际高度、累积顶部位置（仅动态高度模式）
 const itemHeights = shallowRef<number[]>([]);
@@ -98,7 +114,7 @@ const updateTops = (fromIndex = 0): void => {
 
 const totalHeight = computed(() => {
   if (props.itemFixed) {
-    return props.items.length * props.itemHeight + props.paddingTop;
+    return props.items.length * props.itemHeight + props.paddingTop + separatorOffset.value;
   }
   if (itemTops.value.length === 0) return props.paddingTop;
   const last = itemTops.value.length - 1;
@@ -125,7 +141,13 @@ const calculateVisibleRange = (currentScrollTop: number): void => {
   let endIndex = 0;
 
   if (props.itemFixed) {
-    startIndex = Math.floor(effectiveScroll / props.itemHeight);
+    // 滚动坐标先换算到不含分隔条高度的曲目坐标系
+    const separatorTop = props.separatorIndex * props.itemHeight;
+    const itemScroll =
+      separatorOffset.value > 0 && effectiveScroll > separatorTop
+        ? effectiveScroll - separatorOffset.value
+        : effectiveScroll;
+    startIndex = Math.floor(itemScroll / props.itemHeight);
     endIndex = startIndex + Math.ceil(vHeight / props.itemHeight);
   } else {
     const tops = itemTops.value;
@@ -223,7 +245,11 @@ const handleScroll = (event: Event): void => {
 
 /** 获取指定索引项的顶部偏移（含 paddingTop） */
 const getItemTop = (index: number): number => {
-  if (props.itemFixed) return index * props.itemHeight + props.paddingTop;
+  if (props.itemFixed) {
+    const separatorShift =
+      separatorOffset.value > 0 && index >= props.separatorIndex ? separatorOffset.value : 0;
+    return index * props.itemHeight + props.paddingTop + separatorShift;
+  }
   return (itemTops.value[index] || 0) + props.paddingTop;
 };
 
@@ -232,8 +258,16 @@ const getDropInfoByOffset = (offsetY: number): { index: number; position: "top" 
   const len = props.items.length;
   if (len === 0) return { index: 0, position: "top" };
   // 扣掉 paddingTop，落到 itemTops 坐标系
-  const adjusted = offsetY - props.paddingTop;
+  let adjusted = offsetY - props.paddingTop;
   if (props.itemFixed) {
+    if (separatorOffset.value > 0) {
+      const separatorTop = props.separatorIndex * props.itemHeight;
+      const separatorBottom = separatorTop + separatorOffset.value;
+      if (adjusted >= separatorTop && adjusted < separatorBottom) {
+        return { index: props.separatorIndex, position: "top" };
+      }
+      if (adjusted >= separatorBottom) adjusted -= separatorOffset.value;
+    }
     const index = Math.floor(adjusted / props.itemHeight);
     const remainder = ((adjusted % props.itemHeight) + props.itemHeight) % props.itemHeight;
     const position = remainder < props.itemHeight / 2 ? "top" : "bottom";
@@ -274,6 +308,9 @@ const scrollToIndex = (index: number, behavior: ScrollBehavior = "auto"): void =
   let top = 0;
   if (props.itemFixed) {
     top = targetIndex * props.itemHeight;
+    if (separatorOffset.value > 0 && targetIndex >= props.separatorIndex) {
+      top += separatorOffset.value;
+    }
   } else {
     if (itemTops.value.length <= targetIndex) initializeHeights();
     top = itemTops.value[targetIndex] || 0;
@@ -305,6 +342,11 @@ watch(
 watch(viewportHeight, () => {
   calculateVisibleRange(scrollTop.value);
 });
+
+watch(
+  () => [props.separatorIndex, props.separatorHeight],
+  () => calculateVisibleRange(scrollTop.value),
+);
 
 watch(
   () => [actualStartIndex.value, actualEndIndex.value],
@@ -398,6 +440,16 @@ defineExpose({
             transition: 'height 0.3s ease',
           }"
         >
+          <div
+            v-if="separatorOffset > 0 && $slots.separator"
+            class="absolute inset-x-0 top-0"
+            :style="{
+              transform: `translateY(${separatorIndex * itemHeight + paddingTop}px)`,
+              height: `${separatorHeight}px`,
+            }"
+          >
+            <slot name="separator" />
+          </div>
           <div ref="contentRef" class="absolute inset-x-0 top-0">
             <div
               v-for="(item, visibleIdx) in visibleItems"

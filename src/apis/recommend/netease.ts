@@ -2,7 +2,15 @@ import type { Track } from "@shared/types/player";
 import type { CoverItem } from "@/types/artist";
 import type { NeteaseSong, PersonalFmOptions } from "@shared/types/platform/netease";
 import { netease as neteaseApi } from "@/apis/netease";
-import { songsToTracks, withPicSize, toPlaylist, toArtist, toAlbum } from "@/utils/format/netease";
+import {
+  songToTrack,
+  songsToTracks,
+  withPicSize,
+  toPlaylist,
+  toArtist,
+  toAlbum,
+  trackToNeteaseSong,
+} from "@/utils/format/netease";
 import { playlistToCoverItem, artistToCoverItem, albumToCoverItem } from "@/utils/format/coverItem";
 
 /** 每日推荐歌曲（每日 30 首，需登录） */
@@ -11,18 +19,96 @@ export const fetchDailySongs = async (): Promise<Track[]> => {
   return songsToTracks(body?.data?.dailySongs);
 };
 
+/** 心动模式进入参数（与桌面端对齐） */
+export interface HeartModeListOptions {
+  /** fromPlayOne 以单曲为种子；fromPlayAll 以整个歌单为种子 */
+  type?: "fromPlayOne" | "fromPlayAll";
+  /** 推荐批次数，桌面端传歌单长度 */
+  count?: number;
+  /** 起始歌曲 id，桌面端传歌单第一首 */
+  startMusicId?: string;
+  /** 完整歌单，桌面端心动模式会携带 */
+  starPlaylist?: Track[];
+  /** 用户 id */
+  uid?: number | string;
+}
+
 /**
  * 心动模式智能播放列表
  * @param seedId - 种子歌曲 id
  * @param playlistId - 歌单 id（「我喜欢的音乐」）
+ * @param options - 与桌面端对齐的可选参数
  * @returns 智能推荐的 Track 列表
  */
-export const fetchHeartModeList = async (seedId: string, playlistId: string): Promise<Track[]> => {
-  const body = await neteaseApi.playmode_intelligence<{ data?: { songInfo: NeteaseSong }[] }>({
+export const fetchHeartModeList = async (
+  seedId: string,
+  playlistId: string,
+  options?: HeartModeListOptions,
+): Promise<Track[]> => {
+  const body = await neteaseApi.playmode_intelligence<{
+    data?: {
+      id?: number | string;
+      songInfo: NeteaseSong | null;
+      recommended?: boolean;
+      alg?: string;
+    }[];
+  }>({
     id: seedId,
     pid: playlistId,
+    ...(options?.type ? { type: options.type } : {}),
+    ...(options?.count ? { count: options.count } : {}),
+    ...(options?.startMusicId ? { sid: options.startMusicId } : {}),
+    ...(options?.starPlaylist
+      ? { starPlaylist: options.starPlaylist.map(trackToNeteaseSong) }
+      : {}),
+    ...(options?.uid !== undefined ? { uid: options.uid } : {}),
   });
-  return songsToTracks((body?.data ?? []).map((item) => item.songInfo));
+  const items = body?.data ?? [];
+  const playlistById = new Map((options?.starPlaylist ?? []).map((track) => [track.id, track]));
+  const tracks: Track[] = [];
+  for (const item of items) {
+    const fallback = playlistById.get(String(item.id));
+    const track = item.songInfo ? songToTrack(item.songInfo) : fallback ? { ...fallback } : null;
+    if (!track) continue;
+    if (item.recommended) track.recommended = true;
+    if (item.alg) track.algorithm = item.alg;
+    tracks.push(track);
+  }
+  return tracks;
+};
+
+/** 心动模式续推结果 */
+export interface HeartModeMoreResult {
+  tracks: Track[];
+  algMap: Record<string, string>;
+}
+
+/**
+ * 心动模式「更多推荐」续推
+ * @param songIds - 当前播放列表歌曲 id
+ * @param currentPlaySongId - 当前播放歌曲 id
+ * @returns 续推曲目与算法标记
+ */
+export const fetchMoreHeartModeSongs = async (
+  songIds: string[],
+  currentPlaySongId: string,
+): Promise<HeartModeMoreResult> => {
+  const body = await neteaseApi.homepage_more_rcmd_song<{
+    data?: { songList?: (NeteaseSong & { alg?: string })[]; algMap?: Record<string, string> };
+  }>({
+    songIds,
+    currentPlaySongId,
+    source: "curlist_more_rcmd",
+  });
+  const songList = body?.data?.songList ?? [];
+  const algMap = body?.data?.algMap ?? {};
+  const tracks = songsToTracks(songList);
+  tracks.forEach((track, index) => {
+    const alg = algMap[track.id] ?? songList[index]?.alg;
+    track.moreRcmd = true;
+    if (alg) track.algorithm = alg;
+  });
+  return { tracks, algMap };
 };
 
 /**

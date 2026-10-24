@@ -82,6 +82,7 @@ const NON_CACHEABLE: ReadonlySet<string> = new Set([
   "cloud_song_import",
   "album_sub",
   "playmode_intelligence",
+  "homepage_more_rcmd_song",
   "personal_fm",
   "fm_trash",
   "recommend_songs",

@@ -36,6 +36,81 @@ export const originalQueue = shallowRef<PlaybackQueueItem[] | null>(null);
 /** 队列中的歌曲总数 */
 export const queueLength = computed(() => queue.value.length);
 
+/** 心动模式：当前队列是否每首都已播放过至少一次 */
+export const allPlayedOnce = computed(
+  () => queueEntries.value.length > 0 && queueEntries.value.every((item) => item.playedOnce),
+);
+
+/** 队列结构代次：替换 / 清空 / 恢复时递增，供异步续推丢弃过期结果 */
+export const queueGeneration = ref(0);
+
+/** 心动模式进入前的播放队列快照 */
+export interface PreviousQueueState {
+  list: PlaybackQueueItem[];
+  index: number;
+}
+
+/** 内存中的心动模式原队列，持久化副本用于跨重启恢复 */
+export const previousQueue = shallowRef<PreviousQueueState | null>(null);
+
+/**
+ * 保存心动模式进入前的播放队列
+ * @param playIndex - 进入前的播放位置
+ */
+export const savePreviousQueue = (playIndex: number): void => {
+  if (queueEntries.value.length === 0) return;
+  const state: PreviousQueueState = {
+    list: queueEntries.value.map((item) => ({ ...item })),
+    index: Math.max(0, playIndex),
+  };
+  previousQueue.value = state;
+  db.setItem("previousPlayList", toRaw(state)).catch(console.error);
+};
+
+/**
+ * 恢复心动模式进入前的播放队列
+ * @returns 进入前的播放位置；没有快照时返回 null
+ */
+export const restorePreviousQueue = async (): Promise<number | null> => {
+  let state = previousQueue.value;
+  if (!state?.list?.length) {
+    try {
+      const stored = await db.getItem<{ list?: PersistedQueueItem[]; index?: number }>(
+        "previousPlayList",
+      );
+      if (stored?.list?.length) {
+        state = {
+          list: stored.list.map(restoreQueueItem),
+          index: stored.index ?? 0,
+        };
+      }
+    } catch (error) {
+      console.error("[queue] 恢复心动模式原队列失败:", error);
+    }
+  }
+  if (!state?.list?.length) return null;
+  queueEntries.value = state.list.map(restoreQueueItem);
+  originalQueue.value = null;
+  previousQueue.value = null;
+  queueGeneration.value++;
+  db.removeItem("previousPlayList").catch(console.error);
+  save();
+  return Math.max(0, state.index);
+};
+
+/**
+ * 标记队列项已播放过至少一次
+ * @param index - 队列位置
+ */
+export const markPlayedOnce = (index: number): void => {
+  const item = queueEntries.value[index];
+  if (!item || item.playedOnce) return;
+  const next = [...queueEntries.value];
+  next[index] = { ...item, playedOnce: true };
+  queueEntries.value = next;
+  save();
+};
+
 /** 保存当前播放列表数据 */
 const save = (): void => {
   db.setItem("playList", toRaw(queueEntries.value)).catch(console.error);
@@ -63,6 +138,7 @@ export const restoreQueue = async (): Promise<void> => {
  * @param context - 队列中曲目共用的播放来源上下文
  */
 export const setQueue = (items: readonly Track[], context?: PlaybackContext): void => {
+  queueGeneration.value++;
   queueEntries.value = items.map((track) => createQueueItem(track, context));
   originalQueue.value = null;
   save();
@@ -154,6 +230,30 @@ export const updateQueueItem = (index: number, track: Track, context?: PlaybackC
 };
 
 /**
+ * 移除所有「更多推荐」续推曲目
+ * @param playIndex - 当前播放位置
+ * @returns 调整后的播放位置、当前曲是否被移除、移除数量
+ */
+export const removeMoreRcmdTracks = (
+  playIndex: number,
+): { index: number; currentRemoved: boolean; removed: number } => {
+  const list = queueEntries.value;
+  const next = list.filter((item) => !item.track.moreRcmd);
+  const removed = list.length - next.length;
+  const currentRemoved =
+    playIndex >= 0 && playIndex < list.length && !!list[playIndex]?.track.moreRcmd;
+  const index = next.length === 0 ? -1 : Math.max(0, Math.min(playIndex, next.length - 1));
+  if (removed === 0) {
+    return { index, currentRemoved, removed };
+  }
+  queueEntries.value = next;
+  originalQueue.value = originalQueue.value?.filter((item) => !item.track.moreRcmd) ?? null;
+  queueGeneration.value++;
+  save();
+  return { index, currentRemoved, removed };
+};
+
+/**
  * 移除指定服务器的全部流媒体歌曲
  * @param serverId - 服务器 ID
  */
@@ -214,6 +314,7 @@ export const moveInQueue = (fromIndex: number, toIndex: number): void => {
  * 清空队列和洗牌备份
  */
 export const clearQueue = (): void => {
+  queueGeneration.value++;
   queueEntries.value = [];
   originalQueue.value = null;
   save();

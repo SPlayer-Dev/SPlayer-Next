@@ -148,12 +148,20 @@ export interface Track {
   fee?: TrackFee;
   /** 云盘歌曲 */
   cloud?: boolean;
+  /** 心动模式：是否为 AI 推荐曲目 */
+  recommended?: boolean;
+  /** 心动模式：推荐算法标记 */
+  algorithm?: string;
+  /** 心动模式：是否为「更多推荐」续推曲目 */
+  moreRcmd?: boolean;
 }
 
 /** 播放队列项，将曲目元数据与本次播放上下文分离 */
 export interface PlaybackQueueItem {
   track: Track;
   context?: PlaybackContext;
+  /** 心动模式：本轮是否已播放过至少一次 */
+  playedOnce?: boolean;
 }
 
 /** 歌曲详细信息 */

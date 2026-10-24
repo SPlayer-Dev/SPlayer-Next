@@ -21,7 +21,9 @@ import {
   originalQueue,
   queue,
   queueEntries,
+  queueGeneration,
   removeFromQueue,
+  removeMoreRcmdTracks,
   restoreQueue,
   setQueue,
   shuffleQueue,
@@ -177,5 +179,53 @@ describe("queue", () => {
     await restoreQueue();
 
     expect(queueEntries.value[0]?.context).toEqual(context);
+  });
+
+  it("移除更多推荐曲目时同步洗牌备份并调整播放位置", () => {
+    queueEntries.value = [
+      entry("a"),
+      { track: { ...track("more-1"), moreRcmd: true } },
+      entry("b"),
+      { track: { ...track("more-2"), moreRcmd: true } },
+    ];
+    originalQueue.value = [...queueEntries.value];
+
+    const result = removeMoreRcmdTracks(2);
+
+    expect(result).toEqual({ index: 1, currentRemoved: false, removed: 2 });
+    expect(queue.value.map(({ id }) => id)).toEqual(["a", "b"]);
+    expect(originalQueue.value?.map((item) => item.track.id)).toEqual(["a", "b"]);
+  });
+
+  it("当前曲目被移除时返回标记供调用方重新加载", () => {
+    queueEntries.value = [entry("a"), { track: { ...track("more"), moreRcmd: true } }];
+
+    const result = removeMoreRcmdTracks(1);
+
+    expect(result).toEqual({ index: 0, currentRemoved: true, removed: 1 });
+    expect(queue.value.map(({ id }) => id)).toEqual(["a"]);
+  });
+
+  it("全部曲目都被移除时播放位置回到 -1", () => {
+    queueEntries.value = [{ track: { ...track("more"), moreRcmd: true } }];
+
+    expect(removeMoreRcmdTracks(0)).toEqual({
+      index: -1,
+      currentRemoved: true,
+      removed: 1,
+    });
+    expect(queue.value).toEqual([]);
+  });
+
+  it("没有更多推荐曲目时不改动队列代次", () => {
+    queueEntries.value = [entry("a"), entry("b")];
+    const generation = queueGeneration.value;
+
+    expect(removeMoreRcmdTracks(1)).toEqual({
+      index: 1,
+      currentRemoved: false,
+      removed: 0,
+    });
+    expect(queueGeneration.value).toBe(generation);
   });
 });
