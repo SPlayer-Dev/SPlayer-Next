@@ -882,6 +882,13 @@
       "label": "主创说",
       "description": "在评论区展示歌曲主创的发言，开启后会产生额外的接口请求并缓存主创评论"
     },
+    "commentDensity": {
+      "label": "评论密度",
+      "description": "控制播放器内评论卡片的间距、字号与头像尺寸",
+      "compact": "紧凑",
+      "standard": "标准",
+      "comfortable": "宽松"
+    },
     "rememberLastTrack": {
       "label": "记忆播放进度",
       "description": "启动时恢复上次歌曲的播放进度"

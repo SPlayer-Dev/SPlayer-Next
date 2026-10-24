@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { MusicCommentItem } from "@shared/types/comment";
+import type { CommentDensity } from "@shared/types/settings";
 import { getMasonryRowSpan } from "@/utils/commentMasonry";
 import CommentCard from "./CommentCard.vue";
 
@@ -10,32 +11,31 @@ interface Props {
   columnMinWidth?: number;
   /** 主创评论 id 集合，命中时卡片显示主创徽章 */
   creatorIds?: Set<string>;
-  /** 紧凑模式，透传给评论卡片 */
-  compact?: boolean;
+  /** 评论卡片密度 */
+  density?: CommentDensity;
   /** 是否使用全屏播放器配色 */
   cover?: boolean;
-  /** 列间距（px） */
-  gap?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   columnMinWidth: 280,
   creatorIds: () => new Set<string>(),
-  compact: false,
+  density: "standard",
   cover: false,
-  gap: 12,
 });
 
 const GRID_ROW_HEIGHT = 1;
+const GAPS: Record<CommentDensity, number> = { compact: 8, standard: 12, comfortable: 16 };
 const itemElements = new Map<string, HTMLElement>();
 const rowSpans = reactive(new Map<string, number>());
 let resizeObserver: ResizeObserver | undefined;
 
+const gap = computed(() => GAPS[props.density]);
 const gridStyle = computed(() => ({
   display: "grid",
   gridTemplateColumns: `repeat(auto-fill, minmax(${props.columnMinWidth}px, 1fr))`,
   gridAutoRows: `${GRID_ROW_HEIGHT}px`,
-  gap: `${props.gap}px`,
+  gap: `${gap.value}px`,
 }));
 
 /**
@@ -48,7 +48,7 @@ const updateItemSpan = (id: string, element: HTMLElement): void => {
   if (!(content instanceof HTMLElement)) return;
   rowSpans.set(
     id,
-    getMasonryRowSpan(content.getBoundingClientRect().height, GRID_ROW_HEIGHT, props.gap),
+    getMasonryRowSpan(content.getBoundingClientRect().height, GRID_ROW_HEIGHT, gap.value),
   );
 };
 
@@ -86,6 +86,15 @@ watch(
   },
 );
 
+// 密度变化会同时改变卡片高度与间隙，DOM 更新后重新测量所有行跨度
+watch(
+  gap,
+  () => {
+    for (const [id, element] of itemElements) updateItemSpan(id, element);
+  },
+  { flush: "post" },
+);
+
 onMounted(() => {
   resizeObserver = new ResizeObserver((entries) => {
     for (const entry of entries) {
@@ -119,7 +128,7 @@ onBeforeUnmount(() => {
       <CommentCard
         :item="item"
         :creator="creatorIds.has(item.id)"
-        :compact="compact"
+        :density="density"
         :cover="cover"
       />
     </div>

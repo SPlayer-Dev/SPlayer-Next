@@ -71,6 +71,17 @@ const otherCategory: SettingCategory = {
           binding: { store: "settings", path: "system.comments.creatorEnabled" },
           defaultValue: false,
         },
+        {
+          key: "commentDensity",
+          type: "select",
+          binding: { store: "settings", path: "system.comments.density" },
+          options: [
+            { value: "compact", labelKey: "settings.commentDensity.compact" },
+            { value: "standard", labelKey: "settings.commentDensity.standard" },
+            { value: "comfortable", labelKey: "settings.commentDensity.comfortable" },
+          ],
+          defaultValue: "standard",
+        },
       ],
     },
     {

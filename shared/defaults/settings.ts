@@ -137,6 +137,7 @@ export const defaultSystemConfig: SystemConfig = {
   },
   comments: {
     creatorEnabled: false,
+    density: "standard",
   },
   externalApi: {
     enabled: false,

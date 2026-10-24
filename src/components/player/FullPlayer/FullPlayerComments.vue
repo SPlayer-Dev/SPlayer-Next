@@ -44,7 +44,13 @@ const {
   retryCreator,
 } = comments;
 
-const columnMinWidth = computed(() => (props.mode === "half" ? 400 : 360));
+const commentsDensity = computed(() => settings.system.comments.density);
+const columnMinWidth = computed(() => {
+  const base = props.mode === "half" ? 400 : 360;
+  if (commentsDensity.value === "compact") return base - 40;
+  if (commentsDensity.value === "comfortable") return base + 40;
+  return base;
+});
 const artistNames = computed(() => media.track?.artists.map((artist) => artist.name).join(" / "));
 const scrolling = ref(false);
 let loadMoreObserver: IntersectionObserver | undefined;
@@ -180,6 +186,7 @@ onBeforeUnmount(() => {
             :items="creatorComments"
             :creator-ids="creatorIds"
             :column-min-width="columnMinWidth"
+            :density="commentsDensity"
             cover
           />
         </div>
@@ -232,7 +239,13 @@ onBeforeUnmount(() => {
             <div class="text-sm">{{ t("comments.empty") }}</div>
           </div>
         </div>
-        <CommentList v-else :items="dedupedList" :column-min-width="columnMinWidth" cover />
+        <CommentList
+          v-else
+          :items="dedupedList"
+          :column-min-width="columnMinWidth"
+          :density="commentsDensity"
+          cover
+        />
 
         <div ref="loadMoreSentinelRef" class="h-px" />
         <div v-if="page.loadingMore" class="flex justify-center py-5 text-cover/55">

@@ -230,10 +230,15 @@ export interface StreamingSettings {
   enabled: boolean;
 }
 
+/** 评论卡片密度 */
+export type CommentDensity = "compact" | "standard" | "comfortable";
+
 /** 评论设置 */
 export interface CommentSettings {
   /** 在评论区展示主创说 */
   creatorEnabled: boolean;
+  /** 播放器内评论卡片密度 */
+  density: CommentDensity;
 }
 
 /** 外部 API 服务配置 */
