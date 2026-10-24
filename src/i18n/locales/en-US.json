@@ -139,7 +139,6 @@
     "location": "From {location}",
     "creator": "Creator Says",
     "creatorBadge": "Creator",
-    "playTrack": "Play Track",
     "page": "Page {page} / {total}"
   },
   "equalizer": {
