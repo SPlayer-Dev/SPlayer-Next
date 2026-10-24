@@ -130,6 +130,7 @@
   },
   "comments": {
     "name": "Song Comments",
+    "title": "Comments for \"{name}\"",
     "hot": "Top Comments",
     "new": "Latest Comments",
     "loading": "Loading comments...",
@@ -138,7 +139,8 @@
     "location": "From {location}",
     "creator": "Creator Says",
     "creatorBadge": "Creator",
-    "playTrack": "Play Track"
+    "playTrack": "Play Track",
+    "page": "Page {page} / {total}"
   },
   "equalizer": {
     "title": "Equalizer",
@@ -818,6 +820,7 @@
       "database": "Database Management",
       "backupReset": "Backup & Reset",
       "debug": "Debug",
+      "comments": "Comments",
       "preset": "OCD Settings",
       "envInfo": "Environment Info"
     },
@@ -874,6 +877,10 @@
     "showSubtitle": {
       "label": "Show Subtitle",
       "description": "Show alias and other subtitle info in song list"
+    },
+    "creatorComments": {
+      "label": "Creator Says",
+      "description": "Show comments from the song's creators; enabling this adds extra API requests and caches creator comments"
     },
     "rememberLastTrack": {
       "label": "Remember Progress",

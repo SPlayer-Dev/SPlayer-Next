@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useMediaStore } from "@/stores/media";
+import { useSettingsStore } from "@/stores/settings";
 import { useMusicComments } from "@/composables/useMusicComments";
 import CommentList from "@/components/comments/CommentList.vue";
 
@@ -15,11 +16,13 @@ const emit = defineEmits<{ close: [] }>();
 
 const { t } = useI18n();
 const media = useMediaStore();
+const settings = useSettingsStore();
 
 const trackRef = computed(() => media.track ?? null);
 const listScrollRef = ref<HTMLElement | null>(null);
 const loadMoreSentinelRef = ref<HTMLElement | null>(null);
-const comments = useMusicComments(trackRef, listScrollRef);
+const creatorEnabled = computed(() => settings.system.comments.creatorEnabled);
+const comments = useMusicComments(trackRef, listScrollRef, creatorEnabled);
 
 const {
   sources,

@@ -63,6 +63,17 @@ const otherCategory: SettingCategory = {
       ],
     },
     {
+      id: "comments",
+      items: [
+        {
+          key: "creatorComments",
+          type: "switch",
+          binding: { store: "settings", path: "system.comments.creatorEnabled" },
+          defaultValue: false,
+        },
+      ],
+    },
+    {
       id: "preset",
       items: [
         {

@@ -135,6 +135,9 @@ export const defaultSystemConfig: SystemConfig = {
     nowPlaying: true,
     loveSync: true,
   },
+  comments: {
+    creatorEnabled: false,
+  },
   externalApi: {
     enabled: false,
     wsEnabled: false,

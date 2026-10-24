@@ -54,12 +54,14 @@ const makeContextKey = (track: Track, source: string): string =>
 /**
  * 歌曲评论数据加载
  * 四个作废层共同保证迟到的响应不会覆盖新的曲目、来源或分页状态
- * @param trackRef - 当前曲目引用，独立页为冻结快照，全屏内嵌为当前播放曲目
+ * @param trackRef - 当前曲目引用，通常为全屏播放器当前播放曲目
  * @param scrollRef - 评论滚动容器
+ * @param creatorEnabled - 是否加载主创说
  */
 export const useMusicComments = (
   trackRef: Ref<Track | null>,
   scrollRef: Ref<HTMLElement | null>,
+  creatorEnabled: Ref<boolean>,
 ) => {
   const { t } = useI18n();
 
@@ -218,7 +220,7 @@ export const useMusicComments = (
   /** 加载主创说评论，仅网易云内建源可用 */
   const loadCreator = async (): Promise<void> => {
     const track = trackRef.value;
-    if (!track || sourceId.value !== NETEASE_SOURCE_ID) {
+    if (!creatorEnabled.value || !track || sourceId.value !== NETEASE_SOURCE_ID) {
       creatorComments.value = [];
       creatorError.value = "";
       return;
@@ -252,7 +254,9 @@ export const useMusicComments = (
   /** 刷新两组评论与主创说 */
   const refresh = async (): Promise<void> => {
     resetPages();
-    await Promise.all([loadPage("hot"), loadPage("new"), loadCreator()]);
+    const requests = [loadPage("hot"), loadPage("new")];
+    if (creatorEnabled.value) requests.push(loadCreator());
+    await Promise.all(requests);
     // 小众歌曲可能没有热门评论，自动落到最新评论避免开局空状态
     if (
       activeTab.value === "hot" &&
@@ -284,6 +288,17 @@ export const useMusicComments = (
   watch(sourceId, (next, previous) => {
     if (!next || !previous || next === previous) return;
     void refresh();
+  });
+
+  watch(creatorEnabled, (enabled) => {
+    if (enabled) {
+      void loadCreator();
+      return;
+    }
+    creatorEpoch += 1;
+    creatorLoading.value = false;
+    creatorComments.value = [];
+    creatorError.value = "";
   });
 
   void loadSources().then(async () => {

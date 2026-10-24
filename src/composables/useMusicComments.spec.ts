@@ -38,9 +38,11 @@ const pageOf = (ids: string[], overrides: Record<string, unknown> = {}) => ({
  * @param trackRef - 曲目引用
  * @returns 作用域内的返回值与销毁函数
  */
-const setup = (trackRef: Ref<Track | null>) => {
+const setup = (trackRef: Ref<Track | null>, creatorEnabled = true) => {
   const scope = effectScope();
-  const result = scope.run(() => useMusicComments(trackRef, ref<HTMLElement | null>(null)))!;
+  const result = scope.run(() =>
+    useMusicComments(trackRef, ref<HTMLElement | null>(null), ref(creatorEnabled)),
+  )!;
   return { ...result, stop: () => scope.stop() };
 };
 
@@ -96,6 +98,15 @@ describe("评论数据层", () => {
     const lastCall = api.get.mock.calls.at(-1)?.[0];
     expect(lastCall?.cursor).toBe("c1");
     expect(lastCall?.page).toBe(2);
+    comments.stop();
+  });
+
+  it("主创说关闭时不请求主创接口", async () => {
+    const trackRef = ref<Track | null>(track("a"));
+    const comments = setup(trackRef, false);
+    await settle();
+    expect(api.creator).not.toHaveBeenCalled();
+    expect(comments.creatorComments.value).toEqual([]);
     comments.stop();
   });
 

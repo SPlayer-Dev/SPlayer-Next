@@ -1,6 +1,7 @@
 import { ipcMain } from "electron";
 import { getCommentSources, getMusicComments } from "@main/services/comments";
 import { getCreatorComments } from "@main/services/comments/creator";
+import { store } from "@main/store";
 import { coreLog } from "@main/utils/logger";
 import type {
   MusicCommentCreatorQuery,
@@ -28,6 +29,7 @@ export const registerCommentsIpc = (): void => {
   ipcMain.handle(
     "comments:creator",
     async (_evt, args: MusicCommentCreatorQuery): Promise<MusicCommentCreatorResponse> => {
+      if (!store.get("comments.creatorEnabled")) return { ok: true, data: [] };
       try {
         return { ok: true, data: await getCreatorComments(args) };
       } catch (err) {
