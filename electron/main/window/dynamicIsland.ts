@@ -4,7 +4,7 @@ import { is } from "@electron-toolkit/utils";
 import { createWindow } from "./create";
 import { store } from "@main/store";
 import { broadcast } from "@main/utils/broadcast";
-import { isMac } from "@main/utils/config";
+import { isLinux, isMac } from "@main/utils/config";
 import { setTrayDynamicIsland } from "@main/services/tray";
 import { isAppQuitting } from "@main/utils/lifecycle";
 import { DYNAMIC_ISLAND_BASE_HEIGHT } from "@shared/defaults/settings";
@@ -360,7 +360,9 @@ export const applyDynamicIslandWidth = (width: number): void => {
 
 const updateDynamicIslandShape = (): void => {
   const win = getDynamicIslandWindow();
-  if (!win || isMac) return;
+  // Linux（含 XWayland）跳过 setShape：X11 Shape 扩展在 XWayland 合成器下会把整个窗口
+  // 渲染 surface 丢弃，导致灵动岛在桌面上完全不可见（issue #75）；原生 Wayland 同样无 shape 概念
+  if (!win || isMac || isLinux) return;
   if (activeShapeWidth === null) {
     win.setShape([]);
     return;
