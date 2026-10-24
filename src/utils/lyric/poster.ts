@@ -157,6 +157,29 @@ export const createLyricPoster = async (options: LyricPosterOptions): Promise<Bl
   const lyricFont = `${fonts.lyric ? `${fonts.lyric}, ` : ""}${globalFont}`;
 
   /**
+   * 获取文本语言，缺少播放器语言信息时按歌词识别规则推断
+   * @param text - 需要识别的歌词文本
+   * @param language - 播放器已识别的语言
+   * @returns 文本语言
+   */
+  const languageForText = (text: string, language?: LyricLanguage): LyricLanguage | undefined => {
+    if (language) return language;
+    const detected: LyricLine[] = [
+      {
+        words: [{ word: text, startTime: 0, endTime: 0 }],
+        translatedLyric: "",
+        romanLyric: "",
+        startTime: 0,
+        endTime: 0,
+        isBG: false,
+        isDuet: false,
+      },
+    ];
+    applyLyricLanguages(detected);
+    return detected[0].language;
+  };
+
+  /**
    * 按文本语言解析字体，保证测量和绘制使用相同字体
    * @param text - 原文、翻译或音译
    * @param style - Canvas 字号与字形
@@ -164,28 +187,14 @@ export const createLyricPoster = async (options: LyricPosterOptions): Promise<Bl
    * @returns 可直接赋给 Canvas 的字体描述
    */
   const fontForText = (text: string, style: string, language?: LyricLanguage): string => {
-    if (!language) {
-      const detected: LyricLine[] = [
-        {
-          words: [{ word: text, startTime: 0, endTime: 0 }],
-          translatedLyric: "",
-          romanLyric: "",
-          startTime: 0,
-          endTime: 0,
-          isBG: false,
-          isDuet: false,
-        },
-      ];
-      applyLyricLanguages(detected);
-      language = detected[0].language;
-    }
-    const family = language
+    const resolvedLanguage = languageForText(text, language);
+    const family = resolvedLanguage
       ? {
           "zh-CN": fonts.chinese,
           ja: fonts.japanese,
           ko: fonts.korean,
           "und-Latn": fonts.latin,
-        }[language]
+        }[resolvedLanguage]
       : undefined;
     return `${style} ${family ? `${family}, ` : ""}${lyricFont}`;
   };
@@ -197,6 +206,8 @@ export const createLyricPoster = async (options: LyricPosterOptions): Promise<Bl
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("无法创建画布上下文");
+  // 当前 DOM 类型尚未声明 Canvas 文本语言属性
+  const textContext = ctx as CanvasRenderingContext2D & { lang: string };
 
   // 字体就绪后再测量，避免首次导出使用回退字体的宽度
   await Promise.all([
@@ -216,16 +227,28 @@ export const createLyricPoster = async (options: LyricPosterOptions): Promise<Bl
 
   // 预折行并量算高度
   const layout = lines.map((line) => {
+    const mainLanguage = languageForText(line.text, line.language);
     const mainFont = fontForText(line.text, "bold 34px", line.language);
     const translationFont = fontForText(line.translation ?? "", "24px");
     const romajiFont = fontForText(line.romaji ?? "", "italic 22px");
+    textContext.lang = mainLanguage ?? "inherit";
     ctx.font = mainFont;
     const main = wrapText(ctx, line.text || " ", CONTENT_WIDTH);
+    textContext.lang = "inherit";
     ctx.font = translationFont;
     const translation = line.translation ? wrapText(ctx, line.translation, CONTENT_WIDTH) : [];
     ctx.font = romajiFont;
     const romaji = line.romaji ? wrapText(ctx, line.romaji, CONTENT_WIDTH) : [];
-    return { main, translation, romaji, mainFont, translationFont, romajiFont, duet: !!line.duet };
+    return {
+      main,
+      translation,
+      romaji,
+      mainFont,
+      translationFont,
+      romajiFont,
+      mainLanguage,
+      duet: !!line.duet,
+    };
   });
 
   let lyricsHeight = 0;
@@ -287,11 +310,13 @@ export const createLyricPoster = async (options: LyricPosterOptions): Promise<Bl
     const textX = block.duet ? WIDTH - PAD_X : PAD_X;
     ctx.textAlign = block.duet ? "right" : "left";
     ctx.fillStyle = "#ffffff";
+    textContext.lang = block.mainLanguage ?? "inherit";
     ctx.font = block.mainFont;
     for (const text of block.main) {
       ctx.fillText(text, textX, y);
       y += LYRIC_LH;
     }
+    textContext.lang = "inherit";
     if (block.translation.length) {
       y += SUBLINE_GAP;
       ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
