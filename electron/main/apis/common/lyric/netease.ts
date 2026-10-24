@@ -15,6 +15,7 @@ import { coreLog } from "@main/utils/logger";
 import type { LyricMatchResult } from "@shared/types/lyrics";
 import type { Track } from "@shared/types/player";
 import { prefetchTTML } from "./ttml";
+import { hasNeteaseLyric } from "./neteaseContent";
 import { buildLyricSearchKeyword, pickBestCandidate, type LyricCandidate } from "./utils";
 
 /** 主歌词：yrc 优先，其次 lrc */
@@ -23,9 +24,9 @@ const pickMain = (
   lrc?: string,
 ): { content: string; format: "yrc" | "lrc" } | undefined => {
   const yrcContent = yrc?.trim();
-  if (yrcContent) return { content: yrcContent, format: "yrc" };
+  if (hasNeteaseLyric(yrcContent)) return { content: yrcContent, format: "yrc" };
   const lrcContent = lrc?.trim();
-  if (lrcContent) return { content: lrcContent, format: "lrc" };
+  if (hasNeteaseLyric(lrcContent)) return { content: lrcContent, format: "lrc" };
   return undefined;
 };
 
@@ -50,9 +51,9 @@ const pickSub = (
 export const getByPlatformId = async (id: string): Promise<LyricMatchResult | null> => {
   // 立刻预热 TTML 抓取
   prefetchTTML("netease", [id]);
-  // 缓存命中直接返回
+  // 旧缓存也可能包含“暂无歌词”占位文本，不能直接返回。
   const cached = getCachedLyric("netease", id);
-  if (cached) {
+  if (cached && hasNeteaseLyric(cached.content)) {
     // 纠正旧版本格式
     if (cached.translationFormat === "yrc") cached.translationFormat = "lrc";
     if (cached.romajiFormat === "yrc") cached.romajiFormat = "lrc";
