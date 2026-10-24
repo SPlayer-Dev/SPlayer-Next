@@ -28,10 +28,13 @@ interface NeteaseComment {
   replyCount?: number;
 }
 
-interface NeteaseCommentBody {
+export interface NeteaseCommentBody {
   total?: number;
   hotComments?: NeteaseComment[];
   comments?: NeteaseComment[];
+  /** legacy 评论端点用顶层 more 表示还有下一页 */
+  more?: boolean;
+  hasMore?: boolean;
   data?: {
     totalCount?: number;
     comments?: NeteaseComment[];
@@ -98,21 +101,31 @@ const toStringId = (value: unknown): string => {
   return "";
 };
 
-const optionalString = (value: unknown): string | undefined => {
+export const optionalString = (value: unknown): string | undefined => {
   if (typeof value !== "string") return undefined;
   const text = value.trim();
   return text || undefined;
 };
 
-/** 转换 NCM 评论项 */
-export const normalizeNeteaseComment = (raw: NeteaseComment): MusicCommentItem | null => {
-  const id = toStringId(raw.commentId ?? raw.beRepliedCommentId);
+/**
+ * 转换 NCM 评论项
+ * @param raw - 原始评论数据
+ * @param fallbackId - 回复项缺少自身 id 时的兜底，避免多条回复共享父 id
+ * @returns 归一化评论，缺少 id 或正文时返回 null
+ */
+export const normalizeNeteaseComment = (
+  raw: NeteaseComment,
+  fallbackId?: { parentId: string; index: number },
+): MusicCommentItem | null => {
+  const id =
+    toStringId(raw.commentId ?? raw.beRepliedCommentId) ||
+    (fallbackId ? `${fallbackId.parentId}_reply_${fallbackId.index}` : "");
   const text = optionalString(raw.content);
   if (!id || !text) return null;
 
   const userId = toStringId(raw.user?.userId);
   const reply = (raw.beReplied ?? [])
-    .map((item) => normalizeNeteaseComment(item))
+    .map((item, index) => normalizeNeteaseComment(item, { parentId: id, index }))
     .filter((item): item is MusicCommentItem => item !== null);
 
   const item: MusicCommentItem = {
@@ -132,7 +145,14 @@ export const normalizeNeteaseComment = (raw: NeteaseComment): MusicCommentItem |
   return item;
 };
 
-/** 转换 NCM 评论分页 */
+/**
+ * 转换 NCM 评论分页
+ * @param body - 原始响应正文
+ * @param type - 评论分类
+ * @param page - 页码
+ * @param limit - 每页数量
+ * @returns 归一化分页，total 缺失时以 0 表示未知
+ */
 export const normalizeNeteaseCommentPage = (
   body: NeteaseCommentBody,
   type: CommentTab,
@@ -146,12 +166,15 @@ export const normalizeNeteaseCommentPage = (
   const list = rawList
     .map((item) => normalizeNeteaseComment(item))
     .filter((item): item is MusicCommentItem => item !== null);
+  // legacy 端点用顶层 more，新端点给出 data.hasMore
+  const hasMore = body.more ?? body.hasMore ?? body.data?.hasMore;
 
   return {
     list,
-    total: body.total ?? body.data?.totalCount ?? list.length,
+    total: body.total ?? body.data?.totalCount ?? 0,
     page,
     limit,
+    ...(typeof hasMore === "boolean" ? { hasMore } : {}),
   };
 };
 
@@ -184,7 +207,13 @@ export const normalizeQQMusicComment = (raw: QQMusicComment): MusicCommentItem |
   return item;
 };
 
-/** 转换 QM 评论分页 */
+/**
+ * 转换 QM 评论分页
+ * @param body - 原始响应正文
+ * @param page - 页码
+ * @param limit - 每页数量
+ * @returns 归一化分页，仍有下一页时保留游标（允许空串）
+ */
 export const normalizeQQMusicCommentPage = (
   body: QQMusicCommentBody,
   page: number,
@@ -193,12 +222,14 @@ export const normalizeQQMusicCommentPage = (
   const list = (body.comments ?? [])
     .map((item) => normalizeQQMusicComment(item))
     .filter((item): item is MusicCommentItem => item !== null);
+  const hasMore = typeof body.hasMore === "boolean" ? body.hasMore : undefined;
   return {
     list,
-    total: body.total ?? list.length,
+    total: body.total ?? 0,
     page,
     limit,
-    ...(body.hasMore && body.nextCursor ? { nextCursor: body.nextCursor } : {}),
+    ...(hasMore === undefined ? {} : { hasMore }),
+    ...(hasMore ? { nextCursor: body.nextCursor ?? "" } : {}),
   };
 };
 
@@ -245,10 +276,36 @@ export const normalizeKugouCommentPage = (
     .filter((item): item is MusicCommentItem => item !== null);
   return {
     list,
-    total: data.count ?? list.length,
+    total: data.count ?? 0,
     page: data.current_page ?? page,
     limit,
   };
+};
+
+/**
+ * 从已归一化的评论中筛出主创评论，主创在粉丝评论下的回复同样计入
+ * @param items - 已归一化的评论列表
+ * @param accountMap - 网易云账号 id → 歌手名
+ * @returns 命中的主创评论，creatorName 为对应歌手名
+ */
+export const scanCreatorComments = (
+  items: MusicCommentItem[],
+  accountMap: Map<string, string>,
+): MusicCommentItem[] => {
+  if (accountMap.size === 0) return [];
+  const result: MusicCommentItem[] = [];
+  const push = (item: MusicCommentItem, userId: string): void => {
+    result.push({ ...item, creatorName: accountMap.get(userId) ?? "" });
+  };
+  for (const item of items) {
+    const userId = item.userId;
+    if (userId && accountMap.has(userId)) push(item, userId);
+    for (const reply of item.reply ?? []) {
+      const replyUserId = reply.userId;
+      if (replyUserId && accountMap.has(replyUserId)) push(reply, replyUserId);
+    }
+  }
+  return result;
 };
 
 /** 构建可用评论源 */
