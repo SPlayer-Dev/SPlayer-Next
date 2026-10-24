@@ -385,6 +385,16 @@ const taskbarLyricSection: SettingSection = {
       binding: { store: "settings", path: "system.taskbarLyric.showTranslation" },
       defaultValue: true,
     },
+    {
+      key: "taskbarLyricProgressPoint",
+      type: "slider",
+      binding: { store: "settings", path: "system.taskbarLyric.progressPoint" },
+      min: 0.1,
+      max: 0.9,
+      step: 0.05,
+      defaultValue: 0.5,
+      marks: { 0.1: "0.1", 0.5: "0.5", 0.9: "0.9" },
+    },
   ],
 };
 

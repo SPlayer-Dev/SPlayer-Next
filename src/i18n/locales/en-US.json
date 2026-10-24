@@ -1537,6 +1537,10 @@
       "label": "Word by Word",
       "description": "Render highlight progress per word"
     },
+    "taskbarLyricProgressPoint": {
+      "label": "Progress Point Position",
+      "description": "Horizontal position of the progress point when the lyric scrolls"
+    },
     "playerBgType": {
       "label": "Player Background",
       "description": "Background type of the full-screen player",

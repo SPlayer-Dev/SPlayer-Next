@@ -28,6 +28,7 @@ const config = reactive<TaskbarLyricSettings>({
   fontSize: 14,
   fontWeight: 400,
   fontFamily: "",
+  progressPoint: 0.5,
 });
 
 const anchor = ref<"left" | "right">("left");
@@ -140,6 +141,7 @@ interface RenderItem {
   role: "primary" | "secondary";
   text: string;
   line?: LyricLine;
+  followPrimary?: boolean;
 }
 
 const items = computed<RenderItem[]>(() => {
@@ -157,7 +159,7 @@ const items = computed<RenderItem[]>(() => {
     if (config.doubleLine) {
       const trans = config.showTranslation ? line.translatedLyric : "";
       if (trans) {
-        list.push({ key: `trans-${idx}`, role: "secondary", text: trans });
+        list.push({ key: `trans-${idx}`, role: "secondary", text: trans, followPrimary: true });
       } else {
         const next = lyric.value[idx + 1];
         if (next) {
@@ -297,6 +299,9 @@ onBeforeUnmount(() => {
               :text="item.text"
               :word-by-word="config.wordByWord && !!item.line"
               :anchor="anchor"
+              :center-ratio="config.progressPoint"
+              :follow-primary="item.followPrimary"
+              :is-primary="item.role === 'primary'"
             />
           </div>
         </TransitionGroup>

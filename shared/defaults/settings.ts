@@ -95,6 +95,7 @@ export const defaultSystemConfig: SystemConfig = {
     fontSize: 14,
     fontWeight: 400,
     fontFamily: "",
+    progressPoint: 0.5,
   },
   lyric: {
     enableOnlineTTMLLyric: false,

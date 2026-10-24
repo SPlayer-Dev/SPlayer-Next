@@ -1537,6 +1537,10 @@
       "label": "逐字高亮",
       "description": "按单词进度逐字渲染高亮"
     },
+    "taskbarLyricProgressPoint": {
+      "label": "进度点位置",
+      "description": "歌词溢出滚动时进度点在窗口中的水平位置"
+    },
     "playerBgType": {
       "label": "播放器背景",
       "description": "全屏播放器的背景类型",
