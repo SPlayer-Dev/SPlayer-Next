@@ -2265,6 +2265,7 @@
     }
   },
   "collection": {
+    "disc": "Disc {disc}",
     "totalDuration": "About {time}",
     "unknownAlbum": "Unknown Album",
     "empty": "No songs",

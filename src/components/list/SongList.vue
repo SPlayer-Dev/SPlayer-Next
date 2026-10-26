@@ -202,9 +202,27 @@ const filteredItems = computed(() => {
   });
 });
 
+/** 默认专辑顺序下按碟片分组，搜索仍保留原专辑的分碟结构 */
+const groupByDisc = computed(
+  () =>
+    props.collectionType === "album" &&
+    (!props.enableSort || sortField.value === "none") &&
+    new Set(props.items.map((track) => track.disc ?? "1")).size > 1,
+);
+
 /** 排序后列表 */
 const sortedItems = computed(() => {
-  if (!props.enableSort || sortField.value === "none") return filteredItems.value;
+  if (!props.enableSort || sortField.value === "none") {
+    if (!groupByDisc.value) return filteredItems.value;
+    const discs = new Map<string, Track[]>();
+    for (const track of filteredItems.value) {
+      const disc = track.disc ?? "1";
+      const tracks = discs.get(disc);
+      if (tracks) tracks.push(track);
+      else discs.set(disc, [track]);
+    }
+    return [...discs.values()].flat();
+  }
   const result = [...filteredItems.value];
   const field = sortField.value;
   const direction = sortOrder.value === "asc" ? 1 : -1;
@@ -234,10 +252,34 @@ const sortedItems = computed(() => {
   return result;
 });
 
-/** 当前播放歌曲在过滤后列表中的索引 */
+type SongListRow =
+  | { kind: "disc"; key: string; disc: string; count: number }
+  | { kind: "track"; key: string; track: Track; index: number };
+
+/** 分碟标题参与虚拟滚动，歌曲索引始终对应实际播放队列 */
+const listRows = computed<SongListRow[]>(() => {
+  const rows: SongListRow[] = [];
+  let header: Extract<SongListRow, { kind: "disc" }> | undefined;
+  sortedItems.value.forEach((track, index) => {
+    if (groupByDisc.value) {
+      const disc = track.disc ?? "1";
+      if (header?.disc !== disc) {
+        header = { kind: "disc", key: `disc:${disc}`, disc, count: 0 };
+        rows.push(header);
+      }
+      header.count++;
+    }
+    rows.push({ kind: "track", key: `track:${track.id}`, track, index });
+  });
+  return rows;
+});
+
+/** 当前播放歌曲在虚拟列表中的索引 */
 const playingIndex = computed(() => {
   if (!playingId.value) return -1;
-  return sortedItems.value.findIndex((track) => track.id === playingId.value);
+  return listRows.value.findIndex(
+    (row) => row.kind === "track" && row.track.id === playingId.value,
+  );
 });
 
 /** 虚拟列表引用 */
@@ -272,6 +314,14 @@ const { deleteConfirmOpen, deleteDialogTitle, deleteDialogContent } = batch;
 
 /** 是否使用紧凑列表样式 */
 const isCompactList = computed(() => settings.appearance.songListStyle === "compact");
+
+/**
+ * 为分碟标题和歌曲提供精确行高
+ * @param row - 虚拟列表行
+ * @returns 行高，单位为像素
+ */
+const getRowHeight = (row: SongListRow): number =>
+  row.kind === "disc" ? 40 : isCompactList.value ? 56 : 88;
 
 /**
  * 计算歌曲行样式
@@ -417,10 +467,11 @@ defineExpose({
       </template>
       <SVirtualList
         ref="virtualListRef"
-        :items="sortedItems"
+        :items="listRows"
         :item-height="isCompactList ? 56 : 88"
+        :get-item-height="groupByDisc ? getRowHeight : undefined"
         :padding-bottom="isFloatingPlayerBar ? PLAYER_BAR_GAP : 80"
-        :get-item-key="(item: Track) => item.id"
+        :get-item-key="(row: SongListRow) => row.key"
         item-fixed
         height="100%"
         @scroll="onScroll"
@@ -617,14 +668,31 @@ defineExpose({
           </div>
         </template>
         <!-- 列表项 -->
-        <template #default="{ item, index }: { item: Track; index: number }">
-          <div :class="isCompactList ? 'px-3' : 'px-3 pb-3'">
+        <template #default="{ item: row, index }: { item: SongListRow; index: number }">
+          <div
+            v-if="row.kind === 'disc'"
+            data-disc-header
+            class="mx-6 h-10 flex items-center gap-3 text-on-surface-variant"
+            :class="!isCompactList && index > 0 ? 'pb-3' : ''"
+          >
+            <IconLucideDisc3
+              class="size-4 translate-y-px shrink-0 text-primary/70"
+              aria-hidden="true"
+            />
+            <h2 class="min-w-0 flex-1 truncate text-sm font-semibold" :title="row.disc">
+              {{ t("collection.disc", { disc: row.disc }) }}
+            </h2>
+            <span class="shrink-0 text-xs tabular-nums text-on-surface-variant/50">
+              {{ t("common.totalSongs", { count: row.count }) }}
+            </span>
+          </div>
+          <div v-else :class="isCompactList ? 'px-3' : 'px-3 pb-3'">
             <div
               data-song-item
-              :class="trackRowClass(item)"
-              @click="batch.active.value ? batch.toggle(item.id) : undefined"
-              @dblclick="onTrackDblClick(item, index)"
-              @contextmenu="contextTrack = item"
+              :class="trackRowClass(row.track)"
+              @click="batch.active.value ? batch.toggle(row.track.id) : undefined"
+              @dblclick="onTrackDblClick(row.track, row.index)"
+              @contextmenu="contextTrack = row.track"
             >
               <!-- 序号 / 多选 -->
               <div
@@ -633,28 +701,28 @@ defineExpose({
                 :class="
                   batch.active.value
                     ? ''
-                    : playingId === item.id
+                    : playingId === row.track.id
                       ? 'text-primary'
                       : 'text-on-surface-variant'
                 "
-                @click.stop="onPlayClick(item, index)"
+                @click.stop="onPlayClick(row.track, row.index)"
               >
                 <!-- 多选模式 -->
                 <SCheckbox
                   v-if="batch.active.value"
-                  :checked="batch.selectedIds.value.has(item.id)"
+                  :checked="batch.selectedIds.value.has(row.track.id)"
                   size="small"
-                  @update:checked="batch.toggle(item.id)"
+                  @update:checked="batch.toggle(row.track.id)"
                   @click.stop
                 />
                 <!-- 普通模式 -->
                 <template v-else>
                   <span
-                    v-if="playingId !== item.id"
+                    v-if="playingId !== row.track.id"
                     class="font-bold tabular-nums group-hover:opacity-0 transition-opacity duration-300"
                     :class="isCompactList ? 'text-xs' : 'text-sm'"
                   >
-                    {{ index + 1 }}
+                    {{ groupByDisc ? (row.track.track ?? row.index + 1) : row.index + 1 }}
                   </span>
                   <IconLucideMusic
                     v-else
@@ -664,7 +732,7 @@ defineExpose({
                     class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-[opacity,transform] duration-300 group-hover:scale-100 scale-80 cursor-pointer"
                   >
                     <IconLucidePause
-                      v-if="playingId === item.id && status.isPlaying"
+                      v-if="playingId === row.track.id && status.isPlaying"
                       class="size-5"
                     />
                     <IconLucidePlay v-else class="size-5" />
@@ -674,7 +742,7 @@ defineExpose({
               <!-- 信息 -->
               <div class="flex-1 min-w-0 flex items-center gap-3">
                 <SImg
-                  :src="item.cover"
+                  :src="row.track.cover"
                   :class="['shrink-0', isCompactList ? 'size-9 rounded-md' : 'size-12 rounded-lg']"
                 />
                 <div class="flex-1 min-w-0">
@@ -683,37 +751,41 @@ defineExpose({
                       :class="[
                         'font-medium truncate',
                         isCompactList ? 'text-sm' : 'text-base',
-                        playingId === item.id ? 'text-primary' : '',
+                        playingId === row.track.id ? 'text-primary' : '',
                       ]"
                     >
-                      {{ item.title }}
+                      {{ row.track.title }}
                     </span>
                     <IconLucideCloud
-                      v-if="item.cloud"
+                      v-if="row.track.cloud"
                       class="size-3.5 shrink-0 self-center"
                       :class="
-                        playingId === item.id ? 'text-primary/60' : 'text-on-surface-variant/60'
+                        playingId === row.track.id
+                          ? 'text-primary/60'
+                          : 'text-on-surface-variant/60'
                       "
                     />
                     <span
-                      v-if="item.comment && settings.preset.showSubtitle"
+                      v-if="row.track.comment && settings.preset.showSubtitle"
                       class="flex-1 min-w-0 text-base truncate"
                       :class="
-                        playingId === item.id ? 'text-primary/60' : 'text-on-surface-variant/60'
+                        playingId === row.track.id
+                          ? 'text-primary/60'
+                          : 'text-on-surface-variant/60'
                       "
                     >
-                      ({{ item.comment }})
+                      ({{ row.track.comment }})
                     </span>
                   </div>
                   <div
                     :class="[
                       'truncate flex items-center gap-1',
                       isCompactList ? 'text-xs mt-0.5' : 'text-sm mt-1',
-                      playingId === item.id ? 'text-primary/70' : 'text-on-surface-variant',
+                      playingId === row.track.id ? 'text-primary/70' : 'text-on-surface-variant',
                     ]"
                   >
                     <STag
-                      v-if="downloadStore.isDownloaded(item)"
+                      v-if="downloadStore.isDownloaded(row.track)"
                       type="primary"
                       variant="soft"
                       size="tiny"
@@ -723,16 +795,16 @@ defineExpose({
                       <IconLucideCheck class="size-3" aria-hidden="true" />
                     </STag>
                     <STag
-                      v-if="item.quality && !settings.preset.hideQualityTag"
-                      :type="isLosslessQuality(item.quality) ? 'warning' : 'default'"
+                      v-if="row.track.quality && !settings.preset.hideQualityTag"
+                      :type="isLosslessQuality(row.track.quality) ? 'warning' : 'default'"
                       variant="outline"
                       size="tiny"
                       class="shrink-0"
                     >
-                      {{ getQualityLabel(item.quality) }}
+                      {{ getQualityLabel(row.track.quality) }}
                     </STag>
                     <STag
-                      v-if="item.fee === 1 && !settings.preset.hideVipTag"
+                      v-if="row.track.fee === 1 && !settings.preset.hideVipTag"
                       type="error"
                       variant="outline"
                       size="tiny"
@@ -741,7 +813,7 @@ defineExpose({
                       VIP
                     </STag>
                     <STag
-                      v-else-if="item.fee === 4 && !settings.preset.hideVipTag"
+                      v-else-if="row.track.fee === 4 && !settings.preset.hideVipTag"
                       type="error"
                       variant="outline"
                       size="tiny"
@@ -750,21 +822,23 @@ defineExpose({
                       EP
                     </STag>
                     <span class="truncate">
-                      <template v-for="(artist, i) in item.artists" :key="artist.id ?? i">
+                      <template v-for="(artist, i) in row.track.artists" :key="artist.id ?? i">
                         <span
                           class="transition-opacity"
                           :class="
-                            isArtistLinkable(item, artist)
+                            isArtistLinkable(row.track, artist)
                               ? 'cursor-pointer hover:opacity-70'
                               : 'opacity-50'
                           "
-                          @click.stop="goArtist(item, artist)"
+                          @click.stop="goArtist(row.track, artist)"
                         >
                           {{ artist.name }}
                         </span>
-                        <span v-if="i < item.artists.length - 1" class="mx-0.5 opacity-50">/</span>
+                        <span v-if="i < row.track.artists.length - 1" class="mx-0.5 opacity-50">
+                          /
+                        </span>
                       </template>
-                      <span v-if="!item.artists?.length" class="opacity-50">
+                      <span v-if="!row.track.artists?.length" class="opacity-50">
                         {{ t("playlist.unknownArtist") }}
                       </span>
                     </span>
@@ -775,19 +849,21 @@ defineExpose({
               <div
                 v-if="showAlbum"
                 class="flex-1 min-w-0 truncate text-sm"
-                :class="playingId === item.id ? 'text-primary/70' : 'text-on-surface'"
+                :class="playingId === row.track.id ? 'text-primary/70' : 'text-on-surface'"
               >
                 <span
                   class="transition-opacity"
-                  :class="isAlbumLinkable(item) ? 'cursor-pointer hover:opacity-70' : 'opacity-50'"
-                  @click.stop="goAlbum(item)"
+                  :class="
+                    isAlbumLinkable(row.track) ? 'cursor-pointer hover:opacity-70' : 'opacity-50'
+                  "
+                  @click.stop="goAlbum(row.track)"
                 >
-                  {{ item.album?.name || t("collection.unknownAlbum") }}
+                  {{ row.track.album?.name || t("collection.unknownAlbum") }}
                 </span>
               </div>
               <!-- 收藏 -->
               <div
-                v-if="!batch.active.value && item.source !== 'plugin'"
+                v-if="!batch.active.value && row.track.source !== 'plugin'"
                 class="w-12 shrink-0 flex items-center justify-center"
                 @click.stop
               >
@@ -797,11 +873,11 @@ defineExpose({
                   circle
                   :size="28"
                   :icon-size="20"
-                  :disabled="!fav.isSupported(item)"
-                  @click="fav.toggle(item)"
+                  :disabled="!fav.isSupported(row.track)"
+                  @click="fav.toggle(row.track)"
                 >
                   <template #icon>
-                    <SIconSwap :active="fav.isLiked(item)">
+                    <SIconSwap :active="fav.isLiked(row.track)">
                       <template #on><IconMaterialSymbolsFavoriteRounded /></template>
                       <template #off><IconMaterialSymbolsFavoriteOutlineRounded /></template>
                     </SIconSwap>
@@ -813,17 +889,17 @@ defineExpose({
               <div
                 v-if="showDuration"
                 class="w-16 shrink-0 text-center text-sm tabular-nums"
-                :class="playingId === item.id ? 'text-primary/60' : 'text-on-surface-variant'"
+                :class="playingId === row.track.id ? 'text-primary/60' : 'text-on-surface-variant'"
               >
-                {{ formatTime(item.duration) }}
+                {{ formatTime(row.track.duration) }}
               </div>
               <!-- 文件大小 -->
               <div
                 v-if="showSize"
                 class="w-16 shrink-0 text-center text-sm tabular-nums"
-                :class="playingId === item.id ? 'text-primary/60' : 'text-on-surface-variant'"
+                :class="playingId === row.track.id ? 'text-primary/60' : 'text-on-surface-variant'"
               >
-                {{ item.fileSize ? formatFileSize(item.fileSize) : "" }}
+                {{ row.track.fileSize ? formatFileSize(row.track.fileSize) : "" }}
               </div>
             </div>
           </div>

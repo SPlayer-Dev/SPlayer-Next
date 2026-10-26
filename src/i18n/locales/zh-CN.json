@@ -2265,6 +2265,7 @@
     }
   },
   "collection": {
+    "disc": "Disc {disc}",
     "totalDuration": "约 {time}",
     "unknownAlbum": "未知专辑",
     "empty": "暂无歌曲",

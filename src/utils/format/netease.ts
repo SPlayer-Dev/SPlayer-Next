@@ -89,6 +89,8 @@ export const songToTrack = (song: NeteaseSong): Track => {
       .filter((artist) => artist.name?.trim())
       .map((artist) => ({ id: String(artist.id), name: artist.name.trim() })),
     album: album ? { id: String(album.id), name: album.name, cover } : undefined,
+    disc: song.cd?.trim() || undefined,
+    track: song.no && song.no > 0 ? song.no : undefined,
     duration: song.dt ?? song.duration ?? 0,
     cover,
     coverOriginal,

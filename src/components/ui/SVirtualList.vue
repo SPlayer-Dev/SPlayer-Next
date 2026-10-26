@@ -19,6 +19,8 @@ export interface SVirtualListProps<T> {
   itemHeight: number;
   /** 定高模式（跳过 DOM 测量，性能更佳） */
   itemFixed?: boolean;
+  /** 按数据提供精确行高，跳过 DOM 测量 */
+  getItemHeight?: (item: T, index: number) => number;
   /** 容器高度，支持 CSS 值 */
   height?: number | string;
   /** 顶部内边距（px） */
@@ -67,24 +69,32 @@ const containerHeightStyle = computed(() =>
 
 const viewportHeight = computed(() => scrollViewportHeight.value || 0);
 
+/** 全部行等高时直接按索引计算位置 */
+const uniformHeight = computed(() => props.itemFixed && !props.getItemHeight);
+
 // 每项实际高度、累积顶部位置（仅动态高度模式）
 const itemHeights = shallowRef<number[]>([]);
 const itemTops = shallowRef<number[]>([]);
 
-/** 初始化高度数组，复用已测量的值 */
+/** 初始化精确行高或复用已测量的行高 */
 const initializeHeights = (): void => {
-  if (props.itemFixed) return;
+  if (uniformHeight.value) return;
   const length = props.items.length;
-  if (itemHeights.value.length !== length) {
+  if (props.getItemHeight) {
+    itemHeights.value = props.items.map(props.getItemHeight);
+  } else if (itemHeights.value.length !== length) {
     const old = itemHeights.value;
     itemHeights.value = Array.from({ length }, (_, idx) => old[idx] || props.itemHeight);
   }
   updateTops();
 };
 
-/** 从指定索引开始重算累积位置 */
+/**
+ * 从指定索引开始重算累积位置
+ * @param fromIndex - 开始重算的行索引
+ */
 const updateTops = (fromIndex = 0): void => {
-  if (props.itemFixed) return;
+  if (uniformHeight.value) return;
   const heights = itemHeights.value;
   const tops =
     itemTops.value.length === heights.length ? itemTops.value : new Array<number>(heights.length);
@@ -97,7 +107,7 @@ const updateTops = (fromIndex = 0): void => {
 };
 
 const totalHeight = computed(() => {
-  if (props.itemFixed) {
+  if (uniformHeight.value) {
     return props.items.length * props.itemHeight + props.paddingTop;
   }
   if (itemTops.value.length === 0) return props.paddingTop;
@@ -108,7 +118,10 @@ const totalHeight = computed(() => {
 const actualStartIndex = ref(0);
 const actualEndIndex = ref(0);
 
-/** 根据滚动位置计算可见范围，动态高度使用二分查找 */
+/**
+ * 根据滚动位置计算可见范围，不等高行使用二分查找
+ * @param currentScrollTop - 当前滚动偏移，单位为像素
+ */
 const calculateVisibleRange = (currentScrollTop: number): void => {
   if (props.items.length === 0) {
     actualStartIndex.value = 0;
@@ -124,7 +137,7 @@ const calculateVisibleRange = (currentScrollTop: number): void => {
   let startIndex = 0;
   let endIndex = 0;
 
-  if (props.itemFixed) {
+  if (uniformHeight.value) {
     startIndex = Math.floor(effectiveScroll / props.itemHeight);
     endIndex = startIndex + Math.ceil(vHeight / props.itemHeight);
   } else {
@@ -174,7 +187,8 @@ const visibleItems = computed(() => {
 
 /** 测量可见项的真实 DOM 高度，允许 0.5px 误差 */
 const measureItemHeights = (): void => {
-  if (props.itemFixed || !itemRefs.value.length || props.items.length === 0) return;
+  if (props.itemFixed || props.getItemHeight || !itemRefs.value.length || props.items.length === 0)
+    return;
   let hasChanges = false;
   itemRefs.value.forEach((element) => {
     if (!element) return;
@@ -221,19 +235,27 @@ const handleScroll = (event: Event): void => {
   }
 };
 
-/** 获取指定索引项的顶部偏移（含 paddingTop） */
+/**
+ * 获取指定行的顶部偏移
+ * @param index - 行索引
+ * @returns 包含顶部内边距的像素偏移
+ */
 const getItemTop = (index: number): number => {
-  if (props.itemFixed) return index * props.itemHeight + props.paddingTop;
+  if (uniformHeight.value) return index * props.itemHeight + props.paddingTop;
   return (itemTops.value[index] || 0) + props.paddingTop;
 };
 
-/** 根据 Y 轴偏移量计算放置位置（供拖拽排序使用） */
+/**
+ * 根据纵向偏移计算拖拽放置位置
+ * @param offsetY - 相对列表顶部的像素偏移
+ * @returns 命中的行索引及放置方向
+ */
 const getDropInfoByOffset = (offsetY: number): { index: number; position: "top" | "bottom" } => {
   const len = props.items.length;
   if (len === 0) return { index: 0, position: "top" };
   // 扣掉 paddingTop，落到 itemTops 坐标系
   const adjusted = offsetY - props.paddingTop;
-  if (props.itemFixed) {
+  if (uniformHeight.value) {
     const index = Math.floor(adjusted / props.itemHeight);
     const remainder = ((adjusted % props.itemHeight) + props.itemHeight) % props.itemHeight;
     const position = remainder < props.itemHeight / 2 ? "top" : "bottom";
@@ -267,12 +289,16 @@ const scrollToPosition = (top: number, behavior: ScrollBehavior = "auto"): void 
   scrollRef.value?.scrollTo({ top, behavior });
 };
 
-/** 滚动到指定索引项 */
+/**
+ * 滚动到指定行
+ * @param index - 目标行索引
+ * @param behavior - 浏览器滚动方式
+ */
 const scrollToIndex = (index: number, behavior: ScrollBehavior = "auto"): void => {
   if (props.items.length === 0) return;
   const targetIndex = Math.max(0, Math.min(index, props.items.length - 1));
   let top = 0;
-  if (props.itemFixed) {
+  if (uniformHeight.value) {
     top = targetIndex * props.itemHeight;
   } else {
     if (itemTops.value.length <= targetIndex) initializeHeights();
@@ -285,7 +311,7 @@ const scrollToIndex = (index: number, behavior: ScrollBehavior = "auto"): void =
 const getScrollTop = (): number => scrollTop.value;
 
 watch(
-  () => props.items,
+  () => [props.items, props.itemHeight, props.itemFixed, props.getItemHeight],
   () => {
     initializeHeights();
     calculateVisibleRange(scrollTop.value);
@@ -309,7 +335,7 @@ watch(viewportHeight, () => {
 watch(
   () => [actualStartIndex.value, actualEndIndex.value],
   () => {
-    if (!props.itemFixed) nextTick(debouncedMeasure);
+    if (!props.itemFixed && !props.getItemHeight) nextTick(debouncedMeasure);
   },
   { flush: "post" },
 );
@@ -319,7 +345,7 @@ onMounted(() => {
   calculateVisibleRange(0);
   if (props.defaultScrollIndex) scrollToIndex(props.defaultScrollIndex);
   nextTick(() => {
-    if (!props.itemFixed) measureItemHeights();
+    if (!props.itemFixed && !props.getItemHeight) measureItemHeights();
     // 重新计算
     if (viewportHeight.value > 0) calculateVisibleRange(scrollTop.value);
   });

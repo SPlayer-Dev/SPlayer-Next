@@ -29,3 +29,30 @@ describe("NCM歌曲歌手格式化", () => {
     });
   });
 });
+
+describe("NCM 专辑分碟信息", () => {
+  it("保留碟片完整名称和平台曲序", () => {
+    expect(
+      songToTrack({
+        id: 1970550394,
+        name: "GLORIA",
+        cd: " 2 天堂的回信 Letters from Heaven ",
+        no: 8,
+      }),
+    ).toMatchObject({
+      disc: "2 天堂的回信 Letters from Heaven",
+      track: 8,
+    });
+  });
+
+  it("缺失或空白碟号保持未指定，无效曲序不作为零号显示", () => {
+    expect(songToTrack({ id: 1, name: "单曲", cd: " ", no: 0 })).toMatchObject({
+      disc: undefined,
+      track: undefined,
+    });
+    expect(songToTrack({ id: 2, name: "旧接口歌曲" })).toMatchObject({
+      disc: undefined,
+      track: undefined,
+    });
+  });
+});
