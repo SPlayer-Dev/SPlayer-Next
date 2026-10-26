@@ -12,6 +12,7 @@ use crate::dsp::fft::FftAnalyzer;
 pub const TRANSITION_DECISION_QUIET: u8 = 1;
 const TRANSITION_DECISION_DEADLINE: u8 = 2;
 const TRANSITION_DECISION_SOURCE_END: u8 = 3;
+pub const TRANSITION_CANCELLED: u8 = 4;
 
 /// 混音后的柔性峰值保护，避免两首相关音频在等功率曲线中硬削波
 fn soft_ceiling(sample: f32) -> f32 {
@@ -26,11 +27,7 @@ fn soft_ceiling(sample: f32) -> f32 {
 struct TransitionCommand {
     next: Box<DecoderSampleReader>,
     intro_frame: Vec<f32>,
-    earliest_sample: u64,
-    latest_sample: u64,
-    fade_samples: u64,
-    quiet_threshold_sq: f32,
-    quiet_windows_required: u8,
+    plan: Option<TransitionPlan>,
     started: Arc<AtomicBool>,
     completed: Arc<AtomicBool>,
     decision: Arc<AtomicU8>,
@@ -87,9 +84,19 @@ impl TransitionControl {
     }
     /// 将已就绪的下一曲提交到实时输出回调
     /// @param shared - 下一曲的 PCM 缓冲
-    /// @param plan - 输出帧、能量阈值及持续窗口构成的交接计划
+    /// @param plan - 交叉淡化计划，省略时原样接续下一曲 PCM
     /// @returns 回调开始和完成交接时置位的状态
-    pub fn queue(&self, shared: Arc<Shared>, plan: TransitionPlan) -> Result<TransitionSignals> {
+    pub fn queue(
+        &self,
+        shared: Arc<Shared>,
+        plan: Option<TransitionPlan>,
+    ) -> Result<TransitionSignals> {
+        if let Some(previous) = self.commands.pop() {
+            if previous.decision.load(Ordering::Acquire) != TRANSITION_CANCELLED {
+                let _ = self.commands.push(previous);
+                return Err(anyhow!("已有播放过渡正在等待提交"));
+            }
+        }
         let started = Arc::new(AtomicBool::new(false));
         let completed = Arc::new(AtomicBool::new(false));
         let decision = Arc::new(AtomicU8::new(0));
@@ -97,11 +104,10 @@ impl TransitionControl {
         let command = TransitionCommand {
             intro_frame: vec![0.0; shared.channels() as usize],
             next: Box::new(DecoderSampleReader::new(shared)),
-            earliest_sample: plan.earliest_sample,
-            latest_sample: plan.latest_sample,
-            fade_samples: plan.fade_samples.max(1),
-            quiet_threshold_sq: plan.quiet_threshold * plan.quiet_threshold,
-            quiet_windows_required: plan.quiet_windows_required,
+            plan: plan.map(|mut plan| {
+                plan.fade_samples = plan.fade_samples.max(1);
+                plan
+            }),
             started: Arc::clone(&started),
             completed: Arc::clone(&completed),
             decision: Arc::clone(&decision),
@@ -140,6 +146,10 @@ pub struct TransitionSource {
 }
 
 impl TransitionSource {
+    /// 创建可在同一输出流接续备用 PCM 的音源
+    /// @param shared - 当前曲的 PCM 缓冲
+    /// @param fft - 输出频谱分析器
+    /// @returns 可供设备回调读取的音源
     pub fn new(shared: Arc<Shared>, fft: Arc<FftAnalyzer>) -> Self {
         let channels = u64::from(shared.channels());
         let energy_window_samples = (u64::from(shared.sample_rate()) / 20).max(1) * channels;
@@ -158,7 +168,7 @@ impl TransitionSource {
             control: TransitionControl {
                 speed_ratio: Arc::new(AtomicU32::new(1.0_f32.to_bits())),
                 commands: Arc::new(ArrayQueue::new(1)),
-                retired: Arc::new(ArrayQueue::new(1)),
+                retired: Arc::new(ArrayQueue::new(2)),
             },
             channels,
             energy_window_samples,
@@ -186,6 +196,7 @@ impl TransitionSource {
         }
     }
 
+    /// 将旧音源交给控制线程回收，并发布接续完成状态
     fn finish_transition(&mut self) {
         let Some(mut transition) = self.transition.take() else {
             return;
@@ -201,6 +212,7 @@ impl TransitionSource {
 }
 
 impl TransitionSource {
+    /// 从当前曲逐样本取数，在同一回调内接续预载 PCM 或执行交叉淡化
     fn next_sample(&mut self) -> Option<f32> {
         if self.transition.is_none() {
             if let Some(command) = self.control.commands.pop() {
@@ -227,10 +239,43 @@ impl TransitionSource {
             }
         }
 
+        if self.transition.as_ref().is_some_and(|transition| {
+            transition.command.decision.load(Ordering::Acquire) == TRANSITION_CANCELLED
+        }) {
+            let cancelled = self.transition.take().unwrap();
+            let _ = self.control.retired.push(RetiredSource {
+                _reader: cancelled.command.next,
+                _intro_frame: cancelled.command.intro_frame,
+            });
+        }
         let Some(transition) = &mut self.transition else {
             return self.active.next();
         };
         let a = self.active.next();
+        let Some(plan) = &transition.command.plan else {
+            if a.is_some() {
+                return a;
+            }
+            if self.active.is_decode_failed() {
+                transition
+                    .command
+                    .decision
+                    .store(TRANSITION_CANCELLED, Ordering::Release);
+                return None;
+            }
+            transition
+                .command
+                .decision
+                .compare_exchange(
+                    0,
+                    TRANSITION_DECISION_SOURCE_END,
+                    Ordering::AcqRel,
+                    Ordering::Acquire,
+                )
+                .ok()?;
+            self.finish_transition();
+            return self.active.next();
+        };
         transition.elapsed = transition.elapsed.saturating_add(1);
         transition.timeline_elapsed += self.speed_ratio;
         let frame_start = (transition.elapsed - 1) % self.channels == 0;
@@ -253,11 +298,11 @@ impl TransitionSource {
                 transition.intro_scanned += self.channels;
                 let intro_limit = self
                     .max_intro_samples
-                    .min(transition.command.latest_sample.max(self.channels));
+                    .min(plan.latest_sample.max(self.channels));
                 transition.intro_done = audible || transition.intro_scanned >= intro_limit;
             }
         }
-        if transition.timeline_elapsed < transition.command.earliest_sample as f64 {
+        if transition.timeline_elapsed < plan.earliest_sample as f64 {
             return a;
         }
 
@@ -271,7 +316,8 @@ impl TransitionSource {
             transition.energy_samples += 1;
             if transition.energy_samples >= self.energy_window_samples {
                 if transition.energy_sum
-                    < transition.command.quiet_threshold_sq * transition.energy_samples as f32
+                    < (plan.quiet_threshold * plan.quiet_threshold)
+                        * transition.energy_samples as f32
                 {
                     transition.quiet_windows = transition.quiet_windows.saturating_add(1);
                 } else {
@@ -281,11 +327,11 @@ impl TransitionSource {
                 transition.energy_samples = 0;
             }
         }
-        let quiet_found = transition.quiet_windows >= transition.command.quiet_windows_required;
+        let quiet_found = transition.quiet_windows >= plan.quiet_windows_required;
         let start = transition.faded > 0
             || (frame_start
                 && (quiet_found
-                    || transition.timeline_elapsed >= transition.command.latest_sample as f64
+                    || transition.timeline_elapsed >= plan.latest_sample as f64
                     || a.is_none()));
         if !start || !transition.intro_done {
             return a;
@@ -314,9 +360,7 @@ impl TransitionSource {
             return Some(b);
         }
         if transition.faded == 0 {
-            let reason = if transition.timeline_elapsed < transition.command.latest_sample as f64
-                && quiet_found
-            {
+            let reason = if transition.timeline_elapsed < plan.latest_sample as f64 && quiet_found {
                 TRANSITION_DECISION_QUIET
             } else {
                 TRANSITION_DECISION_DEADLINE
@@ -325,14 +369,13 @@ impl TransitionSource {
             transition.command.started.store(true, Ordering::Release);
         }
         if transition.faded % self.channels == 0 {
-            let progress =
-                (transition.fade_progress / transition.command.fade_samples as f64).min(1.0) as f32;
+            let progress = (transition.fade_progress / plan.fade_samples as f64).min(1.0) as f32;
             (transition.gain_b, transition.gain_a) = (progress * FRAC_PI_2).sin_cos();
         }
         let mixed = sample * transition.gain_a + b * transition.gain_b;
         transition.faded += 1;
         transition.fade_progress += self.speed_ratio;
-        if transition.fade_progress >= transition.command.fade_samples as f64
+        if transition.fade_progress >= plan.fade_samples as f64
             && transition.faded % self.channels == 0
         {
             self.finish_transition();

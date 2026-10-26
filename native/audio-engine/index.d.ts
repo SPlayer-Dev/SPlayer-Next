@@ -143,16 +143,16 @@ export declare class AudioPlayer {
    */
   analyzeTail(startSeconds: number, endSeconds: number): Promise<number | null>
   /**
-   * 在当前输出流中交叉切换到已准备的下一曲
+   * 在当前输出流中接续已准备的下一曲，指定偏好时进行交叉淡化
    * @param id - 预载槽位标识
    * @param source - 预载音源路径
    * @param remainingSeconds - 当前曲目距离有效结束的墙钟秒数
-   * @param preference - 曲尾交接时机与淡化时长偏好
+   * @param preference - 淡化偏好，省略时原样接续 PCM
    * @param nextEndSeconds - 下一曲的 CUE 结束位置
    * @param currentEndSeconds - 当前曲目的 CUE 结束位置
    * @returns 成功交接时返回下一曲元信息，槽位失效时返回空值
    */
-  transitionToPrepared(id: string, source: string, remainingSeconds: number, preference: string, nextEndSeconds?: number | undefined | null, currentEndSeconds?: number | undefined | null): Promise<JsMusicMetadata | null>
+  transitionToPrepared(id: string, source: string, remainingSeconds: number, preference?: string | undefined | null, nextEndSeconds?: number | undefined | null, currentEndSeconds?: number | undefined | null): Promise<JsMusicMetadata | null>
   /** 创建新的播放器实例 */
   constructor()
 }

@@ -400,7 +400,7 @@ export const registerPlayerIpc = (): void => {
       id: string,
       source: string,
       remainingMs: number,
-      preference: TransitionPreference,
+      preference: TransitionPreference | null,
       options: LoadOptions = {},
     ) => {
       const seq = loadSeq;
@@ -411,15 +411,16 @@ export const registerPlayerIpc = (): void => {
             ? await streamingPlayback.prepareStreamingPlayback(options.meta, source)
             : undefined;
         if (seq !== loadSeq || current !== getPlayer()) return { success: false };
-        playerLog.info("开始寻找曲尾交接点", {
+        playerLog.info(preference ? "开始寻找曲尾交接点" : "已排入下一曲 PCM，等待自然结尾", {
           to: options.meta?.title,
           preference,
           remainingMs: Math.round(remainingMs),
         });
+        const cueEndMs = activeCueRange
+          ? activeCueRange.startMs + activeCueRange.durationMs
+          : undefined;
         const endMs = getTransitionEndMs(
-          activeCueRange
-            ? activeCueRange.startMs + activeCueRange.durationMs
-            : toMs(current.getDuration()),
+          cueEndMs ?? toMs(current.getDuration()),
           toMs(current.getPosition()),
           current.getSpeed(),
         );
@@ -431,11 +432,11 @@ export const registerPlayerIpc = (): void => {
           remainingSeconds,
           preference,
           options.meta?.cueEndMs == null ? undefined : options.meta.cueEndMs / 1000,
-          endMs / 1000,
+          preference ? endMs / 1000 : cueEndMs != null ? cueEndMs / 1000 : undefined,
         );
         if (seq !== loadSeq || current !== getPlayer()) return { success: false };
         if (!meta) {
-          playerLog.info("交叉过渡未启动，等待正常切歌");
+          playerLog.info("预载接续未启动或已取消，沿用当前播放");
           return { success: false };
         }
         activeCueRange = cueRangeFromTrack(options.meta);

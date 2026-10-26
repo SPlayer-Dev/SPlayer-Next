@@ -96,7 +96,7 @@ const api = {
      * @param id - 预载槽位标识
      * @param source - 下一曲缓存音源路径
      * @param remainingMs - 当前曲目剩余的墙钟时间
-     * @param preference - 曲尾交接时机与淡化时长偏好
+     * @param preference - 淡化偏好，null 表示原样接续预载 PCM
      * @param options - 下一曲的权威元数据和播放上下文
      * @returns 交接成功时返回下一曲信息
      */
@@ -104,7 +104,7 @@ const api = {
       id: string,
       source: string,
       remainingMs: number,
-      preference: TransitionPreference,
+      preference: TransitionPreference | null,
       options: LoadOptions,
     ) =>
       ipcRenderer.invoke("player:transitionPrepared", id, source, remainingMs, preference, options),

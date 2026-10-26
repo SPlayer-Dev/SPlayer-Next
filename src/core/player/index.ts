@@ -984,13 +984,14 @@ export const nextTrack = async (autoPlay = true): Promise<void> => {
   await loadTrack(status.currentTrack, status.currentPlaybackContext, autoPlay);
 };
 
-/** 当前曲目是否已提交原生交叉过渡 */
+/** 当前曲目是否已提交原生 PCM 接续或交叉淡化 */
 export const isSmartTransitionActive = (): boolean => transitionInFlight;
 
 /**
- * 在当前曲目尾部尝试以备用槽位进行自动交接
+ * 将就绪的备用 PCM 接入当前输出，启用交叉淡化时才等待曲尾窗口
  * @param positionMs - 当前曲目的展示位置
- * @param preparedId - 后台通知对应的槽位，用于拒绝迟到通知
+ * @param preparedId - 就绪通知对应的槽位，用于拒绝迟到通知
+ * @param endPositionMs - 交叉淡化使用的有效曲尾位置
  */
 export const trySmartTransition = async (
   positionMs: number,
@@ -1001,7 +1002,6 @@ export const trySmartTransition = async (
   const status = useStatusStore();
   if (
     transitionInFlight ||
-    settings.player.transitionMode !== "crossfade" ||
     !status.isPlaying ||
     status.trackLoading ||
     status.fmMode ||
@@ -1011,12 +1011,15 @@ export const trySmartTransition = async (
   ) {
     return;
   }
-  const remainingMs = (endPositionMs ?? status.duration) - positionMs;
+  const crossfade = settings.player.transitionMode === "crossfade";
+  const remainingMs =
+    (crossfade ? (endPositionMs ?? status.duration) : status.duration) - positionMs;
   const remainingWallMs = remainingMs / Math.max(status.speed, 0.1);
   if (
-    !Number.isFinite(remainingWallMs) ||
-    remainingWallMs > TRANSITION_LOOKAHEAD_MS[settings.player.transitionPreference] ||
-    remainingWallMs < 1000
+    crossfade &&
+    (!Number.isFinite(remainingWallMs) ||
+      remainingWallMs > TRANSITION_LOOKAHEAD_MS[settings.player.transitionPreference] ||
+      remainingWallMs < 1000)
   )
     return;
   const candidate = getNextTrackCandidate({
@@ -1028,7 +1031,7 @@ export const trySmartTransition = async (
     shuffleMode: status.shuffleMode,
   });
   if (!candidate) return;
-  const prepared = beginPreparedTransition(candidate.track, preparedId);
+  const prepared = beginPreparedTransition(candidate.track, preparedId, !crossfade);
   if (!prepared?.preparedId || !prepared.source) return;
   const shouldLog = lastLoggedTransitionId !== prepared.preparedId;
   if (shouldLog) lastLoggedTransitionId = prepared.preparedId;
@@ -1040,8 +1043,8 @@ export const trySmartTransition = async (
     const result = await window.api.player.transitionPrepared(
       prepared.preparedId,
       prepared.source.source,
-      remainingMs / Math.max(status.speed, 0.1),
-      settings.player.transitionPreference,
+      remainingWallMs,
+      crossfade ? settings.player.transitionPreference : null,
       {
         meta: candidate.track,
         context: status.currentPlaybackContext,
@@ -1049,13 +1052,13 @@ export const trySmartTransition = async (
       },
     );
     if (token !== trackToken) {
-      if (shouldLog) console.info("[player:transition] 交叉过渡已被新的播放操作取消");
+      if (shouldLog) console.info("[player:transition] 音频交接已被新的播放操作取消");
       return;
     }
     if (!result.success || !result.data) {
       if (shouldLog) {
         console.warn(
-          "[player:transition] 未能完成交叉过渡，等待正常切歌",
+          "[player:transition] 预载接续未完成，沿用当前播放",
           result.error ?? "备用槽位未命中或播放器状态已变化",
         );
       }
@@ -1454,7 +1457,9 @@ export const initPlayer = async (): Promise<void> => {
     console.error("[player] requestSnapshot failed", error);
   }
   // 下一首预载的监听器
-  installNextTrackPreloadWatchers();
+  installNextTrackPreloadWatchers((id) => {
+    void trySmartTransition(useStatusStore().position, id).catch(console.warn);
+  });
   scheduleNextTrackPreload();
 };
 
