@@ -44,8 +44,8 @@ const finishCurrentTrack = async (): Promise<void> => {
   endedGuard = true;
   try {
     const stopByTimer = autoClose.onTrackEnded();
-    // FM 模式跳过
-    const repeatOne = status.repeatMode === "one" && !status.fmMode;
+    // FM / 心动模式跳过单曲循环
+    const repeatOne = status.repeatMode === "one" && !status.fmMode && !status.heartMode;
     // 结算播放统计
     playStats.onTrackEnded(repeatOne && !stopByTimer);
     // 定时关闭"等本曲结束"模式

@@ -2,6 +2,7 @@
 import type { Track } from "@shared/types/player";
 import type { SVirtualListExposed } from "@/components/ui/SVirtualList.vue";
 import { useQueuePanel } from "@/composables/useQueuePanel";
+import * as player from "@/core/player";
 
 defineEmits<{ close: [] }>();
 
@@ -15,6 +16,7 @@ const {
   playAt,
   removeAt,
   clearConfirmOpen,
+  moreRcmdSepIndex,
   clearAll,
   scrollToCurrent,
 } = useQueuePanel({ listRef });
@@ -30,6 +32,17 @@ const {
         <span class="text-sm text-cover/55 mt-1">
           {{ t("common.totalSongs", { count: queueLength }) }}
         </span>
+        <div
+          v-if="statusStore.heartMode"
+          class="mt-2 flex items-center gap-2 text-sm text-cover/55"
+          :title="t('player.heartMode.wantMoreHint')"
+        >
+          <SSwitch
+            :model-value="statusStore.heartModeWantMore"
+            @update:model-value="player.setHeartModeWantMore"
+          />
+          <span>{{ t("player.heartMode.wantMore") }}</span>
+        </div>
       </div>
       <div class="shrink-0 flex items-center gap-3">
         <SButton
@@ -77,7 +90,18 @@ const {
         height="100%"
         :default-scroll-index="Math.max(0, statusStore.playIndex)"
         :get-item-key="(item: Track) => item.id"
+        :separator-index="moreRcmdSepIndex"
+        :separator-height="32"
       >
+        <template #separator>
+          <div class="flex h-full items-center gap-2 px-3.5">
+            <div class="h-px flex-1 bg-cover/15" />
+            <span class="shrink-0 text-[11px] leading-none text-cover/50">
+              {{ t("player.heartMode.moreRcmd") }}
+            </span>
+            <div class="h-px flex-1 bg-cover/15" />
+          </div>
+        </template>
         <template #default="{ item, index }: { item: Track; index: number }">
           <div class="relative pl-1 pr-20 py-1">
             <div
@@ -96,7 +120,15 @@ const {
               />
               <SImg :src="item.cover" class="size-12 rounded-lg shrink-0" />
               <div class="flex-1 min-w-0">
-                <div class="text-base truncate font-medium leading-snug">{{ item.title }}</div>
+                <div class="text-base font-medium leading-snug flex items-center gap-1.5">
+                  <span class="truncate">{{ item.title }}</span>
+                  <span
+                    v-if="item.recommended && !item.moreRcmd"
+                    class="shrink-0 rounded px-1 text-[10px] leading-4 bg-cover/12 text-cover/70"
+                  >
+                    {{ t("player.heartMode.aiRcmd") }}
+                  </span>
+                </div>
                 <div
                   class="text-sm truncate leading-snug mt-0.5"
                   :class="index === statusStore.playIndex ? 'text-cover/70' : 'text-cover/55'"

@@ -106,6 +106,36 @@ export const songsToTracks = (songs: NeteaseSong[] | undefined | null): Track[] 
   songs?.map(songToTrack) ?? [];
 
 /**
+ * 应用层 Track → NCM 原始 song 对象
+ * 桌面端心动模式的 starPlaylist 需要原始 NCM 结构
+ * @param track - 应用层曲目
+ */
+export const trackToNeteaseSong = (track: Track): NeteaseSong => ({
+  id: Number(track.id),
+  name: track.title,
+  ar: track.artists.map((artist) => ({ id: Number(artist.id) || 0, name: artist.name })),
+  ...(track.album
+    ? {
+        al: {
+          id: Number(track.album.id) || 0,
+          name: track.album.name,
+          picUrl: track.coverOriginal ?? track.cover ?? "",
+        },
+      }
+    : {}),
+  dt: track.duration,
+  fee: track.fee ?? 0,
+});
+
+/**
+ * 找到第一首可直接播放的曲目，跳过仅购买的曲目
+ * @param tracks - 候选曲目
+ * @returns 曲目 id；没有可播放曲目时返回 undefined
+ */
+export const firstPlayableId = (tracks: readonly Track[]): string | undefined =>
+  tracks.find((track) => track.fee !== 4)?.id;
+
+/**
  * 歌单条目 → 应用层 Playlist
  * 适用 `/user/playlist` 与 `/playlist/detail` 的 playlist 字段
  */

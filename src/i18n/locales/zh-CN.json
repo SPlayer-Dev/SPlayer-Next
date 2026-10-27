@@ -476,7 +476,12 @@
       "loading": "正在开启心动模式…",
       "entered": "已开启心动模式",
       "already": "已处于心动模式",
-      "failed": "心动模式开启失败，请稍后重试"
+      "failed": "心动模式开启失败，请稍后重试",
+      "failedFallback": "心动模式开启失败，已切换至列表循环",
+      "moreRcmd": "更多推荐",
+      "aiRcmd": "AI 推荐",
+      "wantMore": "自动推荐更多",
+      "wantMoreHint": "关闭后不再自动追加「更多推荐」"
     },
     "fm": {
       "needLogin": "登录后才能使用私人 FM",

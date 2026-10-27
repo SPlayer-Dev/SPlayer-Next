@@ -476,7 +476,12 @@
       "loading": "Starting Heart Mode…",
       "entered": "Heart Mode started",
       "already": "Already in Heart Mode",
-      "failed": "Failed to start Heart Mode, please try again later"
+      "failed": "Failed to start Heart Mode, please try again later",
+      "failedFallback": "Failed to start Heart Mode, switched to list loop",
+      "moreRcmd": "More picks",
+      "aiRcmd": "AI pick",
+      "wantMore": "Auto more recommendations",
+      "wantMoreHint": "Stop appending More recommendations automatically"
     },
     "fm": {
       "needLogin": "Sign in to use Personal FM",

@@ -40,6 +40,9 @@ export const useQueuePanel = (options: UseQueuePanelOptions) => {
 
   const clearConfirmOpen = ref(false);
 
+  /** 第一条「更多推荐」续推曲目的位置，-1 表示没有 */
+  const moreRcmdSepIndex = computed(() => queue.value.findIndex((track) => track.moreRcmd));
+
   /** 清空队列 + 重置播放索引 */
   const clearAll = (): void => {
     if (queueLength.value === 0) return;
@@ -66,6 +69,7 @@ export const useQueuePanel = (options: UseQueuePanelOptions) => {
     playAt,
     removeAt,
     clearConfirmOpen,
+    moreRcmdSepIndex,
     clearAll,
     scrollToCurrent,
   };
