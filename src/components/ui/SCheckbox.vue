@@ -113,7 +113,7 @@ const onKeydown = (event: KeyboardEvent): void => {
         :class="[iconSizeClassMap[mergedSize], 'pointer-events-none']"
       />
     </span>
-    <span v-if="hasLabel" class="text-sm text-on-surface">
+    <span v-if="hasLabel" class="min-w-0 flex-1 text-sm text-on-surface">
       <slot>{{ label }}</slot>
     </span>
   </label>
