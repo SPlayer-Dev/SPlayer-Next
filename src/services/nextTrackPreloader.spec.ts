@@ -33,6 +33,9 @@ const mocks = vi.hoisted(() => ({
     playIndex: 0,
     fmMode: false,
     shuffleMode: "off",
+    repeatMode: "list",
+    abLoop: { enable: false },
+    autoClose: { enable: false },
   },
   candidate: { track: { id: "next", source: "netease" } },
   resolve: vi.fn(),
@@ -253,7 +256,9 @@ describe("下一曲真实预载", () => {
     preloader.scheduleNextTrackPreload();
     await flushPromises();
     expect(mocks.prepare).toHaveBeenCalledOnce();
-    expect(preloader.peekPreparedTrack(mocks.candidate.track as Track)?.preparedId).toBeDefined();
+    expect(
+      preloader.consumePreloadedTrack(mocks.candidate.track as Track)?.preparedId,
+    ).toBeDefined();
   });
 
   it.each([
@@ -277,7 +282,9 @@ describe("下一曲真实预载", () => {
       undefined,
       "standard",
     );
-    expect(preloader.peekPreparedTrack(mocks.candidate.track as Track)?.preparedId).toBeDefined();
+    expect(
+      preloader.consumePreloadedTrack(mocks.candidate.track as Track)?.preparedId,
+    ).toBeDefined();
   });
 
   it("关闭缓存时本地 CUE 仍按片段起点准备", async () => {
@@ -302,7 +309,9 @@ describe("下一曲真实预载", () => {
       120000,
       "standard",
     );
-    expect(preloader.peekPreparedTrack(mocks.candidate.track as Track)?.preparedId).toBeDefined();
+    expect(
+      preloader.consumePreloadedTrack(mocks.candidate.track as Track)?.preparedId,
+    ).toBeDefined();
   });
 
   it("等待缓存完成后才准备原生槽位，并将缓存路径与代次交给切歌", async () => {
@@ -445,6 +454,8 @@ describe("下一曲真实预载", () => {
     expect(
       preloader.beginPreparedTransition(mocks.candidate.track as Track, "old-slot"),
     ).toBeNull();
-    expect(preloader.peekPreparedTrack(mocks.candidate.track as Track)?.preparedId).toBeTruthy();
+    expect(
+      preloader.consumePreloadedTrack(mocks.candidate.track as Track)?.preparedId,
+    ).toBeTruthy();
   });
 });

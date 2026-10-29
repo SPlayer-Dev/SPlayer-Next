@@ -69,19 +69,20 @@ fn stereo_buffered(samples: Vec<f32>) -> Arc<Shared> {
     shared
 }
 
+/// 构造交叉淡化测试使用的可选计划
 fn plan(
     latest_sample: u64,
     fade_samples: u64,
     quiet_threshold: f32,
     windows: u8,
-) -> TransitionPlan {
-    TransitionPlan {
+) -> Option<TransitionPlan> {
+    Some(TransitionPlan {
         earliest_sample: 0,
         latest_sample,
         fade_samples,
         quiet_threshold,
         quiet_windows_required: windows,
-    }
+    })
 }
 
 #[test]

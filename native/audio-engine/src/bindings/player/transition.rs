@@ -36,11 +36,11 @@ impl TransitionWatchdog {
 
 #[napi]
 impl AudioPlayer {
-    /// 在当前输出流中交叉切换到已准备的下一曲
+    /// 在当前输出流中接续已准备的下一曲，指定偏好时进行交叉淡化
     /// @param id - 预载槽位标识
     /// @param source - 预载音源路径
     /// @param remainingSeconds - 当前曲目距离有效结束的墙钟秒数
-    /// @param preference - 曲尾交接时机与淡化时长偏好
+    /// @param preference - 淡化偏好，省略时原样接续 PCM
     /// @param nextEndSeconds - 下一曲的 CUE 结束位置
     /// @param currentEndSeconds - 当前曲目的 CUE 结束位置
     /// @returns 成功交接时返回下一曲元信息，槽位失效时返回空值
@@ -50,7 +50,7 @@ impl AudioPlayer {
         id: String,
         source: String,
         remaining_seconds: f64,
-        preference: String,
+        preference: Option<String>,
         next_end_seconds: Option<f64>,
         current_end_seconds: Option<f64>,
     ) -> Result<Option<JsMusicMetadata>> {
@@ -68,7 +68,7 @@ impl AudioPlayer {
                         &id,
                         &source,
                         remaining_seconds,
-                        &preference,
+                        preference.as_deref(),
                         next_end_seconds,
                         current_end_seconds,
                     )
@@ -115,6 +115,11 @@ impl AudioPlayer {
                         player.emit_transition_state(true, Some(reason), Some(fade_seconds));
                         announced = true;
                     }
+                    if decision.load(Ordering::Acquire)
+                        == crate::decoder::transition_source::TRANSITION_CANCELLED
+                    {
+                        break (0_u8, announced);
+                    }
                     if completed.load(Ordering::Acquire) {
                         break (1_u8, announced);
                     }
@@ -135,7 +140,10 @@ impl AudioPlayer {
                 player.emit_transition_state(false, None, None);
             }
             match outcome.0 {
-                0 => return Ok(None),
+                0 => {
+                    player.finish_cancelled_transition();
+                    return Ok(None);
+                }
                 2 => {
                     player.stop();
                     return Err(Error::from_reason("播放过渡未能完成，已停止失效输出"));

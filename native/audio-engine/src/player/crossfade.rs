@@ -6,13 +6,15 @@ use anyhow::{ensure, Result};
 use super::preload::PreparedPlayback;
 use super::{InnerPlayer, PlayerState};
 use crate::decoder::buffer::Shared;
-use crate::decoder::transition_source::TransitionPlan;
+use crate::decoder::transition_source::{TransitionPlan, TRANSITION_CANCELLED};
 use crate::dsp::{equalizer::Equalizer, tempo::StretchProcessor};
 use crate::metadata::AudioMetadata;
 use parking_lot::Mutex;
 
 /// 在途过渡的第二路 DSP，供用户调整音效时同步两路参数
 pub(super) struct TransitionDsp {
+    pub id: String,
+    pub decision: Arc<AtomicU8>,
     pub initial_speed: f32,
     pub shared: Arc<Shared>,
     pub equalizer: Arc<Mutex<Equalizer>>,
@@ -30,17 +32,27 @@ pub struct ArmedTransition {
 }
 
 impl InnerPlayer {
-    /// 校验备用槽位并在现有输出流中安排帧级交叉过渡
+    /// 校验备用槽位并在当前输出流中接续，指定偏好时才进行交叉淡化
+    /// @param id - 预载槽位标识
+    /// @param source - 预载音源路径
+    /// @param remaining_secs - 交叉淡化使用的剩余墙钟秒数
+    /// @param preference - 淡化偏好，省略时保留两曲的全部 PCM
+    /// @param next_end_seconds - 下一曲的 CUE 终点
+    /// @param current_end_seconds - 当前曲的 CUE 终点
+    /// @returns 已交给输出回调的槽位，未命中时返回空值
     pub fn arm_prepared_transition(
         &mut self,
         id: &str,
         source: &str,
         remaining_secs: f64,
-        preference: &str,
+        preference: Option<&str>,
         next_end_seconds: Option<f64>,
         current_end_seconds: Option<f64>,
     ) -> Result<Option<ArmedTransition>> {
-        if self.state != PlayerState::Playing || self.transitioning.load(Ordering::Acquire) {
+        if self.state != PlayerState::Playing
+            || self.is_finished()
+            || self.transitioning.load(Ordering::Acquire)
+        {
             return Ok(None);
         }
         let Some(output) = &self.output else {
@@ -52,7 +64,7 @@ impl InnerPlayer {
         let Some(playback) = self.playback.as_ref().map(Arc::clone) else {
             return Ok(None);
         };
-        if !remaining_secs.is_finite() || remaining_secs < 1.0 {
+        if preference.is_some() && (!remaining_secs.is_finite() || remaining_secs < 1.0) {
             return Ok(None);
         }
         let Some(ready) = self.take_prepared(Some(id), source) else {
@@ -63,13 +75,13 @@ impl InnerPlayer {
             .unwrap_or(ready.metadata.duration_secs)
             .min(ready.metadata.duration_secs);
         let next_remaining = next_end - ready.start_position;
-        if !next_remaining.is_finite() || next_remaining < 2.0 {
+        if preference.is_some() && (!next_remaining.is_finite() || next_remaining < 2.0) {
             return Ok(None);
         }
         let current_end = current_end_seconds.unwrap_or(self.duration());
         let remaining_secs =
             remaining_secs.min((current_end - self.position()).max(0.0) / f64::from(self.speed()));
-        if remaining_secs < 1.0 {
+        if preference.is_some() && remaining_secs < 1.0 {
             return Ok(None);
         }
         if current_end_seconds.is_some() {
@@ -80,31 +92,33 @@ impl InnerPlayer {
         if next_end_seconds.is_some() {
             ready.shared.set_end_position(next_remaining);
         }
-        let (fade_limit, quiet_threshold, quiet_windows_required, search_secs) = match preference {
-            "conservative" => (3.0_f64, 0.04_f32, 4_u8, 1.0_f64),
-            "eager" => (5.0, 0.06, 3, 3.0),
-            _ => (3.6, 0.04, 4, 2.0),
-        };
-        let fade_secs = fade_limit
-            .min(remaining_secs)
-            .min(next_remaining / f64::from(self.speed()) / 2.0);
-        let fade_samples = ((fade_secs * sample_rate as f64).round() as u64) * channels;
-        let latest_sample =
-            (((remaining_secs - fade_secs).max(0.0) * sample_rate as f64) as u64) * channels;
-        let earliest_sample = latest_sample
-            .saturating_sub(((search_secs * rate as f64) as u64) / channels * channels);
-        ready.shared.set_preloading(false);
-        self.transitioning.store(true, Ordering::Release);
-        let signals = playback.queue_transition(
-            Arc::clone(&ready.shared),
+        let mut fade_secs = 0.0;
+        let plan = preference.map(|preference| {
+            let (fade_limit, quiet_threshold, quiet_windows_required, search_secs) =
+                match preference {
+                    "conservative" => (3.0_f64, 0.04_f32, 4_u8, 1.0_f64),
+                    "eager" => (5.0, 0.06, 3, 3.0),
+                    _ => (3.6, 0.04, 4, 2.0),
+                };
+            fade_secs = fade_limit
+                .min(remaining_secs)
+                .min(next_remaining / f64::from(self.speed()) / 2.0);
+            let fade_samples = ((fade_secs * sample_rate as f64).round() as u64) * channels;
+            let latest_sample =
+                (((remaining_secs - fade_secs).max(0.0) * sample_rate as f64) as u64) * channels;
+            let earliest_sample = latest_sample
+                .saturating_sub(((search_secs * rate as f64) as u64) / channels * channels);
+            ready.shared.set_preloading(false);
             TransitionPlan {
                 earliest_sample,
                 latest_sample,
                 fade_samples,
                 quiet_threshold,
                 quiet_windows_required,
-            },
-        );
+            }
+        });
+        self.transitioning.store(true, Ordering::Release);
+        let signals = playback.queue_transition(Arc::clone(&ready.shared), plan);
         let signals = match signals {
             Ok(signals) => signals,
             Err(error) => {
@@ -113,6 +127,8 @@ impl InnerPlayer {
             }
         };
         self.transition_dsp = Some(TransitionDsp {
+            id: ready.id.clone(),
+            decision: Arc::clone(&signals.decision),
             initial_speed: ready.config.speed,
             shared: Arc::clone(&ready.shared),
             equalizer: Arc::clone(&ready.equalizer),
@@ -128,7 +144,33 @@ impl InnerPlayer {
         }))
     }
 
+    /// 取消尚未接入的备用 PCM，不停止当前音频流
+    /// @param id - 要取消的预载槽位标识
+    pub fn cancel_prepared_transition(&mut self, id: &str) {
+        if let Some(next) = &self.transition_dsp {
+            if next.id == id {
+                let _ = next.decision.compare_exchange(
+                    0,
+                    TRANSITION_CANCELLED,
+                    Ordering::AcqRel,
+                    Ordering::Acquire,
+                );
+            }
+        }
+    }
+
+    /// 清理已取消交接的控制状态，恢复当前曲的结束通知
+    pub fn finish_cancelled_transition(&mut self) {
+        self.transition_dsp = None;
+        self.transitioning.store(false, Ordering::Release);
+        if let Some(playback) = &self.playback {
+            playback.drain_retired();
+        }
+    }
+
     /// 输出回调完成交接后，切换播放器的曲目状态和解码资源
+    /// @param transition - 已经由输出回调接入的预载槽位
+    /// @returns 下一曲元数据，已被其他播放操作取代时返回空值
     pub fn commit_prepared_transition(
         &mut self,
         mut transition: ArmedTransition,
@@ -138,6 +180,7 @@ impl InnerPlayer {
         {
             return None;
         }
+        transition.ready.shared.set_preloading(false);
         self.stop_position_timer();
         if let Some(handle) = self.pending_load_handle.take() {
             handle.cancel();

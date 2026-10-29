@@ -30,6 +30,12 @@ let cachedResult: NextTrackPreloadResult | null = null;
 let currentContextKey: string | null = null;
 let pendingCover: HTMLImageElement | null = null;
 let transitionPreparedId: string | null = null;
+let continuousContext: {
+  key: string;
+  currentTrackId: string | undefined;
+  playIndex: number;
+} | null = null;
+let onPrepared: ((id: string) => void) | undefined;
 let stopContextWatch: (() => void) | null = null;
 
 /**
@@ -96,9 +102,10 @@ const preloadCover = async (url: string): Promise<void> => {
  */
 export const invalidateNextTrackPreload = (): void => {
   currentToken++;
+  const id = nativePreloadId ?? (continuousContext ? transitionPreparedId : null);
+  if (id) void window.api.player.cancelPrepared(id).catch(console.warn);
   preloadAbort?.abort();
   preloadAbort = null;
-  if (nativePreloadId) void window.api.player.cancelPrepared(nativePreloadId).catch(console.warn);
   nativePreloadId = null;
   cachedResult = null;
   currentContextKey = null;
@@ -115,21 +122,12 @@ export const invalidateNextTrackPreload = (): void => {
  * @returns 匹配的预载结果，未命中或已作废则返回 null
  */
 export const consumePreloadedTrack = (track: Track): NextTrackPreloadResult | null => {
-  if (!useSettingsStore().player.preloadNextTrack) {
-    invalidateNextTrackPreload();
-    return null;
-  }
-  const currentKey = buildContextKey(track);
-  if (!cachedResult) {
-    invalidateNextTrackPreload();
-    return null;
-  }
-  if (cachedResult.trackId !== track.id) {
-    invalidateNextTrackPreload();
-    return null;
-  }
-  if (cachedResult.contextKey !== currentKey) {
-    // 上下文已改变（如切换了音质），当前缓存作废
+  if (
+    !useSettingsStore().player.preloadNextTrack ||
+    !cachedResult ||
+    cachedResult.trackId !== track.id ||
+    cachedResult.contextKey !== buildContextKey(track)
+  ) {
     invalidateNextTrackPreload();
     return null;
   }
@@ -143,32 +141,35 @@ export const consumePreloadedTrack = (track: Track): NextTrackPreloadResult | nu
 };
 
 /**
- * 查询与候选曲目匹配的原生备用槽位，不改变其所有权
- * @param track - 即将交接的目标曲目
- * @returns 仍有效且原生 PCM 已就绪的预载结果
- */
-export const peekPreparedTrack = (track: Track): NextTrackPreloadResult | null => {
-  if (!useSettingsStore().player.preloadNextTrack) return null;
-  if (cachedResult?.trackId !== track.id || !cachedResult.preparedId) return null;
-  return cachedResult.contextKey === buildContextKey(track) ? cachedResult : null;
-};
-
-/**
- * 将备用槽位所有权交给在途交接，设置变更从下一次预载开始生效
+ * 将备用槽位交给输出，直接接续期间仍按队列和播放策略取消候选
  * @param track - 本次交接的目标曲目
  * @param expectedId - 后台通知对应的槽位标识
+ * @param continuous - 是否等待自然结尾直接接续，期间允许作废候选
  * @returns 已接管的预载结果，迟到通知或槽位失效时返回 null
  */
 export const beginPreparedTransition = (
   track: Track,
   expectedId?: string,
+  continuous = false,
 ): NextTrackPreloadResult | null => {
-  if (transitionPreparedId) return null;
-  const prepared = peekPreparedTrack(track);
-  if (!prepared?.source || (expectedId && prepared.preparedId !== expectedId)) return null;
+  const preparedId = cachedResult?.preparedId;
+  if (
+    transitionPreparedId ||
+    !preparedId ||
+    !cachedResult?.source ||
+    (expectedId && preparedId !== expectedId)
+  )
+    return null;
   const result = consumePreloadedTrack(track);
-  if (!result?.preparedId) return null;
-  transitionPreparedId = result.preparedId;
+  if (!result) return null;
+  transitionPreparedId = preparedId;
+  continuousContext = continuous
+    ? {
+        key: result.contextKey,
+        currentTrackId: useStatusStore().currentTrack?.id,
+        playIndex: useStatusStore().playIndex,
+      }
+    : null;
   return result;
 };
 
@@ -179,6 +180,7 @@ export const beginPreparedTransition = (
 export const finishPreparedTransition = (id: string): void => {
   if (transitionPreparedId !== id) return;
   transitionPreparedId = null;
+  continuousContext = null;
   void window.api.player.cancelPrepared(id).catch(console.warn);
   scheduleNextTrackPreload();
 };
@@ -187,7 +189,7 @@ export const finishPreparedTransition = (id: string): void => {
  * 调度下一首预载任务
  */
 export const scheduleNextTrackPreload = (): void => {
-  if (transitionPreparedId) return;
+  if (transitionPreparedId && !continuousContext) return;
   const settings = useSettingsStore();
   if (!settings.player.preloadNextTrack) {
     invalidateNextTrackPreload();
@@ -228,8 +230,20 @@ export const scheduleNextTrackPreload = (): void => {
     return;
   }
   const contextKey = buildContextKey(candidateTrack);
+  if (continuousContext) {
+    if (
+      continuousContext.key !== contextKey ||
+      continuousContext.currentTrackId !== currentTrack.id ||
+      continuousContext.playIndex !== status.playIndex ||
+      status.repeatMode === "one" ||
+      status.abLoop.enable
+    )
+      invalidateNextTrackPreload();
+    return;
+  }
   // 上下文指纹一致且已有缓存，避免重复触发
   if (cachedResult && cachedResult.contextKey === contextKey) {
+    if (cachedResult.preparedId) onPrepared?.(cachedResult.preparedId);
     preloadLyricForTrack(candidateTrack);
     return;
   }
@@ -296,6 +310,7 @@ export const scheduleNextTrackPreload = (): void => {
         nativePreloadId = null;
       }
       cachedResult = { trackId: candidateTrack.id, source, contextKey, preparedId };
+      if (preparedId) onPrepared?.(preparedId);
       if (!preparedId) {
         console.info("[player:preload] 下一曲音源已准备，PCM 未预载", {
           trackId: candidateTrack.id,
@@ -315,8 +330,12 @@ export const scheduleNextTrackPreload = (): void => {
   })();
 };
 
-/** 安装预载上下文监听 */
-export const installNextTrackPreloadWatchers = (): void => {
+/**
+ * 安装预载上下文监听，并在 PCM 就绪时通知播放控制器
+ * @param prepared - 就绪槽位的接续回调
+ */
+export const installNextTrackPreloadWatchers = (prepared?: (id: string) => void): void => {
+  onPrepared = prepared;
   if (stopContextWatch) return;
   const settings = useSettingsStore();
   const status = useStatusStore();
@@ -335,6 +354,9 @@ export const installNextTrackPreloadWatchers = (): void => {
       status.state,
       status.fmMode,
       status.shuffleMode,
+      status.repeatMode,
+      status.abLoop.enable,
+      status.autoClose.enable,
       settings.preset.skipKeywordsSongs,
       settings.preset.skipTrackKeywords.join(","),
       queue.queue.value,
@@ -367,5 +389,6 @@ export const installNextTrackPreloadWatchers = (): void => {
 export const disposeNextTrackPreload = (): void => {
   stopContextWatch?.();
   stopContextWatch = null;
+  onPrepared = undefined;
   invalidateNextTrackPreload();
 };

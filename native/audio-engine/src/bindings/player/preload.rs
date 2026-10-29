@@ -139,6 +139,7 @@ impl AudioPlayer {
     #[napi]
     pub fn cancel_prepared(&self, id: String) {
         let mut player = self.inner.lock();
+        player.cancel_prepared_transition(&id);
         if player.preload.id.as_deref() == Some(&id) {
             player.preload.clear();
         }

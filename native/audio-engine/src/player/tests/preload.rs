@@ -1,5 +1,6 @@
 use super::*;
 
+/// 调整音效时同步两路 DSP，并在停止后释放备用资源
 #[test]
 fn transition_updates_both_dsp_slots_and_releases_them_on_stop() {
     let mut player = InnerPlayer::new().unwrap();
@@ -7,6 +8,8 @@ fn transition_updates_both_dsp_slots_and_releases_them_on_stop() {
     let equalizer = Arc::new(Mutex::new(Equalizer::new(48000, 2)));
     let tempo = Arc::new(Mutex::new(StretchProcessor::new(2, 48000)));
     player.transition_dsp = Some(crossfade::TransitionDsp {
+        id: "next".into(),
+        decision: Arc::new(std::sync::atomic::AtomicU8::new(0)),
         initial_speed: 1.0,
         shared: Arc::clone(&shared),
         equalizer: Arc::clone(&equalizer),

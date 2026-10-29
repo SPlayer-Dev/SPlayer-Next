@@ -40,6 +40,12 @@ impl DecoderSampleReader {
         self.underrun = !self.started;
     }
 
+    /// 判断当前源是否因解码失败耗尽，避免将失败误当成自然曲尾
+    /// @returns 解码线程已报告失败时返回 true
+    pub fn is_decode_failed(&self) -> bool {
+        self.shared.is_decode_failed()
+    }
+
     pub fn is_underrun(&self) -> bool {
         self.underrun
     }

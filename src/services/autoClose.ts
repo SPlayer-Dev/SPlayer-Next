@@ -8,6 +8,7 @@
 
 import { useStatusStore } from "@/stores/status";
 import * as player from "@/core/player";
+import { invalidateNextTrackPreload } from "@/services/nextTrackPreloader";
 
 /** 倒计时 setInterval 句柄 */
 let tickHandle: ReturnType<typeof setInterval> | null = null;
@@ -39,6 +40,7 @@ const tick = (): void => {
     if (autoClose.waitSongEnd) {
       // 等本曲播完再停；标记一下，由 onTrackEnded 钩子处理
       pendingPauseOnEnd = true;
+      invalidateNextTrackPreload();
     } else {
       player.pause().catch(() => {});
       cancel();

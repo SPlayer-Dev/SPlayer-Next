@@ -99,11 +99,14 @@ impl PlaybackHandle {
         })
     }
 
-    /// 将备用 PCM 提交到现有输出流，由回调按音频帧执行过渡
+    /// 将备用 PCM 提交到现有输出流，由回调按音频帧接续
+    /// @param shared - 下一曲的就绪缓冲
+    /// @param plan - 交叉淡化计划，省略时按自然结尾接续
+    /// @returns 接续的开始、完成和取消状态
     pub fn queue_transition(
         &self,
         shared: Arc<Shared>,
-        plan: TransitionPlan,
+        plan: Option<TransitionPlan>,
     ) -> Result<TransitionSignals> {
         self.transition.drain_retired();
         self.transition.queue(shared, plan)
