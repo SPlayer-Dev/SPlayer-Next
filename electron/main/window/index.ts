@@ -37,6 +37,7 @@ export {
   toggleDynamicIslandWindow,
   getDynamicIslandWindow,
   applyDynamicIslandAlwaysOnTop,
+  applyDynamicIslandHideOnFullscreen,
   applyDynamicIslandHeight,
   applyDynamicIslandShape,
   applyDynamicIslandWidth,

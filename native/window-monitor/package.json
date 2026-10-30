@@ -1,0 +1,14 @@
+{
+  "name": "window-monitor",
+  "version": "0.1.0",
+  "main": "window-monitor.node",
+  "types": "index.d.ts",
+  "napi": {
+    "binaryName": "window-monitor",
+    "triples": {}
+  },
+  "scripts": {
+    "build": "napi build --release --no-const-enum",
+    "build:debug": "napi build --no-const-enum"
+  }
+}

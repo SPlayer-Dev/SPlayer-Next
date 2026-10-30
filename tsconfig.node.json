@@ -19,6 +19,7 @@
       "@splayer/media-ctrl": ["./native/media-ctrl"],
       "@splayer/taskbar-lyric": ["./native/taskbar-lyric"],
       "@splayer/taskbar-thumbnail": ["./native/taskbar-thumbnail"],
+      "@splayer/window-monitor": ["./native/window-monitor"],
       "@splayer/opencc": ["./native/opencc"]
     }
   }

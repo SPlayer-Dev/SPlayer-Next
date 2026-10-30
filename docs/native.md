@@ -10,6 +10,7 @@ SPlayer-Next 将性能敏感的能力下沉到 **Rust**，通过 [NAPI-RS](https
 | `media-ctrl`        | 系统媒体控制（Windows SMTC / Linux MPRIS / macOS Now Playing）与 Discord RPC |
 | `taskbar-lyric`     | Windows 任务栏歌词文字渲染                                                   |
 | `taskbar-thumbnail` | Windows 任务栏悬停缩略图 / Peek 预览替换为专辑封面                           |
+| `window-monitor`    | Windows 前台窗口全屏探测（供灵动岛全屏隐藏使用）                             |
 
 ### audio-engine
 
@@ -39,6 +40,14 @@ Windows 任务栏缩略图自定义（仅 Windows）：
 - 借助 DWM 的 iconic representation，把任务栏**悬停缩略图**与 **Peek 全尺寸预览**替换为指定图片（当前专辑封面），而非默认的实时窗口内容；
 - 对主窗口子类化，被动应答 DWM 的位图请求，封面变化时通知 DWM 重新拉取。
 
+### window-monitor
+
+Windows 前台窗口全屏探测（仅 Windows）：
+
+- 读取前台窗口矩形，判断其是否完整覆盖所在显示器，用于得知「是否有其他应用正处于全屏」；
+- 排除最大化窗口（最大化同样铺满屏幕，但不算全屏）、桌面 / 壁纸层 / 任务栏等系统窗口，并支持传入自身 HWND 以避免自我判定；
+- 无状态设计，只做单次同步查询，不持有任何窗口句柄，轮询节奏由 JS 侧控制。
+
 ## 构建
 
 构建原生模块需要 **Rust 工具链**（通过 [rustup](https://rustup.rs/) 安装）。
@@ -60,6 +69,7 @@ NAPI-RS 会自动生成各模块的 `index.d.ts` 类型声明，主进程通过�
 @splayer/media-ctrl        → native/media-ctrl
 @splayer/taskbar-lyric     → native/taskbar-lyric
 @splayer/taskbar-thumbnail → native/taskbar-thumbnail
+@splayer/window-monitor    → native/window-monitor
 ```
 
 ::: tip 跳过原生构建

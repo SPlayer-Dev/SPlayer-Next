@@ -166,6 +166,8 @@ export interface DynamicIslandSettings {
   backgroundColor: string;
   /** 窗口置顶 */
   alwaysOnTop: boolean;
+  /** 其他应用全屏时自动隐藏（仅 Windows） */
+  hideOnFullscreen: boolean;
   /** 吸附时是否居中 */
   snapCentered: boolean;
   /** macOS 刘海融合 */
