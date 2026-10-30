@@ -749,3 +749,74 @@ describe("列表播放起点", () => {
     expect(mocks.load).toHaveBeenCalledOnce();
   });
 });
+
+describe("特殊模式下的播放模式同步", () => {
+  beforeEach(async () => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    vi.doUnmock("@/stores/status");
+    vi.doMock("localforage", () => ({
+      default: { createInstance: () => ({ setItem: vi.fn().mockResolvedValue(null) }) },
+    }));
+    const { createPinia, setActivePinia } = await import("pinia");
+    setActivePinia(createPinia());
+    Object.assign(window, {
+      api: { player: { syncPlayMode: vi.fn() } },
+    });
+  });
+
+  it("私人 FM 下切换随机被拒绝，并回推关闭随机、列表循环", async () => {
+    const { useStatusStore } = await import("@/stores/status");
+    const { setShuffleMode } = await import("./index");
+    const status = useStatusStore();
+    status.fmMode = true;
+    status.shuffleMode = "off";
+    status.repeatMode = "list";
+
+    setShuffleMode("on");
+
+    expect(status.shuffleMode).toBe("off");
+    expect(window.api.player.syncPlayMode).toHaveBeenLastCalledWith("list", "off");
+  });
+
+  it("私人 FM 下切换循环被拒绝，并回推真实的列表循环", async () => {
+    const { useStatusStore } = await import("@/stores/status");
+    const { setRepeatMode } = await import("./index");
+    const status = useStatusStore();
+    status.fmMode = true;
+    status.shuffleMode = "off";
+    status.repeatMode = "list";
+
+    setRepeatMode("one");
+
+    expect(status.repeatMode).toBe("list");
+    expect(window.api.player.syncPlayMode).toHaveBeenLastCalledWith("list", "off");
+  });
+
+  it("心动模式下随机被关闭回推，但保留用户的随机偏好", async () => {
+    const { useStatusStore } = await import("@/stores/status");
+    const { setShuffleMode } = await import("./index");
+    const status = useStatusStore();
+    status.heartMode = true;
+    status.shuffleMode = "on";
+    status.repeatMode = "one";
+
+    setShuffleMode("on");
+
+    expect(status.shuffleMode).toBe("on");
+    expect(window.api.player.syncPlayMode).toHaveBeenLastCalledWith("one", "off");
+  });
+
+  it("退出私人 FM 后，同步的模式恢复为用户的真实设置", async () => {
+    const { useStatusStore } = await import("@/stores/status");
+    const { setShuffleMode } = await import("./index");
+    const status = useStatusStore();
+    status.fmMode = false;
+    status.shuffleMode = "on";
+    status.repeatMode = "one";
+
+    setShuffleMode("on");
+
+    expect(window.api.player.syncPlayMode).toHaveBeenLastCalledWith("one", "on");
+  });
+});

@@ -1005,9 +1005,13 @@ export const registerPlayerIpc = (): void => {
     playerControl.syncQueueIndex(index);
   });
 
-  // 渲染进程同步播放模式到托盘
+  // 渲染进程同步播放模式到托盘与系统媒体控件
   ipcMain.on("player:syncPlayMode", (_event, repeat: RepeatMode, shuffle: ShuffleMode) => {
     setTrayPlayMode(repeat, shuffle);
+    mediaService.setPlayMode({
+      shuffle: shuffle === "on",
+      repeat: repeat === "one" ? "Track" : "List",
+    });
   });
 
   // 渲染进程同步当前歌曲喜欢状态到托盘与缩略图工具栏
@@ -1103,6 +1107,23 @@ export const registerPlayerIpc = (): void => {
           break;
         case "PrevTrack":
           sendToMain("player:event", { type: "prev" });
+          break;
+        case "SetShuffle":
+          if (event.shuffle != null) {
+            sendToMain("player:event", {
+              type: "setShuffle",
+              data: { mode: event.shuffle ? "on" : "off" },
+            });
+          }
+          break;
+        case "SetRepeat":
+          if (event.repeat != null) {
+            // 应用没有"不循环"，系统请求的 None 归到列表循环，渲染进程随后回推真实模式纠正控件
+            sendToMain("player:event", {
+              type: "setRepeat",
+              data: { mode: event.repeat === "Track" ? "one" : "list" },
+            });
+          }
           break;
       }
     } catch {}

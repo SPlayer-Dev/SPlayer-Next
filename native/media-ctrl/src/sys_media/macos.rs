@@ -26,7 +26,7 @@ use objc2_media_player::{
 use super::{MediaThreadsafeFunction, SystemMediaControls};
 use crate::model::{
     MediaEvent, MediaEventType, MetadataPayload, PlayModeParam, PlayStateParam, PlaybackStatus,
-    TimelineParam,
+    RepeatMode, TimelineParam,
 };
 
 pub struct MacosImpl {
@@ -184,16 +184,18 @@ impl MacosImpl {
         let handler_arc = self.event_handler.clone();
         let block = RcBlock::new(
             move |event: NonNull<MPRemoteCommandEvent>| -> MPRemoteCommandHandlerStatus {
-                if unsafe { Retained::retain(event.as_ptr()) }
-                    .and_then(|e| e.downcast::<MPChangeShuffleModeCommandEvent>().ok())
-                    .is_some()
-                    && let Ok(guard) = handler_arc.lock()
-                    && let Some(tsfn) = guard.as_ref()
-                {
-                    tsfn.call(
-                        MediaEvent::new(MediaEventType::ToggleShuffle),
-                        napi::threadsafe_function::ThreadsafeFunctionCallMode::NonBlocking,
-                    );
+                let shuffle_evt = unsafe { Retained::retain(event.as_ptr()) }
+                    .and_then(|e| e.downcast::<MPChangeShuffleModeCommandEvent>().ok());
+                if let Some(e) = shuffle_evt {
+                    let shuffle = unsafe { e.shuffleType() } != MPShuffleType::Off;
+                    if let Ok(guard) = handler_arc.lock()
+                        && let Some(tsfn) = guard.as_ref()
+                    {
+                        tsfn.call(
+                            MediaEvent::set_shuffle(shuffle),
+                            napi::threadsafe_function::ThreadsafeFunctionCallMode::NonBlocking,
+                        );
+                    }
                 }
                 MPRemoteCommandHandlerStatus::Success
             },
@@ -210,16 +212,25 @@ impl MacosImpl {
         let handler_arc = self.event_handler.clone();
         let block = RcBlock::new(
             move |event: NonNull<MPRemoteCommandEvent>| -> MPRemoteCommandHandlerStatus {
-                if unsafe { Retained::retain(event.as_ptr()) }
-                    .and_then(|e| e.downcast::<MPChangeRepeatModeCommandEvent>().ok())
-                    .is_some()
-                    && let Ok(guard) = handler_arc.lock()
-                    && let Some(tsfn) = guard.as_ref()
-                {
-                    tsfn.call(
-                        MediaEvent::new(MediaEventType::ToggleRepeat),
-                        napi::threadsafe_function::ThreadsafeFunctionCallMode::NonBlocking,
-                    );
+                let repeat_evt = unsafe { Retained::retain(event.as_ptr()) }
+                    .and_then(|e| e.downcast::<MPChangeRepeatModeCommandEvent>().ok());
+                if let Some(e) = repeat_evt {
+                    let requested = unsafe { e.repeatType() };
+                    let repeat = if requested == MPRepeatType::One {
+                        RepeatMode::Track
+                    } else if requested == MPRepeatType::Off {
+                        RepeatMode::None
+                    } else {
+                        RepeatMode::List
+                    };
+                    if let Ok(guard) = handler_arc.lock()
+                        && let Some(tsfn) = guard.as_ref()
+                    {
+                        tsfn.call(
+                            MediaEvent::set_repeat(repeat),
+                            napi::threadsafe_function::ThreadsafeFunctionCallMode::NonBlocking,
+                        );
+                    }
                 }
                 MPRemoteCommandHandlerStatus::Success
             },
@@ -437,9 +448,9 @@ impl SystemMediaControls for MacosImpl {
 
             let repeat_cmd = self.cmd_ctr.changeRepeatModeCommand();
             repeat_cmd.setCurrentRepeatType(match payload.repeat {
-                crate::model::RepeatMode::None => MPRepeatType::Off,
-                crate::model::RepeatMode::Track => MPRepeatType::One,
-                crate::model::RepeatMode::List => MPRepeatType::All,
+                RepeatMode::None => MPRepeatType::Off,
+                RepeatMode::Track => MPRepeatType::One,
+                RepeatMode::List => MPRepeatType::All,
             });
         }
     }

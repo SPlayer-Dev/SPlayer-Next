@@ -6,8 +6,9 @@ use tokio::runtime::Runtime;
 use windows::{
     Foundation::{TimeSpan, TypedEventHandler},
     Media::{
-        MediaPlaybackAutoRepeatMode, MediaPlaybackStatus, MediaPlaybackType, Playback::MediaPlayer,
-        PlaybackPositionChangeRequestedEventArgs, PlaybackRateChangeRequestedEventArgs,
+        AutoRepeatModeChangeRequestedEventArgs, MediaPlaybackAutoRepeatMode, MediaPlaybackStatus,
+        MediaPlaybackType, Playback::MediaPlayer, PlaybackPositionChangeRequestedEventArgs,
+        PlaybackRateChangeRequestedEventArgs, ShuffleEnabledChangeRequestedEventArgs,
         SystemMediaTransportControls, SystemMediaTransportControlsButton,
         SystemMediaTransportControlsButtonPressedEventArgs,
         SystemMediaTransportControlsTimelineProperties,
@@ -191,17 +192,31 @@ impl SystemMediaControls for WindowsImpl {
         );
         let button_pressed = smtc.ButtonPressed(&btn_handler)?;
 
-        let shuffle_changed =
-            smtc.ShuffleEnabledChangeRequested(&TypedEventHandler::new(move |_, _| {
-                dispatch(MediaEvent::new(MediaEventType::ToggleShuffle));
+        let shuffle_changed = smtc.ShuffleEnabledChangeRequested(&TypedEventHandler::new(
+            move |_, args: Ref<ShuffleEnabledChangeRequestedEventArgs>| {
+                if let Some(args) = args.as_ref() {
+                    dispatch(MediaEvent::set_shuffle(args.RequestedShuffleEnabled()?));
+                }
                 Ok(())
-            }))?;
+            },
+        ))?;
 
-        let repeat_changed =
-            smtc.AutoRepeatModeChangeRequested(&TypedEventHandler::new(move |_, _| {
-                dispatch(MediaEvent::new(MediaEventType::ToggleRepeat));
+        let repeat_changed = smtc.AutoRepeatModeChangeRequested(&TypedEventHandler::new(
+            move |_, args: Ref<AutoRepeatModeChangeRequestedEventArgs>| {
+                if let Some(args) = args.as_ref() {
+                    let requested = args.RequestedAutoRepeatMode()?;
+                    let repeat = if requested == MediaPlaybackAutoRepeatMode::Track {
+                        RepeatMode::Track
+                    } else if requested == MediaPlaybackAutoRepeatMode::List {
+                        RepeatMode::List
+                    } else {
+                        RepeatMode::None
+                    };
+                    dispatch(MediaEvent::set_repeat(repeat));
+                }
                 Ok(())
-            }))?;
+            },
+        ))?;
 
         let seek_requested = smtc.PlaybackPositionChangeRequested(&TypedEventHandler::new(
             move |_, args: Ref<PlaybackPositionChangeRequestedEventArgs>| {

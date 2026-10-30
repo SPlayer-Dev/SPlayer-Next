@@ -141,10 +141,17 @@ fn setup_signals(player: &Player, handler: Arc<RwLock<Option<MediaThreadsafeFunc
     player.connect_stop(move |_| d(MediaEvent::new(MediaEventType::Stop)));
 
     let d = dispatch.clone();
-    player.connect_set_loop_status(move |_, _| d(MediaEvent::new(MediaEventType::ToggleRepeat)));
+    player.connect_set_loop_status(move |_, status| {
+        let repeat = match status {
+            MprisLoopStatus::None => RepeatMode::None,
+            MprisLoopStatus::Track => RepeatMode::Track,
+            MprisLoopStatus::Playlist => RepeatMode::List,
+        };
+        d(MediaEvent::set_repeat(repeat));
+    });
 
     let d = dispatch.clone();
-    player.connect_set_shuffle(move |_, _| d(MediaEvent::new(MediaEventType::ToggleShuffle)));
+    player.connect_set_shuffle(move |_, shuffle| d(MediaEvent::set_shuffle(shuffle)));
 
     let d = dispatch.clone();
     player.connect_set_rate(move |_, rate| d(MediaEvent::set_rate(rate)));

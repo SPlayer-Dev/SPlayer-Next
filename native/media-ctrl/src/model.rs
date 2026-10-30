@@ -11,8 +11,8 @@ pub enum MediaEventType {
     Stop,
     NextTrack,
     PrevTrack,
-    ToggleShuffle,
-    ToggleRepeat,
+    SetShuffle,
+    SetRepeat,
     SetRate,
     SetVolume,
     /// 绝对位置（毫秒）
@@ -26,6 +26,8 @@ pub struct MediaEvent {
     pub position_ms: Option<f64>,
     pub rate: Option<f64>,
     pub volume: Option<f64>,
+    pub shuffle: Option<bool>,
+    pub repeat: Option<RepeatMode>,
 }
 
 impl MediaEvent {
@@ -35,31 +37,39 @@ impl MediaEvent {
             position_ms: None,
             rate: None,
             volume: None,
+            shuffle: None,
+            repeat: None,
         }
     }
     pub const fn seek(pos: f64) -> Self {
         Self {
-            type_: MediaEventType::Seek,
             position_ms: Some(pos),
-            rate: None,
-            volume: None,
+            ..Self::new(MediaEventType::Seek)
         }
     }
     pub const fn set_rate(rate: f64) -> Self {
         Self {
-            type_: MediaEventType::SetRate,
-            position_ms: None,
             rate: Some(rate),
-            volume: None,
+            ..Self::new(MediaEventType::SetRate)
         }
     }
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     pub const fn set_volume(volume: f64) -> Self {
         Self {
-            type_: MediaEventType::SetVolume,
-            position_ms: None,
-            rate: None,
             volume: Some(volume),
+            ..Self::new(MediaEventType::SetVolume)
+        }
+    }
+    pub const fn set_shuffle(shuffle: bool) -> Self {
+        Self {
+            shuffle: Some(shuffle),
+            ..Self::new(MediaEventType::SetShuffle)
+        }
+    }
+    pub const fn set_repeat(repeat: RepeatMode) -> Self {
+        Self {
+            repeat: Some(repeat),
+            ..Self::new(MediaEventType::SetRepeat)
         }
     }
 }

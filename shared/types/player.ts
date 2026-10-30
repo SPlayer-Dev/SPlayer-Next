@@ -407,8 +407,8 @@ export interface PlayerApi {
   setOutputDevice: (deviceId: string | null, pauseBeforeSwitch?: boolean) => Promise<IpcResponse>;
   /** 获取当前选择的输出设备 ID（None = 跟随系统默认） */
   getSelectedDeviceName: () => Promise<IpcResponse<string | null>>;
-  /** 同步播放模式到托盘 */
-  syncPlayMode: (repeatMode: string, shuffleMode: string) => void;
+  /** 渲染进程同步播放模式到托盘与系统媒体控件 */
+  syncPlayMode: (repeatMode: RepeatMode, shuffleMode: ShuffleMode) => void;
   /**
    * 同步主窗口当前队列索引
    * @param index - 当前队列索引，无当前队列项时为 -1
