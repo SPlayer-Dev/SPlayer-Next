@@ -9,11 +9,13 @@ import { useContinueListening } from "@/composables/home/useContinueListening";
 import { useQuickActions } from "@/composables/home/useQuickActions";
 import { useHomeDiscover } from "@/composables/home/useHomeDiscover";
 import { useFloatingPlayerBar } from "@/composables/useFloatingPlayerBar";
+import { useCoverPlay } from "@/composables/useCoverPlay";
 import { navigateToPlaylist, navigateToArtist, navigateToAlbum } from "@/utils/navigate";
 import * as player from "@/core/player";
 
 const { t } = useI18n();
 const { isFloatingBar } = useFloatingPlayerBar();
+const { playCover, pendingId } = useCoverPlay();
 
 /** 头部 */
 const { greetingTitle, greetingSub, headerStats, load: loadHeader } = useHomeHeader();
@@ -73,6 +75,22 @@ const openArtist = (item: CoverItem): void => {
 /** 打开专辑页 */
 const openAlbum = (item: CoverItem): void => {
   navigateToAlbum(item.title, { source: "netease", albumId: item.id });
+};
+
+/**
+ * 直接播放歌单
+ * @param item - 歌单封面条目
+ */
+const playPlaylist = (item: CoverItem): void => {
+  void playCover(item, { source: "netease", type: "playlist" });
+};
+
+/**
+ * 直接播放专辑
+ * @param item - 专辑封面条目
+ */
+const playAlbum = (item: CoverItem): void => {
+  void playCover(item, { source: "netease", type: "album" });
 };
 </script>
 
@@ -235,7 +253,15 @@ const openAlbum = (item: CoverItem): void => {
           <h3 class="text-lg font-semibold text-on-surface">{{ recommendTitle }}</h3>
           <p class="mt-0.5 text-xs text-on-surface-variant/50">{{ recommendSubtitle }}</p>
         </div>
-        <CoverList :items="recommendPlaylists" :virtual="false" :gap="16" @click="openPlaylist" />
+        <CoverList
+          :items="recommendPlaylists"
+          :virtual="false"
+          :gap="16"
+          playable
+          :pending-id="pendingId"
+          @click="openPlaylist"
+          @play="playPlaylist"
+        />
       </section>
       <!-- 雷达歌单 -->
       <section v-if="radarPlaylists.length > 0" class="flex flex-col gap-3">
@@ -243,7 +269,15 @@ const openAlbum = (item: CoverItem): void => {
           <h3 class="text-lg font-semibold text-on-surface">{{ t("home.radar.title") }}</h3>
           <p class="mt-0.5 text-xs text-on-surface-variant/50">{{ t("home.radar.subtitle") }}</p>
         </div>
-        <CoverList :items="radarPlaylists" :virtual="false" :gap="16" @click="openPlaylist" />
+        <CoverList
+          :items="radarPlaylists"
+          :virtual="false"
+          :gap="16"
+          playable
+          :pending-id="pendingId"
+          @click="openPlaylist"
+          @play="playPlaylist"
+        />
       </section>
       <!-- 歌手推荐 -->
       <section v-if="artists.length > 0" class="flex flex-col gap-3">
@@ -266,7 +300,15 @@ const openAlbum = (item: CoverItem): void => {
           <h3 class="text-lg font-semibold text-on-surface">{{ t("home.albums.title") }}</h3>
           <p class="mt-0.5 text-xs text-on-surface-variant/50">{{ t("home.albums.subtitle") }}</p>
         </div>
-        <CoverList :items="newAlbums" :virtual="false" :gap="16" @click="openAlbum" />
+        <CoverList
+          :items="newAlbums"
+          :virtual="false"
+          :gap="16"
+          playable
+          :pending-id="pendingId"
+          @click="openAlbum"
+          @play="playAlbum"
+        />
       </section>
     </div>
   </div>
