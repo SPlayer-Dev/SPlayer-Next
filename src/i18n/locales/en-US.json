@@ -137,6 +137,8 @@
     "empty": "No comments yet",
     "noSource": "No comment source available",
     "location": "From {location}",
+    "creator": "Creator Says",
+    "creatorBadge": "Creator",
     "page": "Page {page} / {total}"
   },
   "equalizer": {
@@ -806,6 +808,7 @@
       "database": "Database Management",
       "backupReset": "Backup & Reset",
       "debug": "Debug",
+      "comments": "Comments",
       "preset": "OCD Settings",
       "envInfo": "Environment Info"
     },
@@ -862,6 +865,17 @@
     "showSubtitle": {
       "label": "Show Subtitle",
       "description": "Show alias and other subtitle info in song list"
+    },
+    "creatorComments": {
+      "label": "Creator Says",
+      "description": "Show comments from the song's creators; enabling this adds extra API requests and caches creator comments"
+    },
+    "commentDensity": {
+      "label": "Comment Density",
+      "description": "Control spacing, font size and avatar size of comment cards in the player",
+      "compact": "Compact",
+      "standard": "Standard",
+      "comfortable": "Comfortable"
     },
     "rememberLastTrack": {
       "label": "Remember Progress",

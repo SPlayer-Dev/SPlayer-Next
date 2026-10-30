@@ -232,6 +232,17 @@ export interface StreamingSettings {
   enabled: boolean;
 }
 
+/** 评论卡片密度 */
+export type CommentDensity = "compact" | "standard" | "comfortable";
+
+/** 评论设置 */
+export interface CommentSettings {
+  /** 在评论区展示主创说 */
+  creatorEnabled: boolean;
+  /** 播放器内评论卡片密度 */
+  density: CommentDensity;
+}
+
 /** 外部 API 服务配置 */
 export interface ExternalApiSettings {
   /** 总开关 */
@@ -465,6 +476,8 @@ export interface SystemConfig {
   streaming: StreamingSettings;
   /** Last.fm 集成配置 */
   lastfm: LastfmSettings;
+  /** 评论设置 */
+  comments: CommentSettings;
   /** 外部 API 服务（HTTP + WS） */
   externalApi: ExternalApiSettings;
   /** AI 集成使用的 MCP 服务 */
