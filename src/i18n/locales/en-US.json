@@ -499,6 +499,7 @@
       "contentLabel": "Content to copy",
       "translation": "Translation",
       "romaji": "Romaji",
+      "background": "Background lines",
       "emptyLine": "Blank line",
       "songName": "Title",
       "artist": "Artist",

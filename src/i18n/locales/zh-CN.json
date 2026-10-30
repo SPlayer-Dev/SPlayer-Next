@@ -499,6 +499,7 @@
       "contentLabel": "要复制的内容",
       "translation": "翻译",
       "romaji": "音译",
+      "background": "背景行",
       "emptyLine": "空行",
       "songName": "歌名",
       "artist": "歌手",
