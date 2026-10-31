@@ -208,12 +208,20 @@
     "devtools": "Developer Tools",
     "globalSettings": "Global Settings",
     "searchPlaceholder": "Search songs, artists or albums",
-    "searchEmpty": "Start typing to search",
     "searchGoto": "Search for \"{keyword}\"",
+    "searchCommandHint": "Search songs, or type / for commands",
+    "searchCommandTip": "Type to jump to a setting or page, or run a common action",
     "searchSection": {
       "quick": "Quick",
       "history": "Recent searches",
-      "hot": "Trending"
+      "pages": "Pages",
+      "actions": "Actions"
+    },
+    "searchHistoryClearConfirm": "Clear all search history?",
+    "searchFooter": {
+      "select": "Select",
+      "run": "Run",
+      "command": "Commands"
     },
     "searchMenu": {
       "copy": "Copy",

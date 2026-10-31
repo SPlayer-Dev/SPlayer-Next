@@ -4,7 +4,7 @@ import type { SSelectOption } from "@/components/ui/SSelect.vue";
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import type { ContentScope } from "@/types/collection";
 import { SIDEBAR_GROUP_MY_PLAYLISTS, SIDEBAR_GROUP_SUBSCRIBED } from "@/types/settings";
-import { SIDEBAR_NAV_META, applySavedOrder } from "@/components/layout/sidebarNav";
+import { SIDEBAR_NAV_META, applySavedOrder, isNavFeatureOff } from "@/utils/sidebarNav";
 import { useSettingsStore } from "@/stores/settings";
 import { useStatusStore } from "@/stores/status";
 import { usePlaylistStore } from "@/stores/playlist";
@@ -184,9 +184,7 @@ const navItems = computed<SMenuItem[]>(() => {
     for (const key of group.keys) {
       if (hidden.has(key)) continue;
       const entry = SIDEBAR_NAV_META[key];
-      if (!entry) continue;
-      if (key === "/download" && !systemSettings.download.enabled) continue;
-      if (key === "/streaming" && !systemSettings.streaming.enabled) continue;
+      if (!entry || isNavFeatureOff(entry, systemSettings)) continue;
       const item: SMenuItem = { key, label: t(entry.labelKey), icon: markRaw(entry.icon) };
       if (key === "/liked") item.trailing = renderHeartModeTrailing;
       if (key === "/download" && downloadStore.activeCount > 0)
@@ -250,7 +248,7 @@ const contextMenuItems = computed<DropdownMenuItem[]>(() => {
   const target = contextTargetKey.value;
   const entry = SIDEBAR_NAV_META[target];
   // 歌单项（/collection/ 前缀）与可隐藏导航项均支持右键隐藏
-  const hideable = entry ? entry.hideable : target.startsWith("/collection/");
+  const hideable = entry ? !entry.pinned : target.startsWith("/collection/");
   return [
     {
       key: "hide",

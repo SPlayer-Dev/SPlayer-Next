@@ -9,7 +9,7 @@ import {
   SIDEBAR_GROUP_MY_PLAYLISTS,
   SIDEBAR_GROUP_SUBSCRIBED,
 } from "@/types/settings";
-import { SIDEBAR_NAV_META, applySavedOrder } from "@/components/layout/sidebarNav";
+import { SIDEBAR_NAV_META, applySavedOrder, isNavFeatureOff } from "@/utils/sidebarNav";
 import { useSettingsStore } from "@/stores/settings";
 import { useStatusStore } from "@/stores/status";
 import { usePlaylistStore } from "@/stores/playlist";
@@ -202,10 +202,8 @@ const editorGroups = computed(() =>
         key,
         label: entry ? t(entry.labelKey) : key,
         icon: entry?.icon,
-        hideable: entry?.hideable ?? true,
-        featureOff:
-          (key === "/download" && !settings.system.download.enabled) ||
-          (key === "/streaming" && !settings.system.streaming.enabled),
+        hideable: !entry?.pinned,
+        featureOff: !!entry && isNavFeatureOff(entry, settings.system),
       };
     }),
   })),

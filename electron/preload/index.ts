@@ -320,6 +320,8 @@ const api = {
     getTracksByIds: (ids: string[]) => ipcRenderer.invoke("library:getTracksByIds", ids),
     // 搜索曲目
     searchTracks: (query: string) => ipcRenderer.invoke("library:searchTracks", query),
+    // 搜索窗分组搜索（歌曲 / 专辑 / 歌手）
+    quickSearch: (keyword: string) => ipcRenderer.invoke("library:quickSearch", keyword),
     // 获取曲目总数
     getTrackCount: () => ipcRenderer.invoke("library:getTrackCount"),
     // 随机取一首曲目
@@ -884,6 +886,8 @@ const api = {
     getStatsSummary: () => ipcRenderer.invoke("stats:getStatsSummary"),
     // 取最常播放的曲目
     getTopTracks: (limit: number) => ipcRenderer.invoke("stats:getTopTracks", limit),
+    // 取最近播放的曲目
+    getRecentTracks: (limit: number) => ipcRenderer.invoke("stats:getRecentTracks", limit),
     // 取音乐库统计概览
     getLibraryStats: () => ipcRenderer.invoke("stats:getLibraryStats"),
     // 取最近 N 天的每日播放统计

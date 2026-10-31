@@ -112,6 +112,8 @@ export interface StatsApi {
   getStatsSummary: () => Promise<PlayStatsSummary>;
   /** 取最常播放的曲目（按次数倒序） */
   getTopTracks: (limit: number) => Promise<TopTrack[]>;
+  /** 取最近播放的曲目（按最后播放时间倒序） */
+  getRecentTracks: (limit: number) => Promise<Track[]>;
   /** 取音乐库统计概览 */
   getLibraryStats: () => Promise<LibraryStats>;
   /** 取最近 N 天（含今天）的每日播放统计（按日期升序） */

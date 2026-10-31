@@ -4,6 +4,7 @@ import { store } from "@main/store";
 import {
   getAllTracks,
   searchTracks,
+  quickSearchLibrary,
   getTrackCount,
   deleteTracksByDir,
   deleteTracksByPaths,
@@ -113,6 +114,15 @@ export const registerLibraryIpc = (): void => {
   ipcMain.handle("library:searchTracks", (_event, query: string) => {
     try {
       return { success: true, data: searchTracks(query) };
+    } catch (_error) {
+      return { success: false, error: ErrorCode.UNKNOWN };
+    }
+  });
+
+  // 搜索窗分组搜索
+  ipcMain.handle("library:quickSearch", (_event, keyword: string) => {
+    try {
+      return { success: true, data: quickSearchLibrary(keyword) };
     } catch (_error) {
       return { success: false, error: ErrorCode.UNKNOWN };
     }

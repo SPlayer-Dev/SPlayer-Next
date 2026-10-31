@@ -208,12 +208,20 @@
     "devtools": "开发者工具",
     "globalSettings": "全局设置",
     "searchPlaceholder": "搜索歌曲、歌手或专辑",
-    "searchEmpty": "输入关键词开始搜索",
     "searchGoto": "搜索「{keyword}」",
+    "searchCommandHint": "搜索歌曲，或输入 / 进入命令模式",
+    "searchCommandTip": "输入关键词，跳转设置项、页面或执行常用操作",
     "searchSection": {
       "quick": "快捷",
       "history": "搜索历史",
-      "hot": "热搜榜"
+      "pages": "页面",
+      "actions": "操作"
+    },
+    "searchHistoryClearConfirm": "确认清空全部搜索历史吗？",
+    "searchFooter": {
+      "select": "选择",
+      "run": "执行",
+      "command": "命令"
     },
     "searchMenu": {
       "copy": "复制",
