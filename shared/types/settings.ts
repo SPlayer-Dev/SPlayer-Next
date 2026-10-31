@@ -94,6 +94,8 @@ export interface LastfmSettings {
 export interface MediaSettings {
   /** 是否启用系统媒体控件（SMTC / MPRIS / MPNowPlaying） */
   systemMediaControls: boolean;
+  /** 是否向 MPRIS 输出扩展元数据（如 xesam:url 与 xesam:asText） */
+  mprisExtendedMetadata: boolean;
   /** Discord RPC 配置 */
   discord: DiscordSettings;
 }

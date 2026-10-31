@@ -32,6 +32,7 @@ export const defaultSystemConfig: SystemConfig = {
   },
   media: {
     systemMediaControls: true,
+    mprisExtendedMetadata: true,
     discord: {
       enabled: false,
       showWhenPaused: false,

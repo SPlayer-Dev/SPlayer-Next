@@ -7,6 +7,7 @@ import {
   enable as enableMedia,
   disable as disableMedia,
   reloadDiscordConfig,
+  syncMprisExtendedMetadata,
 } from "@main/services/media";
 import { reloadConfig as reloadLastfmConfig } from "@main/services/lastfm";
 import {
@@ -52,6 +53,9 @@ const applyConfigChange = (keyPath: string, value: unknown): void => {
       break;
     case "media.systemMediaControls":
       value ? enableMedia() : disableMedia();
+      break;
+    case "media.mprisExtendedMetadata":
+      syncMprisExtendedMetadata(value as boolean);
       break;
     case "media.discord.enabled":
     case "media.discord.showWhenPaused":

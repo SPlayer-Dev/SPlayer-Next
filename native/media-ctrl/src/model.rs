@@ -76,6 +76,8 @@ pub struct MetadataPayload {
     pub cover_data: Option<Vec<u8>>,
     pub cover_url: Option<String>,
     pub duration_ms: Option<f64>,
+    pub url: Option<String>,
+    pub lyrics: Option<String>,
 }
 
 impl MetadataPayload {
@@ -100,6 +102,8 @@ impl fmt::Debug for MetadataPayload {
             )
             .field("cover_url", &self.cover_url)
             .field("duration_ms", &self.duration_ms)
+            .field("url", &self.url)
+            .field("lyrics", &self.lyrics)
             .finish()
     }
 }
@@ -117,6 +121,10 @@ pub struct MetadataParam {
     pub cover_url: Option<String>,
     /// 时长（毫秒）
     pub duration_ms: Option<f64>,
+    /// 歌曲链接 / 媒体地址（用于 MPRIS xesam:url）
+    pub url: Option<String>,
+    /// 歌词文本（用于 MPRIS xesam:asText）
+    pub lyrics: Option<String>,
 }
 
 impl From<MetadataParam> for MetadataPayload {
@@ -128,6 +136,8 @@ impl From<MetadataParam> for MetadataPayload {
             cover_data: p.cover_data.map(|b| b.to_vec()),
             cover_url: p.cover_url,
             duration_ms: p.duration_ms,
+            url: p.url,
+            lyrics: p.lyrics,
         }
     }
 }

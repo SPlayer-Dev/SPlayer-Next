@@ -1746,6 +1746,10 @@
       "label": "系统媒体控制",
       "description": "在系统媒体控制中显示当前播放信息"
     },
+    "mprisExtendedMetadata": {
+      "label": "MPRIS 扩展元数据",
+      "description": "向 Linux 桌面 MPRIS 暴露歌曲链接 (xesam:url) 与完整歌词 (xesam:asText)"
+    },
     "discordEnabled": {
       "label": "Discord 状态",
       "description": "在 Discord 中显示当前播放状态"

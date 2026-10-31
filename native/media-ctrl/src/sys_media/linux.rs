@@ -215,6 +215,13 @@ async fn process_metadata(
         mb = mb.art_url(url);
     }
 
+    if let Some(url) = payload.url {
+        mb = mb.url(url);
+    }
+
+    if let Some(lyrics) = payload.lyrics {
+        mb = mb.lyrics(lyrics);
+    }
     player.set_metadata(mb.build()).await.ok();
     player.set_position(Time::from_millis(0));
 }

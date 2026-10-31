@@ -1746,6 +1746,10 @@
       "label": "System Media Controls",
       "description": "Show playback info in system media controls"
     },
+    "mprisExtendedMetadata": {
+      "label": "MPRIS Extended Metadata",
+      "description": "Expose track URL (xesam:url) and lyrics (xesam:asText) to Linux desktop via MPRIS"
+    },
     "discordEnabled": {
       "label": "Discord Status",
       "description": "Show playback status on Discord"

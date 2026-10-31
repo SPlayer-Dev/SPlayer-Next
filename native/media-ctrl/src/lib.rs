@@ -86,6 +86,8 @@ pub fn set_metadata(param: MetadataParam) {
         cover_data: None,
         cover_url: param.cover_url.clone(),
         duration_ms: param.duration_ms,
+        url: param.url.clone(),
+        lyrics: None,
     };
     discord::update_metadata(discord_payload);
 
