@@ -33,6 +33,7 @@ const {
   heartMode,
   fmMode,
   showLyric,
+  showCover,
 } = storeToRefs(status);
 
 const { timeDisplay, toggleTimeFormat } = useTimeFormat();
@@ -246,17 +247,27 @@ const {
   openPicker,
 } = usePlaylistPicker();
 
-const lyricToggleDisabled = computed(() => !hasLyric.value || fullscreenCover.value);
+const lyricToggleDisabled = computed(() => !hasLyric.value);
 const lyricToggleActive = computed(
-  () => showLyric.value && hasLyric.value && !status.fullQueueOpen && !fullscreenCover.value,
+  () => (showLyric.value || !showCover.value) && hasLyric.value && !status.fullQueueOpen,
 );
 
+/** 按封面与歌词的三种显示状态循环切换 */
 const toggleLyric = (): void => {
   if (status.fullQueueOpen) {
     status.fullQueueOpen = false;
     showLyric.value = true;
+    showCover.value = true;
+    return;
+  }
+  if (!showCover.value) {
+    showCover.value = true;
+    showLyric.value = true;
+  } else if (showLyric.value) {
+    showLyric.value = false;
   } else {
-    showLyric.value = !showLyric.value;
+    showCover.value = false;
+    showLyric.value = true;
   }
 };
 
@@ -290,25 +301,46 @@ const showComments = (): void => {
         <!-- 背景 -->
         <PlayerBackground :visible="playerVisible" :active="visualizerMounted" />
         <!-- 全屏封面 -->
-        <div v-if="fullscreenCover" class="absolute inset-y-0 left-0 w-[60%]">
-          <PlayerCover fullscreen />
-        </div>
+        <Transition
+          enter-active-class="transition-opacity duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          enter-from-class="opacity-0"
+          leave-active-class="transition-opacity duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          leave-to-class="opacity-0"
+        >
+          <div v-if="fullscreenCover && showCover" class="absolute inset-y-0 left-0 w-[60%]">
+            <PlayerCover fullscreen />
+          </div>
+        </Transition>
         <!-- 底部频谱 -->
         <BottomSpectrum
           v-if="isPlayerExpanded && visualizerMounted && settings.player.enableSpectrum"
           :show="isPlaying && immersive"
         />
         <!-- 顶/底栏渐变遮罩（全屏封面模式） -->
-        <div
-          v-if="fullscreenCover"
-          class="cover-mask-top absolute top-0 inset-x-0 h-20 z-5 pointer-events-none transition-opacity duration-400"
-          :class="immersive ? 'opacity-0' : 'opacity-100'"
-        />
-        <div
-          v-if="fullscreenCover"
-          class="cover-mask-bottom absolute bottom-0 inset-x-0 h-48 z-5 pointer-events-none transition-opacity duration-400"
-          :class="immersive ? 'opacity-0' : 'opacity-100'"
-        />
+        <Transition
+          enter-active-class="transition-opacity duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          enter-from-class="opacity-0"
+          leave-active-class="transition-opacity duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          leave-to-class="opacity-0"
+        >
+          <div
+            v-if="fullscreenCover && showCover"
+            class="cover-mask-top absolute top-0 inset-x-0 h-20 z-5 pointer-events-none transition-opacity duration-400"
+            :class="immersive ? 'opacity-0' : 'opacity-100'"
+          />
+        </Transition>
+        <Transition
+          enter-active-class="transition-opacity duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          enter-from-class="opacity-0"
+          leave-active-class="transition-opacity duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          leave-to-class="opacity-0"
+        >
+          <div
+            v-if="fullscreenCover && showCover"
+            class="cover-mask-bottom absolute bottom-0 inset-x-0 h-48 z-5 pointer-events-none transition-opacity duration-400"
+            :class="immersive ? 'opacity-0' : 'opacity-100'"
+          />
+        </Transition>
         <!-- 顶栏 -->
         <div
           class="absolute top-0 inset-x-0 h-14 z-10 app-drag-region transition-opacity duration-400 flex items-center justify-between px-3"
@@ -342,83 +374,130 @@ const showComments = (): void => {
         <!-- 主区域 -->
         <div class="absolute top-14 inset-x-0 bottom-20" @mousemove="onMainMove">
           <!-- 左侧 -->
-          <div
-            v-if="!fullscreenCover"
-            class="absolute inset-y-0 left-0 flex items-center justify-center px-12 transition-transform duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
-            :style="{
-              width: coverWidth,
-              transform: coverCentered ? 'translateX(calc(50vw - 50%))' : undefined,
-            }"
+          <Transition
+            enter-active-class="transition-opacity duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
+            enter-from-class="opacity-0"
+            leave-active-class="transition-opacity duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
+            leave-to-class="opacity-0"
           >
-            <div class="relative w-[clamp(200px,85%,50vh)] -translate-y-[11vh]">
-              <Transition name="scale-switch" mode="out-in">
-                <div :key="displayTrack?.id">
-                  <PlayerCover />
-                  <div class="absolute top-full left-0 w-full pt-6">
-                    <PlayerData align="left" />
+            <div
+              v-if="!fullscreenCover && showCover"
+              class="absolute inset-y-0 left-0 flex items-center justify-center pl-20 pr-12 transition-[width,opacity,transform] duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
+              :style="{
+                width: coverWidth,
+                transform: coverCentered ? 'translateX(calc(50vw - 50%))' : undefined,
+              }"
+            >
+              <div class="relative w-[clamp(200px,85%,50vh)] -translate-y-[11vh]">
+                <Transition name="scale-switch" mode="out-in">
+                  <div :key="displayTrack?.id">
+                    <PlayerCover />
+                    <div class="absolute top-full left-0 w-full pt-6">
+                      <PlayerData align="left" />
+                    </div>
+                  </div>
+                </Transition>
+              </div>
+            </div>
+          </Transition>
+          <!-- 右侧 -->
+          <Transition
+            enter-active-class="transition-opacity duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
+            enter-from-class="opacity-0"
+            leave-active-class="transition-opacity duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
+            leave-to-class="opacity-0"
+          >
+            <div
+              v-if="showLyric || (fullscreenCover && !showCover)"
+              class="group absolute inset-y-0 right-0 pr-20 flex flex-col transition-[width,padding,opacity] duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
+              :class="[
+                !showCover ? 'pl-20' : '',
+                coverCentered || status.fullQueueOpen
+                  ? 'opacity-0 pointer-events-none'
+                  : 'opacity-100',
+              ]"
+              :style="{
+                width: !showCover ? '100%' : fullscreenCover ? '50%' : `calc(100% - ${coverWidth})`,
+              }"
+            >
+              <!-- 全屏封面 -->
+              <Transition
+                enter-active-class="transition-[opacity,transform] duration-400 ease-out"
+                enter-from-class="opacity-0 translate-y-2"
+                leave-active-class="transition-[opacity,transform] duration-300 ease-in"
+                leave-to-class="opacity-0 -translate-y-2"
+              >
+                <div
+                  v-if="fullscreenCover && showCover"
+                  key="cover-track-info"
+                  class="shrink-0 pt-2 pb-6 pl-[calc(1em-0.5rem)]"
+                  :style="{ fontSize: lyricFontSize }"
+                >
+                  <PlayerData align="left" simple />
+                </div>
+                <div
+                  v-else-if="!showCover"
+                  key="lyric-track-info"
+                  class="shrink-0 pt-2 pb-6 text-center"
+                  :style="{ fontSize: lyricFontSize }"
+                >
+                  <PlayerData align="center" simple />
+                </div>
+              </Transition>
+              <!-- 歌词容器 -->
+              <Transition
+                enter-active-class="transition-opacity duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
+                enter-from-class="opacity-0"
+                leave-active-class="transition-opacity duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
+                leave-to-class="opacity-0"
+              >
+                <div
+                  v-if="showLyric"
+                  class="lyric-area relative flex-1 min-h-0"
+                  :style="{
+                    '--lp-credit-opacity': '1',
+                    fontSize: lyricFontSize,
+                    '--lp-sub-font-size': lyricSubFontSize,
+                    fontWeight: String(settings.lyric.fontWeight),
+                    fontFamily: settings.lyric.fontFamily || undefined,
+                    '--lyric-font-zh': settings.lyric.fontFamilyChinese || undefined,
+                    '--lyric-font-ja': settings.lyric.fontFamilyJapanese || undefined,
+                    '--lyric-font-ko': settings.lyric.fontFamilyKorean || undefined,
+                    '--lyric-font-latin': settings.lyric.fontFamilyLatin || undefined,
+                    mixBlendMode: settings.lyric.lyricBlendMode,
+                  }"
+                >
+                  <Lyrics
+                    v-if="lyricMounted && hasLyric"
+                    ref="lyricRef"
+                    :lyric-lines="media.parsedLyric"
+                    :initial-time="initialLyricTimeMs"
+                    :playing="isPlaying"
+                    @seek="handleLyricSeek"
+                    @ready="onLyricReady"
+                  />
+                  <div
+                    v-else-if="lyricMounted"
+                    class="w-full h-full flex items-center justify-center text-cover/30"
+                  >
+                    暂无歌词
                   </div>
                 </div>
               </Transition>
+              <!-- 歌词侧边工具栏 -->
+              <LyricActions :immersive="immersive" />
             </div>
-          </div>
-          <!-- 右侧 -->
-          <div
-            class="group absolute inset-y-0 right-0 pr-20 flex flex-col transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
-            :class="
-              coverCentered || status.fullQueueOpen
-                ? 'opacity-0 pointer-events-none'
-                : 'opacity-100'
-            "
-            :style="{ width: fullscreenCover ? '50%' : `calc(100% - ${coverWidth})` }"
-          >
-            <!-- 全屏封面 -->
-            <div
-              v-if="fullscreenCover"
-              class="shrink-0 pt-2 pb-6 pl-[calc(1em-0.5rem)]"
-              :style="{ fontSize: lyricFontSize }"
-            >
-              <PlayerData align="left" simple />
-            </div>
-            <!-- 歌词容器 -->
-            <div
-              class="lyric-area relative flex-1 min-h-0"
-              :style="{
-                '--lp-credit-opacity': '1',
-                fontSize: lyricFontSize,
-                '--lp-sub-font-size': lyricSubFontSize,
-                fontWeight: String(settings.lyric.fontWeight),
-                fontFamily: settings.lyric.fontFamily || undefined,
-                '--lyric-font-zh': settings.lyric.fontFamilyChinese || undefined,
-                '--lyric-font-ja': settings.lyric.fontFamilyJapanese || undefined,
-                '--lyric-font-ko': settings.lyric.fontFamilyKorean || undefined,
-                '--lyric-font-latin': settings.lyric.fontFamilyLatin || undefined,
-                mixBlendMode: settings.lyric.lyricBlendMode,
-              }"
-            >
-              <Lyrics
-                v-if="lyricMounted && hasLyric"
-                ref="lyricRef"
-                :lyric-lines="media.parsedLyric"
-                :initial-time="initialLyricTimeMs"
-                :playing="isPlaying"
-                @seek="handleLyricSeek"
-                @ready="onLyricReady"
-              />
-              <div
-                v-else-if="lyricMounted"
-                class="w-full h-full flex items-center justify-center text-cover/30"
-              >
-                暂无歌词
-              </div>
-            </div>
-            <!-- 歌词侧边工具栏 -->
-            <LyricActions :immersive="immersive" />
-          </div>
+          </Transition>
           <!-- 播放队列 -->
           <div
-            class="absolute inset-y-0 right-0 pl-4 py-6 flex items-center"
-            :class="status.fullQueueOpen ? '' : 'pointer-events-none'"
-            :style="{ width: fullscreenCover ? '50%' : `calc(100% - ${coverWidth})` }"
+            class="absolute inset-y-0 right-0 py-6 flex items-center transition-[width,padding] duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
+            :class="[
+              !showCover ? 'pl-20' : 'pl-4',
+              status.fullQueueOpen ? '' : 'pointer-events-none',
+            ]"
+            :style="{
+              width: !showCover ? '100%' : fullscreenCover ? '50%' : `calc(100% - ${coverWidth})`,
+            }"
           >
             <Transition
               enter-active-class="transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"

@@ -48,6 +48,8 @@ export const useStatusStore = defineStore(
     const audioInfoOpen = ref(false);
     /** 全屏播放器是否展示歌词 */
     const showLyric = ref(true);
+    /** 全屏播放器是否展示封面 */
+    const showCover = ref(true);
     /** 当前播放索引 */
     const playIndex = ref(-1);
     /** 循环模式 */
@@ -161,6 +163,7 @@ export const useStatusStore = defineStore(
       commentsTrack,
       audioInfoOpen,
       showLyric,
+      showCover,
       outputDevices,
       playIndex,
       repeatMode,
@@ -203,6 +206,8 @@ export const useStatusStore = defineStore(
         "likedPageTab",
         "settingsCategory",
         "sortPreferences",
+        "showLyric",
+        "showCover",
       ],
     },
   },
