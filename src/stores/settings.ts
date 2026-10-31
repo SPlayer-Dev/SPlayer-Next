@@ -160,6 +160,7 @@ export const useSettingsStore = defineStore(
       showProgressLyric: false,
       snapToLyric: false,
       showLyricInBar: true,
+      barLyricMode: "translation",
       preloadNextTrack: false,
       transitionMode: "none",
       transitionPreference: "standard",
@@ -185,6 +186,7 @@ export const useSettingsStore = defineStore(
       smartPreferOnline: false,
       preferPluginLyric: false,
       detectBackgroundLyrics: true,
+      autoGenerateWordByWord: false,
       cjkTransform: "none",
       adaptiveFontSize: true,
       fontSize: 48,
@@ -386,6 +388,9 @@ export const useSettingsStore = defineStore(
           preset: PresetSettings;
           player: PlayerSettings;
         };
+        if (!["lyric", "translation", "word"].includes(player.barLyricMode)) {
+          player.barLyricMode = "translation";
+        }
         if (player.transitionMode !== "crossfade" && player.transitionMode !== "automix")
           player.transitionMode = "none";
         if (
@@ -398,6 +403,9 @@ export const useSettingsStore = defineStore(
           player.automixCrossfadeFallback = true;
         if (typeof lyric.detectBackgroundLyrics !== "boolean") {
           lyric.detectBackgroundLyrics = true;
+        }
+        if (typeof lyric.autoGenerateWordByWord !== "boolean") {
+          lyric.autoGenerateWordByWord = false;
         }
         if (!Array.isArray(preset.skipTrackKeywords)) {
           preset.skipTrackKeywords = [...DEFAULT_SKIP_TRACK_KEYWORDS];

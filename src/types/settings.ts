@@ -133,6 +133,8 @@ export interface LyricSettings {
   preferPluginLyric: boolean;
   /** 自动识别背景歌词 */
   detectBackgroundLyrics: boolean;
+  /** 为没有逐字时间的歌词统一生成字级时间戳 */
+  autoGenerateWordByWord: boolean;
   /** 中文繁简转换模式（基于 OpenCC） */
   cjkTransform: CjkTransformMode;
   /** 字号随窗口高度调整 */
@@ -279,6 +281,8 @@ export interface PlayerSettings {
   snapToLyric: boolean;
   /** 播放时底部显示歌词而非歌手名 */
   showLyricInBar: boolean;
+  /** 底部歌词展示模式 */
+  barLyricMode: "lyric" | "translation" | "word";
   /** 播放时提前获取下一首的播放数据 */
   preloadNextTrack: boolean;
   /** 相邻曲目的播放过渡方式 */

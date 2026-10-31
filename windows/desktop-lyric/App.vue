@@ -7,7 +7,6 @@ import {
   getLineTop,
   computeWindowHeight,
   resolveAlign,
-  resolveWordByWord,
   type DisplayItem,
 } from "./utils";
 import { pickPrimaryIndex } from "lyric-kit";
@@ -25,7 +24,6 @@ const config = reactive<DesktopLyricSettings>({
   doubleLine: true,
   align: "center",
   wordByWord: true,
-  autoGenerateWordByWord: true,
   playedColor: "#ffffff",
   unplayedColor: "#7d7d7d",
   strokeColor: "rgba(0, 0, 0, 0.5)",
@@ -39,7 +37,7 @@ const config = reactive<DesktopLyricSettings>({
   useCSSDrag: false,
 });
 
-const { track, lyric, playing, primaryIndex } = useNowPlayingSync({
+const { track, lyric, wordTimed, playing, primaryIndex } = useNowPlayingSync({
   pickIndex: pickPrimaryIndex,
   logTag: "desktop-lyric",
 });
@@ -321,7 +319,7 @@ onBeforeUnmount(() => {
         :font-size="config.fontSize"
         :font-weight="config.fontWeight"
         :align="item.align"
-        :word-by-word="resolveWordByWord(config, item)"
+        :word-by-word="config.wordByWord && wordTimed && !item.isPlaceholder"
         :scroll-enabled="!!item.scrollEnabled"
         :timing-line="item.timingLine"
         :is-next="!!item.isNext"

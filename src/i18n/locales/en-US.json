@@ -879,6 +879,13 @@
       "current": "Play Current Track Only",
       "all": "Play Whole List"
     },
+    "barLyricMode": {
+      "label": "Player Bar Lyric Mode",
+      "description": "Choose lyric content and highlighting; long lines scroll with playback progress",
+      "lyric": "Lyrics",
+      "translation": "Lyrics + Translation",
+      "word": "Word by Word"
+    },
     "showLyricInBar": {
       "label": "Show Lyric While Playing",
       "description": "Replace artist name with current lyric in the bottom player bar"
@@ -1296,6 +1303,10 @@
       "label": "Background Lyrics Always Below",
       "description": "Always place background vocal lines below the main lyric line"
     },
+    "autoGenerateWordByWord": {
+      "label": "Auto-generate Word Effect",
+      "description": "Generate word-by-word effects for line-timed lyrics"
+    },
     "enableWordHighlight": {
       "label": "Word Highlight",
       "description": "Show word-by-word lyric highlight progress"
@@ -1382,10 +1393,6 @@
     "desktopLyricWordByWord": {
       "label": "Word by Word",
       "description": "Render highlight progress per word"
-    },
-    "desktopLyricAutoGenerateWordByWord": {
-      "label": "Auto-generate Word Effect",
-      "description": "When off, only real per-word lyrics apply"
     },
     "desktopLyricPlayedColor": {
       "label": "Played Color",

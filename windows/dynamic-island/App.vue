@@ -57,7 +57,7 @@ const shapeBottomRadius = computed(() => Math.max(14, Math.round(coverRadius.val
 const subFontSize = computed(() => Math.max(11, Math.round(fontSize.value * 0.65)));
 const subRowHeight = computed(() => Math.round(subFontSize.value * 1.2));
 
-const { track, lyric, primaryIndex } = useNowPlayingSync({
+const { track, lyric, wordTimed, primaryIndex } = useNowPlayingSync({
   pickIndex: pickAdvanceOnEndIndex,
   logTag: "dynamic-island",
 });
@@ -628,7 +628,7 @@ onBeforeUnmount(() => {
                   :line="fittedDisplayLine"
                   :font-size="fontSize"
                   :font-weight="config.fontWeight"
-                  :word-by-word="config.wordByWord && !mainTextTruncated"
+                  :word-by-word="config.wordByWord && wordTimed && !mainTextTruncated"
                 />
                 <div v-else class="fallback" :style="{ fontSize: `${fontSize}px` }">
                   {{ fittedMainText }}

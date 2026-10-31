@@ -1,7 +1,6 @@
 import type { LyricLine } from "lyric-kit";
 
-import type { DesktopLyricAlign, DesktopLyricSettings } from "@shared/types/settings";
-import { hasRealWordTiming } from "@windows/shared/lyricScroll";
+import type { DesktopLyricAlign } from "@shared/types/settings";
 
 /** 待渲染行的数据载体 */
 export interface DisplayItem {
@@ -68,19 +67,4 @@ export const computeWindowHeight = (fontSize: number): number => {
 export const resolveAlign = (index: number, baseAlign: DesktopLyricAlign): DesktopLyricAlign => {
   if (baseAlign !== "justify") return baseAlign;
   return index % 2 === 0 ? "left" : "right";
-};
-
-/**
- * 判定是否逐字渲染
- * @param config 逐字相关配置
- * @param item 待渲染项
- */
-export const resolveWordByWord = (
-  config: Pick<DesktopLyricSettings, "wordByWord" | "autoGenerateWordByWord">,
-  item: DisplayItem,
-): boolean => {
-  if (!config.wordByWord) return false;
-  if (item.isPlaceholder) return false;
-  if (config.autoGenerateWordByWord) return true;
-  return hasRealWordTiming(item.line);
 };

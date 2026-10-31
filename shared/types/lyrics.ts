@@ -21,6 +21,8 @@ export type LyricSource = "external" | "embedded" | "online";
 export type LyricData = {
   source: LyricSource;
   format: LyricFormat;
+  /** 本次解析结果是否具有真实或统一生成的逐字时间 */
+  wordTimed?: boolean;
   /** 在线歌词所属平台，仅 source=online 时有值 */
   platform?: Platform;
 } | null;

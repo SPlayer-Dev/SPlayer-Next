@@ -210,6 +210,19 @@ const appearanceCategory: SettingCategory = {
           type: "switch",
           binding: { store: "settings", path: "player.showLyricInBar" },
           defaultValue: true,
+          children: [
+            {
+              key: "barLyricMode",
+              type: "select",
+              binding: { store: "settings", path: "player.barLyricMode" },
+              options: [
+                { value: "lyric", labelKey: "settings.barLyricMode.lyric" },
+                { value: "translation", labelKey: "settings.barLyricMode.translation" },
+                { value: "word", labelKey: "settings.barLyricMode.word" },
+              ],
+              defaultValue: "translation",
+            },
+          ],
         },
         {
           key: "showProgressTooltip",

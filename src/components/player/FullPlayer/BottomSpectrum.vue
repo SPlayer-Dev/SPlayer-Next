@@ -24,6 +24,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const status = useStatusStore();
 const settings = useSettingsStore();
+const visibility = useDocumentVisibility();
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 
@@ -150,6 +151,7 @@ const { resume, pause } = useRafFn(draw, { immediate: false });
 // 本地持有标记，保证 acquire / release 严格配对
 let fftAcquired = false;
 
+/** 获取频谱数据并启动可见窗口的绘制循环 */
 const startCapture = (): void => {
   if (!fftAcquired) {
     acquireFft();
@@ -158,6 +160,7 @@ const startCapture = (): void => {
   resume();
 };
 
+/** 停止频谱绘制并释放当前组件的采集引用 */
 const stopCapture = (): void => {
   pause();
   if (fftAcquired) {
@@ -168,9 +171,9 @@ const stopCapture = (): void => {
 
 // 暂停时停止 FFT 推送 + RAF 重绘
 watch(
-  () => status.isPlaying,
-  (playing) => {
-    if (playing) startCapture();
+  [() => status.isPlaying, visibility],
+  ([playing, visible]) => {
+    if (playing && visible === "visible") startCapture();
     else stopCapture();
   },
   { immediate: true },

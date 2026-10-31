@@ -879,6 +879,13 @@
       "current": "仅播放当前",
       "all": "播放全部"
     },
+    "barLyricMode": {
+      "label": "播放栏歌词模式",
+      "description": "选择歌词内容与高亮方式，超长歌词随当前句的播放进度滚动",
+      "lyric": "歌词",
+      "translation": "歌词+翻译",
+      "word": "逐字"
+    },
     "showLyricInBar": {
       "label": "播放时显示歌词",
       "description": "底部播放栏播放时将歌手名替换为当前歌词"
@@ -1296,6 +1303,10 @@
       "label": "背景歌词置于下方",
       "description": "始终将背景和声歌词显示在主歌词行下方"
     },
+    "autoGenerateWordByWord": {
+      "label": "自动生成逐字效果",
+      "description": "为非逐字歌词生成逐字效果"
+    },
     "enableWordHighlight": {
       "label": "逐字高亮",
       "description": "逐字显示歌词高亮进度"
@@ -1382,10 +1393,6 @@
     "desktopLyricWordByWord": {
       "label": "逐字高亮",
       "description": "按单词进度逐字渲染高亮"
-    },
-    "desktopLyricAutoGenerateWordByWord": {
-      "label": "自动生成逐字效果",
-      "description": "关闭后仅真正的逐字歌词生效"
     },
     "desktopLyricPlayedColor": {
       "label": "已播放颜色",

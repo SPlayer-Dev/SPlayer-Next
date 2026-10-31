@@ -213,6 +213,7 @@ declare module 'vue' {
     PlatformAccount: typeof import('./src/components/settings/custom/PlatformAccount.vue')['default']
     PlayerBackground: typeof import('./src/components/player/FullPlayer/PlayerBackground.vue')['default']
     PlayerBar: typeof import('./src/components/player/PlayerBar.vue')['default']
+    PlayerBarLyric: typeof import('./src/components/player/PlayerBarLyric.vue')['default']
     PlayerControls: typeof import('./src/components/player/PlayerControls.vue')['default']
     PlayerCover: typeof import('./src/components/player/FullPlayer/PlayerCover.vue')['default']
     PlayerData: typeof import('./src/components/player/FullPlayer/PlayerData.vue')['default']

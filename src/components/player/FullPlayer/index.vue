@@ -90,6 +90,7 @@ const scheduleVisualizers = (): void => {
 const onLyricReady = (): void => {
   if (!isPlayerExpanded.value) return;
   lyricReady.value = true;
+  syncLyricActivity();
   scheduleVisualizers();
 };
 
@@ -106,8 +107,7 @@ const preparePlayerContent = (): void => {
   nextTick(() => {
     if (!isPlayerExpanded.value) return;
     lyricRef.value?.setCurrentTime(getCurrentTime() + status.lyricOffsetMs);
-    lyricRef.value?.resume();
-    startTick();
+    syncLyricActivity();
     if (lyricReady.value) scheduleVisualizers();
     else if (!hasLyric.value) onLyricReady();
   });
@@ -182,7 +182,7 @@ watch(
     initialLyricTimeMs.value = getCurrentTime() + status.lyricOffsetMs;
     nextTick(() => {
       lyricRef.value?.setCurrentTime(getCurrentTime() + status.lyricOffsetMs);
-      if (isPlaying.value) lyricRef.value?.resume();
+      syncLyricActivity();
     });
   },
 );
@@ -250,6 +250,28 @@ const lyricToggleDisabled = computed(() => !hasLyric.value || fullscreenCover.va
 const lyricToggleActive = computed(
   () => showLyric.value && hasLyric.value && !status.fullQueueOpen && !fullscreenCover.value,
 );
+
+/** 仅在歌词实际可见时推送时间并运行渲染器 */
+const syncLyricActivity = (): void => {
+  if (
+    isPlayerExpanded.value &&
+    enterPrepared &&
+    lyricMounted.value &&
+    lyricToggleActive.value &&
+    visibility.value === "visible"
+  ) {
+    lyricRef.value?.setCurrentTime(getCurrentTime() + status.lyricOffsetMs);
+    lyricRef.value?.resume();
+    startTick();
+  } else {
+    stopTick();
+    lyricRef.value?.freeze();
+  }
+};
+
+watch([isPlayerExpanded, lyricMounted, lyricToggleActive, visibility], syncLyricActivity, {
+  flush: "post",
+});
 
 const toggleLyric = (): void => {
   if (status.fullQueueOpen) {
