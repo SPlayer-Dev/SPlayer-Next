@@ -509,7 +509,8 @@
       "copy": "复制",
       "copyRaw": "复制原文",
       "exportImage": "导出图片",
-      "saved": "已保存到下载文件夹",
+      "saveDialogTitle": "保存歌词图片",
+      "saved": "已保存到所选位置",
       "fileSuffix": "歌词分享",
       "exportFailed": "导出图片失败",
       "empty": "没有可复制的内容"

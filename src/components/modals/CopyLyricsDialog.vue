@@ -151,9 +151,13 @@ const handleExport = async (): Promise<void> => {
     const artist = track.artists.map((item) => item.name).join(", ");
     const suffixName = t("player.copyLyric.fileSuffix");
     const fileName = `${track.title} - ${artist} - ${suffixName}.png`.replace(/[\\/:*?"<>|]/g, " ");
-    const res = await window.api.system.saveFile(await blob.arrayBuffer(), fileName);
-    if (res.success && res.path) toast.success(t("player.copyLyric.saved"));
-    else if (!res.success) toast.error(t("player.copyLyric.exportFailed"));
+    const res = await window.api.system.saveFile(
+      await blob.arrayBuffer(),
+      fileName,
+      t("player.copyLyric.saveDialogTitle"),
+    );
+    if (res.success) toast.success(t("player.copyLyric.saved"));
+    else if (!res.canceled) toast.error(t("player.copyLyric.exportFailed"));
   } catch {
     toast.error(t("player.copyLyric.exportFailed"));
   } finally {

@@ -509,7 +509,8 @@
       "copy": "Copy",
       "copyRaw": "Copy original",
       "exportImage": "Export image",
-      "saved": "Saved to Downloads",
+      "saveDialogTitle": "Save lyrics image",
+      "saved": "Saved to the selected location",
       "fileSuffix": "Lyrics",
       "exportFailed": "Failed to export image",
       "empty": "Nothing to copy"

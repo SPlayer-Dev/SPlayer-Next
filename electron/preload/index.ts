@@ -278,9 +278,9 @@ const api = {
     listFonts: () => ipcRenderer.invoke("system:listFonts"),
     // 拉远端字节回渲染层
     fetchRemoteBytes: (url: string) => ipcRenderer.invoke("system:fetchRemoteBytes", url),
-    // 保存文件到下载目录
-    saveFile: (data: ArrayBuffer, defaultName: string) =>
-      ipcRenderer.invoke("system:saveFile", data, defaultName),
+    // 弹出保存对话框让用户选择位置
+    saveFile: (data: ArrayBuffer, defaultName: string, title: string) =>
+      ipcRenderer.invoke("system:saveFile", data, defaultName, title),
     // 重启应用
     relaunch: () => ipcRenderer.invoke("system:relaunch"),
     // 测试当前网络代理

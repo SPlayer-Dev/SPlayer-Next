@@ -1,7 +1,6 @@
-import { app, clipboard, ClipboardItem, ipcMain, shell } from "electron";
+import { app, clipboard, ClipboardItem, dialog, ipcMain, shell } from "electron";
 import { stat, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { join, basename } from "node:path";
+import { join, basename, extname } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Track } from "@shared/types/player";
 import { getFonts } from "font-list";
@@ -120,29 +119,36 @@ export const registerSystemIpc = (): void => {
     return { success: true, data: buf };
   });
 
-  // 保存文件到下载目录
-  ipcMain.handle("system:saveFile", async (_event, data: ArrayBuffer, fileName: string) => {
-    try {
-      // 只取末段并清洗非法字符
-      const safeName = basename(fileName)
-        .replace(/[\\/:*?"<>|]/g, " ")
-        .trim();
-      if (!safeName || safeName === "." || safeName === "..") {
-        return { success: false, error: "invalid file name" };
+  // 弹出保存对话框让用户选择位置，默认指向下载目录
+  ipcMain.handle(
+    "system:saveFile",
+    async (
+      _event,
+      data: ArrayBuffer,
+      fileName: string,
+      title: string,
+    ): Promise<{ success: boolean; path?: string; canceled?: boolean; error?: string }> => {
+      try {
+        // 只取末段并清洗非法字符
+        const safeName = basename(fileName)
+          .replace(/[\\/:*?"<>|]/g, " ")
+          .trim();
+        if (!safeName || safeName === "." || safeName === "..") {
+          return { success: false, error: "invalid file name" };
+        }
+        const ext = extname(safeName).slice(1);
+        const result = await dialog.showSaveDialog({
+          title,
+          defaultPath: join(app.getPath("downloads"), safeName),
+          filters: ext ? [{ name: ext.toUpperCase(), extensions: [ext] }] : undefined,
+        });
+        if (result.canceled || !result.filePath) return { success: false, canceled: true };
+        await writeFile(result.filePath, Buffer.from(data));
+        return { success: true, path: result.filePath };
+      } catch (error) {
+        systemLog.error("[system] saveFile failed", error);
+        return { success: false, error: String(error) };
       }
-      const dir = app.getPath("downloads");
-      const dot = safeName.lastIndexOf(".");
-      const base = dot > 0 ? safeName.slice(0, dot) : safeName;
-      const ext = dot > 0 ? safeName.slice(dot) : "";
-      let target = join(dir, safeName);
-      for (let seq = 2; existsSync(target); seq++) {
-        target = join(dir, `${base} (${seq})${ext}`);
-      }
-      await writeFile(target, Buffer.from(data));
-      return { success: true, path: target };
-    } catch (error) {
-      systemLog.error("[system] saveFile failed", error);
-      return { success: false, error: String(error) };
-    }
-  });
+    },
+  );
 };
