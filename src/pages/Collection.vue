@@ -10,6 +10,7 @@ import { useCollectionSubscribe } from "@/composables/collection/useCollectionSu
 import { usePlaylistManage } from "@/composables/collection/usePlaylistManage";
 import SongList from "@/components/list/SongList.vue";
 import { formatTime } from "@/utils/time";
+import { formatPlayCount } from "@/utils/format/playCount";
 import { coverTransitionActive, getCoverPreview } from "@/services/coverTransition";
 import * as player from "@/core/player";
 import IconLucidePencil from "~icons/lucide/pencil";
@@ -18,7 +19,7 @@ import IconLucideListChecks from "~icons/lucide/list-checks";
 import IconMoreHorizontal from "~icons/lucide/more-horizontal";
 import IconCopy from "~icons/lucide/copy";
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const { copy } = useCopyText();
@@ -257,14 +258,27 @@ onBeforeUnmount(() => {
         :class="collapsed ? 'gap-3' : 'gap-5'"
       >
         <!-- 封面 -->
-        <DetailCover
-          :src="coverSource"
-          :fallback="preview?.cover"
-          :alt="header.title"
-          data-cover-hero
-          class="rounded-xl shrink-0 transition-[width,height] duration-300"
-          :class="collapsed ? 'size-20' : 'size-40'"
-        />
+        <div class="relative shrink-0 overflow-visible">
+          <DetailCover
+            :src="coverSource"
+            :fallback="preview?.cover"
+            :alt="header.title"
+            data-cover-hero
+            class="rounded-xl shrink-0 transition-[width,height] duration-300"
+            :class="collapsed ? 'size-20' : 'size-40'"
+          />
+          <!-- 播放次数徽标 -->
+          <div
+            v-show="header.playCount && header.playCount > 0"
+            class="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-lg bg-black/60 px-1.5 py-1 pointer-events-none transition-opacity duration-200"
+            :class="collapsed ? 'opacity-0' : 'opacity-100'"
+          >
+            <IconLucidePlay class="size-3 fill-current text-white" />
+            <span class="text-xs font-medium text-white tabular-nums">
+              {{ formatPlayCount(header.playCount ?? 0, locale) }}
+            </span>
+          </div>
+        </div>
         <!-- 信息 -->
         <div class="flex-1 flex flex-col min-w-0">
           <div

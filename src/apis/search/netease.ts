@@ -25,6 +25,7 @@ interface NeteasePlaylist {
   coverImgUrl: string;
   creator?: { nickname: string };
   trackCount: number;
+  playCount?: number;
 }
 
 interface CloudSearchBody {
@@ -78,6 +79,7 @@ const playlistToCover = (playlist: NeteasePlaylist): CoverItem => ({
   cover: withPicSize(playlist.coverImgUrl),
   subtitle: playlist.creator?.nickname ?? "",
   trackCount: playlist.trackCount ?? 0,
+  playCount: playlist.playCount,
 });
 
 export const songs = async (

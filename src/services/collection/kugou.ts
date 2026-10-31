@@ -48,6 +48,7 @@ export const loadKugouCollection = async (
         creator: playlist.owner,
         tracks,
         trackCount: playlist.trackCount ?? tracks.length,
+        playCount: playlist.playCount,
       });
     }
     return;
