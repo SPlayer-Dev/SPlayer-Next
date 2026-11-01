@@ -3,6 +3,7 @@ const state = vi.hoisted(() => ({
   available: true,
   reEncrypt: false,
   backend: "gnome_libsecret",
+  syncLegacy: true,
   persisted: "",
   initial: "",
   writes: vi.fn(),
@@ -13,6 +14,7 @@ vi.mock("electron", () => ({
     getSelectedStorageBackend: () => state.backend,
     encryptStringAsync: async (text: string) => Buffer.from(`cipher:${text}`),
     decryptString: (buffer: Buffer) => {
+      if (!state.syncLegacy) throw new Error("sync decryption unavailable");
       if (!buffer.toString().startsWith("cipher:")) throw new Error("invalid ciphertext");
       return buffer.toString().slice(7);
     },
@@ -43,6 +45,7 @@ beforeEach(() => {
   state.available = true;
   state.reEncrypt = false;
   state.backend = "gnome_libsecret";
+  state.syncLegacy = true;
   state.initial = "";
   state.persisted = "";
   state.writes.mockClear();
@@ -136,6 +139,28 @@ describe("流媒体凭据存储", () => {
     const service = await import("./config");
     expect((await service.getStreamingServer("server")).password).toBe("old");
     expect(JSON.parse(state.persisted).servers[0].encryptedPassword).toMatch(/^safe:v1:/);
+  });
+
+  it("无前缀异步密文在同步解密不可用时也能迁移", async () => {
+    state.syncLegacy = false;
+    state.initial = JSON.stringify({
+      servers: [
+        { ...input, id: "server", encryptedPassword: Buffer.from("cipher:old").toString("base64") },
+      ],
+      activeServerId: "server",
+    });
+    const service = await import("./config");
+    expect((await service.getStreamingServer("server")).password).toBe("old");
+    expect(JSON.parse(state.persisted).servers[0].encryptedPassword).toMatch(/^safe:v1:/);
+  });
+
+  it("损坏的 base64 旧值要求重新输入", async () => {
+    state.initial = JSON.stringify({
+      servers: [{ ...input, id: "server", encryptedPassword: "not base64!" }],
+      activeServerId: "server",
+    });
+    const service = await import("./config");
+    await expect(service.getStreamingServer("server")).rejects.toThrow("重新输入密码");
   });
 
   it("无法识别的旧密文要求重新输入而不是当成认证失败", async () => {
