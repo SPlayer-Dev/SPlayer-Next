@@ -791,7 +791,8 @@
       "softwareAnimations": "过渡与动画",
       "font": "字体",
       "playerBar": "播放栏",
-      "nowPlaying": "播放页",
+      "fullPlayer": "播放器",
+      "playerBackground": "播放器背景",
       "media": "媒体控制",
       "device": "输出设备",
       "hotkeys": "快捷键",
@@ -1576,7 +1577,7 @@
       "description": "按单词进度逐字渲染高亮"
     },
     "playerBgType": {
-      "label": "播放器背景",
+      "label": "背景样式",
       "description": "全屏播放器的背景类型",
       "blur": "模糊",
       "solid": "纯色",
@@ -1609,15 +1610,15 @@
       "label": "背景跳动",
       "description": "使流体背景随音乐低频节拍产生脉动效果"
     },
-    "coverLayout": {
-      "label": "封面布局",
-      "description": "全屏播放器封面的呈现方式",
-      "default": "默认",
-      "fullscreen": "全屏封面"
+    "playerLayout": {
+      "label": "播放器布局",
+      "description": "全屏播放器的整体布局",
+      "classic": "经典默认",
+      "fullCover": "全屏封面"
     },
     "coverLyricRatio": {
       "label": "封面/歌词占比",
-      "description": "播放页封面与歌词区域的宽度比例"
+      "description": "经典布局下封面与歌词区域的宽度比例"
     },
     "themeMode": {
       "label": "主题模式",

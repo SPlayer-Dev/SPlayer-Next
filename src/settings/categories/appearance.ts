@@ -259,7 +259,67 @@ const appearanceCategory: SettingCategory = {
       ],
     },
     {
-      id: "nowPlaying",
+      id: "fullPlayer",
+      items: [
+        {
+          key: "playerLayout",
+          type: "select",
+          binding: { store: "settings", path: "player.layout" },
+          options: [
+            { value: "classic", labelKey: "settings.playerLayout.classic" },
+            { value: "fullCover", labelKey: "settings.playerLayout.fullCover" },
+          ],
+          defaultValue: "classic",
+          // 封面占比与自动居中只作用于经典布局
+          childrenCondition: () => useSettingsStore().player.layout === "classic",
+          hideChildren: true,
+          children: [
+            {
+              key: "coverLyricRatio",
+              type: "slider",
+              binding: { store: "settings", path: "player.coverLyricRatio" },
+              min: 0.3,
+              max: 0.6,
+              step: 0.05,
+              defaultValue: 0.45,
+              marks: { 0.3: "30%", 0.45: "45%", 0.6: "60%" },
+            },
+            {
+              key: "autoCenterCover",
+              type: "switch",
+              binding: { store: "settings", path: "player.autoCenterCover" },
+              defaultValue: true,
+            },
+          ],
+        },
+        {
+          key: "showPlaybackSource",
+          type: "switch",
+          binding: { store: "settings", path: "player.showPlaybackSource" },
+          defaultValue: false,
+        },
+        {
+          key: "followCoverColor",
+          type: "switch",
+          binding: { store: "settings", path: "player.followCoverColor" },
+          defaultValue: true,
+        },
+        {
+          key: "autoImmersive",
+          type: "switch",
+          binding: { store: "settings", path: "player.autoImmersive" },
+          defaultValue: false,
+        },
+        {
+          key: "keepScreenAwake",
+          type: "switch",
+          binding: { store: "settings", path: "system.player.keepScreenAwake" },
+          defaultValue: false,
+        },
+      ],
+    },
+    {
+      id: "playerBackground",
       items: [
         {
           key: "playerBgType",
@@ -335,56 +395,6 @@ const appearanceCategory: SettingCategory = {
               defaultValue: false,
             },
           ],
-        },
-        {
-          key: "coverLayout",
-          type: "select",
-          binding: { store: "settings", path: "player.coverLayout" },
-          options: [
-            { value: "default", labelKey: "settings.coverLayout.default" },
-            { value: "fullscreen", labelKey: "settings.coverLayout.fullscreen" },
-          ],
-          defaultValue: "default",
-        },
-        {
-          key: "coverLyricRatio",
-          type: "slider",
-          binding: { store: "settings", path: "player.coverLyricRatio" },
-          min: 0.3,
-          max: 0.6,
-          step: 0.05,
-          defaultValue: 0.45,
-          marks: { 0.3: "30%", 0.45: "45%", 0.6: "60%" },
-        },
-        {
-          key: "autoCenterCover",
-          type: "switch",
-          binding: { store: "settings", path: "player.autoCenterCover" },
-          defaultValue: true,
-        },
-        {
-          key: "showPlaybackSource",
-          type: "switch",
-          binding: { store: "settings", path: "player.showPlaybackSource" },
-          defaultValue: false,
-        },
-        {
-          key: "followCoverColor",
-          type: "switch",
-          binding: { store: "settings", path: "player.followCoverColor" },
-          defaultValue: true,
-        },
-        {
-          key: "autoImmersive",
-          type: "switch",
-          binding: { store: "settings", path: "player.autoImmersive" },
-          defaultValue: false,
-        },
-        {
-          key: "keepScreenAwake",
-          type: "switch",
-          binding: { store: "settings", path: "system.player.keepScreenAwake" },
-          defaultValue: false,
         },
       ],
     },

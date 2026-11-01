@@ -141,7 +141,7 @@ export const useSettingsStore = defineStore(
       playerBgRenderScale: 0.5,
       playerBgFreezeOnPause: false,
       playerBgBeat: false,
-      coverLayout: "default",
+      layout: "classic",
       coverLyricRatio: 0.45,
       autoCenterCover: true,
       showPlaybackSource: false,
@@ -399,6 +399,11 @@ export const useSettingsStore = defineStore(
         ) {
           player.transitionPreference = "standard";
         }
+        // 旧版 coverLayout 迁移到 layout
+        const legacyPlayer = player as PlayerSettings & { coverLayout?: string };
+        if (legacyPlayer.coverLayout === "fullscreen") player.layout = "fullCover";
+        delete legacyPlayer.coverLayout;
+        if (player.layout !== "fullCover") player.layout = "classic";
         if (typeof player.automixCrossfadeFallback !== "boolean")
           player.automixCrossfadeFallback = true;
         if (typeof lyric.detectBackgroundLyrics !== "boolean") {

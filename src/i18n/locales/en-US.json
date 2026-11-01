@@ -791,7 +791,8 @@
       "softwareAnimations": "Transitions & Animations",
       "font": "Fonts",
       "playerBar": "Player Bar",
-      "nowPlaying": "Now Playing",
+      "fullPlayer": "Player",
+      "playerBackground": "Player Background",
       "media": "Media Controls",
       "device": "Output Device",
       "hotkeys": "Hotkeys",
@@ -1576,7 +1577,7 @@
       "description": "Render highlight progress per word"
     },
     "playerBgType": {
-      "label": "Player Background",
+      "label": "Background Style",
       "description": "Background type of the full-screen player",
       "blur": "Blur",
       "solid": "Solid",
@@ -1609,15 +1610,15 @@
       "label": "Beat Pulse",
       "description": "Make the fluid background pulse with the low-frequency beat of the music"
     },
-    "coverLayout": {
-      "label": "Cover Layout",
-      "description": "Cover presentation in the full-screen player",
-      "default": "Default",
-      "fullscreen": "Fullscreen"
+    "playerLayout": {
+      "label": "Player Layout",
+      "description": "Overall layout of the full-screen player",
+      "classic": "Classic",
+      "fullCover": "Fullscreen Cover"
     },
     "coverLyricRatio": {
       "label": "Cover/Lyrics Ratio",
-      "description": "Width ratio between cover and lyric areas in Now Playing"
+      "description": "Width ratio between cover and lyric areas in the classic layout"
     },
     "themeMode": {
       "label": "Theme Mode",

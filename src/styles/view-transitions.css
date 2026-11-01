@@ -1,0 +1,113 @@
+/* 共享封面快照裁切铺满，避免宽高比变化时拉伸 */
+::view-transition-image-pair(*.cover) {
+  overflow: clip;
+}
+
+::view-transition-old(*.cover),
+::view-transition-new(*.cover) {
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 列表与详情页之间的封面过渡 */
+html[data-cover-transition] {
+  [data-cover-shared] {
+    view-transition-name: detail-cover;
+    view-transition-class: cover;
+  }
+
+  &::view-transition-group(detail-cover) {
+    animation-duration: 260ms;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+    overflow: clip;
+    border-radius: var(--cover-transition-radius);
+  }
+
+  &::view-transition-old(root),
+  &::view-transition-new(root) {
+    animation: none;
+  }
+}
+
+/* 播放栏与全屏播放器之间的封面过渡 */
+html[data-player-transition] {
+  --player-vt-duration: 360ms;
+  --player-vt-easing: cubic-bezier(0.25, 1, 0.35, 1);
+
+  &[data-player-transition="collapse"] {
+    --player-vt-duration: 340ms;
+    --player-vt-easing: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+
+  [data-player-shared] {
+    view-transition-name: player-cover;
+    view-transition-class: cover;
+  }
+
+  [data-player-cover-overlay] {
+    visibility: hidden;
+  }
+
+  [data-player-cover="full"] {
+    box-shadow: none;
+  }
+
+  &::view-transition-group(*) {
+    animation-duration: var(--player-vt-duration);
+    animation-timing-function: var(--player-vt-easing);
+  }
+
+  &::view-transition-image-pair(player-cover) {
+    animation: player-cover-radius var(--player-vt-duration) var(--player-vt-easing) both;
+  }
+}
+
+@keyframes player-cover-radius {
+  from {
+    border-radius: var(--player-cover-from-radius);
+  }
+  to {
+    border-radius: var(--player-cover-to-radius);
+  }
+}
+
+/* 全屏播放器布局切换：栏与遮罩单独命名，保证封面快照始终压在其下方 */
+html[data-player-layout-transition] {
+  [data-player-cover="full"] {
+    view-transition-name: player-layout-cover;
+    view-transition-class: cover;
+  }
+
+  [data-player-layout="lyric"] {
+    view-transition-name: player-layout-lyric;
+  }
+
+  [data-player-layout="mask-top"] {
+    view-transition-name: player-layout-mask-top;
+  }
+
+  [data-player-layout="mask-bottom"] {
+    view-transition-name: player-layout-mask-bottom;
+  }
+
+  [data-player-layout="top-bar"] {
+    view-transition-name: player-layout-top-bar;
+  }
+
+  [data-player-layout="bottom-bar"] {
+    view-transition-name: player-layout-bottom-bar;
+  }
+
+  /* 弹窗同样单独成组，否则会落在根快照里被播放器各分组盖住 */
+  [data-dialog-overlay],
+  [data-dialog-content] {
+    view-transition-name: match-element;
+  }
+
+  &::view-transition-group(*),
+  &::view-transition-old(*),
+  &::view-transition-new(*) {
+    animation-duration: 500ms;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}

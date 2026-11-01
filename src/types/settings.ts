@@ -13,7 +13,8 @@ import type { LyricAlignment } from "lyric-dom";
 export type PlayerBgType = "blur" | "solid" | "animation";
 /** 流体背景渲染引擎 */
 export type PlayerBgRenderer = "mesh" | "isolation" | "pixi";
-export type CoverLayout = "default" | "fullscreen";
+/** 全屏播放器布局 */
+export type PlayerLayout = "classic" | "fullCover";
 
 /**
  * 歌曲播放时间显示格式
@@ -243,8 +244,8 @@ export interface PlayerSettings {
   playerBgFreezeOnPause: boolean;
   /** 流体背景随低频节拍脉动 */
   playerBgBeat: boolean;
-  /** 全屏播放器封面布局 */
-  coverLayout: CoverLayout;
+  /** 全屏播放器布局 */
+  layout: PlayerLayout;
   /** 播放页封面/歌词分栏占比（0-1，封面侧宽度） */
   coverLyricRatio: number;
   /** 无歌词时自动居中封面并隐藏歌词区域 */
