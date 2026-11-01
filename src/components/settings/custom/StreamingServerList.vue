@@ -5,6 +5,7 @@ import type {
   StreamingServerInput,
   StreamingServerType,
 } from "@shared/types/streaming";
+import type { SecretStorageStatus } from "@shared/types/secureStorage";
 import { useStreamingStore } from "@/stores/streaming";
 import { toast } from "@/composables/useToast";
 
@@ -52,6 +53,15 @@ const pendingRemoveName = computed(
 
 /** 切换激活服务器的 loading */
 const switchingId = ref<string | null>(null);
+
+/** 当前系统安全存储能力 */
+const secretStorage = ref<SecretStorageStatus | null>(null);
+onMounted(() => {
+  void window.api.system
+    .getSecretStorageStatus()
+    .then((status) => (secretStorage.value = status))
+    .catch(() => undefined);
+});
 
 const openAdd = (): void => {
   editingId.value = null;
@@ -201,6 +211,15 @@ const formatTime = (t?: number): string => (t ? new Date(t).toLocaleString() : "
         {{ t("streaming.server.add") }}
       </SButton>
     </div>
+
+    <!-- 缺少系统密钥环时的弱加密提示 -->
+    <SAlert
+      v-if="secretStorage?.weak"
+      type="warning"
+      :title="t('streaming.server.weakStorageTitle')"
+    >
+      {{ t("streaming.server.weakStorage") }}
+    </SAlert>
 
     <!-- 空态 -->
     <div

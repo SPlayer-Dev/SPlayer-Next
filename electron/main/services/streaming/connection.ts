@@ -14,7 +14,7 @@ import {
   markStreamingServerConnected,
 } from "./config";
 import type { StreamingRuntimeConfig } from "@shared/types/streaming";
-import { isStreamingAuthError } from "./errors";
+import { StreamingCredentialError, isStreamingAuthError } from "./errors";
 
 /**
  * 归类连接错误
@@ -22,6 +22,7 @@ import { isStreamingAuthError } from "./errors";
  * @returns 错误类型
  */
 const classifyError = (error: unknown): StreamingErrorCode => {
+  if (error instanceof StreamingCredentialError) return "credential";
   const message = error instanceof Error ? error.message : String(error);
   if (/HTTP 401|HTTP 403|auth|token|password|credential/i.test(message)) return "auth";
   if (/fetch|network|timeout|ECONN|ENOTFOUND/i.test(message)) return "network";
@@ -80,8 +81,9 @@ export const testStreamingConnection = async (
   input: StreamingServerInput,
   serverId?: string,
 ): Promise<StreamingPingResult> => {
-  const config = await createTestStreamingServer(input, serverId);
+  let config: StreamingRuntimeConfig | undefined;
   try {
+    config = await createTestStreamingServer(input, serverId);
     const resolved = await resolveStreamingAdapter(config);
     const result = await resolved.adapter.ping(resolved.config);
     if (result.ok) return result;
@@ -93,7 +95,7 @@ export const testStreamingConnection = async (
     streamingLog.warn(`${input.type} 测试连接失败 [${input.name}]: ${message}`);
     return { ok: false, error: message, code: classifyError(error) };
   } finally {
-    invalidateStreamingSession(config.id);
+    if (config) invalidateStreamingSession(config.id);
   }
 };
 
@@ -110,7 +112,7 @@ export const connectStreamingServer = async (serverId: string): Promise<Streamin
     return {
       ok: false,
       error: error instanceof Error ? error.message : String(error),
-      code: "unknown",
+      code: classifyError(error),
     };
   }
   try {

@@ -1,3 +1,15 @@
+/** 本地凭据无法读取或迁移，需要用户重新输入，不能归类为服务端鉴权失败 */
+export class StreamingCredentialError extends Error {
+  /**
+   * 创建凭据错误
+   * @param message - 面向用户的说明
+   */
+  constructor(message: string) {
+    super(message);
+    this.name = "StreamingCredentialError";
+  }
+}
+
 /** 保留 HTTP / Subsonic 状态，避免将权限拒绝或网络故障当成不支持端点 */
 export class StreamingRequestError extends Error {
   /**

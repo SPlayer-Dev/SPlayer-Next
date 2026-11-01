@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({
   available: true,
   reEncrypt: false,
+  backend: "gnome_libsecret",
   persisted: "",
   initial: "",
   writes: vi.fn(),
@@ -9,8 +10,12 @@ const state = vi.hoisted(() => ({
 vi.mock("electron", () => ({
   safeStorage: {
     isAsyncEncryptionAvailable: async () => state.available,
-    getSelectedStorageBackend: () => "gnome_libsecret",
+    getSelectedStorageBackend: () => state.backend,
     encryptStringAsync: async (text: string) => Buffer.from(`cipher:${text}`),
+    decryptString: (buffer: Buffer) => {
+      if (!buffer.toString().startsWith("cipher:")) throw new Error("invalid ciphertext");
+      return buffer.toString().slice(7);
+    },
     decryptStringAsync: async (buffer: Buffer) => {
       if (!buffer.toString().startsWith("cipher:")) throw new Error("invalid ciphertext");
       return { result: buffer.toString().slice(7), shouldReEncrypt: state.reEncrypt };
@@ -37,6 +42,7 @@ beforeEach(() => {
   vi.resetModules();
   state.available = true;
   state.reEncrypt = false;
+  state.backend = "gnome_libsecret";
   state.initial = "";
   state.persisted = "";
   state.writes.mockClear();
@@ -108,7 +114,7 @@ describe("流媒体凭据存储", () => {
     expect(JSON.parse(state.persisted).servers[0].encryptedPassword).toMatch(/^safe:v1:/);
   });
 
-  it("兼容旧加密文件，历史明文回退要求重新输入而非错误解密", async () => {
+  it("1.1.0 同步密文自动迁移为 safe:v1", async () => {
     state.initial = JSON.stringify({
       servers: [
         { ...input, id: "server", encryptedPassword: Buffer.from("cipher:old").toString("base64") },
@@ -117,16 +123,56 @@ describe("流媒体凭据存储", () => {
     });
     const service = await import("./config");
     expect((await service.getStreamingServer("server")).password).toBe("old");
-    vi.resetModules();
+    expect(JSON.parse(state.persisted).servers[0].encryptedPassword).toMatch(/^safe:v1:/);
+  });
+
+  it("1.1.0 base64 明文自动迁移为 safe:v1", async () => {
     state.initial = JSON.stringify({
       servers: [
         { ...input, id: "server", encryptedPassword: Buffer.from("old").toString("base64") },
       ],
       activeServerId: "server",
     });
-    const legacy = await import("./config");
-    await expect(legacy.getStreamingServer("server")).rejects.toThrow("重新输入密码");
-    await legacy.updateStreamingServer("server", { ...input, password: "new" });
-    expect((await legacy.getStreamingServer("server")).password).toBe("new");
+    const service = await import("./config");
+    expect((await service.getStreamingServer("server")).password).toBe("old");
+    expect(JSON.parse(state.persisted).servers[0].encryptedPassword).toMatch(/^safe:v1:/);
+  });
+
+  it("无法识别的旧密文要求重新输入而不是当成认证失败", async () => {
+    state.initial = JSON.stringify({
+      servers: [
+        {
+          ...input,
+          id: "server",
+          encryptedPassword: Buffer.from([0xff, 0xfe, 0x00, 0x01]).toString("base64"),
+        },
+      ],
+      activeServerId: "server",
+    });
+    const service = await import("./config");
+    await expect(service.getStreamingServer("server")).rejects.toThrow("重新输入密码");
+  });
+
+  it("解密结果不是合法明文时要求重新输入", async () => {
+    state.initial = JSON.stringify({
+      servers: [
+        {
+          ...input,
+          id: "server",
+          encryptedPassword: `safe:v1:${Buffer.from("cipher:\uFFFD\u0001").toString("base64")}`,
+        },
+      ],
+      activeServerId: "server",
+    });
+    const service = await import("./config");
+    await expect(service.getStreamingServer("server")).rejects.toThrow("重新输入密码");
+  });
+
+  it("Linux basic_text 后端仍允许保存密码", async () => {
+    state.backend = "basic_text";
+    const service = await import("./config");
+    const server = await service.addStreamingServer(input);
+    expect(JSON.parse(state.persisted).servers[0].encryptedPassword).toMatch(/^safe:v1:/);
+    expect((await service.getStreamingServer(server.id)).password).toBe("secret");
   });
 });

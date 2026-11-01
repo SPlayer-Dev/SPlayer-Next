@@ -33,6 +33,7 @@ import type { CloudUploadProgress } from "@shared/types/cloudUpload";
 import type { MusicCommentQuery } from "@shared/types/comment";
 import type { AiModelSaveInput } from "@shared/types/ai";
 import type { DesktopLyricUnlockButtonBounds, TaskbarLyricLayoutEvent } from "@shared/types/window";
+import type { SecretStorageStatus } from "@shared/types/secureStorage";
 import type {
   LegacyPlaylistRecord,
   PlaylistCreateInput,
@@ -285,6 +286,9 @@ const api = {
     relaunch: () => ipcRenderer.invoke("system:relaunch"),
     // 测试当前网络代理
     testNetworkProxy: () => ipcRenderer.invoke("system:testNetworkProxy"),
+    // 读取系统安全存储后端
+    getSecretStorageStatus: (): Promise<SecretStorageStatus> =>
+      ipcRenderer.invoke("system:getSecretStorageStatus"),
     // 订阅主进程下发的 orpheus 唤起 URL
     onProtocolUrl: (callback: (url: string) => void) =>
       subscribe<string>("protocol:orpheus", callback),

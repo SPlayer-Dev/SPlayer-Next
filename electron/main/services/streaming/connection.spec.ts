@@ -1,18 +1,35 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { StreamingRequestError } from "./errors";
-const state = vi.hoisted(() => ({ revision: 0, resolve: vi.fn(), invalidate: vi.fn() }));
+import { StreamingCredentialError, StreamingRequestError } from "./errors";
+const state = vi.hoisted(() => ({
+  revision: 0,
+  resolve: vi.fn(),
+  invalidate: vi.fn(),
+  createTest: vi.fn(),
+  serverError: null as Error | null,
+}));
 vi.mock("./config", () => ({
-  getStreamingServer: () => ({ id: "server", type: "jellyfin", revision: state.revision }),
+  getStreamingServer: () => {
+    if (state.serverError) throw state.serverError;
+    return { id: "server", type: "jellyfin", revision: state.revision };
+  },
   getStreamingServerRevision: () => state.revision,
+  createTestStreamingServer: state.createTest,
+  markStreamingServerConnected: () => ({ id: "server" }),
 }));
 vi.mock("./adapters/resolve", () => ({
   resolveStreamingAdapter: state.resolve,
   invalidateStreamingSession: state.invalidate,
 }));
-vi.mock("@main/utils/logger", () => ({ streamingLog: { warn: vi.fn() } }));
-import { withStreamingAdapter } from "./connection";
+vi.mock("@main/utils/logger", () => ({ streamingLog: { warn: vi.fn(), info: vi.fn() } }));
+import {
+  connectStreamingServer,
+  testStreamingConnection,
+  withStreamingAdapter,
+} from "./connection";
 beforeEach(() => {
   state.revision = 0;
+  state.serverError = null;
+  state.createTest.mockReset();
   state.resolve.mockReset().mockImplementation(async (config) => ({ config, adapter: {} }));
   state.invalidate.mockClear();
 });
@@ -48,5 +65,26 @@ describe("流媒体会话恢复", () => {
         return true;
       }),
     ).rejects.toThrow("已作废");
+  });
+  it("测试连接遇到本地凭据解密失败返回 credential", async () => {
+    state.createTest.mockRejectedValue(
+      new StreamingCredentialError("无法解密流媒体密码，请在服务器设置中重新输入密码"),
+    );
+    const result = await testStreamingConnection({
+      name: "测试",
+      type: "navidrome",
+      url: "https://server",
+      username: "user",
+      password: "",
+    });
+    expect(result).toMatchObject({ ok: false, code: "credential" });
+    expect(result.error).toContain("重新输入密码");
+  });
+  it("连接时本地凭据解密失败返回 credential", async () => {
+    state.serverError = new StreamingCredentialError(
+      "无法解密流媒体密码，请在服务器设置中重新输入密码",
+    );
+    const result = await connectStreamingServer("server");
+    expect(result).toMatchObject({ ok: false, code: "credential" });
   });
 });

@@ -22,6 +22,7 @@ import {
 } from "@shared/types/window";
 import { HotkeyApi } from "@shared/types/hotkey";
 import { StreamingApi } from "@shared/types/streaming";
+import type { SecretStorageStatus } from "@shared/types/secureStorage";
 import { RecognitionApi } from "@shared/types/recognition";
 import { LastfmApi } from "@shared/types/lastfm";
 import { IpcResponse } from "@shared/types/player";
@@ -67,6 +68,7 @@ declare global {
         ) => Promise<{ success: boolean; path?: string; error?: string }>;
         relaunch: () => Promise<void>;
         testNetworkProxy: () => Promise<boolean>;
+        getSecretStorageStatus: () => Promise<SecretStorageStatus>;
         onProtocolUrl: (callback: (url: string) => void) => () => void;
         consumePendingProtocolUrl: () => Promise<string | null>;
         onOpenFiles: (callback: (files: string[]) => void) => () => void;

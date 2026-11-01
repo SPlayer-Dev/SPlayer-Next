@@ -1,9 +1,19 @@
 import fs from "node:fs";
 import path from "node:path";
-import { safeStorage } from "electron";
 import { writeFileSync as atomicWriteSync } from "atomically";
 import { configDir } from "@main/utils/paths";
-import { decryptSecret, encryptSecret, isSecureStorageAvailable } from "@main/utils/secureStorage";
+import {
+  SECRET_VERSION_PREFIX,
+  decodeBase64,
+  decodePlainText,
+  decodeSecretPayload,
+  decryptLegacySecret,
+  decryptSecret,
+  encodeSecret,
+  isPlainText,
+  isSecureStorageAvailable,
+} from "@main/utils/secureStorage";
+import { StreamingCredentialError } from "./errors";
 import type {
   StreamingServerConfig,
   StreamingServerInput,
@@ -11,6 +21,7 @@ import type {
 } from "@shared/types/streaming";
 
 const STORAGE_FILE = path.join(configDir, "streaming.json");
+const CREDENTIAL_REENTRY_MESSAGE = "无法解密流媒体密码，请在服务器设置中重新输入密码";
 
 interface PersistedServer {
   revision?: number;
@@ -63,12 +74,51 @@ const save = (): void => {
 const encryptPassword = async (password: string): Promise<string> => {
   if (!password) return "";
   if (!(await isSecureStorageAvailable())) {
-    throw new Error("系统安全存储不可用，无法保存流媒体密码");
+    throw new StreamingCredentialError("系统安全存储不可用，无法保存流媒体密码");
   }
-  if (process.platform === "linux" && safeStorage.getSelectedStorageBackend() === "basic_text") {
-    throw new Error("请启用系统密钥环后保存流媒体密码");
+  return encodeSecret(password);
+};
+
+/**
+ * 把迁移或轮换后的密码写回磁盘
+ * @param server - 持久化配置
+ * @param password - 明文密码
+ */
+const persistPassword = async (server: PersistedServer, password: string): Promise<void> => {
+  try {
+    server.encryptedPassword = await encodeSecret(password);
+    save();
+  } catch {
+    // 回写失败不影响本次读取，下次读取时仍会再次尝试
   }
-  return `safe:v1:${(await encryptSecret(password)).toString("base64")}`;
+};
+
+/**
+ * 迁移 1.1.0 及更早版本保存的凭据
+ * 旧格式没有 safe:v1 前缀，可能是同步 safeStorage 密文，也可能是 base64 明文
+ * @param server - 持久化配置
+ * @returns 明文密码
+ */
+const migrateLegacyPassword = async (server: PersistedServer): Promise<string> => {
+  const buffer = decodeBase64(server.encryptedPassword);
+  if (!buffer) {
+    throw new StreamingCredentialError("流媒体密码格式无法识别，请在服务器设置中重新输入密码");
+  }
+
+  let decrypted = decryptLegacySecret(buffer);
+  if (!decrypted) {
+    try {
+      const result = await decryptSecret(buffer);
+      decrypted = isPlainText(result.plainText) ? result.plainText : null;
+    } catch {
+      // 旧版明文回退需要继续尝试 base64 解码
+    }
+  }
+
+  const password = decrypted ?? decodePlainText(buffer);
+  if (!password) throw new StreamingCredentialError(CREDENTIAL_REENTRY_MESSAGE);
+  await persistPassword(server, password);
+  return password;
 };
 
 /**
@@ -78,22 +128,28 @@ const encryptPassword = async (password: string): Promise<string> => {
  */
 const decryptPassword = async (server: PersistedServer): Promise<string> => {
   if (!server.encryptedPassword) return "";
-  if (!(await isSecureStorageAvailable()))
-    throw new Error("系统安全存储不可用，无法读取流媒体密码");
-  const buffer = Buffer.from(server.encryptedPassword.replace(/^safe:v1:/, ""), "base64");
+  if (!(await isSecureStorageAvailable())) {
+    throw new StreamingCredentialError(
+      "系统安全存储不可用，无法读取流媒体密码，请在服务器设置中重新输入密码",
+    );
+  }
+  if (!server.encryptedPassword.startsWith(SECRET_VERSION_PREFIX)) {
+    return migrateLegacyPassword(server);
+  }
+
+  const buffer = decodeSecretPayload(server.encryptedPassword);
+  if (!buffer) throw new StreamingCredentialError(CREDENTIAL_REENTRY_MESSAGE);
   let decrypted: { plainText: string; needsReEncrypt: boolean };
   try {
     decrypted = await decryptSecret(buffer);
   } catch {
-    throw new Error("无法解密流媒体密码，请在服务器设置中重新输入密码");
+    throw new StreamingCredentialError(CREDENTIAL_REENTRY_MESSAGE);
+  }
+  if (!isPlainText(decrypted.plainText)) {
+    throw new StreamingCredentialError(CREDENTIAL_REENTRY_MESSAGE);
   }
   if (decrypted.needsReEncrypt) {
-    try {
-      server.encryptedPassword = `safe:v1:${(await encryptSecret(decrypted.plainText)).toString("base64")}`;
-      save();
-    } catch {
-      // 回写失败不影响本次读取，下次解密仍会再次尝试
-    }
+    await persistPassword(server, decrypted.plainText);
   }
   return decrypted.plainText;
 };

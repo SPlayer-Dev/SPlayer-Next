@@ -415,6 +415,7 @@
       "auth": "鉴权失败",
       "network": "网络错误",
       "protocol": "协议错误",
+      "credential": "凭据不可用",
       "unknown": "未知错误"
     },
     "tabs": {
@@ -455,6 +456,8 @@
       "disconnected": "已断开",
       "active": "当前激活",
       "lastConnected": "最近连接",
+      "weakStorageTitle": "系统密钥环不可用",
+      "weakStorage": "当前 Linux 环境使用 basic_text 后端保存密码，仅提供混淆而非系统加密。建议启用 gnome-keyring 或 KWallet 后重启应用",
       "errors": {
         "nameEmpty": "请输入服务器名称",
         "urlInvalid": "请输入合法的 URL（http:// 或 https://）",

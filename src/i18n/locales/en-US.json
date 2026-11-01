@@ -415,6 +415,7 @@
       "auth": "Authentication failed",
       "network": "Network error",
       "protocol": "Protocol error",
+      "credential": "Credentials unavailable",
       "unknown": "Unknown error"
     },
     "tabs": {
@@ -455,6 +456,8 @@
       "disconnected": "Disconnected",
       "active": "Active",
       "lastConnected": "Last connected",
+      "weakStorageTitle": "System keyring unavailable",
+      "weakStorage": "This Linux session uses the basic_text backend, which only obfuscates passwords instead of encrypting them. Enable gnome-keyring or KWallet and restart the app for stronger protection",
       "errors": {
         "nameEmpty": "Please enter a server name",
         "urlInvalid": "Please enter a valid URL (http:// or https://)",
