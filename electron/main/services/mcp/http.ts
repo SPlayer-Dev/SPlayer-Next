@@ -123,7 +123,7 @@ export const startMcpServer = (): Promise<McpStatus> => {
   return starting;
 };
 
-/** 停止 MCP 服务并释放全部会话 */
+/** 停止接收 MCP 请求，断开存量连接并释放全部会话 */
 export const stopMcpServer = async (): Promise<void> => {
   startRequested = false;
   await starting;
@@ -143,6 +143,8 @@ export const stopMcpServer = async (): Promise<void> => {
       resolve();
     });
   });
+  // server.close 会等待未完成的 HTTP 请求，客户端连接不能阻塞应用退出
+  server.closeAllConnections();
   await Promise.all([serverClosed, endpoint?.close()]);
 };
 

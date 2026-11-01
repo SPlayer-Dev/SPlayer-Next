@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   closeEndpoint: vi.fn(),
   serve: vi.fn(),
   closeServer: vi.fn(),
+  closeConnections: vi.fn(),
 }));
 
 vi.mock("@main/store", () => ({
@@ -38,7 +39,10 @@ describe("MCP 延迟启动", () => {
     mocks.createEndpoint.mockReturnValue({ close: mocks.closeEndpoint, handle: vi.fn() });
     mocks.closeServer.mockImplementation((callback: () => void) => callback());
     mocks.serve.mockImplementation(() => {
-      const server = Object.assign(new EventEmitter(), { close: mocks.closeServer });
+      const server = Object.assign(new EventEmitter(), {
+        close: mocks.closeServer,
+        closeAllConnections: mocks.closeConnections,
+      });
       queueMicrotask(() => server.emit("listening"));
       return server;
     });
