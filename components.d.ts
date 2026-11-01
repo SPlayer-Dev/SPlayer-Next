@@ -77,6 +77,7 @@ declare module 'vue' {
     FolderManager: typeof import('./src/components/library/FolderManager.vue')['default']
     FontConfig: typeof import('./src/components/settings/custom/FontConfig.vue')['default']
     FullCoverLayout: typeof import('./src/components/player/FullPlayer/layouts/standard/FullCoverLayout.vue')['default']
+    FullLyricLayout: typeof import('./src/components/player/FullPlayer/layouts/standard/FullLyricLayout.vue')['default']
     FullPlayer: typeof import('./src/components/player/FullPlayer/index.vue')['default']
     HotkeyConfig: typeof import('./src/components/settings/custom/HotkeyConfig.vue')['default']
     IconLucideArrowLeftRight: typeof import('~icons/lucide/arrow-left-right')['default']

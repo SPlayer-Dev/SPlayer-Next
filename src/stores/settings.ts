@@ -382,39 +382,10 @@ export const useSettingsStore = defineStore(
       storage: localStorage,
       omit: ["system"],
       afterHydrate: ({ store }) => {
-        const { lyric, appearance, preset, player } = store as unknown as {
+        const { lyric, appearance } = store as unknown as {
           lyric: LyricSettings;
           appearance: AppearanceSettings;
-          preset: PresetSettings;
-          player: PlayerSettings;
         };
-        if (!["lyric", "translation", "word"].includes(player.barLyricMode)) {
-          player.barLyricMode = "translation";
-        }
-        if (player.transitionMode !== "crossfade" && player.transitionMode !== "automix")
-          player.transitionMode = "none";
-        if (
-          player.transitionPreference !== "conservative" &&
-          player.transitionPreference !== "eager"
-        ) {
-          player.transitionPreference = "standard";
-        }
-        // 旧版 coverLayout 迁移到 layout
-        const legacyPlayer = player as PlayerSettings & { coverLayout?: string };
-        if (legacyPlayer.coverLayout === "fullscreen") player.layout = "fullCover";
-        delete legacyPlayer.coverLayout;
-        if (player.layout !== "fullCover") player.layout = "classic";
-        if (typeof player.automixCrossfadeFallback !== "boolean")
-          player.automixCrossfadeFallback = true;
-        if (typeof lyric.detectBackgroundLyrics !== "boolean") {
-          lyric.detectBackgroundLyrics = true;
-        }
-        if (typeof lyric.autoGenerateWordByWord !== "boolean") {
-          lyric.autoGenerateWordByWord = false;
-        }
-        if (!Array.isArray(preset.skipTrackKeywords)) {
-          preset.skipTrackKeywords = [...DEFAULT_SKIP_TRACK_KEYWORDS];
-        }
         lyric.lyricSourceOrder = reconcileOrder(lyric.lyricSourceOrder, ALL_PLATFORMS);
         lyric.lyricFormatOrder = reconcileOrder(lyric.lyricFormatOrder, DEFAULT_LYRIC_FORMAT_ORDER);
         appearance.sidebarNavGroups = reconcileNavGroups(appearance.sidebarNavGroups ?? []);

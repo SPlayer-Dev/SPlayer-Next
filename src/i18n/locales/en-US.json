@@ -1614,7 +1614,8 @@
       "label": "Player Layout",
       "description": "Overall layout of the full-screen player",
       "classic": "Classic",
-      "fullCover": "Fullscreen Cover"
+      "fullCover": "Fullscreen Cover",
+      "fullLyric": "Fullscreen Lyrics"
     },
     "coverLyricRatio": {
       "label": "Cover/Lyrics Ratio",

@@ -17,6 +17,7 @@ defineEmits<{ toggleLyric: [] }>();
 const LAYOUT_OPTIONS: { value: PlayerLayout; labelKey: string }[] = [
   { value: "classic", labelKey: "settings.playerLayout.classic" },
   { value: "fullCover", labelKey: "settings.playerLayout.fullCover" },
+  { value: "fullLyric", labelKey: "settings.playerLayout.fullLyric" },
 ];
 
 const { t } = useI18n();
@@ -76,7 +77,11 @@ const selectLayout = (layout: PlayerLayout): void => {
           <h4 class="m-0 text-sm font-medium leading-tight text-cover">
             {{ t("settings.playerLayout.label") }}
           </h4>
-          <div role="radiogroup" :aria-label="t('settings.playerLayout.label')" class="flex gap-2">
+          <div
+            role="radiogroup"
+            :aria-label="t('settings.playerLayout.label')"
+            class="grid grid-cols-2 gap-2"
+          >
             <div
               v-for="option in LAYOUT_OPTIONS"
               :key="option.value"
@@ -105,11 +110,12 @@ const selectLayout = (layout: PlayerLayout): void => {
                   class="absolute left-[12%] top-1/2 -translate-y-1/2 w-[30%] aspect-square rounded-md bg-cover/45"
                 />
                 <span
-                  v-else
+                  v-else-if="option.value === 'fullCover'"
                   class="layout-preview-cover absolute inset-y-0 left-0 w-[60%] bg-cover/45"
                 />
                 <span
-                  class="absolute right-[10%] top-1/2 -translate-y-1/2 w-[36%] flex flex-col gap-1"
+                  class="absolute right-[10%] top-1/2 -translate-y-1/2 flex flex-col gap-1"
+                  :class="option.value === 'fullLyric' ? 'left-[10%]' : 'w-[36%]'"
                 >
                   <span class="h-1 w-[70%] rounded-full bg-cover/30" />
                   <span class="h-1 w-full rounded-full bg-cover/70" />

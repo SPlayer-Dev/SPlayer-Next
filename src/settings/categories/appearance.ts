@@ -268,6 +268,7 @@ const appearanceCategory: SettingCategory = {
           options: [
             { value: "classic", labelKey: "settings.playerLayout.classic" },
             { value: "fullCover", labelKey: "settings.playerLayout.fullCover" },
+            { value: "fullLyric", labelKey: "settings.playerLayout.fullLyric" },
           ],
           defaultValue: "classic",
           // 封面占比与自动居中只作用于经典布局

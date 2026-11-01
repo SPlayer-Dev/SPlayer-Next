@@ -84,12 +84,14 @@ export const setPlayerExpanded = (expanded: boolean): void => {
   const status = useStatusStore();
   if (status.isPlayerExpanded === expanded) return;
   const settings = useSettingsStore();
+  // 全屏歌词没有可衔接的大封面，展开时沿用默认滑入动画
   if (
     !settings.appearance.seamlessTransition ||
     settings.reducedMotion ||
     !document.startViewTransition ||
     document.hidden ||
-    coverTransitionActive.value
+    coverTransitionActive.value ||
+    (expanded && settings.player.layout === "fullLyric")
   ) {
     status.isPlayerExpanded = expanded;
     return;

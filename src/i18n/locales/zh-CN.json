@@ -1614,7 +1614,8 @@
       "label": "播放器布局",
       "description": "全屏播放器的整体布局",
       "classic": "经典默认",
-      "fullCover": "全屏封面"
+      "fullCover": "全屏封面",
+      "fullLyric": "全屏歌词"
     },
     "coverLyricRatio": {
       "label": "封面/歌词占比",

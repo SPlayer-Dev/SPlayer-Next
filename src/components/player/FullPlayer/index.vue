@@ -8,11 +8,13 @@ import { playerTransitionActive, switchPlayerLayout } from "@/services/playerTra
 import { fullPlayerContextKey } from "./context";
 import ClassicLayout from "./layouts/standard/ClassicLayout.vue";
 import FullCoverLayout from "./layouts/standard/FullCoverLayout.vue";
+import FullLyricLayout from "./layouts/standard/FullLyricLayout.vue";
 
 /** 布局设置与布局组件的对应关系 */
 const LAYOUTS: Record<PlayerLayout, Component> = {
   classic: ClassicLayout,
   fullCover: FullCoverLayout,
+  fullLyric: FullLyricLayout,
 };
 
 const status = useStatusStore();
