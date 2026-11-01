@@ -64,7 +64,6 @@ const config: Configuration = {
   electronLanguages: ["zh-CN", "en-US"],
   asarUnpack: ["public/**"],
   extraResources: [
-    { from: "remote-display/dist", to: "remote-display" },
     {
       from: "native/audio-engine",
       to: "native",

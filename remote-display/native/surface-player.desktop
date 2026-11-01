@@ -1,9 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Surface Player
-Comment=Native read-only lyrics display
-Exec=surface-player
-Icon=surface-player
-Terminal=false
-Categories=AudioVideo;Audio;Player;
-StartupNotify=true

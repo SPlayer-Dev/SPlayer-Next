@@ -14,7 +14,6 @@ import type { ExternalApiStatus } from "@shared/types/settings";
 import { externalControlGate, wsGate } from "./gate";
 import { buildRoutes } from "./routes";
 import { wsHandlers } from "./ws";
-import { installDisplayRoutes, closeDisplaySubscriptions } from "./display";
 
 let runningServer: Server | null = null;
 let runningWss: WebSocketServer | null = null;
@@ -73,7 +72,6 @@ export const startServer = (): Promise<ExternalApiStatus> => {
     const app = new Hono();
     app.use("/api/*", externalControlGate);
     app.route("/api", buildRoutes());
-    installDisplayRoutes(app);
     app.get(
       "/ws",
       externalControlGate,
@@ -133,7 +131,6 @@ export const startServer = (): Promise<ExternalApiStatus> => {
 /** 停止外部 API 服务 */
 export const stopServer = (): Promise<void> => {
   if (!runningServer) return Promise.resolve();
-  closeDisplaySubscriptions();
   const server = runningServer;
   const wss = runningWss;
   runningServer = null;

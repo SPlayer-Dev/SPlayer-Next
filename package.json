@@ -41,8 +41,8 @@
     "test:all": "pnpm test && pnpm test:native",
     "build:native": "tsx scripts/build-native.ts",
     "start": "electron-vite preview",
-    "dev": "pnpm build:native --dev && pnpm build:display && tsx scripts/dev.ts",
-    "build": "rimraf dist && pnpm build:native && pnpm typecheck && pnpm build:display && electron-vite build",
+    "dev": "pnpm build:native --dev && tsx scripts/dev.ts",
+    "build": "rimraf dist && pnpm build:native && pnpm typecheck && electron-vite build",
     "postinstall": "node node_modules/electron/install.js && electron-rebuild -f -w better-sqlite3",
     "build:unpack": "pnpm build && electron-builder --dir --config electron-builder.config.ts",
     "build:win": "pnpm build && tsx scripts/gen-license.ts && electron-builder --config electron-builder.config.ts --win",
@@ -51,8 +51,7 @@
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
-    "prepare": "husky",
-    "build:display": "node remote-display/vendor/amll-core/optimize.mjs --manual-mask --dom-only --no-glow --bounded-lines --word-emphasis && vite build --config remote-display/vite.config.ts"
+    "prepare": "husky"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",

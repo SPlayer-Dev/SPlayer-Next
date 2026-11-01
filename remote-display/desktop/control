@@ -1,9 +1,0 @@
-Package: surface-player
-Version: 0.1.1
-Architecture: all
-Maintainer: neclyon
-Depends: python3, python3-gi, gir1.2-gtk-3.0, gir1.2-webkit2-4.1
-Section: sound
-Priority: optional
-Description: Lightweight SPlayer-Next remote display
- GTK/WebKit GUI for a SPlayer-Next host. Audio plays on the host.
