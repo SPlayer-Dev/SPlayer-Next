@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use super::events::playback_completion_event;
 use super::{InnerPlayer, PlayerEvent, PlayerState};
-use crate::playback::PlaybackHandle;
+use crate::output::playback::PlaybackHandle;
 
 /// 渐变步数
 const FADE_STEPS: u32 = 20;
@@ -98,6 +98,7 @@ impl InnerPlayer {
             Some(s) => Arc::clone(s),
             None => return,
         };
+        let transitioning = Arc::clone(&self.transitioning);
         let cb = match &self.event_callback {
             Some(cb) => Arc::clone(cb),
             None => return,
@@ -111,14 +112,28 @@ impl InnerPlayer {
             const STALL_THRESHOLD_TICKS: u32 = 6; // 6 * 200ms = 1.2s
             let mut last_consumed = shared.samples_consumed_count();
             let mut stall_ticks: u32 = 0;
+            let mut diagnostic_ticks: u32 = 0;
 
             while !stop_flag.load(Ordering::Relaxed) {
+                diagnostic_ticks += 1;
+                if diagnostic_ticks == 25 || shared.is_all_consumed() {
+                    let underruns = shared.take_underruns();
+                    if underruns > 0 {
+                        tracing::warn!(
+                            underruns,
+                            sample_rate = shared.sample_rate(),
+                            channels = shared.channels(),
+                            "音频输出供数不足"
+                        );
+                    }
+                    diagnostic_ticks = 0;
+                }
                 let consumed = shared.samples_consumed_count();
                 let position = seek_base + shared.consumed_position();
                 cb(PlayerEvent::Position { position, duration });
 
                 // 检测播放结束：all_consumed 表示输出回调已消费完所有数据
-                if shared.is_all_consumed() {
+                if shared.is_all_consumed() && !transitioning.load(Ordering::Acquire) {
                     // 解码因读取失败中止且距末尾尚远 → 音源失效，前端重新解析地址续播；
                     // 距末尾 3s 内的失败按正常结束处理——Content-Length 偏大的转码源
                     // 在曲尾必然提前 EOF，整曲重载只会带来一轮无意义抖动。

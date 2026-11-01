@@ -26,6 +26,8 @@ import type {
   SandboxIn,
   SandboxOut,
   SourceCapability,
+  PluginPlayerApi,
+  PluginRegistration,
 } from "@shared/types/plugin";
 import { installLxShim } from "./lx-shim";
 
@@ -39,7 +41,7 @@ if (!parentPort) {
 }
 
 /**
- * 深度剥离不可克隆字段
+ * 剥离日志等辅助消息中不可克隆的字段
  * 保留 string/number/bool/null/Uint8Array/纯字典/数组；丢函数/symbol；
  * Buffer 转 Uint8Array、普通对象用 Object.create(null) 重建以脱掉 vm.Context 原型链
  * @param value - 任意值
@@ -74,15 +76,15 @@ const sanitizeForIpc = (value: unknown, depth = 0): unknown => {
 };
 
 /**
- * 跨 host→main 边界发消息
- * 直发；失败 → sanitize 后重发；仍失败 → 抛带 kind 上下文的错误
- * @param msg - 待发消息
+ * 发送宿主消息，业务数据无法克隆时向调用方报错
+ * @param msg - 待发送的沙箱消息
  */
 const send = (msg: SandboxOut): void => {
   try {
     parentPort.postMessage(msg);
     return;
-  } catch {
+  } catch (err) {
+    if (msg.kind === "hostCall" || msg.kind === "result") throw err;
     try {
       parentPort.postMessage(sanitizeForIpc(msg) as SandboxOut);
       return;
@@ -103,6 +105,7 @@ interface PluginContextRecord {
   settingChangeHandlers: Map<string, ((value: unknown) => void)[]>;
   /** 已注册 sources */
   registeredSources: Record<string, SourceCapability>;
+  registration: PluginRegistration;
   /** 在途 action 的 AbortController，key = requestId */
   inflight: Map<string, AbortController>;
   /** hostCall 回调登记，key = callId */
@@ -112,19 +115,27 @@ interface PluginContextRecord {
   /** 注入沙箱的定时器句柄，卸载时统一清除，避免泄露/继续运行 */
   timers: Set<NodeJS.Timeout>;
   immediates: Set<NodeJS.Immediate>;
-  callSeq: number;
   disposed: boolean;
 }
 
 const plugins = new Map<string, PluginContextRecord>();
 
-/** 调用主进程，返回 hostResult 的 data */
+/**
+ * 调用主进程并等待宿主结果
+ * @param record - 当前插件上下文
+ * @param method - 宿主方法名
+ * @param args - 方法参数
+ * @returns 宿主返回的数据
+ */
 const hostCall = (
   record: PluginContextRecord,
   method: HostCallMethod,
   args: unknown[],
 ): Promise<unknown> => {
-  const callId = `c${++record.callSeq}`;
+  if (record.disposed) return Promise.reject(new Error("Plugin unloaded"));
+  if (record.hostCallWaiters.size >= 64)
+    return Promise.reject(new Error("Too many pending host calls"));
+  const callId = crypto.randomUUID();
   return new Promise<unknown>((resolve, reject) => {
     record.hostCallWaiters.set(callId, { resolve, reject });
     try {
@@ -133,7 +144,7 @@ const hostCall = (
         pluginId: record.pluginId,
         callId,
         method,
-        args: sanitizeForIpc(args) as unknown[],
+        args,
       });
     } catch (err) {
       record.hostCallWaiters.delete(callId);
@@ -183,7 +194,12 @@ const makeTimers = (record: PluginContextRecord): Record<string, unknown> => ({
 
 type LoadSpec = Extract<SandboxIn, { kind: "loadPlugin" }>;
 
-/** 构造注入某插件沙箱的 splayer 对象 */
+/**
+ * 构造注入插件沙箱的宿主 API
+ * @param record - 插件上下文
+ * @param spec - 沙箱初始化参数
+ * @returns 插件可调用的宿主对象
+ */
 const buildSplayer = (record: PluginContextRecord, spec: LoadSpec): HostApi => ({
   pluginId: spec.pluginId,
   apiLevel: spec.apiLevel,
@@ -193,6 +209,10 @@ const buildSplayer = (record: PluginContextRecord, spec: LoadSpec): HostApi => (
   request: (url: string, opts?: HostRequestOptions): Promise<HostRequestResult> =>
     hostCall(record, "request", [url, opts ?? {}]) as Promise<HostRequestResult>,
 
+  /**
+   * 合并插件分次声明的能力并通知主进程
+   * @param args - 本次声明的音源、事件、设置与菜单
+   */
   register: (args: RegisterArgs) => {
     if (args.sources) {
       record.registeredSources = { ...record.registeredSources, ...args.sources };
@@ -206,14 +226,14 @@ const buildSplayer = (record: PluginContextRecord, spec: LoadSpec): HostApi => (
           }
         }
       }
-      send({
-        kind: "registered",
-        pluginId: record.pluginId,
-        events: Array.isArray(args.events) ? args.events : [],
-        controls: Boolean(args.controls),
-        settings: Array.isArray(args.settings) ? args.settings : [],
-        menus: Array.isArray(args.menus) ? args.menus : [],
-      });
+      const previous = record.registration;
+      record.registration = {
+        events: Array.isArray(args.events) ? args.events : previous.events,
+        controls: args.controls === undefined ? previous.controls : Boolean(args.controls),
+        settings: Array.isArray(args.settings) ? args.settings : previous.settings,
+        menus: Array.isArray(args.menus) ? args.menus : previous.menus,
+      };
+      send({ kind: "registered", pluginId: record.pluginId, ...record.registration });
     }
   },
 
@@ -281,7 +301,90 @@ const buildSplayer = (record: PluginContextRecord, spec: LoadSpec): HostApi => (
     setVolume: (volume: number) =>
       void hostCall(record, "player.setVolume", [volume]).catch(() => {}),
     getPosition: () => hostCall(record, "player.getPosition", []) as Promise<number>,
+    /**
+     * 请求宿主停止播放
+     */
+    stop: () => hostCall(record, "player.stop", []) as Promise<void>,
+    /**
+     * 请求宿主播放完整曲目
+     * @param track - 要播放的曲目
+     * @returns 已发送播放请求的曲目标识
+     */
+    playTrack: (track) =>
+      hostCall(record, "player.playTrack", [track]) as ReturnType<PluginPlayerApi["playTrack"]>,
+    /**
+     * 请求宿主将曲目加入播放队列
+     * @param tracks - 要加入的完整曲目
+     * @param position - 插入当前曲目之后或队列末尾
+     * @returns 本次提交的曲目数
+     */
+    addToQueue: (tracks, position = "next") =>
+      hostCall(record, "player.addToQueue", [tracks, position]) as ReturnType<
+        PluginPlayerApi["addToQueue"]
+      >,
+    /**
+     * 请求宿主修改播放模式
+     * @param mode - 循环或随机播放模式
+     */
+    setPlayMode: (mode) => hostCall(record, "player.setPlayMode", [mode]) as Promise<void>,
+    /**
+     * 请求宿主读取当前播放队列
+     * @param options - 队列偏移与返回条数
+     * @returns 队列分页及当前播放索引
+     */
+    getQueue: (options) =>
+      hostCall(record, "player.getQueue", [options]) as ReturnType<PluginPlayerApi["getQueue"]>,
+    /**
+     * 读取宿主播放状态
+     * @returns 播放状态、毫秒进度与播放模式
+     */
+    getStatus: () =>
+      hostCall(record, "player.getStatus", []) as ReturnType<PluginPlayerApi["getStatus"]>,
+    /**
+     * 读取当前曲目的轻量快照
+     * @returns 当前曲目和播放进度，不包含歌词正文
+     */
+    getNowPlaying: () =>
+      hostCall(record, "player.getNowPlaying", []) as ReturnType<PluginPlayerApi["getNowPlaying"]>,
   },
+
+  music: {
+    /**
+     * 通过宿主搜索在线曲目
+     * @param options - 平台、关键词与分页参数
+     * @returns 统一的曲目搜索结果
+     */
+    searchOnline: (options) =>
+      hostCall(record, "music.searchOnline", [options]) as ReturnType<
+        HostApi["music"]["searchOnline"]
+      >,
+    /**
+     * 搜索宿主本地曲库
+     * @param query - 搜索关键词
+     * @param limit - 返回曲目数上限
+     * @returns 搜索总数和完整曲目
+     */
+    searchLibrary: (query, limit) =>
+      hostCall(record, "music.searchLibrary", [query, limit]) as ReturnType<
+        HostApi["music"]["searchLibrary"]
+      >,
+  },
+  api: {
+    /**
+     * 复用宿主登录状态调用平台接口
+     * @param platform - 平台标识
+     * @param name - 接口名称或路径
+     * @param params - 业务参数
+     * @returns 移除认证凭据后的业务响应
+     */
+    call: (platform, name, params) =>
+      hostCall(record, "api.call", [platform, name, params]) as ReturnType<HostApi["api"]["call"]>,
+  },
+  /**
+   * 通过宿主显示插件通知
+   * @param message - 通知内容
+   */
+  notify: (message) => hostCall(record, "notify", [message]) as Promise<void>,
 
   onSettingChange: (key: string, handler: (value: unknown) => void) => {
     const list = record.settingChangeHandlers.get(key) ?? [];
@@ -390,7 +493,10 @@ const unloadPlugin = (pluginId: string): void => {
   plugins.delete(pluginId);
 };
 
-/** 加载一个插件进新的 vm 上下文 */
+/**
+ * 创建沙箱并执行插件脚本
+ * @param spec - 插件脚本与初始化参数
+ */
 const loadPluginIntoContext = (spec: LoadSpec): void => {
   if (plugins.has(spec.pluginId)) return;
 
@@ -400,12 +506,12 @@ const loadPluginIntoContext = (spec: LoadSpec): void => {
     playerEventHandlers: new Map(),
     settingChangeHandlers: new Map(),
     registeredSources: {},
+    registration: { events: [], controls: false, settings: [], menus: [] },
     inflight: new Map(),
     hostCallWaiters: new Map(),
     userSettingsCache: spec.userSettings ?? {},
     timers: new Set(),
     immediates: new Set(),
-    callSeq: 0,
     disposed: false,
   };
   plugins.set(spec.pluginId, record);
@@ -633,7 +739,7 @@ parentPort.on("message", async (event) => {
               pluginId: msg.pluginId,
               requestId: msg.requestId,
               ok: true,
-              data: sanitizeForIpc(data),
+              data,
             });
           }
         } catch (err) {
@@ -644,7 +750,8 @@ parentPort.on("message", async (event) => {
             requestId: msg.requestId,
             ok: false,
             error: {
-              code: ((err as any)?.code as string) ?? "PLUGIN_HANDLER_ERROR",
+              code:
+                typeof (err as any)?.code === "string" ? (err as any).code : "PLUGIN_HANDLER_ERROR",
               message: err instanceof Error ? err.message : String(err),
             },
           });

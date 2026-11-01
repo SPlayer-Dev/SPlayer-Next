@@ -20,7 +20,8 @@ export type HotkeyActionId =
   | "view.closePlayer"
   | "view.togglePlaylist"
   | "view.openSearch"
-  | "view.searchInPage";
+  | "view.searchInPage"
+  | "view.openSettings";
 
 /** 单个动作的两条作用域绑定 */
 export interface HotkeyBinding {
@@ -61,6 +62,9 @@ export interface HotkeyConflict {
   conflictWith?: HotkeyActionId;
 }
 
+/** 全局快捷键探测结果 */
+export type HotkeyProbeResult = "ok" | "invalid" | "occupied";
+
 export interface HotkeyApi {
   /** 拉取完整配置 */
   getAll: () => Promise<HotkeyConfig>;
@@ -71,7 +75,9 @@ export interface HotkeyApi {
   /** 切换全局快捷键总开关 */
   setGlobalEnabled: (enabled: boolean) => Promise<HotkeyConfig>;
   /** 探测某 accelerator 在系统层是否可注册（仅 global 录入预校验用） */
-  probe: (accelerator: string) => Promise<boolean>;
+  probe: (accelerator: string) => Promise<HotkeyProbeResult>;
+  /** 录入期间暂停全局快捷键注册 */
+  setRecording: (recording: boolean) => Promise<void>;
   /** 拉取当前冲突快照（init 时使用，避免错过启动时已 broadcast 的事件） */
   getConflicts: () => Promise<HotkeyConflict[]>;
   /** 主进程触发某动作（global 命中后转回渲染端 dispatch） */

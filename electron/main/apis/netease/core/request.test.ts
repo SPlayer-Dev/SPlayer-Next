@@ -9,6 +9,9 @@ const hooks = registerHooks({
       "@main/utils/proxy": "export const fetchWithProxy = (...args) => globalThis.fetch(...args)",
       "@main/utils/logger":
         "export const neteaseLog = { warn: (...args) => console.warn(...args) }",
+      // 网页请求层依赖 Electron 主窗口，测试只验证客户端协议分支
+      "./webClient":
+        "export const requestWithWebClient = async () => ({ status: 200, body: {}, cookie: [] })",
     };
     if (stubs[specifier]) {
       return {

@@ -83,7 +83,7 @@ const onMenuSelect = (key: string): void => {
       <NavSearch />
       <SButton
         v-if="update.hasUpdate"
-        class="app-no-drag shrink-0"
+        class="app-no-drag shrink-0 lt-md:hidden"
         variant="tertiary"
         circle
         :size="40"

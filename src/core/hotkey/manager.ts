@@ -50,12 +50,25 @@ let installed = false;
 let offGlobalTrigger: (() => void) | null = null;
 let stopWatchBindings: (() => void) | null = null;
 
+/** 允许长按连续触发的动作 */
+const REPEATABLE_ACTIONS = new Set<HotkeyActionId>([
+  "player.volumeUp",
+  "player.volumeDown",
+  "player.seekForward",
+  "player.seekBack",
+]);
+
 /** 全局 keydown 处理 */
 const onKeyDown = (event: KeyboardEvent): void => {
   if (event.isComposing) return;
   if (isInputFocused(event)) return;
   for (const entry of compiled) {
     if (matchParsed(event, entry.parsed)) {
+      // 长按只对调整类动作生效，避免播放/暂停、切歌等被连续触发
+      if (event.repeat && !REPEATABLE_ACTIONS.has(entry.id)) {
+        event.preventDefault();
+        return;
+      }
       if (dispatch(entry.id)) event.preventDefault();
       return;
     }

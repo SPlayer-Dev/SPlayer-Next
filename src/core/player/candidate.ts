@@ -1,5 +1,4 @@
-import type { Track } from "@shared/types/player";
-import type { ShuffleMode } from "@/stores/status";
+import type { ShuffleMode, Track } from "@shared/types/player";
 import { shouldSkipKeywordTrack } from "@/utils/preset/skipKeywords";
 
 /** 候选歌曲计算上下文 */

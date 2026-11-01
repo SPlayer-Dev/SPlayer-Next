@@ -2,8 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { safeStorage } from "electron";
 import { writeFileSync as atomicWriteSync } from "atomically";
-import { streamingLog } from "@main/utils/logger";
 import { configDir } from "@main/utils/paths";
+import { decryptSecret, encryptSecret, isSecureStorageAvailable } from "@main/utils/secureStorage";
 import type {
   StreamingServerConfig,
   StreamingServerInput,
@@ -13,6 +13,8 @@ import type {
 const STORAGE_FILE = path.join(configDir, "streaming.json");
 
 interface PersistedServer {
+  revision?: number;
+  mediaRevision?: number;
   id: string;
   name: string;
   type: StreamingServerConfig["type"];
@@ -58,26 +60,42 @@ const save = (): void => {
  * @param password - 明文密码
  * @returns 加密内容
  */
-const encryptPassword = (password: string): string => {
+const encryptPassword = async (password: string): Promise<string> => {
   if (!password) return "";
-  if (!safeStorage.isEncryptionAvailable()) {
-    streamingLog.warn("系统安全存储不可用，流媒体密码将以 base64 形式保存");
-    return Buffer.from(password, "utf-8").toString("base64");
+  if (!(await isSecureStorageAvailable())) {
+    throw new Error("系统安全存储不可用，无法保存流媒体密码");
   }
-  return safeStorage.encryptString(password).toString("base64");
+  if (process.platform === "linux" && safeStorage.getSelectedStorageBackend() === "basic_text") {
+    throw new Error("请启用系统密钥环后保存流媒体密码");
+  }
+  return `safe:v1:${(await encryptSecret(password)).toString("base64")}`;
 };
 
 /**
- * 解密服务器密码
- * @param encrypted - 加密内容
+ * 解密服务器密码，系统要求轮换密钥时回写
+ * @param server - 持久化配置
  * @returns 明文密码
  */
-const decryptPassword = (encrypted: string): string => {
-  if (!encrypted) return "";
-  const buffer = Buffer.from(encrypted, "base64");
-  return safeStorage.isEncryptionAvailable()
-    ? safeStorage.decryptString(buffer)
-    : buffer.toString("utf-8");
+const decryptPassword = async (server: PersistedServer): Promise<string> => {
+  if (!server.encryptedPassword) return "";
+  if (!(await isSecureStorageAvailable()))
+    throw new Error("系统安全存储不可用，无法读取流媒体密码");
+  const buffer = Buffer.from(server.encryptedPassword.replace(/^safe:v1:/, ""), "base64");
+  let decrypted: { plainText: string; needsReEncrypt: boolean };
+  try {
+    decrypted = await decryptSecret(buffer);
+  } catch {
+    throw new Error("无法解密流媒体密码，请在服务器设置中重新输入密码");
+  }
+  if (decrypted.needsReEncrypt) {
+    try {
+      server.encryptedPassword = `safe:v1:${(await encryptSecret(decrypted.plainText)).toString("base64")}`;
+      save();
+    } catch {
+      // 回写失败不影响本次读取，下次解密仍会再次尝试
+    }
+  }
+  return decrypted.plainText;
 };
 
 /**
@@ -86,6 +104,8 @@ const decryptPassword = (encrypted: string): string => {
  * @returns 不含凭据的配置
  */
 const toServerConfig = (server: PersistedServer): StreamingServerConfig => ({
+  revision: server.revision ?? 0,
+  mediaRevision: server.mediaRevision ?? 0,
   id: server.id,
   name: server.name,
   type: server.type,
@@ -100,9 +120,9 @@ const toServerConfig = (server: PersistedServer): StreamingServerConfig => ({
  * @param server - 持久化配置
  * @returns 包含凭据的配置
  */
-const toRuntimeConfig = (server: PersistedServer): StreamingRuntimeConfig => ({
+const toRuntimeConfig = async (server: PersistedServer): Promise<StreamingRuntimeConfig> => ({
   ...toServerConfig(server),
-  password: decryptPassword(server.encryptedPassword),
+  password: await decryptPassword(server),
 });
 
 /**
@@ -122,10 +142,21 @@ export const getStreamingConfig = (): {
  * @param serverId - 服务器 ID
  * @returns 包含凭据的配置
  */
-export const getStreamingServer = (serverId: string): StreamingRuntimeConfig => {
+export const getStreamingServer = async (serverId: string): Promise<StreamingRuntimeConfig> => {
   const server = getState().servers.find((item) => item.id === serverId);
   if (!server) throw new Error("找不到流媒体服务器");
   return toRuntimeConfig(server);
+};
+
+/**
+ * 获取服务器配置版本号，不读取凭据
+ * @param serverId - 服务器 ID
+ * @returns 配置版本号
+ */
+export const getStreamingServerRevision = (serverId: string): number => {
+  const server = getState().servers.find((item) => item.id === serverId);
+  if (!server) throw new Error("找不到流媒体服务器");
+  return server.revision ?? 0;
 };
 
 /**
@@ -133,14 +164,16 @@ export const getStreamingServer = (serverId: string): StreamingRuntimeConfig => 
  * @param input - 服务器表单
  * @returns 新服务器配置
  */
-export const addStreamingServer = (input: StreamingServerInput): StreamingServerConfig => {
+export const addStreamingServer = async (
+  input: StreamingServerInput,
+): Promise<StreamingServerConfig> => {
   const server: PersistedServer = {
     id: crypto.randomUUID(),
     name: input.name.trim(),
     type: input.type,
     url: input.url.trim().replace(/\/+$/, ""),
     username: input.username,
-    encryptedPassword: encryptPassword(input.password),
+    encryptedPassword: await encryptPassword(input.password),
   };
   getState().servers.push(server);
   save();
@@ -153,18 +186,31 @@ export const addStreamingServer = (input: StreamingServerInput): StreamingServer
  * @param input - 服务器表单
  * @returns 更新后的服务器配置
  */
-export const updateStreamingServer = (
+export const updateStreamingServer = async (
   serverId: string,
   input: StreamingServerInput,
-): StreamingServerConfig => {
+): Promise<StreamingServerConfig> => {
   const server = getState().servers.find((item) => item.id === serverId);
   if (!server) throw new Error("找不到流媒体服务器");
+  const encryptedPassword = input.password
+    ? await encryptPassword(input.password)
+    : server.encryptedPassword;
+  const identityChanged = Boolean(
+    server.type !== input.type ||
+    server.url !== input.url.trim().replace(/\/+$/, "") ||
+    server.username !== input.username ||
+    input.password,
+  );
+  if (identityChanged) {
+    server.mediaRevision = (server.mediaRevision ?? 0) + 1;
+    server.revision = (server.revision ?? 0) + 1;
+    server.lastConnected = undefined;
+  }
   server.name = input.name.trim();
   server.type = input.type;
   server.url = input.url.trim().replace(/\/+$/, "");
   server.username = input.username;
-  if (input.password) server.encryptedPassword = encryptPassword(input.password);
-  server.lastConnected = undefined;
+  server.encryptedPassword = encryptedPassword;
   save();
   return toServerConfig(server);
 };
@@ -212,12 +258,12 @@ export const markStreamingServerConnected = (serverId: string): StreamingServerC
  * @param serverId - 编辑中的服务器 ID
  * @returns 临时运行时配置
  */
-export const createTestStreamingServer = (
+export const createTestStreamingServer = async (
   input: StreamingServerInput,
   serverId?: string,
-): StreamingRuntimeConfig => {
+): Promise<StreamingRuntimeConfig> => {
   const saved = serverId ? getState().servers.find((server) => server.id === serverId) : undefined;
-  const password = input.password || (saved ? decryptPassword(saved.encryptedPassword) : "");
+  const password = input.password || (saved ? await decryptPassword(saved) : "");
 
   const base = {
     id: `__test__:${crypto.randomUUID()}`,

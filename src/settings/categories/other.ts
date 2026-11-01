@@ -17,6 +17,7 @@ const otherCategory: SettingCategory = {
           component: PlatformAccount,
           componentProps: { platform: "qqmusic" },
           fullWidth: true,
+          descriptionKey: "settings.platformLogin.desc",
           keywords: [
             "settings.platformLogin.title",
             "settings.platformLogin.desc",
@@ -30,6 +31,7 @@ const otherCategory: SettingCategory = {
           component: PlatformAccount,
           componentProps: { platform: "kugou" },
           fullWidth: true,
+          descriptionKey: "settings.platformLogin.desc",
           keywords: [
             "settings.platformLogin.title",
             "settings.platformLogin.desc",

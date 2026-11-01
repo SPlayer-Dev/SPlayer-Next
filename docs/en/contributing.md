@@ -4,8 +4,8 @@ Thank you for contributing to SPlayer-Next. This page covers the local environme
 
 ## Requirements
 
-- **Node.js** >= 22.19.0
-- **pnpm** >= 10
+- **Node.js** >= 24.0.0
+- **pnpm** >= 12
 - **Rust toolchain** for [native modules](/en/native)
 
 ## Getting started

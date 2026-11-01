@@ -109,7 +109,7 @@ fn collect_removed_paths(
 /// 新 API 下 AudioReader 不再要求重采样参数，扫库每文件省一次 SwrContext 分配
 pub(crate) fn probe_fast(path: &str, cover_cache_dir: Option<&str>) -> Option<ScannedTrack> {
     let file = fs::File::open(path).ok()?;
-    let reader = AudioReader::new(file).ok()?;
+    let reader = AudioReader::new(crate::decoder::input::AudioInput::new(file).ok()?).ok()?;
 
     let duration = reader.duration().map(|d| d.as_secs_f64()).unwrap_or(0.0);
 
@@ -349,46 +349,5 @@ pub fn scan_directories(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn traversal_error_suppresses_removals_for_the_whole_root() {
-        let root = Path::new("music");
-        let visible = root.join("visible.mp3").to_string_lossy().into_owned();
-        let hidden = root.join("restricted").join("hidden.flac");
-        let outside = Path::new("other").join("removed.ogg");
-        let hidden = hidden.to_string_lossy().into_owned();
-        let outside = outside.to_string_lossy().into_owned();
-        let existing = HashMap::from([
-            (visible.as_str(), (1, 1)),
-            (hidden.as_str(), (1, 1)),
-            (outside.as_str(), (1, 1)),
-        ]);
-
-        let removed = collect_removed_paths(
-            &existing,
-            std::slice::from_ref(&visible),
-            &[root.to_string_lossy().into_owned()],
-        );
-
-        assert_eq!(removed, vec![outside]);
-    }
-
-    #[test]
-    fn complete_scan_reports_missing_paths() {
-        let present = Path::new("music")
-            .join("present.mp3")
-            .to_string_lossy()
-            .into_owned();
-        let missing = Path::new("music")
-            .join("missing.mp3")
-            .to_string_lossy()
-            .into_owned();
-        let existing = HashMap::from([(present.as_str(), (1, 1)), (missing.as_str(), (1, 1))]);
-
-        let removed = collect_removed_paths(&existing, std::slice::from_ref(&present), &[]);
-
-        assert_eq!(removed, vec![missing]);
-    }
-}
+#[path = "tests/scanner.rs"]
+mod tests;

@@ -1,5 +1,6 @@
 @import "/fonts/font.css";
 @import "./markdown.css";
+@import "./reduced-motion.css";
 
 * {
   margin: 0;
@@ -43,6 +44,13 @@ body {
   background-color: var(--s-app-bg);
   color: rgb(var(--s-on-surface));
   font-family: var(--user-font, var(--app-font));
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  overflow: hidden;
 }
 
 /* 主区域容器 */

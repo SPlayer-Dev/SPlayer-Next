@@ -4,7 +4,7 @@ import { fetchKugouPlaylist } from "@/apis/playlist/kugou";
 import type { LoadCollectionOptions } from "./types";
 
 /**
- * 加载KG集合（专辑或歌单）
+ * 加载 KG 集合（专辑或歌单）
  * @param type - 集合类型（album 或 playlist）
  * @param id - 集合 ID
  * @param options - 加载选项

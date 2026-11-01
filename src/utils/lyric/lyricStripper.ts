@@ -12,7 +12,8 @@
  * 真正的歌词行 2
  */
 
-import type { LyricLine } from "@shared/types/lyrics";
+import type { LyricLine } from "lyric-kit";
+
 import type { Track } from "@shared/types/player";
 import { useSettingsStore } from "@/stores/settings";
 import { stripLyricMetadata } from "lyric-kit";

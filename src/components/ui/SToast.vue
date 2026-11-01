@@ -44,7 +44,7 @@ const onBeforeLeave = (el: Element): void => {
         <div
           v-for="item in toasts"
           :key="item.id"
-          class="pointer-events-auto border border-solid border-outline-variant/30 rounded-lg px-3.5 py-2.5 flex items-center gap-2.5 text-sm bg-surface-bright text-on-surface shadow-lg whitespace-nowrap will-change-transform"
+          class="motion-enter pointer-events-auto border border-solid border-outline-variant/30 rounded-lg px-3.5 py-2.5 flex items-center gap-2.5 text-sm bg-surface-bright text-on-surface shadow-lg whitespace-nowrap will-change-transform"
         >
           <!-- 图标 -->
           <template v-if="item.icon !== false">

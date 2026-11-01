@@ -5,7 +5,7 @@ import { dialog } from "@/composables/useDialog";
 
 const props = defineProps<{
   item: SettingItem;
-  highlighted?: boolean;
+  highlightKey?: string;
 }>();
 
 const { t } = useI18n();
@@ -56,12 +56,12 @@ const descriptionText = computed(() =>
       v-if="item.type === 'custom' && item.fullWidth && item.component"
       v-bind="item.componentProps"
       class="transition-all duration-300"
-      :class="highlighted ? 'animate-highlight-pulse' : ''"
+      :class="highlightKey === item.key ? 'animate-highlight-pulse' : ''"
     />
     <div
       v-else
       class="flex items-center justify-between gap-4 rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3.5 transition-all duration-300"
-      :class="highlighted ? 'animate-highlight-pulse' : ''"
+      :class="highlightKey === item.key ? 'animate-highlight-pulse' : ''"
     >
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2 text-base">
@@ -160,7 +160,12 @@ const descriptionText = computed(() =>
       class="mt-2.5 flex flex-col gap-2.5 transition-opacity duration-200"
       :class="isChildrenActive ? '' : 'opacity-50 pointer-events-none'"
     >
-      <SettingsItem v-for="child in item.children" :key="child.key" :item="child" />
+      <SettingsItem
+        v-for="child in item.children"
+        :key="child.key"
+        :item="child"
+        :highlight-key="highlightKey"
+      />
     </div>
   </div>
 </template>

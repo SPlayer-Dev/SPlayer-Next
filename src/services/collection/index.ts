@@ -7,8 +7,6 @@ import { loadKugouCollection } from "./kugou";
 import { loadStreamingCollection } from "./streaming";
 import type { LoadCollectionOptions } from "./types";
 
-export type { LoadCollectionOptions } from "./types";
-
 export const loadCollection = async (
   source: TrackSource,
   type: CollectionType,

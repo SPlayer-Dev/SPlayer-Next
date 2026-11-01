@@ -19,11 +19,11 @@ import { kgGatewayRequest, kgRequest } from "../core/request";
 import type {
   KGAlbumItem,
   KGArtistItem,
-  KGModule,
   KGPlaylistItem,
   KGSong,
   Quality,
-} from "../core/types";
+} from "@shared/types/platform/kugou";
+import type { KGModule } from "../core/types";
 
 interface MobileSong {
   hash?: string;
@@ -408,6 +408,13 @@ const searchArtists = async (keywords: string, page: number, limit: number) => {
   };
 };
 
+/**
+ * 搜索歌单并优先返回可直接请求新版列表的全局 ID
+ * @param keywords - 搜索关键词
+ * @param page - 页码
+ * @param limit - 单页条数
+ * @returns 歌单搜索结果
+ */
 const searchPlaylists = async (keywords: string, page: number, limit: number) => {
   const res = await kgGatewayRequest<{ data?: SearchResponseData<RawKGSpecial> }>(
     "/v1/search/special",
@@ -427,7 +434,7 @@ const searchPlaylists = async (keywords: string, page: number, limit: number) =>
 
   const rawList = res.data?.lists ?? res.data?.info ?? [];
   const playlists: KGPlaylistItem[] = rawList.map((raw) => ({
-    id: String(raw.specialid || raw.gid || ""),
+    id: String(raw.gid || raw.specialid || ""),
     name: decodeName(raw.specialname),
     cover: fillCover(raw.img, 300),
     creator: decodeName(raw.nickname),

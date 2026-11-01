@@ -13,10 +13,10 @@ import IconLucideMusic from "~icons/lucide/music";
 import IconLucideUser from "~icons/lucide/user";
 import IconLucideDisc from "~icons/lucide/disc";
 import IconLucideListMusic from "~icons/lucide/list-music";
-import IconLucideAudioWaveform from "~icons/lucide/audio-waveform";
 
 const { t, locale } = useI18n();
 const router = useRouter();
+const route = useRoute();
 const data = useDataStore();
 const status = useStatusStore();
 
@@ -96,12 +96,27 @@ const suggestSections = computed(() => {
   ].filter((sec) => sec.items.length > 0);
 });
 
-/** 跳转到搜索页 */
+/**
+ * 提交关键词并保留当前搜索来源
+ * @param raw - 输入的搜索关键词
+ */
 const submit = (raw: string): void => {
   const word = raw.trim();
   if (!word) return;
   data.addSearchHistory(word);
-  router.push({ name: "search", query: { q: word } });
+  router.push({
+    name: "search",
+    query: {
+      q: word,
+      ...(route.name === "search"
+        ? {
+            platform: route.query.platform,
+            plugin: route.query.plugin,
+            source: route.query.source,
+          }
+        : {}),
+    },
+  });
   dialogOpen.value = false;
 };
 
@@ -280,13 +295,13 @@ onMounted(() => {
     <div
       role="button"
       :aria-label="t('nav.searchPlaceholder')"
-      class="app-no-drag w-60 h-10 px-4 cursor-pointer flex items-center gap-2 rounded-full border border-solid bg-on-surface/3 border-on-surface/15 hover:bg-on-surface/10 hover:border-on-surface/25 transition-colors duration-250 select-none"
+      class="app-no-drag w-60 lt-compact:w-40 lt-md:w-10 h-10 px-4 lt-md:px-0 cursor-pointer flex items-center lt-md:justify-center gap-2 rounded-full border border-solid bg-on-surface/3 border-on-surface/15 hover:bg-on-surface/10 hover:border-on-surface/25 transition-colors duration-250 select-none"
       @click="dialogOpen = true"
       @contextmenu.prevent="dialogOpen = true"
       @mousedown.prevent
     >
       <IconLucideSearch class="size-4 text-on-surface-variant/50 shrink-0" />
-      <span class="flex-1 min-w-0 truncate text-base text-on-surface-variant/40">
+      <span class="flex-1 min-w-0 truncate text-base text-on-surface-variant/40 lt-md:hidden">
         {{ t("nav.searchPlaceholder") }}
       </span>
     </div>

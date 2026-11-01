@@ -30,8 +30,16 @@ const items = computed<CoverItem[]>(() =>
   })),
 );
 
+/**
+ * 打开当前服务器的歌单
+ * @param item - 歌单封面条目
+ */
 const handleClick = (item: CoverItem): void => {
-  navigateToPlaylist(item.id, { source: "streaming", name: item.title });
+  navigateToPlaylist(item.id, {
+    source: "streaming",
+    name: item.title,
+    serverId: streaming.activeServerId ?? undefined,
+  });
 };
 </script>
 

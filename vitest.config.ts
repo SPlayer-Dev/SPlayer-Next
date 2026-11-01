@@ -1,5 +1,6 @@
 import { fileURLToPath, URL } from "node:url";
 import vue from "@vitejs/plugin-vue";
+import Icons from "unplugin-icons/vite";
 import AutoImport from "unplugin-auto-import/vite";
 import { defineConfig } from "vitest/config";
 import pkg from "./package.json" with { type: "json" };
@@ -16,6 +17,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@main": fileURLToPath(new URL("./electron/main", import.meta.url)),
       "@shared": fileURLToPath(new URL("./shared", import.meta.url)),
       "@windows": fileURLToPath(new URL("./windows", import.meta.url)),
       "@root": fileURLToPath(new URL("./", import.meta.url)),
@@ -23,13 +25,19 @@ export default defineConfig({
   },
   plugins: [
     vue(),
+    Icons({ compiler: "vue3" }),
     AutoImport({
       imports: ["vue", "pinia", "vue-router", "@vueuse/core", "vue-i18n"],
     }),
   ],
   test: {
     environment: "happy-dom",
-    include: ["src/**/*.spec.ts", "windows/**/*.spec.ts", "docs/**/*.spec.ts"],
+    include: [
+      "electron/**/*.spec.ts",
+      "src/**/*.spec.ts",
+      "windows/**/*.spec.ts",
+      "docs/**/*.spec.ts",
+    ],
     clearMocks: true,
     restoreMocks: true,
   },

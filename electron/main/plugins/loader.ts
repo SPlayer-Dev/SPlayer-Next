@@ -11,13 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import zlib from "node:zlib";
-import {
-  PLUGIN_TYPES,
-  PLUGIN_GRANTS,
-  type PluginGrant,
-  type PluginManifest,
-  type PluginType,
-} from "@shared/types/plugin";
+import { PLUGIN_GRANTS, type PluginGrant, type PluginManifest } from "@shared/types/plugin";
 import { HOST_API_LEVEL, PluginErrorCodes } from "@shared/defaults/plugin-api";
 
 const GZ_PREFIX = "gz_";
@@ -56,16 +50,25 @@ interface HeaderFields {
   author?: string;
   homepage?: string;
   apiLevel?: number;
-  type?: PluginType;
   updateUrl?: string;
   changelog?: string;
 }
 
+/**
+ * 解析脚本头部的插件元数据
+ * @param source - 解压后的脚本源码
+ * @returns 声明的插件元数据
+ */
 const parseHeader = (source: string): HeaderFields => {
   const out: HeaderFields = {};
   const m0 = BLOCK_COMMENT_RE.exec(source);
   const block = m0 ? m0[0].slice(2, -2) : source.slice(0, 3000);
 
+  /**
+   * 按元数据字段名解析声明值
+   * @param key - 元数据字段名
+   * @param raw - 未清理的声明值
+   */
   const applyField = (key: string, raw: string): void => {
     const limit = FIELD_LIMITS[key];
     const val = limit && raw.length > limit ? raw.slice(0, limit) + "..." : raw;
@@ -96,11 +99,6 @@ const parseHeader = (source: string): HeaderFields => {
         if (!Number.isNaN(n)) out.apiLevel = n;
         break;
       }
-      case "type":
-        out.type = (PLUGIN_TYPES as readonly string[]).includes(val)
-          ? (val as PluginType)
-          : "source";
-        break;
     }
   };
 
@@ -154,21 +152,18 @@ const deriveId = (declared: string | undefined, name: string): string => {
 };
 
 /**
- * 计算插件权限
- * - 音源类（type 非 control，含缺省与 lx 脚本）：联网解析 URL 是其本职，自动授予 network
- * - 控制类：解析 @grant 按白名单去重过滤（缺省 []）——控制插件能看到播放数据，联网外发须显式声明
- * @param declared - 头部 @grant 原文（可空）
- * @param type - 插件类型
+ * 计算插件权限，保留所有脚本的默认联网能力以兼容已有音源及 LX 脚本
+ * @param declared - 头部 @grant 原文
+ * @returns 插件申请的权限
  */
-const deriveGrants = (declared: string | undefined, type: PluginType): PluginGrant[] => {
-  if (type !== "control") return ["network"];
-  if (!declared) return [];
+const deriveGrants = (declared: string | undefined): PluginGrant[] => {
+  const grants: PluginGrant[] = ["network"];
   const valid = (PLUGIN_GRANTS as readonly string[]).includes.bind(PLUGIN_GRANTS);
-  const parsed = declared
+  const parsed = (declared ?? "")
     .split(/[,\s]+/)
     .map((item) => item.trim().toLowerCase())
     .filter((item): item is PluginGrant => valid(item));
-  return [...new Set(parsed)];
+  return [...new Set([...grants, ...parsed])];
 };
 
 export interface LoadedScript {
@@ -180,7 +175,13 @@ export interface LoadedScript {
   decompressed: boolean;
 }
 
-/** 从磁盘或原始字符串加载并解析 */
+/**
+ * 加载脚本并生成安装清单
+ * @param rawOrPath - 脚本源码或文件路径
+ * @param isPath - 是否从文件路径读取
+ * @param fileName - 安装后保留的脚本文件名
+ * @returns 解压后的脚本及插件清单
+ */
 export const loadScript = (rawOrPath: string, isPath: boolean, fileName?: string): LoadedScript => {
   const raw = isPath ? fs.readFileSync(rawOrPath, "utf-8") : rawOrPath;
   const wasCompressed = raw.trim().startsWith(GZ_PREFIX);
@@ -193,16 +194,6 @@ export const loadScript = (rawOrPath: string, isPath: boolean, fileName?: string
   const version = header.version || "0.0.0";
 
   const apiLevel = header.apiLevel ?? 1;
-  const rawType: PluginType = header.type ?? "source";
-
-  // 控制类依赖 level 2 宿主 API（splayer.player / onSettingChange），低于 2 直接拒绝，和文档"否则不可用"一致
-  if (rawType === "control" && apiLevel < 2) {
-    throw Object.assign(
-      new Error(`control plugin "${name}" requires apiLevel >= 2 (declared ${apiLevel})`),
-      { code: PluginErrorCodes.API_LEVEL_MISMATCH },
-    );
-  }
-
   if (apiLevel > HOST_API_LEVEL) {
     throw Object.assign(
       new Error(`plugin requires apiLevel ${apiLevel} but host supports ${HOST_API_LEVEL}`),
@@ -213,7 +204,7 @@ export const loadScript = (rawOrPath: string, isPath: boolean, fileName?: string
   // 身份优先用作者声明的 @id（跨版本/改名都稳定）；无 @id 时按名称兜底。
   // 兜底依赖名称而非源码，故源码更新 id 不变、可原地替换；无 @name 的脚本其 name 已含源码 hash，按内容区分、不享受原地更新。
   const id = deriveId(header.id, name);
-  const grant = deriveGrants(header.grant, rawType);
+  const grant = deriveGrants(header.grant);
   const finalFileName = fileName ?? (isPath ? path.basename(rawOrPath) : `${id}.js`);
 
   const manifest: PluginManifest = {
@@ -224,7 +215,6 @@ export const loadScript = (rawOrPath: string, isPath: boolean, fileName?: string
     author: header.author,
     homepage: header.homepage,
     grant,
-    type: rawType,
     apiLevel,
     hash,
     updateUrl: header.updateUrl,

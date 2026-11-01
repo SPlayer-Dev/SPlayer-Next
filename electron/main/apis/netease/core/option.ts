@@ -1,14 +1,12 @@
-/**
- * 请求 options 工厂
- * 从调用方 query 中抽取 crypto / cookie / ua / proxy / realIP 等，
- * 拼成 createRequest 的第三参数
- */
+/** 从业务参数中提取请求层配置 */
 
 import type { CryptoMode } from "./config";
 import type { RequestOptions } from "./request";
 
 /** 调用方传入的可选参数 */
 export interface Query {
+  /** 网页请求由公共层按路径装配凭据 */
+  client?: "web";
   /** 加密方式 */
   crypto?: CryptoMode;
   /** 预注入 cookie，可为字符串或对象 */
@@ -31,9 +29,9 @@ export interface Query {
 
 /**
  * 创建请求 options
- * @param query 调用方传入的可选参数
- * @param crypto 加密方式
- * @param checkToken 是否附加 anti-cheat token（如 "v3"）
+ * @param query - 调用方传入的可选参数
+ * @param crypto - 加密方式
+ * @param checkToken - 是否附加 anti-cheat token（如 "v3"）
  * @returns 请求 options
  */
 export const createOption = (
@@ -41,6 +39,7 @@ export const createOption = (
   crypto: CryptoMode | "" = "",
   checkToken: string | boolean = false,
 ): RequestOptions => ({
+  client: query.client,
   crypto: (query.crypto as CryptoMode | undefined) || crypto,
   cookie: query.cookie,
   ua: query.ua || "",
@@ -49,4 +48,15 @@ export const createOption = (
   e_r: query.e_r,
   domain: query.domain || "",
   checkToken: query.checkToken || checkToken,
+});
+
+/**
+ * 为浏览器环境提供一致的请求配置，SDK 是否启用由路径规则决定
+ * @param query - 业务接口接收到的请求参数
+ * @returns 使用网页加密与公共会话的请求配置
+ */
+export const createWebOption = (query: Query): RequestOptions => ({
+  ...createOption(query, "weapi"),
+  crypto: "weapi",
+  client: "web",
 });

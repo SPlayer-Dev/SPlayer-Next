@@ -3,8 +3,17 @@
  * 用于主进程、预加载、渲染进程、沙箱子进程之间的契约
  */
 
-import type { LyricLine } from "./lyrics";
-import type { Track } from "./player";
+import type { LyricLine } from "lyric-kit";
+
+import type { Track, PlayerState, RepeatMode, ShuffleMode } from "./player";
+import type {
+  OnlineSearchOptions,
+  OnlineSearchResult,
+  PlaybackQueueOptions,
+  PlaybackQueueSnapshot,
+  PlaybackStatusSnapshot,
+} from "./music";
+import type { ApisApi } from "./apis";
 import type { CommentTab, MusicCommentItem } from "./comment";
 
 /**
@@ -24,17 +33,13 @@ export type PluginAction =
  */
 export type PluginQuality = "hi-res" | "lossless" | "hq" | "sq" | "lq";
 
-/** 插件类型清单：运行时校验与分类的唯一来源，新增类型只改这里 */
-export const PLUGIN_TYPES = ["source", "control"] as const;
-/** 插件类型：音源（解析 URL）/ 控制（监听状态 + 反向控制） */
-export type PluginType = (typeof PLUGIN_TYPES)[number];
-
 /** 插件可声明的权限清单 */
-export const PLUGIN_GRANTS = ["network", "control", "ui"] as const;
+export const PLUGIN_GRANTS = ["network", "control", "ui", "library", "api"] as const;
+export type PluginPermissions = Partial<Record<PluginGrant, boolean>>;
 /** 插件权限：network 联网 / control 控制播放器 / ui 扩展界面 */
 export type PluginGrant = (typeof PLUGIN_GRANTS)[number];
 
-/** 控制类插件可订阅的高层播放事件 */
+/** 插件可订阅的高层播放事件 */
 export type PlaybackEventKind = "trackChange" | "lyricChange" | "lineChange" | "playStateChange";
 
 /** 各高层事件的载荷 */
@@ -49,10 +54,10 @@ export interface PlaybackEventData {
   playStateChange: { state: "playing" | "paused" | "stopped"; position: number };
 }
 
-/** 控制类插件注册的配置项类型（安全子集） */
+/** 插件注册的配置项类型（安全子集） */
 export type PluginSettingType = "switch" | "number" | "text" | "select";
 
-/** 控制类插件注册的单个配置项 */
+/** 插件注册的单个配置项 */
 export interface PluginSettingItem {
   key: string;
   type: PluginSettingType;
@@ -70,7 +75,7 @@ export interface PluginSettingItem {
 }
 
 /**
- * UI 类插件向歌曲菜单贡献的单个菜单项
+ * 插件向歌曲菜单贡献的单个菜单项
  */
 export interface PluginMenuItem {
   /** 菜单项 id */
@@ -81,7 +86,7 @@ export interface PluginMenuItem {
   sources?: string[];
 }
 
-/** 控制/UI 类注册上报的载荷（worker → 主进程的 registered 消息与注册表回调共用） */
+/** 插件能力注册上报的载荷（worker → 主进程的 registered 消息与注册表回调共用） */
 export interface PluginRegistration {
   events: PlaybackEventKind[];
   controls: boolean;
@@ -89,7 +94,7 @@ export interface PluginRegistration {
   menus: PluginMenuItem[];
 }
 
-/** register 入参：音源类用 sources，控制类用 events/controls/settings，UI 类用 menus */
+/** register 入参：按需声明音源、事件、控制、设置与菜单 */
 export interface RegisterArgs {
   sources?: Record<string, SourceCapability>;
   events?: PlaybackEventKind[];
@@ -98,7 +103,7 @@ export interface RegisterArgs {
   menus?: PluginMenuItem[];
 }
 
-/** 控制类插件可用的播放面 */
+/** 插件可用的播放面 */
 export interface PluginPlayerApi {
   on<K extends PlaybackEventKind>(kind: K, handler: (data: PlaybackEventData[K]) => void): void;
   play(): void;
@@ -108,6 +113,28 @@ export interface PluginPlayerApi {
   seek(positionMs: number): void;
   setVolume(volume: number): void;
   getPosition(): Promise<number>;
+  stop(): Promise<void>;
+  playTrack(track: Track): Promise<{ id: string; source: Track["source"] }>;
+  addToQueue(tracks: Track[], position?: "next" | "end"): Promise<{ count: number }>;
+  setPlayMode(mode: { repeat?: RepeatMode; shuffle?: ShuffleMode }): Promise<void>;
+  /**
+   * 按当前播放顺序读取队列
+   * @param options - 可选的偏移和返回条数
+   * @returns 队列分页及当前播放索引
+   */
+  getQueue(options?: PlaybackQueueOptions): Promise<PlaybackQueueSnapshot>;
+  getStatus(): Promise<PlaybackStatusSnapshot>;
+  getNowPlaying(): Promise<{
+    track: Track | null;
+    position: number;
+    state: PlayerState;
+    playing: boolean;
+    speed: number;
+    lyricOffsetMs: number;
+    lyricAvailable: boolean;
+    lyricLineCount: number;
+    sendTimestamp: number;
+  }>;
 }
 
 /** 插件头部 JSDoc 元数据 */
@@ -126,8 +153,6 @@ export interface PluginManifest {
   homepage?: string;
   /** 声明的权限 */
   grant: PluginGrant[];
-  /** 插件类型，来自 @type 头，缺省 "source" */
-  type?: PluginType;
   /** 声明兼容的 Host API 级别 */
   apiLevel: number;
   /** 源码 SHA1（内容指纹，用于校验下载完整性） */
@@ -161,7 +186,7 @@ export type PluginStatus =
   | {
       state: "ready";
       sources: Record<string, SourceCapability>;
-      /** 控制类附加信息 */
+      /** 注册的附加能力 */
       events?: PlaybackEventKind[];
       controls?: boolean;
       settings?: PluginSettingItem[];
@@ -185,12 +210,14 @@ export interface PluginUpdateInfo {
 
 /** 渲染端看到的插件条目（manifest + 状态） */
 export interface PluginInfo {
+  /** 用户实际授权；脚本声明与授权分开存储 */
+  permissions?: PluginPermissions;
   manifest: PluginManifest;
   enabled: boolean;
   status: PluginStatus;
   /** 脚本上报过"有新版本"时填充，用户更新/卸载后清空 */
   updateInfo?: PluginUpdateInfo | null;
-  /** 控制类插件的当前设置值 */
+  /** 插件的当前设置值 */
   settingsValues?: Record<string, unknown>;
 }
 
@@ -247,10 +274,14 @@ export interface MusicSearchCandidate {
   album?: string;
   /** 时长（毫秒） */
   durationMs?: number;
+  /** 封面图片 URL */
+  cover?: string;
   [key: string]: unknown;
 }
 export interface MusicSearchRes {
   list: MusicSearchCandidate[];
+  total?: number;
+  hasMore?: boolean;
 }
 
 /** musicLyric：取某条已匹配候选的歌词 */
@@ -369,10 +400,19 @@ export interface HostApi {
   /** 用户在设置里为此插件配置的值 */
   getSetting: <T = unknown>(key: string) => T | undefined;
 
-  /** 控制类播放面：监听高层事件 + 反向控制 */
+  /** 播放面：监听高层事件 + 反向控制 */
   player: PluginPlayerApi;
 
-  /** 控制类设置变更回调：用户改设置后触发 */
+  music: {
+    searchOnline(options: OnlineSearchOptions): Promise<OnlineSearchResult>;
+    searchLibrary(query: string, limit?: number): Promise<{ total: number; tracks: Track[] }>;
+  };
+
+  api: Pick<ApisApi, "call">;
+  /** 主动系统通知，需 ui 权限 */
+  notify(message: string): Promise<void>;
+
+  /** 设置变更回调：用户改设置后触发 */
   onSettingChange: (key: string, handler: (value: unknown) => void) => void;
 }
 
@@ -462,9 +502,30 @@ export type HostCallMethod =
   | "player.prev"
   | "player.seek"
   | "player.setVolume"
-  | "player.getPosition";
+  | "player.getPosition"
+  | "player.stop"
+  | "player.playTrack"
+  | "player.addToQueue"
+  | "player.setPlayMode"
+  | "player.getQueue"
+  | "player.getStatus"
+  | "player.getNowPlaying"
+  | "music.searchOnline"
+  | "music.searchLibrary"
+  | "api.call"
+  | "notify";
 
 /* ========== 渲染端 ↔ 主进程的 IPC 请求参数 ========== */
+
+export interface PluginSearchArgs extends MusicSearchReq {
+  pluginId: string;
+}
+
+export interface PluginSearchResult {
+  items: Track[];
+  total: number;
+  hasMore: boolean;
+}
 
 export interface PluginResolveUrlArgs {
   pluginId: string;
@@ -522,7 +583,6 @@ export interface MarketPlugin {
   id: string;
   name: string;
   author: string;
-  type: PluginType;
   version: string;
   description: string;
   homepage: string;
@@ -531,8 +591,10 @@ export interface MarketPlugin {
 
 /** 渲染端插件 API */
 export interface PluginsApi {
+  /** 修改单个声明权限，即时生效 */
+  setPermission: (id: string, grant: PluginGrant, enabled: boolean) => Promise<void>;
   /** 列出所有已安装插件 */
-  list: () => Promise<PluginInfo[]>;
+  list: (waitForPluginId?: string) => Promise<PluginInfo[]>;
   /** 从指定路径导入插件（进阶：一般由 pickAndInstall 触发） */
   install: (filePath: string) => Promise<{ ok: boolean; id?: string; error?: string }>;
   /** 弹出原生文件选择框导入插件 */
@@ -549,7 +611,7 @@ export interface PluginsApi {
   /** 启用/禁用 */
   setEnabled: (id: string, enabled: boolean) => Promise<void>;
   /**
-   * 写入控制类插件的单个配置项
+   * 写入插件的单个配置项
    * @param id - 插件 ID
    * @param key - 配置项 key（须在插件 settings schema 中声明）
    * @param value - 新值，由主进程按 schema 类型校验后写入并推送到沙箱
@@ -571,6 +633,8 @@ export interface PluginsApi {
   applyUpdate: (
     id: string,
   ) => Promise<{ ok: boolean; plugin?: PluginInfo; error?: string; fallbackUrl?: string }>;
+  /** 搜索独立插件来源，返回可直接播放的曲目 */
+  search: (args: PluginSearchArgs) => Promise<PluginSearchResult>;
   /** 获取播放 URL */
   resolveUrl: (args: PluginResolveUrlArgs) => Promise<MusicUrlRes>;
   /** 触发某插件的自定义菜单项 */
@@ -588,6 +652,7 @@ export interface PluginsApi {
 /* ========== 配置 ========== */
 
 export interface PluginsConfig {
+  permissions: Record<string, PluginPermissions>;
   /** 插件启用开关，key = pluginId */
   enabled: Record<string, boolean>;
   /** 各动作的插件优先级列表 */

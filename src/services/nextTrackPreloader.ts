@@ -13,36 +13,57 @@ import { useStreamingStore } from "@/stores/streaming";
 import { usePluginsStore } from "@/stores/plugins";
 import { useMediaStore } from "@/stores/media";
 import * as queue from "@/stores/queue";
+import { isAutoMixReady, connectAutoMixComponents } from "@/services/automix";
+import { AUTOMIX_ARM_LEAD_MS } from "@shared/constants/playback";
 
 /** 预载结果 */
 export interface NextTrackPreloadResult {
   trackId: string;
+  /** 已就绪的原生槽位标识，缺省表示仅解析或缓存了音源 */
+  preparedId?: string;
+  /** 仅在 AutoMix 就绪时存在，使用当前曲的展示时间轴 */
+  autoMixStartMs?: number;
   source: ResolvedTrackSource | null;
   contextKey: string;
 }
 
 let currentToken = 0;
+let nativePreloadId: string | null = null;
+let preloadAbort: AbortController | null = null;
 let cachedResult: NextTrackPreloadResult | null = null;
 let currentContextKey: string | null = null;
 let pendingCover: HTMLImageElement | null = null;
+let transitionPreparedId: string | null = null;
 let stopContextWatch: (() => void) | null = null;
+let stopAutoMixComponents: (() => void) | null = null;
 
 /**
  * 拼装上下文指纹，用于去重与作废
+ * @param track - 下一曲候选及其本地文件或 CUE 信息
+ * @returns 包含音源、音质和解析环境的上下文指纹
  */
 const buildContextKey = (track: Track): string => {
   const settings = useSettingsStore();
   const streaming = useStreamingStore();
   const plugins = usePluginsStore();
+  const status = useStatusStore();
 
   const parts = [
     track.id,
     track.source,
     track.serverId ?? "",
     track.originalId ?? "",
+    track.serverRevision ?? "",
     track.path ?? "",
     track.cueAudioPath ?? "",
+    track.cueStartMs ?? "",
+    track.cueEndMs ?? "",
     settings.player.songLevel,
+    settings.player.transitionMode,
+    settings.player.transitionPreference,
+    ...(settings.player.transitionMode === "automix"
+      ? [isAutoMixReady(), status.speed, status.pitch, status.currentTrack?.id]
+      : []),
     settings.player.allowTrialPlay,
     streaming.activeServerId ?? "",
     plugins.list
@@ -62,6 +83,7 @@ const buildContextKey = (track: Track): string => {
 
 /**
  * 提前解码封面图片，仅利用 Chromium 渲染引擎缓存
+ * @param url - 要预载的封面地址
  */
 const preloadCover = async (url: string): Promise<void> => {
   if (!url) return;
@@ -84,6 +106,10 @@ const preloadCover = async (url: string): Promise<void> => {
  */
 export const invalidateNextTrackPreload = (): void => {
   currentToken++;
+  preloadAbort?.abort();
+  preloadAbort = null;
+  if (nativePreloadId) void window.api.player.cancelPrepared(nativePreloadId).catch(console.warn);
+  nativePreloadId = null;
   cachedResult = null;
   currentContextKey = null;
   if (pendingCover) {
@@ -105,13 +131,7 @@ export const consumePreloadedTrack = (track: Track): NextTrackPreloadResult | nu
   }
   const currentKey = buildContextKey(track);
   if (!cachedResult) {
-    if (currentContextKey === currentKey) {
-      // 音源尚未解析完成，阻止迟到结果写回；同曲歌词和封面仍可继续使用
-      currentToken++;
-      currentContextKey = null;
-    } else if (currentContextKey) {
-      invalidateNextTrackPreload();
-    }
+    invalidateNextTrackPreload();
     return null;
   }
   if (cachedResult.trackId !== track.id) {
@@ -124,6 +144,8 @@ export const consumePreloadedTrack = (track: Track): NextTrackPreloadResult | nu
     return null;
   }
   const result = cachedResult;
+  nativePreloadId = null;
+  preloadAbort = null;
   currentToken++;
   cachedResult = null;
   currentContextKey = null;
@@ -131,9 +153,64 @@ export const consumePreloadedTrack = (track: Track): NextTrackPreloadResult | nu
 };
 
 /**
+ * 查询与候选曲目匹配的原生备用槽位，不改变其所有权
+ * @param track - 即将交接的目标曲目
+ * @returns 仍有效且原生 PCM 已就绪的预载结果
+ */
+export const peekPreparedTrack = (track: Track): NextTrackPreloadResult | null => {
+  if (!useSettingsStore().player.preloadNextTrack) return null;
+  if (cachedResult?.trackId !== track.id || !cachedResult.preparedId) return null;
+  return cachedResult.contextKey === buildContextKey(track) ? cachedResult : null;
+};
+
+/**
+ * 将可交接槽位交给在途过渡，无对拍计划时由调用方安排交叉过渡
+ * @param track - 本次交接的目标曲目
+ * @param expectedId - 后台通知对应的槽位标识
+ * @param positionMs - 当前曲展示时间，用于只在入场前提交变速
+ * @returns 已接管的预载结果，迟到通知或槽位失效时返回 null
+ */
+export const beginPreparedTransition = (
+  track: Track,
+  expectedId?: string,
+  positionMs?: number,
+): NextTrackPreloadResult | null => {
+  if (transitionPreparedId) return null;
+  const prepared = peekPreparedTrack(track);
+  if (!prepared?.source || (expectedId && prepared.preparedId !== expectedId)) return null;
+  if (
+    positionMs != null &&
+    prepared.autoMixStartMs != null &&
+    positionMs < prepared.autoMixStartMs - AUTOMIX_ARM_LEAD_MS
+  )
+    return null;
+  const result = consumePreloadedTrack(track);
+  if (!result?.preparedId) return null;
+  transitionPreparedId = result.preparedId;
+  return result;
+};
+
+/**
+ * 释放交接所有权，再按最新设置调度下一曲
+ * @param id - 本次交接持有的槽位标识
+ * @param rejected - 交接失败时保留的音源缓存，同一上下文不再重建 PCM 重试
+ */
+export const finishPreparedTransition = (id: string, rejected?: NextTrackPreloadResult): void => {
+  if (transitionPreparedId !== id) return;
+  transitionPreparedId = null;
+  if (rejected) {
+    cachedResult = { ...rejected, preparedId: undefined, autoMixStartMs: undefined };
+    currentContextKey = rejected.contextKey;
+  }
+  void window.api.player.cancelPrepared(id).catch(console.warn);
+  scheduleNextTrackPreload();
+};
+
+/**
  * 调度下一首预载任务
  */
 export const scheduleNextTrackPreload = (): void => {
+  if (transitionPreparedId) return;
   const settings = useSettingsStore();
   if (!settings.player.preloadNextTrack) {
     invalidateNextTrackPreload();
@@ -141,6 +218,11 @@ export const scheduleNextTrackPreload = (): void => {
   }
 
   const status = useStatusStore();
+  if (status.state === "stopped" || status.state === "idle") {
+    invalidateNextTrackPreload();
+    return;
+  }
+  if (status.trackLoading || status.state === "loading") return;
   const currentTrack = status.currentTrack;
   if (!currentTrack || useMediaStore().track?.id !== currentTrack.id) {
     invalidateNextTrackPreload();
@@ -161,21 +243,33 @@ export const scheduleNextTrackPreload = (): void => {
   }
 
   const candidateTrack = candidateResult.track;
+  if (
+    candidateTrack.source !== "local" &&
+    (!settings.system.cache.songCache.enabled || !settings.system.cache.songCache.cacheStreaming)
+  ) {
+    invalidateNextTrackPreload();
+    return;
+  }
   const contextKey = buildContextKey(candidateTrack);
-  // 歌词使用独立上下文去重，歌词偏好变化不需要重新解析音源
-  preloadLyricForTrack(candidateTrack);
-
   // 上下文指纹一致且已有缓存，避免重复触发
   if (cachedResult && cachedResult.contextKey === contextKey) {
+    preloadLyricForTrack(candidateTrack);
     return;
   }
 
   // 避免在异步生成过程中重复调度同一 contextKey
   if (currentContextKey === contextKey && !cachedResult) {
+    preloadLyricForTrack(candidateTrack);
     return;
   }
 
+  invalidateNextTrackPreload();
+  preloadLyricForTrack(candidateTrack);
   const token = ++currentToken;
+  const id = crypto.randomUUID();
+  const abort = new AbortController();
+  preloadAbort = abort;
+  nativePreloadId = id;
   currentContextKey = contextKey;
   cachedResult = null;
 
@@ -185,21 +279,57 @@ export const scheduleNextTrackPreload = (): void => {
         void preloadCover(candidateTrack.cover);
       }
       // 音源预拉取
-      const source = await resolveTrackSource(candidateTrack, {
+      let source = await resolveTrackSource(candidateTrack, {
         silent: true,
-        streamingPlaySessionId: crypto.randomUUID(),
       });
       if (token !== currentToken) return;
+      if (!source) {
+        invalidateNextTrackPreload();
+        return;
+      }
+      if (source.cacheRequest) {
+        const cachedPath = await source.cacheRequest(id, abort.signal);
+        if (token !== currentToken) return;
+        if (cachedPath) source = { source: cachedPath, fromCache: true, provider: "cache" };
+      }
+      let preparedId: string | undefined;
+      let autoMixStartMs: number | undefined;
+      if (source.provider === "local" || source.provider === "download" || source.fromCache) {
+        const result = await window.api.player.prepareNext(
+          id,
+          source.source,
+          candidateTrack.cueStartMs,
+          settings.player.transitionMode !== "none"
+            ? settings.player.transitionPreference
+            : undefined,
+          settings.player.transitionMode === "automix"
+            ? { mode: "automix", endMs: candidateTrack.cueEndMs }
+            : undefined,
+        );
+        if (token !== currentToken) return;
+        if (result.ready) preparedId = id;
+        autoMixStartMs = result.autoMixStartMs;
+      }
+      if (!preparedId) {
+        await window.api.player.cancelPrepared(id);
+        if (token !== currentToken) return;
+        nativePreloadId = null;
+      }
       cachedResult = {
         trackId: candidateTrack.id,
         source,
         contextKey,
+        preparedId,
+        autoMixStartMs,
       };
     } catch (err) {
-      console.warn("[nextPreload] Preload task failed silently:", err);
-      if (token === currentToken) {
-        invalidateNextTrackPreload();
-      }
+      if (token !== currentToken) return;
+      console.warn("[player:preload] 下一曲预载失败", {
+        trackId: candidateTrack.id,
+        title: candidateTrack.title,
+        error: err,
+      });
+      invalidateNextTrackPreload();
     }
   })();
 };
@@ -208,17 +338,29 @@ export const scheduleNextTrackPreload = (): void => {
 export const installNextTrackPreloadWatchers = (): void => {
   if (stopContextWatch) return;
   const settings = useSettingsStore();
+  if (settings.player.transitionMode === "automix")
+    stopAutoMixComponents = connectAutoMixComponents();
   const status = useStatusStore();
   const streaming = useStreamingStore();
   const plugins = usePluginsStore();
   stopContextWatch = watch(
     () => [
       settings.player.preloadNextTrack,
+      settings.player.transitionMode,
+      settings.player.transitionPreference,
+      ...(settings.player.transitionMode === "automix"
+        ? [isAutoMixReady(), status.speed, status.pitch]
+        : []),
+      settings.system.cache.songCache.enabled,
+      settings.system.cache.songCache.cacheStreaming,
       settings.player.songLevel,
       settings.player.allowTrialPlay,
       status.playIndex,
+      status.state,
       status.fmMode,
       status.shuffleMode,
+      settings.preset.skipKeywordsSongs,
+      settings.preset.skipTrackKeywords.join(","),
       queue.queue.value,
       streaming.activeServerId,
       settings.lyric.lyricSourcePreference,
@@ -240,7 +382,15 @@ export const installNextTrackPreloadWatchers = (): void => {
         )
         .join(";"),
     ],
-    scheduleNextTrackPreload,
+    () => {
+      if (settings.player.transitionMode === "automix") {
+        stopAutoMixComponents ??= connectAutoMixComponents();
+      } else {
+        stopAutoMixComponents?.();
+        stopAutoMixComponents = null;
+      }
+      scheduleNextTrackPreload();
+    },
     { flush: "post" },
   );
 };
@@ -249,5 +399,7 @@ export const installNextTrackPreloadWatchers = (): void => {
 export const disposeNextTrackPreload = (): void => {
   stopContextWatch?.();
   stopContextWatch = null;
+  stopAutoMixComponents?.();
+  stopAutoMixComponents = null;
   invalidateNextTrackPreload();
 };

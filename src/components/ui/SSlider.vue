@@ -30,6 +30,8 @@ export interface SSliderProps {
   centerFill?: boolean;
   /** 封面主题模式 */
   cover?: boolean;
+  /** 过渡发光模式 */
+  glow?: boolean;
 }
 
 const props = withDefaults(defineProps<SSliderProps>(), {
@@ -48,6 +50,7 @@ const props = withDefaults(defineProps<SSliderProps>(), {
   vertical: false,
   centerFill: false,
   cover: false,
+  glow: false,
 });
 
 const emit = defineEmits<{
@@ -148,7 +151,9 @@ const centerFillStyle = computed(() => {
 });
 
 /** 拖拽点是否可见（始终显示 / hover / 拖拽中） */
-const thumbVisible = computed(() => props.alwaysShowThumb || isHovering.value || isDragging.value);
+const thumbVisible = computed(
+  () => (props.alwaysShowThumb || isHovering.value || isDragging.value) && !props.glow,
+);
 
 /** 将值转换为轨道上的百分比位置 */
 const toPercent = (value: number): number => ((value - props.min) / (props.max - props.min)) * 100;
@@ -253,6 +258,8 @@ const onPointerUp = (): void => {
     :class="[
       disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer',
       vertical ? 'flex flex-col items-center h-full' : '',
+      glow ? 's-slider--glow' : '',
+      cover ? 's-slider--cover' : '',
     ]"
     :style="{
       '--s-slider-progress': progressPercent,
@@ -446,3 +453,42 @@ const onPointerUp = (): void => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.s-slider-fill {
+  --s-slider-glow: 0.4;
+  --s-slider-glow-color: var(--s-primary);
+  box-shadow: 0 0 0 0 transparent;
+  transition: box-shadow 0.4s ease;
+}
+
+.dark .s-slider-fill {
+  --s-slider-glow: 1;
+}
+
+.s-slider--cover .s-slider-fill {
+  --s-slider-glow: 1;
+  --s-slider-glow-color: var(--s-cover);
+}
+
+.s-slider--glow .s-slider-fill {
+  box-shadow:
+    0 0 3px 0.5px rgb(var(--s-slider-glow-color) / calc(0.8 * var(--s-slider-glow))),
+    0 0 8px 1px rgb(var(--s-slider-glow-color) / calc(0.35 * var(--s-slider-glow)));
+  animation: s-slider-breathe 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes s-slider-breathe {
+  to {
+    box-shadow:
+      0 0 4px 1px rgb(var(--s-slider-glow-color) / calc(0.95 * var(--s-slider-glow))),
+      0 0 12px 2px rgb(var(--s-slider-glow-color) / calc(0.5 * var(--s-slider-glow)));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-slider--glow .s-slider-fill {
+    animation: none;
+  }
+}
+</style>

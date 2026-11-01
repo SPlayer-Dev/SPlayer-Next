@@ -35,7 +35,7 @@ const recordingTarget = ref<{ id: HotkeyActionId; scope: Scope } | null>(null);
 const errorFor = ref<{
   id: HotkeyActionId;
   scope: Scope;
-  kind: "duplicate" | "crossScope" | "osOccupied";
+  kind: "duplicate" | "crossScope" | "osOccupied" | "invalid";
   conflictWith?: HotkeyActionId;
 } | null>(null);
 
@@ -84,10 +84,13 @@ const recorder = useHotkeyRecorder({
         toast.error(t(msgKey, { action: labelOf(conflict.id) }));
         return;
       }
-      const ok = await hotkey.probe(accel);
-      if (!ok) {
-        errorFor.value = { id: target.id, scope: "global", kind: "osOccupied" };
-        toast.error(t("settings.hotkeys.osOccupied"));
+      const result = await hotkey.probe(accel);
+      if (result !== "ok") {
+        const kind = result === "invalid" ? "invalid" : "osOccupied";
+        errorFor.value = { id: target.id, scope: "global", kind };
+        toast.error(
+          t(kind === "invalid" ? "settings.hotkeys.invalid" : "settings.hotkeys.osOccupied"),
+        );
         return;
       }
     }
@@ -97,6 +100,11 @@ const recorder = useHotkeyRecorder({
   },
   onCancel: () => {
     recordingTarget.value = null;
+  },
+  onRecordingChange: (recording) => {
+    // 仅全局录入需要释放系统占用
+    if (recording && recordingTarget.value?.scope !== "global") return;
+    void window.api.hotkey.setRecording(recording);
   },
   onClear: async () => {
     const target = recordingTarget.value;
@@ -198,6 +206,7 @@ const errorTitleOf = (id: HotkeyActionId, scope: Scope): string => {
   const err = errorFor.value;
   if (err && err.id === id && err.scope === scope) {
     if (err.kind === "osOccupied") return t("settings.hotkeys.osOccupied");
+    if (err.kind === "invalid") return t("settings.hotkeys.invalid");
     if (err.kind === "crossScope") {
       return t("settings.hotkeys.crossScopeWith", { action: labelOf(err.conflictWith!) });
     }

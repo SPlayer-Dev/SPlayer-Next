@@ -49,6 +49,8 @@ const props = withDefaults(defineProps<BackgroundRenderProps>(), {
   renderEngine: "mesh",
 });
 
+const emit = defineEmits<{ ready: [] }>();
+
 const wrapperRef = ref<HTMLDivElement | null>(null);
 
 // 外部渲染器实例引用
@@ -62,7 +64,16 @@ const updateRendererState = () => {
   if (!renderer) return;
 
   if (props.album) {
-    renderer.setAlbum(props.album, false);
+    renderer.setAlbum(props.album, false).then(
+      async () => {
+        // 缓存纹理也要留出首帧，保证淡入起始状态已经绘制
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        );
+        if (bgRenderRef.value === renderer) emit("ready");
+      },
+      (error) => console.warn("[background] 背景封面加载失败", error),
+    );
   }
   renderer.setFPS(props.fps);
   renderer.setRenderScale(props.renderScale);

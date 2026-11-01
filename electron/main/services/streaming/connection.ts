@@ -10,9 +10,11 @@ import { invalidateStreamingSession, resolveStreamingAdapter } from "./adapters/
 import {
   createTestStreamingServer,
   getStreamingServer,
+  getStreamingServerRevision,
   markStreamingServerConnected,
 } from "./config";
 import type { StreamingRuntimeConfig } from "@shared/types/streaming";
+import { isStreamingAuthError } from "./errors";
 
 /**
  * 归类连接错误
@@ -31,27 +33,40 @@ const classifyError = (error: unknown): StreamingErrorCode => {
  * 使用指定服务器执行协议请求
  * @param serverId - 服务器 ID
  * @param request - 协议请求
+ * @param signal - 调用方取消信号
  * @returns 请求结果
  */
 export const withStreamingAdapter = async <T>(
   serverId: string,
   request: (config: StreamingRuntimeConfig, adapter: StreamingAdapter) => Promise<T>,
+  signal?: AbortSignal,
 ): Promise<T> => {
-  const config = getStreamingServer(serverId);
+  const config = { ...(await getStreamingServer(serverId)), signal };
   const resolved = await resolveStreamingAdapter(config);
   try {
-    return await request(resolved.config, resolved.adapter);
+    signal?.throwIfAborted();
+    if (getStreamingServerRevision(serverId) !== config.revision)
+      throw new Error("流媒体配置已更新，本次请求已作废");
+    const result = await request(resolved.config, resolved.adapter);
+    if (getStreamingServerRevision(serverId) !== config.revision)
+      throw new Error("流媒体配置已更新，本次请求已作废");
+    return result;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (
-      (config.type !== "jellyfin" && config.type !== "emby") ||
-      !/HTTP 401|HTTP 403/.test(message)
-    ) {
+    if ((config.type !== "jellyfin" && config.type !== "emby") || !isStreamingAuthError(error)) {
       throw error;
     }
+    signal?.throwIfAborted();
     invalidateStreamingSession(serverId);
+    if (getStreamingServerRevision(serverId) !== config.revision)
+      throw new Error("流媒体配置已更新，本次请求已作废");
     const retried = await resolveStreamingAdapter(config);
-    return request(retried.config, retried.adapter);
+    signal?.throwIfAborted();
+    if (getStreamingServerRevision(serverId) !== config.revision)
+      throw new Error("流媒体配置已更新，本次请求已作废");
+    const result = await request(retried.config, retried.adapter);
+    if (getStreamingServerRevision(serverId) !== config.revision)
+      throw new Error("流媒体配置已更新，本次请求已作废");
+    return result;
   }
 };
 
@@ -65,7 +80,7 @@ export const testStreamingConnection = async (
   input: StreamingServerInput,
   serverId?: string,
 ): Promise<StreamingPingResult> => {
-  const config = createTestStreamingServer(input, serverId);
+  const config = await createTestStreamingServer(input, serverId);
   try {
     const resolved = await resolveStreamingAdapter(config);
     const result = await resolved.adapter.ping(resolved.config);
@@ -90,7 +105,7 @@ export const testStreamingConnection = async (
 export const connectStreamingServer = async (serverId: string): Promise<StreamingConnectResult> => {
   let config: StreamingRuntimeConfig;
   try {
-    config = getStreamingServer(serverId);
+    config = await getStreamingServer(serverId);
   } catch (error) {
     return {
       ok: false,
@@ -99,8 +114,8 @@ export const connectStreamingServer = async (serverId: string): Promise<Streamin
     };
   }
   try {
-    const resolved = await resolveStreamingAdapter(config);
-    const ping = await resolved.adapter.ping(resolved.config);
+    invalidateStreamingSession(serverId);
+    const ping = await withStreamingAdapter(serverId, (runtime, adapter) => adapter.ping(runtime));
     if (!ping.ok) {
       streamingLog.warn(`${config.type} 连接失败 [${config.name}]: ${ping.error}`);
       return {

@@ -12,6 +12,7 @@ import { fetchKugouArtist } from "@/apis/artist/kugou";
 import { albumsToCoverItems } from "@/utils/format/coverItem";
 
 export interface LoadArtistOptions {
+  serverId?: string;
   /** 名称兜底（在线源元数据返回前用于占位） */
   fallbackName?: string;
   /** 数据更新回调（一次或多次） */
@@ -76,12 +77,23 @@ const loadLocal = async (id: string, options: LoadArtistOptions): Promise<void> 
   }
 };
 
+/**
+ * 加载所属服务器的歌手歌曲和专辑
+ * @param id - 服务端歌手 ID
+ * @param options - 所属服务器、回调与取消信号
+ */
 const loadStreaming = async (id: string, options: LoadArtistOptions): Promise<void> => {
   const streamingStore = useStreamingStore();
   const artistId = decodeURIComponent(id);
-  const cached = streamingStore.artists.find((a) => a.id === artistId);
+  const serverId = options.serverId ?? streamingStore.activeServerId;
+  const cached = streamingStore.artists.find(
+    (a) => a.id === artistId && (a.serverId ?? streamingStore.activeServerId) === serverId,
+  );
   const fallbackName = options.fallbackName ?? artistId;
-  const tracks = await streamingStore.fetchArtistSongs(artistId);
+  const [tracks, albums] = await Promise.all([
+    streamingStore.fetchArtistSongs(artistId, serverId),
+    streamingStore.fetchArtistAlbums(artistId, serverId),
+  ]);
   if (options.signal?.aborted) return;
   options.onUpdate({
     id: artistId,
@@ -89,9 +101,9 @@ const loadStreaming = async (id: string, options: LoadArtistOptions): Promise<vo
     avatar: cached?.avatar,
     source: "streaming",
     tracks,
-    albums: [],
+    albums: albumsToCoverItems(albums),
     trackCount: tracks.length,
-    albumCount: 0,
+    albumCount: albums.length,
   });
 };
 

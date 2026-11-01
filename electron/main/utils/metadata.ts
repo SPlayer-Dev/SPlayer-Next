@@ -33,7 +33,8 @@ export const formatArtists = (artists: Artist[], separator = " / "): string => {
  * @returns 名称数组，已去除空白与空项
  */
 export const artistNames = (artists: Artist[]): string[] => {
-  return artists.map((artist) => artist.name.trim()).filter(Boolean);
+  // 已缓存的云盘歌曲可能包含空歌手名称，不能因此中断播放
+  return artists.map((artist) => artist.name?.trim()).filter((name): name is string => !!name);
 };
 
 /**

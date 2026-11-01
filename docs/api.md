@@ -23,6 +23,7 @@ AI 使用的 [MCP 接口](/mcp)拥有独立开关、端口与服务生命周期�
 | ------ | ------------------ | ---------------------- |
 | `GET`  | `/api/info`        | 应用与连接信息         |
 | `GET`  | `/api/status`      | 播放状态               |
+| `GET`  | `/api/queue`       | 播放队列               |
 | `GET`  | `/api/volume`      | 当前音量               |
 | `GET`  | `/api/now-playing` | 不含完整歌词的轻量快照 |
 | `GET`  | `/api/lyrics`      | 当前曲目的完整解析歌词 |
@@ -64,17 +65,43 @@ GET /api/status
   "position": 12000,
   "duration": 240000,
   "volume": 1,
-  "isFinished": false
+  "isFinished": false,
+  "currentIndex": 3
 }
 ```
 
-| 字段         | 类型      | 说明                              |
-| ------------ | --------- | --------------------------------- |
-| `state`      | `string`  | 播放状态（如 `playing`/`paused`） |
-| `position`   | `number`  | 当前播放位置（毫秒）              |
-| `duration`   | `number`  | 总时长（毫秒）                    |
-| `volume`     | `number`  | 音量（0 ~ 1）                     |
-| `isFinished` | `boolean` | 当前曲目是否已播放结束            |
+| 字段           | 类型      | 说明                                                       |
+| -------------- | --------- | ---------------------------------------------------------- |
+| `state`        | `string`  | 播放状态（如 `playing`/`paused`）                          |
+| `position`     | `number`  | 当前播放位置（毫秒）                                       |
+| `duration`     | `number`  | 总时长（毫秒）                                             |
+| `volume`       | `number`  | 音量（0 ~ 1）                                              |
+| `isFinished`   | `boolean` | 当前曲目是否已播放结束                                     |
+| `currentIndex` | `number`  | 当前曲目在整个队列中的索引，从 0 开始；无当前队列项时为 -1 |
+
+### 播放队列
+
+按当前播放顺序读取队列，随机播放时返回打乱后的顺序。
+
+```http
+GET /api/queue?offset=0&limit=20
+```
+
+**参数：**
+
+- `offset` (`number`)：可选，从 0 开始的整数偏移，默认 0。
+- `limit` (`number`)：可选，返回条数，范围 1–100，默认 50。
+
+**返回：**
+
+| 字段           | 类型      | 说明                                                       |
+| -------------- | --------- | ---------------------------------------------------------- |
+| `tracks`       | `Track[]` | 当前页曲目，结构见 [Track](/types#track)                   |
+| `total`        | `number`  | 整个队列的曲目数                                           |
+| `currentIndex` | `number`  | 当前曲目在整个队列中的索引，从 0 开始；无当前队列项时为 -1 |
+| `offset`       | `number`  | 本次查询的队列偏移                                         |
+
+偏移超出队列时返回空曲目数组。参数非法返回 400；播放器窗口不可用或未响应时返回 500。
 
 ### 获取音量
 

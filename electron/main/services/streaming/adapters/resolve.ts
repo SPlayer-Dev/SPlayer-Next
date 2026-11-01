@@ -60,7 +60,8 @@ const getSession = async (config: StreamingRuntimeConfig): Promise<StreamingAuth
   const pending = pendingLogins.get(config.id);
   if (pending) return pending;
 
-  const promise = authenticate(config).then((session) => {
+  // 登录由多个请求共享，单个同步任务取消不能中断其他调用方的鉴权
+  const promise = authenticate({ ...config, signal: undefined }).then((session) => {
     if (pendingLogins.get(config.id) === promise) cacheSession(config.id, session);
     return session;
   });

@@ -2,6 +2,9 @@ import type { Album, Artist, Playlist, Track } from "@shared/types/player";
 import type { StreamingPingResult } from "@shared/types/streaming";
 import type { StreamingRuntimeConfig } from "@shared/types/streaming";
 import type { StreamingAdapter } from "./types";
+import { StreamingRequestError, isUnsupportedEndpoint } from "../errors";
+import { streamPages } from "../pagination";
+import { toStreamingLyrics } from "../lyrics";
 
 /** Jellyfin/Emby 主进程登录会话 */
 export interface StreamingAuthSession {
@@ -15,6 +18,10 @@ const DEVICE_NAME = "SPlayer Desktop";
 const REQUEST_TIMEOUT_MS = 15_000;
 
 interface JellyItem {
+  PlaylistItemId?: string;
+  UserData?: { IsFavorite?: boolean };
+  AlbumPrimaryImageTag?: string;
+  MediaStreams?: { Type?: string; Codec?: string; Index?: number; IsExternal?: boolean }[];
   Id: string;
   Name?: string;
   Album?: string;
@@ -23,10 +30,13 @@ interface JellyItem {
   Artists?: string[];
   ArtistItems?: { Id: string; Name: string }[];
   RunTimeTicks?: number;
+  /** 碟号 */
+  ParentIndexNumber?: number;
   ProductionYear?: number;
   ChildCount?: number;
   ImageTags?: { Primary?: string };
   MediaSources?: {
+    Id?: string;
     Container?: string;
     Bitrate?: number;
     Size?: number;
@@ -74,11 +84,15 @@ const callApi = async <T>(
       [authHeader]: `MediaBrowser ${parts.join(", ")}`,
       ...(init?.headers ?? {}),
     },
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    signal: config.signal
+      ? AbortSignal.any([config.signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)])
+      : AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) {
-    const detail = (await response.text()).trim().slice(0, 500);
-    throw new Error(`${apiPath}: HTTP ${response.status}${detail ? ` - ${detail}` : ""}`);
+    throw new StreamingRequestError(
+      `${apiPath.split("?")[0]}: HTTP ${response.status}`,
+      response.status,
+    );
   }
   if (response.status === 204) return null as T;
   return (await response.json()) as T;
@@ -106,13 +120,59 @@ const fetchUserItems = async (
 ): Promise<JellyItem[]> => {
   const userId = requireUserId(config);
   const params = new URLSearchParams();
+  params.set("UserId", userId);
   for (const [key, value] of Object.entries(query)) params.set(key, String(value));
   const result = await callApi<{ Items?: JellyItem[] }>(
     config,
-    `Users/${userId}/Items?${params.toString()}`,
+    `${config.type === "emby" ? `Users/${userId}/Items` : "Items"}?${params.toString()}`,
   );
   return result.Items ?? [];
 };
+
+/**
+ * 汇总详情页和非歌曲索引的所有页，服务端分页上限不影响完整性
+ * @param config - 已鉴权配置
+ * @param query - 条目查询
+ * @param endpoint - 特殊列表端点
+ * @param identify - 分页条目的唯一标识，歌单使用条目 ID
+ * @returns 完整条目列表
+ */
+const fetchAllItems = async (
+  config: StreamingRuntimeConfig,
+  query: Record<string, string | number>,
+  endpoint?: string,
+  identify: (item: JellyItem) => string | undefined = (item) => item.Id,
+): Promise<JellyItem[]> => {
+  const items: JellyItem[] = [];
+  for await (const page of streamPages(
+    async ({ offset, limit }) => {
+      const pagination = { ...query, StartIndex: offset!, Limit: limit! };
+      if (!endpoint) return fetchUserItems(config, pagination);
+      const params = new URLSearchParams({ UserId: requireUserId(config) });
+      for (const [key, value] of Object.entries(pagination)) params.set(key, String(value));
+      const result = await callApi<{ Items?: JellyItem[] }>(config, `${endpoint}?${params}`);
+      return result.Items ?? [];
+    },
+    identify,
+    config.signal,
+  ))
+    items.push(...page);
+  return items;
+};
+
+/**
+ * 读取歌曲及其用户数据和媒体源
+ * @param config - 已鉴权配置
+ * @param trackId - 服务端歌曲 ID
+ * @returns 单曲详情
+ */
+const fetchItem = (config: StreamingRuntimeConfig, trackId: string): Promise<JellyItem> =>
+  callApi(
+    config,
+    config.type === "emby"
+      ? `Users/${requireUserId(config)}/Items/${encodeURIComponent(trackId)}`
+      : `Items/${encodeURIComponent(trackId)}?UserId=${requireUserId(config)}`,
+  );
 
 /**
  * 生成主进程代理封面地址
@@ -146,21 +206,31 @@ const imageUrl = (
 const toTrack = (config: StreamingRuntimeConfig, item: JellyItem): Track => {
   const mediaSource = item.MediaSources?.[0];
   const audioStream = mediaSource?.MediaStreams?.find((stream) => stream.Type === "Audio");
-  const imageTag = item.ImageTags?.Primary;
+  const imageTag = item.ImageTags?.Primary ?? item.AlbumPrimaryImageTag;
+  const coverId = item.ImageTags?.Primary ? item.Id : item.AlbumId;
   return {
     id: `${config.id}:${item.Id}`,
     source: "streaming",
     serverId: config.id,
     originalId: item.Id,
+    serverRevision: config.mediaRevision ?? 0,
+    favorite: Boolean(item.UserData?.IsFavorite),
     title: item.Name ?? "",
     artists:
-      item.ArtistItems?.map((artist) => ({ id: artist.Id, name: artist.Name })) ??
+      (item.ArtistItems?.length
+        ? item.ArtistItems.map((artist) => ({
+            id: artist.Id,
+            name: artist.Name,
+            serverId: config.id,
+          }))
+        : undefined) ??
       item.Artists?.map((name) => ({ name })) ??
       [],
-    album: item.Album ? { id: item.AlbumId, name: item.Album } : undefined,
+    album: item.Album ? { id: item.AlbumId, name: item.Album, serverId: config.id } : undefined,
+    disc: item.ParentIndexNumber || undefined,
     duration: item.RunTimeTicks ? Math.floor(item.RunTimeTicks / 10_000) : 0,
-    cover: imageTag ? imageUrl(config, item.Id, imageTag, 300) : undefined,
-    coverOriginal: imageTag ? imageUrl(config, item.Id, imageTag, 1500) : undefined,
+    cover: coverId ? imageUrl(config, coverId, imageTag, 300) : undefined,
+    coverOriginal: coverId ? imageUrl(config, coverId, imageTag, 1500) : undefined,
     fileSize: mediaSource?.Size,
     quality: {
       sampleRate: audioStream?.SampleRate ?? 0,
@@ -179,6 +249,7 @@ const toTrack = (config: StreamingRuntimeConfig, item: JellyItem): Track => {
  * @returns 统一专辑
  */
 const toAlbum = (config: StreamingRuntimeConfig, item: JellyItem): Album => ({
+  serverId: config.id,
   id: item.Id,
   name: item.Name ?? "",
   artist: item.AlbumArtist,
@@ -194,6 +265,7 @@ const toAlbum = (config: StreamingRuntimeConfig, item: JellyItem): Album => ({
  * @returns 统一歌手
  */
 const toArtist = (config: StreamingRuntimeConfig, item: JellyItem): Artist => ({
+  serverId: config.id,
   id: item.Id,
   name: item.Name ?? "",
   avatar: imageUrl(config, item.Id, item.ImageTags?.Primary, 300),
@@ -207,6 +279,7 @@ const toArtist = (config: StreamingRuntimeConfig, item: JellyItem): Artist => ({
  * @returns 统一歌单
  */
 const toPlaylist = (config: StreamingRuntimeConfig, item: JellyItem): Playlist => ({
+  serverId: config.id,
   id: item.Id,
   name: item.Name ?? "",
   cover: imageUrl(config, item.Id, item.ImageTags?.Primary, 300),
@@ -237,6 +310,83 @@ export const authenticate = async (
 
 export const jellyfinAdapter: StreamingAdapter = {
   /**
+   * 通过下载端点获取原文件，由服务器检查下载权限
+   * @param config - 已鉴权配置
+   * @param trackId - 服务端歌曲 ID
+   * @returns 原文件下载地址
+   */
+  async getDownloadUrl(config, trackId) {
+    const params = new URLSearchParams();
+    requireUserId(config);
+    params.set(config.type === "emby" ? "api_key" : "ApiKey", config.accessToken!);
+    return `${config.url.replace(/\/+$/, "")}/Items/${encodeURIComponent(trackId)}/Download?${params}`;
+  },
+  /**
+   * 读取当前用户的歌曲收藏状态
+   * @param config - 已鉴权配置
+   * @param trackId - 服务端歌曲 ID
+   * @returns 收藏状态
+   */
+  async getFavorite(config, trackId) {
+    return Boolean((await fetchItem(config, trackId)).UserData?.IsFavorite);
+  },
+  /**
+   * 使用各平台的收藏端点并返回权威结果
+   * @param config - 已鉴权配置
+   * @param trackId - 服务端歌曲 ID
+   * @param favorite - 目标收藏状态
+   * @returns 服务端确认的状态
+   */
+  async setFavorite(config, trackId, favorite) {
+    const userId = requireUserId(config);
+    const endpoint =
+      config.type === "emby"
+        ? `Users/${userId}/FavoriteItems/${encodeURIComponent(trackId)}`
+        : `UserFavoriteItems/${encodeURIComponent(trackId)}?UserId=${userId}`;
+    const result = await callApi<{ IsFavorite: boolean }>(config, endpoint, {
+      method: favorite ? "POST" : "DELETE",
+    });
+    return result.IsFavorite;
+  },
+  /**
+   * 为本次播放绑定真实媒体源 ID 与直流地址
+   * @param config - 已鉴权配置
+   * @param trackId - 服务端歌曲 ID
+   * @param sessionId - 本次播放的独立会话 ID
+   * @returns 音频源
+   */
+  async preparePlayback(config, trackId, sessionId) {
+    const item = await fetchItem(config, trackId);
+    const mediaSourceId = item.MediaSources?.[0]?.Id;
+    const url = new URL(await jellyfinAdapter.getStreamUrl(config, trackId, sessionId));
+    if (mediaSourceId) url.searchParams.set("MediaSourceId", mediaSourceId);
+    return { url: url.toString(), mediaSourceId };
+  },
+  /**
+   * 上报开始、进度或停止，服务器负责记录播放次数
+   * @param config - 已鉴权配置
+   * @param report - 当前会话事件
+   */
+  async reportPlayback(config, report) {
+    if (report.event === "scrobble") return;
+    const suffix =
+      report.event === "start" ? "" : report.event === "stop" ? "/Stopped" : "/Progress";
+    await callApi(config, `Sessions/Playing${suffix}`, {
+      method: "POST",
+      body: JSON.stringify({
+        ItemId: report.trackId,
+        MediaSourceId: report.mediaSourceId,
+        PlaySessionId: report.sessionId,
+        PositionTicks: Math.round(report.positionMs * 10_000),
+        IsPaused: report.paused,
+        CanSeek: true,
+        PlayMethod: "DirectStream",
+        QueueableMediaTypes: ["Audio"],
+        EventName: report.reason ?? "TimeUpdate",
+      }),
+    });
+  },
+  /**
    * 检查 Jellyfin/Emby 连通性
    * @param config - 已鉴权的主进程服务器配置
    * @returns 连通性结果
@@ -244,6 +394,7 @@ export const jellyfinAdapter: StreamingAdapter = {
   async ping(config): Promise<StreamingPingResult> {
     try {
       const result = await callApi<{ Version?: string }>(config, "System/Info/Public");
+      await callApi(config, `Users/${requireUserId(config)}`);
       return { ok: true, version: result.Version };
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
@@ -259,8 +410,8 @@ export const jellyfinAdapter: StreamingAdapter = {
     const items = await fetchUserItems(config, {
       IncludeItemTypes: "Audio",
       Recursive: "true",
-      SortBy: "DateCreated,SortName",
-      SortOrder: "Descending",
+      SortBy: "SortName",
+      SortOrder: "Ascending",
       Fields: "MediaSources",
       Limit: params?.limit ?? 100,
       StartIndex: params?.offset ?? 0,
@@ -292,12 +443,12 @@ export const jellyfinAdapter: StreamingAdapter = {
    * @returns 歌手列表
    */
   async listArtists(config) {
-    const userId = requireUserId(config);
-    const result = await callApi<{ Items?: JellyItem[] }>(
+    const items = await fetchAllItems(
       config,
-      `Artists?userId=${userId}&Recursive=true&SortBy=Name&SortOrder=Ascending`,
+      { Recursive: "true", SortBy: "SortName", SortOrder: "Ascending" },
+      "Artists",
     );
-    return (result.Items ?? []).map((item) => toArtist(config, item));
+    return items.map((item) => toArtist(config, item));
   },
 
   /**
@@ -306,7 +457,7 @@ export const jellyfinAdapter: StreamingAdapter = {
    * @returns 歌单列表
    */
   async listPlaylists(config) {
-    const items = await fetchUserItems(config, {
+    const items = await fetchAllItems(config, {
       IncludeItemTypes: "Playlist",
       Recursive: "true",
       SortBy: "SortName",
@@ -321,7 +472,7 @@ export const jellyfinAdapter: StreamingAdapter = {
    * @returns 专辑歌曲
    */
   async getAlbumSongs(config, albumId) {
-    const items = await fetchUserItems(config, {
+    const items = await fetchAllItems(config, {
       ParentId: albumId,
       IncludeItemTypes: "Audio",
       Fields: "MediaSources",
@@ -337,13 +488,13 @@ export const jellyfinAdapter: StreamingAdapter = {
    * @returns 歌单歌曲
    */
   async getPlaylistSongs(config, playlistId) {
-    const userId = requireUserId(config);
-    const params = new URLSearchParams({ UserId: userId, Fields: "MediaSources" });
-    const result = await callApi<{ Items?: JellyItem[] }>(
+    const items = await fetchAllItems(
       config,
-      `Playlists/${playlistId}/Items?${params.toString()}`,
+      { Fields: "MediaSources" },
+      `Playlists/${playlistId}/Items`,
+      (item) => item.PlaylistItemId,
     );
-    return (result.Items ?? []).map((item) => toTrack(config, item));
+    return items.map((item) => toTrack(config, item));
   },
 
   /**
@@ -353,7 +504,7 @@ export const jellyfinAdapter: StreamingAdapter = {
    * @returns 歌手专辑
    */
   async getArtistAlbums(config, artistId) {
-    const items = await fetchUserItems(config, {
+    const items = await fetchAllItems(config, {
       AlbumArtistIds: artistId,
       IncludeItemTypes: "MusicAlbum",
       Recursive: "true",
@@ -370,7 +521,7 @@ export const jellyfinAdapter: StreamingAdapter = {
    * @returns 歌手歌曲
    */
   async getArtistSongs(config, artistId) {
-    const items = await fetchUserItems(config, {
+    const items = await fetchAllItems(config, {
       ArtistIds: artistId,
       IncludeItemTypes: "Audio",
       Recursive: "true",
@@ -393,15 +544,10 @@ export const jellyfinAdapter: StreamingAdapter = {
       UserId: userId,
       DeviceId: deviceId(config),
       PlaySessionId: playSessionId ?? crypto.randomUUID(),
-      api_key: config.accessToken!,
       StartTimeTicks: "0",
       Static: "true",
     });
-    if (config.type === "emby") {
-      params.set("EnableRedirection", "true");
-      params.set("EnableRemoteMedia", "true");
-      return `${config.url.replace(/\/+$/, "")}/Audio/${trackId}/universal?${params.toString()}`;
-    }
+    params.set(config.type === "emby" ? "api_key" : "ApiKey", config.accessToken!);
     return `${config.url.replace(/\/+$/, "")}/Audio/${trackId}/stream?${params.toString()}`;
   },
 
@@ -413,31 +559,36 @@ export const jellyfinAdapter: StreamingAdapter = {
    */
   async getLyrics(config, trackId) {
     try {
+      if (config.type === "emby") {
+        const item = await fetchItem(config, trackId);
+        const source = item.MediaSources?.[0];
+        const lyricStream = item.MediaStreams?.find(
+          (stream) => stream.Type === "Subtitle" && stream.Codec?.toLowerCase() === "lrc",
+        );
+        if (!source?.Id || lyricStream?.Index == null) return null;
+        const result = await callApi<{
+          TrackEvents?: { Text?: string; StartPositionTicks?: number }[];
+        }>(config, `Items/${trackId}/${source.Id}/Subtitles/${lyricStream.Index}/Stream.js`);
+        return toStreamingLyrics(
+          (result.TrackEvents ?? []).map((line) => ({
+            text: line.Text ?? "",
+            start: (line.StartPositionTicks ?? 0) / 10_000,
+          })),
+          true,
+        );
+      }
       const result = await callApi<{
         Metadata?: { IsSynced?: boolean | null };
         Lyrics?: { Start?: number; Text?: string }[];
       }>(config, `Audio/${trackId}/Lyrics`);
       const lines = result.Lyrics ?? [];
-      if (lines.length === 0) return null;
-      const synced = result.Metadata?.IsSynced ?? lines.some((line) => (line.Start ?? 0) > 0);
-      if (!synced) {
-        const text = lines
-          .map((line) => line.Text ?? "")
-          .filter(Boolean)
-          .join("\n");
-        return text || null;
-      }
-      return lines
-        .map((line) => {
-          const milliseconds = Math.floor((line.Start ?? 0) / 10_000);
-          const minutes = Math.floor(milliseconds / 60_000);
-          const seconds = Math.floor((milliseconds % 60_000) / 1000);
-          const centiseconds = Math.floor((milliseconds % 1000) / 10);
-          return `[${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(centiseconds).padStart(2, "0")}]${line.Text ?? ""}`;
-        })
-        .join("\n");
-    } catch {
-      return null;
+      return toStreamingLyrics(
+        lines.map((line) => ({ text: line.Text ?? "", start: (line.Start ?? 0) / 10_000 })),
+        result.Metadata?.IsSynced ?? lines.some((line) => (line.Start ?? 0) > 0),
+      );
+    } catch (error) {
+      if (isUnsupportedEndpoint(error)) return null;
+      throw error;
     }
   },
 
@@ -446,10 +597,13 @@ export const jellyfinAdapter: StreamingAdapter = {
    * @param config - 已鉴权的主进程服务器配置
    * @param coverId - 服务端媒体 ID
    * @param size - 目标尺寸
+   * @param tag - 封面版本标识
    * @returns 真实封面地址
    */
-  async getCoverUrl(config, coverId, size) {
-    const params = new URLSearchParams({ api_key: config.accessToken!, maxHeight: String(size) });
+  async getCoverUrl(config, coverId, size, tag) {
+    const params = new URLSearchParams({ maxHeight: String(size) });
+    params.set(config.type === "emby" ? "api_key" : "ApiKey", config.accessToken!);
+    if (tag) params.set("tag", tag);
     return `${config.url.replace(/\/+$/, "")}/Items/${coverId}/Images/Primary?${params.toString()}`;
   },
 };

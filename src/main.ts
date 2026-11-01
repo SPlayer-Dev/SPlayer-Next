@@ -36,33 +36,10 @@ watch(
   { immediate: true },
 );
 
-/** splash 最短展示时长（ms） */
-const SPLASH_MIN_MS = 1100;
-
-/** splash 淡出时长（ms） */
-const SPLASH_FADE_MS = 300;
-
-/** 最短展示计时 */
-const splashMinElapsed = new Promise<void>((resolve) => setTimeout(resolve, SPLASH_MIN_MS));
-
-/** 等待首帧绘制完成 */
-const nextPaintedFrame = (): Promise<void> =>
-  new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-
-/** 淡出并移除 splash 层 */
-const removeSplash = (): void => {
-  const el = document.getElementById("app-loading");
-  if (!el) return;
-  el.classList.add("hidden");
-  setTimeout(() => el.remove(), SPLASH_FADE_MS + 50);
-};
-
 /**
  * 启动播放服务并分发冷启动任务
  */
 const bootstrapPlayback = async (): Promise<void> => {
-  await initPlayer();
-
   const pendingAudioFiles = await window.api.system.consumePendingAudioFiles();
   const pendingOrpheusUrl = await window.api.system.consumePendingProtocolUrl();
 
@@ -75,18 +52,19 @@ const bootstrapPlayback = async (): Promise<void> => {
   }
 };
 
-// 初始化程序
-router.isReady().then(async () => {
-  // 挂载应用
+/** 挂载首屏并准备播放操作 */
+export const mountApplication = async (): Promise<void> => {
+  await router.isReady();
   app.mount("#app");
-  // 启动播放服务
+  await nextTick();
+  await initPlayer();
+};
+
+/** 启动层退出后恢复播放和快捷键 */
+export const startApplication = (): void => {
   void bootstrapPlayback().catch(console.error);
-  // 淡出加载动画
-  await Promise.all([splashMinElapsed, nextPaintedFrame()]);
-  removeSplash();
-  // 初始化快捷键
   useHotkeyStore()
     .init()
     .then(installHotkeyManager)
     .catch((err) => console.error("[hotkey] init failed", err));
-});
+};

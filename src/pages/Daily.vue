@@ -66,7 +66,7 @@ const loading = ref(data.dailyRecommend.length === 0);
 /** 播放选中天的全部曲目 */
 const handlePlayAll = (): void => {
   const tracks = selectedDay.value?.tracks ?? [];
-  if (tracks.length > 0) player.playFrom(tracks, 0);
+  if (tracks.length > 0) player.playFrom(tracks);
 };
 
 /** 按当前语言格式化日期的某个部分 */

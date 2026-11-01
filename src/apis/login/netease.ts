@@ -3,12 +3,13 @@
  */
 
 import type { UserProfile } from "@/types/user";
-import { netease as neteaseApi } from "@/apis/netease";
+import { NeteaseApiError, netease as neteaseApi, neteaseCall } from "@/apis/netease";
 import type { QrLoginAdapter, QrLoginState } from "./platform";
 
 interface LoginStatusBody {
   code?: number | string;
   data?: {
+    code?: number | string;
     profile?: Partial<UserProfile> & { userId?: number };
     account?: { id?: number };
   };
@@ -37,6 +38,18 @@ export interface QrCheckResult {
 }
 
 /**
+ * 登录成功后上报设备名，避免「登录设备管理」里显示为 pc
+ * 名称由主进程按当前宿主平台生成；纯展示信息，失败不触发登录失效流程
+ */
+export const syncNeteaseDeviceName = async (): Promise<void> => {
+  try {
+    await neteaseCall("deviceinfo_center_upload", {}, { notifyAuthFailure: false });
+  } catch {
+    // 上报失败只影响设备名展示，不影响登录态
+  }
+};
+
+/**
  * 轮询扫码状态
  * - 800 已过期 / 801 待扫码 / 802 待确认 / 803 已确认（含 cookie）
  * @param key 二维码 key
@@ -45,6 +58,8 @@ export interface QrCheckResult {
 export const qrCheck = async (key: string): Promise<QrCheckResult> => {
   const body = await neteaseApi.login_qr_check({ key, timestamp: Date.now() });
   const code = (body?.code ?? 801) as QrStatusCode;
+  /** 803 时主进程已写回登录凭据，可以带上新会话上报设备名 */
+  if (code === 803) void syncNeteaseDeviceName();
   return {
     code,
     cookie: body?.cookie,
@@ -85,7 +100,10 @@ export const neteaseQrLoginAdapter: QrLoginAdapter = {
  */
 export const fetchLoginStatus = async (): Promise<UserProfile | null> => {
   const body = await neteaseApi.login_status<LoginStatusBody>({ timestamp: Date.now() });
-  if (body?.code !== undefined && Number(body.code) !== 200) return null;
+  const code = Number(body?.code ?? body?.data?.code ?? 200);
+  if (code !== 200) {
+    throw new NeteaseApiError("NCM登录状态查询失败", code, body);
+  }
   const account = body?.data?.account ?? body?.account;
   const profile = body?.data?.profile ?? body?.profile;
 

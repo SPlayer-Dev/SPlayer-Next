@@ -1,17 +1,24 @@
 import { getDefaultResultOrder, setDefaultResultOrder } from "node:dns";
 import { store } from "@main/store";
 import { systemLog } from "@main/utils/logger";
-import { fetch as undiciFetch, Agent, ProxyAgent, Socks5ProxyAgent } from "undici";
 import type { Dispatcher } from "undici";
 import crypto from "node:crypto";
 
 const PROXY_TEST_URL = "https://www.baidu.com";
 const defaultDnsResultOrder = getDefaultResultOrder();
 
+type Undici = typeof import("undici");
+
+let undiciModule: Promise<Undici> | null = null;
+/** 首次请求才加载网络库，仅读写网络配置时不付出加载开销 */
+const loadUndici = (): Promise<Undici> => (undiciModule ??= import("undici"));
+
 let proxyAgent: Dispatcher | null = null;
 let proxyAgentUrl = "";
-let ipv4Agent: Agent | null = null;
-let defaultDispatcher: Dispatcher | null = null;
+let ipv4Dispatcher: Promise<Dispatcher> | null = null;
+let defaultDispatcher: Promise<Dispatcher> | null = null;
+/** 已创建的连接池，切换网络配置时统一销毁 */
+const liveDispatchers = new Set<Dispatcher>();
 
 const isManualProxyProtocol = (value: string): value is "http" | "https" | "socks5" =>
   value === "http" || value === "https" || value === "socks5";
@@ -23,17 +30,36 @@ export const applyIPv4Preference = (): void => {
   systemLog.info(`[network] DNS address order=${order}`);
 };
 
-/** 默认直连 dispatcher（允许 legacy renegotiation） */
-const getDefaultDispatcher = (): Dispatcher => {
-  if (!defaultDispatcher) {
-    defaultDispatcher = new Agent({
+/** 默认直连 dispatcher（允许 legacy renegotiation，并保留双栈建连能力） */
+const getDefaultDispatcher = (): Promise<Dispatcher> => {
+  defaultDispatcher ??= loadUndici().then(({ Agent }) => {
+    const agent = new Agent({
       connect: {
         autoSelectFamily: true,
         secureOptions: crypto.constants.SSL_OP_LEGACY_SERVER_CONNECT,
       },
     });
-  }
+    liveDispatchers.add(agent);
+    return agent;
+  });
   return defaultDispatcher;
+};
+
+/** 仅 IPv4 的直连 dispatcher，供连接失败后的重试回退使用 */
+const getIPv4Dispatcher = (): Promise<Dispatcher> => {
+  ipv4Dispatcher ??= loadUndici().then(({ Agent }) => {
+    // 复用连接池；Undici 在空闲连接断开后移除对应域名的池。
+    const agent = new Agent({
+      connect: {
+        family: 4,
+        autoSelectFamily: false,
+        secureOptions: crypto.constants.SSL_OP_LEGACY_SERVER_CONNECT,
+      },
+    });
+    liveDispatchers.add(agent);
+    return agent;
+  });
+  return ipv4Dispatcher;
 };
 
 /** 当前手动代理地址；off 或配置无效时返回 null，保持原生直连行为 */
@@ -46,28 +72,40 @@ export const getNetworkProxyUrl = (): string | null => {
   return `${config.protocol}://${host}:${port}`;
 };
 
-const getProxyDispatcher = (): Dispatcher | undefined => {
+/** 代理连接池，配置变化后按新地址重建 */
+const getProxyDispatcher = async (): Promise<Dispatcher | undefined> => {
   const url = getNetworkProxyUrl();
   if (!url) return undefined;
   if (!proxyAgent || proxyAgentUrl !== url) {
-    proxyAgent?.close().catch(() => {});
+    const stale = proxyAgent;
+    proxyAgent = null;
+    proxyAgentUrl = "";
+    if (stale) {
+      liveDispatchers.delete(stale);
+      void stale.close().catch(() => {});
+    }
+    const { ProxyAgent, Socks5ProxyAgent } = await loadUndici();
     proxyAgent = url.startsWith("socks5://") ? new Socks5ProxyAgent(url) : new ProxyAgent(url);
     proxyAgentUrl = url;
+    liveDispatchers.add(proxyAgent);
     systemLog.info(`[proxy] node fetch proxy=${url}`);
   }
   return proxyAgent;
 };
 
 /** 丢弃旧连接池，显式选择应用代理或直连，避免全局 fetch 继承环境代理。 */
-export const resetNetworkDispatchers = (): Dispatcher => {
-  for (const agent of [proxyAgent, defaultDispatcher, ipv4Agent]) {
-    void agent?.destroy().catch(() => {});
-  }
+export const resetNetworkDispatchers = async (): Promise<Dispatcher> => {
+  const creating = [ipv4Dispatcher, defaultDispatcher];
   proxyAgent = null;
   proxyAgentUrl = "";
-  ipv4Agent = null;
+  ipv4Dispatcher = null;
   defaultDispatcher = null;
-  return getProxyDispatcher() ?? getDefaultDispatcher();
+  // 等待在途创建，确保紧随其后的销毁覆盖它们
+  await Promise.all(creating.map((task) => task?.catch(() => null)));
+  const stale = [...liveDispatchers];
+  liveDispatchers.clear();
+  await Promise.all(stale.map((agent) => agent.destroy().catch(() => {})));
+  return (await getProxyDispatcher()) ?? getDefaultDispatcher();
 };
 
 /**
@@ -77,25 +115,17 @@ export const resetNetworkDispatchers = (): Dispatcher => {
  * @param ipv4Only - 仅在没有手动代理时使用 IPv4，不改变代理服务器的解析策略
  * @returns HTTP 响应
  */
-export const fetchWithProxy = (
+export const fetchWithProxy = async (
   input: string | URL,
   init?: RequestInit,
   ipv4Only = false,
 ): Promise<Response> => {
-  let dispatcher = getProxyDispatcher();
-  if (!dispatcher && ipv4Only) {
-    // 复用连接池；Undici 在空闲连接断开后移除对应域名的池。
-    dispatcher = ipv4Agent ??= new Agent({
-      connect: {
-        family: 4,
-        autoSelectFamily: false,
-        secureOptions: crypto.constants.SSL_OP_LEGACY_SERVER_CONNECT,
-      },
-    });
-  }
-  dispatcher ??= getDefaultDispatcher();
-  return undiciFetch(input, { ...(init as RequestInit), dispatcher } as Parameters<
-    typeof undiciFetch
+  const { fetch } = await loadUndici();
+  let dispatcher = await getProxyDispatcher();
+  if (!dispatcher && ipv4Only) dispatcher = await getIPv4Dispatcher();
+  dispatcher ??= await getDefaultDispatcher();
+  return fetch(input, { ...(init as RequestInit), dispatcher } as Parameters<
+    typeof fetch
   >[1]) as unknown as Promise<Response>;
 };
 

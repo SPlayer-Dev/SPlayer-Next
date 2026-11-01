@@ -12,11 +12,20 @@ export interface Migration {
  * 新增字段已由 deepMerge 自动补全，此处仅用于字段重命名、数据转换等
  */
 export const migrations: Migration[] = [
-  // 示例：
-  // {
-  //   version: 1,
-  //   migrate: (data) => {
-  //     // 重命名字段、转换数据格式等
-  //   },
-  // },
+  {
+    // Alpha 通道停发，原 Alpha 用户转到 Beta
+    version: 1,
+    migrate: (data) => {
+      if ((data.update.channel as string) === "alpha") data.update.channel = "beta";
+    },
+  },
+  {
+    // 旧默认镜像改为留空，走 AMLL 官方 API；用户自定义的镜像保持不变
+    version: 2,
+    migrate: (data) => {
+      if (data.lyric.amllDbServer === "https://amlldb.bikonoo.com/%p/%s.ttml") {
+        data.lyric.amllDbServer = "";
+      }
+    },
+  },
 ];

@@ -25,8 +25,15 @@ onMounted(() => {
 
 const items = computed<CoverItem[]>(() => albumsToCoverItems(albums.value));
 
+/**
+ * 打开当前服务器的专辑
+ * @param item - 专辑封面条目
+ */
 const handleClick = (item: CoverItem): void => {
-  router.push(`/collection/streaming/album/${encodeURIComponent(item.id)}`);
+  router.push({
+    path: `/collection/streaming/album/${encodeURIComponent(item.id)}`,
+    query: { serverId: streaming.activeServerId ?? undefined },
+  });
 };
 </script>
 

@@ -4,10 +4,12 @@ use napi::bindgen_prelude::Error;
 use napi_derive::napi;
 use tracing::info;
 
+mod analysis;
 mod player;
 mod scanner;
 mod tags;
 
+pub use analysis::*;
 pub use player::*;
 pub use scanner::*;
 pub use tags::*;

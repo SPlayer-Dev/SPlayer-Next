@@ -22,7 +22,7 @@ const artistSongs: NeteaseModule = (query, request) => {
     offset: query.offset ?? 0,
     limit: query.limit ?? 50,
   };
-  return request("/api/v1/artist/songs", data, createOption(query, "weapi"));
+  return request("/api/v1/artist/songs", data, createOption(query));
 };
 
 export default artistSongs;

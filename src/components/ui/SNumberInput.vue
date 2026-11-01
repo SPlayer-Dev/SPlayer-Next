@@ -30,7 +30,7 @@ const props = withDefaults(defineProps<SNumberInputProps>(), {
 });
 
 const emit = defineEmits<{
-  "update:modelValue": [value: number];
+  "update:modelValue": [value: number | null];
   focus: [];
   blur: [];
 }>();
@@ -66,16 +66,22 @@ watch(
   },
 );
 
-const onUpdate = (value: number): void => {
+/**
+ * 同步 NumberField 的值，清空时归一为 null
+ * @param value - NumberField 输出的数值
+ */
+const onUpdate = (value: number | undefined): void => {
+  const next = value ?? null;
   if (props.updateOn === "blur") {
-    draftValue.value = value;
+    draftValue.value = next;
     return;
   }
-  emit("update:modelValue", value);
+  emit("update:modelValue", next);
 };
 
+/** 失焦或回车时提交草稿值，支持清空为 null */
 const commitValue = (): void => {
-  if (draftValue.value != null && draftValue.value !== props.modelValue) {
+  if (draftValue.value !== props.modelValue) {
     emit("update:modelValue", draftValue.value);
   }
 };

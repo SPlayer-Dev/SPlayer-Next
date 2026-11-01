@@ -74,21 +74,6 @@ test("Beta 版生成 beta 和 alpha 清单", () => {
   }
 });
 
-test("Alpha 版只发布 alpha 清单", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "splayer-release-alpha-"));
-  try {
-    const src = path.join(root, "artifacts");
-    const out = path.join(root, "out");
-    createFixture(src, "1.4.0-alpha.1", "alpha");
-    prepareReleaseAssets(src, out, "1.4.0-alpha.1");
-    assert.equal(fs.existsSync(path.join(out, "alpha.yml")), true);
-    assert.equal(fs.existsSync(path.join(out, "beta.yml")), false);
-    assert.equal(fs.existsSync(path.join(out, "latest.yml")), false);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
 test("Nightly 版只发布 nightly 清单", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "splayer-release-nightly-"));
   try {
@@ -107,4 +92,5 @@ test("Nightly 版只发布 nightly 清单", () => {
 
 test("拒绝未支持的预发布通道", () => {
   assert.throws(() => resolveChannel("1.3.0-rc.1"), /不支持的预发布版本格式/);
+  assert.throws(() => resolveChannel("1.4.0-alpha.1"), /不支持的预发布版本格式/);
 });

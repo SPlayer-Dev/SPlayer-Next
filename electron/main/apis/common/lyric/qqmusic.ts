@@ -9,7 +9,7 @@
  */
 
 import { callQQMusic } from "@main/apis/qqmusic";
-import { getCachedLyric, setCachedLyric } from "@main/database/lyricCache";
+import { withLyricCache } from "@main/database/lyricCache";
 import { buildFingerprint, getMatchedId, setMatchedId } from "@main/database/lyricMatchCache";
 import { coreLog } from "@main/utils/logger";
 import type { LyricMatchResult } from "@shared/types/lyrics";
@@ -42,39 +42,37 @@ export const getByPlatformId = async (
   // AMLL DB 里 QM 条目 mid / 数字 id 都可能是 key，依次试
   prefetchTTML("qqmusic", mid ? [mid, id] : [id]);
 
-  const cached = getCachedLyric("qqmusic", id);
-  if (cached) return cached;
-  try {
-    const body = await callQQMusic("lyric", { id });
-    if (body.code !== 200) {
-      coreLog.warn(
-        `[lyric:qqmusic] getByPlatformId(${id}) code=${body.code}: ${body.message ?? "no message"}`,
-      );
+  return withLyricCache("qqmusic", id, async () => {
+    try {
+      const body = await callQQMusic("lyric", { id });
+      if (body.code !== 200) {
+        coreLog.warn(
+          `[lyric:qqmusic] getByPlatformId(${id}) code=${body.code}: ${body.message ?? "no message"}`,
+        );
+        return null;
+      }
+
+      const main = pickFormatted(body.qrc, body.lrc);
+      if (!main) return null;
+
+      const trans = body.trans?.trim();
+      const roma = body.roma?.trim();
+
+      return {
+        platform: "qqmusic",
+        format: main.format,
+        content: main.content,
+        translation: trans || undefined,
+        translationFormat: trans ? "lrc" : undefined,
+        romaji: roma || undefined,
+        romajiFormat: roma ? main.format : undefined,
+        extra: mid ? { mid } : undefined,
+      };
+    } catch (err) {
+      coreLog.warn(`[lyric:qqmusic] getByPlatformId(${id}) failed:`, err);
       return null;
     }
-
-    const main = pickFormatted(body.qrc, body.lrc);
-    if (!main) return null;
-
-    const trans = body.trans?.trim();
-    const roma = body.roma?.trim();
-
-    const result: LyricMatchResult = {
-      platform: "qqmusic",
-      format: main.format,
-      content: main.content,
-      translation: trans || undefined,
-      translationFormat: trans ? "lrc" : undefined,
-      romaji: roma || undefined,
-      romajiFormat: roma ? main.format : undefined,
-      extra: mid ? { mid } : undefined,
-    };
-    setCachedLyric("qqmusic", id, result);
-    return result;
-  } catch (err) {
-    coreLog.warn(`[lyric:qqmusic] getByPlatformId(${id}) failed:`, err);
-    return null;
-  }
+  });
 };
 
 /** 按 Track 元数据模糊搜索：search → 挑最佳 → 单次请求歌词 */

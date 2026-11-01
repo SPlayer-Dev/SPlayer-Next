@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { safeStorage } from "electron";
 import { writeFileSync as atomicWriteSync } from "atomically";
 import { configDir } from "@main/utils/paths";
 import { ipcLog } from "@main/utils/logger";
+import { encryptSecret, isSecureStorageAvailable } from "@main/utils/secureStorage";
 import type {
   AiModelConfig,
   AiModelProtocol,
@@ -53,11 +53,11 @@ const writePersisted = (state: PersistedAiModelState): void => {
   }
 };
 
-const encryptApiKey = (apiKey: string): string => {
-  if (!safeStorage.isEncryptionAvailable()) {
+const encryptApiKey = async (apiKey: string): Promise<string> => {
+  if (!(await isSecureStorageAvailable())) {
     throw new Error("系统安全存储不可用，无法保存 API Key");
   }
-  return safeStorage.encryptString(apiKey).toString("base64");
+  return (await encryptSecret(apiKey)).toString("base64");
 };
 
 const toPublicState = (state: PersistedAiModelState): AiModelState => ({
@@ -96,14 +96,14 @@ export const listAiModels = (): AiModelState => toPublicState(readPersisted());
  * @param input - 模型配置输入
  * @returns 保存后的模型配置状态
  */
-export const saveAiModel = (input: AiModelSaveInput): AiModelState => {
+export const saveAiModel = async (input: AiModelSaveInput): Promise<AiModelState> => {
   const state = readPersisted();
   const normalized = normalizeInput(input);
   const existing = input.id ? state.models.find((item) => item.id === input.id) : undefined;
   if (input.id && !existing) throw new Error("AI 模型配置不存在");
 
   const encryptedApiKey = input.apiKey?.trim()
-    ? encryptApiKey(input.apiKey.trim())
+    ? await encryptApiKey(input.apiKey.trim())
     : (existing?.encryptedApiKey ?? "");
   if (!encryptedApiKey) throw new Error("请填写 API Key");
 

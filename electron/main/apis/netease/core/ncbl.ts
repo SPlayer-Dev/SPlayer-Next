@@ -148,7 +148,7 @@ export const rsaWrap = (keyA: Buffer): Buffer => bigToBe(modPow(beToBig(keyA), R
 const compressBody = (buf: Buffer): Buffer => {
   const zstd = (zlib as unknown as { zstdCompressSync?: (input: Buffer) => Buffer })
     .zstdCompressSync;
-  // NCBL v3 头不带压缩标识,服务端固定按 zstd 解;缺 zstd 时直接报错,不能塞 gzip 让服务端解不开
+  /** NCBL v3 未携带压缩标识，服务端固定使用 zstd 解压 */
   if (!zstd) throw new Error("当前运行时不支持 zstd,无法进行 NCBL 上报");
   return zstd(buf);
 };

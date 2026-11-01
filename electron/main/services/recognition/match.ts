@@ -24,7 +24,7 @@ type MatchResult =
   { ok: true; songs: { song: MatchedSong; startTime?: number }[] } | { ok: false; code: "network" };
 
 /**
- * 将音频指纹交给网易云模块匹配
+ * 将音频指纹交给 NCM 模块匹配
  * @param fingerprint - AFP 生成的指纹字符串
  * @param durationSec - 音频片段时长，单位为秒
  * @returns 最多三个候选，失败时返回网络错误

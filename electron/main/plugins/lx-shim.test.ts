@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { normalizeLxMusicInfo } from "./lx-shim";
 
 describe("normalizeLxMusicInfo", () => {
-  it("处理网易云等无 hash 歌曲时，不应设置空串 hash，且 ?? 能正确兜底到 songmid", () => {
+  it("处理NCM等无 hash 歌曲时，不应设置空串 hash，且 ?? 能正确兜底到 songmid", () => {
     const raw = {
       songmid: "208902",
       name: "红色高跟鞋",
@@ -53,7 +53,7 @@ describe("normalizeLxMusicInfo", () => {
     assert.equal(resolvedSongId, "208902");
   });
 
-  it("处理酷狗歌曲且有有效 32 位 hash 时，应保留并正确提取 hash", () => {
+  it("处理KG歌曲且有有效 32 位 hash 时，应保留并正确提取 hash", () => {
     const hex32 = "e10adc3949ba59abbe56e057f20f883e";
     const raw = {
       songmid: hex32,
@@ -70,7 +70,7 @@ describe("normalizeLxMusicInfo", () => {
     assert.equal(resolvedSongId, hex32);
   });
 
-  it("处理酷狗歌曲显式传入 hash 时，应优先使用显式传入的 hash", () => {
+  it("处理KG歌曲显式传入 hash 时，应优先使用显式传入的 hash", () => {
     const customHash = "a1b2c3d4e5f60718293a4b5c6d7e8f90";
     const raw = {
       songmid: "123456",

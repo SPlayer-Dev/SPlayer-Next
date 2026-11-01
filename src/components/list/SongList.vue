@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { Artist, PlaybackContext, Track, TrackSource } from "@shared/types/player";
 import type { CollectionType } from "@/types/collection";
-import type { SortField } from "@/types/list";
+import type { SongListSortKey, SongListSortPreference, SortField, SortOrder } from "@/types/list";
 import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
 import { useSettingsStore } from "@/stores/settings";
+import { useDownloadStore } from "@/stores/download";
 import { useTrackMenu } from "@/composables/useTrackMenu";
 import { useMultiSelect } from "@/composables/useMultiSelect";
 import { useDownload } from "@/composables/useDownload";
@@ -17,19 +18,6 @@ import { isLosslessQuality, getQualityLabel } from "@/utils/quality";
 import { navigateToAlbum, navigateToArtist } from "@/utils/navigate";
 import type { SVirtualListExposed } from "@/components/ui/SVirtualList.vue";
 import * as player from "@/core/player";
-import IconArrowUpDown from "~icons/lucide/arrow-up-down";
-import IconArrowUpAz from "~icons/lucide/arrow-up-az";
-import IconLucideListEnd from "~icons/lucide/list-end";
-import IconLucideListPlus from "~icons/lucide/list-plus";
-import IconLucideListMinus from "~icons/lucide/list-minus";
-import IconLucideDownload from "~icons/lucide/download";
-import IconLucideTrash2 from "~icons/lucide/trash-2";
-import IconLucideArrowLeftRight from "~icons/lucide/arrow-left-right";
-import IconLucideX from "~icons/lucide/x";
-import IconLucideCloud from "~icons/lucide/cloud";
-import IconLucideCloudOff from "~icons/lucide/cloud-off";
-import IconFavorite from "~icons/material-symbols/favorite-rounded";
-import IconFavoriteOutline from "~icons/material-symbols/favorite-outline-rounded";
 
 const props = withDefaults(
   defineProps<{
@@ -47,6 +35,8 @@ const props = withDefaults(
     showSize?: boolean;
     /** 是否启用排序交互 */
     enableSort?: boolean;
+    /** 排序偏好作用域 */
+    sortKey?: SongListSortKey;
     /** 列表来源 */
     source?: TrackSource;
     /** 集合类型 */
@@ -69,6 +59,7 @@ const props = withDefaults(
     showDuration: true,
     showSize: false,
     enableSort: false,
+    sortKey: undefined,
     source: "local",
     collectionType: undefined,
     collectionId: undefined,
@@ -84,6 +75,7 @@ const route = useRoute();
 const media = useMediaStore();
 const status = useStatusStore();
 const settings = useSettingsStore();
+const downloadStore = useDownloadStore();
 const fav = useFavorite();
 
 const { isFloatingBar: isFloatingPlayerBar, PLAYER_BAR_GAP } = useFloatingPlayerBar();
@@ -98,32 +90,81 @@ const textCollator = new Intl.Collator(undefined, {
 /** 当前播放歌曲 ID */
 const playingId = computed(() => media.track?.id);
 
-/** 专辑是否可跳转：本地不要求 id，其他源需要 album.id */
+/**
+ * 判断曲目的专辑是否可跳转详情
+ * @param item - 列表中的曲目
+ * @returns 是否提供专辑链接
+ */
 const isAlbumLinkable = (item: Track): boolean => {
-  if (!item.album?.name) return false;
+  if (!item.album?.name || item.source === "plugin") return false;
   return item.source === "local" || !!item.album.id;
 };
 
-/** 歌手是否可跳转：本地不要求 id，其他源需要 artist.id */
+/**
+ * 判断曲目的歌手是否可跳转详情
+ * @param item - 列表中的曲目
+ * @param artist - 待展示的歌手
+ * @returns 是否提供歌手链接
+ */
 const isArtistLinkable = (item: Track, artist: Artist): boolean => {
-  if (!artist.name) return false;
+  if (!artist.name || item.source === "plugin") return false;
   return item.source === "local" || !!artist.id;
 };
 
-/** 跳转到歌手页 */
+/**
+ * 打开曲目所属来源的歌手详情
+ * @param item - 列表中的曲目
+ * @param artist - 要打开的歌手
+ */
 const goArtist = (item: Track, artist: Artist): void => {
   if (!isArtistLinkable(item, artist)) return;
-  navigateToArtist(artist.name, { source: item.source, artistId: artist.id });
+  navigateToArtist(artist.name, {
+    source: item.source,
+    artistId: artist.id,
+    serverId: item.serverId,
+  });
 };
 
-/** 跳转到专辑页 */
+/**
+ * 打开曲目所属来源的专辑详情
+ * @param item - 列表中的曲目
+ */
 const goAlbum = (item: Track): void => {
   if (!isAlbumLinkable(item)) return;
-  navigateToAlbum(item.album?.name, { source: item.source, albumId: item.album?.id });
+  navigateToAlbum(item.album?.name, {
+    source: item.source,
+    albumId: item.album?.id,
+    serverId: item.serverId,
+  });
 };
 
+/** 未指定作用域时的组件内排序偏好 */
+const localSortPreference = ref<SongListSortPreference>({ field: "none", order: "asc" });
+
+/** 按作用域隔离的排序偏好 */
+const sortPreference = computed<SongListSortPreference>({
+  get: () => (props.sortKey ? status.getSortPreference(props.sortKey) : localSortPreference.value),
+  set: (value) => {
+    if (props.sortKey) status.setSortPreference(props.sortKey, value);
+    else localSortPreference.value = value;
+  },
+});
+
 /** 排序字段 */
-const { sortField, sortOrder } = storeToRefs(status);
+const sortField = computed<SortField>({
+  get: () => sortPreference.value.field,
+  set: (field) => {
+    sortPreference.value = { ...sortPreference.value, field };
+  },
+});
+
+/** 排序方向 */
+const sortOrder = computed<SortOrder>({
+  get: () => sortPreference.value.order,
+  set: (order) => {
+    sortPreference.value = { ...sortPreference.value, order };
+  },
+});
 
 /** 字段文案 key 映射 */
 const sortFieldLabelKeyMap: Record<SortField, string> = {
@@ -161,8 +202,37 @@ const filteredItems = computed(() => {
   });
 });
 
+/** 多碟专辑的碟片与碟内曲序，基于完整专辑计算，搜索过滤时保持不变 */
+const albumDiscs = computed(() => {
+  if (props.collectionType !== "album") return null;
+  const groups = Map.groupBy(props.items, (track) => track.disc ?? 1);
+  if (groups.size < 2) return null;
+  const trackNumbers = new Map<string, number>();
+  for (const tracks of groups.values()) {
+    tracks.forEach((track, position) => trackNumbers.set(track.id, position + 1));
+  }
+  return { groups, trackNumbers };
+});
+
+/** 默认顺序下按碟号排列的列表，碟片标题附在每碟首曲上以保持播放与多选索引一致 */
+const discLayout = computed(() => {
+  const discs = albumDiscs.value;
+  if (!discs || (props.enableSort && sortField.value !== "none")) return null;
+  const items: Track[] = [];
+  const headers = new Map<number, { disc: number; title?: string; count: number }>();
+  const visible = Map.groupBy(filteredItems.value, (track) => track.disc ?? 1);
+  for (const [disc, tracks] of [...visible].sort(([left], [right]) => left - right)) {
+    const albumTracks = discs.groups.get(disc) ?? tracks;
+    const title = albumTracks.find((track) => track.discTitle)?.discTitle;
+    headers.set(items.length, { disc, title, count: albumTracks.length });
+    items.push(...tracks);
+  }
+  return { items, headers };
+});
+
 /** 排序后列表 */
 const sortedItems = computed(() => {
+  if (discLayout.value) return discLayout.value.items;
   if (!props.enableSort || sortField.value === "none") return filteredItems.value;
   const result = [...filteredItems.value];
   const field = sortField.value;
@@ -229,6 +299,58 @@ const batch = useMultiSelect(sortedItems, {
 });
 const { deleteConfirmOpen, deleteDialogTitle, deleteDialogContent } = batch;
 
+/** 是否使用紧凑列表样式 */
+const isCompactList = computed(() => settings.appearance.songListStyle === "compact");
+
+/** 歌曲行高度 */
+const rowHeight = computed(() => (isCompactList.value ? 56 : 88));
+
+/** 碟片标题行高度 */
+const DISC_HEADER_HEIGHT = 40;
+
+/** 分碟时每行的精确高度，碟片首曲额外包含标题行 */
+const discItemHeights = computed(() => {
+  const layout = discLayout.value;
+  if (!layout) return undefined;
+  return layout.items.map(
+    (_track, index) => rowHeight.value + (layout.headers.has(index) ? DISC_HEADER_HEIGHT : 0),
+  );
+});
+
+/**
+ * 计算歌曲行样式
+ * @param item - 歌曲数据
+ * @returns 行容器的 class 列表
+ */
+const trackRowClass = (item: Track): string[] => {
+  const selected = batch.active.value && batch.selectedIds.value.has(item.id);
+  const playing = playingId.value === item.id;
+
+  if (isCompactList.value) {
+    return [
+      "group flex items-center gap-3 pl-3 pr-4 h-14 rounded-lg cursor-pointer transition-colors duration-150",
+      batch.active.value
+        ? selected
+          ? "bg-primary/10"
+          : "hover:bg-on-surface/5"
+        : playing
+          ? "bg-primary/14"
+          : "hover:bg-on-surface/6 active:bg-on-surface/10",
+    ];
+  }
+
+  return [
+    "group flex items-center gap-3 pl-3 pr-6 h-19 rounded-xl cursor-pointer border-2 border-solid transition-[background-color,border-color] duration-200",
+    batch.active.value
+      ? selected
+        ? "bg-primary/10 border-primary/30"
+        : "bg-surface-panel border-primary/12 hover:border-primary/20 hover:bg-on-surface/5"
+      : playing
+        ? "bg-primary/16 border-primary/40"
+        : "bg-surface-panel border-primary/12 hover:border-primary/30 hover:bg-on-surface/8 active:bg-on-surface/12",
+  ];
+};
+
 /** 添加到歌单相关 */
 const {
   open: pickerOpen,
@@ -281,7 +403,28 @@ const onTrackDblClick = (item: Track, index: number): void => {
     void player.playNow(item, props.playbackContext);
     return;
   }
-  void player.playFrom(sortedItems.value, index, props.playbackContext);
+  void player.playFrom(sortedItems.value, { startIndex: index, context: props.playbackContext });
+};
+
+/**
+ * 行首播放按钮点击
+ * @param item - 歌曲数据
+ * @param index - 列表索引
+ */
+const onPlayClick = (item: Track, index: number): void => {
+  if (batch.active.value) {
+    batch.toggle(item.id);
+    return;
+  }
+  if (playingId.value === item.id) {
+    player.togglePlay();
+    return;
+  }
+  if (settings.player.songListPlayBehavior === "all") {
+    void player.playFrom(sortedItems.value, { startIndex: index, context: props.playbackContext });
+    return;
+  }
+  void player.playNow(item, props.playbackContext);
 };
 
 const emit = defineEmits<{
@@ -319,10 +462,11 @@ defineExpose({
       <SVirtualList
         ref="virtualListRef"
         :items="sortedItems"
-        :item-height="88"
+        :item-height="rowHeight"
+        :item-fixed="!discLayout"
+        :exact-item-heights="discItemHeights"
         :padding-bottom="isFloatingPlayerBar ? PLAYER_BAR_GAP : 80"
         :get-item-key="(item: Track) => item.id"
-        item-fixed
         height="100%"
         @scroll="onScroll"
         @reach-bottom="emit('reachBottom')"
@@ -380,7 +524,7 @@ defineExpose({
                 <span>{{ t("songList.batch.addToQueue") }}</span>
               </SButton>
               <SButton
-                v-if="source !== 'local' && settings.system.download.enabled"
+                v-if="source !== 'local' && source !== 'plugin' && settings.system.download.enabled"
                 variant="ghost"
                 size="small"
                 :disabled="batch.selectedCount.value === 0"
@@ -442,7 +586,12 @@ defineExpose({
             <!-- 普通模式 -->
             <div
               v-else
-              class="flex items-center gap-3 pl-3 pr-6 mx-3 h-10 text-sm text-on-surface-variant/60"
+              class="flex items-center gap-3 text-sm text-on-surface-variant/60"
+              :class="
+                isCompactList
+                  ? 'pl-3 pr-4 mx-3 h-9'
+                  : 'pl-3 pr-6 mx-3 h-10 border-2 border-solid border-transparent'
+              "
             >
               <div v-if="showIndex" class="w-8 shrink-0 flex items-center justify-center">
                 <span>#</span>
@@ -465,7 +614,7 @@ defineExpose({
                   </template>
                   <div class="w-60 flex flex-col gap-3 text-sm">
                     <div class="flex items-center gap-2 text-xs">
-                      <IconArrowUpDown class="size-3.5" />
+                      <IconLucideArrowUpDown class="size-3.5" />
                       <span>{{ t("songList.sort.mode") }}</span>
                     </div>
                     <SRadioGroup v-model:value="sortField" size="small">
@@ -484,7 +633,7 @@ defineExpose({
                     <div class="h-px bg-outline-variant/25" />
 
                     <div class="flex items-center gap-2 text-xs">
-                      <IconArrowUpAz class="size-3.5" />
+                      <IconLucideArrowUpAz class="size-3.5" />
                       <span>{{ t("songList.sort.order") }}</span>
                     </div>
                     <SRadioGroup
@@ -502,7 +651,9 @@ defineExpose({
                 </div>
               </div>
               <div v-if="showAlbum" class="flex-1 min-w-0">{{ t("songList.album") }}</div>
-              <div class="w-7 shrink-0 text-center">{{ t("songList.actions") }}</div>
+              <div class="w-12 shrink-0 text-center whitespace-nowrap">
+                {{ t("songList.actions") }}
+              </div>
               <div v-if="showDuration" class="w-16 shrink-0 text-center">
                 {{ t("songList.duration") }}
               </div>
@@ -512,19 +663,35 @@ defineExpose({
         </template>
         <!-- 列表项 -->
         <template #default="{ item, index }: { item: Track; index: number }">
-          <div class="px-3 pb-3">
+          <div
+            v-if="discLayout?.headers.has(index)"
+            class="mx-6 h-10 flex items-center gap-3 text-on-surface-variant"
+            :class="!isCompactList && index > 0 ? 'pb-3' : ''"
+          >
+            <IconLucideDisc3
+              class="size-4 translate-y-px shrink-0 text-primary/70"
+              aria-hidden="true"
+            />
+            <h2
+              class="min-w-0 flex-1 truncate text-sm font-semibold"
+              :title="discLayout.headers.get(index)!.title"
+            >
+              {{ t("collection.disc", { disc: discLayout.headers.get(index)!.disc }) }}
+              <span
+                v-if="discLayout.headers.get(index)!.title"
+                class="font-normal text-on-surface-variant/70"
+              >
+                · {{ discLayout.headers.get(index)!.title }}
+              </span>
+            </h2>
+            <span class="shrink-0 text-xs tabular-nums text-on-surface-variant/50">
+              {{ t("common.totalSongs", { count: discLayout.headers.get(index)!.count }) }}
+            </span>
+          </div>
+          <div :class="isCompactList ? 'px-3' : 'px-3 pb-3'">
             <div
               data-song-item
-              class="group flex items-center gap-3 pl-3 pr-6 h-19 rounded-xl cursor-pointer border-2 border-solid transition-[background-color,border-color] duration-200"
-              :class="
-                batch.active.value
-                  ? batch.selectedIds.value.has(item.id)
-                    ? 'bg-primary/10 border-primary/30'
-                    : 'bg-surface-panel border-primary/12 hover:border-primary/20 hover:bg-on-surface/5'
-                  : playingId === item.id
-                    ? 'bg-primary/16 border-primary/40'
-                    : 'bg-surface-panel border-primary/12 hover:border-primary/30 hover:bg-on-surface/8 active:bg-on-surface/12'
-              "
+              :class="trackRowClass(item)"
               @click="batch.active.value ? batch.toggle(item.id) : undefined"
               @dblclick="onTrackDblClick(item, index)"
               @contextmenu="contextTrack = item"
@@ -540,13 +707,7 @@ defineExpose({
                       ? 'text-primary'
                       : 'text-on-surface-variant'
                 "
-                @click.stop="
-                  batch.active.value
-                    ? batch.toggle(item.id)
-                    : playingId === item.id
-                      ? player.togglePlay()
-                      : player.playNow(item, props.playbackContext)
-                "
+                @click.stop="onPlayClick(item, index)"
               >
                 <!-- 多选模式 -->
                 <SCheckbox
@@ -560,9 +721,10 @@ defineExpose({
                 <template v-else>
                   <span
                     v-if="playingId !== item.id"
-                    class="text-sm font-bold tabular-nums group-hover:opacity-0 transition-opacity duration-300"
+                    class="font-bold tabular-nums group-hover:opacity-0 transition-opacity duration-300"
+                    :class="isCompactList ? 'text-xs' : 'text-sm'"
                   >
-                    {{ index + 1 }}
+                    {{ discLayout ? albumDiscs?.trackNumbers.get(item.id) : index + 1 }}
                   </span>
                   <IconLucideMusic
                     v-else
@@ -581,12 +743,18 @@ defineExpose({
               </div>
               <!-- 信息 -->
               <div class="flex-1 min-w-0 flex items-center gap-3">
-                <SImg :src="item.cover" class="size-12 rounded-lg shrink-0" />
+                <SImg
+                  :src="item.cover"
+                  :class="['shrink-0', isCompactList ? 'size-9 rounded-md' : 'size-12 rounded-lg']"
+                />
                 <div class="flex-1 min-w-0">
                   <div class="flex items-baseline gap-1.5 min-w-0">
                     <span
-                      class="text-base font-medium truncate"
-                      :class="playingId === item.id ? 'text-primary' : ''"
+                      :class="[
+                        'font-medium truncate',
+                        isCompactList ? 'text-sm' : 'text-base',
+                        playingId === item.id ? 'text-primary' : '',
+                      ]"
                     >
                       {{ item.title }}
                     </span>
@@ -608,32 +776,49 @@ defineExpose({
                     </span>
                   </div>
                   <div
-                    class="text-sm mt-1 truncate flex items-center gap-1"
-                    :class="playingId === item.id ? 'text-primary/70' : 'text-on-surface-variant'"
+                    :class="[
+                      'truncate flex items-center gap-1',
+                      isCompactList ? 'text-xs mt-0.5' : 'text-sm mt-1',
+                      playingId === item.id ? 'text-primary/70' : 'text-on-surface-variant',
+                    ]"
                   >
-                    <span
+                    <STag
+                      v-if="downloadStore.isDownloaded(item)"
+                      type="primary"
+                      variant="soft"
+                      size="tiny"
+                      circle
+                      class="shrink-0"
+                    >
+                      <IconLucideCheck class="size-3" aria-hidden="true" />
+                    </STag>
+                    <STag
                       v-if="item.quality && !settings.preset.hideQualityTag"
-                      class="shrink-0 px-1 rounded text-[10px] leading-[18px] font-bold border border-solid"
-                      :class="
-                        isLosslessQuality(item.quality)
-                          ? 'text-amber-500 border-amber-500/40'
-                          : 'text-on-surface-variant border-on-surface-variant/40'
-                      "
+                      :type="isLosslessQuality(item.quality) ? 'warning' : 'default'"
+                      variant="outline"
+                      size="tiny"
+                      class="shrink-0"
                     >
                       {{ getQualityLabel(item.quality) }}
-                    </span>
-                    <span
+                    </STag>
+                    <STag
                       v-if="item.fee === 1 && !settings.preset.hideVipTag"
-                      class="shrink-0 px-1 rounded text-[10px] leading-[18px] font-bold border border-solid text-red-400 border-red-400/40"
+                      type="error"
+                      variant="outline"
+                      size="tiny"
+                      class="shrink-0"
                     >
                       VIP
-                    </span>
-                    <span
+                    </STag>
+                    <STag
                       v-else-if="item.fee === 4 && !settings.preset.hideVipTag"
-                      class="shrink-0 px-1 rounded text-[10px] leading-[18px] font-bold border border-solid text-red-400 border-red-400/40"
+                      type="error"
+                      variant="outline"
+                      size="tiny"
+                      class="shrink-0"
                     >
                       EP
-                    </span>
+                    </STag>
                     <span class="truncate">
                       <template v-for="(artist, i) in item.artists" :key="artist.id ?? i">
                         <span
@@ -670,10 +855,10 @@ defineExpose({
                   {{ item.album?.name || t("collection.unknownAlbum") }}
                 </span>
               </div>
-              <!-- 红心：批量模式下隐藏，其余始终显示 -->
+              <!-- 收藏 -->
               <div
-                v-if="!batch.active.value"
-                class="w-7 shrink-0 flex items-center justify-center"
+                v-if="!batch.active.value && item.source !== 'plugin'"
+                class="w-12 shrink-0 flex items-center justify-center"
                 @click.stop
               >
                 <SButton
@@ -682,17 +867,18 @@ defineExpose({
                   circle
                   :size="28"
                   :icon-size="20"
+                  :disabled="!fav.isSupported(item)"
                   @click="fav.toggle(item)"
                 >
                   <template #icon>
                     <SIconSwap :active="fav.isLiked(item)">
-                      <template #on><IconFavorite /></template>
-                      <template #off><IconFavoriteOutline /></template>
+                      <template #on><IconMaterialSymbolsFavoriteRounded /></template>
+                      <template #off><IconMaterialSymbolsFavoriteOutlineRounded /></template>
                     </SIconSwap>
                   </template>
                 </SButton>
               </div>
-              <div v-else class="w-7 shrink-0" />
+              <div v-else class="w-12 shrink-0" />
               <!-- 时长 -->
               <div
                 v-if="showDuration"

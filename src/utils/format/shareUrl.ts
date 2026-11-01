@@ -20,8 +20,9 @@ export const getTrackShareUrl = (track: Track | null | undefined): string | null
 };
 
 /**
- * 取在线平台的歌曲合集分享链接
- * @param collection - 当前歌曲合集，本地/流媒体/不支持平台返回 null
+ * 获取在线平台歌曲合集的分享地址
+ * @param collection - 待分享的歌曲合集
+ * @returns 分享地址，不支持的来源返回 null
  */
 export const getCollectionShareUrl = (collection: Collection | null | undefined): string | null => {
   if (!collection?.id) return null;
@@ -31,6 +32,7 @@ export const getCollectionShareUrl = (collection: Collection | null | undefined)
       qqmusic: `https://y.qq.com/n/ryqq_v2/albumDetail/${collection.id}`,
       kugou: `https://www.kugou.com/album/info/${collection.id}/`,
       streaming: null,
+      plugin: null,
       local: null,
     },
     playlist: {
@@ -38,6 +40,7 @@ export const getCollectionShareUrl = (collection: Collection | null | undefined)
       qqmusic: `https://y.qq.com/n/ryqq_v2/playlist/${collection.id}`,
       kugou: `https://www.kugou.com/songlist/${collection.id}/`,
       streaming: null,
+      plugin: null,
       local: null,
     },
     radio: {
@@ -45,6 +48,7 @@ export const getCollectionShareUrl = (collection: Collection | null | undefined)
       qqmusic: `https://y.qq.com/n/ryqq_v2/player_radio#id=${collection.id}`,
       kugou: `https://www.kugou.com/song/#fm_id=${collection.id}`,
       streaming: null,
+      plugin: null,
       local: null,
     },
     cloud: {
@@ -52,6 +56,7 @@ export const getCollectionShareUrl = (collection: Collection | null | undefined)
       qqmusic: null,
       kugou: null,
       streaming: null,
+      plugin: null,
       local: null,
     },
   };

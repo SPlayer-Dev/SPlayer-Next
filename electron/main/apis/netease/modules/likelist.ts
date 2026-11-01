@@ -12,7 +12,7 @@ import type { NeteaseModule } from "../core/types";
 
 const likelist: NeteaseModule = (query, request) => {
   const data = { uid: query.uid };
-  return request("/api/song/like/get", data, createOption(query, "weapi"));
+  return request("/api/song/like/get", data, createOption(query));
 };
 
 export default likelist;

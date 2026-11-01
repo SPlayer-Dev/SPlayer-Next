@@ -8,7 +8,8 @@ const { t } = useI18n();
 const percent = ref(100);
 
 /** 写入并应用缩放：config:set 触发主进程 applyMainWindowZoom */
-const apply = (value: number): void => {
+const apply = (value: number | null): void => {
+  if (value == null) return;
   percent.value = value;
   window.api.config.set("system.uiZoom", value).catch(() => {});
 };

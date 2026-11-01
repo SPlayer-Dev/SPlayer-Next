@@ -4,7 +4,9 @@ export const defaultScrobbleThresholdMs = (durationSec: number): number =>
 
 export interface PlayProgressOptions<T> {
   /** 累计播放达阈值时触发一次 */
-  onThreshold: (payload: T, playedMs: number) => void;
+  onThreshold?: (payload: T, playedMs: number) => void;
+  /** 轮次结算时提供最终累计时长，阈值上报与结算上报分别消费 */
+  onSettle?: (payload: T, playedMs: number) => void;
   /** 由时长(秒)算出应累计的毫秒阈值；默认 defaultScrobbleThresholdMs */
   thresholdMs?: (durationSec: number) => number;
   /** 达阈值时的放行判定；返回 false 则不触发也不置已触发标志，下次推进再判（用于"开关关着时不占用本轮"） */
@@ -44,7 +46,7 @@ export const createPlayProgress = <T>(options: PlayProgressOptions<T>): PlayProg
   const thresholdMs = (): number => (payload != null ? computeThreshold(durationSec) : Infinity);
 
   const maybeFire = (): void => {
-    if (payload == null || fired) return;
+    if (!options.onThreshold || payload == null || fired) return;
     const played = elapsedMs();
     if (played < thresholdMs()) return;
     if (options.shouldFire && !options.shouldFire()) return;
@@ -58,6 +60,7 @@ export const createPlayProgress = <T>(options: PlayProgressOptions<T>): PlayProg
       playSince = null;
     }
     maybeFire();
+    if (payload !== null) options.onSettle?.(payload, playedMs);
   };
 
   const clear = (): void => {
@@ -90,6 +93,7 @@ export const createPlayProgress = <T>(options: PlayProgressOptions<T>): PlayProg
     rearm: () => {
       if (payload == null) return;
       const wasPlaying = playSince != null;
+      settle();
       playedMs = 0;
       fired = false;
       playSince = wasPlaying ? Date.now() : null;

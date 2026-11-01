@@ -5,7 +5,8 @@
  * 走 parse → 重序列化，[ti:]/[ar:] 等信息头天然被丢弃，内容只剩歌词
  */
 
-import type { LyricFormat, LyricInput } from "@shared/types/lyrics";
+import type { LyricFormat, LyricInput } from "lyric-kit";
+
 import type { DownloadLyricFormat } from "@shared/types/download";
 import { parseLyric, toEnhancedLRC, toLRC, toTTML } from "lyric-kit";
 
@@ -41,6 +42,10 @@ export const buildDownloadLyric = (
   if (target === "ttml") {
     return mainFormat === "ttml" ? input.content.trim() : toTTML(result);
   }
-  const content = target === "enhanced-lrc" ? toEnhancedLRC(result.lines) : toLRC(result.lines);
+  // 下载歌词会再次载入，保留辅助行归属及逐字时间边界
+  const content =
+    target === "enhanced-lrc"
+      ? toEnhancedLRC(result.lines, { roundTrip: true })
+      : toLRC(result.lines, { roundTrip: true });
   return content.trim() ? content : null;
 };

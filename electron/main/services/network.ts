@@ -130,7 +130,7 @@ export const applyNetworkPreferences = (): Promise<void> => {
       const preferIPv4 = store.get("system.preferIPv4");
       active = preferIPv4 || getNetworkProxyUrl() !== null;
       if (!browserGateway || !nativeGateway) return;
-      setGlobalDispatcher(resetNetworkDispatchers());
+      setGlobalDispatcher(await resetNetworkDispatchers());
       browserGateway.resetConnections();
       nativeGateway.resetConnections();
       // 原生客户端缓存代理配置，固定经过应用连接层，让每次请求都服从当前设置。

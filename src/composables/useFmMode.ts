@@ -1,4 +1,4 @@
-import type { PersonalFmOptions } from "@/types/netease";
+import type { PersonalFmOptions } from "@shared/types/platform/netease";
 import { useUserStore } from "@/stores/user";
 import { useStatusStore } from "@/stores/status";
 import { toast } from "@/composables/useToast";
@@ -7,7 +7,7 @@ import * as player from "@/core/player";
 /**
  * 私人 FM
  *
- * 调用网易云 /personal_fm / /personal/fm/mode 拉一批推荐，进入 FM 模式播放
+ * 调用 NCM /personal_fm / /personal/fm/mode 拉一批推荐，进入 FM 模式播放
  */
 export const useFmMode = () => {
   const { t } = useI18n();

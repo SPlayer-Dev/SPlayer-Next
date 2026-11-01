@@ -46,6 +46,7 @@ const CLOUD_CACHE_KEY = "cloud-tracks";
 interface LikedPlaylistCache {
   playlistId: string;
   tracks: Track[];
+  trackIds?: string[];
   cachedAt: number;
 }
 
@@ -88,7 +89,15 @@ export const useUserStore = defineStore(
     /** 上一次尝试刷新时间戳（毫秒） */
     let lastRefreshAttemptAt = 0;
     let statusRequestId = 0;
+    let contentRequestId = 0;
+    let accountVersion = 0;
+    let contentHydrated = false;
+    let likedSongIdsVersion = 0;
+    let likedPlaylistSongIds: string[] | null = null;
+    let likedPlaylistSyncPromise: Promise<void> | null = null;
     let invalidationPromise: Promise<void> | null = null;
+    /** 仅保留在途曲目的原始状态，用于失败回滚和排除缓存中的临时状态 */
+    const pendingLikes = new Map<string, { wasLiked: boolean }>();
     /** 是否已登录 */
     const isLoggedIn = computed(() => profile.value !== null);
     /** 全部歌单 */
@@ -144,13 +153,18 @@ export const useUserStore = defineStore(
     /** 是否红心 */
     const isLiked = (trackId: string): boolean => likedSongIds.value.has(trackId);
 
-    /** 持久化红心 id 列表 */
+    /** 持久化已完成的红心状态，在途曲目仍按原始状态保存 */
     const persistLikedSongIds = (): void => {
       const userId = profile.value?.userId;
       if (!userId) return;
+      const ids = new Set(likedSongIds.value);
+      for (const [trackId, { wasLiked }] of pendingLikes) {
+        if (wasLiked) ids.add(trackId);
+        else ids.delete(trackId);
+      }
       const payload: LikedSongIdsCache = {
         userId,
-        ids: [...likedSongIds.value],
+        ids: [...ids],
         cachedAt: Date.now(),
       };
       cacheDb.setItem(LIKED_SONG_IDS_CACHE_KEY, payload).catch(() => {});
@@ -158,7 +172,7 @@ export const useUserStore = defineStore(
 
     /**
      * 两组红心 id 是否一致
-     * @param ids 歌曲 id 列表
+     * @param ids - 歌曲 id 列表
      */
     const hasSameLikedSongIds = (ids: Iterable<string>): boolean => {
       const next = new Set(ids);
@@ -170,10 +184,11 @@ export const useUserStore = defineStore(
     };
 
     /**
-     * 应用远端红心 id 列表
-     * @param ids 歌曲 id 列表
+     * 应用远端红心 id 列表，在途操作结束前保留本地临时状态
+     * @param ids - 歌曲 id 列表
      */
     const applyLikedSongIds = (ids: Iterable<string>): void => {
+      if (pendingLikes.size > 0) return;
       const next = [...ids];
       if (hasSameLikedSongIds(next)) return;
       likedSongIds.value = new Set(next);
@@ -182,10 +197,17 @@ export const useUserStore = defineStore(
 
     /** 当前已加载的喜欢歌单是否与红心 id 集合一致 */
     const isLikedPlaylistFresh = (): boolean =>
-      hasSameLikedSongIds(likedPlaylistTracks.value.map((track) => track.id));
+      likedPlaylistSongIds !== null && hasSameLikedSongIds(likedPlaylistSongIds);
 
     /** 清空所有用户内容 */
     const clearContent = (): void => {
+      accountVersion++;
+      pendingLikes.clear();
+      contentRequestId++;
+      contentHydrated = false;
+      likedSongIdsVersion++;
+      likedPlaylistSongIds = null;
+      likedPlaylistSyncPromise = null;
       playlists.value = [];
       likedSongIds.value = new Set();
       albums.value = [];
@@ -231,7 +253,11 @@ export const useUserStore = defineStore(
     const hydrateLikedPlaylistFromCache = async (playlistId: string): Promise<void> => {
       try {
         const cached = await cacheDb.getItem<LikedPlaylistCache>(LIKED_PLAYLIST_CACHE_KEY);
-        if (cached && cached.playlistId === playlistId) likedPlaylistTracks.value = cached.tracks;
+        if (currentLikedPlaylistId !== playlistId || !profile.value) return;
+        if (cached && cached.playlistId === playlistId) {
+          likedPlaylistTracks.value = cached.tracks;
+          likedPlaylistSongIds = cached.trackIds ?? null;
+        }
       } catch {
         console.error("[user] hydrate liked playlist from cache failed");
       }
@@ -239,13 +265,14 @@ export const useUserStore = defineStore(
 
     /**
      * 持久化喜欢歌单曲目缓存
-     * @param playlistId 歌单 id
-     * @param tracks 歌单曲目
+     * @param playlistId - 歌单 id
+     * @param tracks - 歌单曲目
      */
     const persistLikedPlaylistCache = (playlistId: string, tracks: Track[]): void => {
       const payload: LikedPlaylistCache = {
         playlistId,
         tracks: tracks.map((track) => ({ ...track })),
+        trackIds: likedPlaylistSongIds ?? undefined,
         cachedAt: Date.now(),
       };
       cacheDb.setItem(LIKED_PLAYLIST_CACHE_KEY, payload).catch(() => {});
@@ -256,45 +283,71 @@ export const useUserStore = defineStore(
       likedPlaylistAbort?.abort();
       const controller = new AbortController();
       likedPlaylistAbort = controller;
+      const likedVersion = likedSongIdsVersion;
       if (likedPlaylistTracks.value.length === 0) likedPlaylistLoading.value = true;
       try {
         const accumulated: Track[] = [];
+        let trackIds: string[] = [];
         await fetchPlaylist(playlistId, {
           signal: controller.signal,
+          onTrackIds: (ids) => {
+            trackIds = ids;
+          },
           onBatch: (batch) => {
-            if (controller.signal.aborted) return;
+            if (controller.signal.aborted || likedVersion !== likedSongIdsVersion) return;
             accumulated.push(...batch);
-            likedPlaylistTracks.value = [...accumulated];
           },
         });
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || likedVersion !== likedSongIdsVersion) return;
         likedPlaylistTracks.value = accumulated;
-        applyLikedSongIds(accumulated.map((track) => track.id));
+        likedPlaylistSongIds = trackIds;
         persistLikedPlaylistCache(playlistId, accumulated);
+      } catch (err) {
+        if (!controller.signal.aborted) console.warn("[user] refresh liked playlist failed:", err);
       } finally {
-        if (!controller.signal.aborted) likedPlaylistLoading.value = false;
+        if (likedPlaylistAbort === controller) likedPlaylistLoading.value = false;
       }
     };
 
     /**
-     * 确保「我喜欢的音乐」曲目已就绪
-     * - 首次访问该歌单：缓存即时上屏 + 网络刷新
-     * - 再次访问：likedSongIds 与已加载曲目内容不一致时刷新（外部增删过 → 数据脏）
-     * @param force true 强制走网络刷新（用户手动点刷新时用）
+     * 进入喜欢歌单时核对远端红心列表，避免外部增删被本地缓存掩盖
+     * @param force - 强制刷新曲目
      */
-    const ensureLikedPlaylist = async (force = false): Promise<void> => {
+    const ensureLikedPlaylist = (force = false): Promise<void> => {
+      if (likedPlaylistSyncPromise) return likedPlaylistSyncPromise;
+      const uid = profile.value?.userId;
       const playlistId = likedPlaylistId.value;
-      if (!playlistId) return;
-      if (currentLikedPlaylistId !== playlistId) {
-        currentLikedPlaylistId = playlistId;
-        likedPlaylistTracks.value = [];
-        await hydrateLikedPlaylistFromCache(playlistId);
-        refreshLikedPlaylist(playlistId);
-        return;
-      }
-      if (force || !isLikedPlaylistFresh()) {
-        refreshLikedPlaylist(playlistId);
-      }
+      if (!uid || !playlistId) return Promise.resolve();
+      const requestId = accountVersion;
+      const likedVersion = likedSongIdsVersion;
+      const pending = (async () => {
+        try {
+          const firstVisit = currentLikedPlaylistId !== playlistId;
+          if (firstVisit) {
+            currentLikedPlaylistId = playlistId;
+            likedPlaylistTracks.value = [];
+            likedPlaylistSongIds = null;
+            await hydrateLikedPlaylistFromCache(playlistId);
+          }
+          const ids = await fetchLikelist(uid);
+          if (
+            requestId !== accountVersion ||
+            likedVersion !== likedSongIdsVersion ||
+            profile.value?.userId !== uid
+          )
+            return;
+          applyLikedSongIds(ids);
+          if (force || firstVisit || !isLikedPlaylistFresh())
+            await refreshLikedPlaylist(playlistId);
+        } catch (err) {
+          console.warn("[user] sync liked playlist failed:", err);
+        }
+      })();
+      likedPlaylistSyncPromise = pending;
+      void pending.finally(() => {
+        if (likedPlaylistSyncPromise === pending) likedPlaylistSyncPromise = null;
+      });
+      return pending;
     };
 
     /** 恢复云盘缓存 */
@@ -358,7 +411,7 @@ export const useUserStore = defineStore(
 
     /**
      * 确保云盘曲目已就绪
-     * @param force true 时无论是否有缓存都重新拉取
+     * @param force - true 时无论是否有缓存都重新拉取
      */
     const ensureCloud = async (force = false): Promise<void> => {
       const userId = profile.value?.userId;
@@ -370,7 +423,7 @@ export const useUserStore = defineStore(
 
     /**
      * 从云盘删除歌曲
-     * @param trackIds 曲目 id 列表
+     * @param trackIds - 曲目 id 列表
      */
     const removeCloudTracks = async (trackIds: string[]): Promise<void> => {
       if (trackIds.length === 0) return;
@@ -383,15 +436,24 @@ export const useUserStore = defineStore(
 
     /** 从缓存恢复轻量内容 */
     const hydrateContentFromCache = async (userId: number): Promise<void> => {
+      if (contentHydrated) return;
+      const version = accountVersion;
+      const likedVersion = likedSongIdsVersion;
       try {
         const [cachedIds, cachedPlaylists] = await Promise.all([
           cacheDb.getItem<LikedSongIdsCache>(LIKED_SONG_IDS_CACHE_KEY),
           cacheDb.getItem<PlaylistsCache>(PLAYLISTS_CACHE_KEY),
         ]);
-        if (cachedIds?.userId === userId) {
+        if (version !== accountVersion || profile.value?.userId !== userId) return;
+        contentHydrated = true;
+        if (
+          cachedIds?.userId === userId &&
+          likedVersion === likedSongIdsVersion &&
+          pendingLikes.size === 0
+        ) {
           likedSongIds.value = new Set(cachedIds.ids);
         }
-        if (cachedPlaylists?.userId === userId) {
+        if (cachedPlaylists?.userId === userId && playlists.value.length === 0) {
           playlists.value = cachedPlaylists.playlists;
         }
       } catch {
@@ -401,13 +463,16 @@ export const useUserStore = defineStore(
 
     /**
      * 拉取并应用用户歌单
-     * @param uid 用户 ID
+     * @param uid - 用户 ID
      */
     const fetchAndApplyPlaylists = async (uid: number): Promise<void> => {
+      const requestId = contentRequestId;
       const sub = await fetchSubcount();
+      if (requestId !== contentRequestId || profile.value?.userId !== uid) return;
       subcount.value = sub;
       const total = (sub.createdPlaylistCount || 0) + (sub.subPlaylistCount || 0) || 50;
       const list = await fetchUserPlaylists(uid, total);
+      if (requestId !== contentRequestId || profile.value?.userId !== uid) return;
       playlists.value = list;
       const payload: PlaylistsCache = {
         userId: uid,
@@ -422,9 +487,12 @@ export const useUserStore = defineStore(
      * 并行发起，失败的子任务不会阻塞其他类目
      */
     const loadContent = async (uid: number): Promise<void> => {
-      if (!uid) return;
-      // 缓存即时上屏，不阻塞后续网络
+      if (!uid || profile.value?.userId !== uid) return;
+      const requestId = ++contentRequestId;
+      const likedVersion = likedSongIdsVersion;
+      /** 缓存即时上屏，不阻塞后续网络 */
       await hydrateContentFromCache(uid);
+      if (requestId !== contentRequestId || profile.value?.userId !== uid) return;
       const settled = await Promise.allSettled([
         fetchAndApplyPlaylists(uid),
         fetchLikelist(uid),
@@ -432,8 +500,9 @@ export const useUserStore = defineStore(
         fetchUserArtists(),
         fetchUserLevel(),
       ]);
+      if (requestId !== contentRequestId || profile.value?.userId !== uid) return;
       const [_plRes, likeRes, albumRes, artistRes, levelRes] = settled;
-      if (likeRes.status === "fulfilled") {
+      if (likeRes.status === "fulfilled" && likedVersion === likedSongIdsVersion) {
         applyLikedSongIds(likeRes.value);
       }
       if (albumRes.status === "fulfilled") albums.value = albumRes.value;
@@ -451,43 +520,65 @@ export const useUserStore = defineStore(
     };
 
     /**
-     * 切换红心状态
-     * @param trackId - 曲目全局 id
+     * 乐观更新红心，失败仅回滚当前曲目，成功后再保存稳定状态
+     * @param trackId - 曲目全局 ID
+     * @param like - 目标红心状态
      */
-    const toggleLike = async (trackId: string): Promise<boolean> => {
-      const wasLiked = likedSongIds.value.has(trackId);
+    const applySongLike = async (trackId: string, like: boolean): Promise<void> => {
+      const uid = profile.value?.userId;
+      if (!uid) throw new Error("请先登录音乐平台");
+      if (pendingLikes.has(trackId)) throw new Error("该曲目的红心操作正在进行");
+      const operation = { wasLiked: likedSongIds.value.has(trackId) };
+      pendingLikes.set(trackId, operation);
+      const requestId = accountVersion;
+      likedSongIdsVersion++;
       const next = new Set(likedSongIds.value);
-      if (wasLiked) next.delete(trackId);
-      else next.add(trackId);
+      if (like) next.add(trackId);
+      else next.delete(trackId);
       likedSongIds.value = next;
       try {
-        await toggleLikeSong(trackId, !wasLiked);
+        await toggleLikeSong(trackId, like, uid);
+        if (requestId !== accountVersion || !profile.value) {
+          throw new Error("平台账号已变更");
+        }
+        likedSongIdsVersion++;
+        pendingLikes.delete(trackId);
         persistLikedSongIds();
+        if (!like) {
+          likedPlaylistTracks.value = likedPlaylistTracks.value.filter(
+            (track) => track.id !== trackId,
+          );
+        }
+      } catch (err) {
+        if (requestId === accountVersion) {
+          likedSongIdsVersion++;
+          const rollback = new Set(likedSongIds.value);
+          if (operation.wasLiked) rollback.add(trackId);
+          else rollback.delete(trackId);
+          likedSongIds.value = rollback;
+        }
+        throw err;
+      } finally {
+        if (pendingLikes.get(trackId) === operation) pendingLikes.delete(trackId);
+      }
+    };
+
+    /**
+     * 切换红心状态
+     * @param trackId - 曲目全局 ID
+     * @returns 请求是否成功
+     */
+    const toggleLike = async (trackId: string): Promise<boolean> => {
+      if (!profile.value || pendingLikes.has(trackId)) return false;
+      const version = accountVersion;
+      try {
+        await applySongLike(trackId, !likedSongIds.value.has(trackId));
+        const playlistId = likedPlaylistId.value;
+        if (playlistId && currentLikedPlaylistId === playlistId)
+          void refreshLikedPlaylist(playlistId);
         return true;
       } catch (err) {
-        // 仅在明确为 401（下架歌曲无法通过红心接口收藏）且存在喜欢歌单时尝试降级操作
-        const is401 =
-          (err as { status?: number })?.status === 401 ||
-          (err as { body?: { code?: number } })?.body?.code === 401 ||
-          (err instanceof Error && err.message.includes("401"));
-
-        if (is401 && likedPlaylistId.value) {
-          try {
-            if (!wasLiked) {
-              await addTracksToPlaylist(likedPlaylistId.value, [trackId]);
-            } else {
-              await removeTracksFromPlaylist(likedPlaylistId.value, [trackId]);
-            }
-            persistLikedSongIds();
-            return true;
-          } catch (plErr) {
-            console.warn("[user] fallback to playlist add failed:", plErr);
-          }
-        }
-        const rollback = new Set(likedSongIds.value);
-        if (wasLiked) rollback.add(trackId);
-        else rollback.delete(trackId);
-        likedSongIds.value = rollback;
+        if (version !== accountVersion || !profile.value) return false;
         console.warn("[user] toggle like failed:", err);
         return false;
       }
@@ -506,8 +597,8 @@ export const useUserStore = defineStore(
 
     /**
      * 新建歌单
-     * @param name 歌单名称
-     * @param privacy 歌单隐私设置，0 为公开，10 为私密
+     * @param name - 歌单名称
+     * @param privacy - 歌单隐私设置，0 为公开，10 为私密
      */
     const createPlaylist = async (name: string, privacy: 0 | 10 = 0): Promise<Playlist> => {
       const created = await apiCreatePlaylist(name, privacy);
@@ -517,7 +608,7 @@ export const useUserStore = defineStore(
 
     /**
      * 删除自建歌单
-     * @param id 歌单 ID
+     * @param id - 歌单 ID
      */
     const deletePlaylist = async (id: string): Promise<void> => {
       await apiDeletePlaylist(id);
@@ -526,8 +617,8 @@ export const useUserStore = defineStore(
 
     /**
      * 改歌单名/描述
-     * @param id 歌单 ID
-     * @param data 包含要更新的名称和描述
+     * @param id - 歌单 ID
+     * @param data - 包含要更新的名称和描述
      */
     const updatePlaylist = async (
       id: string,
@@ -544,43 +635,60 @@ export const useUserStore = defineStore(
 
     /**
      * 加歌到歌单
-     * @param playlistId 歌单 ID
-     * @param trackIds 曲目 ID 列表
+     * @param playlistId - 歌单 ID
+     * @param trackIds - 曲目 ID 列表
      * @returns 成功添加的曲目数量
      */
     const addTracksToPlaylist = async (playlistId: string, trackIds: string[]): Promise<number> => {
-      const count = await addToPlaylist(playlistId, trackIds);
-      if (count <= 0) return 0;
+      const version = accountVersion;
       if (playlistId === likedPlaylistId.value) {
-        const next = new Set(likedSongIds.value);
-        for (const trackId of trackIds) next.add(trackId);
-        likedSongIds.value = next;
-        persistLikedSongIds();
+        const ids = [...new Set(trackIds)];
+        try {
+          for (const id of ids) {
+            if (version !== accountVersion) throw new Error("平台账号已变更");
+            await applySongLike(id, true);
+          }
+          await refreshPlaylists();
+          return ids.length;
+        } finally {
+          if (version === accountVersion && currentLikedPlaylistId === playlistId) {
+            void refreshLikedPlaylist(playlistId);
+          }
+        }
       }
+      const count = await addToPlaylist(playlistId, trackIds);
+      if (version !== accountVersion) return count;
+      if (count <= 0) return 0;
       await refreshPlaylists();
       return count;
     };
 
     /**
      * 从歌单移除曲目
-     * @param playlistId 歌单 ID
-     * @param trackIds 曲目 ID 列表
+     * @param playlistId - 歌单 ID
+     * @param trackIds - 曲目 ID 列表
      */
     const removeTracksFromPlaylist = async (
       playlistId: string,
       trackIds: string[],
     ): Promise<void> => {
-      await removeFromPlaylist(playlistId, trackIds);
+      const version = accountVersion;
       if (playlistId === likedPlaylistId.value) {
-        const removeSet = new Set(trackIds);
-        const next = new Set(likedSongIds.value);
-        for (const trackId of trackIds) next.delete(trackId);
-        likedSongIds.value = next;
-        persistLikedSongIds();
-        likedPlaylistTracks.value = likedPlaylistTracks.value.filter(
-          (track) => !removeSet.has(track.id),
-        );
+        try {
+          for (const id of new Set(trackIds)) {
+            if (version !== accountVersion) throw new Error("平台账号已变更");
+            await applySongLike(id, false);
+          }
+          await refreshPlaylists();
+          return;
+        } finally {
+          if (version === accountVersion && currentLikedPlaylistId === playlistId) {
+            void refreshLikedPlaylist(playlistId);
+          }
+        }
       }
+      await removeFromPlaylist(playlistId, trackIds);
+      if (version !== accountVersion) return;
       await refreshPlaylists();
     };
 
@@ -613,17 +721,20 @@ export const useUserStore = defineStore(
 
     /** 续期 cookie */
     const refresh = async (): Promise<void> => {
+      const version = accountVersion;
       lastRefreshAttemptAt = Date.now();
       try {
         const renewed = await refreshLoginApi();
-        if (renewed) lastRefreshAt.value = Date.now();
+        if (renewed && version === accountVersion && profile.value) {
+          lastRefreshAt.value = Date.now();
+        }
       } catch (err) {
         console.warn("[user] refresh netease session failed:", err);
       }
     };
 
     /** 校验 cookie 并同步最新 profile 与用户内容 */
-    const fetchStatus = async (): Promise<boolean> => {
+    const fetchStatus = async (reloadContent = true): Promise<boolean> => {
       const requestId = ++statusRequestId;
       try {
         const latest = await fetchLoginStatus();
@@ -632,7 +743,7 @@ export const useUserStore = defineStore(
           const previousUserId = profile.value?.userId;
           profile.value = latest;
           if (previousUserId && previousUserId !== latest.userId) clearContent();
-          syncContent(latest.userId);
+          if (reloadContent || previousUserId !== latest.userId) syncContent(latest.userId);
           const lastRefresh = Math.max(lastRefreshAt.value, lastRefreshAttemptAt);
           if (Date.now() - lastRefresh > REFRESH_INTERVAL_MS) void refresh();
           return true;
@@ -652,13 +763,13 @@ export const useUserStore = defineStore(
           await invalidateSession();
           return false;
         }
-        // 网络失败保留缓存的 profile，不强制登出（离线可用性）
+        /** 网络失败保留缓存的 profile，不强制登出（离线可用性） */
         return profile.value !== null;
       }
     };
 
     onNeteaseAuthFailure(() => {
-      void fetchStatus();
+      void invalidateSession();
     });
 
     /** 登出 */
@@ -693,6 +804,7 @@ export const useUserStore = defineStore(
       isLiked,
       loadContent,
       toggleLike,
+      isLikePending: (trackId: string): boolean => pendingLikes.has(trackId),
       ensureLikedPlaylist,
       clearContent,
 

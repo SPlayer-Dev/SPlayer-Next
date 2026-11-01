@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import type { LyricLine } from "@shared/types/lyrics";
+import type { LyricLine } from "lyric-kit";
+
 import { useSettingsStore } from "@/stores/settings";
-import AMLLLyrics from "./AMLLLyrics.vue";
-import DefaultLyrics from "./DefaultLyrics.vue";
-import LyricCredit from "./LyricCredit.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -22,6 +20,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: "seek", timeMs: number): void;
+  (e: "ready"): void;
 }>();
 
 const settings = useSettingsStore();
@@ -33,6 +32,10 @@ type LyricEngineInstance = {
 };
 
 const activeEngineRef = ref<LyricEngineInstance | null>(null);
+
+/** 歌词引擎按需加载 */
+const AMLLLyrics = defineAsyncComponent(() => import("./AMLLLyrics.vue"));
+const DefaultLyrics = defineAsyncComponent(() => import("./DefaultLyrics.vue"));
 
 const springConfig = computed(() => ({
   mass: settings.lyric.springMass,
@@ -76,6 +79,7 @@ defineExpose({
     :show-word-romanization="settings.lyric.showWordRomanization"
     :bg-always-below="settings.lyric.bgAlwaysBelow"
     @seek="emit('seek', $event)"
+    @ready="emit('ready')"
   >
     <template #bottom>
       <slot name="bottom">
@@ -92,6 +96,7 @@ defineExpose({
     :align-position="settings.lyric.alignPosition"
     :word-fade-width="settings.lyric.wordFadeWidth"
     :spring-config="springConfig"
+    :alignment="settings.lyric.alignment"
     :inactive-alpha="settings.lyric.inactiveAlpha"
     :hide-passed-lines="settings.lyric.hidePassedLines"
     :enable-blur="settings.lyric.enableBlur"
@@ -100,11 +105,13 @@ defineExpose({
     :enable-emphasize-effect="settings.lyric.enableEmphasizeEffect"
     :enable-scale="settings.lyric.enableScale"
     :bg-always-below="settings.lyric.bgAlwaysBelow"
+    :enable-balanced-wrap="settings.lyric.enableBalancedWrap"
     :show-translation="settings.lyric.showTranslation"
     :show-ruby="settings.lyric.showRuby"
     :show-romanization="settings.lyric.showRomanization"
     :show-word-romanization="settings.lyric.showWordRomanization"
     @seek="emit('seek', $event)"
+    @ready="emit('ready')"
   >
     <template #bottom>
       <slot name="bottom">

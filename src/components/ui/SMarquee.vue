@@ -68,7 +68,7 @@ onUnmounted(() => {
     }"
   >
     <div
-      class="inline-flex whitespace-nowrap min-w-full will-change-transform"
+      class="inline-flex whitespace-nowrap min-w-full"
       :class="isOverflowing && 's-marquee-scrolling'"
     >
       <span ref="textRef" class="inline-flex items-center whitespace-nowrap shrink-0">
@@ -87,6 +87,7 @@ onUnmounted(() => {
 
 <style scoped>
 .s-marquee-scrolling {
+  will-change: transform;
   animation: s-marquee-scroll var(--marquee-duration, 10s) linear var(--marquee-delay, 2s) infinite;
 }
 @keyframes s-marquee-scroll {

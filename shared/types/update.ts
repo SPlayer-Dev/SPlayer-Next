@@ -1,38 +1,52 @@
-/** 应用更新阶段 */
-export type UpdatePhase =
-  "idle" | "checking" | "available" | "downloading" | "downloaded" | "upToDate" | "error";
+import type { UpdateChannel } from "./settings";
 
-/** 更新信息 */
+/** 应用更新阶段，由主进程统一管理 */
+export type UpdatePhase =
+  | "idle"
+  | "checking"
+  | "available"
+  | "downloading"
+  | "cancelling"
+  | "downloaded"
+  | "installing"
+  | "upToDate"
+  | "error";
+
 export interface UpdateMeta {
-  /** 新版本号 */
   version: string;
-  /** release notes */
   releaseNotes: string;
-  /** 发布日期（ISO 字符串） */
   releaseDate: string;
-  /** 更新包大小（字节，0 表示未知） */
   size: number;
+  /** 检查结果对应的发布页，不随之后的通道变更推断 */
+  releaseUrl: string;
 }
 
-/** 主进程推送到渲染层的更新事件 */
-export type UpdateEvent =
-  | { type: "checking" }
-  | { type: "available"; meta: UpdateMeta; manual: boolean; canInstall: boolean }
-  | { type: "notAvailable"; manual: boolean }
-  | { type: "progress"; percent: number }
-  | { type: "downloaded"; meta: UpdateMeta }
-  | { type: "error"; message: string; manual: boolean };
+/** 当前安装形式支持的更新方式 */
+export type UpdateMode = "inApp" | "external" | "store";
+export type UpdateErrorSource = "check" | "download" | "install";
 
-/** 更新模块对渲染层暴露的 API */
+/** 可恢复的完整更新快照，不包含安装包或下载器对象 */
+export interface UpdateState {
+  revision: number;
+  channel: UpdateChannel;
+  phase: UpdatePhase;
+  mode: UpdateMode;
+  meta: UpdateMeta | null;
+  percent: number;
+  error: { source: UpdateErrorSource; message: string } | null;
+}
+
+export interface UpdateEvent {
+  state: UpdateState;
+  notification?: "available" | "upToDate" | "downloaded" | "error";
+  manual?: boolean;
+}
+
 export interface UpdateApi {
-  /** 检查更新 */
-  check: (manual: boolean) => Promise<void>;
-  /** 下载更新（Win/Linux） */
-  download: () => Promise<void>;
-  /** 退出并安装 */
-  install: () => Promise<void>;
-  /** 打开 Releases 下载页 */
+  getState: () => Promise<UpdateState>;
+  check: (manual: boolean) => Promise<UpdateState>;
+  download: () => Promise<UpdateState>;
+  install: () => Promise<UpdateState>;
   openDownloadPage: () => Promise<void>;
-  /** 订阅更新事件，返回取消订阅函数 */
   onEvent: (callback: (event: UpdateEvent) => void) => () => void;
 }

@@ -7,9 +7,10 @@
     "installNow": "Restart & Install",
     "goDownload": "Go to Download",
     "goStore": "Update in Store",
-    "upToDate": "You're on the latest version",
+    "upToDate": "No newer version is available on this channel",
     "readyToast": "Update ready — restart to install",
-    "failed": "Update failed, please try again later"
+    "failed": "Update failed, please try again later",
+    "installing": "Starting installer"
   },
   "onboarding": {
     "next": "Next",
@@ -106,6 +107,7 @@
     "delete": "Delete",
     "enable": "Enable",
     "enabled": "Enabled",
+    "disabled": "Disabled",
     "active": "Active",
     "saveAndRelaunch": "Save & Relaunch",
     "reset": "Reset",
@@ -391,6 +393,8 @@
   },
   "search": {
     "title": "Search",
+    "plugins": "Plugins",
+    "pluginSource": "Select source",
     "titleSuffix": "search results",
     "emptyKeyword": "Type a keyword to start searching",
     "noResults": "No matching results",
@@ -404,6 +408,7 @@
     }
   },
   "streaming": {
+    "favoritesOnly": "Favorites only",
     "hint": "Connect to Media Source",
     "hintDetail": "Add a personal streaming server with encrypted configuration",
     "errorCode": {
@@ -419,6 +424,7 @@
       "playlists": "Playlists"
     },
     "empty": {
+      "noFavorites": "No favorite songs on this server",
       "noServer": "No streaming server configured",
       "addHint": "Click the button at the top right to add one",
       "goToSettings": "Go to settings",
@@ -463,6 +469,8 @@
   "player": {
     "prev": "Previous",
     "next": "Next",
+    "transitioning": "Crossfade",
+    "automixing": "AutoMix",
     "heartMode": {
       "needLogin": "Sign in to use Heart Mode",
       "noSeed": "No seed track available for Heart Mode",
@@ -544,6 +552,7 @@
       "play": "Play",
       "playNext": "Play Next",
       "showInExplorer": "Open Location",
+      "copyFile": "Copy Song File",
       "copyPath": "Copy File Path",
       "editTags": "Edit Metadata",
       "download": "Download Song",
@@ -574,7 +583,11 @@
     }
   },
   "quality": {
-    "details": "Audio Quality",
+    "outputInfo": "Output Information",
+    "outputSection": "Output Information",
+    "outputMode": "Output Mode",
+    "dspSection": "Audio Processing",
+    "details": "Audio Details",
     "codec": "Codec",
     "sampleRate": "Sample Rate",
     "bitDepth": "Bit Depth",
@@ -582,7 +595,10 @@
     "channels": "Channels",
     "stereo": "Stereo",
     "mono": "Mono",
-    "multiChannel": "Multi-channel"
+    "multiChannel": "Multi-channel",
+    "tempoPitch": "Speed & Pitch",
+    "limiter": "Output Limiter",
+    "resampling": "Resampling"
   },
   "playlist": {
     "title": "Playlist",
@@ -746,6 +762,8 @@
       "update": "Update",
       "language": "Language",
       "playControl": "Playback Control",
+      "playBehavior": "Playback Behavior",
+      "playbackTransition": "Playback Transition",
       "audioSource": "Audio Source",
       "scrobble": "Scrobble",
       "lyricContent": "Lyric Content",
@@ -762,6 +780,7 @@
       "theme": "Theme",
       "appearanceStyle": "Appearance Style",
       "layout": "Layout",
+      "softwareAnimations": "Transitions & Animations",
       "font": "Fonts",
       "playerBar": "Player Bar",
       "nowPlaying": "Now Playing",
@@ -799,7 +818,11 @@
       "showMore": "More Contributors",
       "collapse": "Collapse",
       "commit": "Commit",
-      "date": "Date"
+      "date": "Date",
+      "dependencies": {
+        "lyrics": "Apple Music-style lyrics display library",
+        "neteaseApi": "NCM API backup and enhancements"
+      }
     },
     "storeVersion": "Store",
     "language": {
@@ -845,10 +868,16 @@
       "description": "Restore playback position on startup"
     },
     "searchPlayBehavior": {
-      "label": "Search Playback Behavior",
-      "description": "Playback strategy when double-clicking a track on the search page",
+      "label": "Search Playback",
+      "description": "Configure what double-clicking a track on the search page does",
       "current": "Play Current Track Only",
       "all": "Play All Results"
+    },
+    "songListPlayBehavior": {
+      "label": "Song Play Button Behavior",
+      "description": "Configure the play button at the start of each song row",
+      "current": "Play Current Track Only",
+      "all": "Play Whole List"
     },
     "showLyricInBar": {
       "label": "Show Lyric While Playing",
@@ -870,6 +899,34 @@
       "label": "Loudness Normalization",
       "description": "Automatically balance volume levels between tracks"
     },
+    "transitionMode": {
+      "label": "Transition mode",
+      "description": "Adjust how songs sound when they change",
+      "none": "No transition",
+      "crossfade": "Crossfade",
+      "automix": "AutoMix"
+    },
+    "automixCrossfadeFallback": {
+      "label": "Crossfade when mixing fails",
+      "description": "Crossfade when tracks can't be mixed"
+    },
+    "automixComponents": {
+      "label": "AutoMix model management",
+      "description": "Models for the AutoMix effect; falls back to the default effect when required models aren't ready",
+      "configure": "Configure models",
+      "download": "Download",
+      "ready": "Installed",
+      "unsupported": "Unavailable",
+      "missing": "Not installed",
+      "error": "Installation failed"
+    },
+    "transitionPreference": {
+      "label": "Mix handoff preference",
+      "description": "Adjust when the transition starts and how long songs overlap; Eager starts earlier and lasts longer",
+      "conservative": "Conservative",
+      "standard": "Standard",
+      "eager": "Eager"
+    },
     "songLevel": {
       "label": "Online Audio Quality",
       "description": "Preferred quality for online tracks; the actual level depends on what your account supports",
@@ -888,7 +945,7 @@
     },
     "preloadNextTrack": {
       "label": "Preload next track",
-      "description": "Fetch the next track's playback info in advance, which may increase network usage"
+      "description": "Cache and decode the next track in advance, which may increase network usage"
     },
     "outputDevice": {
       "label": "Output Device",
@@ -898,6 +955,17 @@
     "rememberDeviceVolume": {
       "label": "Remember Device Volume",
       "description": "Independently save and restore volume for each audio output device"
+    },
+    "audioOutputMode": {
+      "label": "Audio Output Mode",
+      "description": "Select the current Windows WASAPI audio output mode",
+      "shared": "Shared Mode",
+      "exclusive": "WASAPI Exclusive Mode",
+      "fallback": {
+        "deviceBusy": "The device could not be opened exclusively and has fallen back to shared mode",
+        "formatUnsupported": "The device does not support the required exclusive-mode format, falling back to shared mode",
+        "unavailable": "Exclusive mode is currently unavailable, falling back to shared mode"
+      }
     },
     "pauseOnDeviceSwitch": {
       "label": "Pause on Device Switch",
@@ -991,12 +1059,12 @@
     "amllDbServer": {
       "label": "AMLL TTML DB Server",
       "description": "Make sure the URL is correct, otherwise lyric fetch will fail",
-      "placeholder": "Enter AMLL TTML DB URL",
+      "placeholder": "Leave empty to use the official API",
       "warning": "If you do not know what this does, please leave it as default",
-      "hint": "URL must be valid and contain the required placeholders",
-      "placeholders": "%p is the platform path, %s is the song ID",
+      "hint": "Leave empty to use the official AMLL API; a mirror URL must contain %s",
+      "placeholders": "%s is the song ID (required), %p is the platform path (optional)",
       "docsHint": "More info at",
-      "invalid": "Invalid URL — required placeholders missing"
+      "invalid": "Invalid URL — %s placeholder missing"
     },
     "enableExcludeLyrics": {
       "label": "Enable Lyric Exclusion",
@@ -1062,7 +1130,8 @@
         "closePlayer": "Close player view",
         "togglePlaylist": "Show / hide playlist",
         "openSearch": "Open search",
-        "searchInPage": "Search in page"
+        "searchInPage": "Search in page",
+        "openSettings": "Open settings"
       }
     },
     "engine": {
@@ -1075,13 +1144,22 @@
     },
     "confirm": {
       "highResourceTitle": "Resource-Intensive Feature",
+      "enableTitle": "Confirm enabling",
+      "scrobbleRiskContent": "Scrobbling is still experimental. Reported listening records are not guaranteed to count as valid plays, and the associated risks are not yet fully understood.\nEnabling it may trigger account risk controls or other account security issues. Consider the potential risks carefully before enabling this feature.",
       "highResourceContent": "Enabling it may noticeably increase memory and CPU usage, and could cause stuttering on lower-end devices. Enable it anyway?",
+      "transitionHighResourceContent": "Playback transitions are resource-intensive and are intended for users with higher-performance devices.\nThis feature is still in testing, and for some tracks the transition may currently sound worse than a plain track change.\nEnabling it also turns on track preloading, song caching and streaming caching, which increases memory, CPU, network and disk usage. Enable it anyway?",
       "restartRequiredTitle": "Restart Required",
       "restartRequiredContent": "This setting requires an app restart. Save and relaunch now?",
       "testChannelTitle": "Switch to a Test Channel",
-      "testChannelContent": "Beta and Alpha channels receive test releases early. Alpha releases may be highly unstable. Switch anyway?",
+      "testChannelContent": "Beta and Nightly channels receive test releases early. Nightly releases may be highly unstable. Switch anyway?",
       "kugouLoginVersionTitle": "Switch KG Login Version",
-      "kugouLoginVersionContent": "After switching, the current credentials will not match the new version. You must log out and scan the QR code again, or VIP privileges and high-quality playback will stop working. Switch anyway?"
+      "kugouLoginVersionContent": "After switching, the current credentials will not match the new version. You must log out and scan the QR code again, or VIP privileges and high-quality playback will stop working. Switch anyway?",
+      "exclusiveModeTitle": "Switch to Exclusive Mode",
+      "exclusiveModeContent": "Exclusive mode bypasses the system mixer and prefers the source sample rate and bit depth, making it suitable for external DACs / Hi-Fi gear. Player volume, EQ and other processing still apply, so bit-perfect output is not guaranteed. Other apps may be unable to play audio while exclusive. If exclusive mode is unavailable, shared mode will be attempted; it may also fail if another app holds the device exclusively. Switch anyway?",
+      "preloadCacheTitle": "Enable the caches required for preloading?",
+      "preloadCacheContent": "Preloading requires caching the next track's audio. Continuing will enable both song caching and streaming caching, which may increase network traffic and disk usage",
+      "disableSongCacheTitle": "Disable Song Cache?",
+      "disableSongCacheContent": "Preloading and crossfade depend on the song cache and will be disabled as well"
     },
     "useAMSpring": {
       "label": "Spring Animation Debug Switch",
@@ -1145,11 +1223,19 @@
     },
     "adaptiveFontSize": {
       "label": "Adaptive Font Size",
-      "description": "Auto-adjust lyric font size based on window size"
+      "description": "Adjust lyric size with window height"
     },
     "fontSize": {
       "label": "Font Size",
-      "description": "Effective when adaptive is off"
+      "description": "Main lyric text size"
+    },
+    "translationFontSizeFollowMain": {
+      "label": "Follow Main Lyric Font Size",
+      "description": "Use half the main lyric font size"
+    },
+    "translationFontSize": {
+      "label": "Translation Font Size",
+      "description": "Used when following main size is off"
     },
     "fontWeight": {
       "label": "Font Weight",
@@ -1170,6 +1256,10 @@
       "label": "Auto Immersive Mode",
       "description": "Hide top/bottom bars and the cursor when the mouse is idle or leaves the window"
     },
+    "keepScreenAwake": {
+      "label": "Keep screen awake during playback",
+      "description": "Only while Now Playing is expanded"
+    },
     "showTranslation": {
       "label": "Show Translation",
       "description": "Display translated lyrics"
@@ -1189,6 +1279,18 @@
     "enableScale": {
       "label": "Lyric Scale",
       "description": "Scale down inactive lines slightly to highlight current line"
+    },
+    "enableBalancedWrap": {
+      "label": "Balanced Line Wrap",
+      "description": "Wrap long lines into lines of similar length, breaking at punctuation and spaces first"
+    },
+    "lyricAlignment": {
+      "label": "Lyric Alignment",
+      "description": "Automatically place singers on opposite sides, or align all lines left, center, or right",
+      "auto": "Auto",
+      "left": "Left",
+      "center": "Center",
+      "right": "Right"
     },
     "bgAlwaysBelow": {
       "label": "Background Lyrics Always Below",
@@ -1247,7 +1349,7 @@
     },
     "inactiveAlpha": {
       "label": "Inactive Opacity",
-      "description": "Base opacity for non-active lines"
+      "description": "Base opacity for non-active lines, also applied to translations and romanizations"
     },
     "desktopLyricEnabled": {
       "label": "Enable Desktop Lyric",
@@ -1557,6 +1659,12 @@
       "sidebarFull": "Immersive Sidebar",
       "floating": "Dynamic Floating"
     },
+    "songListStyle": {
+      "label": "Song List Style",
+      "description": "Display density of song lists",
+      "comfortable": "Comfortable",
+      "compact": "Compact"
+    },
     "routeTransition": {
       "label": "Page Transition",
       "description": "Animation effect when switching pages",
@@ -1564,6 +1672,14 @@
       "fade": "Fade",
       "slide": "Slide",
       "zoom": "Zoom"
+    },
+    "reduceMotion": {
+      "label": "Reduce Motion",
+      "description": "Reduce interface motion and resource usage"
+    },
+    "seamlessTransition": {
+      "label": "Shared Element Transitions",
+      "description": "Seamlessly transition elements between two pages"
     },
     "sidebarCollapsed": {
       "label": "Collapse Sidebar",
@@ -1661,6 +1777,9 @@
       "label": "Sync Loves",
       "description": "Mirror your likes as Last.fm Love / Unlove"
     },
+    "lastfmAccount": {
+      "label": "Last.fm Account"
+    },
     "lastfm": {
       "connect": "Connect account",
       "connecting": "Finish authorization in your browser…",
@@ -1676,6 +1795,12 @@
         "failed": "Connection failed, please retry",
         "disconnected": "Disconnected from Last.fm"
       }
+    },
+    "qmAccount": {
+      "label": "QQ Music Account"
+    },
+    "kgAccount": {
+      "label": "Kugou Music Account"
     },
     "platformLogin": {
       "title": "Log in to {name} Account",
@@ -1713,15 +1838,10 @@
     },
     "updateChannel": {
       "label": "Update Channel",
-      "description": "Choose between Stable, Beta preview, Alpha internal, or Nightly updates",
+      "description": "Choose which releases to receive. Switching channels never automatically downgrades the app.",
       "stable": "Stable",
       "beta": "Beta Preview",
-      "alpha": "Alpha Experimental",
       "nightly": "Nightly Build"
-    },
-    "checkUpdate": {
-      "label": "Check for Updates",
-      "description": "Check for a new version now"
     },
     "showPerformanceMonitor": {
       "label": "Performance Monitor",
@@ -1774,17 +1894,20 @@
     },
     "neteaseScrobbleEnabled": {
       "label": "Enable scrobble",
-      "description": "Automatically report listening records to NCM after a track has played long enough"
+      "description": "Sync NCM listening records using actual playback time"
     },
     "neteaseScrobbleMode": {
       "label": "NCM scrobble method",
-      "description": "Choose which reporting interface is used for automatic NCM listening records",
-      "legacy": "Legacy log API",
+      "description": "Choose the reporting protocol for syncing listening records",
+      "legacy": "Web log API",
       "ncbl": "NCBL encrypted API"
     },
     "orpheusProtocol": {
       "label": "Wake this app via the Orpheus protocol",
       "description": "This protocol is normally used by the web player to launch the official client; enabling it may prevent the official client from being launched"
+    },
+    "streamingServerList": {
+      "label": "Media Source Management"
     },
     "streamingEnabled": {
       "label": "Enable streaming",
@@ -1922,6 +2045,12 @@
       "confirmDesc": "All playlists, sign-in state and caches will be wiped and settings reset. This cannot be undone.",
       "done": "All data has been cleared"
     },
+    "pluginImport": {
+      "label": "Import Plugins"
+    },
+    "pluginList": {
+      "label": "Installed Plugins"
+    },
     "plugins": {
       "securityWarningTitle": "Mind the security risks before installing",
       "securityWarning": "Plugins are third-party code. The app sandboxes them as much as possible, but the risk cannot be fully eliminated — a malicious plugin may access your data or perform dangerous actions. Only install plugins from sources you trust.",
@@ -1970,8 +2099,6 @@
         "disabled": "Disabled",
         "unloaded": "Unloaded"
       },
-      "sectionSource": "Source Plugins",
-      "sectionControl": "Control Plugins",
       "detail": {
         "title": "Plugin Details",
         "intro": "About",
@@ -1980,7 +2107,6 @@
         "info": "Info",
         "noDescription": "No description",
         "grantNone": "This plugin declares no permissions",
-        "autoGranted": "Auto-granted",
         "sources": "Sources",
         "events": "Events",
         "controls": "Playback control",
@@ -1995,9 +2121,26 @@
         "homepage": "Homepage"
       },
       "grant": {
-        "network": { "label": "Network", "desc": "Can make network requests" },
-        "control": { "label": "Control", "desc": "Can control the player" },
-        "ui": { "label": "Interface", "desc": "Can extend or modify the app interface" }
+        "network": {
+          "label": "Network",
+          "desc": "Can make network requests"
+        },
+        "control": {
+          "label": "Control",
+          "desc": "Can control the player"
+        },
+        "ui": {
+          "label": "Interface",
+          "desc": "Can add song menus and send system notifications"
+        },
+        "library": {
+          "label": "Library",
+          "desc": "Can search the local library and read track metadata"
+        },
+        "api": {
+          "label": "Platform APIs",
+          "desc": "Call music platform APIs using the current session"
+        }
       }
     },
     "pluginManager": {
@@ -2143,9 +2286,21 @@
       "button": "Clear All",
       "confirmTitle": "Clear all database caches?",
       "confirmDesc": "All database caches above will be cleared. This cannot be undone."
+    },
+    "automixModels": {
+      "beat": {
+        "label": "Beat model (Beat This!)"
+      },
+      "demucs": {
+        "label": "Stem model (Demucs)"
+      },
+      "runtime": {
+        "label": "Analysis runtime"
+      }
     }
   },
   "collection": {
+    "disc": "Disc {disc}",
     "totalDuration": "About {time}",
     "unknownAlbum": "Unknown Album",
     "empty": "No songs",
@@ -2245,6 +2400,7 @@
     "last90Days": "Last 90 days"
   },
   "errors": {
+    "PERMISSION_DENIED": "This account does not have permission to perform this action",
     "dialogTitle": "Something went wrong",
     "deviceHint": "No audio output device detected. Please connect headphones or speakers and try again.",
     "DEVICE_NOT_FOUND": "No audio output device found",
@@ -2256,7 +2412,7 @@
     "NETWORK_ERROR": "Failed to reach audio source, check network or try another",
     "NETWORK_TIMEOUT": "Audio source timed out, check network or try another",
     "URL_RESOLVE_FAILED": "Failed to get playback URL",
-    "NO_PLUGIN_AVAILABLE": "No plugin available for this platform",
+    "NO_PLUGIN_AVAILABLE": "No music source plugin available",
     "NETEASE_LOGIN_EXPIRED": "Login expired; switched to guest mode",
     "NETEASE_VIP_REQUIRED": "This track requires a membership or separate purchase",
     "NETEASE_TRIAL_DISABLED": "Only a trial is available; enable trial playback in settings",

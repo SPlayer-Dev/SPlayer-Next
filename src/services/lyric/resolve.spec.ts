@@ -53,7 +53,7 @@ describe("resolveOnlineByPreference 平台优先与智能回退", () => {
         return {
           platform: "kugou",
           format: "krc",
-          content: "[00:01.000]<0,1000>酷狗KRC",
+          content: "[00:01.000]<0,1000>KGKRC",
         };
       }
       return null;
@@ -76,7 +76,7 @@ describe("resolveOnlineByPreference 平台优先与智能回退", () => {
     settings.lyric.lyricSourcePreference = "kugou";
     settings.lyric.lyricSourceOrder = ["netease", "qqmusic", "kugou"];
 
-    // 酷狗完全查无此歌，QQ音乐有
+    // KG完全查无此歌，QM有
     mockRequestPlatformLyric.mockImplementation(async (platform: string) => {
       if (platform === "kugou") return null;
       if (platform === "netease") return null;
@@ -84,7 +84,7 @@ describe("resolveOnlineByPreference 平台优先与智能回退", () => {
         return {
           platform: "qqmusic",
           format: "qrc",
-          content: "[1000,1000]QQ音乐QRC(1000,1000)",
+          content: "[1000,1000]QMQRC(1000,1000)",
         };
       }
       return null;
@@ -98,7 +98,7 @@ describe("resolveOnlineByPreference 平台优先与智能回退", () => {
     expect(result).not.toBeNull();
     expect(result?.source.platform).toBe("qqmusic");
     expect(result?.source.format).toBe("qrc");
-    // 验证确实先查了酷狗，酷狗没有才查了 netease 和 qqmusic
+    // 验证确实先查了KG，KG没有才查了 netease 和 qqmusic
     expect(mockRequestPlatformLyric).toHaveBeenCalledWith("kugou", expect.anything());
     expect(mockRequestPlatformLyric).toHaveBeenCalledWith("netease", expect.anything());
     expect(mockRequestPlatformLyric).toHaveBeenCalledWith("qqmusic", expect.anything());

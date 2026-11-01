@@ -1,3 +1,9 @@
+import type {
+  KGAlbumItem,
+  KGArtistItem,
+  KGPlaylistItem,
+  KGSong,
+} from "@shared/types/platform/kugou";
 import type { Track } from "@shared/types/player";
 import type { CoverItem } from "@/types/artist";
 import { kugou as kgApi } from "@/apis/kugou";
@@ -6,10 +12,6 @@ import {
   kgArtistToCoverItem,
   kgPlaylistToCoverItem,
   kgSongToTrack,
-  type KGAlbumItem,
-  type KGArtistItem,
-  type KGPlaylistItem,
-  type KGSong,
 } from "@/utils/format/kugou";
 import type { SearchResult } from "./index";
 

@@ -10,6 +10,7 @@
 import { BrowserWindow, session, type Session } from "electron";
 import { getMainWindow } from "./main";
 import { coreLog } from "@main/utils/logger";
+import { t } from "@main/utils/i18n";
 
 /**
  * 伪装成普通桌面 Chrome
@@ -20,7 +21,7 @@ const FAKE_UA =
 
 /** 平台登录窗口配置 */
 interface LoginPlatformConfig {
-  title: string;
+  titleKey: Parameters<typeof t>[0];
   url: string;
   partition: string;
   logTag: string;
@@ -66,7 +67,7 @@ const openLoginWindow = async (
     minWidth: 800,
     minHeight: 600,
     center: true,
-    title: config.title,
+    title: t(config.titleKey),
     autoHideMenuBar: true,
     backgroundColor: "#ffffff",
     show: false,
@@ -121,9 +122,9 @@ const openLoginWindow = async (
 /** NCM 关心的关键 cookie；未取到 MUSIC_U 视为未登录 */
 const NETEASE_COOKIE_KEYS = ["MUSIC_U", "__csrf", "NMTID", "MUSIC_A"];
 
-/** 网易云音乐登录配置 */
+/** NCM 登录配置 */
 const NETEASE_CONFIG: LoginPlatformConfig = {
-  title: "登录网易云音乐",
+  titleKey: "loginNetease",
   url: "https://music.163.com/#/login",
   partition: "persist:netease-login",
   logTag: "[login]",

@@ -18,11 +18,14 @@ import type {
   HotkeyBinding,
   HotkeyConfig,
   HotkeyConflict,
+  HotkeyProbeResult,
 } from "@shared/types/hotkey";
 import { defaultHotkeyConfig, HOTKEY_ACTIONS } from "@shared/defaults/hotkeys";
-import { normalizeAccelerator } from "@shared/utils/accelerator";
+import { isSupportedAccelerator, normalizeAccelerator } from "@shared/utils/accelerator";
 
 let conflicts: HotkeyConflict[] = [];
+/** 录入期间暂停注册，避免已被占用的组合被系统吞掉 */
+let suspended = false;
 
 /** 取当前完整配置（store 兜底默认） */
 const readConfig = (): HotkeyConfig => {
@@ -55,6 +58,7 @@ const unregisterAll = (): void => {
  * globalEnabled = false 时只 unregisterAll 不注册新的
  */
 const applyAll = (): void => {
+  if (suspended) return;
   unregisterAll();
   const config = readConfig();
   if (!config.globalEnabled) {
@@ -69,7 +73,7 @@ const applyAll = (): void => {
     if (!accel) continue;
 
     const norm = normalizeAccelerator(accel);
-    if (!norm) {
+    if (!norm || !isSupportedAccelerator(norm)) {
       conflicts.push({ id, scope: "global", reason: "invalid" });
       continue;
     }
@@ -159,23 +163,44 @@ export const setGlobalEnabled = (enabled: boolean): HotkeyConfig => {
 /**
  * 探测某 accelerator 是否能在系统层注册成功
  * 用于录入新 global 时给 UI 实时反馈
+ * @param accelerator - 待探测的加速键
+ * @returns ok 可注册；invalid 格式或平台不支持；occupied 已被系统或其他程序占用
  */
-export const probeAccelerator = (accelerator: string): boolean => {
+export const probeAccelerator = (accelerator: string): HotkeyProbeResult => {
   const norm = normalizeAccelerator(accelerator);
-  if (!norm) return false;
+  if (!norm || !isSupportedAccelerator(norm)) return "invalid";
   const wasRegistered = globalShortcut.isRegistered(norm);
   if (wasRegistered) {
     globalShortcut.unregister(norm);
   }
-  let ok = false;
+  let result: HotkeyProbeResult = "invalid";
   try {
-    ok = globalShortcut.register(norm, () => {});
-    if (ok) globalShortcut.unregister(norm);
+    if (globalShortcut.register(norm, () => {})) {
+      globalShortcut.unregister(norm);
+      result = "ok";
+    } else {
+      result = "occupied";
+    }
   } catch {
-    ok = false;
+    result = "invalid";
   }
   if (wasRegistered) {
     applyAll();
   }
-  return ok;
+  return result;
+};
+
+/**
+ * 录入期间暂停/恢复全局快捷键
+ * 暂停时释放系统占用，保证已被注册的组合也能被录入
+ * @param recording - 是否处于录入态
+ */
+export const setRecording = (recording: boolean): void => {
+  if (recording === suspended) return;
+  suspended = recording;
+  if (suspended) {
+    globalShortcut.unregisterAll();
+    return;
+  }
+  applyAll();
 };

@@ -9,6 +9,16 @@ export default defineConfig({
     "bg-field": "bg-surface-bright/40",
   },
   theme: {
+    breakpoints: {
+      xs: "560px",
+      sm: "640px",
+      md: "768px",
+      lg: "1024px",
+      compact: "1024px",
+      sidebar: "1200px",
+      xl: "1280px",
+      "2xl": "1536px",
+    },
     fontFamily: {
       logo: "logo",
       sans: "var(--user-font, var(--app-font))",

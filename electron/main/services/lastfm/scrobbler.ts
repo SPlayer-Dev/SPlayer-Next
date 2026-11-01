@@ -86,6 +86,20 @@ export const onPosition = (): void => {
 /** 自然播放结束 */
 export const onEnded = (): void => {
   progress.end();
+  nowPlayingSent = false;
+};
+
+/** 单曲重播重新生成开始时间，下一次实际播放再发送正在播放通知 */
+export const onRepeatOneRestart = (): void => {
+  if (!current) return;
+  current = { ...current, timestamp: Math.floor(Date.now() / 1000) };
+  nowPlayingSent = false;
+  progress.load(current.durationSec, current, false);
+};
+
+/** 主动停止结算后释放元数据，不保留可重新开始的轮次 */
+export const onStopped = (): void => {
+  progress.end();
   current = null;
   nowPlayingSent = false;
 };

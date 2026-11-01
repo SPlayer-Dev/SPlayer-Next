@@ -13,16 +13,13 @@ const fileAssociations = [...SUPPORTED_AUDIO_EXTENSIONS].map((extension) => {
 });
 
 const packageVersion = JSON.parse(readFileSync("package.json", "utf8")).version as string;
-const prereleaseChannel = /-(alpha|beta|nightly)(?:\.|$)/.exec(packageVersion)?.[1];
-const inferredUpdateChannel = prereleaseChannel ?? "latest";
+const prereleaseChannel = /-(beta|nightly|dev)(?:\.|$)/.exec(packageVersion)?.[1];
+// dev 构建只作为 Actions 产物，走 Nightly 通道更新
+const inferredUpdateChannel =
+  prereleaseChannel === "dev" ? "nightly" : (prereleaseChannel ?? "latest");
 const updateChannel = process.env.UPDATE_CHANNEL ?? inferredUpdateChannel;
 
-if (
-  updateChannel !== "latest" &&
-  updateChannel !== "beta" &&
-  updateChannel !== "alpha" &&
-  updateChannel !== "nightly"
-) {
+if (updateChannel !== "latest" && updateChannel !== "beta" && updateChannel !== "nightly") {
   throw new Error(`不支持的更新通道: ${updateChannel}`);
 }
 if (packageVersion.includes("-") && !prereleaseChannel) {
@@ -43,7 +40,9 @@ const config: Configuration = {
   generateUpdatesFilesForAllChannels: true,
   files: [
     "public/**",
-    "out/**",
+    "out/main/**",
+    "out/preload/**",
+    "out/renderer/**",
     "!**/.vscode/*",
     "!src/**",
     "!native/**",
@@ -69,7 +68,7 @@ const config: Configuration = {
     {
       from: "native/audio-engine",
       to: "native",
-      filter: ["*.node"],
+      filter: ["audio-engine.node"],
     },
     {
       from: "native/audio-capture",
@@ -119,8 +118,13 @@ const config: Configuration = {
   nsis: {
     oneClick: false,
     guid: "top.imsyy.splayer-next",
-    installerIcon: "public/icons/favicon.ico",
-    uninstallerIcon: "public/icons/favicon.ico",
+    installerIcon: "public/icons/logo.ico",
+    uninstallerIcon: "public/icons/logo.ico",
+    installerHeader: "build/installer/header.bmp",
+    installerSidebar: "build/installer/sidebar.bmp",
+    uninstallerSidebar: "build/installer/sidebar.bmp",
+    include: "build/installer/installer.nsh",
+    installerLanguages: ["en_US", "zh_CN"],
     artifactName: "${productName}-${version}-${arch}-setup.${ext}",
     shortcutName: "SPlayer Next",
     uninstallDisplayName: "SPlayer Next",

@@ -21,7 +21,7 @@ const searchQuery = ref("");
 
 const handlePlayAll = (): void => {
   if (history.tracks.length === 0) return;
-  player.playFrom(history.tracks, 0, playbackContext.value);
+  player.playFrom(history.tracks, { context: playbackContext.value });
 };
 
 const clearConfirmOpen = ref(false);
@@ -113,6 +113,7 @@ onMounted(() => {
           :search-query="searchQuery"
           :playback-context="playbackContext"
           :show-size="false"
+          sort-key="history"
           enable-sort
         />
       </div>

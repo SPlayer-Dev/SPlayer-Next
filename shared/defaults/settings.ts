@@ -20,6 +20,8 @@ export const defaultSystemConfig: SystemConfig = {
     outputDevice: null,
     volume: 1,
     loudnessNormalization: false,
+    audioOutputMode: "shared",
+    keepScreenAwake: false,
     equalizer: {
       enabled: false,
       preset: "flat",
@@ -96,7 +98,7 @@ export const defaultSystemConfig: SystemConfig = {
   },
   lyric: {
     enableOnlineTTMLLyric: false,
-    amllDbServer: "https://amlldb.bikonoo.com/%p/%s.ttml",
+    amllDbServer: "",
   },
   localLyric: {
     enableLocalTTMLOverride: false,
@@ -166,7 +168,7 @@ export const defaultSystemConfig: SystemConfig = {
     },
     preferIPv4: false,
     neteaseScrobbleEnabled: false,
-    neteaseScrobbleMode: "ncbl",
+    neteaseScrobbleMode: "legacy",
     registerOrpheusProtocol: false,
   },
   windowStates: {

@@ -24,7 +24,9 @@ export const loadCoverForTrack = async (track: Track): Promise<void> => {
   const plugins = usePluginsStore();
   for (const info of plugins.list) {
     if (!info.enabled || info.status.state !== "ready") continue;
+    if (track.source === "plugin" && info.manifest.id !== track.plugin?.pluginId) continue;
     for (const [source, cap] of Object.entries(info.status.sources)) {
+      if (track.source === "plugin" && source !== track.plugin?.source) continue;
       if (!cap.actions.includes("musicPic")) continue;
       const resp = await window.api.plugins.matchCover({
         pluginId: info.manifest.id,
@@ -32,6 +34,14 @@ export const loadCoverForTrack = async (track: Track): Promise<void> => {
         track,
       });
       if (token !== currentToken) return;
+      const current = plugins.list.find((plugin) => plugin.manifest.id === info.manifest.id);
+      if (
+        !current?.enabled ||
+        current.status.state !== "ready" ||
+        !current.status.sources[source]?.actions.includes("musicPic")
+      ) {
+        continue;
+      }
       if (!resp.ok || !resp.data?.url) continue;
       const media = useMediaStore();
       // 期间可能已切歌

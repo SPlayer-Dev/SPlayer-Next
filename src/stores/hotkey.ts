@@ -4,6 +4,7 @@ import type {
   HotkeyBindingsMap,
   HotkeyConfig,
   HotkeyConflict,
+  HotkeyProbeResult,
 } from "@shared/types/hotkey";
 
 /**
@@ -55,7 +56,7 @@ export const useHotkeyStore = defineStore("hotkey", () => {
   };
 
   /** 探测某 accelerator 在系统层是否可注册 */
-  const probe = async (accelerator: string): Promise<boolean> => {
+  const probe = async (accelerator: string): Promise<HotkeyProbeResult> => {
     return window.api.hotkey.probe(accelerator);
   };
 

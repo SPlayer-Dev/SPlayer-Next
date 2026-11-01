@@ -22,6 +22,8 @@ import { registerStreamingCoverProtocol } from "@main/services/streaming/coverPr
 import { invalidateStreamingSession } from "@main/services/streaming/adapters/resolve";
 import { cancelStreamingSync, queueStreamingSync } from "@main/services/streaming/sync";
 import type { StreamingServerInput } from "@shared/types/streaming";
+import { requestStreamingFavorite } from "@main/services/streaming/favorites";
+import { stopStreamingPlayer } from "./player";
 
 /** 注册流媒体 IPC 和封面协议 */
 export const registerStreamingIpc = (): void => {
@@ -33,13 +35,26 @@ export const registerStreamingIpc = (): void => {
   );
   ipcMain.handle(
     "streaming:updateServer",
-    (_event, serverId: string, input: StreamingServerInput) => {
+    async (_event, serverId: string, input: StreamingServerInput) => {
+      const previous = getStreamingConfig().servers.find((server) => server.id === serverId);
+      const identityChanged =
+        previous?.type !== input.type ||
+        previous?.url !== input.url.trim().replace(/\/+$/, "") ||
+        previous?.username !== input.username ||
+        Boolean(input.password);
+      if (!identityChanged) return updateStreamingServer(serverId, input);
+      cancelStreamingSync(serverId);
+      await stopStreamingPlayer(serverId);
+      const updated = await updateStreamingServer(serverId, input);
       invalidateStreamingSession(serverId);
       cancelStreamingSync(serverId);
-      return updateStreamingServer(serverId, input);
+      if (identityChanged && isDbOpen()) deleteLibraryByServer(serverId);
+      return updated;
     },
   );
-  ipcMain.handle("streaming:removeServer", (_event, serverId: string) => {
+  ipcMain.handle("streaming:removeServer", async (_event, serverId: string) => {
+    cancelStreamingSync(serverId);
+    await stopStreamingPlayer(serverId);
     invalidateStreamingSession(serverId);
     cancelStreamingSync(serverId);
     removeStreamingServer(serverId);
@@ -56,14 +71,24 @@ export const registerStreamingIpc = (): void => {
   ipcMain.handle("streaming:connect", (_event, serverId: string) =>
     connectStreamingServer(serverId),
   );
-  ipcMain.handle("streaming:disconnect", (_event, serverId: string) =>
-    invalidateStreamingSession(serverId),
+  ipcMain.handle("streaming:disconnect", async (_event, serverId: string) => {
+    cancelStreamingSync(serverId);
+    await stopStreamingPlayer(serverId);
+    invalidateStreamingSession(serverId);
+  });
+  ipcMain.handle("streaming:getFavorite", (_event, serverId: string, trackId: string) =>
+    requestStreamingFavorite(serverId, trackId),
+  );
+  ipcMain.handle(
+    "streaming:setFavorite",
+    (_event, serverId: string, trackId: string, value: boolean) =>
+      requestStreamingFavorite(serverId, trackId, value),
   );
   ipcMain.handle("streaming:getSnapshot", (_event, serverId: string) =>
     getLibrarySnapshot(serverId),
   );
-  ipcMain.handle("streaming:sync", (_event, serverId: string, force = false) =>
-    queueStreamingSync(getStreamingServer(serverId), force),
+  ipcMain.handle("streaming:sync", async (_event, serverId: string, force = false) =>
+    queueStreamingSync(await getStreamingServer(serverId), force),
   );
   ipcMain.handle("streaming:search", (_event, serverId: string, query: string) =>
     searchLibrary(serverId, query.slice(0, 200)),
@@ -81,13 +106,6 @@ export const registerStreamingIpc = (): void => {
   );
   ipcMain.handle("streaming:getArtistSongs", (_event, serverId: string, artistId: string) =>
     withStreamingAdapter(serverId, (config, adapter) => adapter.getArtistSongs(config, artistId)),
-  );
-  ipcMain.handle(
-    "streaming:getStreamUrl",
-    (_event, serverId: string, trackId: string, playSessionId?: string) =>
-      withStreamingAdapter(serverId, (config, adapter) =>
-        adapter.getStreamUrl(config, trackId, playSessionId),
-      ),
   );
   ipcMain.handle(
     "streaming:getLyrics",

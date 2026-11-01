@@ -57,8 +57,12 @@ export enum ErrorCode {
   SCAN_DIR_NOT_FOUND = "SCAN_DIR_NOT_FOUND",
   /** 用户取消了目录选择 */
   SCAN_DIR_NOT_SELECTED = "SCAN_DIR_NOT_SELECTED",
+  /** 目录与已有扫描目录存在嵌套关系 */
+  SCAN_DIR_NESTED = "SCAN_DIR_NESTED",
 
   // 通用
+  /** 当前账号没有执行操作所需的权限 */
+  PERMISSION_DENIED = "PERMISSION_DENIED",
   /** 加载已被更新的 load/stop 取代（快速切歌、停止），属正常竞态结果，前端静默处理 */
   LOAD_SUPERSEDED = "LOAD_SUPERSEDED",
   /** 连续播放失败达到上限 */

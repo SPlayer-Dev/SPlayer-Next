@@ -8,16 +8,29 @@
  */
 
 import { ipcMain, dialog } from "electron";
-import type { PluginInfo } from "@shared/types/plugin";
+import type { PluginInfo, PluginGrant, PluginSearchArgs } from "@shared/types/plugin";
 import { pluginRegistry } from "@main/plugins/registry";
 import { resolveUrl, invokeMenu } from "@main/plugins/router";
 import { matchLyric, matchCover } from "@main/plugins/metadata";
+import { searchPluginTracks } from "@main/plugins/search";
 import { fetchScript, fetchMarket } from "@main/plugins/net";
 import { broadcast } from "@main/utils/broadcast";
 import { coreLog } from "@main/utils/logger";
 
+/**
+ * 注册插件管理、搜索与音源调用的进程通信处理器
+ */
 export const registerPluginIpc = (): void => {
-  ipcMain.handle("plugin:list", (): PluginInfo[] => pluginRegistry.listInfo());
+  ipcMain.handle(
+    "plugin:setPermission",
+    async (_event, id: string, grant: PluginGrant, enabled: boolean) => {
+      await pluginRegistry.setPermission(id, grant, enabled);
+    },
+  );
+  ipcMain.handle("plugin:list", async (_event, waitForPluginId?: string): Promise<PluginInfo[]> => {
+    if (waitForPluginId) await pluginRegistry.getRuntime(waitForPluginId)?.initialLoad;
+    return pluginRegistry.listInfo();
+  });
 
   ipcMain.handle("plugin:install", async (_evt, filePath: string) => {
     try {
@@ -129,6 +142,8 @@ export const registerPluginIpc = (): void => {
       };
     }
   });
+
+  ipcMain.handle("plugin:search", (_event, args: PluginSearchArgs) => searchPluginTracks(args));
 
   ipcMain.handle("plugin:resolveUrl", async (_evt, args) => {
     return resolveUrl(args);

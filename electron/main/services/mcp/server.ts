@@ -1,28 +1,26 @@
 import { appVersion } from "@main/utils/config";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
-import { getPlayer } from "@main/services/engine";
 import { playerControl } from "@main/services/playerControl";
 import * as nowPlaying from "@main/services/nowPlaying";
-import type { Track } from "@shared/types/player";
-import {
-  getAlbumList,
-  getArtistList,
-  getRandomTracks,
-  getTrackCount,
-  searchTracks,
-} from "@main/database";
-import { toMs } from "@main/utils/time";
-import { getTrayPlayMode } from "@main/services/tray";
+import { getAlbumList, getArtistList, getRandomTracks, getTrackCount } from "@main/database";
 import { createMcpEndpoint as createHttpEndpoint, type McpEndpoint } from "./endpoint";
-import { searchOnlineTracks } from "./onlineSearch";
-import { cacheTracks, getTrackById, getTracksByIds } from "./cache";
+import {
+  searchOnline,
+  searchLibrary,
+  trackSchema,
+  queueQuerySchema,
+  onlineSearchSchema,
+} from "@main/services/music";
 
 const jsonContent = (value: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(value) }],
 });
 
-/** 创建并注册 SPlayer MCP 能力 */
+/**
+ * 创建并注册 SPlayer MCP 工具与资源
+ * @returns 供 HTTP 会话使用的 MCP 服务
+ */
 const createServer = (): McpServer => {
   const server = new McpServer({
     name: "splayer-next",
@@ -33,22 +31,11 @@ const createServer = (): McpServer => {
     "get_playback_status",
     {
       title: "获取播放状态",
-      description: "获取 SPlayer 当前播放状态、进度、时长和音量。时间单位为毫秒",
+      description:
+        "获取 SPlayer 当前播放状态、队列索引、进度、时长和音量。currentIndex 从 0 开始，无当前队列项时为 -1。时间单位为毫秒",
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
-    () => {
-      const status = getPlayer().getStatus();
-      const playMode = getTrayPlayMode();
-      return jsonContent({
-        state: status.state,
-        positionMs: toMs(status.position),
-        durationMs: toMs(status.duration),
-        volume: status.volume,
-        isFinished: status.isFinished,
-        repeat: playMode.repeat,
-        shuffle: playMode.shuffle,
-      });
-    },
+    () => jsonContent(playerControl.getStatus()),
   );
 
   server.registerTool(
@@ -59,6 +46,18 @@ const createServer = (): McpServer => {
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
     () => jsonContent(nowPlaying.lightSnapshot()),
+  );
+
+  server.registerTool(
+    "get_queue",
+    {
+      title: "读取播放队列",
+      description:
+        "按当前播放顺序读取队列，返回 Track 数组、总数、当前曲目在整个队列中的索引和偏移。offset 默认 0，limit 默认 50、最多 100；无当前队列项时索引为 -1。",
+      inputSchema: queueQuerySchema.shape,
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    async (options) => jsonContent(await playerControl.getQueue(options)),
   );
 
   const controls = [
@@ -116,26 +115,13 @@ const createServer = (): McpServer => {
     {
       title: "播放指定曲目",
       description:
-        "将指定曲目加入播放队列并立即播放。推荐优先传入 trackId（来自搜索接口返回的歌曲 ID，极快），也可传入完整 track 对象。",
-      inputSchema: {
-        trackId: z.string().optional(),
-        track: z.record(z.string(), z.any()).optional(),
-      },
+        "将完整 Track 加入播放队列并请求立即播放。可直接使用搜索结果中的曲目。成功表示已派发播放请求。",
+      inputSchema: { track: trackSchema },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     },
-    ({ trackId, track }) => {
-      let targetTrack: Track | undefined;
-      if (trackId) {
-        targetTrack = getTrackById(trackId);
-      }
-      if (!targetTrack && track && typeof track.id === "string") {
-        targetTrack = track as Track;
-      }
-      if (!targetTrack) {
-        throw new Error("Invalid or missing track/trackId.");
-      }
-      playerControl.playTrack(targetTrack);
-      return jsonContent({ ok: true, id: targetTrack.id });
+    ({ track }) => {
+      playerControl.playTrack(track);
+      return jsonContent({ ok: true, id: track.id });
     },
   );
 
@@ -167,34 +153,16 @@ const createServer = (): McpServer => {
     {
       title: "添加到播放队列",
       description:
-        "批量添加最多 50 首曲目到播放队列。强烈优先传入 trackIds（即搜索接口返回的歌曲 ID 数组，响应极快）；也可传入完整 tracks 数组。position 默认为 'next'（插入到当前播放歌曲之后，下一首播放），若需追加到队列最末尾可指定为 'end'。",
+        "将完整 Track 数组加入播放队列，一次最多 50 首。position 为 next（默认，插入当前歌曲之后）或 end（追加到队列末尾）。",
       inputSchema: {
-        trackIds: z.array(z.string()).min(1).max(50).optional(),
-        tracks: z.array(z.record(z.string(), z.any())).min(1).max(50).optional(),
-        position: z.enum(["next", "end"]).optional(),
+        tracks: z.array(trackSchema).min(1).max(50),
+        position: z.enum(["next", "end"]).default("next"),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     },
-    ({ trackIds, tracks, position }) => {
-      const targetPosition = position ?? "next";
-      let targetTracks: Track[] = [];
-
-      if (trackIds && trackIds.length > 0) {
-        targetTracks = getTracksByIds(trackIds);
-      }
-      if (targetTracks.length === 0 && tracks && tracks.length > 0) {
-        if (tracks.some((track) => typeof track.id !== "string")) {
-          throw new Error("Invalid track object.");
-        }
-        targetTracks = tracks as Track[];
-      }
-
-      if (targetTracks.length === 0) {
-        throw new Error("No valid tracks or trackIds provided.");
-      }
-
-      playerControl.addToQueue(targetTracks, targetPosition);
-      return jsonContent({ ok: true, count: targetTracks.length, position: targetPosition });
+    ({ tracks, position }) => {
+      playerControl.addToQueue(tracks, position);
+      return jsonContent({ ok: true, count: tracks.length, position });
     },
   );
 
@@ -209,32 +177,19 @@ const createServer = (): McpServer => {
       },
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
-    ({ query, limit }) => {
-      const matches = searchTracks(query);
-      const sliced = matches.slice(0, limit);
-      cacheTracks(sliced);
-      return jsonContent({
-        total: matches.length,
-        tracks: sliced,
-      });
-    },
+    ({ query, limit }) => jsonContent(searchLibrary(query, limit)),
   );
 
   server.registerTool(
     "search_online_songs",
     {
       title: "搜索在线歌曲",
-      description: "按关键词搜索网易云音乐、QQ 音乐或KG音乐，返回可直接传给 play_track 的曲目",
-      inputSchema: {
-        platform: z.enum(["netease", "qqmusic", "kugou"]),
-        query: z.string().trim().min(1).max(200),
-        page: z.number().int().min(1).max(100).default(1),
-        limit: z.number().int().min(1).max(50).default(20),
-      },
+      description: "按关键词搜索在线曲目，返回可直接传给 play_track 的曲目",
+      inputSchema: onlineSearchSchema.shape,
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
     async ({ platform, query, page, limit }) =>
-      jsonContent(await searchOnlineTracks(platform, query, page, limit)),
+      jsonContent(await searchOnline({ platform, query, page, limit })),
   );
 
   server.registerTool(
@@ -247,7 +202,6 @@ const createServer = (): McpServer => {
     },
     ({ limit }) => {
       const tracks = getRandomTracks(limit);
-      cacheTracks(tracks);
       return jsonContent({ tracks });
     },
   );
@@ -333,5 +287,3 @@ const createServer = (): McpServer => {
 
 /** 创建 SPlayer MCP HTTP 端点 */
 export const createMcpEndpoint = (): McpEndpoint => createHttpEndpoint(createServer);
-
-export type { McpEndpoint } from "./endpoint";

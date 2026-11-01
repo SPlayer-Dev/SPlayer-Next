@@ -124,6 +124,7 @@ const displayItems = computed<DisplayItem[]>(() => {
       scrollEnabled: true,
       isPlaceholder: true,
       isNext: true,
+      timingLine: current,
     });
     return items;
   }
@@ -322,6 +323,7 @@ onBeforeUnmount(() => {
         :align="item.align"
         :word-by-word="resolveWordByWord(config, item)"
         :scroll-enabled="!!item.scrollEnabled"
+        :timing-line="item.timingLine"
         :is-next="!!item.isNext"
         :background-mask="config.backgroundMask"
         :style="{

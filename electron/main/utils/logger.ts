@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from "node:fs";
+import { mkdirSync } from "node:fs";
+import { readdir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import log from "electron-log";
 import { isDev } from "./config";
@@ -13,18 +14,17 @@ export const nativeLogsDir = path.join(logsBaseDir, "native");
 /**
  * 自动清理超过指定天数的旧日志文件
  */
-const autoCleanLogs = (dir: string, daysToKeep: number = 30): void => {
+const autoCleanLogs = async (dir: string, daysToKeep: number = 30): Promise<void> => {
   try {
-    if (!existsSync(dir)) return;
-    const files = readdirSync(dir);
+    const files = await readdir(dir);
     const now = Date.now();
     const msToKeep = daysToKeep * 24 * 60 * 60 * 1000;
 
     for (const file of files) {
       const filePath = path.join(dir, file);
-      const stats = statSync(filePath);
+      const stats = await stat(filePath);
       if (now - stats.mtimeMs > msToKeep) {
-        unlinkSync(filePath);
+        await unlink(filePath);
       }
     }
   } catch {}
@@ -54,7 +54,7 @@ const ignorePipeErrors = (): void => {
 export const initLogger = (): void => {
   ignorePipeErrors();
   // 确保日志目录存在
-  if (!existsSync(logsDir)) mkdirSync(logsDir, { recursive: true });
+  mkdirSync(logsDir, { recursive: true });
 
   // 按日期命名日志文件
   const dateString = new Date().toISOString().slice(0, 10);
@@ -80,7 +80,7 @@ export const initLogger = (): void => {
   console.error = defaultLog.error;
 
   // 自动清理旧日志
-  autoCleanLogs(logsDir, isDev ? 7 : 30);
+  void autoCleanLogs(logsDir, isDev ? 7 : 30);
 
   log.info(`日志系统已初始化 (${isDev ? "development" : "production"})`);
   log.info(`日志目录: ${logsDir}`);

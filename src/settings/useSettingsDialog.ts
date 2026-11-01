@@ -1,8 +1,7 @@
-import { settingsSchema } from "@/settings/schema";
 import { useStatusStore } from "@/stores/status";
 
 const open = ref(false);
-const initialCategory = ref(settingsSchema[0].id);
+const initialCategory = ref("general");
 const initialHighlight = ref<string>();
 
 /**
@@ -20,7 +19,7 @@ export const useSettingsDialog = () => ({
    * @param highlight - 需高亮定位的设置项 key
    */
   show: (category?: string, highlight?: string) => {
-    initialCategory.value = category ?? (useStatusStore().settingsCategory || settingsSchema[0].id);
+    initialCategory.value = category ?? (useStatusStore().settingsCategory || "general");
     initialHighlight.value = highlight;
     open.value = true;
   },

@@ -1,10 +1,4 @@
-/**
- * 云盘上传编排(客户端直传)
- *
- * 查重后按 needUpload 分流
- * - 需真上传:申请 token → 取 NOS 服务器 → 流式直传 → 提交信息 → 发布
- * - 秒传(文件已在网易曲库):走导入接口(check/v2 + user/song/import),不申请 token、不传字节
- */
+/** 按上传需求分流秒传导入与流式直传，并统一检查业务结果 */
 
 import http from "node:http";
 import https from "node:https";
@@ -15,6 +9,7 @@ import { stat } from "node:fs/promises";
 import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { callNetease } from "@main/apis/netease";
+import { NeteaseRequestError, type RequestResponse } from "@main/apis/netease/core/response";
 import { getEngine } from "@main/services/engine";
 import { cloudLog } from "@main/utils/logger";
 import type { CloudUploadResult, CloudUploadStage } from "@shared/types/cloudUpload";
@@ -38,6 +33,13 @@ const MIME_BY_EXT: Record<string, string> = {
 /** 进度回调形态 */
 type ProgressFn = (progress: { stage: CloudUploadStage; loaded: number; total: number }) => void;
 
+/** 上传编排必须检查业务码，避免包装为 HTTP 200 的错误继续执行 */
+const ensureSuccess = (response: Pick<RequestResponse, "status" | "body">): void => {
+  if (response.status !== 200 || Number(response.body.code) !== 200) {
+    throw new NeteaseRequestError({ ...response, cookie: [] });
+  }
+};
+
 /**
  * 流式计算文件 md5(十六进制)
  * @param filePath - 文件绝对路径
@@ -56,6 +58,7 @@ const fetchUploadHost = async (): Promise<string> => {
   const res = await fetch(`https://wanproxy.127.net/lbs?version=1.0&bucketname=${BUCKET}`, {
     signal: AbortSignal.timeout(10000),
   });
+  if (!res.ok) throw new Error(`获取上传服务器地址失败: HTTP ${res.status}`);
   const data = (await res.json()) as { upload?: string[] };
   const host = data.upload?.[0];
   if (!host) throw new Error("获取上传服务器地址失败");
@@ -111,7 +114,7 @@ const uploadToNos = (
 
     let loaded = 0;
     const counter = new Transform({
-      transform(chunk, _encoding, callback) {
+      transform: (chunk, _encoding, callback) => {
         loaded += chunk.length;
         onBytes(loaded);
         callback(null, chunk);
@@ -156,20 +159,24 @@ export const uploadCloudSong = async (
     md5,
     length: fileSize,
   });
+  ensureSuccess(checkRes);
+  if (typeof checkRes.body.needUpload !== "boolean") throw new Error("云盘查重结果缺少上传标识");
   const needUpload = Boolean(checkRes.body?.needUpload);
   const checkSongId = checkRes.body?.songId;
   cloudLog.info(`查重完成: ${fullName} needUpload=${needUpload} songId=${checkSongId}`);
 
-  // 秒传:文件已在曲库,走导入接口落库,不申请 token、不传字节
+  /** 已有曲库文件通过导入建立关联，避免重复申请上传凭据或传输字节 */
   if (!needUpload) {
     onProgress({ stage: "finishing", loaded: fileSize, total: fileSize });
     const checkV2 = await callNetease("cloud_upload_check_v2", {
       md5,
       fileSize,
     });
+    ensureSuccess(checkV2);
     const matched = checkV2.body?.data?.[0];
     cloudLog.info(`秒传查重: ${fullName} upload=${matched?.upload} songId=${matched?.songId}`);
     if (!matched?.songId) throw new Error("秒传查重失败");
+    if (Number(matched.upload) === 2) throw new Error("该歌曲无法导入云盘");
     const importRes = await callNetease("cloud_song_import", {
       songId: matched.songId,
       song: title,
@@ -177,18 +184,21 @@ export const uploadCloudSong = async (
       album,
       fileType: ext,
     });
+    ensureSuccess(importRes);
     cloudLog.info(`秒传导入完成: ${fullName} code=${importRes.body?.code}`);
     return { success: true, instant: true, songId: String(matched.songId) };
   }
 
-  // 需真上传:申请 token → 取 NOS 服务器 → 流式直传 → 提交信息 → 发布
   const tokenRes = await callNetease("cloud_nos_token", {
     ext,
     filename: baseName.replace(/\s/g, "").replace(/\./g, "_"),
     md5,
   });
+  ensureSuccess(tokenRes);
   const result = tokenRes.body?.result;
-  if (!result?.objectKey || !result?.token) throw new Error("获取上传 token 失败");
+  if (!result?.objectKey || !result?.token || result.resourceId == null) {
+    throw new Error("获取上传 token 失败");
+  }
   const { token, objectKey, resourceId } = result;
 
   onProgress({ stage: "uploading", loaded: 0, total: fileSize });
@@ -209,9 +219,11 @@ export const uploadCloudSong = async (
     artist,
     resourceId,
   });
+  ensureSuccess(infoRes);
   const songId = infoRes.body?.songId;
   if (songId == null) throw new Error("提交云盘信息失败");
-  await callNetease("cloud_pub", { songid: songId });
+  const publishRes = await callNetease("cloud_pub", { songid: songId });
+  ensureSuccess(publishRes);
   cloudLog.info(`上传发布完成: ${fullName} songId=${songId}`);
 
   return {

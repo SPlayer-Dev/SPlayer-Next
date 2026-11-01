@@ -6,6 +6,10 @@ export type StreamingServerType =
 
 /** 服务器配置视图 */
 export interface StreamingServerConfig {
+  /** 配置代次，防止修改身份后旧请求写回 */
+  revision?: number;
+  /** 账号或地址身份代次，仅改显示名称时保持不变 */
+  mediaRevision?: number;
   /** 唯一标识符 */
   id: string;
   /** 服务器显示名称 */
@@ -24,6 +28,8 @@ export interface StreamingServerConfig {
 
 /** 主进程运行时完整服务器配置 */
 export interface StreamingRuntimeConfig extends StreamingServerConfig {
+  /** 当前任务的取消信号，仅在主进程使用 */
+  signal?: AbortSignal;
   /** 明文密码 */
   password: string;
   /** 会话 Token */
@@ -98,6 +104,33 @@ export interface StreamingLibrarySnapshot {
 
 /** 渲染进程通过 contextBridge 调用的流媒体 API */
 export interface StreamingApi {
+  /**
+   * 读取服务端收藏状态
+   * @param serverId - 服务器 ID
+   * @param trackId - 服务端歌曲 ID
+   * @returns 收藏状态
+   */
+  getFavorite: (serverId: string, trackId: string) => Promise<boolean>;
+  /**
+   * 更新服务端收藏状态
+   * @param serverId - 服务器 ID
+   * @param trackId - 服务端歌曲 ID
+   * @param favorite - 目标状态
+   * @returns 服务端确认的状态
+   */
+  setFavorite: (serverId: string, trackId: string, favorite: boolean) => Promise<boolean>;
+  /**
+   * 订阅单曲收藏变化
+   * @param callback - 变更回调
+   * @returns 取消订阅函数
+   */
+  onFavoriteChanged: (callback: (change: StreamingFavoriteChange) => void) => () => void;
+  /**
+   * 订阅后台同步状态
+   * @param callback - 状态回调
+   * @returns 取消订阅函数
+   */
+  onSyncState: (callback: (state: StreamingSyncState) => void) => () => void;
   /**
    * 读取服务器配置和当前激活项
    * @returns 运行时服务器配置与激活服务器 ID
@@ -205,14 +238,6 @@ export interface StreamingApi {
    */
   getArtistSongs: (serverId: string, artistId: string) => Promise<Track[]>;
   /**
-   * 生成播放地址
-   * @param serverId - 服务器 ID
-   * @param trackId - 服务端歌曲 ID
-   * @param playSessionId - 播放会话 ID
-   * @returns 播放地址
-   */
-  getStreamUrl: (serverId: string, trackId: string, playSessionId?: string) => Promise<string>;
-  /**
    * 读取流媒体歌词
    * @param serverId - 服务器 ID
    * @param trackId - 服务端歌曲 ID
@@ -224,4 +249,18 @@ export interface StreamingApi {
     trackId: string,
     hint?: { artist?: string; title?: string },
   ) => Promise<string | null>;
+}
+
+/** 单曲收藏变更，不重传整个媒体库 */
+export interface StreamingFavoriteChange {
+  serverId: string;
+  trackId: string;
+  favorite: boolean;
+}
+
+/** 后台同步任务状态 */
+export interface StreamingSyncState {
+  serverId: string;
+  state: "running" | "completed" | "cancelled" | "failed";
+  error?: string;
 }

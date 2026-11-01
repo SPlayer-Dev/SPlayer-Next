@@ -1,24 +1,6 @@
 import type { Platform } from "./platform";
 import type { Track } from "./player";
-import type {
-  LyricFormat,
-  LyricInput,
-  LyricLine,
-  LyricMetadata,
-  LyricResult,
-  LyricSpan,
-  LyricWord,
-} from "lyric-kit";
-
-export type {
-  LyricFormat,
-  LyricInput,
-  LyricLine,
-  LyricMetadata,
-  LyricResult,
-  LyricSpan,
-  LyricWord,
-};
+import type { LyricFormat, LyricInput } from "lyric-kit";
 
 /** 默认格式优先级 */
 export const DEFAULT_LYRIC_FORMAT_ORDER: readonly LyricFormat[] = [

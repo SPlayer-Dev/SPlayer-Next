@@ -4,40 +4,16 @@
 
 import { formatSingerName } from "../core/config";
 import { qmRequest } from "../core/request";
+import { normalizeQMSong, type QMAudioInfo } from "../core/song";
+import type { QMAlbumItem, QMArtistItem, QMPlaylistItem } from "@shared/types/platform/qqmusic";
 import type { QMModule } from "../core/types";
 
 const secureUrl = (url: string | undefined): string => url?.replace(/^http:/, "https:") ?? "";
 const stripHighlight = (text: string | undefined): string => text?.replace(/<\/?em>/g, "") ?? "";
 
-interface MobileSong {
-  id?: number;
-  mid?: string;
-  title?: string;
-  interval?: number;
-  singer?: Array<{ id?: number; mid?: string; name?: string }>;
-  album?: { mid?: string; name?: string; title?: string; pmid?: string };
-  file?: {
-    media_mid?: string;
-    size_128mp3?: number;
-    size_320mp3?: number;
-    size_ape?: number;
-    size_flac?: number;
-    size_192ogg?: number;
-    size_hires?: number;
-    size_new?: number[];
-    hires_sample?: number;
-    hires_bitdepth?: number;
-  };
-  pay?: {
-    pay_month?: number;
-    pay_play?: number;
-    price_album?: number;
-  };
-}
-
 interface MobileSearchResponse {
   body?: {
-    item_song?: MobileSong[];
+    item_song?: QMAudioInfo[];
     item_album?: MobileAlbum[];
     singer?: MobileArtist[];
     item_songlist?: MobilePlaylist[];
@@ -102,6 +78,7 @@ const searchMobile = (keywords: string, page: number, limit: number, searchType:
     {
       session: false,
       auth: false,
+      signed: true,
       comm: {
         tmeAppID: "qqmusiclight",
         cv: "1003006",
@@ -110,48 +87,29 @@ const searchMobile = (keywords: string, page: number, limit: number, searchType:
     },
   );
 
+/**
+ * 搜索单曲并复用歌曲字段归一化
+ * @param keywords - 搜索关键词
+ * @param page - 从 1 开始的页码
+ * @param limit - 每页数量
+ * @returns 歌曲列表与总数
+ */
 const searchSongs = async (keywords: string, page: number, limit: number) => {
   const data = await searchMobile(keywords, page, limit, 0);
-  const songs = (data.body?.item_song ?? []).map((song) => {
-    const albumMid = song.album?.mid ?? "";
-    const albumPmid = song.album?.pmid ?? "";
-    const pictureMid = albumMid || albumPmid;
-    return {
-      id: String(song.id ?? ""),
-      mid: song.mid ?? "",
-      name: song.title ?? "",
-      artist: formatSingerName(song.singer),
-      artists: song.singer ?? [],
-      album: song.album?.name || song.album?.title || "",
-      albumMid,
-      duration: (song.interval ?? 0) * 1000,
-      mediaMid: song.file?.media_mid ?? "",
-      pay: {
-        payalbum: song.pay?.pay_month === 0 && (song.pay.price_album ?? 0) > 0 ? 1 : 0,
-        payplay: song.pay?.pay_play ?? 0,
-      },
-      size128: song.file?.size_128mp3 ?? 0,
-      size320: song.file?.size_320mp3 ?? 0,
-      sizeApe: song.file?.size_ape ?? 0,
-      sizeFlac: song.file?.size_flac ?? 0,
-      sizeOgg: song.file?.size_192ogg ?? 0,
-      sizeHiRes: song.file?.size_hires || song.file?.size_new?.[0] || 0,
-      hiResSampleRate: song.file?.hires_sample ?? 0,
-      hiResBitDepth: song.file?.hires_bitdepth ?? 0,
-      cover: pictureMid
-        ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${pictureMid}.jpg`
-        : "",
-      coverOriginal: pictureMid
-        ? `https://y.gtimg.cn/music/photo_new/T002R800x800M000${pictureMid}.jpg`
-        : "",
-    };
-  });
+  const songs = (data.body?.item_song ?? []).map((song) => normalizeQMSong(song));
   return { code: 200, total: data.meta?.sum ?? songs.length, songs };
 };
 
+/**
+ * 搜索专辑并转换为共享专辑结构
+ * @param keywords - 搜索关键词
+ * @param page - 从 1 开始的页码
+ * @param limit - 每页数量
+ * @returns 专辑列表与总数
+ */
 const searchAlbums = async (keywords: string, page: number, limit: number) => {
   const data = await searchMobile(keywords, page, limit, 2);
-  const albums = (data.body?.item_album ?? []).map((album) => ({
+  const albums: QMAlbumItem[] = (data.body?.item_album ?? []).map((album) => ({
     id: album.albummid ?? String(album.id ?? ""),
     name: album.name ?? "",
     cover: secureUrl(album.pic),
@@ -162,9 +120,16 @@ const searchAlbums = async (keywords: string, page: number, limit: number) => {
   return { code: 200, total: data.meta?.sum ?? albums.length, albums };
 };
 
+/**
+ * 搜索歌手并转换为共享歌手结构
+ * @param keywords - 搜索关键词
+ * @param page - 从 1 开始的页码
+ * @param limit - 每页数量
+ * @returns 歌手列表与总数
+ */
 const searchArtists = async (keywords: string, page: number, limit: number) => {
   const data = await searchMobile(keywords, page, limit, 1);
-  const artists = (data.body?.singer ?? []).map((artist) => ({
+  const artists: QMArtistItem[] = (data.body?.singer ?? []).map((artist) => ({
     id: artist.singerMID ?? String(artist.singerID ?? ""),
     name: artist.singerName ?? "",
     cover: secureUrl(artist.singerPic || artist.iconurl),
@@ -174,9 +139,16 @@ const searchArtists = async (keywords: string, page: number, limit: number) => {
   return { code: 200, total: data.meta?.sum ?? artists.length, artists };
 };
 
+/**
+ * 搜索歌单并转换为共享歌单结构
+ * @param keywords - 搜索关键词
+ * @param page - 从 1 开始的页码
+ * @param limit - 每页数量
+ * @returns 歌单列表与总数
+ */
 const searchPlaylists = async (keywords: string, page: number, limit: number) => {
   const data = await searchMobile(keywords, page, limit, 3);
-  const playlists = (data.body?.item_songlist ?? []).map((playlist) => ({
+  const playlists: QMPlaylistItem[] = (data.body?.item_songlist ?? []).map((playlist) => ({
     id: playlist.dissid ?? "",
     name: stripHighlight(playlist.dissname),
     cover: secureUrl(playlist.logo || playlist.layer_url),

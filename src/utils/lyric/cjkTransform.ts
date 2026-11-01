@@ -2,7 +2,8 @@
  * 歌词简繁中文转换（基于 OpenCC）
  */
 
-import type { LyricLine } from "@shared/types/lyrics";
+import type { LyricLine } from "lyric-kit";
+
 import type { CjkTransformMode } from "@shared/types/opencc";
 import { transformLyricText } from "lyric-kit";
 

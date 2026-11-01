@@ -1,6 +1,8 @@
-import { app, ipcMain } from "electron";
+import { app, dialog, ipcMain } from "electron";
 import { store } from "@main/store";
 import { isWin } from "@main/utils/config";
+import { coreLog } from "@main/utils/logger";
+import { setPlayerExpanded } from "@main/utils/powerBlocker";
 import {
   toggleDesktopLyricWindow,
   closeDesktopLyricWindow,
@@ -27,10 +29,37 @@ import {
   toggleFullscreenMainWindow,
   isMainWindowFullscreen,
   hideMainWindow,
+  getMainWindow,
+  showReadyMainWindow,
 } from "@main/window";
 
-/** 窗口管理 IPC */
-export const registerWindowIpc = (): void => {
+/**
+ * 注册窗口管理 IPC
+ * @param onStartupComplete - 由应用核心提供的启动完成回调
+ */
+export const registerWindowIpc = (onStartupComplete: () => void): void => {
+  ipcMain.on("window:setPlayerExpanded", (event, expanded: boolean) => {
+    if (event.sender !== getMainWindow()?.webContents || typeof expanded !== "boolean") return;
+    setPlayerExpanded(expanded);
+  });
+
+  ipcMain.handle("window:ready", (event) => {
+    if (event.sender !== getMainWindow()?.webContents) throw new Error("窗口来源无效");
+    return showReadyMainWindow();
+  });
+
+  ipcMain.handle("window:startupComplete", (event) => {
+    if (event.sender !== getMainWindow()?.webContents) throw new Error("窗口来源无效");
+    onStartupComplete();
+  });
+
+  ipcMain.on("window:startupFailed", (event, error: string) => {
+    if (event.sender !== getMainWindow()?.webContents) return;
+    coreLog.error("渲染进程启动失败", error);
+    dialog.showErrorBox(app.getName(), error);
+    app.quit();
+  });
+
   // 切换桌面歌词窗口
   ipcMain.handle("window:toggleDesktopLyric", () => toggleDesktopLyricWindow());
 

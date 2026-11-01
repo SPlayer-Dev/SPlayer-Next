@@ -1,5 +1,5 @@
 import type { Track } from "@shared/types/player";
-import type { NeteaseSong } from "@/types/netease";
+import type { NeteaseSong } from "@shared/types/platform/netease";
 import { netease as neteaseApi } from "@/apis/netease";
 import { ensureOk, songsToTracks } from "@/utils/format/netease";
 

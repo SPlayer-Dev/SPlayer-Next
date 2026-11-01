@@ -6,12 +6,14 @@ import { store } from "@main/store";
 import { broadcast } from "@main/utils/broadcast";
 import { serverLog } from "@main/utils/logger";
 import type { McpClientConfigParams, McpStatus } from "@shared/types/settings";
-import { createMcpEndpoint, type McpEndpoint } from "./server";
+import type { McpEndpoint } from "./endpoint";
 
 let runningServer: Server | null = null;
 let runningEndpoint: McpEndpoint | null = null;
 let runningPort: number | null = null;
 let lastError: { code: string; message: string } | null = null;
+let starting: Promise<McpStatus> | null = null;
+let startRequested = false;
 
 export const getMcpStatus = (): McpStatus => ({
   listening: runningServer !== null,
@@ -58,57 +60,75 @@ const isAllowedOrigin = (origin: string | undefined): boolean => {
 
 /** 启动仅监听本机的 MCP 服务 */
 export const startMcpServer = (): Promise<McpStatus> => {
-  return new Promise((resolve) => {
-    if (runningServer || !store.get("mcp.enabled")) {
-      resolve(getMcpStatus());
-      return;
-    }
+  startRequested = store.get("mcp.enabled");
+  if (!startRequested) return Promise.resolve(getMcpStatus());
+  if (starting) return starting;
+  if (runningServer) return Promise.resolve(getMcpStatus());
 
-    const port = store.get("mcp.port");
-    const endpoint = createMcpEndpoint();
-    const app = new Hono();
-    app.all("/mcp", async (c) => {
-      if (!store.get("mcp.enabled")) return c.json({ error: "MCP disabled" }, 403);
-      if (!hasValidAccessKey(c.req.header("x-mcp-key"))) {
-        return c.json({ error: "invalid MCP key" }, 401);
-      }
-      if (!isAllowedOrigin(c.req.header("origin"))) {
-        return c.json({ error: "invalid Origin" }, 403);
-      }
-      return endpoint.handle(c.req.raw);
-    });
-    app.get("/", (c) => c.text("SPlayer Next MCP server"));
+  starting = import("./server")
+    .then(({ createMcpEndpoint }) => {
+      if (!startRequested || !store.get("mcp.enabled")) return getMcpStatus();
+      return new Promise<McpStatus>((resolve) => {
+        const port = store.get("mcp.port");
+        const endpoint = createMcpEndpoint();
+        const app = new Hono();
+        app.all("/mcp", async (c) => {
+          if (!store.get("mcp.enabled")) return c.json({ error: "MCP disabled" }, 403);
+          if (!hasValidAccessKey(c.req.header("x-mcp-key"))) {
+            return c.json({ error: "invalid MCP key" }, 401);
+          }
+          if (!isAllowedOrigin(c.req.header("origin"))) {
+            return c.json({ error: "invalid Origin" }, 403);
+          }
+          return endpoint.handle(c.req.raw);
+        });
+        app.get("/", (c) => c.text("SPlayer Next MCP server"));
 
-    let settled = false;
-    const server = serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }) as Server;
-    server.once("error", (error: NodeJS.ErrnoException) => {
-      if (settled) return;
-      settled = true;
-      lastError = { code: error.code ?? "UNKNOWN", message: error.message };
+        let settled = false;
+        const server = serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }) as Server;
+        server.once("error", (error: NodeJS.ErrnoException) => {
+          if (settled) return;
+          settled = true;
+          lastError = { code: error.code ?? "UNKNOWN", message: error.message };
+          publishStatus();
+          serverLog.error(`MCP 服务监听 ${port} 失败 (${lastError.code}): ${lastError.message}`);
+          void endpoint.close();
+          try {
+            server.close();
+          } catch {}
+          resolve(getMcpStatus());
+        });
+        server.once("listening", () => {
+          if (settled) return;
+          settled = true;
+          runningServer = server;
+          runningEndpoint = endpoint;
+          runningPort = port;
+          lastError = null;
+          publishStatus();
+          serverLog.info(`MCP 服务已启动: http://127.0.0.1:${port}/mcp`);
+          resolve(getMcpStatus());
+        });
+      });
+    })
+    .catch((error: unknown) => {
+      lastError = { code: "UNKNOWN", message: String(error) };
       publishStatus();
-      serverLog.error(`MCP 服务监听 ${port} 失败 (${lastError.code}): ${lastError.message}`);
-      void endpoint.close();
-      try {
-        server.close();
-      } catch {}
-      resolve(getMcpStatus());
+      serverLog.error("MCP 服务初始化失败", error);
+      return getMcpStatus();
+    })
+    .finally(() => {
+      starting = null;
     });
-    server.once("listening", () => {
-      if (settled) return;
-      settled = true;
-      runningServer = server;
-      runningEndpoint = endpoint;
-      runningPort = port;
-      lastError = null;
-      publishStatus();
-      serverLog.info(`MCP 服务已启动: http://127.0.0.1:${port}/mcp`);
-      resolve(getMcpStatus());
-    });
-  });
+  return starting;
 };
 
 /** 停止 MCP 服务并释放全部会话 */
 export const stopMcpServer = async (): Promise<void> => {
+  startRequested = false;
+  await starting;
+  // 等待期间重新启用时，以最后一次请求为准
+  if (startRequested) return;
   if (!runningServer) return;
   const server = runningServer;
   const endpoint = runningEndpoint;

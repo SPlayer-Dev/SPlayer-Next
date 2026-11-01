@@ -14,6 +14,9 @@ let tickHandle: ReturnType<typeof setInterval> | null = null;
 /** "等本曲结束"模式下，时间到了但还没 pause —— 等 ended 事件触发 */
 let pendingPauseOnEnd = false;
 
+/** 是否应在当前曲目结束后停止，供过渡调度跳过下一曲 */
+export const shouldStopAfterCurrentTrack = (): boolean => pendingPauseOnEnd;
+
 const stopTick = (): void => {
   if (tickHandle !== null) {
     clearInterval(tickHandle);

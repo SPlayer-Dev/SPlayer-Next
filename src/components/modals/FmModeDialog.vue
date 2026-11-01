@@ -3,7 +3,7 @@
  * 私人 FM 模式与场景选择对话框
  */
 
-import type { PersonalFmMode, PersonalFmSubMode } from "@/types/netease";
+import type { PersonalFmMode, PersonalFmSubMode } from "@shared/types/platform/netease";
 import * as player from "@/core/player";
 import { useStatusStore } from "@/stores/status";
 import { toast } from "@/composables/useToast";

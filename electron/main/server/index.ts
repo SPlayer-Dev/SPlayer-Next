@@ -143,7 +143,7 @@ export const stopServer = (): Promise<void> => {
   runningAllowLan = false;
   publishStatus();
   const serverClosed = new Promise<void>((resolve) => {
-    // 长连接不会随 HTTP close 自动退出，先断开以允许 API 配置重启。
+    // 活跃 WebSocket 不会被 server.close 关闭，先断开以免退出任务一直等待。
     for (const client of wss?.clients ?? []) client.terminate();
     wss?.close();
     server.close((err) => {

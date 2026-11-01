@@ -13,7 +13,8 @@ const configModule = `data:text/javascript,${encodeURIComponent(`
 `)}`;
 
 // 使用内存配置和调度器替身，不读写用户配置或访问网络。
-const hooks = registerHooks({
+// 网络库按需加载，钩子需在整个用例期间保持注册
+registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier === "@main/store") return { url: configModule, shortCircuit: true };
     const stubs: Record<string, string> = {
@@ -38,17 +39,16 @@ const hooks = registerHooks({
     return nextResolve(specifier, context);
   },
 });
-const { applyIPv4Preference, fetchWithProxy, resetNetworkDispatchers } =
-  await import("./proxy").finally(() => hooks.deregister());
+const { applyIPv4Preference, fetchWithProxy, resetNetworkDispatchers } = await import("./proxy");
 const { config } = (await import(configModule)) as {
   config: { protocol: string; host: string; port: number; preferIPv4: boolean };
 };
 
 describe("IPv4 连接偏好与重试回退", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     config.protocol = "off";
     config.preferIPv4 = false;
-    resetNetworkDispatchers();
+    await resetNetworkDispatchers();
   });
 
   afterEach(() => {
@@ -142,7 +142,7 @@ describe("IPv4 连接偏好与重试回退", () => {
       (call) =>
         (call.arguments[1] as RequestInit & { dispatcher: { destroyed?: boolean } }).dispatcher,
     );
-    const dispatcher = resetNetworkDispatchers();
+    const dispatcher = await resetNetworkDispatchers();
     assert.ok(oldDispatchers.every((old) => old.destroyed && old !== dispatcher));
 
     await fetchWithProxy("https://music.163.com/api/test");

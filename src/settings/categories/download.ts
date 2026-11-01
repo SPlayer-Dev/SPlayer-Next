@@ -21,7 +21,6 @@ const downloadCategory: SettingCategory = {
           type: "custom",
           component: DownloadDirConfig,
           fullWidth: true,
-          keywords: ["downloadDir.label"],
         },
       ],
     },

@@ -1,86 +1,110 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { Query } from "../core/option";
 import type { RequestFn } from "../core/types";
 import scrobble from "./scrobble";
 
-const createRequest = () => {
-  const calls: Array<{ data: Record<string, unknown> }> = [];
-  const request = (async (_uri, data) => {
-    calls.push({ data });
-    return { status: 200, body: { code: 200 }, cookie: [] };
-  }) as RequestFn;
-  return { calls, request };
-};
+const response = { status: 200, body: { code: 200 }, cookie: ["server=value"] };
 
-describe("网易云原版日志听歌打卡", () => {
-  const sourceCases = [
-    ["list", "song", "list"],
-    ["album", "song", "album"],
-    ["artist", "song", "artist"],
-    ["song", "song", "track"],
-    ["radio", "dj", "djradio"],
-  ] as const;
+/** 浏览器实际播放的自然结束与切歌日志，用于约束请求字段 */
+const capturedWebLogs = [
+  {
+    action: "play",
+    json: {
+      mainSite: "2",
+      mainSiteWeb: "2",
+      id: "1846515862",
+      type: "song",
+      content: "",
+      time: 255,
+      wifi: 0,
+      download: 0,
+    },
+  },
+  {
+    action: "play",
+    json: {
+      mainSite: "2",
+      mainSiteWeb: "2",
+      id: "31654455",
+      type: "song",
+      content: "",
+      time: 58,
+      wifi: 0,
+      download: 0,
+    },
+  },
+];
 
-  for (const [sourceType, resourceType, expected] of sourceCases) {
-    it(`将 ${sourceType} 来源的 ${resourceType} 资源映射为 ${expected}`, async () => {
-      const { calls, request } = createRequest();
-      const resourceId = resourceType === "dj" ? "3081133072" : "123";
-
+describe("网页播放日志", () => {
+  it("自然结束与切歌的参数逐项匹配浏览器实抓日志", async () => {
+    for (const captured of capturedWebLogs) {
+      const request: RequestFn = async (path, data, options) => {
+        assert.equal(path, "/api/feedback/weblog");
+        assert.equal(options.domain, "https://clientlogusf.music.163.com");
+        assert.deepEqual(JSON.parse(String(data.logs)), [captured]);
+        return response;
+      };
       await scrobble(
-        {
-          id: resourceId,
-          sourceid: "456",
-          sourceType,
-          resourceType,
-          time: 60,
-          categoryId: resourceType === "dj" ? 7 : undefined,
-          cookie: {},
-        } satisfies Query,
+        { id: captured.json.id, time: captured.json.time, action: captured.action },
         request,
       );
-
-      assert.equal(calls.length, 2);
-      const [startplay] = JSON.parse(String(calls[0]?.data.logs));
-      const [play] = JSON.parse(String(calls[1]?.data.logs));
-      for (const log of [startplay, play]) {
-        assert.deepEqual(
-          {
-            id: log.json.id,
-            type: log.json.type,
-            sourceId: log.json.sourceId,
-            source: log.json.source,
-            sourcetype: log.json.sourcetype,
-            categoryId: log.json.categoryId,
-          },
-          {
-            id: resourceId,
-            type: resourceType,
-            sourceId: "456",
-            source: expected,
-            sourcetype: expected,
-            categoryId: resourceType === "dj" ? 7 : undefined,
-          },
+    }
+  });
+  for (const resourceType of ["song", "dj"] as const) {
+    for (const action of ["startPlay", "play"] as const) {
+      it(`${resourceType} 的 ${action} 使用官方网页字段和出口`, async () => {
+        let count = 0;
+        const request: RequestFn = async (path, data, options) => {
+          count++;
+          assert.equal(path, "/api/feedback/weblog");
+          assert.equal(options.client, "web");
+          assert.equal(options.crypto, "weapi");
+          assert.equal(options.domain, "https://clientlogusf.music.163.com");
+          assert.deepEqual(JSON.parse(String(data.logs)), [
+            {
+              action,
+              json: {
+                mainSite: "2",
+                mainSiteWeb: "2",
+                id: "123",
+                type: resourceType,
+                content: "",
+                ...(action === "play" ? { time: 256, wifi: 0, download: 0 } : {}),
+              },
+            },
+          ]);
+          return response;
+        };
+        assert.equal(
+          await scrobble(
+            { id: 123, action, resourceType, time: action === "play" ? 256 : undefined },
+            request,
+          ),
+          response,
         );
-      }
-    });
+        assert.equal(count, 1);
+      });
+    }
   }
-
-  it("任一原版日志请求失败时返回失败状态", async () => {
-    let requestCount = 0;
+  it("业务响应原样返回，不将失败包装为成功", async () => {
+    const failure = { status: 502, body: { code: 502, msg: "拒绝" }, cookie: [] };
+    assert.equal(await scrobble({ id: 123, time: 90 }, async () => failure), failure);
+  });
+  it("开始日志无需时长，结束日志必须携带有效的实际时长", async () => {
+    let count = 0;
     const request: RequestFn = async () => {
-      requestCount += 1;
-      const code = requestCount === 1 ? 200 : 500;
-      return { status: code, body: { code }, cookie: [] };
+      count++;
+      return response;
     };
-
-    const result = await scrobble(
-      { id: "123", sourceid: "123", time: 60, cookie: {} } satisfies Query,
-      request,
-    );
-
-    assert.equal(result.status, 502);
-    assert.equal(result.body.code, 502);
-    assert.equal(result.body.msg, "原版日志上报失败");
+    for (const query of [
+      { id: "0", time: 1 },
+      { id: 123, action: "wrong" },
+      ...[0, -1, Infinity, NaN].map((time) => ({ id: 123, time })),
+    ]) {
+      assert.equal((await scrobble(query, request)).status, 400);
+    }
+    assert.equal(count, 0);
+    assert.equal((await scrobble({ id: 123, action: "startPlay" }, request)).status, 200);
+    assert.equal(count, 1);
   });
 });

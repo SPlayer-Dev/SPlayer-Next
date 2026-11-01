@@ -20,7 +20,7 @@ const song: PlaybackLogResource = {
   time: 180,
 };
 
-describe("网易云 NCBL 播放日志", () => {
+describe("NCM NCBL 播放日志", () => {
   const sourceCases = [
     ["song", "song", "track"],
     ["song", "list", "list"],
@@ -59,7 +59,7 @@ describe("网易云 NCBL 播放日志", () => {
     assert.equal("_multirefers" in pld, false);
   });
 
-  it("PLV 与 PLD 保留网易云原始 fee", () => {
+  it("PLV 与 PLD 保留 NCM 原始 fee", () => {
     for (const fee of [0, 1, 4, 8] as const) {
       const resource = { ...song, fee };
       const source = { id: "456", type: "list", name: "list" };

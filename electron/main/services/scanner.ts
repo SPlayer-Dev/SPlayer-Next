@@ -9,8 +9,8 @@ import {
   deleteTracksByPaths,
   getFileRecords,
   getCueTrackPathsByDirs,
-  type UpsertTrack,
 } from "@main/database";
+import type { UpsertTrack } from "@main/database/queries";
 import { broadcast } from "@main/utils/broadcast";
 import { toCacheUrl } from "@main/utils/protocol";
 import { toMs } from "@main/utils/time";

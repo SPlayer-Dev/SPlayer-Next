@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  NODE_VERSION: 22.x
+  NODE_VERSION: 24.x
 
 jobs:
   # 智能检查 dev 分支自上次发布以来是否有新提交
@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       has_new_commits: ${{ steps.check.outputs.has_new_commits }}
+      build_sha: ${{ steps.check.outputs.build_sha }}
       prev_sha: ${{ steps.check.outputs.prev_sha }}
     steps:
       - name: Check out dev branch
@@ -35,20 +36,20 @@ jobs:
         id: check
         shell: bash
         run: |
+          echo "build_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           NIGHTLY_TAG="nightly"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "手动触发构建，直接继续执行"
-            echo "has_new_commits=true" >> "$GITHUB_OUTPUT"
-            echo "prev_sha=" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
           REMOTE_TAG_SHA=$(git ls-remote origin "refs/tags/$NIGHTLY_TAG" | awk '{print $1}')
           CURRENT_DEV_SHA=$(git rev-parse HEAD)
 
           echo "当前 dev 最新 Commit: $CURRENT_DEV_SHA"
           echo "上次 Nightly Tag Commit: $REMOTE_TAG_SHA"
           echo "prev_sha=$REMOTE_TAG_SHA" >> "$GITHUB_OUTPUT"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "手动触发构建，直接继续执行"
+            echo "has_new_commits=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           if [ -n "$REMOTE_TAG_SHA" ] && [ "$REMOTE_TAG_SHA" = "$CURRENT_DEV_SHA" ]; then
             echo "自上次 Nightly 构建以来无新代码提交，跳过本次夜间构建"
@@ -90,7 +91,7 @@ jobs:
       - name: Check out git repository
         uses: actions/checkout@v5
         with:
-          ref: dev
+          ref: ${{ needs.check-commits.outputs.build_sha }}
           fetch-depth: 0
 
       - name: Setup pnpm
@@ -136,7 +137,7 @@ jobs:
       # 动态注入递增的 Nightly 构建版本号
       - name: Generate Nightly Version
         shell: bash
-        run: node scripts/gen-nightly-version.cjs
+        run: node scripts/gen-version.cjs nightly
 
       # 构建并生成更新清单
       - name: Build ${{ matrix.name }}
@@ -188,7 +189,7 @@ jobs:
       - name: Check out dev branch
         uses: actions/checkout@v5
         with:
-          ref: dev
+          ref: ${{ needs.check-commits.outputs.build_sha }}
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -205,9 +206,14 @@ jobs:
       - name: Read Nightly Version
         shell: bash
         run: |
-          node scripts/gen-nightly-version.cjs
+          node scripts/gen-version.cjs nightly
           VERSION="$(node -p "require('./package.json').version")"
           echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Generate Nightly release notes
+        env:
+          PREV_COMMIT_SHA: ${{ needs.check-commits.outputs.prev_sha }}
+        run: node scripts/gen-nightly-notes.cjs notes.md
 
       # 整理待发布资源并执行清单合并单元测试
       - name: Prepare release assets
@@ -217,7 +223,7 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/jsyaml/node_modules" \
             node --test .github/scripts/prepare-release-assets.test.cjs
           NODE_PATH="$RUNNER_TEMP/jsyaml/node_modules" \
-            node .github/scripts/prepare-release-assets.cjs artifacts release-assets "$APP_VERSION"
+            node .github/scripts/prepare-release-assets.cjs artifacts release-assets "$APP_VERSION" notes.md
           echo "待发布资源："
           ls -1 release-assets
 
@@ -226,7 +232,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NIGHTLY_TAG: nightly
-          PREV_COMMIT_SHA: ${{ needs.check-commits.outputs.prev_sha }}
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
@@ -238,8 +243,6 @@ jobs:
             echo "正在重置已有 Nightly Release..."
             gh release delete "$NIGHTLY_TAG" --repo "$GITHUB_REPOSITORY" --yes
           fi
-
-          node scripts/gen-nightly-notes.cjs notes.md
 
           gh release create "$NIGHTLY_TAG" \
             --repo "$GITHUB_REPOSITORY" \

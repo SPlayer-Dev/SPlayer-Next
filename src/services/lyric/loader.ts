@@ -3,7 +3,9 @@
  */
 
 import type { Track, TrackDetail } from "@shared/types/player";
-import type { LyricData, LyricFormat, LyricInput } from "@shared/types/lyrics";
+import type { LyricFormat, LyricInput } from "lyric-kit";
+import type { LyricData } from "@shared/types/lyrics";
+
 import { isPlatform } from "@shared/types/platform";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
@@ -365,6 +367,13 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
     // 本地 TTML 歌词库最高优先
     if (await tryLocalRepo(token, track)) return;
     if (token !== currentToken) return;
+    if (track.source === "plugin") {
+      const plugin = await resolvePluginLyric(track);
+      if (token !== currentToken) return;
+      if (plugin) commitIfBetter(token, plugin.source, plugin.input);
+      else if (media.parsedLyric.length === 0) commit(token, null, null);
+      return;
+    }
     // 在线歌曲（任一在线平台）
     if (isPlatform(track.source)) {
       await loadPlatformLyric(token, track);
@@ -425,6 +434,13 @@ const refreshPreference = async (): Promise<void> => {
   // 本地 TTML 歌词库最高优先
   if (await tryLocalRepo(token, track)) return;
   if (token !== currentToken) return;
+  if (track.source === "plugin") {
+    const plugin = await resolvePluginLyric(track);
+    if (token !== currentToken) return;
+    if (plugin) commitIfBetter(token, plugin.source, plugin.input);
+    else commit(token, null, null);
+    return;
+  }
   if (track.source === "streaming") {
     await loadStreamingLyric(token, track, media.detail);
     return;

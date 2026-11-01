@@ -10,16 +10,11 @@ import { fetchQQMusicArtistSongs } from "@/apis/artist/qqmusic";
 import { navigateToAlbum } from "@/utils/navigate";
 import SongList from "@/components/list/SongList.vue";
 import { formatTime } from "@/utils/time";
+import { coverTransitionActive, getCoverPreview } from "@/services/coverTransition";
 import * as player from "@/core/player";
 import artistFallback from "@/assets/images/artist.jpg";
-import IconLucideDisc3 from "~icons/lucide/disc-3";
-import IconLucideListMusic from "~icons/lucide/list-music";
-import IconLucideHourglass from "~icons/lucide/hourglass";
-import IconLucideMusic from "~icons/lucide/music";
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import IconLucideListChecks from "~icons/lucide/list-checks";
-import IconMaterialSymbolsFavoriteRounded from "~icons/material-symbols/favorite-rounded";
-import IconMaterialSymbolsFavoriteOutlineRounded from "~icons/material-symbols/favorite-outline-rounded";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -48,6 +43,13 @@ const loadingMore = ref(false);
 
 /** 在线头像未到位时，用任一曲目的封面顶替 */
 const fallbackTrackCover = computed(() => artist.value?.tracks.find((t) => t.cover)?.cover);
+const preview = getCoverPreview(route.fullPath);
+const artistName = computed(() => artist.value?.name ?? preview?.title);
+const avatarSource = computed(() =>
+  coverTransitionActive.value && preview
+    ? preview.cover
+    : (artist.value?.avatar ?? preview?.cover ?? fallbackTrackCover.value),
+);
 
 /** 折叠状态 */
 const collapsed = ref(false);
@@ -61,18 +63,20 @@ const handleListScroll = (event: Event) => {
   }
 };
 
-/** 加载数据 */
+/** 加载当前服务器的歌手详情，并作废上一轮请求 */
 const loadArtist = async (): Promise<void> => {
   collapsed.value = false;
   loadAbort?.abort();
   const myAbort = new AbortController();
   loadAbort = myAbort;
   loading.value = true;
+  artist.value = null;
   error.value = "";
   hasMoreSongs.value = false;
 
   try {
     await loadArtistService(source, id, {
+      serverId: typeof route.query.serverId === "string" ? route.query.serverId : undefined,
       fallbackName: typeof route.query.name === "string" ? route.query.name : undefined,
       signal: myAbort.signal,
       onUpdate: (next) => {
@@ -127,7 +131,7 @@ const onReachBottom = async (): Promise<void> => {
   }
 };
 
-loadArtist();
+watch(() => route.query.serverId, loadArtist, { immediate: true });
 
 onBeforeUnmount(() => {
   loadAbort?.abort();
@@ -149,10 +153,10 @@ const playbackContext = computed<PlaybackContext>(() => ({
 
 const handlePlayAll = () => {
   if (!artist.value?.tracks.length) return;
-  player.playFrom(artist.value.tracks, 0, playbackContext.value);
+  player.playFrom(artist.value.tracks, { context: playbackContext.value });
 };
 
-/** 收藏歌手仅支持网易云 */
+/** 收藏歌手仅支持 NCM */
 const canSubscribeArtist = computed(() => artist.value?.source === "netease");
 
 /** 当前歌手是否已收藏（依据用户收藏歌手列表） */
@@ -232,16 +236,17 @@ const albumItems = computed<CoverItem[]>(() => {
 <template>
   <div class="flex flex-col h-full">
     <!-- 头部信息 -->
-    <div v-if="artist" class="shrink-0 px-5 pb-2">
+    <div v-if="artist || preview" class="shrink-0 px-5 pb-2">
       <div
         class="flex mt-2 transition-[gap,margin] duration-300"
         :class="collapsed ? 'gap-3 mb-3' : 'gap-5 mb-4'"
       >
         <!-- 头像 -->
-        <SImg
-          :src="artist.avatar ?? fallbackTrackCover"
-          :fallback="artistFallback"
-          :alt="artist.name"
+        <DetailCover
+          :src="avatarSource"
+          :fallback="preview?.cover ?? artistFallback"
+          :alt="artistName"
+          data-cover-hero
           class="shrink-0 rounded-full transition-[width,height] duration-300"
           :class="collapsed ? 'size-20' : 'size-40'"
         />
@@ -255,7 +260,7 @@ const albumItems = computed<CoverItem[]>(() => {
               class="font-bold text-on-surface truncate lh-normal transition-[font-size,line-height] duration-300"
               :class="collapsed ? 'text-xl' : 'text-3xl'"
             >
-              {{ artist.name }}
+              {{ artistName }}
             </h1>
             <div
               class="grid transition-[grid-template-rows,opacity] duration-300"
@@ -266,9 +271,13 @@ const albumItems = computed<CoverItem[]>(() => {
               >
                 <span class="flex items-center gap-1">
                   <IconLucideListMusic class="shrink-0" />
-                  {{ t("common.totalSongs", { count: artist.trackCount }) }}
+                  {{
+                    t("common.totalSongs", {
+                      count: artist?.trackCount ?? preview?.trackCount ?? 0,
+                    })
+                  }}
                 </span>
-                <span v-if="artist.albumCount" class="flex items-center gap-1">
+                <span v-if="artist?.albumCount" class="flex items-center gap-1">
                   <IconLucideDisc3 class="shrink-0" />
                   {{ t("common.totalAlbums", { count: artist.albumCount }) }}
                 </span>
@@ -286,7 +295,7 @@ const albumItems = computed<CoverItem[]>(() => {
                 type="primary"
                 variant="secondary"
                 round
-                :disabled="artist.tracks.length === 0 || activeTab !== 'songs'"
+                :disabled="!artist?.tracks.length || activeTab !== 'songs'"
                 @click="handlePlayAll"
               >
                 <template #icon>
@@ -309,12 +318,12 @@ const albumItems = computed<CoverItem[]>(() => {
               </SButton>
               <SDropdownMenu
                 :items="moreMenuItems"
-                :disabled="activeTab !== 'songs'"
+                :disabled="!artist || activeTab !== 'songs'"
                 align="start"
                 @select="handleMoreMenu"
               >
                 <template #trigger>
-                  <SButton variant="secondary" circle :disabled="activeTab !== 'songs'">
+                  <SButton variant="secondary" circle :disabled="!artist || activeTab !== 'songs'">
                     <template #icon>
                       <IconLucideEllipsis />
                     </template>
@@ -365,6 +374,7 @@ const albumItems = computed<CoverItem[]>(() => {
               :show-size="source === 'local'"
               :has-more="hasMoreSongs"
               :loading-more="loadingMore"
+              sort-key="artist"
               enable-sort
               @scroll="handleListScroll"
               @change="loadArtist"
@@ -377,7 +387,15 @@ const albumItems = computed<CoverItem[]>(() => {
               :items="albumItems"
               :padding-x="20"
               :padding-bottom="24"
-              @click="(item) => navigateToAlbum(item.title, { source, albumId: item.id })"
+              @click="
+                (item) =>
+                  navigateToAlbum(item.title, {
+                    source,
+                    albumId: item.id,
+                    serverId:
+                      typeof route.query.serverId === 'string' ? route.query.serverId : undefined,
+                  })
+              "
             />
           </div>
         </Transition>

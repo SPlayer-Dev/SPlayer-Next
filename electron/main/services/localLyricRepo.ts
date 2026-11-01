@@ -3,7 +3,7 @@
  *
  * 用户指定一个目录作为 TTML 歌词仓库。按需扫描目录下所有 .ttml，解析 AMLL
  * `<amll:meta>` 头（musicName / artists / ncmMusicId / qqMusicId）建立索引：
- * - 平台 id（网易云 / QQ）→ 文件路径（精确命中）
+ * - 平台 id（NCM / QQ）→ 文件路径（精确命中）
  * - 归一化标题 → 候选列表
  * 命中返回文件原文，交由渲染层 parseTTML 解析。
  *
@@ -43,21 +43,26 @@ interface IndexCache {
 let cache: IndexCache | null = null;
 let building: Promise<RepoIndex | null> | null = null;
 
+interface TTMLMeta {
+  name?: string;
+  artist?: string;
+  ncmIds: string[];
+  qqIds: string[];
+}
+
 /** 从 TTML 文本头部提取 AMLL 元信息 */
-const extractMeta = (
-  text: string,
-): { name?: string; artist?: string; ncmId?: string; qqId?: string } => {
+const extractMeta = (text: string): TTMLMeta => {
   const bodyAt = text.indexOf("<body");
   const head = bodyAt > 0 ? text.slice(0, bodyAt) : text.slice(0, 8000);
-  const meta: { name?: string; artist?: string; ncmId?: string; qqId?: string } = {};
+  const meta: TTMLMeta = { ncmIds: [], qqIds: [] };
   for (const tag of head.matchAll(/<amll:meta\b[^>]*>/gi)) {
     const key = tag[0].match(/\bkey="([^"]*)"/)?.[1];
     const value = tag[0].match(/\bvalue="([^"]*)"/)?.[1];
     if (!key || !value) continue;
     if (key === "musicName" && !meta.name) meta.name = value;
     else if (key === "artists" && !meta.artist) meta.artist = value;
-    else if (key === "ncmMusicId" && !meta.ncmId) meta.ncmId = value;
-    else if (key === "qqMusicId" && !meta.qqId) meta.qqId = value;
+    else if (key === "ncmMusicId") meta.ncmIds.push(value);
+    else if (key === "qqMusicId") meta.qqIds.push(value);
   }
   return meta;
 };
@@ -94,8 +99,8 @@ const buildIndex = async (dir: string): Promise<RepoIndex> => {
       continue;
     }
     const meta = extractMeta(text);
-    if (meta.ncmId && !index.byNcm.has(meta.ncmId)) index.byNcm.set(meta.ncmId, file);
-    if (meta.qqId && !index.byQq.has(meta.qqId)) index.byQq.set(meta.qqId, file);
+    for (const id of meta.ncmIds) if (!index.byNcm.has(id)) index.byNcm.set(id, file);
+    for (const id of meta.qqIds) if (!index.byQq.has(id)) index.byQq.set(id, file);
     if (meta.name) {
       const titleKey = normalize(meta.name);
       const candidate: NameCandidate = { artist: normalize(meta.artist ?? ""), file };

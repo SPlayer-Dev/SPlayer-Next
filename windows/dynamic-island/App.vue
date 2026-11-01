@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { DynamicIslandSettings } from "@shared/types/settings";
-import type { LyricLine } from "@shared/types/lyrics";
+import type { LyricLine } from "lyric-kit";
+
 import { DYNAMIC_ISLAND_BASE_HEIGHT } from "@shared/defaults/settings";
 import DEFAULT_COVER from "@/assets/images/song.jpg";
 import IslandLyricLine from "./components/IslandLyricLine.vue";

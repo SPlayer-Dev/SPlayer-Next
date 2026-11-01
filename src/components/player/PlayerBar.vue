@@ -7,10 +7,8 @@ import { usePlaylistPicker } from "@/composables/usePlaylistPicker";
 import { useTrackMenu } from "@/composables/useTrackMenu";
 import { useDownload } from "@/composables/useDownload";
 import { useProgressLyric } from "@/composables/useProgressLyric";
+import { useResponsiveLayout } from "@/composables/useResponsiveLayout";
 import * as player from "@/core/player";
-import IconFavorite from "~icons/material-symbols/favorite-rounded";
-import IconFavoriteOutline from "~icons/material-symbols/favorite-outline-rounded";
-import IconLucideMoreHorizontal from "~icons/lucide/more-horizontal";
 
 const status = useStatusStore();
 const settings = useSettingsStore();
@@ -19,8 +17,11 @@ const fav = useFavorite();
 const { position, duration } = storeToRefs(status);
 const { formatTooltip, snapToNearestLyric } = useProgressLyric();
 
-/** 是否是浮动模式 */
-const isFloating = computed(() => settings.appearance.layoutMode === "floating");
+const { isCompact } = useResponsiveLayout();
+/** 浮动模式或窄窗口统一使用紧凑布局 */
+const useCompactLayout = computed(
+  () => settings.appearance.layoutMode === "floating" || isCompact.value,
+);
 /** 是否显示进度条提示 */
 const showTooltip = computed(() => settings.player.showProgressTooltip);
 
@@ -47,8 +48,8 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
 </script>
 
 <template>
-  <!-- 浮动模式 -->
-  <div v-if="isFloating" class="relative flex items-center px-4 gap-4 min-w-0">
+  <!-- 浮动模式与窄窗口紧凑布局 -->
+  <div v-if="useCompactLayout" class="relative flex items-center h-full px-4 gap-4 min-w-0">
     <PlayerControls compact />
     <div class="flex flex-col flex-1 min-w-0 gap-1 pt-2 pb-1">
       <div class="flex items-center gap-2 min-w-0">
@@ -56,18 +57,20 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
           <template #title-trailing>
             <div class="flex items-center shrink-0">
               <SButton
+                v-if="media.track?.source !== 'plugin'"
                 class="-my-1"
                 type="primary"
                 variant="text"
                 circle
                 :size="24"
                 :icon-size="16"
+                :disabled="!fav.isSupported(media.track)"
                 @click="fav.toggle(media.track)"
               >
                 <template #icon>
                   <SIconSwap :active="fav.isLiked(media.track)">
-                    <template #on><IconFavorite /></template>
-                    <template #off><IconFavoriteOutline /></template>
+                    <template #on><IconMaterialSymbolsFavoriteRounded /></template>
+                    <template #off><IconMaterialSymbolsFavoriteOutlineRounded /></template>
                   </SIconSwap>
                 </template>
               </SButton>
@@ -94,10 +97,13 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
             </div>
           </template>
         </TrackInfo>
-        <PlayerTimeInfo compact />
+        <div class="contents lt-md:hidden">
+          <PlayerTimeInfo compact />
+        </div>
       </div>
       <SSlider
         :model-value="position"
+        :glow="status.transitioning"
         :min="0"
         :max="duration"
         :step="100"
@@ -119,6 +125,7 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
     <div class="absolute left-0 right-0 top-0 -translate-y-1/2 z-10">
       <SSlider
         :model-value="position"
+        :glow="status.transitioning"
         :min="0"
         :max="duration"
         :step="100"
@@ -136,18 +143,20 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
         <template #title-trailing>
           <div class="flex items-center shrink-0">
             <SButton
+              v-if="media.track?.source !== 'plugin'"
               class="-my-1"
               type="primary"
               variant="text"
               circle
               :size="28"
               :icon-size="18"
+              :disabled="!fav.isSupported(media.track)"
               @click="fav.toggle(media.track)"
             >
               <template #icon>
                 <SIconSwap :active="fav.isLiked(media.track)">
-                  <template #on><IconFavorite /></template>
-                  <template #off><IconFavoriteOutline /></template>
+                  <template #on><IconMaterialSymbolsFavoriteRounded /></template>
+                  <template #off><IconMaterialSymbolsFavoriteOutlineRounded /></template>
                 </SIconSwap>
               </template>
             </SButton>

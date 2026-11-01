@@ -5,12 +5,15 @@
 
 import { Hono } from "hono";
 import { app as electronApp } from "electron";
-import { getPlayer } from "@main/services/engine";
-import { toMs } from "@main/utils/time";
+import { ZodError } from "zod/v4";
 import * as nowPlaying from "@main/services/nowPlaying";
 import { playerControl } from "@main/services/playerControl";
 import { getWsClientCount } from "./broadcast";
 
+/**
+ * 注册 HTTP 查询与控制入口，业务操作复用主进程服务
+ * @returns 外部 API 路由
+ */
 export const buildRoutes = (): Hono => {
   const api = new Hono();
 
@@ -23,17 +26,36 @@ export const buildRoutes = (): Hono => {
   );
 
   api.get("/status", (c) => {
-    const raw = getPlayer().getStatus();
+    const status = playerControl.getStatus();
     return c.json({
-      state: raw.state,
-      position: toMs(raw.position),
-      duration: toMs(raw.duration),
-      volume: raw.volume,
-      isFinished: raw.isFinished,
+      state: status.state,
+      position: status.positionMs,
+      duration: status.durationMs,
+      volume: status.volume,
+      isFinished: status.isFinished,
+      currentIndex: status.currentIndex,
     });
   });
 
-  api.get("/volume", (c) => c.json({ volume: getPlayer().getVolume() }));
+  api.get("/queue", async (c) => {
+    const offset = c.req.query("offset");
+    const limit = c.req.query("limit");
+    try {
+      return c.json(
+        await playerControl.getQueue({
+          offset: offset === undefined ? undefined : Number(offset),
+          limit: limit === undefined ? undefined : Number(limit),
+        }),
+      );
+    } catch (error) {
+      return c.json(
+        { error: error instanceof Error ? error.message : String(error) },
+        error instanceof ZodError ? 400 : 500,
+      );
+    }
+  });
+
+  api.get("/volume", (c) => c.json({ volume: playerControl.getStatus().volume }));
 
   api.get("/now-playing", (c) => c.json(nowPlaying.lightSnapshot()));
 
