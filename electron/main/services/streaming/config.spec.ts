@@ -141,6 +141,23 @@ describe("流媒体凭据存储", () => {
     expect(JSON.parse(state.persisted).servers[0].encryptedPassword).toMatch(/^safe:v1:/);
   });
 
+  it("迁移旧格式时保留非 ASCII 密码", async () => {
+    const password = "p@ss 密码 🔑";
+    state.initial = JSON.stringify({
+      servers: [
+        {
+          ...input,
+          id: "server",
+          encryptedPassword: Buffer.from(password, "utf8").toString("base64"),
+        },
+      ],
+      activeServerId: "server",
+    });
+    const service = await import("./config");
+    expect((await service.getStreamingServer("server")).password).toBe(password);
+    expect(JSON.parse(state.persisted).servers[0].encryptedPassword).toMatch(/^safe:v1:/);
+  });
+
   it("无前缀异步密文在同步解密不可用时也能迁移", async () => {
     state.syncLegacy = false;
     state.initial = JSON.stringify({

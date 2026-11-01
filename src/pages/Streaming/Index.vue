@@ -208,7 +208,11 @@ const handleMoreMenu = (key: string): void => {
           <div v-if="connectionStatus.errorCode" class="font-medium mb-0.5">
             {{ t(`streaming.errorCode.${connectionStatus.errorCode}`) }}
           </div>
-          {{ connectionStatus.error }}
+          {{
+            connectionStatus.errorCode === "credential"
+              ? t("streaming.server.errors.credentialReentry")
+              : connectionStatus.error
+          }}
         </div>
         <div v-else class="text-xs mb-4 opacity-70">
           {{ activeServer?.name }}

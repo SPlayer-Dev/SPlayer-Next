@@ -175,7 +175,10 @@ const handleConnect = async (cfg: StreamingServerConfig): Promise<void> => {
     if (streaming.connectionStatus.connected) {
       toast.success(t("streaming.server.connected"));
     } else {
-      const err = streaming.connectionStatus.error ?? t("streaming.server.connectFailed");
+      const err =
+        streaming.connectionStatus.errorCode === "credential"
+          ? t("streaming.server.errors.credentialReentry")
+          : (streaming.connectionStatus.error ?? t("streaming.server.connectFailed"));
       toast.error(err);
     }
   } finally {
@@ -359,7 +362,13 @@ const formatTime = (t?: number): string => (t ? new Date(t).toLocaleString() : "
               {{ testResult.version }}
             </span>
           </div>
-          <div v-if="testResult.error" class="mt-1 opacity-80">{{ testResult.error }}</div>
+          <div v-if="testResult.error" class="mt-1 opacity-80">
+            {{
+              testResult.code === "credential"
+                ? t("streaming.server.errors.credentialReentry")
+                : testResult.error
+            }}
+          </div>
         </div>
       </div>
       <template #footer="{ close }">

@@ -95,7 +95,7 @@ const persistPassword = async (server: PersistedServer, password: string): Promi
 
 /**
  * 迁移 1.1.0 及更早版本保存的凭据
- * 旧格式没有 safe:v1 前缀，可能是同步 safeStorage 密文，也可能是 base64 明文
+ * 旧格式没有 safe:v1 前缀：1.1.0 在安全存储可用时写同步密文，不可用时直接写 base64 明文
  * @param server - 持久化配置
  * @returns 明文密码
  */

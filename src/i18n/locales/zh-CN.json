@@ -462,7 +462,8 @@
         "nameEmpty": "请输入服务器名称",
         "urlInvalid": "请输入合法的 URL（http:// 或 https://）",
         "usernameEmpty": "请输入用户名",
-        "passwordEmpty": "请输入密码"
+        "passwordEmpty": "请输入密码",
+        "credentialReentry": "无法读取已保存的凭据，请重新输入密码"
       }
     },
     "actions": {

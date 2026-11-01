@@ -462,7 +462,8 @@
         "nameEmpty": "Please enter a server name",
         "urlInvalid": "Please enter a valid URL (http:// or https://)",
         "usernameEmpty": "Please enter a username",
-        "passwordEmpty": "Please enter a password"
+        "passwordEmpty": "Please enter a password",
+        "credentialReentry": "Unable to read the saved credentials. Please re-enter the password"
       }
     },
     "actions": {
