@@ -69,6 +69,17 @@ const pickQuality = (song: NeteaseSong): AudioQuality | undefined => {
 };
 
 /**
+ * 解析碟片字段，接口可能返回 "01"、"CD2" 或 "1 碟片名称"
+ * @param cd - 原始 cd 字段
+ * @returns 碟号与碟片名称
+ */
+const parseDisc = (cd: string | undefined): Pick<Track, "disc" | "discTitle"> => {
+  const match = cd?.trim().match(/^(?:cd|disc)?\s*(\d+)\s*(.*)$/i);
+  if (!match) return {};
+  return { disc: Number(match[1]) || undefined, discTitle: match[2] || undefined };
+};
+
+/**
  *  song → 应用层 Track
  * @param song - 原始 song 对象
  */
@@ -89,6 +100,7 @@ export const songToTrack = (song: NeteaseSong): Track => {
       .filter((artist) => artist.name?.trim())
       .map((artist) => ({ id: String(artist.id), name: artist.name.trim() })),
     album: album ? { id: String(album.id), name: album.name, cover } : undefined,
+    ...parseDisc(song.cd),
     duration: song.dt ?? song.duration ?? 0,
     cover,
     coverOriginal,

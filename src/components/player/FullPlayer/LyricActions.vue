@@ -39,7 +39,7 @@ const writeOffset = (offsetMs: number): void => {
 };
 
 /** 弹层里直接编辑（ms） */
-const offsetInputMs = computed<number>({
+const offsetInputMs = computed<number | null>({
   get: () => songOffset.value,
   set: (val) => writeOffset(val ?? 0),
 });

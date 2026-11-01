@@ -3,7 +3,7 @@ import { useUserStore } from "@/stores/user";
 import { toast } from "@/composables/useToast";
 import { dialog } from "@/composables/useDialog";
 import { REPO_NAME } from "@/utils/config";
-import { neteaseQrLoginAdapter } from "@/apis/login/netease";
+import { neteaseQrLoginAdapter, syncNeteaseDeviceName } from "@/apis/login/netease";
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ "update:open": [value: boolean] }>();
@@ -53,6 +53,7 @@ const startAutoFetch = async (): Promise<void> => {
       return;
     }
     if (!(await finishLogin())) void panelRef.value?.refresh();
+    else void syncNeteaseDeviceName();
   } finally {
     loading.value = false;
   }

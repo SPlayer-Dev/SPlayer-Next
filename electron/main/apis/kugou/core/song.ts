@@ -36,6 +36,8 @@ export interface KGResourceSong {
   audio_info?: KGAudioInfo;
   authors?: Array<{ author_id?: string | number; author_name?: string }>;
   album_info?: { album_name?: string; cover?: string };
+  /** 专辑内碟片信息，disc 从 1 开始 */
+  extend?: { disc?: number; cd_name?: string };
   trans_param?: { union_cover?: string };
   deprecated?: {
     pay_type?: number;
@@ -112,6 +114,8 @@ export const normalizeKGSong = (raw: KGResourceSong, defaults: SongDefaults = {}
     artists,
     album: decodeName(raw.album_info?.album_name || defaults.albumName),
     albumId: Number(base.album_id) > 0 ? String(base.album_id) : defaults.albumId || "",
+    disc: raw.extend?.disc || undefined,
+    discTitle: decodeName(raw.extend?.cd_name) || undefined,
     cover: fillCover(cover, 300),
     coverOriginal: fillCover(cover, 480),
     interval: duration / 1000,

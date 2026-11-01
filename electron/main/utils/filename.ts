@@ -105,6 +105,24 @@ const KNOWN_EXTS = new Set([
 ]);
 
 /**
+ * 从 Content-Disposition 的文件名里取扩展名
+ *
+ * 插件音源给出的地址常常没有路径后缀（下载接口 302 到 CDN），
+ * 此时服务器给的文件名是唯一可靠的格式信号
+ * @param disposition - 响应头 content-disposition
+ * @returns 已知音频扩展名（不含点）；无法识别时返回 undefined
+ */
+export const extensionFromDisposition = (
+  disposition: string | null | undefined,
+): string | undefined => {
+  if (!disposition) return undefined;
+  const match = disposition.match(/\.([a-z\d]{2,5})(?=["';]|$)/i);
+  if (!match) return undefined;
+  const name = match[1].toLowerCase();
+  return KNOWN_EXTS.has(`.${name}`) ? name : undefined;
+};
+
+/**
  * 推断下载文件扩展名（含点）
  * 优先级：已声明格式 → Content-Type → URL 路径后缀 → 兜底 .mp3
  * @param declaredFormat - 已知格式（如 netease 的 flac/mp3）

@@ -57,6 +57,10 @@ impl TaskbarStrategy for Win11Strategy {
         super::embed_child_window(child_wnd, self.h_taskbar)
     }
 
+    fn taskbar_hwnd(&self) -> HWND {
+        self.h_taskbar
+    }
+
     fn update_layout(&mut self, _params: LayoutParams) -> Option<TaskbarLayout> {
         if self.h_taskbar.0.is_null() {
             return None;
@@ -94,17 +98,13 @@ impl TaskbarStrategy for Win11Strategy {
             }
         }
 
-        let uia_bounds = if let Some(scanner) = self.scanner.as_ref() {
-            match scanner.scan_taskbar(self.h_taskbar) {
-                Ok(b) => b,
-                Err(_) => {
-                    error!("scan_taskbar 失败");
-                    self.scanner = None;
-                    return None;
-                }
+        let uia_bounds = match self.scanner.as_ref()?.scan_taskbar(self.h_taskbar) {
+            Ok(bounds) => bounds,
+            Err(_) => {
+                error!("scan_taskbar 失败");
+                self.scanner = None;
+                return None;
             }
-        } else {
-            return None;
         };
 
         let is_centered = Self::is_taskbar_center_align();
@@ -122,8 +122,8 @@ impl TaskbarStrategy for Win11Strategy {
         let left_width = (content_left - left_x).max(0);
 
         let left_space = Rect {
-            x: left_x - tb_rect.left,
-            y: 0,
+            x: left_x,
+            y: tb_rect.top,
             width: left_width,
             height: tb_height,
         };
@@ -142,8 +142,8 @@ impl TaskbarStrategy for Win11Strategy {
         let right_width = (right_right_edge - right_x).max(0);
 
         let right_space = Rect {
-            x: right_x - tb_rect.left,
-            y: 0,
+            x: right_x,
+            y: tb_rect.top,
             width: right_width,
             height: tb_height,
         };

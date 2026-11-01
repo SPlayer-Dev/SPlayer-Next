@@ -122,12 +122,12 @@ interface Release {
   assets: { name: string; browser_download_url: string; size: number }[];
 }
 
-type ReleaseChannel = "stable" | "beta" | "alpha";
+type ReleaseChannel = "stable" | "beta";
 
 const { lang } = useData();
 const copy = computed(() => DOWNLOAD_PAGE_COPY[lang.value.startsWith("en") ? "en" : "zh"]);
 const channels = computed(() =>
-  (["stable", "beta", "alpha"] as const).map((id) => ({
+  (["stable", "beta"] as const).map((id) => ({
     id,
     ...copy.value.channels[id],
   })),

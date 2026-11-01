@@ -6,6 +6,8 @@ fn parked_standby_output_wakes_on_activation_or_cancellation() {
         let shared = Shared::new(1000, 1);
         shared.set_preloading(true);
         shared.push_output(AudioChunk {
+            normalization_gain: 1.0,
+            stem_samples: None,
             player_samples: vec![0.5; 100],
             fft_samples: vec![],
             source_sample_count: 100,
@@ -14,6 +16,8 @@ fn parked_standby_output_wakes_on_activation_or_cancellation() {
         let (send, receive) = std::sync::mpsc::channel();
         let worker = std::thread::spawn(move || {
             worker_shared.push_output(AudioChunk {
+                normalization_gain: 1.0,
+                stem_samples: None,
                 player_samples: vec![0.5; 100],
                 fft_samples: vec![],
                 source_sample_count: 100,
@@ -39,6 +43,8 @@ fn standby_decode_queue_resumes_when_promoted() {
     shared.set_preloading(true);
     for _ in 0..2 {
         shared.push(AudioChunk {
+            normalization_gain: 1.0,
+            stem_samples: None,
             player_samples: vec![0.0; 128],
             fft_samples: vec![],
             source_sample_count: 128,
@@ -62,6 +68,8 @@ fn cancelling_standby_wakes_blocked_decoder() {
     shared.set_preloading(true);
     for _ in 0..2 {
         shared.push(AudioChunk {
+            normalization_gain: 1.0,
+            stem_samples: None,
             player_samples: vec![0.0; 128],
             fft_samples: vec![],
             source_sample_count: 128,
@@ -92,6 +100,8 @@ fn high_rate_buffer_is_limited_by_duration_and_stop_unblocks_producer() {
         let samples = rate as usize * 2 / 100;
         for _ in 0..10 {
             shared.push_output(AudioChunk {
+                normalization_gain: 1.0,
+                stem_samples: None,
                 player_samples: vec![0.25; samples],
                 fft_samples: vec![],
                 source_sample_count: samples as u64,
@@ -106,6 +116,8 @@ fn high_rate_buffer_is_limited_by_duration_and_stop_unblocks_producer() {
         let (tx, rx) = std::sync::mpsc::channel();
         let worker = std::thread::spawn(move || {
             producer.push_output(AudioChunk {
+                normalization_gain: 1.0,
+                stem_samples: None,
                 player_samples: vec![0.5; samples],
                 fft_samples: vec![],
                 source_sample_count: samples as u64,
@@ -129,6 +141,8 @@ fn concurrent_consumer_keeps_every_sample_in_order_through_eof() {
     let worker = std::thread::spawn(move || {
         for i in 0..10_000 {
             producer.push_output(AudioChunk {
+                normalization_gain: 1.0,
+                stem_samples: None,
                 player_samples: vec![i as f32; 32],
                 fft_samples: vec![],
                 source_sample_count: 32,

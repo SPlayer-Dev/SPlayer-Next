@@ -13,7 +13,24 @@ export interface Migration {
  */
 export const migrations: Migration[] = [
   {
+    // Alpha 通道停发，原 Alpha 用户转到 Beta
     version: 1,
+    migrate: (data) => {
+      if ((data.update.channel as string) === "alpha") data.update.channel = "beta";
+    },
+  },
+  {
+    // 旧默认镜像改为留空，走 AMLL 官方 API；用户自定义的镜像保持不变
+    version: 2,
+    migrate: (data) => {
+      if (data.lyric.amllDbServer === "https://amlldb.bikonoo.com/%p/%s.ttml") {
+        data.lyric.amllDbServer = "";
+      }
+    },
+  },
+  {
+    // 本地 TTML 歌词库扩展为通用歌词库：单目录改为多目录，旧开关改名
+    version: 3,
     migrate: (data) => {
       const localLyric = data.localLyric as unknown as {
         repoDir?: string;

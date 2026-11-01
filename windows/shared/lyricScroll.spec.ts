@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
+import type { LyricLine } from "lyric-kit";
 import {
   computeHorizontalScrollOffset,
   computeHorizontalScrollRange,
+  computeLyricScrollOffset,
+  computeSingingProgress,
   measureHorizontalScrollRange,
-} from "./utils";
+} from "./lyricScroll";
 
-describe("桌面歌词横向滚动范围", () => {
+describe("歌词横向滚动范围", () => {
   it("左对齐文本从容器左侧滚动到内容末尾", () => {
     expect(computeHorizontalScrollRange(100, 160, 0)).toEqual({
       startOffset: 0,
@@ -57,7 +60,7 @@ describe("桌面歌词横向滚动范围", () => {
   });
 });
 
-describe("桌面歌词横向滚动时序", () => {
+describe("歌词横向匀速滚动时序", () => {
   it("短歌词不会在成为当前行时直接跳到末尾", () => {
     const options = {
       activatedAtMs: 1500,
@@ -114,5 +117,66 @@ describe("桌面歌词横向滚动时序", () => {
     expect(computeHorizontalScrollOffset({ ...options, currentMs: 3000 })).toBe(0);
     expect(computeHorizontalScrollOffset({ ...options, currentMs: 3500 })).toBeLessThan(0);
     expect(computeHorizontalScrollOffset({ ...options, currentMs: 3960 })).toBe(-60);
+  });
+});
+
+/**
+ * 构造逐字歌词行，每词两个字符、时长 1 秒、首尾相接
+ * @param count - 词数
+ * @returns 歌词行
+ */
+const makeTimedLine = (count: number): LyricLine => {
+  const words = Array.from({ length: count }, (_slot, index) => ({
+    word: "ab",
+    startTime: index * 1000,
+    endTime: (index + 1) * 1000,
+  }));
+  return {
+    words,
+    translatedLyric: "",
+    romanLyric: "",
+    startTime: 0,
+    endTime: count * 1000,
+    isBG: false,
+    isDuet: false,
+  };
+};
+
+describe("按演唱位置滚动", () => {
+  const line = makeTimedLine(4);
+
+  it("演唱进度按字数在词间连续插值", () => {
+    expect(computeSingingProgress(line, -100)).toBe(0);
+    expect(computeSingingProgress(line, 500)).toBe(0.125);
+    expect(computeSingingProgress(line, 2000)).toBe(0.5);
+    expect(computeSingingProgress(line, 9000)).toBe(1);
+  });
+
+  it("演唱位置越过容器中点前不滚动，之后跟随并在末尾停住", () => {
+    const options = {
+      activatedAtMs: 0,
+      timingLine: line,
+      containerWidth: 100,
+      range: { startOffset: 10, distance: 100 },
+    };
+    expect(computeLyricScrollOffset({ ...options, currentMs: 1000 })).toBe(10);
+    expect(computeLyricScrollOffset({ ...options, currentMs: 2000 })).toBe(-40);
+    expect(computeLyricScrollOffset({ ...options, currentMs: 4000 })).toBe(-90);
+  });
+
+  it("没有逐字时间时退回匀速滚动", () => {
+    const plain: LyricLine = {
+      ...line,
+      words: [{ word: "abcdefgh", startTime: 0, endTime: 0 }],
+    };
+    expect(
+      computeLyricScrollOffset({
+        currentMs: 0,
+        activatedAtMs: 0,
+        timingLine: plain,
+        containerWidth: 100,
+        range: { startOffset: 0, distance: 100 },
+      }),
+    ).toBe(0);
   });
 });

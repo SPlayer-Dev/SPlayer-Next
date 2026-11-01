@@ -3,7 +3,9 @@ import { useSettingsStore } from "@/stores/settings";
 import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
 import DEFAULT_COVER from "@/assets/images/song.jpg";
-import BackgroundRender from "./BackgroundRender.vue";
+
+/** 流体渲染器按需加载 */
+const BackgroundRender = defineAsyncComponent(() => import("./BackgroundRender.vue"));
 
 const props = defineProps<{
   /** 保持背景到面板退出动画结束 */
@@ -55,20 +57,24 @@ let preloadImg: HTMLImageElement | null = null;
 let switchToken = 0;
 
 watch([() => media.track?.cover, () => status.isPlayerExpanded], ([newCover, expanded]) => {
-  if (!expanded) return;
+  const targetCover = newCover || DEFAULT_COVER;
+  // 相同不切换
+  if (blurLayers[currentLayerIndex].src === targetCover) return;
   const token = ++switchToken;
 
   if (preloadImg) {
     preloadImg.src = "";
     preloadImg = null;
   }
-  const targetCover = newCover || DEFAULT_COVER;
-  // 相同不切换
-  if (blurLayers[currentLayerIndex].src === targetCover) return;
   const nextIndex = currentLayerIndex === 0 ? 1 : 0;
   const switchLayer = (src: string) => {
     if (token !== switchToken) return;
     preloadImg = null;
+    // 收起时直接替换当前图层，避免下次展开残留旧封面
+    if (!expanded) {
+      blurLayers[currentLayerIndex].src = src;
+      return;
+    }
     blurLayers[nextIndex].src = src;
     nextTick(() => {
       if (token !== switchToken) return;

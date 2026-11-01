@@ -113,6 +113,7 @@ onMounted(() => {
           :search-query="searchQuery"
           :playback-context="playbackContext"
           :show-size="false"
+          sort-key="history"
           enable-sort
         />
       </div>

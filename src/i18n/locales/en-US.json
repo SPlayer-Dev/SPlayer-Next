@@ -469,7 +469,8 @@
   "player": {
     "prev": "Previous",
     "next": "Next",
-    "transitioning": "Transition",
+    "transitioning": "Crossfade",
+    "automixing": "AutoMix",
     "heartMode": {
       "needLogin": "Sign in to use Heart Mode",
       "noSeed": "No seed track available for Heart Mode",
@@ -761,6 +762,7 @@
       "update": "Update",
       "language": "Language",
       "playControl": "Playback Control",
+      "playBehavior": "Playback Behavior",
       "playbackTransition": "Playback Transition",
       "audioSource": "Audio Source",
       "scrobble": "Scrobble",
@@ -778,6 +780,7 @@
       "theme": "Theme",
       "appearanceStyle": "Appearance Style",
       "layout": "Layout",
+      "softwareAnimations": "Transitions & Animations",
       "font": "Fonts",
       "playerBar": "Player Bar",
       "nowPlaying": "Now Playing",
@@ -865,10 +868,16 @@
       "description": "Restore playback position on startup"
     },
     "searchPlayBehavior": {
-      "label": "Search Playback Behavior",
-      "description": "Playback strategy when double-clicking a track on the search page",
+      "label": "Search Playback",
+      "description": "Configure what double-clicking a track on the search page does",
       "current": "Play Current Track Only",
       "all": "Play All Results"
+    },
+    "songListPlayBehavior": {
+      "label": "Song Play Button Behavior",
+      "description": "Configure the play button at the start of each song row",
+      "current": "Play Current Track Only",
+      "all": "Play Whole List"
     },
     "showLyricInBar": {
       "label": "Show Lyric While Playing",
@@ -894,10 +903,25 @@
       "label": "Transition mode",
       "description": "Adjust how songs sound when they change",
       "none": "No transition",
-      "crossfade": "Crossfade"
+      "crossfade": "Crossfade",
+      "automix": "AutoMix"
+    },
+    "automixCrossfadeFallback": {
+      "label": "Crossfade when mixing fails",
+      "description": "Crossfade when tracks can't be mixed"
+    },
+    "automixComponents": {
+      "label": "AutoMix model management",
+      "description": "Models for the AutoMix effect; falls back to the default effect when required models aren't ready",
+      "configure": "Configure models",
+      "download": "Download",
+      "ready": "Installed",
+      "unsupported": "Unavailable",
+      "missing": "Not installed",
+      "error": "Installation failed"
     },
     "transitionPreference": {
-      "label": "Handoff preference",
+      "label": "Mix handoff preference",
       "description": "Adjust when the transition starts and how long songs overlap; Eager starts earlier and lasts longer",
       "conservative": "Conservative",
       "standard": "Standard",
@@ -1035,12 +1059,12 @@
     "amllDbServer": {
       "label": "AMLL TTML DB Server",
       "description": "Make sure the URL is correct, otherwise lyric fetch will fail",
-      "placeholder": "Enter AMLL TTML DB URL",
+      "placeholder": "Leave empty to use the official API",
       "warning": "If you do not know what this does, please leave it as default",
-      "hint": "URL must be valid and contain the required placeholders",
-      "placeholders": "%p is the platform path, %s is the song ID",
+      "hint": "Leave empty to use the official AMLL API; a mirror URL must contain %s",
+      "placeholders": "%s is the song ID (required), %p is the platform path (optional)",
       "docsHint": "More info at",
-      "invalid": "Invalid URL — required placeholders missing"
+      "invalid": "Invalid URL — %s placeholder missing"
     },
     "enableExcludeLyrics": {
       "label": "Enable Lyric Exclusion",
@@ -1123,16 +1147,19 @@
       "enableTitle": "Confirm enabling",
       "scrobbleRiskContent": "Scrobbling is still experimental. Reported listening records are not guaranteed to count as valid plays, and the associated risks are not yet fully understood.\nEnabling it may trigger account risk controls or other account security issues. Consider the potential risks carefully before enabling this feature.",
       "highResourceContent": "Enabling it may noticeably increase memory and CPU usage, and could cause stuttering on lower-end devices. Enable it anyway?",
+      "transitionHighResourceContent": "Playback transitions are resource-intensive and are intended for users with higher-performance devices.\nThis feature is still in testing, and for some tracks the transition may currently sound worse than a plain track change.\nEnabling it also turns on track preloading, song caching and streaming caching, which increases memory, CPU, network and disk usage. Enable it anyway?",
       "restartRequiredTitle": "Restart Required",
       "restartRequiredContent": "This setting requires an app restart. Save and relaunch now?",
       "testChannelTitle": "Switch to a Test Channel",
-      "testChannelContent": "Beta and Alpha channels receive test releases early. Alpha releases may be highly unstable. Switch anyway?",
+      "testChannelContent": "Beta and Nightly channels receive test releases early. Nightly releases may be highly unstable. Switch anyway?",
       "kugouLoginVersionTitle": "Switch KG Login Version",
       "kugouLoginVersionContent": "After switching, the current credentials will not match the new version. You must log out and scan the QR code again, or VIP privileges and high-quality playback will stop working. Switch anyway?",
       "exclusiveModeTitle": "Switch to Exclusive Mode",
       "exclusiveModeContent": "Exclusive mode bypasses the system mixer and prefers the source sample rate and bit depth, making it suitable for external DACs / Hi-Fi gear. Player volume, EQ and other processing still apply, so bit-perfect output is not guaranteed. Other apps may be unable to play audio while exclusive. If exclusive mode is unavailable, shared mode will be attempted; it may also fail if another app holds the device exclusively. Switch anyway?",
       "preloadCacheTitle": "Enable the caches required for preloading?",
-      "preloadCacheContent": "Preloading requires caching the next track's audio. Continuing will enable both song caching and streaming caching, which may increase network traffic and disk usage"
+      "preloadCacheContent": "Preloading requires caching the next track's audio. Continuing will enable both song caching and streaming caching, which may increase network traffic and disk usage",
+      "disableSongCacheTitle": "Disable Song Cache?",
+      "disableSongCacheContent": "Preloading and crossfade depend on the song cache and will be disabled as well"
     },
     "useAMSpring": {
       "label": "Spring Animation Debug Switch",
@@ -1252,6 +1279,10 @@
     "enableScale": {
       "label": "Lyric Scale",
       "description": "Scale down inactive lines slightly to highlight current line"
+    },
+    "enableBalancedWrap": {
+      "label": "Balanced Line Wrap",
+      "description": "Wrap long lines into lines of similar length, breaking at punctuation and spaces first"
     },
     "lyricAlignment": {
       "label": "Lyric Alignment",
@@ -1628,6 +1659,12 @@
       "sidebarFull": "Immersive Sidebar",
       "floating": "Dynamic Floating"
     },
+    "songListStyle": {
+      "label": "Song List Style",
+      "description": "Display density of song lists",
+      "comfortable": "Comfortable",
+      "compact": "Compact"
+    },
     "routeTransition": {
       "label": "Page Transition",
       "description": "Animation effect when switching pages",
@@ -1635,6 +1672,14 @@
       "fade": "Fade",
       "slide": "Slide",
       "zoom": "Zoom"
+    },
+    "reduceMotion": {
+      "label": "Reduce Motion",
+      "description": "Reduce interface motion and resource usage"
+    },
+    "seamlessTransition": {
+      "label": "Shared Element Transitions",
+      "description": "Seamlessly transition elements between two pages"
     },
     "sidebarCollapsed": {
       "label": "Collapse Sidebar",
@@ -1796,7 +1841,6 @@
       "description": "Choose which releases to receive. Switching channels never automatically downgrades the app.",
       "stable": "Stable",
       "beta": "Beta Preview",
-      "alpha": "Alpha Experimental",
       "nightly": "Nightly Build"
     },
     "showPerformanceMonitor": {
@@ -2239,9 +2283,21 @@
       "button": "Clear All",
       "confirmTitle": "Clear all database caches?",
       "confirmDesc": "All database caches above will be cleared. This cannot be undone."
+    },
+    "automixModels": {
+      "beat": {
+        "label": "Beat model (Beat This!)"
+      },
+      "demucs": {
+        "label": "Stem model (Demucs)"
+      },
+      "runtime": {
+        "label": "Analysis runtime"
+      }
     }
   },
   "collection": {
+    "disc": "Disc {disc}",
     "totalDuration": "About {time}",
     "unknownAlbum": "Unknown Album",
     "empty": "No songs",

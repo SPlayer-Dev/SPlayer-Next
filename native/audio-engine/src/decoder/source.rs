@@ -9,6 +9,8 @@ pub struct DecoderSampleReader {
     shared: Arc<Shared>,
     /// DSP 后样本缓冲，直接接管 chunk 的 Vec，不复制也不扩容
     local_buffer: Vec<f32>,
+    stem_buffer: Option<Box<[Vec<f32>; 3]>>,
+    current_stems: [f32; 3],
     local_index: usize,
     local_source_samples: u64,
     reported_source_samples: u64,
@@ -19,11 +21,16 @@ pub struct DecoderSampleReader {
 }
 
 impl DecoderSampleReader {
+    /// 创建同一会话的非阻塞读取器，声部与主路共用块边界
+    /// @param shared - 已处理音频的有限缓冲
+    /// @returns 尚未开始消费的读取器
     pub fn new(shared: Arc<Shared>) -> Self {
         Self {
             end_sample: shared.end_sample(),
             shared,
             local_buffer: Vec::new(),
+            stem_buffer: None,
+            current_stems: [0.0; 3],
             local_index: 0,
             local_source_samples: 0,
             reported_source_samples: 0,
@@ -44,6 +51,24 @@ impl DecoderSampleReader {
         self.underrun
     }
 
+    /// 获取最近一条主路采样对应的三路声部，回调中只读取固定数组
+    /// @returns 鼓、贝斯和人声采样
+    pub fn current_stems(&self) -> [f32; 3] {
+        self.current_stems
+    }
+
+    /// 获取包含当前回调尚未发布部分的源采样位置
+    /// @returns 从本次解码起点累计的交错源采样数
+    pub fn source_sample_position(&self) -> u64 {
+        let pending = if self.local_buffer.is_empty() {
+            0
+        } else {
+            self.local_source_samples * self.local_index as u64 / self.local_buffer.len() as u64
+                - self.reported_source_samples
+        };
+        self.shared.samples_consumed_count() + pending
+    }
+
     /// 按实际取出的输出样本映射源位置，每个回调批量发布，避免逐样本原子写入
     pub fn sync_position(&mut self) {
         if self.local_buffer.is_empty() {
@@ -60,23 +85,26 @@ impl DecoderSampleReader {
 impl Iterator for DecoderSampleReader {
     type Item = f32;
 
+    /// 非阻塞读取一条采样，CUE 终点只在完整声道帧上截断
+    /// @returns 输出采样或流结束标记
     fn next(&mut self) -> Option<f32> {
+        if self.stem_buffer.is_some() {
+            self.current_stems = [0.0; 3];
+        }
         if self.end_sample != u64::MAX
-            && self.local_index % usize::from(self.shared.channels()) == 0
+            && self
+                .local_index
+                .is_multiple_of(usize::from(self.shared.channels()))
+            && self.source_sample_position() >= self.end_sample
         {
-            let pending = if self.local_buffer.is_empty() {
-                0
-            } else {
-                self.local_source_samples * self.local_index as u64 / self.local_buffer.len() as u64
-                    - self.reported_source_samples
-            };
-            if self.shared.samples_consumed_count() + pending >= self.end_sample {
-                self.sync_position();
-                self.shared.mark_all_consumed();
-                return None;
-            }
+            self.sync_position();
+            self.shared.mark_all_consumed();
+            return None;
         }
         if let Some(sample) = self.local_buffer.get(self.local_index).copied() {
+            if let Some(stems) = &self.stem_buffer {
+                self.current_stems = std::array::from_fn(|index| stems[index][self.local_index]);
+            }
             self.local_index += 1;
             return Some(sample);
         }
@@ -85,6 +113,11 @@ impl Iterator for DecoderSampleReader {
             self.shared
                 .recycle_player_buffer(std::mem::take(&mut self.local_buffer));
             self.local_index = 0;
+            if let Some(stems) = self.stem_buffer.take() {
+                for samples in *stems {
+                    self.shared.recycle_player_buffer(samples);
+                }
+            }
         }
         if self.underrun {
             return Some(0.0);
@@ -101,6 +134,10 @@ impl Iterator for DecoderSampleReader {
                         self.local_source_samples = chunk.source_sample_count;
                         self.reported_source_samples = 0;
                         self.local_buffer = chunk.player_samples;
+                        self.stem_buffer = chunk.stem_samples;
+                        if let Some(stems) = &self.stem_buffer {
+                            self.current_stems = std::array::from_fn(|index| stems[index][0]);
+                        }
                         self.local_index = 1;
                         return self.local_buffer.first().copied();
                     }
@@ -123,7 +160,13 @@ impl Iterator for DecoderSampleReader {
 }
 
 impl Drop for DecoderSampleReader {
+    /// 归还仍持有的主路与声部缓冲
     fn drop(&mut self) {
+        if let Some(stems) = self.stem_buffer.take() {
+            for samples in *stems {
+                self.shared.recycle_player_buffer(samples);
+            }
+        }
         self.shared
             .recycle_player_buffer(std::mem::take(&mut self.local_buffer));
     }

@@ -45,7 +45,7 @@ export const registerStreamingIpc = (): void => {
       if (!identityChanged) return updateStreamingServer(serverId, input);
       cancelStreamingSync(serverId);
       await stopStreamingPlayer(serverId);
-      const updated = updateStreamingServer(serverId, input);
+      const updated = await updateStreamingServer(serverId, input);
       invalidateStreamingSession(serverId);
       cancelStreamingSync(serverId);
       if (identityChanged && isDbOpen()) deleteLibraryByServer(serverId);
@@ -87,8 +87,8 @@ export const registerStreamingIpc = (): void => {
   ipcMain.handle("streaming:getSnapshot", (_event, serverId: string) =>
     getLibrarySnapshot(serverId),
   );
-  ipcMain.handle("streaming:sync", (_event, serverId: string, force = false) =>
-    queueStreamingSync(getStreamingServer(serverId), force),
+  ipcMain.handle("streaming:sync", async (_event, serverId: string, force = false) =>
+    queueStreamingSync(await getStreamingServer(serverId), force),
   );
   ipcMain.handle("streaming:search", (_event, serverId: string, query: string) =>
     searchLibrary(serverId, query.slice(0, 200)),

@@ -10,13 +10,13 @@ The list below fetches the latest release for the selected channel from GitHub a
 
 ## Release channels
 
-| Channel    | Intended audience       | Releases received           | Example         |
-| ---------- | ----------------------- | --------------------------- | --------------- |
-| **Stable** | Everyday use            | Stable                      | `1.2.0`         |
-| **Beta**   | Early feature access    | Beta, then Stable           | `1.3.0-beta.1`  |
-| **Alpha**  | Development and testing | Alpha, then Beta and Stable | `1.4.0-alpha.1` |
+| Channel     | Intended audience       | Releases received | Example              |
+| ----------- | ----------------------- | ----------------- | -------------------- |
+| **Stable**  | Everyday use            | Stable            | `1.2.0`              |
+| **Beta**    | Early feature access    | Beta, then Stable | `1.3.0-beta.1`       |
+| **Nightly** | Development and testing | Daily builds      | `1.3.0-nightly.1100` |
 
-Change the channel under **Settings → General → Release channel**. Alpha builds may be highly unstable. Moving to a more stable channel may require installing a build with a lower version number.
+Beta is promoted from Nightly every week, and Nightly is built every day. Change the channel under **Settings → General → Release channel**. Nightly builds may be highly unstable. After moving to a more stable channel, updates resume once that channel publishes a higher version.
 
 ## Other sources
 

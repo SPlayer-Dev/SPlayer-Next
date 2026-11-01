@@ -11,7 +11,7 @@
 
 import { callKugou } from "@main/apis/kugou";
 import type { KGSong } from "@shared/types/platform/kugou";
-import { getCachedLyric, setCachedLyric } from "@main/database/lyricCache";
+import { withLyricCache } from "@main/database/lyricCache";
 import { buildFingerprint, getMatchedId, setMatchedId } from "@main/database/lyricMatchCache";
 import { coreLog } from "@main/utils/logger";
 import type { LyricMatchResult } from "@shared/types/lyrics";
@@ -55,42 +55,40 @@ const fetchLyric = async (args: {
   /** 毫秒 */
   durationMs?: number;
 }): Promise<LyricMatchResult | null> => {
-  const cached = getCachedLyric("kugou", args.hash);
-  if (cached) return cached;
-  try {
-    const body = await callKugou<LyricResponse>("lyric", {
-      hash: args.hash,
-      name: args.name ?? "",
-      duration: args.durationMs ? Math.round(args.durationMs / 1000) : 0,
-    });
-    if (body.code !== 200) {
-      coreLog.warn(
-        `[lyric:kugou] fetchLyric(${args.hash}) code=${body.code}: ${body.message ?? "no message"}`,
-      );
+  return withLyricCache("kugou", args.hash, async () => {
+    try {
+      const body = await callKugou<LyricResponse>("lyric", {
+        hash: args.hash,
+        name: args.name ?? "",
+        duration: args.durationMs ? Math.round(args.durationMs / 1000) : 0,
+      });
+      if (body.code !== 200) {
+        coreLog.warn(
+          `[lyric:kugou] fetchLyric(${args.hash}) code=${body.code}: ${body.message ?? "no message"}`,
+        );
+        return null;
+      }
+
+      const main = pickFormatted(body.krc, body.lrc);
+      if (!main) return null;
+
+      const trans = body.trans?.trim();
+      const roma = body.roma?.trim();
+
+      return {
+        platform: "kugou",
+        format: main.format,
+        content: main.content,
+        translation: trans || undefined,
+        translationFormat: trans ? "lrc" : undefined,
+        romaji: roma || undefined,
+        romajiFormat: roma ? "lrc" : undefined,
+      };
+    } catch (err) {
+      coreLog.warn(`[lyric:kugou] fetchLyric(${args.hash}) failed:`, err);
       return null;
     }
-
-    const main = pickFormatted(body.krc, body.lrc);
-    if (!main) return null;
-
-    const trans = body.trans?.trim();
-    const roma = body.roma?.trim();
-
-    const result: LyricMatchResult = {
-      platform: "kugou",
-      format: main.format,
-      content: main.content,
-      translation: trans || undefined,
-      translationFormat: trans ? "lrc" : undefined,
-      romaji: roma || undefined,
-      romajiFormat: roma ? "lrc" : undefined,
-    };
-    setCachedLyric("kugou", args.hash, result);
-    return result;
-  } catch (err) {
-    coreLog.warn(`[lyric:kugou] fetchLyric(${args.hash}) failed:`, err);
-    return null;
-  }
+  });
 };
 
 /** 按 Kugou hash 直取（只有 hash 时用；精度受限） */

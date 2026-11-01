@@ -100,9 +100,10 @@ describe("单窗口启动过渡", () => {
 
   it("初始化失败时保留启动层并报告错误，不暴露空界面", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    application.mountApplication.mockRejectedValue(new Error("挂载失败"));
+    const error = new Error("挂载失败");
+    application.mountApplication.mockRejectedValue(error);
     await import("./bootstrap");
-    await vi.waitFor(() => expect(startupFailed).toHaveBeenCalledWith("Error: 挂载失败"));
+    await vi.waitFor(() => expect(startupFailed).toHaveBeenCalledWith(error.stack));
     expect(ready).toHaveBeenCalledExactlyOnceWith();
     expect(startupComplete).not.toHaveBeenCalled();
     expect(document.getElementById("app-loading")).not.toBeNull();

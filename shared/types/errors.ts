@@ -57,6 +57,8 @@ export enum ErrorCode {
   SCAN_DIR_NOT_FOUND = "SCAN_DIR_NOT_FOUND",
   /** 用户取消了目录选择 */
   SCAN_DIR_NOT_SELECTED = "SCAN_DIR_NOT_SELECTED",
+  /** 目录与已有扫描目录存在嵌套关系 */
+  SCAN_DIR_NESTED = "SCAN_DIR_NESTED",
 
   // 通用
   /** 当前账号没有执行操作所需的权限 */

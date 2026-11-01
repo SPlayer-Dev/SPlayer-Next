@@ -1,8 +1,9 @@
-/** 静态启动层与应用共享窗口；此入口不能静态导入 Vue 或业务模块。 */
+/** 显示启动层并在首屏就绪后移交播放控制，避免静态导入 Vue 或业务模块 */
 export const bootstrap = async (): Promise<void> => {
   const splash = document.getElementById("app-loading")!;
   const root = document.getElementById("app")!;
   const logo = splash.querySelector<HTMLImageElement>(".splash-logo")!;
+  /** 跟随页面可见性暂停启动动画 */
   const syncVisibility = (): void => {
     splash.classList.toggle("paused", document.hidden);
   };
@@ -48,5 +49,7 @@ export const bootstrap = async (): Promise<void> => {
 
 void bootstrap().catch((error) => {
   console.error("[app] 初始化失败", error);
-  window.api.window.startupFailed(String(error));
+  window.api.window.startupFailed(
+    error instanceof Error ? error.stack || String(error) : String(error),
+  );
 });

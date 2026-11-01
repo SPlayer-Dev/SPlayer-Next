@@ -329,11 +329,12 @@ fn prefill_buffer(
 ) -> Result<()> {
     unsafe {
         let ptr = render.GetBuffer(buffer_frames).context("启动预填充失败")?;
-        let gain = f32::from_bits(volume.load(Ordering::Relaxed));
+        let target = f32::from_bits(volume.load(Ordering::Relaxed));
+        let mut gain: Option<f32> = None;
         let silent = stopped.load(Ordering::Acquire) || paused.load(Ordering::Acquire);
         let block_align = usize::from(format.channels * format.container_bits / 8);
         let byte_buffer = std::slice::from_raw_parts_mut(ptr, buffer_frames as usize * block_align);
-        fill_buffer(byte_buffer, source, gain, silent, format);
+        fill_buffer(byte_buffer, source, &mut gain, target, silent, format);
         render
             .ReleaseBuffer(buffer_frames, 0)
             .context("启动预填充提交失败")
@@ -391,6 +392,7 @@ fn render_loop(
     let mut last_wake = Instant::now();
     let mut late_wakes = 0u64;
     let mut longest_gap = Duration::ZERO;
+    let mut gain: Option<f32> = None;
 
     loop {
         let wait = unsafe { WaitForMultipleObjects(&wait_handles, false, INFINITE) };
@@ -423,12 +425,12 @@ fn render_loop(
             }
         };
 
-        let gain = f32::from_bits(volume.load(Ordering::Relaxed));
+        let target = f32::from_bits(volume.load(Ordering::Relaxed));
         let silent = stopped.load(Ordering::Acquire) || paused.load(Ordering::Acquire);
         let byte_buffer = unsafe {
             std::slice::from_raw_parts_mut(buffer_ptr, buffer_frames as usize * block_align)
         };
-        fill_buffer(byte_buffer, &mut source, gain, silent, &format);
+        fill_buffer(byte_buffer, &mut source, &mut gain, target, silent, &format);
 
         if let Err(error) = unsafe { render.ReleaseBuffer(buffer_frames, 0) } {
             warn!(error = %error, "独占模式提交渲染缓冲失败");

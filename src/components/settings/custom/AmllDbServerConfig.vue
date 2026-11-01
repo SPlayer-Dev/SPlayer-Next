@@ -12,8 +12,7 @@ const { t } = useI18n();
 const open = ref(false);
 const serverUrl = ref("");
 
-const isValidServer = (url: string): boolean =>
-  isExternalUrl(url) && url.includes("%p") && url.includes("%s");
+const isValidServer = (url: string): boolean => isExternalUrl(url) && url.includes("%s");
 
 watch(open, (val) => {
   if (val) serverUrl.value = props.modelValue;
@@ -21,7 +20,7 @@ watch(open, (val) => {
 
 const handleConfirm = () => {
   const url = serverUrl.value.trim();
-  if (!isValidServer(url)) {
+  if (url && !isValidServer(url)) {
     toast.error(t("settings.amllDbServer.invalid"));
     return;
   }

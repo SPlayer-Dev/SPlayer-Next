@@ -58,6 +58,7 @@ watch(
         <img
           :src="src"
           :alt="alt"
+          data-cover-image
           class="w-full h-full object-cover opacity-0 transition-opacity duration-200"
           decoding="async"
           loading="lazy"

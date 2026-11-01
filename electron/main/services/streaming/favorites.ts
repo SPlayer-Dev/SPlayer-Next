@@ -1,7 +1,7 @@
 import { isDbOpen } from "@main/database";
 import { updateStreamingFavorite } from "@main/database/streaming/tracks";
 import { sendToMain } from "@main/utils/broadcast";
-import { getStreamingServer } from "./config";
+import { getStreamingServerRevision } from "./config";
 import { withStreamingAdapter } from "./connection";
 import { recordStreamingStageFavorite } from "./snapshot";
 
@@ -21,12 +21,12 @@ export const requestStreamingFavorite = (
   value?: boolean,
 ): Promise<boolean> => {
   const id = `${serverId}:${trackId}`;
-  const revision = getStreamingServer(serverId).revision;
+  const revision = getStreamingServerRevision(serverId);
   const previous = requests.get(id) ?? Promise.resolve();
   const request = previous
     .catch(() => {})
     .then(async () => {
-      if (getStreamingServer(serverId).revision !== revision)
+      if (getStreamingServerRevision(serverId) !== revision)
         throw new Error("流媒体配置已更新，本次请求已作废");
       const favorite = await withStreamingAdapter(serverId, (config, adapter) =>
         value === undefined

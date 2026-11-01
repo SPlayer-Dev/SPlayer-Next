@@ -166,6 +166,7 @@ watch(
           :playback-context="playbackContext"
           source="netease"
           collection-type="cloud"
+          sort-key="cloud"
           enable-sort
         />
       </div>

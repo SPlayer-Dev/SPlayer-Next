@@ -2,6 +2,8 @@
  * Netease API 通用常量（密钥、域名、客户端伪装标识等）
  */
 
+import { release, type as osType } from "node:os";
+
 /** AES-CBC 初始向量 */
 export const IV = "0102030405060708";
 /** weapi 第一层 AES 预设密钥 */
@@ -74,6 +76,16 @@ export const OS_MAP = {
     channel: "netease",
   },
 } as const;
+
+/**
+ * 宿主平台对应的客户端标识
+ * 协议层不依赖 electron，直接读 process.platform
+ */
+export const HOST_OS_KEY: keyof typeof OS_MAP =
+  process.platform === "darwin" ? "osx" : process.platform === "linux" ? "linux" : "pc";
+
+/** 宿主真实系统版本，作为未显式指定 os 时的 osver */
+export const HOST_OS_VERSION = `${osType()} ${release()}`;
 
 /** 不同加密方式 + 设备类型下的 User-Agent */
 export const UA_MAP = {

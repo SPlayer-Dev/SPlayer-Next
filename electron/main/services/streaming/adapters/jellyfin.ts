@@ -30,6 +30,8 @@ interface JellyItem {
   Artists?: string[];
   ArtistItems?: { Id: string; Name: string }[];
   RunTimeTicks?: number;
+  /** 碟号 */
+  ParentIndexNumber?: number;
   ProductionYear?: number;
   ChildCount?: number;
   ImageTags?: { Primary?: string };
@@ -225,6 +227,7 @@ const toTrack = (config: StreamingRuntimeConfig, item: JellyItem): Track => {
       item.Artists?.map((name) => ({ name })) ??
       [],
     album: item.Album ? { id: item.AlbumId, name: item.Album, serverId: config.id } : undefined,
+    disc: item.ParentIndexNumber || undefined,
     duration: item.RunTimeTicks ? Math.floor(item.RunTimeTicks / 10_000) : 0,
     cover: coverId ? imageUrl(config, coverId, imageTag, 300) : undefined,
     coverOriginal: coverId ? imageUrl(config, coverId, imageTag, 1500) : undefined,

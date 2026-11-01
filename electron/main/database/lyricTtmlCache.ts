@@ -5,29 +5,35 @@
  *
  * - id：NCM 用 netease 数字 id；QM 用 mid
  * - content：TTML 文本，NULL 表示负缓存（DB 没有这首）
- * - 正缓存永久；负缓存 72h TTL（让新加入条目能被发现）
+ * - 正缓存 7 天、负缓存 72h 后重新请求：按平台 ID 查询的结果会随词库更新变化
  */
 
 import { getDb } from "./index";
 
-/** 负缓存 72h TTL */
+/** 正缓存有效期 */
+const POSITIVE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** 负缓存有效期 */
 const NEGATIVE_TTL_MS = 72 * 60 * 60 * 1000;
 
 export type Platform = "netease" | "qqmusic";
 
 /**
- * 命中时返回 string（正缓存）或 null（负缓存）
- * 未命中或负缓存已过期返回 "miss"
+ * 读取缓存行
+ * @param platform - 平台
+ * @param id - 平台歌曲 ID
+ * @returns content 为 null 表示负缓存；fresh 表示仍在有效期内；未命中返回 null
  */
-export const getCachedTTML = (platform: Platform, id: string): string | null | "miss" => {
+export const getCachedTTML = (
+  platform: Platform,
+  id: string,
+): { content: string | null; fresh: boolean } | null => {
   const row = getDb()
     .prepare("SELECT content, fetched_at FROM lyric_ttml_cache WHERE platform = ? AND id = ?")
     .get(platform, id) as { content: string | null; fetched_at: number } | undefined;
-  if (!row) return "miss";
-  if (row.content !== null) return row.content;
-  // 负缓存：超过 TTL 视为 miss，让上层重抓
-  if (Date.now() - row.fetched_at > NEGATIVE_TTL_MS) return "miss";
-  return null;
+  if (!row) return null;
+  const ttl = row.content === null ? NEGATIVE_TTL_MS : POSITIVE_TTL_MS;
+  return { content: row.content, fresh: Date.now() - row.fetched_at < ttl };
 };
 
 /** upsert TTML；content 为 null 表示负缓存 */

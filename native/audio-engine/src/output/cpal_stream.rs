@@ -44,6 +44,7 @@ where
     T: SizedSample + Sample + FromSample<f32>,
 {
     let mut xruns = 0_u64;
+    let mut current_gain: Option<f32> = None;
     let stream = {
         #[cfg(target_os = "linux")]
         let _props_guard =
@@ -53,14 +54,22 @@ where
             config,
             move |data: &mut [T], _| {
                 source.begin_callback();
-                let gain = f32::from_bits(volume.load(Ordering::Relaxed));
                 if stopped.load(Ordering::Acquire) {
                     data.fill(T::EQUILIBRIUM);
+                    current_gain = None;
                     return;
                 }
+                // 首个缓冲直接采用目标增益：新流创建时原子量还是占位值，从它渐变会把满音量灌进缓冲；
+                // 运行中的音量变化才在同一缓冲内线性过渡，避免拖动音量或静音时爆音
+                let target = f32::from_bits(volume.load(Ordering::Relaxed));
+                let from = current_gain.unwrap_or(target);
+                let step = (target - from) / data.len().max(1) as f32;
+                let mut gain = from;
                 for output in data {
+                    gain += step;
                     *output = T::from_sample(source.next().unwrap_or(0.0) * gain);
                 }
+                current_gain = Some(target);
             },
             move |error| {
                 if !output_error_requires_rebuild(error.kind()) {

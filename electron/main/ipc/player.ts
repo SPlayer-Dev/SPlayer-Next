@@ -4,6 +4,8 @@ import {
   takeTransitionReady,
   setCurrentTransitionRange,
   getTransitionEndMs,
+  getPreparedAutoMixPlan,
+  installPreparedAutoMixStems,
 } from "@main/services/playerPreload";
 import { extname } from "node:path";
 import { app, ipcMain, powerMonitor } from "electron";
@@ -51,10 +53,13 @@ import type {
   ShuffleMode,
   PlayerState,
   TransitionPreference,
+  PreparedTrackResult,
 } from "@shared/types/player";
 import type { MediaEvent } from "@splayer/media-ctrl";
 import { JsPlayerEvent } from "@splayer/audio-engine";
 import type { JsMusicMetadata } from "@splayer/audio-engine";
+import type { AutoMixPrepareOptions, TransitionMode } from "@shared/types/automix";
+import { canAutoMix } from "@main/services/automix/planner";
 
 type AudioEngineModule = typeof import("@splayer/audio-engine");
 
@@ -199,7 +204,7 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
             inst.getSpeed(),
           ),
         );
-        const readyId = takeTransitionReady(endPosition - posMs, inst.getSpeed());
+        const readyId = takeTransitionReady(endPosition - posMs, inst.getSpeed(), inst.getPitch());
         if (readyId) {
           sendToMain("player:event", {
             type: "transitionReady",
@@ -224,13 +229,21 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
       case "transitionChanged": {
         if (event.transitionActive) {
           playerLog.info("曲尾交接点识别", {
-            reason: event.transitionReason === "quiet" ? "持续低能量" : "最迟交接边界",
+            reason:
+              event.transitionReason === "quiet"
+                ? "持续低能量"
+                : event.transitionReason === "planned"
+                  ? "AutoMix 计划落点"
+                  : "最迟交接边界",
             plannedFadeSeconds: event.transitionFadeSeconds,
           });
         }
         const transitionEvent = {
           type: "transition",
-          data: { active: event.transitionActive ?? false, mode: "crossfade" },
+          data: {
+            active: event.transitionActive ?? false,
+            mode: event.transitionMode === "automix" ? "automix" : "crossfade",
+          },
         } as const;
         sendToMain("player:event", transitionEvent);
         wsBroadcast(transitionEvent);
@@ -311,7 +324,7 @@ const completeTrackLoad = (
   const coverUrl = coverFetchUrl && /^https?:\/\//i.test(coverFetchUrl) ? coverFetchUrl : undefined;
   const durationMs = toDisplayDurationMs(toMs(meta.duration));
   const startMs = activeCueRange?.startMs ?? 0;
-  setCurrentTransitionRange(startMs, startMs + durationMs);
+  setCurrentTransitionRange(startMs, startMs + durationMs, source);
   const displayTitle =
     authoritative?.title ?? (meta.title || source.split(/[/\\]/).pop() || source);
   const displayArtists = authoritative
@@ -389,8 +402,21 @@ const completeTrackLoad = (
 export const registerPlayerIpc = (): void => {
   ipcMain.handle(
     "player:prepareNext",
-    (_event, id: string, source: string, startMs?: number, preference?: TransitionPreference) =>
-      prepareNextTrack(id, source, startMs, preference),
+    async (
+      _event,
+      id: string,
+      source: string,
+      startMs?: number,
+      preference?: TransitionPreference,
+      options?: AutoMixPrepareOptions,
+    ): Promise<PreparedTrackResult> => {
+      const ready = await prepareNextTrack(id, source, startMs, preference, options);
+      const plan = ready ? getPreparedAutoMixPlan(id) : undefined;
+      return {
+        ready,
+        autoMixStartMs: plan ? toDisplayPositionMs(plan.outStartMs) : undefined,
+      };
+    },
   );
   ipcMain.handle("player:cancelPrepared", (_event, id: string) => cancelPreparedTrack(id));
   ipcMain.handle(
@@ -402,10 +428,19 @@ export const registerPlayerIpc = (): void => {
       remainingMs: number,
       preference: TransitionPreference,
       options: LoadOptions = {},
+      mode: TransitionMode = "crossfade",
     ) => {
       const seq = loadSeq;
       const current = getPlayer();
       try {
+        const automix = mode === "automix" ? getPreparedAutoMixPlan(id) : undefined;
+        if (
+          mode === "automix" &&
+          (!automix ||
+            !canAutoMix(current.getSpeed(), current.getPitch()) ||
+            !(await installPreparedAutoMixStems(id)))
+        )
+          return { success: false };
         const streamingSource =
           options.meta?.source === "streaming"
             ? await streamingPlayback.prepareStreamingPlayback(options.meta, source)
@@ -432,6 +467,19 @@ export const registerPlayerIpc = (): void => {
           preference,
           options.meta?.cueEndMs == null ? undefined : options.meta.cueEndMs / 1000,
           endMs / 1000,
+          automix
+            ? {
+                outStartSeconds: automix.outStartMs / 1000,
+                inStartSeconds: automix.inStartMs / 1000,
+                durationSeconds: automix.durationMs / 1000,
+                outgoingRate: automix.outgoingRate,
+                levelRatio: store.get("player.loudnessNormalization") ? 1 : automix.levelRatio,
+                envelopes: automix.envelopes.map((span) => ({
+                  startSeconds: span.startMs / 1000,
+                  endSeconds: span.endMs / 1000,
+                })),
+              }
+            : undefined,
         );
         if (seq !== loadSeq || current !== getPlayer()) return { success: false };
         if (!meta) {
@@ -500,6 +548,9 @@ export const registerPlayerIpc = (): void => {
     const autoPlay = options.autoPlay ?? true;
     const authoritative = options.meta ?? null;
     const cueRange = cueRangeFromTrack(authoritative);
+    const preparedAutoMix = options.preparedId
+      ? getPreparedAutoMixPlan(options.preparedId)
+      : undefined;
     activeCueRange = cueRange;
     setCurrentTransitionRange();
     const seq = ++loadSeq;
@@ -576,7 +627,11 @@ export const registerPlayerIpc = (): void => {
       }
       const meta = await (async () => {
         try {
-          return await inst.load(source, cueRange ? false : autoPlay, options.preparedId);
+          return await inst.load(
+            source,
+            cueRange || preparedAutoMix ? false : autoPlay,
+            options.preparedId,
+          );
         } catch (error) {
           if (
             !streamingSource ||
@@ -595,9 +650,9 @@ export const registerPlayerIpc = (): void => {
         if (options.preparedId) cancelPreparedTrack(options.preparedId);
       });
       if (seq !== loadSeq || inst !== getPlayer()) return fail(ErrorCode.LOAD_SUPERSEDED);
-      if (cueRange) {
-        if (meta.preparedPosition !== cueRange.startMs / 1000)
-          await inst.seek(cueRange.startMs / 1000);
+      if (cueRange || preparedAutoMix) {
+        const expectedStart = (cueRange?.startMs ?? 0) / 1000;
+        if (meta.preparedPosition !== expectedStart) await inst.seek(expectedStart);
         if (seq !== loadSeq || inst !== getPlayer()) return fail(ErrorCode.LOAD_SUPERSEDED);
         if (autoPlay) await inst.play();
       }

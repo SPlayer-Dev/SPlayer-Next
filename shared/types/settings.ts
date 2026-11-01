@@ -317,7 +317,7 @@ export interface McpAgentApp {
 export interface OnlineLyricSettings {
   /** 启用在线 TTML 歌词 */
   enableOnlineTTMLLyric: boolean;
-  /** AMLL TTML DB 服务地址，需含 %s 占位符 */
+  /** AMLL TTML DB 镜像地址模板，需含 %s，%p 可选；留空使用官方 API */
   amllDbServer: string;
 }
 
@@ -377,7 +377,7 @@ export interface DownloadSettings {
   lyricFileFormat: DownloadLyricFormat;
 }
 
-/** 主窗口几何 */
+/** 主窗口几何（旧版持久化数据，仅供迁移到 Electron 内置窗口状态） */
 export interface MainWindowState {
   width: number;
   height: number;
@@ -420,7 +420,7 @@ export interface WindowStates {
 }
 
 /** 应用更新通道候选值，同时作为运行时校验名单 */
-export const UPDATE_CHANNELS = ["stable", "beta", "alpha", "nightly"] as const;
+export const UPDATE_CHANNELS = ["stable", "beta", "nightly"] as const;
 
 /** 应用更新通道 */
 export type UpdateChannel = (typeof UPDATE_CHANNELS)[number];
@@ -429,7 +429,7 @@ export type UpdateChannel = (typeof UPDATE_CHANNELS)[number];
 export interface AppUpdateSettings {
   /** 自动检查更新 */
   autoCheck: boolean;
-  /** 更新通道：stable 正式通道 / beta 预览通道 / alpha 内测通道 / nightly 持续构建通道 */
+  /** 更新通道：stable 正式通道 / beta 预览通道 / nightly 持续构建通道 */
   channel: UpdateChannel;
 }
 

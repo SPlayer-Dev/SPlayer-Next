@@ -164,6 +164,17 @@ export const registerLibraryIpc = (): void => {
     if (dirs.includes(dir)) {
       return { success: false, error: ErrorCode.SCAN_DIR_EXISTS };
     }
+    // 嵌套目录在写入前拒绝：撤销流程若已落库，会连带删掉另一目录覆盖下的已入库曲目
+    const nested = dirs.some(
+      (d) =>
+        dir.startsWith(d + "\\") ||
+        dir.startsWith(d + "/") ||
+        d.startsWith(dir + "\\") ||
+        d.startsWith(dir + "/"),
+    );
+    if (nested) {
+      return { success: false, error: ErrorCode.SCAN_DIR_NESTED };
+    }
     dirs.push(dir);
     store.set("library.scanDirs", dirs);
     libraryLog.info(`添加扫描目录: ${dir}`);

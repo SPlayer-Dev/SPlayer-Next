@@ -80,8 +80,10 @@ fn real_decoder_preserves_duration_and_pitch_across_output_rates() {
         );
         assert!(samples.iter().all(|s| s.is_finite() && s.abs() <= 0.3));
         let crossings = samples
-            .chunks_exact(2)
-            .map(|frame| frame[0])
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|[left, _]| *left)
             .collect::<Vec<_>>()
             .windows(2)
             .filter(|pair| pair[0] <= 0.0 && pair[1] > 0.0)

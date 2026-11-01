@@ -14,6 +14,7 @@ pub struct PrepareNextTask {
     config: PreloadConfig,
     cover_dir: Option<String>,
     cancelled: Arc<AtomicBool>,
+    stems: Option<JsAutoMixStemWindow>,
 }
 
 impl Task for PrepareNextTask {
@@ -39,6 +40,13 @@ impl Task for PrepareNextTask {
             let shared = Shared::new(config.sample_rate, config.channels);
             shared.set_preloading(true);
             shared.set_normalization_enabled(config.normalization);
+            if let Some(stems) = &self.stems {
+                shared.set_stems(Some(crate::decoder::stems::StemWindow::load(
+                    &stems.path,
+                    stems.start_seconds - self.start_position,
+                    stems.frames,
+                )?));
+            }
             let mut equalizer = Equalizer::new(config.sample_rate, config.channels);
             equalizer.set_enabled(config.eq_enabled);
             equalizer.set_band_gains(&config.bands);
@@ -98,10 +106,37 @@ impl Task for PrepareNextTask {
 
 #[napi]
 impl AudioPlayer {
+    /// 在后台安装仍属于当前音源的分离窗口
+    /// @param id - 当前备用槽位代次
+    /// @param source - 当前音源身份
+    /// @param window - 分析进程生成的有限窗口
+    /// @returns 当前加载代次仍有效且成功安装时为 true
+    #[napi]
+    pub async fn install_auto_mix_stems(
+        &self,
+        id: String,
+        source: String,
+        window: JsAutoMixStemWindow,
+    ) -> Result<bool> {
+        let inner = Arc::clone(&self.inner);
+        let token = inner.lock().load_token_handle().load(Ordering::Acquire);
+        tokio::task::spawn_blocking(move || {
+            let player = inner.lock();
+            if !player.is_load_token_current(token) || player.preload.id.as_deref() != Some(&id) {
+                return Ok(false);
+            }
+            player
+                .install_stems(&window.path, window.start_seconds, window.frames, &source)
+                .into_napi()
+        })
+        .await
+        .map_err(|error| Error::from_reason(error.to_string()))?
+    }
     /// 在独立槽位中打开本地文件并提前解码，不改变当前歌曲或占用第二条输出流
     /// @param id - 用于取消和消费预载资源的任务标识
     /// @param source - 本地音频文件或已完成下载的缓存文件路径
     /// @param startPosition - 预载起点，单位为秒，默认为 0
+    /// @param stems - 下一曲首部的有限分离窗口
     /// @returns 当前任务仍有效且音频已准备就绪时返回 true，否则返回 false
     #[napi(ts_return_type = "Promise<boolean>")]
     pub fn prepare_next(
@@ -109,6 +144,7 @@ impl AudioPlayer {
         id: String,
         source: String,
         start_position: Option<f64>,
+        stems: Option<JsAutoMixStemWindow>,
     ) -> Result<AsyncTask<PrepareNextTask>> {
         if source.starts_with("http://") || source.starts_with("https://") {
             return Err(Error::from_reason("预载音频必须先完成本地缓存"));
@@ -131,6 +167,7 @@ impl AudioPlayer {
             config: player.preload_config(),
             cover_dir: player.cover_cache_dir().map(String::from),
             cancelled,
+            stems,
         }))
     }
 
@@ -138,9 +175,6 @@ impl AudioPlayer {
     /// @param id - 要取消的预载任务标识
     #[napi]
     pub fn cancel_prepared(&self, id: String) {
-        let mut player = self.inner.lock();
-        if player.preload.id.as_deref() == Some(&id) {
-            player.preload.clear();
-        }
+        self.inner.lock().cancel_prepared(&id);
     }
 }

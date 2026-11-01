@@ -17,7 +17,7 @@ const migrateToLatest = (data: SystemConfig): void => {
 };
 
 describe("配置迁移", () => {
-  it("version 1 把单目录与旧开关搬到多目录新键", () => {
+  it("version 3 把单目录与旧开关搬到多目录新键", () => {
     const data = legacyConfig("D:\\Lyrics", true);
     migrateToLatest(data);
     expect(data.localLyric.repoDirs).toEqual(["D:\\Lyrics"]);

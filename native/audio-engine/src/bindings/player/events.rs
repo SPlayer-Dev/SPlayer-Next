@@ -31,11 +31,13 @@ impl AudioPlayer {
                 },
                 PlayerEvent::TransitionChanged {
                     active,
+                    mode,
                     reason,
                     fade_seconds,
                 } => JsPlayerEvent {
                     event_type: "transitionChanged".into(),
                     transition_active: Some(active),
+                    transition_mode: Some(mode),
                     transition_reason: reason,
                     transition_fade_seconds: fade_seconds,
                     ..Default::default()

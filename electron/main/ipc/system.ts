@@ -1,14 +1,13 @@
-import { app, clipboard, ipcMain, shell } from "electron";
+import { app, clipboard, ClipboardItem, ipcMain, shell } from "electron";
 import { stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join, basename, normalize } from "node:path";
+import { join, basename } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Track } from "@shared/types/player";
 import { getFonts } from "font-list";
 import type { LocaleCode } from "@shared/types/settings";
 import { setLocale } from "@main/utils/i18n";
 import { systemLog } from "@main/utils/logger";
-import { isWin, isMac } from "@main/utils/config";
 import { refreshTray } from "@main/services/tray";
 import { getThumbar } from "@main/services/thumbar";
 import { getMainWindow, focusMainWindow } from "@main/window";
@@ -58,15 +57,9 @@ export const registerSystemIpc = (): void => {
         if (!file.isFile() || file.size === 0) return false;
       }
 
-      if (isWin) {
-        clipboard.writeBuffer("FileNameW", Buffer.from(`${normalize(filePath)}\0`, "utf16le"));
-      } else {
-        const url = pathToFileURL(filePath).href;
-        clipboard.writeBuffer(
-          isMac ? "public.file-url" : "text/uri-list",
-          Buffer.from(isMac ? url : `${url}\r\n`),
-        );
-      }
+      // text/uri-list 会被映射为各平台原生文件引用格式（Windows CF_HDROP / macOS NSFilenamesPboardType）
+      const url = pathToFileURL(filePath).href;
+      await clipboard.write([new ClipboardItem({ "text/uri-list": `${url}\r\n` })]);
       return true;
     } catch (error) {
       systemLog.error("复制歌曲文件失败", error);

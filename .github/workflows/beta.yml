@@ -1,0 +1,57 @@
+# 每周把当前 Nightly 晋升为 Beta：打 tag 后交给 release.yml 构建发布
+name: Beta Release
+
+on:
+  schedule:
+    # 每周五 UTC 10:00，避开 Nightly 的 UTC 18:00 构建
+    - cron: "0 10 * * 5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: beta-release
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: 24.x
+
+jobs:
+  promote:
+    name: Promote Nightly to Beta
+    runs-on: ubuntu-latest
+    steps:
+      # 取 Nightly tag 指向的提交，它已经被 Nightly 用户实际运行过
+      - name: Check out nightly tag
+        uses: actions/checkout@v5
+        with:
+          ref: nightly
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # GITHUB_TOKEN 推送的 tag 不会触发其他工作流，因此手动派发 release.yml
+      - name: Tag and dispatch release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          EXISTING="$(git tag --points-at HEAD -l 'v*-beta.*')"
+          if [ -n "$EXISTING" ]; then
+            echo "当前 Nightly 已发布为 $EXISTING，跳过本次 Beta"
+            exit 0
+          fi
+
+          node --test scripts/gen-version.test.cjs
+          node scripts/gen-version.cjs beta
+          TAG="v$(node -p "require('./package.json').version")"
+
+          git tag "$TAG"
+          git push origin "$TAG"
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG" -f tag="$TAG"
+          echo "已创建 $TAG 并派发 Release 构建"

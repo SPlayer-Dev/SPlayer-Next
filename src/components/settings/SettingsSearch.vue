@@ -108,7 +108,7 @@ const handleBlur = () => {
     >
       <div
         v-if="isSearchActive"
-        class="absolute left-0 right-0 top-full mt-2 max-h-[calc(75vh-220px)] overflow-y-auto rounded-lg border border-solid border-outline-variant/80 z-10 p-1"
+        class="motion-enter absolute left-0 right-0 top-full mt-2 max-h-[calc(75vh-220px)] overflow-y-auto rounded-lg border border-solid border-outline-variant/80 z-10 p-1"
       >
         <template v-if="results.length > 0">
           <div

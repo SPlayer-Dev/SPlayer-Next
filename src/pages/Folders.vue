@@ -169,6 +169,7 @@ onMounted(async () => {
           :items="selectedTracks"
           show-album
           show-duration
+          sort-key="folders"
           enable-sort
         >
           <template #topInfo>

@@ -1,5 +1,13 @@
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
+import path from "node:path";
 import process from "node:process";
+
+/** NAPI CLI 入口，避免 Windows 下通过 shell 启动 .cmd 触发参数转义告警 */
+const napiCliEntry = path.join(
+  path.dirname(createRequire(import.meta.url).resolve("@napi-rs/cli/package.json")),
+  "dist/cli.js",
+);
 
 interface NativeModule {
   name: string;
@@ -100,9 +108,8 @@ for (const mod of modules) {
   const buildType = options.isDev ? "debug" : "release";
   console.log(`[BuildNative] 构建 ${mod.name} (${buildType})`);
 
-  const result = spawnSync("napi", ["build", ...napiArgs], {
+  const result = spawnSync(process.execPath, [napiCliEntry, "build", ...napiArgs], {
     stdio: "inherit",
-    shell: process.platform === "win32",
     cwd,
   });
 

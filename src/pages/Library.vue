@@ -201,6 +201,7 @@ onUnmounted(() => {
         :items="tracks"
         :search-query="searchQuery"
         :playback-context="playbackContext"
+        sort-key="library"
         enable-sort
         show-size
       />

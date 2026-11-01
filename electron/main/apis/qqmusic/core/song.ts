@@ -10,6 +10,8 @@ export interface QMAudioInfo {
   interval?: number;
   singer?: Array<{ id?: number; mid?: string; name?: string }>;
   album?: { mid?: string; name?: string; title?: string; pmid?: string };
+  /** 碟片索引，从 0 开始 */
+  index_cd?: number;
   file?: {
     media_mid?: string;
     size_128mp3?: number;
@@ -46,6 +48,7 @@ export const normalizeQMSong = (song: QMAudioInfo, albumMid = ""): QMSong => {
     artists: song.singer ?? [],
     album: song.album?.name || song.album?.title || "",
     albumMid: mid,
+    disc: song.index_cd !== undefined ? song.index_cd + 1 : undefined,
     duration: (song.interval ?? 0) * 1000,
     mediaMid: song.file?.media_mid ?? "",
     pay: {

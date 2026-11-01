@@ -139,7 +139,7 @@ export const initApp = (): void => {
     // 启动下载服务
     void initDownload();
     // 初始化 Last.fm 集成
-    initLastfm();
+    void initLastfm();
     // 初始化插件系统
     pluginRegistry.init();
     // 初始化播放事件桥

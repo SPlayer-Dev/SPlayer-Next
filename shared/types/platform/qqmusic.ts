@@ -8,6 +8,8 @@ export interface QMSong {
   artists?: Array<{ mid?: string; name?: string }>;
   album?: string;
   albumMid?: string;
+  /** 碟号，从 1 开始 */
+  disc?: number;
   cover?: string;
   coverOriginal?: string;
   /** 歌曲时长，单位为毫秒 */

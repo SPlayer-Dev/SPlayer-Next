@@ -139,16 +139,14 @@ const appearanceCategory: SettingCategory = {
           defaultValue: "default",
         },
         {
-          key: "routeTransition",
+          key: "songListStyle",
           type: "select",
-          binding: { store: "settings", path: "appearance.routeTransition" },
+          binding: { store: "settings", path: "appearance.songListStyle" },
           options: [
-            { value: "none", labelKey: "settings.routeTransition.none" },
-            { value: "fade", labelKey: "settings.routeTransition.fade" },
-            { value: "slide", labelKey: "settings.routeTransition.slide" },
-            { value: "zoom", labelKey: "settings.routeTransition.zoom" },
+            { value: "comfortable", labelKey: "settings.songListStyle.comfortable" },
+            { value: "compact", labelKey: "settings.songListStyle.compact" },
           ],
-          defaultValue: "fade",
+          defaultValue: "comfortable",
         },
         {
           key: "sidebarCollapsed",
@@ -171,6 +169,35 @@ const appearanceCategory: SettingCategory = {
           key: "showQualitySwitch",
           type: "switch",
           binding: { store: "settings", path: "appearance.showQualitySwitch" },
+          defaultValue: false,
+        },
+      ],
+    },
+    {
+      id: "softwareAnimations",
+      items: [
+        {
+          key: "reduceMotion",
+          type: "switch",
+          binding: { store: "settings", path: "appearance.reduceMotion" },
+          defaultValue: false,
+        },
+        {
+          key: "routeTransition",
+          type: "select",
+          binding: { store: "settings", path: "appearance.routeTransition" },
+          options: [
+            { value: "none", labelKey: "settings.routeTransition.none" },
+            { value: "fade", labelKey: "settings.routeTransition.fade" },
+            { value: "slide", labelKey: "settings.routeTransition.slide" },
+            { value: "zoom", labelKey: "settings.routeTransition.zoom" },
+          ],
+          defaultValue: "fade",
+        },
+        {
+          key: "seamlessTransition",
+          type: "switch",
+          binding: { store: "settings", path: "appearance.seamlessTransition" },
           defaultValue: false,
         },
       ],

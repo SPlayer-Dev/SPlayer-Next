@@ -1,9 +1,12 @@
+import { applyLyricLanguages, type LyricLanguage, type LyricLine } from "lyric-kit";
 import type { Track } from "@shared/types/player";
 import { hexToRgb } from "@/utils/color";
 
 /** 海报中的一行歌词 */
 export interface LyricPosterLine {
   text: string;
+  /** 原文语言，沿用播放器的识别结果 */
+  language?: LyricLanguage;
   /** 翻译 */
   translation?: string;
   /** 音译 */
@@ -17,6 +20,15 @@ export interface LyricPosterOptions {
   lines: LyricPosterLine[];
   /** 无封面时的背景色 HEX，可空 */
   fallbackColor?: string | null;
+  /** 沿用现有设置的 CSS 字体族列表 */
+  fonts?: {
+    global?: string;
+    lyric?: string;
+    chinese?: string;
+    japanese?: string;
+    korean?: string;
+    latin?: string;
+  };
 }
 
 const SCALE = 3;
@@ -27,12 +39,6 @@ const PAD_TOP = 64;
 const PAD_BOTTOM = 30;
 
 const FONT_STACK = '-apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif';
-const LYRIC_FONT = `bold 34px ${FONT_STACK}`;
-const TRANS_FONT = `24px ${FONT_STACK}`;
-const ROMAJI_FONT = `italic 22px ${FONT_STACK}`;
-const TITLE_FONT = `bold 28px ${FONT_STACK}`;
-const ARTIST_FONT = `22px ${FONT_STACK}`;
-const MARK_FONT = `600 15px ${FONT_STACK}`;
 
 const LYRIC_LH = 48;
 const TRANS_LH = 34;
@@ -142,11 +148,56 @@ const drawCovered = (
 
 /**
  * 把选中歌词绘制成一张海报 PNG（自动解析当前封面）
- * @param options - 曲目、歌词行、无封面时的背景色
+ * @param options - 曲目、歌词行、背景色和导出字体配置
  * @returns PNG Blob
  */
 export const createLyricPoster = async (options: LyricPosterOptions): Promise<Blob> => {
-  const { track, lines, fallbackColor } = options;
+  const { track, lines, fallbackColor, fonts = {} } = options;
+  const globalFont = `${fonts.global ? `${fonts.global}, ` : ""}${FONT_STACK}`;
+  const lyricFont = `${fonts.lyric ? `${fonts.lyric}, ` : ""}${globalFont}`;
+
+  /**
+   * 获取文本语言，缺少播放器语言信息时按歌词识别规则推断
+   * @param text - 需要识别的歌词文本
+   * @param language - 播放器已识别的语言
+   * @returns 文本语言
+   */
+  const languageForText = (text: string, language?: LyricLanguage): LyricLanguage | undefined => {
+    if (language) return language;
+    const detected: LyricLine[] = [
+      {
+        words: [{ word: text, startTime: 0, endTime: 0 }],
+        translatedLyric: "",
+        romanLyric: "",
+        startTime: 0,
+        endTime: 0,
+        isBG: false,
+        isDuet: false,
+      },
+    ];
+    applyLyricLanguages(detected);
+    return detected[0].language;
+  };
+
+  /**
+   * 按文本语言解析字体，保证测量和绘制使用相同字体
+   * @param text - 原文、翻译或音译
+   * @param style - Canvas 字号与字形
+   * @param language - 播放器已识别的原文语言
+   * @returns 可直接赋给 Canvas 的字体描述
+   */
+  const fontForText = (text: string, style: string, language?: LyricLanguage): string => {
+    const resolvedLanguage = languageForText(text, language);
+    const family = resolvedLanguage
+      ? {
+          "zh-CN": fonts.chinese,
+          ja: fonts.japanese,
+          ko: fonts.korean,
+          "und-Latn": fonts.latin,
+        }[resolvedLanguage]
+      : undefined;
+    return `${style} ${family ? `${family}, ` : ""}${lyricFont}`;
+  };
   const title = track.title;
   const artist = track.artists.map((item) => item.name).join(" / ");
   const coverDataUrl = await resolveCoverDataUrl(track);
@@ -155,16 +206,49 @@ export const createLyricPoster = async (options: LyricPosterOptions): Promise<Bl
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("无法创建画布上下文");
+  // 当前 DOM 类型尚未声明 Canvas 文本语言属性
+  const textContext = ctx as CanvasRenderingContext2D & { lang: string };
+
+  // 字体就绪后再测量，避免首次导出使用回退字体的宽度
+  await Promise.all([
+    document.fonts.load(`bold 28px ${globalFont}`, title),
+    document.fonts.load(`22px ${globalFont}`, artist),
+    document.fonts.load(`600 15px ${globalFont}`, "Made by SPlayer Next"),
+    ...lines.flatMap((line) => [
+      document.fonts.load(fontForText(line.text, "bold 34px", line.language), line.text),
+      ...(line.translation
+        ? [document.fonts.load(fontForText(line.translation, "24px"), line.translation)]
+        : []),
+      ...(line.romaji
+        ? [document.fonts.load(fontForText(line.romaji, "italic 22px"), line.romaji)]
+        : []),
+    ]),
+  ]);
 
   // 预折行并量算高度
   const layout = lines.map((line) => {
-    ctx.font = LYRIC_FONT;
+    const mainLanguage = languageForText(line.text, line.language);
+    const mainFont = fontForText(line.text, "bold 34px", line.language);
+    const translationFont = fontForText(line.translation ?? "", "24px");
+    const romajiFont = fontForText(line.romaji ?? "", "italic 22px");
+    textContext.lang = mainLanguage ?? "inherit";
+    ctx.font = mainFont;
     const main = wrapText(ctx, line.text || " ", CONTENT_WIDTH);
-    ctx.font = TRANS_FONT;
+    textContext.lang = "inherit";
+    ctx.font = translationFont;
     const translation = line.translation ? wrapText(ctx, line.translation, CONTENT_WIDTH) : [];
-    ctx.font = ROMAJI_FONT;
+    ctx.font = romajiFont;
     const romaji = line.romaji ? wrapText(ctx, line.romaji, CONTENT_WIDTH) : [];
-    return { main, translation, romaji, duet: !!line.duet };
+    return {
+      main,
+      translation,
+      romaji,
+      mainFont,
+      translationFont,
+      romajiFont,
+      mainLanguage,
+      duet: !!line.duet,
+    };
   });
 
   let lyricsHeight = 0;
@@ -212,10 +296,10 @@ export const createLyricPoster = async (options: LyricPosterOptions): Promise<Bl
     titleX = PAD_X + THUMB + THUMB_TEXT_GAP;
   }
   ctx.fillStyle = "#ffffff";
-  ctx.font = TITLE_FONT;
+  ctx.font = `bold 28px ${globalFont}`;
   ctx.fillText(title, titleX, PAD_TOP + 10);
   ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
-  ctx.font = ARTIST_FONT;
+  ctx.font = `22px ${globalFont}`;
   ctx.fillText(artist, titleX, PAD_TOP + 44);
 
   // 歌词
@@ -226,15 +310,17 @@ export const createLyricPoster = async (options: LyricPosterOptions): Promise<Bl
     const textX = block.duet ? WIDTH - PAD_X : PAD_X;
     ctx.textAlign = block.duet ? "right" : "left";
     ctx.fillStyle = "#ffffff";
-    ctx.font = LYRIC_FONT;
+    textContext.lang = block.mainLanguage ?? "inherit";
+    ctx.font = block.mainFont;
     for (const text of block.main) {
       ctx.fillText(text, textX, y);
       y += LYRIC_LH;
     }
+    textContext.lang = "inherit";
     if (block.translation.length) {
       y += SUBLINE_GAP;
       ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
-      ctx.font = TRANS_FONT;
+      ctx.font = block.translationFont;
       for (const text of block.translation) {
         ctx.fillText(text, textX, y);
         y += TRANS_LH;
@@ -243,7 +329,7 @@ export const createLyricPoster = async (options: LyricPosterOptions): Promise<Bl
     if (block.romaji.length) {
       y += SUBLINE_GAP;
       ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
-      ctx.font = ROMAJI_FONT;
+      ctx.font = block.romajiFont;
       for (const text of block.romaji) {
         ctx.fillText(text, textX, y);
         y += ROMAJI_LH;
@@ -253,7 +339,7 @@ export const createLyricPoster = async (options: LyricPosterOptions): Promise<Bl
 
   // 底部水印（居中）
   ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
-  ctx.font = MARK_FONT;
+  ctx.font = `600 15px ${globalFont}`;
   ctx.textAlign = "center";
   ctx.fillText("Made by SPlayer Next", WIDTH / 2, totalHeight - PAD_BOTTOM - WATERMARK_H);
 

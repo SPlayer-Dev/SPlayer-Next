@@ -51,7 +51,11 @@ const abLoopOpen = ref(false);
           class="player-transition-shine absolute inset-0 flex items-center justify-end pr-1.5"
           role="status"
         >
-          {{ $t("player.transitioning") }}
+          {{
+            status.transitionMode === "automix"
+              ? $t("player.automixing")
+              : $t("player.transitioning")
+          }}
         </span>
       </Transition>
     </span>

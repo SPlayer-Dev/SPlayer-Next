@@ -9,7 +9,6 @@ import { useSettingsStore } from "@/stores/settings";
 import { useStatusStore } from "@/stores/status";
 import { getCurrentTime } from "@/services/playback";
 import "@applemusic-like-lyrics/core/style.css";
-import LyricCredit from "./LyricCredit.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -56,6 +55,8 @@ const props = withDefaults(
 interface Emits {
   /** 点击歌词行进行播放进度跳转 */
   (e: "seek", timeMs: number): void;
+  /** 首次布局完成 */
+  (e: "ready"): void;
 }
 
 const emit = defineEmits<Emits>();
@@ -236,6 +237,7 @@ onMounted(async () => {
   processLyricLanguage(player);
   initialized.value = true;
   contentVisible.value = true;
+  emit("ready");
 });
 
 onUnmounted(() => {

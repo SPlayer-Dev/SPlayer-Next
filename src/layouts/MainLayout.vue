@@ -4,10 +4,19 @@ import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
 import { useOrpheusProtocol } from "@/composables/useOrpheusProtocol";
 import { useExternalFileHandler } from "@/composables/useExternalFileHandler";
+import { useResponsiveLayout } from "@/composables/useResponsiveLayout";
+import { coverTransitionActive, installCoverTransitions } from "@/services/coverTransition";
+import {
+  fullPlayerReady,
+  playerTransitionActive,
+  cancelPlayerTransition,
+} from "@/services/playerTransition";
 
 const route = useRoute();
+const router = useRouter();
 const status = useStatusStore();
 const settings = useSettingsStore();
+const { sidebarCollapsed } = useResponsiveLayout();
 
 // 接入 orpheus 协议唤起与外部音频文件播放
 useOrpheusProtocol();
@@ -18,7 +27,6 @@ const showPlayerBar = computed(() => !!useMediaStore().track);
 const { isPlayerExpanded } = storeToRefs(status);
 
 /** 播放页展开状态同步与懒加载 */
-const fullPlayerReady = ref(false);
 const FullPlayer = defineAsyncComponent(() => import("@/components/player/FullPlayer/index.vue"));
 const fullPlayerLoaded = ref(isPlayerExpanded.value);
 watch(
@@ -29,7 +37,7 @@ watch(
   },
   { immediate: true },
 );
-onBeforeUnmount(() => window.api.window.setPlayerExpanded(false));
+
 const { appearance } = settings;
 
 /** 路由切换动效 */
@@ -38,10 +46,12 @@ const routeTransitionName = computed(() => {
   return transition === "none" ? "" : `route-${transition}`;
 });
 
-/** 路由 key */
+/** 详情按路径和服务器隔离实例，列表沿用父路由缓存 */
 const routeKey = computed(() => {
   const hasParam = route.matched.some((m) => m.path.includes(":"));
-  return hasParam ? route.path : (route.matched[1]?.path ?? route.path);
+  return hasParam
+    ? `${route.path}:${route.query.serverId ?? ""}`
+    : (route.matched[1]?.path ?? route.path);
 });
 
 /** 需要受控缓存的页面组件白名单 */
@@ -77,12 +87,31 @@ watch(
   },
 );
 
-// 路由切换完成后恢复滚动位置
+/** 路由切换完成后恢复主内容区滚动位置 */
 const handleAfterEnter = (): void => {
   if (!mainContainerRef.value) return;
   const saved = mainScrollMap.get(route.fullPath) ?? 0;
   mainContainerRef.value.scrollTop = saved;
 };
+
+let disposeCoverTransitions: (() => void) | undefined;
+watch(
+  () => appearance.seamlessTransition && !settings.reducedMotion,
+  (enabled) => {
+    if (!enabled) cancelPlayerTransition();
+    disposeCoverTransitions?.();
+    disposeCoverTransitions = enabled
+      ? installCoverTransitions(router, () => mainContainerRef.value, handleAfterEnter)
+      : undefined;
+  },
+  { immediate: true },
+);
+onBeforeUnmount(() => {
+  window.api.window.setPlayerExpanded(false);
+  disposeCoverTransitions?.();
+  cancelPlayerTransition();
+  fullPlayerReady.value = false;
+});
 
 /** 侧边栏样式 */
 const sidebarClass = computed(() => {
@@ -104,7 +133,7 @@ const mainMarginClass = computed(() =>
 /** 外层播放条样式 */
 const playerBarWrapperClass = computed(() => {
   const base = "fixed bottom-0 z-50 transition-[left] duration-300 pointer-events-none";
-  const collapsed = appearance.sidebarCollapsed;
+  const collapsed = sidebarCollapsed.value;
   switch (appearance.layoutMode) {
     case "sidebar-full":
       return `${base} ${collapsed ? "left-16" : "left-60"} right-0`;
@@ -131,19 +160,20 @@ const playerBarInnerClass = computed(() => {
 <template>
   <!-- 主界面 -->
   <div
-    class="h-screen flex overflow-hidden bg-app text-on-surface transition-[transform,opacity] duration-500 ease-[cubic-bezier(0.7,0,0.3,1)] origin-center"
+    class="player-shell h-screen flex overflow-hidden bg-app text-on-surface transition-[transform,opacity] duration-360 ease-[cubic-bezier(0.25,1,0.35,1)] origin-center"
+    :style="playerTransitionActive ? { transition: 'none' } : undefined"
     :class="isPlayerExpanded && fullPlayerReady ? 'scale-95 opacity-0 pointer-events-none' : ''"
   >
     <!-- 侧边栏 -->
     <aside
       class="shrink-0 bg-surface-panel overflow-y-auto z-10 transition-[width,margin] duration-300"
-      :class="[appearance.sidebarCollapsed ? 'w-16' : 'w-60', sidebarClass]"
+      :class="[sidebarCollapsed ? 'w-16' : 'w-60', sidebarClass]"
     >
       <SideBar />
     </aside>
 
     <!-- 右侧主区域 -->
-    <div class="flex-1 flex flex-col min-w-0" :class="mainMarginClass">
+    <div class="flex-1 flex flex-col min-w-0 min-h-0" :class="mainMarginClass">
       <!-- 顶部导航 -->
       <header class="h-16 shrink-0 flex items-center px-3">
         <NavHeader />
@@ -152,7 +182,12 @@ const playerBarInnerClass = computed(() => {
       <!-- 主内容区 -->
       <main ref="mainContainerRef" class="flex-1 overflow-y-auto overflow-x-hidden">
         <RouterView v-slot="{ Component }">
-          <Transition :name="routeTransitionName" mode="out-in" @after-enter="handleAfterEnter">
+          <Transition
+            :name="routeTransitionName"
+            :css="!coverTransitionActive"
+            :mode="coverTransitionActive ? undefined : 'out-in'"
+            @after-enter="handleAfterEnter"
+          >
             <KeepAlive :max="10" :include="cachedViews">
               <component :is="Component" :key="routeKey" />
             </KeepAlive>
@@ -193,3 +228,84 @@ const playerBarInnerClass = computed(() => {
   <!-- 输出信息弹窗 -->
   <AudioInfoDialog />
 </template>
+
+<style>
+html[data-cover-transition] {
+  [data-cover-shared] {
+    view-transition-name: detail-cover;
+  }
+
+  &::view-transition-group(detail-cover) {
+    animation-duration: 260ms;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+    overflow: clip;
+    border-radius: var(--cover-transition-radius);
+  }
+
+  &::view-transition-old(detail-cover),
+  &::view-transition-new(detail-cover) {
+    height: 100%;
+    object-fit: cover;
+  }
+
+  &::view-transition-old(root),
+  &::view-transition-new(root) {
+    animation: none;
+  }
+}
+
+html[data-player-transition] {
+  [data-player-shared] {
+    view-transition-name: player-cover;
+  }
+
+  [data-player-cover-overlay] {
+    visibility: hidden;
+  }
+
+  [data-player-cover="full"] {
+    box-shadow: none;
+  }
+
+  &::view-transition-image-pair(player-cover) {
+    overflow: clip;
+  }
+
+  &::view-transition-old(player-cover),
+  &::view-transition-new(player-cover) {
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+html[data-player-transition="expand"] {
+  &::view-transition-group(*) {
+    animation-duration: 360ms;
+    animation-timing-function: cubic-bezier(0.25, 1, 0.35, 1);
+  }
+
+  &::view-transition-image-pair(player-cover) {
+    animation: player-cover-radius 360ms cubic-bezier(0.25, 1, 0.35, 1) both;
+  }
+}
+
+html[data-player-transition="collapse"] {
+  &::view-transition-group(*) {
+    animation-duration: 340ms;
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+
+  &::view-transition-image-pair(player-cover) {
+    animation: player-cover-radius 340ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  }
+}
+
+@keyframes player-cover-radius {
+  from {
+    border-radius: var(--player-cover-from-radius);
+  }
+  to {
+    border-radius: var(--player-cover-to-radius);
+  }
+}
+</style>

@@ -3,7 +3,6 @@ import type { LyricLine } from "lyric-kit";
 
 import { DEFAULTS, type LyricAlignment, type SpringParams, LyricRenderer } from "lyric-dom";
 import "lyric-dom/renderer.css";
-import LyricCredit from "./LyricCredit.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -96,6 +95,8 @@ const props = withDefaults(
     showRuby?: boolean;
     /** 是否始终将背景行置于主行下方 @default false */
     bgAlwaysBelow?: boolean;
+    /** 是否对超长行做平衡换行 @default true */
+    enableBalancedWrap?: boolean;
     /** 是否启用滚动预滚优化 @default true */
     enableScrollPreroll?: boolean;
     /** 挂载时的初始播放时间（毫秒）@default 0 */
@@ -122,6 +123,7 @@ const props = withDefaults(
     showWordRomanization: true,
     showRuby: DEFAULTS.showRuby,
     bgAlwaysBelow: DEFAULTS.bgAlwaysBelow,
+    enableBalancedWrap: DEFAULTS.enableBalancedWrap,
     enableScrollPreroll: DEFAULTS.enableScrollPreroll,
     initialTime: 0,
   },
@@ -130,6 +132,8 @@ const props = withDefaults(
 interface Emits {
   /** 用户点击歌词行时触发，参数为该行起始时间（毫秒），用于跳转播放进度 */
   (e: "seek", timeMs: number): void;
+  /** 首次布局与逐字测量完成 */
+  (e: "ready"): void;
 }
 
 const emit = defineEmits<Emits>();
@@ -143,10 +147,7 @@ let isFrozen = false;
 let pendingLyrics: LyricLine[] | null = null;
 
 /**
- * 推送当前播放时间（毫秒）
- *
- * 由外部播放器在每帧或定时器中调用，驱动歌词滚动与逐字高亮动画。
- *
+ * 推送当前播放时间，驱动歌词滚动与逐字高亮
  * @param time - 当前播放时间（毫秒）
  * @param _isSeeking - 是否处于跳转状态
  */
@@ -175,7 +176,7 @@ const handleLineClick = (timeMs: number) => {
   emit("seek", timeMs);
 };
 
-onMounted(() => {
+onMounted(async () => {
   if (!containerRef.value) return;
   const { lyricLines: _lyricLines, initialTime: _initialTime, ...config } = props;
   renderer = new LyricRenderer(containerRef.value, {
@@ -190,6 +191,12 @@ onMounted(() => {
     renderer.setLyrics(props.lyricLines);
   }
   bottomLineEl.value = renderer.getBottomLineElement();
+  const current = renderer;
+  await nextTick();
+  await new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+  );
+  if (renderer === current) emit("ready");
 });
 
 onUnmounted(() => {
@@ -314,6 +321,11 @@ watch(
 watch(
   () => props.bgAlwaysBelow,
   (v) => renderer?.setConfig({ bgAlwaysBelow: v }),
+);
+
+watch(
+  () => props.enableBalancedWrap,
+  (v) => renderer?.setConfig({ enableBalancedWrap: v }),
 );
 
 watch(

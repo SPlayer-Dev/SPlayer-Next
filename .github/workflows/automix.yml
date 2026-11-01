@@ -1,0 +1,142 @@
+name: AutoMix components
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 构建完成后上传到 AutoMix Release
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: automix-components
+  cancel-in-progress: false
+
+jobs:
+  models:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: 安装固定版本的模型导出依赖
+        run: |
+          python -m pip install torch==2.14.0 --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install numpy==2.5.2 onnx==1.23.0 onnxruntime==1.28.0 einops==0.8.2 rotary-embedding-torch==0.9.1 julius==0.2.7 pyyaml==6.0.3 dora-search==0.1.12 omegaconf==2.3.0
+          # 仅导出网络，不安装音频读取、训练和命令行依赖
+          python -m pip install --no-deps beat-this==1.1.0 demucs==4.0.1 openunmix==1.3.0
+      - name: 下载官方权重并导出原精度模型
+        run: |
+          mkdir -p weights models
+          curl --fail --location --output weights/final0.ckpt https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/final0.ckpt
+          curl --fail --location --output weights/955717e8-8726e21a.th https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th
+          python scripts/export-automix-model.py beat weights/final0.ckpt models
+          python scripts/export-automix-model.py demucs weights/955717e8-8726e21a.th models
+      - uses: actions/upload-artifact@v6
+        with:
+          name: automix-models
+          compression-level: 0
+          path: |
+            models/automix-*.zip
+            models/beat-this.json
+            models/htdemucs.json
+          if-no-files-found: error
+
+  runtime:
+    needs: models
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            arch: x64
+          - os: windows-11-arm
+            arch: arm64
+          - os: macos-15-intel
+            arch: x64
+          - os: macos-15
+            arch: arm64
+          - os: ubuntu-24.04
+            arch: x64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          architecture: ${{ matrix.arch }}
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: 移除本地开发镜像配置
+        shell: bash
+        run: rm -f .npmrc
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: cargo test -p automix-worker --locked
+      - run: cargo clippy -p automix-worker --locked -- -D warnings
+      - uses: actions/download-artifact@v7
+        with:
+          name: automix-models
+          path: models
+      - name: 构建运行包并校验两个模型的实际推理
+        run: pnpm exec tsx scripts/package-automix-runtime.ts node_modules/.cache/automix-runtime models
+      - uses: actions/upload-artifact@v6
+        if: ${{ !cancelled() }}
+        with:
+          name: automix-${{ runner.os }}-${{ matrix.arch }}
+          compression-level: 0
+          path: |
+            node_modules/.cache/automix-runtime/automix-runtime-*.zip
+            node_modules/.cache/automix-runtime/*-x64.json
+            node_modules/.cache/automix-runtime/*-arm64.json
+          if-no-files-found: error
+
+  release:
+    needs: [models, runtime]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: automix-*
+          merge-multiple: true
+          path: release-assets
+      - name: 汇总模型与六个平台运行包
+        working-directory: release-assets
+        run: |
+          test "$(find . -maxdepth 1 -name 'automix-*.zip' | wc -l)" -eq 8
+      - uses: actions/upload-artifact@v6
+        with:
+          name: automix-release
+          compression-level: 0
+          path: release-assets/*
+          if-no-files-found: error
+
+  publish:
+    needs: release
+    if: inputs.publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: automix-release
+          path: release-assets
+      # 已发布文件的 sha256 写死在客户端，同名文件一律跳过，组件升级须改文件名
+      - name: 上传新增组件到 AutoMix Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          existing=$(gh release view AutoMix --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
+          for file in release-assets/*; do
+            grep -qxF "$(basename "$file")" <<<"$existing" ||
+              gh release upload AutoMix "$file" --repo "$GITHUB_REPOSITORY"
+          done

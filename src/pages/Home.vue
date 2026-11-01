@@ -112,12 +112,26 @@ const openAlbum = (item: CoverItem): void => {
             </STag>
             <h2 class="truncate text-xl font-bold text-on-surface">{{ hero?.title }}</h2>
             <p class="truncate text-sm text-on-surface-variant/70">{{ hero?.subtitle }}</p>
-            <div class="mt-0.5 flex items-center gap-2">
-              <SButton type="primary" round :disabled="heroLoading" @click="playHero">
+            <div class="mt-0.5 flex flex-wrap items-center gap-2">
+              <SButton
+                type="primary"
+                round
+                size="small"
+                class="shrink-0 whitespace-nowrap"
+                :disabled="heroLoading"
+                @click="playHero"
+              >
                 <template #icon><IconLucidePlay /></template>
                 {{ t("home.hero.play") }}
               </SButton>
-              <SButton variant="secondary" round :disabled="heroLoading" @click="addHeroToQueue">
+              <SButton
+                variant="secondary"
+                round
+                size="small"
+                class="shrink-0 whitespace-nowrap"
+                :disabled="heroLoading"
+                @click="addHeroToQueue"
+              >
                 <template #icon><IconLucidePlus /></template>
                 {{ t("home.hero.addQueue") }}
               </SButton>
@@ -126,7 +140,7 @@ const openAlbum = (item: CoverItem): void => {
           <!-- 队列预览 -->
           <ul
             v-if="heroPreview.length > 0"
-            class="w-100 shrink-0 flex-col border-l border-on-surface/8 pl-4 lg:flex"
+            class="hidden w-80 shrink-0 flex-col border-l border-on-surface/8 pl-4 sidebar:flex"
           >
             <li
               v-for="(track, index) in heroPreview"
@@ -202,7 +216,7 @@ const openAlbum = (item: CoverItem): void => {
                 {{ artistName(item.track) }}
               </div>
             </div>
-            <span class="shrink-0 text-xs tabular-nums text-on-surface-variant/45">
+            <span class="shrink-0 text-xs tabular-nums text-on-surface-variant/45 lt-xl:hidden">
               {{ t("home.continue.playCount", { count: item.playCount }, item.playCount) }}
             </span>
           </SCard>

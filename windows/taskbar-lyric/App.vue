@@ -34,22 +34,33 @@ const anchor = ref<"left" | "right">("left");
 const taskbarIsLight = ref(false);
 const isHovered = ref(false);
 const maxLayoutWidth = ref(400);
+const layoutHeight = ref(48);
 const wrapperRef = ref<HTMLElement | null>(null);
 let hoverLeaveTimer: number | null = null;
+/** 移出后控件区收起期间的计时器，非空时窗口保持全宽，避免收起动画被裁切截断 */
+let collapseTimer: number | null = null;
+/** 与 .controls-wrapper 的 max-width 过渡时长一致 */
+const CONTROLS_COLLAPSE_MS = 450;
 let widthReportRaf = 0;
 let lastReportedWidth = 0;
 
 /** 给字体亚像素取整和逐字渐变预留空间，避免临界宽度误触发滚动 */
 const LYRIC_WIDTH_GUARD = 8;
 
-/** 按歌词行动画结束后的字号换算文字宽度，避免副行升为主行时低估空间 */
+/**
+ * 按高度适配后的目标字号换算文字宽度，避免切行时低估空间
+ * @param element - 歌词文字元素
+ * @returns 动画结束后的文字宽度
+ */
 const measureTargetTextWidth = (element: HTMLElement): number => {
   const line = element.closest<HTMLElement>(".lyric-line");
   if (!line) return element.scrollWidth;
 
   const currentFontSize = Number.parseFloat(getComputedStyle(line).fontSize);
   const targetFontSize =
-    line.dataset.role === "secondary" ? config.fontSize * 0.82 : config.fontSize;
+    line.dataset.role === "secondary"
+      ? typography.value.fontSize * 0.82
+      : typography.value.fontSize;
   if (!Number.isFinite(currentFontSize) || currentFontSize <= 0) return element.scrollWidth;
   return element.scrollWidth * (targetFontSize / currentFontSize);
 };
@@ -59,7 +70,7 @@ const reportContentWidth = (): void => {
   widthReportRaf = 0;
   const wrapper = wrapperRef.value;
   if (!wrapper) return;
-  if (isHovered.value) {
+  if (isHovered.value || collapseTimer !== null) {
     const targetWidth = Math.ceil(maxLayoutWidth.value);
     if (targetWidth === lastReportedWidth) return;
     lastReportedWidth = targetWidth;
@@ -100,6 +111,10 @@ const setContentHovered = (hovered: boolean): void => {
     window.clearTimeout(hoverLeaveTimer);
     hoverLeaveTimer = null;
   }
+  if (collapseTimer !== null) {
+    window.clearTimeout(collapseTimer);
+    collapseTimer = null;
+  }
   if (hovered) {
     isHovered.value = true;
     nextTick(scheduleContentWidthReport);
@@ -108,7 +123,10 @@ const setContentHovered = (hovered: boolean): void => {
   hoverLeaveTimer = window.setTimeout(() => {
     hoverLeaveTimer = null;
     isHovered.value = false;
-    nextTick(scheduleContentWidthReport);
+    collapseTimer = window.setTimeout(() => {
+      collapseTimer = null;
+      scheduleContentWidthReport();
+    }, CONTROLS_COLLAPSE_MS);
   }, 40);
 };
 
@@ -140,6 +158,8 @@ interface RenderItem {
   role: "primary" | "secondary";
   text: string;
   line?: LyricLine;
+  /** 翻译行按对应原文行的演唱位置滚动 */
+  timingLine?: LyricLine;
 }
 
 const items = computed<RenderItem[]>(() => {
@@ -157,7 +177,7 @@ const items = computed<RenderItem[]>(() => {
     if (config.doubleLine) {
       const trans = config.showTranslation ? line.translatedLyric : "";
       if (trans) {
-        list.push({ key: `trans-${idx}`, role: "secondary", text: trans });
+        list.push({ key: `trans-${idx}`, role: "secondary", text: trans, timingLine: line });
       } else {
         const next = lyric.value[idx + 1];
         if (next) {
@@ -180,8 +200,23 @@ const items = computed<RenderItem[]>(() => {
   return list;
 });
 
+const typography = computed(() => {
+  const lineUnits = config.doubleLine ? 1.82 : 1;
+  const requestedHeight = config.fontSize * 1.4 * lineUnits;
+  const verticalInset = Math.min(4, Math.max(1, (layoutHeight.value - requestedHeight) / 2));
+  return {
+    verticalInset,
+    fontSize: Math.min(
+      config.fontSize,
+      (layoutHeight.value - verticalInset * 2) / (1.4 * lineUnits),
+    ),
+  };
+});
+
 const rootStyle = computed(() => ({
-  "--tbl-font-size": `${config.fontSize}px`,
+  "--tbl-font-size": `${typography.value.fontSize}px`,
+  "--tbl-vertical-inset": `${typography.value.verticalInset}px`,
+  lineHeight: 1.4,
   fontWeight: config.fontWeight,
   fontFamily: config.fontFamily || undefined,
 }));
@@ -196,6 +231,20 @@ const handleFocusMain = (): void => {
 const unsubscribers: Array<() => void> = [];
 
 onMounted(async () => {
+  unsubscribers.push(
+    window.api.taskbarLyric.onLayout((data) => {
+      anchor.value = data.anchor;
+      taskbarIsLight.value = data.isLight;
+      maxLayoutWidth.value = data.maxWidth;
+      layoutHeight.value = data.height;
+      nextTick(scheduleContentWidthReport);
+    }),
+    window.api.taskbarLyric.onConfigChange((next) => {
+      Object.assign(config, next);
+      nextTick(scheduleContentWidthReport);
+    }),
+  );
+
   try {
     const saved = (await window.api.config.get("taskbarLyric")) as TaskbarLyricSettings | null;
     if (saved) Object.assign(config, saved);
@@ -204,19 +253,6 @@ onMounted(async () => {
   } catch (error) {
     console.error("[taskbar-lyric] load config failed", error);
   }
-
-  unsubscribers.push(
-    window.api.taskbarLyric.onLayout((data) => {
-      anchor.value = data.anchor;
-      taskbarIsLight.value = data.isLight;
-      maxLayoutWidth.value = data.maxWidth;
-      nextTick(scheduleContentWidthReport);
-    }),
-    window.api.taskbarLyric.onConfigChange((next) => {
-      Object.assign(config, next);
-      nextTick(scheduleContentWidthReport);
-    }),
-  );
 });
 
 watch(items, () => nextTick(scheduleContentWidthReport));
@@ -237,6 +273,7 @@ onBeforeUnmount(() => {
     window.clearTimeout(hoverLeaveTimer);
     hoverLeaveTimer = null;
   }
+  if (collapseTimer !== null) window.clearTimeout(collapseTimer);
   for (const off of unsubscribers) off();
 });
 </script>
@@ -245,6 +282,7 @@ onBeforeUnmount(() => {
   <div
     ref="wrapperRef"
     class="wrapper"
+    :style="{ height: `${layoutHeight}px` }"
     :data-align="anchor"
     @mouseenter="setContentHovered(true)"
     @mouseleave="setContentHovered(false)"
@@ -295,6 +333,7 @@ onBeforeUnmount(() => {
             <TaskbarLyricLine
               :line="item.line"
               :text="item.text"
+              :timing-line="item.timingLine"
               :word-by-word="config.wordByWord && !!item.line"
               :anchor="anchor"
             />
@@ -336,7 +375,7 @@ onBeforeUnmount(() => {
   --tbl-unplayed: var(--tbl-text-secondary);
   position: relative;
   width: 100%;
-  height: calc(100% - 8px);
+  height: calc(100% - var(--tbl-vertical-inset) * 2);
   display: flex;
   align-items: center;
   border-radius: 8px;

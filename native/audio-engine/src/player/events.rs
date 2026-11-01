@@ -16,6 +16,7 @@ pub enum PlayerEvent {
     /// 实际交叉淡化开始或结束
     TransitionChanged {
         active: bool,
+        mode: String,
         reason: Option<String>,
         fade_seconds: Option<f64>,
     },

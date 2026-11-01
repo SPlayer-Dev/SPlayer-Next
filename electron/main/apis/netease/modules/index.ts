@@ -32,6 +32,7 @@ import user_playlist from "./user_playlist";
 import user_record from "./user_record";
 import record_recent_song from "./record_recent_song";
 import user_subcount from "./user_subcount";
+import deviceinfo_center_upload from "./deviceinfo_center_upload";
 
 import cloudsearch from "./cloudsearch";
 import search from "./search";
@@ -123,6 +124,7 @@ export const modules: Record<string, NeteaseModule> = {
   user_record,
   record_recent_song,
   user_subcount,
+  deviceinfo_center_upload,
 
   cloudsearch,
   search,

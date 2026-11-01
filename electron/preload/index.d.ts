@@ -32,6 +32,7 @@ import { CommentsApi } from "@shared/types/comment";
 import { AiModelApi } from "@shared/types/ai";
 import { PlaylistApi } from "@shared/types/playlist";
 import { OpenccApi } from "@shared/types/opencc";
+import type { AutoMixApi } from "@shared/types/automix";
 
 declare global {
   interface Window {
@@ -39,6 +40,7 @@ declare global {
     api: {
       config: ConfigApi;
       player: PlayerApi;
+      automix: AutoMixApi;
       system: {
         installType: "nsis" | "portable" | "appx" | "dmg" | "appimage";
         platform: NodeJS.Platform;

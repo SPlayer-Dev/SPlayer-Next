@@ -270,6 +270,13 @@ const lyricCategory: SettingCategory = {
           defaultValue: false,
         },
         {
+          key: "enableBalancedWrap",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.enableBalancedWrap" },
+          defaultValue: true,
+          visible: () => lyricEngine() === "physics",
+        },
+        {
           key: "enableWordHighlight",
           type: "switch",
           binding: { store: "settings", path: "lyric.enableWordHighlight" },

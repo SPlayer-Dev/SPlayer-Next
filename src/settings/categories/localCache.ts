@@ -16,6 +16,22 @@ const localCacheCategory: SettingCategory = {
           type: "switch",
           binding: { store: "settings", path: "system.cache.songCache.enabled" },
           defaultValue: false,
+          confirm: {
+            when: (next) => {
+              if (next !== false) return false;
+              const player = useSettingsStore().player;
+              return player.preloadNextTrack || player.transitionMode !== "none";
+            },
+            titleKey: "settings.confirm.disableSongCacheTitle",
+            contentKey: "settings.confirm.disableSongCacheContent",
+            type: "warning",
+          },
+          action: (enabled) => {
+            if (enabled !== false) return;
+            const player = useSettingsStore().player;
+            player.preloadNextTrack = false;
+            player.transitionMode = "none";
+          },
           children: [
             {
               key: "cacheStreaming",

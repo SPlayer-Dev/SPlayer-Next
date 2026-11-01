@@ -8,8 +8,8 @@ import icon from "../../../public/icons/favicon.png?asset";
 const getDefaultOptions = (): BrowserWindowConstructorOptions => ({
   width: 1280,
   height: 800,
-  minWidth: 1280,
-  minHeight: 800,
+  minWidth: 900,
+  minHeight: 600,
   autoHideMenuBar: true,
   show: false,
   backgroundColor: nativeTheme.shouldUseDarkColors ? "#101014" : "#f6f6f6",
@@ -25,6 +25,8 @@ const getDefaultOptions = (): BrowserWindowConstructorOptions => ({
     enableWebSQL: false,
     // 开启后台节流
     backgroundThrottling: true,
+    // 窗口缩放互不影响
+    zoomMode: "isolated",
     // V8 编译代码缓存
     v8CacheOptions: "code",
   },

@@ -11,6 +11,7 @@ import {
   type ResourceNavigationTarget,
 } from "@/utils/navigate";
 import { getValidArtists } from "@shared/utils/track";
+import { setPlayerExpanded } from "@/services/playerTransition";
 
 const { t } = useI18n();
 
@@ -87,7 +88,7 @@ const isAlbumLinkable = computed(() =>
  * @param target - 详情页目标
  */
 const goToResource = (target: ResourceNavigationTarget | null): void => {
-  if (target && navigateToResource(target)) status.isPlayerExpanded = false;
+  if (target && navigateToResource(target)) setPlayerExpanded(false);
 };
 
 /** 来源标签 */

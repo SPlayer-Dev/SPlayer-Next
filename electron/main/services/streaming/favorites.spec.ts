@@ -12,7 +12,9 @@ vi.mock("@main/database", () => ({ isDbOpen: () => true }));
 vi.mock("@main/database/streaming/tracks", () => ({ updateStreamingFavorite: state.update }));
 vi.mock("@main/utils/broadcast", () => ({ sendToMain: state.broadcast }));
 vi.mock("./snapshot", () => ({ recordStreamingStageFavorite: state.stage }));
-vi.mock("./config", () => ({ getStreamingServer: () => ({ revision: state.revision }) }));
+vi.mock("./config", () => ({
+  getStreamingServerRevision: () => state.revision,
+}));
 vi.mock("./connection", () => ({
   withStreamingAdapter: async (_serverId, request) =>
     request({}, { getFavorite: state.get, setFavorite: state.set }),

@@ -1,0 +1,22 @@
+AutoMix optional analysis components
+
+Model weights and the isolated runtime are downloaded separately and are not
+included in the application installer
+
+Beat This!: https://github.com/CPJKU/beat_this
+Original JKU final0.ckpt weights, independently converted by SPlayer-Next
+The original MIT license is included in the model component package
+
+Demucs: https://github.com/facebookresearch/demucs
+Original Meta 955717e8-8726e21a.th weights, independently converted by SPlayer-Next
+The original MIT license is included in the model component package
+
+The conversion scripts and source-weight SHA256 checks are provided in
+scripts/export-automix-model.py. Beat analysis keeps its original context;
+Demucs uses a 172032-sample segment with unchanged pretrained weights and FP32
+inference. Component archives contain source and integrity manifests
+
+Isolated runtime: SPlayer-Next Rust worker (AGPL-3.0), ONNX Runtime (MIT),
+with platform-specific DirectML and Visual C++ Redistributable notices
+Official distribution licenses, notices and source download URLs are included
+in the separately downloaded runtime package

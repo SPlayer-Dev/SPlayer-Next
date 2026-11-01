@@ -101,6 +101,7 @@ impl BiquadFilter {
 }
 
 /// 10 频段均衡器，各输出声道独立保留滤波器状态
+#[derive(Clone)]
 pub struct Equalizer {
     /// [声道][频段]
     filters: Vec<[BiquadFilter; EQ_BAND_COUNT]>,

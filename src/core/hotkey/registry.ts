@@ -9,6 +9,7 @@ import { useStatusStore } from "@/stores/status";
 import { useSettingsDialog } from "@/settings/useSettingsDialog";
 import * as player from "@/core/player";
 import { VOLUME_STEP, volumeGainToPosition, volumePositionToGain } from "@/utils/volume";
+import { setPlayerExpanded } from "@/services/playerTransition";
 
 /** 快进/快退步长（毫秒） */
 const SEEK_STEP_MS = 5000;
@@ -70,13 +71,13 @@ export const buildRegistry = (): void => {
   });
   // 打开播放器
   handlers.set("view.openPlayer", () => {
-    useStatusStore().isPlayerExpanded = true;
+    setPlayerExpanded(true);
   });
   // 关闭播放器
   handlers.set("view.closePlayer", (): boolean => {
     const status = useStatusStore();
     if (!status.isPlayerExpanded) return false;
-    status.isPlayerExpanded = false;
+    setPlayerExpanded(false);
     return true;
   });
   // 切换播放列表

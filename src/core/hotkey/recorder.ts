@@ -27,6 +27,8 @@ interface UseHotkeyRecorderOptions {
   onCancel?: () => void;
   /** 清除回调（Backspace） */
   onClear?: () => void;
+  /** 录入状态变化 */
+  onRecordingChange?: (recording: boolean) => void;
 }
 
 /** 录入态当前显示文案（实时反馈用户已按下的 modifier） */
@@ -40,7 +42,14 @@ const buildLivePreview = (event: KeyboardEvent, isMac: boolean): string => {
 };
 
 export const useHotkeyRecorder = (options: UseHotkeyRecorderOptions) => {
-  const { isMac, requireModifier = false, onConfirm, onCancel, onClear } = options;
+  const {
+    isMac,
+    requireModifier = false,
+    onConfirm,
+    onCancel,
+    onClear,
+    onRecordingChange,
+  } = options;
 
   const isRecording = ref(false);
   const current = ref<string>("");
@@ -56,6 +65,21 @@ export const useHotkeyRecorder = (options: UseHotkeyRecorderOptions) => {
       current.value = "";
       cleanup();
       onClear?.();
+      return;
+    }
+
+    // Esc（无修饰键）取消录入，带修饰键时仍作为可绑定按键
+    if (
+      event.code === "Escape" &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey &&
+      !event.shiftKey
+    ) {
+      isRecording.value = false;
+      current.value = "";
+      cleanup();
+      onCancel?.();
       return;
     }
 
@@ -89,6 +113,7 @@ export const useHotkeyRecorder = (options: UseHotkeyRecorderOptions) => {
   const cleanup = (): void => {
     window.removeEventListener("keydown", handleKeyDown, { capture: true });
     window.removeEventListener("blur", handleBlur);
+    onRecordingChange?.(false);
   };
 
   const start = (): void => {
@@ -97,6 +122,7 @@ export const useHotkeyRecorder = (options: UseHotkeyRecorderOptions) => {
     current.value = "";
     window.addEventListener("keydown", handleKeyDown, { capture: true });
     window.addEventListener("blur", handleBlur);
+    onRecordingChange?.(true);
   };
 
   const cancel = (): void => {

@@ -110,6 +110,8 @@ export const kgSongToTrack = (song: KGSong): Track => {
             cover: song.cover,
           }
         : undefined,
+    disc: song.disc,
+    discTitle: song.discTitle,
     duration: durationMs,
     quality: audio?.quality,
     fileSize: audio?.fileSize,

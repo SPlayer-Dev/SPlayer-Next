@@ -82,42 +82,46 @@ const onMoreMenuSelect = (key: string): void => {
 <template>
   <div class="flex items-center gap-1">
     <!-- 在线音质 -->
-    <QualityControl v-if="settings.appearance.showQualitySwitch" :cover="cover" />
-    <SPopover trigger="hover" side="top" :cover="cover" content-class="px-3 pb-2 pt-3">
-      <template #trigger>
-        <SButton
-          :type="buttonType"
-          variant="ghost"
-          circle
-          size="large"
-          :class="mutedClass"
-          @click="toggleMute"
-          @wheel.prevent="onVolumeWheel"
-        >
-          <template #icon>
-            <IconLucideVolumeX v-if="volumePercent === 0" />
-            <IconLucideVolume1 v-else-if="volumePercent < 50" />
-            <IconLucideVolume2 v-else />
-          </template>
-        </SButton>
-      </template>
-      <div class="flex flex-col items-center w-7" @wheel.prevent="onVolumeWheel">
-        <div class="h-30">
-          <SSlider
-            :model-value="volumePosition"
-            :min="0"
-            :max="1"
-            :step="0.01"
-            :thumb-size="15"
-            :track-height="5"
-            :cover="cover"
-            vertical
-            @change="player.setVolume(volumePositionToGain($event))"
-          />
+    <div v-if="settings.appearance.showQualitySwitch" class="contents lt-md:hidden">
+      <QualityControl :cover="cover" />
+    </div>
+    <div class="contents lt-xs:hidden">
+      <SPopover trigger="hover" side="top" :cover="cover" content-class="px-3 pb-2 pt-3">
+        <template #trigger>
+          <SButton
+            :type="buttonType"
+            variant="ghost"
+            circle
+            size="large"
+            :class="mutedClass"
+            @click="toggleMute"
+            @wheel.prevent="onVolumeWheel"
+          >
+            <template #icon>
+              <IconLucideVolumeX v-if="volumePercent === 0" />
+              <IconLucideVolume1 v-else-if="volumePercent < 50" />
+              <IconLucideVolume2 v-else />
+            </template>
+          </SButton>
+        </template>
+        <div class="flex flex-col items-center w-7" @wheel.prevent="onVolumeWheel">
+          <div class="h-30">
+            <SSlider
+              :model-value="volumePosition"
+              :min="0"
+              :max="1"
+              :step="0.01"
+              :thumb-size="15"
+              :track-height="5"
+              :cover="cover"
+              vertical
+              @change="player.setVolume(volumePositionToGain($event))"
+            />
+          </div>
+          <span class="text-xs tabular-nums mt-2">{{ volumePercent }}%</span>
         </div>
-        <span class="text-xs tabular-nums mt-2">{{ volumePercent }}%</span>
-      </div>
-    </SPopover>
+      </SPopover>
+    </div>
     <SButton
       :type="lyricButtonType"
       :variant="isDesktopLyricOpen ? 'tertiary' : 'ghost'"
@@ -154,27 +158,28 @@ const onMoreMenuSelect = (key: string): void => {
       <template #icon><IconLucideListMusic /></template>
     </SButton>
     <!-- 常规播放列表气泡 -->
-    <SPopover
-      v-else
-      v-model:open="status.outerQueueOpen"
-      trigger="click"
-      side="top"
-      :side-offset="12"
-      content-class="!p-0 w-72 h-[min(60vh,520px)] overflow-hidden"
-    >
-      <template #trigger>
-        <SButton
-          :type="status.outerQueueOpen ? 'primary' : buttonType"
-          :variant="status.outerQueueOpen ? 'tertiary' : 'ghost'"
-          circle
-          size="large"
-          :class="status.outerQueueOpen ? undefined : mutedClass"
-        >
-          <template #icon><IconLucideListMusic /></template>
-        </SButton>
-      </template>
-      <QueuePopover @close="status.outerQueueOpen = false" />
-    </SPopover>
+    <div v-else class="contents lt-xs:hidden">
+      <SPopover
+        v-model:open="status.outerQueueOpen"
+        trigger="click"
+        side="top"
+        :side-offset="12"
+        content-class="!p-0 w-72 h-[min(60vh,520px)] overflow-hidden"
+      >
+        <template #trigger>
+          <SButton
+            :type="status.outerQueueOpen ? 'primary' : buttonType"
+            :variant="status.outerQueueOpen ? 'tertiary' : 'ghost'"
+            circle
+            size="large"
+            :class="status.outerQueueOpen ? undefined : mutedClass"
+          >
+            <template #icon><IconLucideListMusic /></template>
+          </SButton>
+        </template>
+        <QueuePopover @close="status.outerQueueOpen = false" />
+      </SPopover>
+    </div>
     <SDropdownMenu
       :items="moreMenuItems"
       side="top"

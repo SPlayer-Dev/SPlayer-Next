@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({ invalidate: vi.fn(), resolve: vi.fn(), fetch: vi.fn() }));
 vi.mock("./config", () => ({
   getStreamingServer: () => ({ id: "server", type: "jellyfin", revision: 0 }),
+  getStreamingServerRevision: () => 0,
 }));
 vi.mock("./adapters/resolve", () => ({
   resolveStreamingAdapter: state.resolve,

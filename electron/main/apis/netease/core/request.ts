@@ -6,6 +6,8 @@ import {
   DOMAIN,
   EAPI_DOMAIN,
   ENCRYPT_RESPONSE,
+  HOST_OS_KEY,
+  HOST_OS_VERSION,
   OS_MAP,
   SPECIAL_STATUS_CODES,
   UA_MAP,
@@ -81,7 +83,10 @@ const processCookieObject = (
   crypto: CryptoMode | "",
 ): Record<string, string> => {
   const ntesNuid = cookie._ntes_nuid || randomBytes(16).toString("hex");
-  const os = OS_MAP[(cookie.os as keyof typeof OS_MAP) || "pc"] || OS_MAP.pc;
+  /** 未显式指定 os 时跟随宿主平台，系统版本取本机真实值 */
+  const osKey = (cookie.os as keyof typeof OS_MAP) || HOST_OS_KEY;
+  const os = OS_MAP[osKey] || OS_MAP[HOST_OS_KEY];
+  const osver = cookie.osver || (cookie.os ? os.osver : HOST_OS_VERSION);
 
   const processed: Record<string, string> = {
     ...cookie,
@@ -91,7 +96,7 @@ const processCookieObject = (
     _ntes_nnid: cookie._ntes_nnid || `${ntesNuid},${Date.now()}`,
     WNMCID: cookie.WNMCID || WNMCID,
     WEVNSM: cookie.WEVNSM || "1.0.0",
-    osver: cookie.osver || os.osver,
+    osver,
     deviceId: cookie.deviceId || getDeviceId(),
     os: cookie.os || os.os,
     channel: cookie.channel || os.channel,

@@ -85,6 +85,10 @@ impl TaskbarStrategy for LegacyStrategy {
         super::embed_child_window(child_wnd, self.h_taskbar)
     }
 
+    fn taskbar_hwnd(&self) -> HWND {
+        self.h_taskbar
+    }
+
     fn update_layout(&mut self, params: LayoutParams) -> Option<TaskbarLayout> {
         if self.h_rebar.0.is_null() || self.h_tasklist.0.is_null() {
             return None;
@@ -93,9 +97,6 @@ impl TaskbarStrategy for LegacyStrategy {
         unsafe {
             let mut rc_rebar = RECT::default();
             let _ = GetWindowRect(self.h_rebar, &raw mut rc_rebar);
-
-            let mut rc_taskbar = RECT::default();
-            let _ = GetWindowRect(self.h_taskbar, &raw mut rc_taskbar);
 
             let mut rc_tasklist = RECT::default();
             let _ = GetWindowRect(self.h_tasklist, &raw mut rc_tasklist);
@@ -121,8 +122,8 @@ impl TaskbarStrategy for LegacyStrategy {
                 } else {
                     let _ = MoveWindow(self.h_tasklist, 0, offset_y, rebar_w, new_tasklist_h, true);
                     (
-                        rc_rebar.left - rc_taskbar.left,
-                        (rc_rebar.top - rc_taskbar.top) + offset_y + new_tasklist_h + GAP,
+                        rc_rebar.left,
+                        rc_rebar.top + offset_y + new_tasklist_h + GAP,
                         rebar_w,
                         params.lyric_width,
                     )
@@ -143,8 +144,8 @@ impl TaskbarStrategy for LegacyStrategy {
                 } else {
                     let _ = MoveWindow(self.h_tasklist, offset_x, 0, new_tasklist_w, rebar_h, true);
                     (
-                        (rc_rebar.left - rc_taskbar.left) + offset_x + new_tasklist_w + GAP,
-                        rc_rebar.top - rc_taskbar.top,
+                        rc_rebar.left + offset_x + new_tasklist_w + GAP,
+                        rc_rebar.top,
                         params.lyric_width,
                         rebar_h,
                     )

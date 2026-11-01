@@ -24,6 +24,8 @@ vi.mock("@main/utils/logger", () => ({
   nativeLogsDir: "logs",
 }));
 vi.mock("@main/store", () => ({ store: { get: () => true } }));
+vi.mock("./automix/analysisHost", () => ({ analyzeAutoMixTracks: vi.fn() }));
+vi.mock("./automix/enhancement", () => ({ enhanceAutoMixPlan: vi.fn() }));
 vi.mock("@main/services/songCache", () => ({
   cancelPreload: mocks.release,
   pinPreload: mocks.pin,

@@ -3,6 +3,7 @@ import { StreamingRequestError } from "./errors";
 const state = vi.hoisted(() => ({ revision: 0, resolve: vi.fn(), invalidate: vi.fn() }));
 vi.mock("./config", () => ({
   getStreamingServer: () => ({ id: "server", type: "jellyfin", revision: state.revision }),
+  getStreamingServerRevision: () => state.revision,
 }));
 vi.mock("./adapters/resolve", () => ({
   resolveStreamingAdapter: state.resolve,
