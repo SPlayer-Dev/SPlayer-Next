@@ -32,6 +32,9 @@ impl DecoderData {
     }
 }
 
+/// 网络音频代理策略，由主进程按应用代理设置同步，不读取系统代理
+pub(crate) static HTTP_PROXY: RwLock<HttpProxy> = RwLock::new(HttpProxy::Direct);
+
 /// 根据 source 协议打开音频：http(s) 走延迟 Range 源，其他走本地 File
 ///
 pub(super) fn open_source(
@@ -39,7 +42,8 @@ pub(super) fn open_source(
     cancel_handle: HttpCancelHandle,
 ) -> Result<(AudioReader, Option<HttpCancelHandle>)> {
     let (reader, cancel) = if source.starts_with("http://") || source.starts_with("https://") {
-        let http = HttpAudioSource::new_with_cancel_handle(source, &cancel_handle)?;
+        let proxy = HTTP_PROXY.read().clone();
+        let http = HttpAudioSource::new_with_proxy(source, &cancel_handle, &proxy)?;
         let reader = AudioReader::new(AudioInput::new(http)?)
             .with_context(|| format!("打开网络音频失败: {source}"))?;
         (reader, Some(cancel_handle))
