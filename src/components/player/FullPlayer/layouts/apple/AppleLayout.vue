@@ -49,7 +49,9 @@ const toggleLyric = (): void => {
       :style="{ transform: infoCentered ? 'translateX(calc(50vw - 50%))' : undefined }"
     >
       <div class="w-[min(50vh,38vw)] flex flex-col gap-[4vh]">
-        <PlayerCover class="w-full aspect-square rounded-xl shadow-[0_16px_40px_rgba(0,0,0,0.3)]" />
+        <PlayerCover
+          class="w-full aspect-square rounded-xl shadow-[0_16px_40px_rgba(0,0,0,0.3)] transition-shadow duration-500 ease-out"
+        />
         <AppleControls />
       </div>
     </div>

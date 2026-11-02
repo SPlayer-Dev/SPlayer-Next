@@ -61,7 +61,7 @@ const toggleLyric = (): void => {
         <Transition name="scale-switch" mode="out-in">
           <div :key="displayTrack?.id">
             <PlayerCover
-              class="classic-cover w-full aspect-square rounded-[32px] shadow-[0_0_20px_10px_rgba(0,0,0,0.1)]"
+              class="w-full aspect-square rounded-[32px] shadow-[0_0_20px_10px_rgba(0,0,0,0.1)] [transition:transform_500ms_cubic-bezier(0.34,1.56,0.64,1),box-shadow_500ms_ease-out]"
               :class="isPlaying ? 'scale-100' : 'scale-90'"
             />
             <div class="absolute top-full left-0 w-full pt-6">
@@ -102,11 +102,3 @@ const toggleLyric = (): void => {
   </div>
   <PlayerBottomBar />
 </template>
-
-<style scoped>
-.classic-cover {
-  transition:
-    transform 500ms cubic-bezier(0.34, 1.56, 0.64, 1),
-    box-shadow 200ms ease-out;
-}
-</style>

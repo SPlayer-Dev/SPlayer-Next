@@ -105,9 +105,8 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
         :max="duration"
         :step="100"
         :track-height="8"
-        :thumb-size="20"
-        :always-show-thumb="false"
-        class="apple-slider"
+        :hover-track-height="20"
+        hide-thumb
         cover
         @drag-end="onSeekDragEnd"
       />
@@ -242,10 +241,10 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
         :max="1"
         :step="0.01"
         :track-height="8"
-        :thumb-size="20"
-        :always-show-thumb="false"
+        :hover-track-height="20"
+        hide-thumb
         cover
-        class="apple-slider flex-1"
+        class="flex-1"
         @change="player.setVolume(volumePositionToGain($event))"
       />
       <IconSpAmSpeakerMax class="shrink-0 w-[43px] h-10" />
@@ -255,22 +254,6 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
 </template>
 
 <style scoped>
-.apple-slider {
-  & :deep(.s-slider-thumb) {
-    display: none;
-  }
-
-  & :deep(:is(.s-slider-track, .s-slider-fill)) {
-    transition:
-      height 0.28s ease-out,
-      box-shadow 0.4s ease;
-  }
-
-  &:hover :deep(:is(.s-slider-track, .s-slider-fill)) {
-    height: 100% !important;
-  }
-}
-
 .apple-transition-shine {
   color: transparent;
   background: linear-gradient(

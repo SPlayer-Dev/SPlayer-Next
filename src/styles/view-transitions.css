@@ -76,6 +76,7 @@ html[data-player-layout-transition] {
   [data-player-cover="full"] {
     view-transition-name: player-layout-cover;
     view-transition-class: cover;
+    box-shadow: none;
   }
 
   [data-player-layout="lyric"] {
