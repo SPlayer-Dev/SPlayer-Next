@@ -132,7 +132,7 @@ const onAfterLeave = (): void => {
 
 onBeforeUnmount(() => cancelIdleCallback(visualizerIdle));
 
-const { immersive, onPlayerMouseEnter, onPlayerMouseLeave, onMainMove, onBarEnter, onBarLeave } =
+const { immersive, onPlayerMouseLeave, onMainMove, onBarEnter, onBarLeave } =
   useImmersiveMode(isPlayerExpanded);
 
 provide(fullPlayerContextKey, {
@@ -140,7 +140,6 @@ provide(fullPlayerContextKey, {
   lyricMounted,
   contentActive,
   onLyricReady,
-  onMainMove,
   onBarEnter,
   onBarLeave,
 });
@@ -165,7 +164,7 @@ provide(fullPlayerContextKey, {
         class="player-panel fixed inset-0 z-200 overflow-hidden text-cover"
         :class="immersive ? 'cursor-none [&_*]:!cursor-none' : ''"
         style="--lp-color: rgb(var(--s-cover))"
-        @mouseenter="onPlayerMouseEnter"
+        @mousemove="onMainMove"
         @mouseleave="onPlayerMouseLeave"
       >
         <PlayerBackground :visible="playerVisible" :active="visualizerMounted" />

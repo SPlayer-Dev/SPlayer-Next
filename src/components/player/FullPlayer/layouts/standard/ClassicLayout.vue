@@ -2,13 +2,11 @@
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
-import { useFullPlayer } from "../../context";
 
 const status = useStatusStore();
 const media = useMediaStore();
 const settings = useSettingsStore();
 const { isPlaying, showLyric } = storeToRefs(status);
-const { onMainMove } = useFullPlayer();
 
 /** 加载中的歌曲使用队列当前项兜底 */
 const displayTrack = computed(() => media.track ?? status.currentTrack);
@@ -38,7 +36,7 @@ const toggleLyric = (): void => {
     :lyric-active="lyricVisible"
     @toggle-lyric="toggleLyric"
   />
-  <div class="absolute top-14 inset-x-0 bottom-20" @mousemove="onMainMove">
+  <div class="player-layout-content absolute inset-x-0 bottom-20">
     <!-- 左侧封面与信息 -->
     <div
       class="absolute inset-y-0 left-0 flex items-center justify-center px-12 transition-transform duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
