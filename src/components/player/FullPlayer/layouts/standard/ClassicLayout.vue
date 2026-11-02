@@ -33,11 +33,21 @@ const toggleLyric = (): void => {
 </script>
 
 <template>
-  <PlayerTopBar
-    :lyric-disabled="!hasLyric"
-    :lyric-active="lyricVisible"
-    @toggle-lyric="toggleLyric"
-  />
+  <PlayerTopBar>
+    <template #left>
+      <SButton
+        type="cover"
+        variant="ghost"
+        circle
+        :size="40"
+        :disabled="!hasLyric"
+        :class="lyricVisible ? 'opacity-100' : 'opacity-40'"
+        @click="toggleLyric"
+      >
+        <template #icon><IconLucideTextQuote /></template>
+      </SButton>
+    </template>
+  </PlayerTopBar>
   <div class="absolute top-14 inset-x-0 bottom-20" @mousemove="onMainMove">
     <!-- 左侧封面与信息 -->
     <div

@@ -502,6 +502,7 @@
       "hint": "正值为歌词提前，单位毫秒"
     },
     "lyricCredit": "歌词制作",
+    "collapse": "收起播放器",
     "copyLyric": {
       "title": "复制歌词",
       "contentLabel": "要复制的内容",
@@ -1615,7 +1616,8 @@
       "description": "全屏播放器的整体布局",
       "classic": "经典默认",
       "fullCover": "全屏封面",
-      "fullLyric": "全屏歌词"
+      "fullLyric": "全屏歌词",
+      "apple": "AM 风格"
     },
     "coverLyricRatio": {
       "label": "封面/歌词占比",

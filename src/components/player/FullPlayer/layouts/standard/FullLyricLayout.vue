@@ -14,7 +14,7 @@ const lyricVisible = computed(() => hasLyric.value && !status.fullQueueOpen);
 </script>
 
 <template>
-  <PlayerTopBar lyric-disabled :lyric-active="false" />
+  <PlayerTopBar />
   <div class="absolute top-14 inset-x-0 bottom-20" @mousemove="onMainMove">
     <div
       class="group absolute inset-0 px-20 flex flex-col transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"

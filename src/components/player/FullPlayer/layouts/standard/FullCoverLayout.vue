@@ -29,7 +29,7 @@ const lyricVisible = computed(() => hasLyric.value && !status.fullQueueOpen);
     class="cover-mask-bottom absolute bottom-0 inset-x-0 h-48 z-5 pointer-events-none transition-opacity duration-400"
     :class="immersive ? 'opacity-0' : 'opacity-100'"
   />
-  <PlayerTopBar lyric-disabled :lyric-active="false" />
+  <PlayerTopBar />
   <div class="absolute top-14 inset-x-0 bottom-20" @mousemove="onMainMove">
     <!-- 右侧信息与歌词 -->
     <div

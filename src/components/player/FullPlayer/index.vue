@@ -9,12 +9,14 @@ import { fullPlayerContextKey } from "./context";
 import ClassicLayout from "./layouts/standard/ClassicLayout.vue";
 import FullCoverLayout from "./layouts/standard/FullCoverLayout.vue";
 import FullLyricLayout from "./layouts/standard/FullLyricLayout.vue";
+import AppleLayout from "./layouts/apple/AppleLayout.vue";
 
 /** 布局设置与布局组件的对应关系 */
 const LAYOUTS: Record<PlayerLayout, Component> = {
   classic: ClassicLayout,
   fullCover: FullCoverLayout,
   fullLyric: FullLyricLayout,
+  apple: AppleLayout,
 };
 
 const status = useStatusStore();

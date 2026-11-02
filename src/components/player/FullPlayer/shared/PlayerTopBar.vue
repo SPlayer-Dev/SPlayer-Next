@@ -4,20 +4,12 @@ import { useSettingsStore } from "@/stores/settings";
 import { useWindowControls } from "@/composables/useWindowControls";
 import { useFullPlayer } from "../context";
 
-defineProps<{
-  /** 歌词开关是否禁用 */
-  lyricDisabled: boolean;
-  /** 歌词开关是否高亮 */
-  lyricActive: boolean;
-}>();
-
-defineEmits<{ toggleLyric: [] }>();
-
 /** 可快速切换的播放器布局 */
 const LAYOUT_OPTIONS: { value: PlayerLayout; labelKey: string }[] = [
   { value: "classic", labelKey: "settings.playerLayout.classic" },
   { value: "fullCover", labelKey: "settings.playerLayout.fullCover" },
   { value: "fullLyric", labelKey: "settings.playerLayout.fullLyric" },
+  { value: "apple", labelKey: "settings.playerLayout.apple" },
 ];
 
 const { t } = useI18n();
@@ -47,17 +39,8 @@ const selectLayout = (layout: PlayerLayout): void => {
     @mouseleave="onBarLeave"
   >
     <div class="app-no-drag flex items-center gap-2">
-      <SButton
-        type="cover"
-        variant="ghost"
-        circle
-        :size="40"
-        :disabled="lyricDisabled"
-        :class="lyricActive ? 'opacity-100' : 'opacity-40'"
-        @click="$emit('toggleLyric')"
-      >
-        <template #icon><IconLucideTextQuote /></template>
-      </SButton>
+      <!-- 左侧内容 -->
+      <slot name="left" />
     </div>
     <div class="app-no-drag flex items-center gap-3">
       <SPopover
@@ -113,6 +96,14 @@ const selectLayout = (layout: PlayerLayout): void => {
                   v-else-if="option.value === 'fullCover'"
                   class="layout-preview-cover absolute inset-y-0 left-0 w-[60%] bg-cover/45"
                 />
+                <span
+                  v-else-if="option.value === 'apple'"
+                  class="absolute left-[14%] top-1/2 -translate-y-1/2 w-[24%] flex flex-col gap-1"
+                >
+                  <span class="w-full aspect-square rounded-sm bg-cover/45" />
+                  <span class="h-0.5 w-full rounded-full bg-cover/30" />
+                  <span class="h-0.5 w-[60%] self-center rounded-full bg-cover/30" />
+                </span>
                 <span
                   class="absolute right-[10%] top-1/2 -translate-y-1/2 flex flex-col gap-1"
                   :class="option.value === 'fullLyric' ? 'left-[10%]' : 'w-[36%]'"

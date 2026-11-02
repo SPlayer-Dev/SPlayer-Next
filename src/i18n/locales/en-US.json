@@ -502,6 +502,7 @@
       "hint": "Positive values advance lyrics, in milliseconds"
     },
     "lyricCredit": "Lyrics by",
+    "collapse": "Collapse Player",
     "copyLyric": {
       "title": "Copy Lyrics",
       "contentLabel": "Content to copy",
@@ -1615,7 +1616,8 @@
       "description": "Overall layout of the full-screen player",
       "classic": "Classic",
       "fullCover": "Fullscreen Cover",
-      "fullLyric": "Fullscreen Lyrics"
+      "fullLyric": "Fullscreen Lyrics",
+      "apple": "AM Style"
     },
     "coverLyricRatio": {
       "label": "Cover/Lyrics Ratio",
