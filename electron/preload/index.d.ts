@@ -64,7 +64,8 @@ declare global {
         saveFile: (
           data: ArrayBuffer,
           fileName: string,
-        ) => Promise<{ success: boolean; path?: string; error?: string }>;
+          title: string,
+        ) => Promise<{ success: boolean; path?: string; canceled?: boolean; error?: string }>;
         relaunch: () => Promise<void>;
         testNetworkProxy: () => Promise<boolean>;
         onProtocolUrl: (callback: (url: string) => void) => () => void;
