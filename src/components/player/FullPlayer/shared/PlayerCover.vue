@@ -55,12 +55,27 @@ watch(
   { immediate: true },
 );
 
-// 跟随播放暂停
-watch([videoRef, () => status.isPlaying], ([video, playing]) => {
+const visibility = useDocumentVisibility();
+
+// 跟随播放暂停，窗口隐藏时停止解码
+watch([videoRef, () => status.isPlaying, visibility], ([video, playing, visible]) => {
   if (!video) return;
-  if (playing) video.play().catch(() => {});
+  if (playing && visible === "visible") video.play().catch(() => {});
   else video.pause();
 });
+
+/**
+ * 移除后立即释放解码器与缓冲，不等 GC
+ * @param el - 离场的视频元素
+ */
+const releaseVideo = (el: Element) => {
+  const video = el as HTMLVideoElement;
+  video.removeAttribute("src");
+  video.load();
+};
+
+// 切换布局时组件直接卸载，不经过离场过渡
+onBeforeUnmount(() => videoRef.value && releaseVideo(videoRef.value));
 </script>
 
 <template>
@@ -80,7 +95,11 @@ watch([videoRef, () => status.isPlaying], ([video, playing]) => {
       />
     </Transition>
     <!-- 动态封面 -->
-    <Transition leave-active-class="transition-opacity duration-500" leave-to-class="opacity-0">
+    <Transition
+      leave-active-class="transition-opacity duration-500"
+      leave-to-class="opacity-0"
+      @after-leave="releaseVideo"
+    >
       <video
         v-if="motion && status.isPlayerExpanded"
         ref="videoRef"
