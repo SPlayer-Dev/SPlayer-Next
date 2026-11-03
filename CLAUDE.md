@@ -11,8 +11,8 @@ SPlayer-Next — desktop music player on **Electron + Vue 3 + TypeScript**, with
 ```bash
 pnpm install              # Install deps
 pnpm dev                  # Build native (debug) + start Electron dev
-pnpm build                # Full build (rimraf → native → typecheck → electron-vite)
-pnpm build:{win,mac,linux}# Platform packages
+pnpm build                # Full build (rimraf → native → typecheck → electron-forge package)
+pnpm build:{win,mac,linux}# Platform packages (electron-forge make → electron-builder)
 pnpm typecheck            # tsc + vue-tsc (node + web targets)
 pnpm lint / format        # ESLint / Prettier
 pnpm build:native         # Rust only; add `--dev` for debug

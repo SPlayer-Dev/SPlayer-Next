@@ -66,7 +66,7 @@ pnpm dev
 ### 构建
 
 ```bash
-pnpm build         # 完整构建：清理 → 原生模块 → 类型检查 → electron-vite
+pnpm build         # 完整构建：清理 → 原生模块 → 类型检查 → electron-forge package
 
 pnpm build:win     # 打包 Windows
 pnpm build:mac     # 打包 macOS
