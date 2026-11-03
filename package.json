@@ -138,7 +138,7 @@
     "yazl": "^3.3.1"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,vue,mjs,cjs}": [
+    "*.{js,jsx,ts,tsx,vue,mjs,cjs,mts,cts}": [
       "eslint --fix",
       "prettier --write"
     ],
