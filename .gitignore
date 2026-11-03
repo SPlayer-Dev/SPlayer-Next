@@ -1,6 +1,7 @@
 node_modules
 dist
 out
+.vite
 build
 !/build/
 /build/*

@@ -1,9 +1,9 @@
 import { BrowserWindow, nativeImage, type NativeImage } from "electron";
+import { join } from "path";
 import { loadNativeModule } from "@main/utils/nativeLoader";
 import { store } from "@main/store";
 import { isWin } from "@main/utils/config";
 import { nativeLog } from "@main/utils/logger";
-import defaultCoverPath from "../../../public/images/song.jpg?asset";
 
 type ThumbnailNative = typeof import("@splayer/taskbar-thumbnail");
 
@@ -28,7 +28,11 @@ const load = (): ThumbnailNative | null => {
 
 /** 默认封面图（无歌曲 / 歌曲无封面时使用） */
 const getDefaultImg = (): NativeImage => {
-  if (!defaultImg) defaultImg = nativeImage.createFromPath(defaultCoverPath);
+  if (!defaultImg) {
+    defaultImg = nativeImage.createFromPath(
+      join(import.meta.dirname, "../../public/images/song.jpg"),
+    );
+  }
   return defaultImg;
 };
 

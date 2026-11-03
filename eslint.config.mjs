@@ -10,6 +10,7 @@ export default defineConfig(
     "**/node_modules/",
     "**/dist/",
     "**/out/",
+    "**/.vite/",
     "**/target/",
     "**/build/",
     "**/resources/",

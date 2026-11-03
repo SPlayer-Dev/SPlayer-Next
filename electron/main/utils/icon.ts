@@ -2,7 +2,7 @@ import { nativeImage, nativeTheme, NativeImage } from "electron";
 import { join } from "path";
 
 /** 图标根目录 */
-const ICONS_DIR = join(__dirname, "../../public/icons");
+const ICONS_DIR = join(import.meta.dirname, "../../public/icons");
 
 /**
  * 加载图标文件

@@ -39,7 +39,7 @@ const resolveAfpDir = (): string | null => {
 
 const getWorker = (): Worker => {
   if (worker) return worker;
-  const entry = path.join(__dirname, "fingerprint.worker.js");
+  const entry = path.join(import.meta.dirname, "fingerprint.worker.js");
   const next = new Worker(entry, {
     workerData: { afpDir: resolveAfpDir() },
   });
