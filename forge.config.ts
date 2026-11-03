@@ -2,6 +2,7 @@ import type { ForgeConfig } from "@electron-forge/shared-types";
 import { VitePlugin } from "@electron-forge/plugin-vite";
 import { SUPPORTED_AUDIO_EXTENSIONS } from "./shared/utils/audioFile";
 import { packageAfterCopy } from "./scripts/forge/hooks";
+import { ElectronBuilderMaker } from "./scripts/forge/maker";
 
 /** 音频后缀注册为 mac 文件关联，Windows / Linux 由 electron-builder 的 fileAssociations 处理 */
 const documentTypes = [...SUPPORTED_AUDIO_EXTENSIONS].map((extension) => {
@@ -46,6 +47,7 @@ const config: ForgeConfig = {
   },
   // better-sqlite3 使用 N-API 预编译文件，postinstall 已处理，无需 Forge 重编译
   rebuildConfig: { onlyModules: [] },
+  makers: [new ElectronBuilderMaker()],
   hooks: { packageAfterCopy },
   plugins: [
     new VitePlugin({

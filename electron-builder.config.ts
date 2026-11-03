@@ -35,77 +35,8 @@ const config: Configuration = {
   copyright: "Copyright © imsyy 2025",
   directories: { buildResources: "public" },
   fileAssociations,
-  afterPack: "./scripts/after-pack.ts",
   compression: "maximum",
   generateUpdatesFilesForAllChannels: true,
-  files: [
-    "public/**",
-    "out/main/**",
-    "out/preload/**",
-    "out/renderer/**",
-    "!**/.vscode/*",
-    "!src/**",
-    "!native/**",
-    "!scripts/**",
-    "!electron/**",
-    "!shared/**",
-    "!electron.vite.config.{js,ts,mjs,cjs}",
-    "!electron-builder.config.{js,ts,mjs,cjs}",
-    "!uno.config.{js,ts,mjs,cjs}",
-    "!{.eslintcache,eslint.config.mjs,auto-eslint.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}",
-    "!{components.d.ts,auto-imports.d.ts}",
-    "!{.env,.env.*,.npmrc,pnpm-lock.yaml}",
-    "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}",
-    "!**/*.{d.ts,ts,map,md}",
-    "!**/{CHANGELOG,README,readme}*",
-    "!**/node_modules/better-sqlite3/{deps,src}/**",
-  ],
-  // 保留的语言
-  electronLanguages: ["zh-CN", "en-US"],
-  asarUnpack: ["public/**"],
-  extraResources: [
-    {
-      from: "native/audio-engine",
-      to: "native",
-      filter: ["audio-engine.node"],
-    },
-    {
-      from: "native/audio-capture",
-      to: "native",
-      filter: ["*.node"],
-    },
-    {
-      from: "resources/afp",
-      to: "afp",
-      filter: ["afp.mjs", "afp.wasm.mjs"],
-    },
-    {
-      from: "native/media-ctrl",
-      to: "native",
-      filter: ["*.node"],
-    },
-    {
-      from: "native/taskbar-lyric",
-      to: "native",
-      filter: ["*.node"],
-    },
-    {
-      from: "native/taskbar-thumbnail",
-      to: "native",
-      filter: ["*.node"],
-    },
-    {
-      from: "native/opencc",
-      to: "native",
-      filter: ["*.node"],
-    },
-  ],
-  extraFiles: [
-    {
-      from: "LICENSE",
-      to: "LICENSE",
-    },
-  ],
   win: {
     executableName: "SPlayer-Next",
     icon: "public/icons/logo.ico",
@@ -142,18 +73,7 @@ const config: Configuration = {
     identity: null,
     hardenedRuntime: false,
     notarize: false,
-    darkModeSupport: true,
-    category: "public.app-category.music",
     entitlementsInherit: "public/entitlements.mac.plist",
-    extendInfo: {
-      NSCameraUsageDescription: "Application requests access to the device's camera.",
-      NSMicrophoneUsageDescription: "Application requests access to the device's microphone.",
-      NSDocumentsFolderUsageDescription:
-        "Application requests access to the user's Documents folder.",
-      NSDownloadsFolderUsageDescription:
-        "Application requests access to the user's Downloads folder.",
-      CFBundleURLTypes: [{ CFBundleURLName: "Orpheus Protocol", CFBundleURLSchemes: ["orpheus"] }],
-    },
     target: ["dmg", "zip"],
   },
   dmg: {
@@ -184,10 +104,6 @@ const config: Configuration = {
       "at-spi2-core",
       "libsecret",
     ],
-  },
-  npmRebuild: false,
-  electronDownload: {
-    mirror: "https://npmmirror.com/mirrors/electron/",
   },
   publish: {
     provider: "github",

@@ -29,7 +29,7 @@ const getGitDate = (): string => {
   }
 };
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     __APP_REPO_URL__: JSON.stringify(pkg.repository.url),
@@ -93,8 +93,8 @@ export default defineConfig({
     Components({
       dirs: ["src/components"],
       // 生产构建复用已提交的声明，避免并行转换重复写入同一文件
-      dts: process.env.NODE_ENV !== "production",
+      dts: command === "serve",
       resolvers: [RekaResolver(), IconsResolver({ prefix: "icon", customCollections: ["sp"] })],
     }),
   ],
-});
+}));
