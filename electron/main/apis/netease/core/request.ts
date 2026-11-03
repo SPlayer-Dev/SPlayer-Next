@@ -169,7 +169,7 @@ export const createRequest = async (
     antiCheatToken = await getAntiCheatTokenV3();
   }
 
-  let url = "";
+  let url: string;
   let xeapiGeneration: number | undefined;
   let encryptData: Record<string, string | number | boolean> | typeof data;
 

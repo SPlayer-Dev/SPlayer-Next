@@ -2,6 +2,7 @@
   "extends": "./tsconfig.base.json",
   "include": [
     "forge.config.ts",
+    "eslint.config.mts",
     "vite.*.config.ts",
     "vitest.config.*",
     "electron/main/**/*",

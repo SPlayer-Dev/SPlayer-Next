@@ -126,7 +126,7 @@ const calculateVisibleRange = (currentScrollTop: number): void => {
   const effectiveScroll = Math.max(0, currentScrollTop - props.paddingTop);
 
   let startIndex = 0;
-  let endIndex = 0;
+  let endIndex: number;
 
   if (props.itemFixed) {
     startIndex = Math.floor(effectiveScroll / props.itemHeight);
@@ -276,7 +276,7 @@ const scrollToPosition = (top: number, behavior: ScrollBehavior = "auto"): void 
 const scrollToIndex = (index: number, behavior: ScrollBehavior = "auto"): void => {
   if (props.items.length === 0) return;
   const targetIndex = Math.max(0, Math.min(index, props.items.length - 1));
-  let top = 0;
+  let top: number;
   if (props.itemFixed) {
     top = targetIndex * props.itemHeight;
   } else {

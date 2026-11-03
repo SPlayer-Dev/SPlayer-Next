@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/explicit-function-return-type -- CommonJS 测试通过 JSDoc 声明类型。 */
+/* CommonJS 测试通过 JSDoc 声明类型。 */
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const http = require("node:http");

@@ -195,7 +195,7 @@ export const injectMcpAgentConfig = async (
     return true;
   }
 
-  let json: any = {};
+  let json: any;
 
   try {
     const content = await fs.readFile(configPath, "utf-8");
@@ -205,7 +205,7 @@ export const injectMcpAgentConfig = async (
     if (e.code === "ENOENT") {
       json = {};
     } else {
-      throw new Error(`Failed to parse agent config: ${e.message}`);
+      throw new Error(`Failed to parse agent config: ${e.message}`, { cause: error });
     }
   }
 
