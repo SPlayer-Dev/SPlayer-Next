@@ -11,8 +11,6 @@ import type {
 } from "@splayer/media-ctrl";
 import type { DiscordDisplayMode, DiscordSettings } from "@shared/types/settings";
 
-export type { MediaEvent, MetadataParam, PlayModeParam, PlayStateParam, TimelineParam };
-
 type MediaCtrlModule = typeof import("@splayer/media-ctrl");
 
 /** DiscordDisplayMode 映射到 media-ctrl 的枚举值 */

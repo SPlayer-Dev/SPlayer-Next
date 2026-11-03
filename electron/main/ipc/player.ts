@@ -35,6 +35,7 @@ import {
   setTraySongName,
   setTrayPlayState,
   setTrayPlayMode,
+  getTrayPlayMode,
   setTrayLikeState,
 } from "@main/services/tray";
 import { setTaskbarThumbnailCover } from "@main/services/thumbnail";
@@ -1109,21 +1110,14 @@ export const registerPlayerIpc = (): void => {
           sendToMain("player:event", { type: "prev" });
           break;
         case "SetShuffle":
-          if (event.shuffle != null) {
-            sendToMain("player:event", {
-              type: "setShuffle",
-              data: { mode: event.shuffle ? "on" : "off" },
-            });
-          }
+          if (event.shuffle != null) playerControl.setShuffle(event.shuffle ? "on" : "off");
           break;
         case "SetRepeat":
-          if (event.repeat != null) {
-            // 应用没有"不循环"，系统请求的 None 归到列表循环，渲染进程随后回推真实模式纠正控件
-            sendToMain("player:event", {
-              type: "setRepeat",
-              data: { mode: event.repeat === "Track" ? "one" : "list" },
-            });
-          }
+          if (event.repeat === "Track") playerControl.setRepeat("one");
+          else if (event.repeat === "List") playerControl.setRepeat("list");
+          // 应用没有"不循环"，系统循环按钮切到 None 时视为在两种模式间切换，避免卡在列表循环
+          else if (event.repeat === "None")
+            playerControl.setRepeat(getTrayPlayMode().repeat === "one" ? "list" : "one");
           break;
       }
     } catch {}

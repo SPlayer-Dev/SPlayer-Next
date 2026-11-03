@@ -793,17 +793,17 @@ describe("特殊模式下的播放模式同步", () => {
     expect(window.api.player.syncPlayMode).toHaveBeenLastCalledWith("list", "off");
   });
 
-  it("心动模式下随机被关闭回推，但保留用户的随机偏好", async () => {
+  it("心动模式下开启随机被拒绝，并回推关闭随机", async () => {
     const { useStatusStore } = await import("@/stores/status");
     const { setShuffleMode } = await import("./index");
     const status = useStatusStore();
     status.heartMode = true;
-    status.shuffleMode = "on";
+    status.shuffleMode = "off";
     status.repeatMode = "one";
 
     setShuffleMode("on");
 
-    expect(status.shuffleMode).toBe("on");
+    expect(status.shuffleMode).toBe("off");
     expect(window.api.player.syncPlayMode).toHaveBeenLastCalledWith("one", "off");
   });
 
