@@ -107,3 +107,4 @@ export const neteaseLog = log.scope("netease");
 export const updaterLog = log.scope("updater");
 export const cloudLog = log.scope("cloud");
 export const recognitionLog = log.scope("recognition");
+export const motionCoverLog = log.scope("motionCover");

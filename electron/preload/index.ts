@@ -629,6 +629,11 @@ const api = {
     onLyricOffsetChange: (callback: (data: unknown) => void) =>
       subscribe("nowPlaying:lyric-offset-change", callback),
   },
+  motionCover: {
+    // 解析曲目的动态封面
+    resolve: (track: unknown, source: string): Promise<string | null> =>
+      ipcRenderer.invoke("motionCover:resolve", track, source),
+  },
   theme: {
     // 弹出文件选择框
     pickBackgroundImage: (): Promise<string | null> =>

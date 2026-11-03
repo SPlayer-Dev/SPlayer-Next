@@ -1,5 +1,5 @@
 import { ElectronAPI } from "@electron-toolkit/preload";
-import { PlayerApi, Track, TrackSource } from "@shared/types/player";
+import { MotionCoverSource, PlayerApi, Track, TrackSource } from "@shared/types/player";
 import {
   ConfigApi,
   ExternalApiStatus,
@@ -88,6 +88,9 @@ declare global {
       opencc: OpenccApi;
       comments: CommentsApi;
       download: DownloadApi;
+      motionCover: {
+        resolve: (track: Track, source: MotionCoverSource) => Promise<string | null>;
+      };
       theme: {
         pickBackgroundImage: () => Promise<string | null>;
         clearBackgroundImages: () => Promise<void>;

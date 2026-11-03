@@ -1270,6 +1270,14 @@
       "label": "Follow Cover Color",
       "description": "Lyric color follows the current cover art"
     },
+    "motionCover": {
+      "label": "Animated Cover",
+      "description": "Play the album's animated cover in the full player",
+      "off": "Off",
+      "ncm": "NCM Only",
+      "am": "AM Only",
+      "amFirst": "Prefer AM"
+    },
     "autoImmersive": {
       "label": "Auto Immersive Mode",
       "description": "Hide top/bottom bars and the cursor when the mouse is idle or leaves the window"
@@ -2206,6 +2214,7 @@
       "artists": "Artist Avatars",
       "backgrounds": "Backgrounds",
       "songs": "Song Files",
+      "motionCovers": "Animated Covers",
       "lyric": "Lyric Content Cache",
       "lyricTTML": "TTML Lyric Cache",
       "lyricMatch": "Lyric Match Cache"
@@ -2217,6 +2226,10 @@
     "cacheStreaming": {
       "label": "Cache Streaming Tracks",
       "description": "Cache tracks from personal media servers locally during playback"
+    },
+    "motionCoverSizeLimit": {
+      "label": "Animated Cover Cache Limit",
+      "description": "Least recently played covers are removed when the limit is exceeded"
     },
     "songCacheSizeLimit": {
       "label": "Size Limit",

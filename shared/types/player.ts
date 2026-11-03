@@ -231,6 +231,9 @@ export interface AudioDevice {
 /** 曲尾交接时机与淡化时长偏好 */
 export type TransitionPreference = "conservative" | "standard" | "eager";
 
+/** 动态封面来源 */
+export type MotionCoverSource = "off" | "ncm" | "am" | "amFirst";
+
 export type PlayerEvent =
   | { type: "status"; data: PlayerStatus }
   | { type: "position"; data: { position: number; duration: number } }

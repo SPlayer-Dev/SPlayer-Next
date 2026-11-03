@@ -1270,6 +1270,14 @@
       "label": "跟随封面颜色",
       "description": "歌词颜色跟随当前封面主色调"
     },
+    "motionCover": {
+      "label": "动态封面",
+      "description": "在全屏播放器中播放专辑动态封面",
+      "off": "关闭",
+      "ncm": "仅 NCM",
+      "am": "仅 AM",
+      "amFirst": "AM 优先"
+    },
     "autoImmersive": {
       "label": "自动沉浸模式",
       "description": "鼠标静止或离开窗口时，自动隐藏全屏播放器顶/底栏与鼠标"
@@ -2206,6 +2214,7 @@
       "artists": "歌手头像",
       "backgrounds": "背景图",
       "songs": "歌曲文件",
+      "motionCovers": "动态封面",
       "lyric": "歌词内容缓存",
       "lyricTTML": "TTML 歌词缓存",
       "lyricMatch": "歌词匹配缓存"
@@ -2217,6 +2226,10 @@
     "cacheStreaming": {
       "label": "缓存流媒体",
       "description": "播放个人流媒体服务器歌曲时缓存至本地"
+    },
+    "motionCoverSizeLimit": {
+      "label": "动态封面缓存上限",
+      "description": "超出后自动清理最久未播放的动态封面"
     },
     "songCacheSizeLimit": {
       "label": "缓存上限",
