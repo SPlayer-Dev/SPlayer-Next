@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { Artist } from "@shared/types/player";
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import { useFavorite } from "@/composables/useFavorite";
@@ -11,6 +12,12 @@ import { getQualityLabel, isLosslessQuality } from "@/utils/quality";
 import { usePlaylistPicker } from "@/composables/usePlaylistPicker";
 import { useDownload } from "@/composables/useDownload";
 import { useTrackMenu } from "@/composables/useTrackMenu";
+import {
+  canNavigateToResource,
+  navigateToResource,
+  type ResourceNavigationTarget,
+} from "@/utils/navigate";
+import { setPlayerExpanded } from "@/services/playerTransition";
 
 const { t } = useI18n();
 const status = useStatusStore();
@@ -25,12 +32,28 @@ const { snapToNearestLyric } = useProgressLyric();
 const displayTrack = computed(() => media.track ?? status.currentTrack);
 const hasTrack = computed(() => !!displayTrack.value);
 
-const artistNames = computed(
-  () =>
-    getValidArtists(displayTrack.value?.artists)
-      .map((artist) => artist.name)
-      .join(", ") || t("playlist.unknownArtist"),
-);
+const artists = computed(() => getValidArtists(displayTrack.value?.artists));
+
+/**
+ * 生成歌手详情页跳转目标
+ * @param artist - 当前歌曲的歌手
+ * @returns 携带服务器身份的详情页目标
+ */
+const artistTarget = (artist: Artist): ResourceNavigationTarget => ({
+  type: "artist",
+  source: displayTrack.value?.source,
+  serverId: displayTrack.value?.serverId,
+  id: artist.id,
+  name: artist.name,
+});
+
+/**
+ * 跳转歌手详情页并收起全屏播放器
+ * @param artist - 当前歌曲的歌手
+ */
+const goToArtist = (artist: Artist): void => {
+  if (navigateToResource(artistTarget(artist))) setPlayerExpanded(false);
+};
 
 const quality = computed(() => media.detail?.quality ?? displayTrack.value?.quality);
 
@@ -63,7 +86,24 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
         <SMarquee fit class="max-w-full font-medium tracking-[0.4px] text-cover/90">
           {{ displayTrack?.title }}
         </SMarquee>
-        <div class="truncate tracking-[0.4px] text-cover/45">{{ artistNames }}</div>
+        <div class="truncate tracking-[0.4px] text-cover/45">
+          <template v-if="artists.length">
+            <template v-for="(artist, index) in artists" :key="artist.id ?? index">
+              <span
+                :class="
+                  canNavigateToResource(artistTarget(artist))
+                    ? 'cursor-pointer transition-colors hover:text-cover/80'
+                    : ''
+                "
+                @click="goToArtist(artist)"
+              >
+                {{ artist.name }}
+              </span>
+              <template v-if="index < artists.length - 1">{{ ", " }}</template>
+            </template>
+          </template>
+          <template v-else>{{ t("playlist.unknownArtist") }}</template>
+        </div>
       </div>
       <SButton
         v-if="displayTrack?.source !== 'plugin'"
@@ -111,7 +151,7 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
         @drag-end="onSeekDragEnd"
       />
       <div
-        class="mt-1.5 grid grid-cols-[1fr_auto_1fr] items-center text-[max(1.5vh,13px)] font-medium tabular-nums"
+        class="mt-1.5 h-[1.5em] grid grid-cols-[1fr_auto_1fr] items-center text-[max(1.5vh,13px)] font-medium tabular-nums"
       >
         <span class="text-cover/50 cursor-pointer select-none" @click="toggleTimeFormat">
           {{ timeDisplay[0] }}

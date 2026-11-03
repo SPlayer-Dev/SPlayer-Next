@@ -8,12 +8,15 @@ const { t } = useI18n();
 const status = useStatusStore();
 const media = useMediaStore();
 const { showLyric } = storeToRefs(status);
-const { onMainMove } = useFullPlayer();
+const { onBarEnter, onBarLeave } = useFullPlayer();
 
 const hasLyric = computed(() => media.parsedLyric.length > 0 || media.lyricLoading);
 
+/** 不看队列时信息列是否居中 */
+const centeredWithoutQueue = computed(() => !showLyric.value || !hasLyric.value);
+
 /** 歌词隐藏或无歌词时，信息列平移到屏幕中央 */
-const infoCentered = computed(() => !status.fullQueueOpen && (!showLyric.value || !hasLyric.value));
+const infoCentered = computed(() => !status.fullQueueOpen && centeredWithoutQueue.value);
 
 const lyricVisible = computed(() => showLyric.value && hasLyric.value && !status.fullQueueOpen);
 
@@ -42,7 +45,7 @@ const toggleLyric = (): void => {
       <span class="block w-14 h-1.2 rounded-full bg-cover/40" />
     </SButton>
   </div>
-  <div class="absolute top-14 inset-x-0 bottom-16" @mousemove="onMainMove">
+  <div class="absolute top-14 inset-x-0 bottom-16">
     <!-- 左侧封面与控制 -->
     <div
       class="absolute inset-y-0 left-0 w-[45%] flex items-center justify-center transition-transform duration-500 ease-[cubic-bezier(0.5,0,0.5,1)]"
@@ -57,7 +60,7 @@ const toggleLyric = (): void => {
     </div>
     <!-- 右侧歌词 -->
     <div
-      class="group absolute inset-y-0 right-0 w-[55%] pr-[8%] flex flex-col transition-opacity duration-500 ease-[cubic-bezier(0.5,0,0.5,1)]"
+      class="group absolute inset-y-0 right-0 w-[55%] pr-20 flex flex-col transition-opacity duration-500 ease-[cubic-bezier(0.5,0,0.5,1)]"
       :class="lyricVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'"
     >
       <PlayerLyric :visible="lyricVisible" />
@@ -65,11 +68,12 @@ const toggleLyric = (): void => {
     </div>
     <!-- 播放队列 -->
     <div
-      class="absolute inset-y-0 right-0 w-[55%] pr-[8%] py-6 flex items-center"
+      class="absolute inset-y-0 right-0 w-[55%] pl-4 py-6 flex items-center"
       :class="status.fullQueueOpen ? '' : 'pointer-events-none'"
     >
+      <!-- 封面需移开时延后淡入 -->
       <Transition
-        enter-active-class="transition-opacity duration-500"
+        :enter-active-class="`transition-opacity duration-500 ${centeredWithoutQueue ? 'delay-250' : ''}`"
         enter-from-class="opacity-0"
         leave-active-class="transition-opacity duration-500"
         leave-to-class="opacity-0"
@@ -84,6 +88,8 @@ const toggleLyric = (): void => {
   <div
     data-player-layout="bottom-bar"
     class="absolute bottom-4 right-6 h-16 z-10 flex items-center gap-4"
+    @mouseenter="onBarEnter"
+    @mouseleave="onBarLeave"
   >
     <SButton
       type="cover"

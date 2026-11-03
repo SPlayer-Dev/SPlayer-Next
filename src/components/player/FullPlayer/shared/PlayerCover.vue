@@ -30,7 +30,19 @@ watchEffect(async () => {
 
 <template>
   <!-- 外观由布局决定，这里只负责高清封面加载与共享过渡标记 -->
-  <div data-player-cover="full" class="overflow-hidden shrink-0">
-    <DetailCover :src="coverSrc" :fallback="displayTrack?.cover" class="size-full" />
+  <div data-player-cover="full" class="relative overflow-hidden shrink-0">
+    <!-- 切歌交叉淡入 -->
+    <Transition
+      :duration="500"
+      enter-active-class="z-1 transition-opacity duration-500 ease-linear"
+      enter-from-class="opacity-0"
+    >
+      <DetailCover
+        :key="displayTrack?.id"
+        :src="coverSrc"
+        :fallback="displayTrack?.cover"
+        class="absolute! inset-0 size-full"
+      />
+    </Transition>
   </div>
 </template>

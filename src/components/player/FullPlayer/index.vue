@@ -142,7 +142,6 @@ provide(fullPlayerContextKey, {
   lyricMounted,
   contentActive,
   onLyricReady,
-  onMainMove,
   onBarEnter,
   onBarLeave,
 });
@@ -168,6 +167,7 @@ provide(fullPlayerContextKey, {
         :class="immersive ? 'cursor-none [&_*]:!cursor-none' : ''"
         style="--lp-color: rgb(var(--s-cover))"
         @mouseenter="onPlayerMouseEnter"
+        @mousemove="onMainMove"
         @mouseleave="onPlayerMouseLeave"
       >
         <PlayerBackground :visible="playerVisible" :active="visualizerMounted" />

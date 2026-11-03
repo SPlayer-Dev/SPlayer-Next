@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
-import { useFullPlayer } from "../../context";
 
 const status = useStatusStore();
 const media = useMediaStore();
-const { onMainMove } = useFullPlayer();
 
 const hasLyric = computed(() => media.parsedLyric.length > 0 || media.lyricLoading);
 
@@ -15,7 +13,7 @@ const lyricVisible = computed(() => hasLyric.value && !status.fullQueueOpen);
 
 <template>
   <PlayerTopBar />
-  <div class="absolute top-14 inset-x-0 bottom-20" @mousemove="onMainMove">
+  <div class="absolute top-14 inset-x-0 bottom-20">
     <div
       class="group absolute inset-0 px-20 flex flex-col transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
       :class="status.fullQueueOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'"
