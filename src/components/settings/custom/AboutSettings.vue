@@ -38,7 +38,7 @@ const update = useUpdateStore();
 /** 提交时间 */
 const commitTimeAgo = useTimeAgo(new Date(COMMIT_DATE));
 /** 当前版本 */
-const versions = window.electron.process.versions;
+const versions = window.api.system.versions;
 /** 操作系统信息 */
 const osInfo = window.api.system.osInfo;
 

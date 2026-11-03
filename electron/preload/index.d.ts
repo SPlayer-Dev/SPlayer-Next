@@ -1,4 +1,3 @@
-import { ElectronAPI } from "@electron-toolkit/preload";
 import { PlayerApi, Track, TrackSource } from "@shared/types/player";
 import {
   ConfigApi,
@@ -36,13 +35,13 @@ import type { AutoMixApi } from "@shared/types/automix";
 
 declare global {
   interface Window {
-    electron: ElectronAPI;
     api: {
       config: ConfigApi;
       player: PlayerApi;
       automix: AutoMixApi;
       system: {
         installType: "nsis" | "portable" | "appx" | "dmg" | "appimage";
+        versions: NodeJS.ProcessVersions;
         platform: NodeJS.Platform;
         osInfo: {
           type: string;

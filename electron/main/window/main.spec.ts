@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("electron", () => ({ shell: { openExternal: vi.fn() } }));
-vi.mock("@electron-toolkit/utils", () => ({ is: { dev: false } }));
 vi.mock("./create", () => ({ createWindow: mocks.createWindow }));
 vi.mock("@main/utils/logger", () => ({ coreLog: { error: vi.fn() } }));
 vi.mock("@main/utils/powerBlocker", () => ({

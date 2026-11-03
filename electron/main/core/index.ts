@@ -1,5 +1,4 @@
 import { app, BrowserWindow } from "electron";
-import { electronApp, optimizer } from "@electron-toolkit/utils";
 import {
   createMainWindow,
   restoreLyricWindows,
@@ -9,7 +8,8 @@ import {
   getDynamicIslandWindow,
   getTaskbarLyricWindow,
 } from "@main/window";
-import { isMac } from "@main/utils/config";
+import { watchWindowShortcuts } from "@main/window/shortcuts";
+import { isDev, isMac, isWin } from "@main/utils/config";
 import { registerIpcHandlers } from "@main/ipc";
 import { init as initMedia } from "@main/services/media";
 import { init as initLastfm } from "@main/services/lastfm";
@@ -105,11 +105,11 @@ export const initApp = (): void => {
   registerCacheScheme();
   // 其他初始化
   app.whenReady().then(() => {
-    electronApp.setAppUserModelId("top.imsyy.splayer-next");
+    if (isWin) app.setAppUserModelId(isDev ? process.execPath : "top.imsyy.splayer-next");
     // 注册 cache:// 协议处理
     handleCacheProtocol();
     app.on("browser-window-created", (_, window) => {
-      optimizer.watchWindowShortcuts(window);
+      watchWindowShortcuts(window);
     });
     // 注册 IPC
     let startupComplete = false;
