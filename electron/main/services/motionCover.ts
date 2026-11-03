@@ -12,6 +12,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { setTimeout as sleep } from "node:timers/promises";
 import type { ReadableStream } from "node:stream/web";
 import {
   buildLyricSearchKeyword,
@@ -60,18 +61,25 @@ interface AlbumPageData {
   }[];
 }
 
-const inFlight = new Map<string, Promise<string | null>>();
+/** 当前曲目的 AM 任务，切到别的曲目时中止 */
+let active: {
+  fingerprint: string;
+  controller: AbortController;
+  task: Promise<string | null>;
+} | null = null;
 let itunesQueue: Promise<unknown> = Promise.resolve();
+let lastSearchAt = 0;
 
 /**
  * 请求远端资源，非 2xx 抛错，避免把网络问题记成未命中
  * @param url - 地址
+ * @param signal - 中止信号
  * @returns 响应
  */
-const request = async (url: string): Promise<Response> => {
+const request = async (url: string, signal: AbortSignal): Promise<Response> => {
   const res = await fetch(url, {
     headers: { "User-Agent": USER_AGENT },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: AbortSignal.any([signal, AbortSignal.timeout(TIMEOUT_MS)]),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
   return res;
@@ -81,17 +89,26 @@ const request = async (url: string): Promise<Response> => {
  * 串行排队调用 iTunes Search
  * @param term - 关键词
  * @param storefront - 地区
+ * @param signal - 中止信号
  * @returns 单曲结果
  */
-const searchItunes = (term: string, storefront: string): Promise<ItunesSong[]> => {
+const searchItunes = (
+  term: string,
+  storefront: string,
+  signal: AbortSignal,
+): Promise<ItunesSong[]> => {
   const url = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=song&limit=10&country=${storefront}`;
   const task = itunesQueue.then(async () => {
-    const body = (await (await request(url)).json()) as { results?: ItunesSong[] };
+    // 已切走的曲目直接出队，不占限流间隔
+    signal.throwIfAborted();
+    await sleep(Math.max(0, lastSearchAt + ITUNES_INTERVAL_MS - Date.now()), undefined, {
+      signal,
+    });
+    lastSearchAt = Date.now();
+    const body = (await (await request(url, signal)).json()) as { results?: ItunesSong[] };
     return body.results ?? [];
   });
-  itunesQueue = task
-    .catch(() => {})
-    .then(() => new Promise((resolve) => setTimeout(resolve, ITUNES_INTERVAL_MS)));
+  itunesQueue = task.catch(() => {});
   return task;
 };
 
@@ -99,14 +116,16 @@ const searchItunes = (term: string, storefront: string): Promise<ItunesSong[]> =
  * 读取专辑页中的动态封面主列表
  * @param collectionId - 专辑 ID
  * @param storefront - 地区
+ * @param signal - 中止信号
  * @returns 主列表地址，专辑无动态封面时为 null
  */
 const fetchAlbumVideo = async (
   collectionId: number,
   storefront: string,
+  signal: AbortSignal,
 ): Promise<string | null> => {
   const html = await (
-    await request(`https://music.apple.com/${storefront}/album/x/${collectionId}`)
+    await request(`https://music.apple.com/${storefront}/album/x/${collectionId}`, signal)
   ).text();
   const json = html.match(/id="serialized-server-data">([\s\S]*?)<\/script>/)?.[1];
   // 页面结构变化时抛错而不是记成未命中
@@ -121,9 +140,10 @@ const fetchAlbumVideo = async (
 /**
  * 匹配曲目所属专辑并取动态封面
  * @param track - 曲目
+ * @param signal - 中止信号
  * @returns 主列表地址，未匹配或无动态封面时为 null
  */
-const matchVideoUrl = async (track: Track): Promise<string | null> => {
+const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string | null> => {
   const term = buildLyricSearchKeyword(track);
   // 港台区返回繁体，双方统一转简体再比对
   const [title, album, ...artistNames] = convertTexts(
@@ -137,7 +157,9 @@ const matchVideoUrl = async (track: Track): Promise<string | null> => {
     artists: track.artists.map((artist, index) => ({ ...artist, name: artistNames[index] })),
   };
   for (const storefront of STOREFRONTS) {
-    const songs = (await searchItunes(term, storefront)).filter((song) => song.collectionId);
+    const songs = (await searchItunes(term, storefront, signal)).filter(
+      (song) => song.collectionId,
+    );
     const texts = convertTexts(
       songs.flatMap((song) => [
         song.trackName ?? "",
@@ -155,7 +177,7 @@ const matchVideoUrl = async (track: Track): Promise<string | null> => {
     }));
     const best = pickBestCandidate(candidates, simplified);
     if (!best) continue;
-    const video = await fetchAlbumVideo(best.extra, storefront);
+    const video = await fetchAlbumVideo(best.extra, storefront, signal);
     if (!video) motionCoverLog.info(`${track.title}：AM 专辑无动态封面`);
     return video;
   }
@@ -166,10 +188,11 @@ const matchVideoUrl = async (track: Track): Promise<string | null> => {
 /**
  * 选出短边不低于 TARGET_SIZE 的最小 avc1 变体，同尺寸取码率最高；都不够时取最大的
  * @param masterUrl - 主列表地址
+ * @param signal - 中止信号
  * @returns 变体列表地址
  */
-const pickVariant = async (masterUrl: string): Promise<string> => {
-  const lines = (await (await request(masterUrl)).text()).split(/\r?\n/);
+const pickVariant = async (masterUrl: string, signal: AbortSignal): Promise<string> => {
+  const lines = (await (await request(masterUrl, signal)).text()).split(/\r?\n/);
   const variants = lines.flatMap((line, index) => {
     if (!line.startsWith("#EXT-X-STREAM-INF:") || !line.includes("avc1")) return [];
     const [width, height] = (line.match(/RESOLUTION=(\d+)x(\d+)/)?.slice(1) ?? []).map(Number);
@@ -194,10 +217,11 @@ const pickVariant = async (masterUrl: string): Promise<string> => {
 /**
  * 变体的所有分片都是同一个 fMP4 的字节区间，直接取 EXT-X-MAP 指向的整个文件
  * @param variantUrl - 变体列表地址
+ * @param signal - 中止信号
  * @returns mp4 地址
  */
-const resolveMp4Url = async (variantUrl: string): Promise<string> => {
-  const text = await (await request(variantUrl)).text();
+const resolveMp4Url = async (variantUrl: string, signal: AbortSignal): Promise<string> => {
+  const text = await (await request(variantUrl, signal)).text();
   const uri = text.match(/#EXT-X-MAP:URI="([^"]+)"/)?.[1];
   if (!uri) throw new Error(`EXT-X-MAP missing ${variantUrl}`);
   return new URL(uri, variantUrl).href;
@@ -207,9 +231,10 @@ const resolveMp4Url = async (variantUrl: string): Promise<string> => {
  * 下载到临时文件后改名，避免残缺文件被当作命中
  * @param url - mp4 地址
  * @param dest - 目标路径
+ * @param signal - 中止信号
  */
-const download = async (url: string, dest: string): Promise<void> => {
-  const res = await request(url);
+const download = async (url: string, dest: string, signal: AbortSignal): Promise<void> => {
+  const res = await request(url, signal);
   if (Number(res.headers.get("content-length") ?? 0) > MAX_FILE_BYTES || !res.body) {
     throw new Error(`invalid clip ${url}`);
   }
@@ -278,9 +303,14 @@ const cachedAm = async (track: Track, fingerprint: string): Promise<string | nul
  * 解析 AM 动态封面并确保本地有缓存文件
  * @param track - 曲目
  * @param fingerprint - 曲目指纹
+ * @param signal - 中止信号
  * @returns cache:// 地址
  */
-const resolveAmUncached = async (track: Track, fingerprint: string): Promise<string | null> => {
+const resolveAmUncached = async (
+  track: Track,
+  fingerprint: string,
+  signal: AbortSignal,
+): Promise<string | null> => {
   const cached = await cachedAm(track, fingerprint);
   if (cached) return cached;
   let videoUrl = getMotionCoverRecord(fingerprint);
@@ -289,13 +319,13 @@ const resolveAmUncached = async (track: Track, fingerprint: string): Promise<str
     return null;
   }
   if (videoUrl === undefined) {
-    videoUrl = await matchVideoUrl(track);
+    videoUrl = await matchVideoUrl(track, signal);
     setMotionCoverRecord(fingerprint, videoUrl);
     if (!videoUrl) return null;
   }
   const file = clipPath(videoUrl);
   await fs.mkdir(path.dirname(file), { recursive: true });
-  await download(await resolveMp4Url(await pickVariant(videoUrl)), file);
+  await download(await resolveMp4Url(await pickVariant(videoUrl, signal), signal), file, signal);
   motionCoverLog.info(`${track.title}：AM 已下载`);
   await trimCache(path.dirname(file));
   return toCacheUrl(file) ?? null;
@@ -309,6 +339,7 @@ const resolveAmUncached = async (track: Track, fingerprint: string): Promise<str
 const logFailure =
   (track: Track) =>
   (err: Error & { cause?: { code?: string; message?: string } }): null => {
+    if (err.name === "AbortError") return null;
     // fetch failed 的真实原因在 cause 里
     motionCoverLog.warn(
       `${track.title}：获取失败 ${err.cause?.code ?? err.cause?.message ?? err.message}`,
@@ -323,13 +354,14 @@ const logFailure =
  * @returns cache:// 地址
  */
 const resolveAm = (track: Track, fingerprint: string): Promise<string | null> => {
-  let task = inFlight.get(fingerprint);
-  if (!task) {
-    task = resolveAmUncached(track, fingerprint)
-      .catch(logFailure(track))
-      .finally(() => inFlight.delete(fingerprint));
-    inFlight.set(fingerprint, task);
-  }
+  if (active?.fingerprint === fingerprint) return active.task;
+  const controller = new AbortController();
+  const task: Promise<string | null> = resolveAmUncached(track, fingerprint, controller.signal)
+    .catch(logFailure(track))
+    .finally(() => {
+      if (active?.task === task) active = null;
+    });
+  active = { fingerprint, controller, task };
   return task;
 };
 
@@ -355,8 +387,13 @@ export const resolveMotionCover = async (
   source: MotionCoverSource,
 ): Promise<string | null> => {
   if (source === "off" || !track.title || track.artists.length === 0) return null;
-  if (source === "ncm") return resolveNcm(track).catch(logFailure(track));
   const fingerprint = buildFingerprint(track);
+  // 切歌后旧曲目的匹配与下载不再需要
+  if (active && active.fingerprint !== fingerprint) {
+    active.controller.abort();
+    active = null;
+  }
+  if (source === "ncm") return resolveNcm(track).catch(logFailure(track));
   if (source === "am") return resolveAm(track, fingerprint);
   // AM 优先：已缓存直接用；否则先放 NCM，AM 在后台下载供下次播放，不中途切换
   const cached = await cachedAm(track, fingerprint);
