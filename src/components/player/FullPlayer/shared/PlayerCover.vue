@@ -29,6 +29,28 @@ watchEffect(async () => {
   hdCache.value = { id, data: r.data };
 });
 
+let layerId = 0;
+
+const createLayer = () => ({
+  id: ++layerId,
+  src: coverSrc.value,
+  fallback: displayTrack.value?.cover,
+});
+
+const layers = shallowRef([createLayer()]);
+
+// 新图解码后才淡入，淡入结束前底层旧图保持不动，最多两层
+watch([coverSrc, () => displayTrack.value?.cover], async () => {
+  const layer = createLayer();
+  const decodes = [layer.src, layer.fallback].filter(Boolean).map((src) => {
+    const image = new Image();
+    image.src = src!;
+    return image.decode();
+  });
+  await Promise.any(decodes).catch(() => {});
+  if (layer.id === layerId) layers.value = [layers.value[0], layer];
+});
+
 const motion = shallowRef<{ key: string; src: string } | null>(null);
 const motionReady = ref(false);
 const videoRef = ref<HTMLVideoElement>();
@@ -82,18 +104,20 @@ onBeforeUnmount(() => videoRef.value && releaseVideo(videoRef.value));
   <!-- 外观由布局决定，这里只负责高清封面加载与共享过渡标记 -->
   <div data-player-cover="full" class="relative overflow-hidden shrink-0">
     <!-- 切歌交叉淡入 -->
-    <Transition
-      :duration="500"
-      enter-active-class="z-1 transition-opacity duration-500 ease-linear"
+    <TransitionGroup
+      :css="!settings.reducedMotion"
+      enter-active-class="transition-opacity duration-500 ease-linear"
       enter-from-class="opacity-0"
+      @after-enter="layers = layers.slice(-1)"
     >
       <DetailCover
-        :key="displayTrack?.id"
-        :src="coverSrc"
-        :fallback="displayTrack?.cover"
+        v-for="layer in layers"
+        :key="layer.id"
+        :src="layer.src"
+        :fallback="layer.fallback"
         class="absolute! inset-0 size-full"
       />
-    </Transition>
+    </TransitionGroup>
     <!-- 动态封面 -->
     <Transition
       leave-active-class="transition-opacity duration-500"
