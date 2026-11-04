@@ -324,6 +324,8 @@ export interface AppearanceSettings {
   sidebarNameWithDivider: boolean;
   /** 侧边栏歌单显示顺序 */
   sidebarPlaylistOrder: SidebarPlaylistOrder;
+  /** 文件夹页目录树宽度（px） */
+  folderTreeWidth: number;
   /** 播放栏显示快捷音质切换 */
   showQualitySwitch: boolean;
   /** 点击关闭按钮的行为 */
