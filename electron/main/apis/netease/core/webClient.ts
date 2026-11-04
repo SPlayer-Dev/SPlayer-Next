@@ -1,6 +1,5 @@
 import { app, session, type Session, type WebContents } from "electron";
 import { getMainWindow } from "@main/window/main";
-import { getNetworkProxyUrl } from "@main/utils/proxy";
 import { neteaseLog } from "@main/utils/logger";
 import { DOMAIN, UA_MAP, WEB_LOG_DOMAIN } from "./config";
 import { cookieToJson } from "./cookie";
@@ -135,11 +134,6 @@ export const requestWithWebClient = (
         ensureCurrent();
         sessionDirty = false;
       }
-      const proxy = getNetworkProxyUrl();
-      const proxyConfig = proxy
-        ? { mode: "fixed_servers" as const, proxyRules: proxy }
-        : { mode: "direct" as const };
-      await ses.setProxy(proxyConfig);
       ensureCurrent();
       const existing = await ses.cookies.get({ url: DOMAIN });
       for (const [name, value] of Object.entries(cookie)) {
@@ -228,8 +222,6 @@ export const requestWithWebClient = (
         mainContents.once("render-process-gone", onGone);
         mainContents.once("destroyed", onGone);
         mainContents.on("did-start-navigation", onNavigation);
-        /** 采样和业务请求沿用同一代理出口，避免环境信息与请求出口不一致 */
-        await mainContents.session.setProxy(proxyConfig);
         ensureCurrent();
         const tokens = await getWatchmanTokens({
           contents: mainContents,

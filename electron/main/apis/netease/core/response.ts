@@ -12,12 +12,17 @@ export class NeteaseRequestError extends Error {
   /**
    * 保留服务端业务结果，供调用方识别失败原因
    * @param response - 未成功的请求响应
+   * @param options - 底层错误原因与真实 HTTP 状态，用于区分网络失败和网关错误
    */
-  constructor(response: RequestResponse) {
+  constructor(response: RequestResponse, options?: ErrorOptions & { httpStatus?: number }) {
     const body = response.body as { code?: number | string; msg?: string; message?: string };
     const code = body?.code ?? response.status;
     const msg = body?.msg ?? body?.message ?? "";
-    super(msg ? `netease ${code}: ${msg}` : `netease ${code}`);
+    const prefix =
+      options?.httpStatus !== undefined && options.httpStatus !== 200
+        ? `netease HTTP ${options.httpStatus} (code ${code})`
+        : `netease ${code}`;
+    super(msg ? `${prefix}: ${msg}` : prefix, options);
     this.name = "NeteaseRequestError";
     this.response = response;
   }

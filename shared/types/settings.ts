@@ -493,6 +493,8 @@ export interface SystemConfig {
     kugouLoginVersion: KugouLoginVersion;
     /** 网络代理配置 */
     networkProxy: NetworkProxySettings;
+    /** 所有对外连接优先使用 IPv4 */
+    preferIPv4: boolean;
     /** 听歌打卡开关 */
     neteaseScrobbleEnabled: boolean;
     /** 播放日志上报协议 */

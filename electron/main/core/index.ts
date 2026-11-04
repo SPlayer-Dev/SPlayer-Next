@@ -24,7 +24,8 @@ import { startServer } from "@main/server";
 import { startMcpServer } from "@main/services/mcp/http";
 import { initUpdater } from "@main/services/updater";
 import { coreLog, initLogger } from "@main/utils/logger";
-import { initNetworkProxy } from "@main/utils/proxy";
+import { applyIPv4Preference } from "@main/utils/proxy";
+import { initializeNetwork } from "@main/services/network";
 import { isAppQuitting } from "@main/utils/lifecycle";
 import { initAppLifecycle } from "./lifecycle";
 import {
@@ -82,6 +83,7 @@ export const initApp = (): void => {
     app.quit();
     return;
   }
+  applyIPv4Preference();
   app.on("second-instance", (_event, commandLine) => {
     focusMainWindow();
     const url = extractOrpheusUrl(commandLine);
@@ -99,12 +101,11 @@ export const initApp = (): void => {
     event.preventDefault();
     captureAudioFiles([path]);
   });
-  // 应用代理设置
-  initNetworkProxy();
   // 注册缓存协议方案
   registerCacheScheme();
   // 其他初始化
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
+    await initializeNetwork();
     electronApp.setAppUserModelId("top.imsyy.splayer-next");
     // 注册 cache:// 协议处理
     handleCacheProtocol();
@@ -165,5 +166,6 @@ export const initApp = (): void => {
     });
     coreLog.info("应用初始化完成");
   });
+  // 退出清理由生命周期模块按顺序执行（含网络连接层关闭）
   initAppLifecycle();
 };

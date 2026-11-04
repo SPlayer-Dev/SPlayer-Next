@@ -3,6 +3,7 @@ import { dialog, ipcMain } from "electron";
 import { store } from "@main/store";
 import type { ConfigPath } from "@main/store/types";
 import { systemLog } from "@main/utils/logger";
+import { applyNetworkPreferences } from "@main/services/network";
 import {
   enable as enableMedia,
   disable as disableMedia,
@@ -15,9 +16,7 @@ import {
   setEqualizerBands,
   setPreampGain,
   setExclusiveMode,
-  syncEngineProxy,
 } from "@main/services/engine";
-import { applyGlobalFetchProxy, applySessionsProxy } from "@main/utils/proxy";
 import {
   setTaskbarProgress,
   applyMainWindowZoom,
@@ -44,8 +43,15 @@ import { refreshPowerBlocker } from "@main/utils/powerBlocker";
  * @param keyPath - 配置路径
  * @param value - 新值
  */
-const applyConfigChange = (keyPath: string, value: unknown): void => {
+const applyConfigChange = async (keyPath: string, value: unknown): Promise<void> => {
   switch (keyPath) {
+    case "system.preferIPv4":
+    case "system.networkProxy":
+    case "system.networkProxy.protocol":
+    case "system.networkProxy.host":
+    case "system.networkProxy.port":
+      await applyNetworkPreferences();
+      break;
     case "player.keepScreenAwake":
       refreshPowerBlocker();
       break;
@@ -129,11 +135,6 @@ const applyConfigChange = (keyPath: string, value: unknown): void => {
       if (isWin) applyTaskbarLyricLayout();
       break;
   }
-  if (keyPath.startsWith("system.networkProxy")) {
-    syncEngineProxy();
-    applyGlobalFetchProxy().catch((err) => systemLog.warn("[proxy] apply fetch proxy failed", err));
-    applySessionsProxy().catch((err) => systemLog.warn("[proxy] apply sessions proxy failed", err));
-  }
   // 桌面歌词配置变更广播到所有窗口
   if (keyPath.startsWith("desktopLyric.")) {
     broadcast("desktopLyric:configChange", store.get("desktopLyric"));
@@ -151,7 +152,7 @@ const applyConfigChange = (keyPath: string, value: unknown): void => {
 /** 注册配置相关 IPC */
 export const registerConfigIpc = (): void => {
   ipcMain.handle("config:get", (_event, keyPath: string) => store.get(keyPath as ConfigPath));
-  ipcMain.handle("config:set", (_event, keyPath: string, value: unknown) => {
+  ipcMain.handle("config:set", async (_event, keyPath: string, value: unknown) => {
     if (keyPath === "update.channel" && getUpdateState().phase === "installing") {
       throw new Error("安装启动中，无法切换更新通道");
     }
@@ -159,22 +160,24 @@ export const registerConfigIpc = (): void => {
       throw new Error(`无效的更新通道: ${String(value)}`);
     }
     store.set(keyPath, value);
-    applyConfigChange(keyPath, value);
+    await applyConfigChange(keyPath, value);
   });
   ipcMain.handle("config:getAll", () => store.store);
-  ipcMain.handle("config:reset", () => {
+  ipcMain.handle("config:reset", async () => {
     if (getUpdateState().phase === "installing") throw new Error("安装启动中，无法重置配置");
     store.clear();
     syncUpdateChannel();
     refreshPowerBlocker();
+    await applyNetworkPreferences();
   });
 
   /** 替换整盘配置 */
-  ipcMain.handle("config:replaceAll", (_event, payload: unknown) => {
+  ipcMain.handle("config:replaceAll", async (_event, payload: unknown) => {
     if (getUpdateState().phase === "installing") throw new Error("安装启动中，无法替换配置");
     store.replaceAll(payload);
     syncUpdateChannel();
     refreshPowerBlocker();
+    await applyNetworkPreferences();
   });
 
   /** 备份 */

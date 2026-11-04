@@ -1,18 +1,66 @@
-import { app, session, webContents, type Session } from "electron";
+import { getDefaultResultOrder, setDefaultResultOrder } from "node:dns";
 import { store } from "@main/store";
 import { systemLog } from "@main/utils/logger";
 import type { Dispatcher } from "undici";
 import crypto from "node:crypto";
 
 const PROXY_TEST_URL = "https://www.baidu.com";
+const defaultDnsResultOrder = getDefaultResultOrder();
+
+type Undici = typeof import("undici");
+
+let undiciModule: Promise<Undici> | null = null;
+/** 首次请求才加载网络库，仅读写网络配置时不付出加载开销 */
+const loadUndici = (): Promise<Undici> => (undiciModule ??= import("undici"));
 
 let proxyAgent: Dispatcher | null = null;
 let proxyAgentUrl = "";
-let defaultDispatcher: Dispatcher | null = null;
-let globalProxyUrl: string | null = null;
+let ipv4Dispatcher: Promise<Dispatcher> | null = null;
+let defaultDispatcher: Promise<Dispatcher> | null = null;
+/** 已创建的连接池，切换网络配置时统一销毁 */
+const liveDispatchers = new Set<Dispatcher>();
 
 const isManualProxyProtocol = (value: string): value is "http" | "https" | "socks5" =>
   value === "http" || value === "https" || value === "socks5";
+
+/** 应用新建连接的地址族优先级，关闭时恢复进程启动时的解析顺序 */
+export const applyIPv4Preference = (): void => {
+  const order = store.get("system.preferIPv4") ? "ipv4first" : defaultDnsResultOrder;
+  setDefaultResultOrder(order);
+  systemLog.info(`[network] DNS address order=${order}`);
+};
+
+/** 默认直连 dispatcher（允许 legacy renegotiation，并保留双栈建连能力） */
+const getDefaultDispatcher = (): Promise<Dispatcher> => {
+  defaultDispatcher ??= loadUndici().then(({ Agent }) => {
+    const agent = new Agent({
+      connect: {
+        autoSelectFamily: true,
+        secureOptions: crypto.constants.SSL_OP_LEGACY_SERVER_CONNECT,
+      },
+    });
+    liveDispatchers.add(agent);
+    return agent;
+  });
+  return defaultDispatcher;
+};
+
+/** 仅 IPv4 的直连 dispatcher，供连接失败后的重试回退使用 */
+const getIPv4Dispatcher = (): Promise<Dispatcher> => {
+  ipv4Dispatcher ??= loadUndici().then(({ Agent }) => {
+    // 复用连接池；Undici 在空闲连接断开后移除对应域名的池。
+    const agent = new Agent({
+      connect: {
+        family: 4,
+        autoSelectFamily: false,
+        secureOptions: crypto.constants.SSL_OP_LEGACY_SERVER_CONNECT,
+      },
+    });
+    liveDispatchers.add(agent);
+    return agent;
+  });
+  return ipv4Dispatcher;
+};
 
 /** 当前手动代理地址；off 或配置无效时返回 null，保持原生直连行为 */
 export const getNetworkProxyUrl = (): string | null => {
@@ -24,87 +72,61 @@ export const getNetworkProxyUrl = (): string | null => {
   return `${config.protocol}://${host}:${port}`;
 };
 
-/**
- * 获取代理连接池，地址变化时重建并关闭旧连接池
- * @param url - 代理地址
- * @returns 与全局 fetch 共用的代理连接池
- */
-const getProxyAgent = async (url: string): Promise<Dispatcher> => {
-  const { ProxyAgent, Socks5ProxyAgent } = await import("undici");
+/** 代理连接池，配置变化后按新地址重建 */
+const getProxyDispatcher = async (): Promise<Dispatcher | undefined> => {
+  const url = getNetworkProxyUrl();
+  if (!url) return undefined;
   if (!proxyAgent || proxyAgentUrl !== url) {
-    proxyAgent?.close().catch(() => {});
+    const stale = proxyAgent;
+    proxyAgent = null;
+    proxyAgentUrl = "";
+    if (stale) {
+      liveDispatchers.delete(stale);
+      void stale.close().catch(() => {});
+    }
+    const { ProxyAgent, Socks5ProxyAgent } = await loadUndici();
     proxyAgent = url.startsWith("socks5://") ? new Socks5ProxyAgent(url) : new ProxyAgent(url);
     proxyAgentUrl = url;
+    liveDispatchers.add(proxyAgent);
     systemLog.info(`[proxy] node fetch proxy=${url}`);
   }
   return proxyAgent;
 };
 
-/** Node fetch 包装：首次请求才加载网络库，并复用当前代理连接池 */
-export const fetchWithProxy = async (
-  input: string | URL,
-  init?: RequestInit,
-): Promise<Response> => {
-  const { fetch, Agent } = await import("undici");
-  const url = getNetworkProxyUrl();
-  let dispatcher: Dispatcher;
-  if (url) {
-    dispatcher = await getProxyAgent(url);
-  } else {
-    defaultDispatcher ??= new Agent({
-      connect: {
-        secureOptions: crypto.constants.SSL_OP_LEGACY_SERVER_CONNECT,
-      },
-    });
-    dispatcher = defaultDispatcher;
-  }
-  return fetch(input, { ...(init as RequestInit), dispatcher } as Parameters<
-    typeof fetch
-  >[1]) as unknown as Promise<Response>;
-};
-
-/** 让全局 fetch 跟随代理设置；从未配置代理时不加载网络库 */
-export const applyGlobalFetchProxy = async (): Promise<void> => {
-  const url = getNetworkProxyUrl();
-  if (url === globalProxyUrl) return;
-  const { setGlobalDispatcher, Agent } = await import("undici");
-  if (url) {
-    setGlobalDispatcher(await getProxyAgent(url));
-  } else {
-    // 恢复内置 fetch 的默认直连行为，旧代理连接池随之关闭
-    setGlobalDispatcher(new Agent());
-    proxyAgent?.close().catch(() => {});
-    proxyAgent = null;
-  }
-  globalProxyUrl = url;
+/** 丢弃旧连接池，显式选择应用代理或直连，避免全局 fetch 继承环境代理。 */
+export const resetNetworkDispatchers = async (): Promise<Dispatcher> => {
+  const creating = [ipv4Dispatcher, defaultDispatcher];
+  proxyAgent = null;
+  proxyAgentUrl = "";
+  ipv4Dispatcher = null;
+  defaultDispatcher = null;
+  // 等待在途创建，确保紧随其后的销毁覆盖它们
+  await Promise.all(creating.map((task) => task?.catch(() => null)));
+  const stale = [...liveDispatchers];
+  liveDispatchers.clear();
+  await Promise.all(stale.map((agent) => agent.destroy().catch(() => {})));
+  return (await getProxyDispatcher()) ?? getDefaultDispatcher();
 };
 
 /**
- * 为 Chromium 会话应用代理设置；关闭时强制直连，不跟随系统代理
- * @param ses - 目标会话
+ * 按应用配置发送请求，直连重试时可回退到 IPv4
+ * @param input - 请求地址
+ * @param init - 请求选项
+ * @param ipv4Only - 仅在没有手动代理时使用 IPv4，不改变代理服务器的解析策略
+ * @returns HTTP 响应
  */
-const applySessionProxy = (ses: Session): Promise<void> => {
-  const url = getNetworkProxyUrl();
-  return ses.setProxy(url ? { mode: "fixed_servers", proxyRules: url } : { mode: "direct" });
-};
-
-/** 将代理设置同步到所有已存在的 Chromium 会话 */
-export const applySessionsProxy = async (): Promise<void> => {
-  const sessions = new Set([
-    session.defaultSession,
-    ...webContents.getAllWebContents().map((contents) => contents.session),
-  ]);
-  await Promise.all([...sessions].map(applySessionProxy));
-};
-
-/** 新建的会话创建时即应用代理设置，需在 app ready 之前调用 */
-export const initNetworkProxy = (): void => {
-  applyGlobalFetchProxy().catch((err) => systemLog.warn("[proxy] apply fetch proxy failed", err));
-  app.on("session-created", (ses) => {
-    applySessionProxy(ses).catch((err) =>
-      systemLog.warn("[proxy] apply session proxy failed", err),
-    );
-  });
+export const fetchWithProxy = async (
+  input: string | URL,
+  init?: RequestInit,
+  ipv4Only = false,
+): Promise<Response> => {
+  const { fetch } = await loadUndici();
+  let dispatcher = await getProxyDispatcher();
+  if (!dispatcher && ipv4Only) dispatcher = await getIPv4Dispatcher();
+  dispatcher ??= await getDefaultDispatcher();
+  return fetch(input, { ...(init as RequestInit), dispatcher } as Parameters<
+    typeof fetch
+  >[1]) as unknown as Promise<Response>;
 };
 
 /** 测试当前代理是否可用 */

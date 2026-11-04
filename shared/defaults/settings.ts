@@ -166,6 +166,7 @@ export const defaultSystemConfig: SystemConfig = {
       host: "127.0.0.1",
       port: 7890,
     },
+    preferIPv4: false,
     neteaseScrobbleEnabled: false,
     neteaseScrobbleMode: "legacy",
     registerOrpheusProtocol: false,

@@ -6,6 +6,7 @@ vi.mock("@main/utils/proxy", () => ({ fetchWithProxy: api.fetch }));
 vi.mock("./webClient", () => ({ requestWithWebClient: api.web }));
 vi.mock("./checktoken", () => ({ getAntiCheatTokenV3: api.v3 }));
 vi.mock("./device", () => ({ getAnonymousToken: () => "", getDeviceId: () => "device" }));
+vi.mock("@main/utils/logger", () => ({ neteaseLog: { warn: vi.fn() } }));
 
 import { eapiReqDecrypt } from "./crypto";
 import { createRequest } from "./request";

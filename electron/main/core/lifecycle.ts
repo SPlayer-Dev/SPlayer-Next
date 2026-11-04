@@ -7,6 +7,7 @@ import { stopServer } from "@main/server";
 import { stopMcpServer } from "@main/services/mcp/http";
 import { stopStreamingPlayback } from "@main/services/streaming/playback";
 import { disposeUpdater } from "@main/services/updater";
+import { closeNetwork } from "@main/services/network";
 import { coreLog } from "@main/utils/logger";
 
 const cleanupTasks: Array<[string, () => void | Promise<void>]> = [
@@ -24,6 +25,7 @@ const cleanupTasks: Array<[string, () => void | Promise<void>]> = [
   ],
   ["系统媒体", shutdownMedia],
   ["更新服务", disposeUpdater],
+  ["网络连接层", closeNetwork],
   ["数据库", closeDatabase],
 ];
 

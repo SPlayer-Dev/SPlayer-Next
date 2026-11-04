@@ -63,6 +63,12 @@ const servicesCategory: SettingCategory = {
           ],
         },
         {
+          key: "preferIPv4",
+          type: "switch",
+          binding: { store: "settings", path: "system.system.preferIPv4" },
+          defaultValue: false,
+        },
+        {
           key: "neteaseRealIp",
           type: "switch",
           binding: { store: "settings", path: "system.system.neteaseRealIp" },

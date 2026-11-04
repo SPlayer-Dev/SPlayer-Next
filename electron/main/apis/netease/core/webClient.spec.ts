@@ -38,14 +38,11 @@ const api = vi.hoisted(() => ({
     throw new Error("API 请求不应创建窗口");
   }),
   clearStorage: vi.fn(async () => {}),
-  setProxy: vi.fn(async () => {}),
-  mainSetProxy: vi.fn(async () => {}),
   resetContext: () => {},
   emit: (_event: string, ..._args: unknown[]) => {},
   listenerCount: (_event: string): number => 0,
 }));
 
-vi.mock("@main/utils/proxy", () => ({ getNetworkProxyUrl: () => null }));
 vi.mock("@main/utils/logger", () => ({ neteaseLog: { warn: vi.fn() } }));
 vi.mock("./crypto", () => ({
   weapi: (data: Record<string, unknown>) => ({ params: JSON.stringify(data), encSecKey: "test" }),
@@ -79,7 +76,7 @@ vi.mock("@main/window/main", async () => {
     realm = createRealm();
   };
   const contents = Object.assign(new EventEmitter(), {
-    session: { setProxy: api.mainSetProxy },
+    session: {},
     isDestroyed: () => false,
     getUserAgent: () => "test-browser",
     executeJavaScriptInIsolatedWorld: async (worldId: number, scripts: Array<{ code: string }>) => {
@@ -104,7 +101,6 @@ vi.mock("electron", () => ({
   session: {
     fromPartition: () => ({
       clearStorageData: api.clearStorage,
-      setProxy: api.setProxy,
       cookies: {
         get: async () => api.cookies,
         set: async ({ name, value }: { name: string; value: string }) => {
