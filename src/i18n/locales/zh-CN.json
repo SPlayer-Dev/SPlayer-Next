@@ -208,12 +208,20 @@
     "devtools": "开发者工具",
     "globalSettings": "全局设置",
     "searchPlaceholder": "搜索歌曲、歌手或专辑",
-    "searchEmpty": "输入关键词开始搜索",
     "searchGoto": "搜索「{keyword}」",
+    "searchCommandHint": "搜索歌曲，或输入 / 进入命令模式",
+    "searchCommandTip": "输入关键词，跳转设置项、页面或执行常用操作",
     "searchSection": {
       "quick": "快捷",
       "history": "搜索历史",
-      "hot": "热搜榜"
+      "pages": "页面",
+      "actions": "操作"
+    },
+    "searchHistoryClearConfirm": "确认清空全部搜索历史吗？",
+    "searchFooter": {
+      "select": "选择",
+      "run": "执行",
+      "command": "命令"
     },
     "searchMenu": {
       "copy": "复制",
@@ -494,6 +502,7 @@
       "hint": "正值为歌词提前，单位毫秒"
     },
     "lyricCredit": "歌词制作",
+    "collapse": "收起播放器",
     "copyLyric": {
       "title": "复制歌词",
       "contentLabel": "要复制的内容",
@@ -509,7 +518,8 @@
       "copy": "复制",
       "copyRaw": "复制原文",
       "exportImage": "导出图片",
-      "saved": "已保存到下载文件夹",
+      "saveDialogTitle": "保存歌词图片",
+      "saved": "已保存到所选位置",
       "fileSuffix": "歌词分享",
       "exportFailed": "导出图片失败",
       "empty": "没有可复制的内容"
@@ -783,7 +793,8 @@
       "softwareAnimations": "过渡与动画",
       "font": "字体",
       "playerBar": "播放栏",
-      "nowPlaying": "播放页",
+      "fullPlayer": "播放器",
+      "playerBackground": "播放器背景",
       "media": "媒体控制",
       "device": "输出设备",
       "hotkeys": "快捷键",
@@ -878,6 +889,13 @@
       "description": "配置歌曲列表行首播放按钮的行为",
       "current": "仅播放当前",
       "all": "播放全部"
+    },
+    "barLyricMode": {
+      "label": "播放栏歌词模式",
+      "description": "选择歌词内容与高亮方式，超长歌词随当前句的播放进度滚动",
+      "lyric": "歌词",
+      "translation": "歌词+翻译",
+      "word": "逐字"
     },
     "showLyricInBar": {
       "label": "播放时显示歌词",
@@ -1296,6 +1314,10 @@
       "label": "背景歌词置于下方",
       "description": "始终将背景和声歌词显示在主歌词行下方"
     },
+    "autoGenerateWordByWord": {
+      "label": "自动生成逐字效果",
+      "description": "为非逐字歌词生成逐字效果"
+    },
     "enableWordHighlight": {
       "label": "逐字高亮",
       "description": "逐字显示歌词高亮进度"
@@ -1382,10 +1404,6 @@
     "desktopLyricWordByWord": {
       "label": "逐字高亮",
       "description": "按单词进度逐字渲染高亮"
-    },
-    "desktopLyricAutoGenerateWordByWord": {
-      "label": "自动生成逐字效果",
-      "description": "关闭后仅真正的逐字歌词生效"
     },
     "desktopLyricPlayedColor": {
       "label": "已播放颜色",
@@ -1561,7 +1579,7 @@
       "description": "按单词进度逐字渲染高亮"
     },
     "playerBgType": {
-      "label": "播放器背景",
+      "label": "背景样式",
       "description": "全屏播放器的背景类型",
       "blur": "模糊",
       "solid": "纯色",
@@ -1594,15 +1612,17 @@
       "label": "背景跳动",
       "description": "使流体背景随音乐低频节拍产生脉动效果"
     },
-    "coverLayout": {
-      "label": "封面布局",
-      "description": "全屏播放器封面的呈现方式",
-      "default": "默认",
-      "fullscreen": "全屏封面"
+    "playerLayout": {
+      "label": "播放器布局",
+      "description": "全屏播放器的整体布局",
+      "classic": "经典默认",
+      "fullCover": "全屏封面",
+      "fullLyric": "全屏歌词",
+      "apple": "AM 风格"
     },
     "coverLyricRatio": {
       "label": "封面/歌词占比",
-      "description": "播放页封面与歌词区域的宽度比例"
+      "description": "经典布局下封面与歌词区域的宽度比例"
     },
     "themeMode": {
       "label": "主题模式",

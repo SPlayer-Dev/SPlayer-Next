@@ -277,6 +277,12 @@ const lyricCategory: SettingCategory = {
           visible: () => lyricEngine() === "physics",
         },
         {
+          key: "autoGenerateWordByWord",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.autoGenerateWordByWord" },
+          defaultValue: false,
+        },
+        {
           key: "enableWordHighlight",
           type: "switch",
           binding: { store: "settings", path: "lyric.enableWordHighlight" },

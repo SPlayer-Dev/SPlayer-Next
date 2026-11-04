@@ -37,8 +37,6 @@ import deviceinfo_center_upload from "./deviceinfo_center_upload";
 import cloudsearch from "./cloudsearch";
 import search from "./search";
 import search_default from "./search_default";
-import search_hot from "./search_hot";
-import search_hot_detail from "./search_hot_detail";
 import search_match from "./search_match";
 import search_multimatch from "./search_multimatch";
 import search_suggest from "./search_suggest";
@@ -129,8 +127,6 @@ export const modules: Record<string, NeteaseModule> = {
   cloudsearch,
   search,
   search_default,
-  search_hot,
-  search_hot_detail,
   search_match,
   search_multimatch,
   search_suggest,

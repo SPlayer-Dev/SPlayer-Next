@@ -101,7 +101,7 @@ const menuItemClass = computed(() =>
         :class="contentClass"
       >
         <template v-for="(item, index) in visibleItems" :key="item.key">
-          <SDivider v-if="item.separator && index > 0" class="mx-1.5 my-0.5" />
+          <SDivider v-if="item.separator && index > 0" class="mx-1.5 my-0.5" :cover="cover" />
           <!-- 子菜单 -->
           <DropdownMenuSub v-if="item.children">
             <DropdownMenuSubTrigger :disabled="item.disabled" :class="menuItemClass">
@@ -118,7 +118,11 @@ const menuItemClass = computed(() =>
                 :class="[contentClass, 'max-h-60 overflow-y-auto']"
               >
                 <template v-for="(child, childIndex) in item.children" :key="child.key">
-                  <SDivider v-if="child.separator && childIndex > 0" class="mx-1.5 my-0.5" />
+                  <SDivider
+                    v-if="child.separator && childIndex > 0"
+                    class="mx-1.5 my-0.5"
+                    :cover="cover"
+                  />
                   <DropdownMenuItem
                     v-else
                     :disabled="child.disabled"

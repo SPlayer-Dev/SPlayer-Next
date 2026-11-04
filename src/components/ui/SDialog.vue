@@ -111,6 +111,7 @@ const setOpen = (val: boolean): void => {
     <DialogPortal v-if="mounted">
       <!-- 遮罩层 -->
       <DialogOverlay
+        data-dialog-overlay
         :style="{ zIndex: activeZIndex }"
         :class="[
           'fixed inset-0 data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out',
@@ -118,6 +119,7 @@ const setOpen = (val: boolean): void => {
         ]"
       />
       <DialogContent
+        data-dialog-content
         :style="[containerStyle, { zIndex: activeZIndex }]"
         :class="[
           'fixed left-1/2 -translate-x-1/2',

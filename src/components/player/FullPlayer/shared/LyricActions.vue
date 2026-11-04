@@ -3,16 +3,13 @@ import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
 import { useSettingsDialog } from "@/settings/useSettingsDialog";
 import { formatSignedSec } from "@/utils/time";
-
-defineProps<{
-  /** 是否处于沉浸模式 */
-  immersive: boolean;
-}>();
+import { useFullPlayer } from "../context";
 
 const { t } = useI18n();
 const media = useMediaStore();
 const status = useStatusStore();
 const settingsDialog = useSettingsDialog();
+const { immersive } = useFullPlayer();
 
 /** 歌词偏移步长（ms） */
 const LYRIC_OFFSET_STEP = 500;

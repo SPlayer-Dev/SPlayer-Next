@@ -5,7 +5,8 @@ import { useSettingsStore } from "@/stores/settings";
 import { openExternal } from "@/utils/url";
 import { REPO_URL, REPO_NAME, APP_VERSION, IS_APPX } from "@/utils/config";
 
-const { initialCategory, initialHighlight, rememberCategory } = useSettingsDialog();
+const { initialCategory, initialHighlight, initialParentKeys, rememberCategory } =
+  useSettingsDialog();
 
 // 同步后端配置
 useSettingsStore().syncSystem();
@@ -63,7 +64,7 @@ const onSearchSelect = (categoryId: string, itemKey: string, parentKeys: string[
 
 onMounted(() => {
   if (initialHighlight.value) {
-    onSearchSelect(initialCategory.value, initialHighlight.value);
+    onSearchSelect(initialCategory.value, initialHighlight.value, initialParentKeys.value);
   }
 });
 </script>

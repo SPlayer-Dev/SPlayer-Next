@@ -26,8 +26,6 @@ export interface SButtonProps {
   strong?: boolean;
   /** 涟漪效果 */
   ripple?: boolean;
-  /** 禁用按下缩放反馈 */
-  static?: boolean;
 }
 
 const props = withDefaults(defineProps<SButtonProps>(), {
@@ -39,8 +37,6 @@ const props = withDefaults(defineProps<SButtonProps>(), {
 const isDisabled = computed(() => props.disabled || props.loading);
 
 const enableRipple = computed(() => props.ripple && !props.disabled && !props.loading);
-
-const pressScale = computed(() => (props.static ? undefined : "not-disabled:active:scale-96"));
 
 /** 预设尺寸名称 */
 type SizePreset = "tiny" | "small" | "medium" | "large";
@@ -187,13 +183,13 @@ const variantStyles = {
     error: "text-red-500 not-disabled:hover:bg-red-500/10 not-disabled:active:bg-red-500/16",
   },
   text: {
-    default: "text-on-surface not-disabled:hover:text-primary",
-    primary: "text-primary not-disabled:hover:text-primary/70",
-    cover: "text-cover not-disabled:hover:text-cover/70",
-    info: "text-blue-500 not-disabled:hover:text-blue-400",
-    success: "text-green-600 not-disabled:hover:text-green-500",
-    warning: "text-amber-600 not-disabled:hover:text-amber-500",
-    error: "text-red-500 not-disabled:hover:text-red-400",
+    default: "text-on-surface not-disabled:hover:text-primary not-disabled:active:text-primary/70",
+    primary: "text-primary not-disabled:hover:text-primary/70 not-disabled:active:text-primary/50",
+    cover: "text-cover not-disabled:hover:text-cover/70 not-disabled:active:text-cover/50",
+    info: "text-blue-500 not-disabled:hover:text-blue-400 not-disabled:active:text-blue-300",
+    success: "text-green-600 not-disabled:hover:text-green-500 not-disabled:active:text-green-400",
+    warning: "text-amber-600 not-disabled:hover:text-amber-500 not-disabled:active:text-amber-400",
+    error: "text-red-500 not-disabled:hover:text-red-400 not-disabled:active:text-red-300",
   },
 };
 
@@ -213,13 +209,12 @@ const variantClass = computed(() => {
   <button
     v-ripple="enableRipple"
     :disabled="isDisabled"
-    class="s-button inline-flex items-center gap-1.5 font-sans select-none outline-none cursor-pointer transition-[color,background-color,border-color,opacity,transform] duration-200 disabled:cursor-not-allowed disabled:op-50"
+    class="s-button inline-flex items-center gap-1.5 font-sans select-none outline-none cursor-pointer transition-[color,background-color,border-color,opacity] duration-200 disabled:cursor-not-allowed disabled:op-50"
     :class="[
       block && 'w-full',
       strong && 'font-semibold',
       size === 'auto' && !circle ? 'justify-start' : 'justify-center',
       circle || round ? 'rounded-full' : 'rounded-1.5',
-      pressScale,
       sizeClass,
       variantClass,
     ]"

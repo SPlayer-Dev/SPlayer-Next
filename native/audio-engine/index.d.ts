@@ -465,6 +465,9 @@ export declare function readTrackTags(path: string): Promise<JsTrackTags>
  */
 export declare function scanDirs(dirs: Array<string>, callback: (event: JsScanEvent) => void, coverCacheDir?: string | undefined | null, incrementalData?: Array<FileRecord> | undefined | null): void
 
+/** 设置网络音频代理（http/https/socks5），为空时直连；对之后打开的音频流生效 */
+export declare function setHttpProxy(proxyUrl?: string | undefined | null): void
+
 /**
  * 批量写入标签（异步），逐项返回结果，单项失败不中断整批。
  * 替换封面时会作废旧缩略图缓存，写后按扫描同等规则重新生成
