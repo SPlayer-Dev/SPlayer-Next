@@ -24,6 +24,7 @@ import { startServer } from "@main/server";
 import { startMcpServer } from "@main/services/mcp/http";
 import { initUpdater } from "@main/services/updater";
 import { coreLog, initLogger } from "@main/utils/logger";
+import { initNetworkProxy } from "@main/utils/proxy";
 import { isAppQuitting } from "@main/utils/lifecycle";
 import { initAppLifecycle } from "./lifecycle";
 import {
@@ -98,6 +99,8 @@ export const initApp = (): void => {
     event.preventDefault();
     captureAudioFiles([path]);
   });
+  // 应用代理设置
+  initNetworkProxy();
   // 注册缓存协议方案
   registerCacheScheme();
   // 其他初始化

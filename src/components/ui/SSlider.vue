@@ -22,6 +22,10 @@ export interface SSliderProps {
   trackHeight?: number;
   /** 拖拽点大小（px） */
   thumbSize?: number;
+  /** 悬停或拖拽时展开到的轨道粗细（px） */
+  hoverTrackHeight?: number;
+  /** 完全隐藏拖拽点 */
+  hideThumb?: boolean;
   /** 刻度标记：{ 值: 标签 } */
   marks?: Record<number, string>;
   /** 垂直方向 */
@@ -46,6 +50,8 @@ const props = withDefaults(defineProps<SSliderProps>(), {
   popoverOffset: 8,
   trackHeight: 4,
   thumbSize: 14,
+  hoverTrackHeight: undefined,
+  hideThumb: false,
   marks: undefined,
   vertical: false,
   centerFill: false,
@@ -152,8 +158,20 @@ const centerFillStyle = computed(() => {
 
 /** 拖拽点是否可见（始终显示 / hover / 拖拽中） */
 const thumbVisible = computed(
-  () => (props.alwaysShowThumb || isHovering.value || isDragging.value) && !props.glow,
+  () =>
+    !props.hideThumb &&
+    (props.alwaysShowThumb || isHovering.value || isDragging.value) &&
+    !props.glow,
 );
+
+/** 当前轨道粗细，悬停或拖拽时展开 */
+const currentTrackSize = computed(() => {
+  const expanded = props.hoverTrackHeight && (isHovering.value || isDragging.value);
+  return `${expanded ? props.hoverTrackHeight : props.trackHeight}px`;
+});
+
+/** 触摸区域粗细，需容纳拖拽点与展开后的轨道 */
+const hitboxSize = computed(() => `${Math.max(props.thumbSize, props.hoverTrackHeight ?? 0)}px`);
 
 /** 将值转换为轨道上的百分比位置 */
 const toPercent = (value: number): number => ((value - props.min) / (props.max - props.min)) * 100;
@@ -273,16 +291,16 @@ const onPointerUp = (): void => {
       v-if="!vertical"
       ref="trackRef"
       class="s-slider-hitbox relative flex items-center"
-      :style="{ height: `${thumbSize}px` }"
+      :style="{ height: hitboxSize }"
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"
       @pointercancel="onPointerUp"
     >
       <div
-        class="s-slider-track absolute left-0 right-0 rounded-full"
+        class="s-slider-track absolute left-0 right-0 rounded-full transition-[height] duration-280 ease-out"
         :class="cover ? 'bg-cover/25' : 'bg-on-surface/12'"
-        :style="{ height: `${trackHeight}px` }"
+        :style="{ height: currentTrackSize }"
       />
       <!-- 中心刻度线（仅 centerFill 模式） -->
       <div
@@ -290,24 +308,27 @@ const onPointerUp = (): void => {
         class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0.5 rounded-full bg-on-surface/20"
         :style="{ height: `${trackHeight + 6}px` }"
       />
-      <!-- 填充：从左侧 / 中点 -->
-      <div
-        class="s-slider-fill absolute rounded-full"
-        :class="cover ? 'bg-cover/100' : 'bg-primary'"
-        :style="
-          centerFill
-            ? {
-                height: `${trackHeight}px`,
-                left: centerFillStyle.start,
-                width: centerFillStyle.length,
-              }
-            : {
-                height: `${trackHeight}px`,
-                left: '0',
-                width: 'var(--s-slider-progress)',
-              }
-        "
-      />
+      <!-- 填充 -->
+      <div class="s-slider-fill-glow absolute inset-0 flex items-center pointer-events-none">
+        <div
+          class="s-slider-fill absolute rounded-full transition-[height] duration-280 ease-out"
+          :class="cover ? 'bg-cover/100' : 'bg-primary'"
+          :style="
+            centerFill
+              ? {
+                  height: currentTrackSize,
+                  left: centerFillStyle.start,
+                  width: centerFillStyle.length,
+                }
+              : {
+                  height: currentTrackSize,
+                  left: '0',
+                  width: '100%',
+                  clipPath: 'inset(0 calc(100% - var(--s-slider-progress)) 0 0)',
+                }
+          "
+        />
+      </div>
       <div
         class="s-slider-thumb absolute rounded-full shadow-sm transition-[transform,opacity] duration-150"
         :class="[
@@ -330,16 +351,16 @@ const onPointerUp = (): void => {
       v-else
       ref="trackRef"
       class="s-slider-hitbox relative flex justify-center h-full touch-none"
-      :style="{ width: `${thumbSize}px` }"
+      :style="{ width: hitboxSize }"
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"
       @pointercancel="onPointerUp"
     >
       <div
-        class="s-slider-track absolute top-0 bottom-0 rounded-full"
+        class="s-slider-track absolute top-0 bottom-0 rounded-full transition-[width] duration-280 ease-out"
         :class="cover ? 'bg-cover/25' : 'bg-on-surface/12'"
-        :style="{ width: `${trackHeight}px` }"
+        :style="{ width: currentTrackSize }"
       />
       <!-- 中心刻度线（仅 centerFill 模式） -->
       <div
@@ -347,24 +368,27 @@ const onPointerUp = (): void => {
         class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-0.5 rounded-full bg-on-surface/20"
         :style="{ width: `${trackHeight + 6}px` }"
       />
-      <!-- 填充：从底部 / 中点向上 -->
-      <div
-        class="s-slider-fill absolute rounded-full"
-        :class="cover ? 'bg-cover/100' : 'bg-primary'"
-        :style="
-          centerFill
-            ? {
-                width: `${trackHeight}px`,
-                bottom: centerFillStyle.start,
-                height: centerFillStyle.length,
-              }
-            : {
-                width: `${trackHeight}px`,
-                bottom: '0',
-                height: 'var(--s-slider-progress)',
-              }
-        "
-      />
+      <!-- 填充 -->
+      <div class="s-slider-fill-glow absolute inset-0 flex justify-center pointer-events-none">
+        <div
+          class="s-slider-fill absolute rounded-full transition-[width] duration-280 ease-out"
+          :class="cover ? 'bg-cover/100' : 'bg-primary'"
+          :style="
+            centerFill
+              ? {
+                  width: currentTrackSize,
+                  bottom: centerFillStyle.start,
+                  height: centerFillStyle.length,
+                }
+              : {
+                  width: currentTrackSize,
+                  bottom: '0',
+                  height: '100%',
+                  clipPath: 'inset(calc(100% - var(--s-slider-progress)) 0 0 0)',
+                }
+          "
+        />
+      </div>
       <div
         class="s-slider-thumb absolute rounded-full shadow-sm transition-[transform,opacity] duration-150"
         :class="[
@@ -455,40 +479,36 @@ const onPointerUp = (): void => {
 </template>
 
 <style scoped>
-.s-slider-fill {
+/* 发光放外层，避免被裁切 */
+.s-slider-fill-glow {
   --s-slider-glow: 0.4;
   --s-slider-glow-color: var(--s-primary);
-  box-shadow: 0 0 0 0 transparent;
-  transition: box-shadow 0.4s ease;
-}
+  transition: filter 0.4s ease;
 
-.dark .s-slider-fill {
-  --s-slider-glow: 1;
-}
+  .dark & {
+    --s-slider-glow: 1;
+  }
 
-.s-slider--cover .s-slider-fill {
-  --s-slider-glow: 1;
-  --s-slider-glow-color: var(--s-cover);
-}
+  .s-slider--cover & {
+    --s-slider-glow: 1;
+    --s-slider-glow-color: var(--s-cover);
+  }
 
-.s-slider--glow .s-slider-fill {
-  box-shadow:
-    0 0 3px 0.5px rgb(var(--s-slider-glow-color) / calc(0.8 * var(--s-slider-glow))),
-    0 0 8px 1px rgb(var(--s-slider-glow-color) / calc(0.35 * var(--s-slider-glow)));
-  animation: s-slider-breathe 1.4s ease-in-out infinite alternate;
+  .s-slider--glow & {
+    filter: drop-shadow(0 0 3px rgb(var(--s-slider-glow-color) / calc(0.8 * var(--s-slider-glow))))
+      drop-shadow(0 0 8px rgb(var(--s-slider-glow-color) / calc(0.35 * var(--s-slider-glow))));
+    animation: s-slider-breathe 1.4s ease-in-out infinite alternate;
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
+  }
 }
 
 @keyframes s-slider-breathe {
   to {
-    box-shadow:
-      0 0 4px 1px rgb(var(--s-slider-glow-color) / calc(0.95 * var(--s-slider-glow))),
-      0 0 12px 2px rgb(var(--s-slider-glow-color) / calc(0.5 * var(--s-slider-glow)));
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .s-slider--glow .s-slider-fill {
-    animation: none;
+    filter: drop-shadow(0 0 4px rgb(var(--s-slider-glow-color) / calc(0.95 * var(--s-slider-glow))))
+      drop-shadow(0 0 12px rgb(var(--s-slider-glow-color) / calc(0.5 * var(--s-slider-glow))));
   }
 }
 </style>

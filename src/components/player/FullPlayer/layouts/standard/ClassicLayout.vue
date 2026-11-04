@@ -13,10 +13,12 @@ const displayTrack = computed(() => media.track ?? status.currentTrack);
 const hasLyric = computed(() => media.parsedLyric.length > 0 || media.lyricLoading);
 const coverWidth = computed(() => `${settings.player.coverLyricRatio * 100}%`);
 
-const coverCentered = computed(() => {
-  if (status.fullQueueOpen) return false;
-  return !showLyric.value || (settings.player.autoCenterCover && !hasLyric.value);
-});
+/** 不看队列时封面是否居中 */
+const centeredWithoutQueue = computed(
+  () => !showLyric.value || (settings.player.autoCenterCover && !hasLyric.value),
+);
+
+const coverCentered = computed(() => !status.fullQueueOpen && centeredWithoutQueue.value);
 
 const lyricVisible = computed(() => showLyric.value && hasLyric.value && !status.fullQueueOpen);
 
@@ -31,11 +33,21 @@ const toggleLyric = (): void => {
 </script>
 
 <template>
-  <PlayerTopBar
-    :lyric-disabled="!hasLyric"
-    :lyric-active="lyricVisible"
-    @toggle-lyric="toggleLyric"
-  />
+  <PlayerTopBar>
+    <template #left>
+      <SButton
+        type="cover"
+        variant="ghost"
+        circle
+        :size="40"
+        :disabled="!hasLyric"
+        :class="lyricVisible ? 'opacity-100' : 'opacity-40'"
+        @click="toggleLyric"
+      >
+        <template #icon><IconLucideTextQuote /></template>
+      </SButton>
+    </template>
+  </PlayerTopBar>
   <div class="player-layout-content absolute inset-x-0 bottom-20">
     <!-- 左侧封面与信息 -->
     <div
@@ -49,7 +61,7 @@ const toggleLyric = (): void => {
         <Transition name="scale-switch" mode="out-in">
           <div :key="displayTrack?.id">
             <PlayerCover
-              class="classic-cover w-full aspect-square rounded-[32px] shadow-[0_0_20px_10px_rgba(0,0,0,0.1)]"
+              class="w-full aspect-square rounded-[32px] shadow-[0_0_20px_10px_rgba(0,0,0,0.1)] [transition:transform_500ms_cubic-bezier(0.34,1.56,0.64,1),box-shadow_500ms_ease-out]"
               :class="isPlaying ? 'scale-100' : 'scale-90'"
             />
             <div class="absolute top-full left-0 w-full pt-6">
@@ -77,7 +89,7 @@ const toggleLyric = (): void => {
       :style="{ width: `calc(100% - ${coverWidth})` }"
     >
       <Transition
-        enter-active-class="transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
+        :enter-active-class="`transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)] ${centeredWithoutQueue ? 'delay-300' : ''}`"
         enter-from-class="opacity-0"
         leave-active-class="transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
         leave-to-class="opacity-0"
@@ -90,11 +102,3 @@ const toggleLyric = (): void => {
   </div>
   <PlayerBottomBar />
 </template>
-
-<style scoped>
-.classic-cover {
-  transition:
-    transform 500ms cubic-bezier(0.34, 1.56, 0.64, 1),
-    box-shadow 200ms ease-out;
-}
-</style>

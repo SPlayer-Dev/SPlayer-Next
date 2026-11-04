@@ -14,7 +14,7 @@ export type PlayerBgType = "blur" | "solid" | "animation";
 /** 流体背景渲染引擎 */
 export type PlayerBgRenderer = "mesh" | "isolation" | "pixi";
 /** 全屏播放器布局 */
-export type PlayerLayout = "classic" | "fullCover" | "fullLyric";
+export type PlayerLayout = "classic" | "fullCover" | "fullLyric" | "apple";
 
 /**
  * 歌曲播放时间显示格式
