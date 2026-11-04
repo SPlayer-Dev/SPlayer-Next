@@ -2,6 +2,7 @@
  * 动态封面匹配缓存
  *
  * 表：motion_cover_cache(fingerprint, video_url, matched_at)
+ * fingerprint 为曲目指纹或 album / collection 前缀的专辑键，同专辑曲目借此跳过重复请求
  * video_url 为空表示未匹配到或专辑无动态封面，按较短 TTL 过期后重试
  */
 

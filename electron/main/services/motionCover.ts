@@ -16,6 +16,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import type { ReadableStream } from "node:stream/web";
 import {
   buildLyricSearchKeyword,
+  normalize,
   pickBestCandidate,
   type LyricCandidate,
 } from "@main/apis/common/lyric/utils";
@@ -128,13 +129,14 @@ const fetchAlbumVideo = async (
     await request(`https://music.apple.com/${storefront}/album/x/${collectionId}`, signal)
   ).text();
   const json = html.match(/id="serialized-server-data">([\s\S]*?)<\/script>/)?.[1];
-  // 页面结构变化时抛错而不是记成未命中
+  // 页面结构变化或被跳转时抛错而不是记成未命中
   if (!json) throw new Error(`serialized-server-data missing ${collectionId}`);
   const page = JSON.parse(json) as AlbumPageData;
   const header = page.data?.[0]?.data?.sections?.find((section) =>
     section.id?.startsWith("album-detail-header"),
   );
-  return header?.items?.[0]?.videoArtwork?.dictionary?.motionDetailSquare?.video ?? null;
+  if (!header) throw new Error(`album-detail-header missing ${collectionId}`);
+  return header.items?.[0]?.videoArtwork?.dictionary?.motionDetailSquare?.video ?? null;
 };
 
 /**
@@ -150,6 +152,9 @@ const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string 
     [track.title, track.album?.name ?? "", ...track.artists.map((artist) => artist.name)],
     "t2s",
   );
+  const albumKey = album ? `album|${normalize(album)}|${normalize(artistNames[0])}` : null;
+  const albumRecord = albumKey ? getMotionCoverRecord(albumKey) : undefined;
+  if (albumRecord !== undefined) return albumRecord;
   const simplified: Track = {
     ...track,
     title,
@@ -177,7 +182,16 @@ const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string 
     }));
     const best = pickBestCandidate(candidates, simplified);
     if (!best) continue;
-    const video = await fetchAlbumVideo(best.extra, storefront, signal);
+    const collectionKey = `collection|${storefront}|${best.extra}`;
+    let video = getMotionCoverRecord(collectionKey);
+    if (video === undefined) {
+      video = await fetchAlbumVideo(best.extra, storefront, signal);
+      setMotionCoverRecord(collectionKey, video);
+    }
+    // 专辑名一致才共享，避免一首歌的误匹配扩散到整张专辑
+    if (albumKey && normalize(best.album) === normalize(album)) {
+      setMotionCoverRecord(albumKey, video);
+    }
     if (!video) motionCoverLog.info(`${track.title}：AM 专辑无动态封面`);
     return video;
   }
@@ -238,7 +252,8 @@ const download = async (url: string, dest: string, signal: AbortSignal): Promise
   if (Number(res.headers.get("content-length") ?? 0) > MAX_FILE_BYTES || !res.body) {
     throw new Error(`invalid clip ${url}`);
   }
-  const temp = `${dest}.part`;
+  // 同专辑切歌时旧下载可能尚未清理完，临时文件不能共用
+  const temp = `${dest}.${crypto.randomUUID()}.part`;
   try {
     await pipeline(Readable.fromWeb(res.body as ReadableStream), createWriteStream(temp));
     await fs.rename(temp, dest);
@@ -322,6 +337,9 @@ const resolveAmUncached = async (
     videoUrl = await matchVideoUrl(track, signal);
     setMotionCoverRecord(fingerprint, videoUrl);
     if (!videoUrl) return null;
+    // 同专辑其他曲目可能已下载过
+    const shared = await cachedAm(track, fingerprint);
+    if (shared) return shared;
   }
   const file = clipPath(videoUrl);
   await fs.mkdir(path.dirname(file), { recursive: true });
