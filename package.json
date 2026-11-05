@@ -64,7 +64,7 @@
     "electron-updater": "^6.8.11",
     "font-list": "^2.1.0",
     "hono": "^4.13.16",
-    "lyric-kit": "^0.6.2",
+    "lyric-kit": "^0.7.0",
     "undici": "^8.12.3",
     "ws": "^8.22.1",
     "yauzl": "^3.4.0",

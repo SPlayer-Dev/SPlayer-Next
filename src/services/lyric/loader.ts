@@ -87,6 +87,12 @@ const commitLocal = (token: number, local: LocalLyric): void => {
   commit(token, local.source, { content: local.content });
 };
 
+/** 本地歌词转为候选结构，用作在线歌词的验证基准 */
+const localToResolved = (local: LocalLyric): ResolvedLyric => ({
+  source: local.source,
+  input: { content: local.content },
+});
+
 /**
  * 提交歌词并返回解析是否有效
  * @param token - 竞态 token
@@ -186,6 +192,18 @@ const tryApplyTTMLOverlay = (token: number, track: Track, mainFormat: LyricForma
   if (token !== currentToken || ttmlTriggeredToken === token) return;
   ttmlTriggeredToken = token;
   applyTTMLOverlay(token, track, mainFormat);
+};
+
+/**
+ * 提交歌词候选，在线歌词上屏后在后台尝试 TTML 升级
+ * @param token - 竞态 token
+ * @param track - 歌曲信息
+ * @param lyric - 歌词候选
+ */
+const commitCandidate = (token: number, track: Track, lyric: ResolvedLyric): void => {
+  if (commitIfBetter(token, lyric.source, lyric.input) && lyric.source.source === "online") {
+    tryApplyTTMLOverlay(token, track, lyric.source.format);
+  }
 };
 
 /**
@@ -298,16 +316,14 @@ const loadStreamingLyric = (
   detail: TrackDetail | null,
 ): Promise<void> =>
   withPluginPrefer(token, track, async () => {
-    const resolved = await resolveStreamingByPreference(track, () => token === currentToken);
+    const resolved = await resolveStreamingByPreference(track, {
+      onCandidate: (lyric) => commitCandidate(token, track, lyric),
+      shouldContinue: () => token === currentToken,
+    });
     if (token !== currentToken) return;
     const embeddedFallback = embeddedLyricFromDetail(detail);
-    if (resolved && commitIfBetter(token, resolved.source, resolved.input)) {
-      if (resolved.source.source === "online") {
-        tryApplyTTMLOverlay(token, track, resolved.source.format);
-      }
-      return;
-    }
-    if (token !== currentToken) return;
+    if (resolved) commitCandidate(token, track, resolved);
+    if (token !== currentToken || useMediaStore().parsedLyric.length > 0) return;
     if (await tryPluginFallback(token, track)) return;
     if (embeddedFallback) {
       commitIfBetter(token, embeddedFallback.source, { content: embeddedFallback.content });
@@ -324,13 +340,7 @@ const loadStreamingLyric = (
 const loadPlatformLyric = (token: number, track: Track): Promise<void> =>
   withPluginPrefer(token, track, async () => {
     const online = await resolveOnlineByPreference(track, {
-      hasLocal: false,
-      localFormat: null,
-      onCandidate: (result) => {
-        if (commitIfBetter(token, result.source, result.input)) {
-          tryApplyTTMLOverlay(token, track, result.source.format);
-        }
-      },
+      onCandidate: (lyric) => commitCandidate(token, track, lyric),
       shouldContinue: () => token === currentToken,
     });
     if (token !== currentToken) return;
@@ -369,15 +379,8 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
       commit(token, null, null);
       return;
     }
-    const preloaded = await consumePreloadedLyric(track);
-    if (token !== currentToken) return;
-    if (preloaded.hit) {
-      if (commitIfBetter(token, preloaded.lyric.source, preloaded.lyric.input)) {
-        if (preloaded.lyric.source.source === "online") {
-          tryApplyTTMLOverlay(token, track, preloaded.lyric.source.format);
-        }
-      }
-    }
+    const preloaded = consumePreloadedLyric(track);
+    if (preloaded.hit) commitCandidate(token, track, preloaded.lyric);
     // 本地 TTML 歌词库最高优先
     if (await tryLocalRepo(token, track)) return;
     if (token !== currentToken) return;
@@ -405,20 +408,14 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
     if (local) commitLocal(token, local);
     // 本地文件存在但解析后空
     const hasUsableLocal = !!local && media.parsedLyric.length > 0;
-    const localFormat = local?.source.format ?? null;
     // 在线匹配后拿到平台 ID 会再查一次
     applyLocalTTMLOverlay(token, track);
 
     await withPluginPrefer(token, track, async () => {
       // 按偏好获取歌词
       const online = await resolveOnlineByPreference(track, {
-        hasLocal: hasUsableLocal,
-        localFormat,
-        onCandidate: (result) => {
-          if (commitIfBetter(token, result.source, result.input)) {
-            tryApplyTTMLOverlay(token, track, result.source.format);
-          }
-        },
+        local: hasUsableLocal ? localToResolved(local) : null,
+        onCandidate: (lyric) => commitCandidate(token, track, lyric),
         shouldContinue: () => token === currentToken,
       });
       if (token !== currentToken) return;
@@ -472,19 +469,13 @@ const refreshPreference = async (): Promise<void> => {
   const detail = media.detail;
   const local = detail ? await readLocal(detail) : null;
   if (token !== currentToken) return;
-  const localFormat = local?.source.format ?? null;
   const showingOnline = media.activeLyric?.source === "online";
 
   await withPluginPrefer(token, track, async () => {
     /** 按偏好获取歌词 */
     const online = await resolveOnlineByPreference(track, {
-      hasLocal: !!local,
-      localFormat,
-      onCandidate: (result) => {
-        if (commitIfBetter(token, result.source, result.input)) {
-          tryApplyTTMLOverlay(token, track, result.source.format);
-        }
-      },
+      local: local && localToResolved(local),
+      onCandidate: (lyric) => commitCandidate(token, track, lyric),
       shouldContinue: () => token === currentToken,
     });
     if (token !== currentToken) return;
@@ -507,6 +498,8 @@ export const watchLyricPreference = (): void => {
   watch(
     () => [
       settings.lyric.lyricSourcePreference,
+      settings.lyric.lyricSourceOrder.join(","),
+      settings.lyric.lyricFormatOrder.join(","),
       settings.lyric.smartPreferOnline,
       settings.lyric.preferPluginLyric,
       settings.lyric.detectBackgroundLyrics,

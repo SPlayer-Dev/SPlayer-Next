@@ -16,7 +16,7 @@ export const requestPlatformLyric = async (
   // QM lyric 接口要数字 songID
   const lookupId = platform === "qqmusic" ? (track.extId ?? track.id) : track.id;
   const resp = byId
-    ? await window.api.lyrics.matchById(platform, lookupId)
+    ? await window.api.lyrics.matchById(platform, lookupId, track)
     : await window.api.lyrics.matchByQuery(platform, track);
   return resp.ok && resp.data ? resp.data : null;
 };

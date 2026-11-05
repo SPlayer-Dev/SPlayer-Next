@@ -91,9 +91,9 @@ const fetchLyric = async (args: {
   });
 };
 
-/** 按 Kugou hash 直取（只有 hash 时用；精度受限） */
-export const getByPlatformId = (hash: string): Promise<LyricMatchResult | null> =>
-  fetchLyric({ hash });
+/** 按 Kugou hash 直取，没有 track 时精度受限 */
+export const getByPlatformId = (hash: string, track?: Track): Promise<LyricMatchResult | null> =>
+  fetchLyric({ hash, name: track?.title, durationMs: track?.duration });
 
 /** 按 Track 元数据模糊搜索：search → 挑最佳 → 单次请求歌词 */
 export const getByQuery = async (track: Track): Promise<LyricMatchResult | null> => {

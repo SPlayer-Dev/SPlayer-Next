@@ -15,7 +15,7 @@ import * as qqmusic from "@main/apis/common/lyric/qqmusic";
 import * as kugou from "@main/apis/common/lyric/kugou";
 import { fetchTTML, searchTTML } from "@main/apis/common/lyric/ttml";
 import { matchLocalTTML } from "@main/services/localLyricRepo";
-import { buildFingerprint, getMatchedId } from "@main/database/lyricMatchCache";
+import { buildFingerprint, deleteMatchedId, getMatchedId } from "@main/database/lyricMatchCache";
 import { coreLog } from "@main/utils/logger";
 import type { LyricMatchResponse, LyricTTMLResponse } from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
@@ -45,7 +45,11 @@ const dedup = <T>(key: string, run: () => Promise<T>): Promise<T> => {
  * @param id 平台 id
  * @returns 歌词匹配结果
  */
-const resolveById = async (platform: Platform, id: string): Promise<LyricMatchResponse> => {
+const resolveById = async (
+  platform: Platform,
+  id: string,
+  track?: Track,
+): Promise<LyricMatchResponse> => {
   try {
     switch (platform) {
       case "netease":
@@ -53,7 +57,7 @@ const resolveById = async (platform: Platform, id: string): Promise<LyricMatchRe
       case "qqmusic":
         return { ok: true, data: await qqmusic.getByPlatformId(id) };
       case "kugou":
-        return { ok: true, data: await kugou.getByPlatformId(id) };
+        return { ok: true, data: await kugou.getByPlatformId(id, track) };
       default:
         return { ok: false, error: `unsupported platform: ${platform}` };
     }
@@ -113,11 +117,14 @@ const resolveTTMLOverlay = async (
 };
 
 export const registerLyricsIpc = (): void => {
-  ipcMain.handle("lyrics:matchById", (_evt, platform: Platform, id: string) =>
-    dedup(`byId:${platform}:${id}`, () => resolveById(platform, id)),
+  ipcMain.handle("lyrics:matchById", (_evt, platform: Platform, id: string, track?: Track) =>
+    dedup(`byId:${platform}:${id}`, () => resolveById(platform, id, track)),
   );
   ipcMain.handle("lyrics:matchByQuery", (_evt, platform: Platform, track: Track) =>
     dedup(`byQuery:${platform}:${track.id}`, () => resolveByQuery(platform, track)),
+  );
+  ipcMain.handle("lyrics:forgetMatch", (_evt, track: Track, platform: Platform) =>
+    deleteMatchedId(buildFingerprint(track), platform),
   );
   ipcMain.handle("lyrics:fetchTTMLOverlay", (_evt, track: Track, platform: "netease" | "qqmusic") =>
     dedup(`ttml:${platform}:${track.id}`, () => resolveTTMLOverlay(track, platform)),

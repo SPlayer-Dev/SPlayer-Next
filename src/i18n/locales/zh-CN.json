@@ -1032,7 +1032,7 @@
     "lyricSourceOrder": {
       "label": "音源排序",
       "description": "自定义音源优先级",
-      "hint": "「智能选择」时按此顺序依次尝试匹配，未命中则跳到下一个"
+      "hint": "歌曲自身平台优先，其余平台在「智能选择」且关闭自动升级时按此顺序依次尝试；开启自动升级后同时请求，按歌词格式优先级择优"
     },
     "lyricFormatOrder": {
       "label": "歌词格式优先级",
@@ -1041,7 +1041,7 @@
     },
     "smartPreferOnline": {
       "label": "自动升级歌词格式",
-      "description": "当前歌词格式较低时，从其他平台获取更高级的格式覆盖"
+      "description": "从其他平台获取更高级的格式，内容与当前歌词一致才会替换"
     },
     "preferPluginLyric": {
       "label": "优先使用插件歌词",

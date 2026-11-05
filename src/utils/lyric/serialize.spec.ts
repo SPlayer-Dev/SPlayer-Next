@@ -61,4 +61,13 @@ describe("下载歌词格式兼容", () => {
   it("无有效歌词时不生成下载文件", () => {
     expect(buildDownloadLyric({ content: "[ti:只有元数据]" }, "lrc", "lrc")).toBeNull();
   });
+
+  it("带时间校正量时写入校正后的时间", () => {
+    const content = buildDownloadLyric(
+      { content: "[00:05.00]偏晚的歌词", timeShiftMs: -3000 },
+      "lrc",
+      "lrc",
+    );
+    expect(content).toContain("[00:02.000]");
+  });
 });

@@ -4,7 +4,7 @@ import type { LyricData, LyricMatchResult } from "@shared/types/lyrics";
 
 import type { Platform } from "@shared/types/platform";
 import { isPlatform } from "@shared/types/platform";
-import { detectFormat } from "lyric-kit";
+import { detectFormat, hasWordTiming } from "lyric-kit";
 import { useSettingsStore } from "@/stores/settings";
 import { usePluginsStore } from "@/stores/plugins";
 import { DEFAULT_LYRIC_FORMAT_ORDER, DEFAULT_LYRIC_SOURCE_ORDER } from "@/types/settings";
@@ -14,13 +14,14 @@ import {
   requestTTMLOverlay,
   requestTTMLSearch,
 } from "./request";
+import { parseMainLines, verifyCandidate } from "./verify";
 
 /** 支持 AMLL TTML DB 的平台列表 */
 const TTML_PLATFORMS = ["netease", "qqmusic"] as const;
 
 /** 单个平台返回的在线歌词 */
 export interface OnlineResult {
-  source: { source: "online"; format: LyricFormat; platform: Platform };
+  source: { source: "online"; format: LyricFormat; platform: Platform; timeShiftMs?: number };
   input: LyricInput;
 }
 
@@ -119,26 +120,105 @@ export const isBetterFormat = (
   return candRank < currRank;
 };
 
-/** 判断在线结果是否优于本地歌词 */
-const isOnlineResultUpgrade = (result: OnlineResult, localFormat: LyricFormat): boolean =>
-  isBetterFormat(result.source.format, localFormat);
-
 interface OnlinePreferenceOptions {
-  hasLocal: boolean;
-  localFormat: LyricFormat | null;
-  onCandidate?: (result: OnlineResult) => void;
+  /** 已有的本地或服务端歌词，作为候选的验证基准 */
+  local?: ResolvedLyric | null;
+  onCandidate?: (result: ResolvedLyric) => void;
   shouldContinue?: () => boolean;
+  /** 后台场景逐个请求，结果已无法被超越时不再请求后续平台 */
+  sequential?: boolean;
 }
+
+/**
+ * 以歌曲自身平台或已有歌词为基准，从其余平台选出通过验证的最优歌词
+ * 基准到达后立即上屏；有基准时等到结果不可能再变才提交，播放中最多替换一次
+ * @param track - 歌曲信息
+ * @param platforms - 参与请求的平台
+ * @param options - 基准歌词与请求选项
+ * @returns 最优在线歌词，没有比已有歌词更优的结果时为 null
+ */
+const resolveVerifiedOnline = async (
+  track: Track,
+  platforms: Platform[],
+  options: OnlinePreferenceOptions,
+): Promise<OnlineResult | null> => {
+  const isCurrent = options.shouldContinue ?? (() => true);
+  const formatOrder = useSettingsStore().lyric.lyricFormatOrder ?? DEFAULT_LYRIC_FORMAT_ORDER;
+  const formatRank = (format: LyricFormat): number => {
+    const index = formatOrder.indexOf(format);
+    return index === -1 ? Infinity : index;
+  };
+
+  const ownPlatform = platforms.find((platform) => platform === track.source);
+  const others = platforms.filter((platform) => platform !== ownPlatform);
+  const requests = new Map(
+    options.sequential
+      ? []
+      : others.map((platform) => [platform, resolvePlatformLyric(platform, track)] as const),
+  );
+  const own = ownPlatform ? await resolvePlatformLyric(ownPlatform, track) : null;
+  if (!isCurrent()) return null;
+  if (own) options.onCandidate?.(own);
+
+  const baseline = options.local ?? own;
+  const baselineLines = baseline
+    ? parseMainLines(baseline.source.format, baseline.input.content)
+    : [];
+  const hasBaseline = baseline !== null && baselineLines.length > 0;
+  let best = own;
+  let bestRank = hasBaseline ? formatRank(baseline.source.format) : Infinity;
+  let committed = own;
+  const pending = new Set(others);
+  const canBeatBest = (platform: Platform): boolean =>
+    PLATFORM_MAIN_FORMATS[platform].some((format) => formatRank(format) < bestRank);
+
+  const evaluate = async (platform: Platform): Promise<void> => {
+    const result = await (requests.get(platform) ?? resolvePlatformLyric(platform, track));
+    if (!isCurrent()) return;
+    if (result) {
+      const lines = parseMainLines(result.source.format, result.input.content);
+      // 没有真实逐字时间的候选只相当于普通 LRC
+      const rank = formatRank(hasWordTiming(lines) ? result.source.format : "lrc");
+      if (lines.length > 0 && rank < bestRank) {
+        const accepted = hasBaseline
+          ? await verifyCandidate(baselineLines, lines, result, track)
+          : result;
+        if (!isCurrent()) return;
+        if (accepted && rank < bestRank) {
+          best = accepted;
+          bestRank = rank;
+        }
+      }
+    }
+    // 验证结束才算完成，否则复核中的更优候选会被其他平台抢先
+    pending.delete(platform);
+    // 没有基准时屏幕还是空的，先到先显示
+    if (best && best !== committed && (!hasBaseline || ![...pending].some(canBeatBest))) {
+      committed = best;
+      options.onCandidate?.(best);
+    }
+  };
+
+  if (options.sequential) {
+    for (const platform of others) {
+      if (!isCurrent()) return null;
+      if (canBeatBest(platform)) await evaluate(platform);
+    }
+  } else {
+    await Promise.all(others.map(evaluate));
+  }
+  return isCurrent() ? best : null;
+};
 
 /**
  * 按歌词来源偏好获取在线歌词
  * @param track - 歌曲信息
- * @param options - 本地歌词状态与请求有效性选项
+ * @param options - 基准歌词与请求选项
  * @returns 符合偏好的在线歌词，无可用结果时为 null
  */
 export const resolveOnlineByPreference = async (
   track: Track,
-  options: OnlinePreferenceOptions,
+  options: OnlinePreferenceOptions = {},
 ): Promise<OnlineResult | null> => {
   if (track.source === "plugin") return null;
   const settings = useSettingsStore();
@@ -157,47 +237,25 @@ export const resolveOnlineByPreference = async (
   const formatOrder = settings.lyric.lyricFormatOrder ?? DEFAULT_LYRIC_FORMAT_ORDER;
   let candidates: Platform[] =
     preference === "auto" ? [...order] : order.filter((p) => p !== preference);
-  if (options.hasLocal) {
-    if (!settings.lyric.smartPreferOnline || !options.localFormat) return null;
+  const { local } = options;
+  if (local) {
+    if (!settings.lyric.smartPreferOnline) return null;
     candidates = candidates.filter((platform) =>
-      platformCanUpgrade(platform, options.localFormat!, formatOrder),
+      platformCanUpgrade(platform, local.source.format, formatOrder),
     );
     if (candidates.length === 0) return null;
   }
 
-  if (settings.lyric.smartPreferOnline) {
-    let best: OnlineResult | null = null;
-    const localIdx =
-      options.hasLocal && options.localFormat ? formatOrder.indexOf(options.localFormat) : -1;
-    let bestRank = localIdx === -1 ? Infinity : localIdx;
-    await Promise.all(
-      candidates.map(async (platform) => {
-        const result = await resolvePlatformLyric(platform, track);
-        if (!isCurrent() || !result) return;
-        const idx = formatOrder.indexOf(result.source.format);
-        const rank = idx === -1 ? Infinity : idx;
-        if (rank < bestRank) {
-          best = result;
-          bestRank = rank;
-          options.onCandidate?.(result);
-        }
-      }),
-    );
-    return isCurrent() ? best : null;
-  }
+  if (settings.lyric.smartPreferOnline) return resolveVerifiedOnline(track, candidates, options);
 
-  for (const platform of candidates) {
+  // 自身平台的歌词最可靠，优先于音源排序
+  const ownFirst = [...candidates].sort(
+    (left, right) => Number(right === track.source) - Number(left === track.source),
+  );
+  for (const platform of ownFirst) {
     const result = await resolvePlatformLyric(platform, track);
     if (!isCurrent()) return null;
-    if (!result) continue;
-    if (
-      options.hasLocal &&
-      options.localFormat &&
-      !isOnlineResultUpgrade(result, options.localFormat)
-    ) {
-      continue;
-    }
-    return result;
+    if (result) return result;
   }
   return null;
 };
@@ -250,27 +308,25 @@ export const resolveTTMLOverlay = async (
 /**
  * 按歌词来源偏好解析流媒体歌词
  * @param track - 流媒体歌曲
- * @param shouldContinue - 竞态检查
+ * @param options - 请求选项，服务端歌词也通过 onCandidate 立即提交
  * @returns 最终歌词候选，不存在则返回 null
  */
 export const resolveStreamingByPreference = async (
   track: Track,
-  shouldContinue: () => boolean = () => true,
+  options: Omit<OnlinePreferenceOptions, "local"> = {},
 ): Promise<ResolvedLyric | null> => {
   const preference = useSettingsStore().lyric.lyricSourcePreference;
+  const shouldContinue = options.shouldContinue ?? (() => true);
   let serverLyric: ResolvedLyric | null = null;
 
   if (preference === "self" || preference === "auto") {
     serverLyric = await resolveStreamingLyric(track);
     if (!shouldContinue()) return null;
     if (preference === "self") return serverLyric;
+    if (serverLyric) options.onCandidate?.(serverLyric);
   }
 
-  const online = await resolveOnlineByPreference(track, {
-    hasLocal: !!serverLyric,
-    localFormat: serverLyric?.source.format ?? null,
-    shouldContinue,
-  });
+  const online = await resolveOnlineByPreference(track, { ...options, local: serverLyric });
   if (!shouldContinue()) return null;
   if (online) {
     return { source: online.source, input: online.input };
@@ -366,7 +422,10 @@ export const resolveLyricForPreload = async (
   const pluginTask = isPluginLyricPreferred() ? resolvePluginLyric(track) : null;
 
   if (track.source === "streaming") {
-    const streaming = await resolveStreamingByPreference(track, shouldContinue);
+    const streaming = await resolveStreamingByPreference(track, {
+      shouldContinue,
+      sequential: true,
+    });
     if (!shouldContinue()) return null;
     if (pluginTask) {
       const plugin = await pluginTask;
@@ -381,11 +440,7 @@ export const resolveLyricForPreload = async (
     return shouldContinue() ? plugin : null;
   }
 
-  const online = await resolveOnlineByPreference(track, {
-    hasLocal: false,
-    localFormat: null,
-    shouldContinue,
-  });
+  const online = await resolveOnlineByPreference(track, { shouldContinue, sequential: true });
   if (!shouldContinue()) return null;
   const normal: ResolvedLyric | null = online
     ? { source: online.source, input: online.input }
