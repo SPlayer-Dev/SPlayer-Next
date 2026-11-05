@@ -156,6 +156,7 @@ export const initApp = (): void => {
     setTimeout(logProcessMemory, MEMORY_LOG_FIRST_DELAY_MS);
     setInterval(logProcessMemory, MEMORY_LOG_INTERVAL_MS);
     app.on("activate", () => {
+      if (isAppQuitting()) return;
       if (isMac) {
         if (getMainWindow()) focusMainWindow();
         else createMainWindow();

@@ -146,8 +146,9 @@ export const refreshTray = (): void => {
   tray.setToolTip(songName || appName);
 };
 
-/** 初始化系统托盘 */
+/** 创建系统托盘，主窗口重建时复用现有托盘 */
 export const initTray = (): void => {
+  if (tray) return;
   const isMac = process.platform === "darwin";
   let icon: string | Electron.NativeImage;
   if (isWin) {
@@ -236,8 +237,9 @@ export const setTrayTaskbarLyric = (open: boolean): void => {
   refreshTray();
 };
 
-/** 销毁托盘 */
+/** 销毁托盘并解除系统主题订阅 */
 export const destroyTray = (): void => {
+  nativeTheme.off("updated", refreshTray);
   tray?.destroy();
   tray = null;
 };

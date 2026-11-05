@@ -54,19 +54,12 @@ const cacheHandler = (request: Request): Response | Promise<Response> => {
 };
 
 /**
- * 注册 cache:// 协议处理
- * 在 app.whenReady 之后调用
- * 格式：cache://covers/xxx.jpg、cache://artists/xxx.jpg
+ * 在应用就绪后为目标会话注册一次缓存协议
+ * @param partition - 会话分区，省略时使用默认会话
  */
-export const handleCacheProtocol = (): void => {
-  protocol.handle(SCHEME, cacheHandler);
-};
-
-/**
- * 在指定 partition 的 session 上注册 cache:// 协议处理
- */
-export const handleCacheProtocolOnPartition = (partition: string): void => {
-  session.fromPartition(partition).protocol.handle(SCHEME, cacheHandler);
+export const handleCacheProtocol = (partition?: string): void => {
+  const target = partition === undefined ? protocol : session.fromPartition(partition).protocol;
+  if (!target.isProtocolHandled(SCHEME)) target.handle(SCHEME, cacheHandler);
 };
 
 /**
