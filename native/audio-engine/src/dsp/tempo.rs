@@ -9,6 +9,7 @@
 //! - `pitch_sync`：true = 变速保音调（默认）；false = 变速变调（老式磁带），
 //!   此时 `effective_transpose = 12·log2(speed)`，UI 上 pitch 滑块 disable
 
+use super::automix_tempo::AutoMixStretch;
 use signalsmith_stretch::Stretch;
 
 /// "约等于零"的浮点比较阈值。
@@ -28,10 +29,15 @@ pub(crate) struct StretchProcessor {
     pitch_sync: bool,
     /// 当前已下发到 stretch 的有效 transpose（用于减少冗余的 set 调用）
     applied_transpose: f32,
+    automix: Option<AutoMixStretch>,
+    frame_fraction: f64,
 }
 
 impl StretchProcessor {
     /// 构造一个默认 1.0× / 0 半音 / sync=ON 的处理器，初始即 bypass
+    /// @param channels - 输出声道数
+    /// @param sample_rate - 输出采样率
+    /// @returns 默认直通的处理器
     pub(crate) fn new(channels: u16, sample_rate: u32) -> Self {
         let stretch = Stretch::preset_default(channels as u32, sample_rate);
         Self {
@@ -42,16 +48,22 @@ impl StretchProcessor {
             pitch_semitones: 0,
             pitch_sync: true,
             applied_transpose: 0.0,
+            automix: None,
+            frame_fraction: 0.0,
         }
     }
 
     /// 更新输出格式；采样率或声道数改变后必须重建 stretch 内核
+    /// @param sample_rate - 新输出采样率
+    /// @param channels - 新输出声道数
     pub(crate) fn set_output_format(&mut self, sample_rate: u32, channels: u16) {
         if sample_rate == self.sample_rate && channels == self.channels {
             return;
         }
         self.sample_rate = sample_rate;
         self.channels = channels;
+        self.automix = None;
+        self.frame_fraction = 0.0;
         self.stretch = Stretch::preset_default(u32::from(channels), sample_rate);
         // 新内核 transpose 归零，强制按当前参数重新下发
         self.applied_transpose = 0.0;
@@ -59,8 +71,42 @@ impl StretchProcessor {
     }
 
     /// 1.0 速度 + 当前模式下 transpose 为 0：bypass，可走 passthrough
+    /// @returns 未启用任何变速或变调处理时为 true
     pub(crate) fn is_bypass(&self) -> bool {
-        (self.speed - 1.0).abs() < FLOAT_EQ_EPS && self.effective_transpose().abs() < FLOAT_EQ_EPS
+        self.automix.is_none()
+            && (self.speed - 1.0).abs() < FLOAT_EQ_EPS
+            && self.effective_transpose().abs() < FLOAT_EQ_EPS
+    }
+
+    /// 获取当前自动倍率，供同一音源的声部保持相同处理时序
+    /// @returns 正常播放时为 1，否则为实际自动倍率
+    pub(crate) fn automix_rate(&self) -> f32 {
+        self.automix
+            .as_ref()
+            .filter(|processor| !processor.finishing)
+            .map_or(1.0, |processor| processor.rate as f32)
+    }
+
+    /// 设置独立的 AutoMix 倍率，恢复时先排空自动变速流
+    /// @param rate - 自动对拍倍率，1 表示退出自动变速
+    pub(crate) fn set_automix_rate(&mut self, rate: f32) {
+        if (rate - 1.0).abs() < FLOAT_EQ_EPS {
+            if let Some(automix) = &mut self.automix {
+                automix.finishing = true;
+            }
+        } else {
+            self.automix = Some(AutoMixStretch::new(self.channels, self.sample_rate, rate));
+        }
+    }
+
+    /// 在正常 EOF 时排出自动变速器持有的尾音
+    /// @param output - 尾音写入的复用缓冲
+    /// @returns 尾音覆盖的源交错采样数
+    pub(crate) fn flush_automix(&mut self, output: &mut Vec<f32>) -> u64 {
+        self.automix
+            .take()
+            .map(|mut automix| automix.flush(output))
+            .unwrap_or(0)
     }
 
     /// sync=ON：transpose = pitch_semitones（独立调音调）
@@ -124,37 +170,55 @@ impl StretchProcessor {
     /// 切歌 / seek 时调用，清空 FFT 历史，避免拼接处出现瞬态
     pub(crate) fn reset(&mut self) {
         self.stretch.reset();
+        self.automix = None;
+        self.frame_fraction = 0.0;
     }
 
-    /// 处理一块交错 f32 样本，写入 `output`。
-    /// bypass 时直接 extend，零开销。
-    pub(crate) fn process(&mut self, input: &[f32], output: &mut Vec<f32>) {
+    /// 处理交错采样并返回有效输出对应的源采样数，预热不推进播放位置
+    /// @param input - 本次输入的交错采样
+    /// @param output - 接收有效音频的复用缓冲
+    /// @returns 输出覆盖的源交错采样数
+    pub(crate) fn process(&mut self, input: &[f32], output: &mut Vec<f32>) -> u64 {
         if input.is_empty() {
-            return;
+            return 0;
+        }
+        let mut prefix = 0;
+        if let Some(automix) = &mut self.automix {
+            if !automix.finishing {
+                return automix.process(input, output);
+            }
+            prefix = self.flush_automix(output);
         }
         if self.is_bypass() {
             output.extend_from_slice(input);
-            return;
+            return prefix + input.len() as u64;
         }
 
         let channels = self.channels as usize;
         let input_frames = input.len() / channels;
         if input_frames == 0 {
-            return;
+            return prefix;
         }
 
         // 输出帧数 = 输入帧数 / speed（speed > 1 → 输出更短即更快）
-        let output_frames = ((input_frames as f32) / self.speed).round() as usize;
+        let exact_frames = input_frames as f64 / f64::from(self.speed) + self.frame_fraction;
+        let output_frames = exact_frames.floor() as usize;
+        self.frame_fraction = exact_frames - output_frames as f64;
         if output_frames == 0 {
-            return;
+            return prefix;
         }
 
         let start = output.len();
         output.resize(start + output_frames * channels, 0.0);
         self.stretch.process(input, &mut output[start..]);
+        prefix + input.len() as u64
     }
 }
 
 #[cfg(test)]
 #[path = "tests/tempo.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "tests/automix_tempo.rs"]
+mod automix_tests;

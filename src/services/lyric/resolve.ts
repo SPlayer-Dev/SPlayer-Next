@@ -8,7 +8,12 @@ import { detectFormat } from "lyric-kit";
 import { useSettingsStore } from "@/stores/settings";
 import { usePluginsStore } from "@/stores/plugins";
 import { DEFAULT_LYRIC_FORMAT_ORDER, DEFAULT_LYRIC_SOURCE_ORDER } from "@/types/settings";
-import { requestPlatformLyric, requestStreamingLyric, requestTTMLOverlay } from "./request";
+import {
+  requestPlatformLyric,
+  requestStreamingLyric,
+  requestTTMLOverlay,
+  requestTTMLSearch,
+} from "./request";
 
 /** 支持 AMLL TTML DB 的平台列表 */
 const TTML_PLATFORMS = ["netease", "qqmusic"] as const;
@@ -198,29 +203,29 @@ export const resolveOnlineByPreference = async (
 };
 
 /** 判断是否应该尝试 TTML 升级 */
-const shouldTryTTMLByFormat = (mainFormat: LyricFormat): boolean => {
+const shouldTryTTMLByFormat = (mainFormat: LyricFormat | null): boolean => {
   const settings = useSettingsStore();
   if (!settings.system.lyric.enableOnlineTTMLLyric) return false;
   if (settings.lyric.lyricSourcePreference === "self") return false;
   const order = settings.lyric.lyricFormatOrder ?? DEFAULT_LYRIC_FORMAT_ORDER;
   const ttmlIdx = order.indexOf("ttml");
   if (ttmlIdx === -1) return false;
-  const mainIdx = order.indexOf(mainFormat);
+  const mainIdx = mainFormat ? order.indexOf(mainFormat) : -1;
   return mainIdx === -1 || ttmlIdx < mainIdx;
 };
 
 /**
- * 获取在线歌词对应的 TTML 覆盖版本
+ * 获取歌曲的 TTML 覆盖版本，优先按平台 ID，未命中时按元数据搜索
  * @param track - 歌曲信息
- * @param online - 已有在线歌词结果
+ * @param mainFormat - 当前主歌词格式，没有歌词时为 null
  * @returns 可用的 TTML 歌词，无覆盖版本时为 null
  */
 export const resolveTTMLOverlay = async (
   track: Track,
-  online: OnlineResult,
+  mainFormat: LyricFormat | null,
 ): Promise<ResolvedLyric | null> => {
   if (track.source === "plugin") return null;
-  if (!shouldTryTTMLByFormat(online.source.format)) return null;
+  if (!shouldTryTTMLByFormat(mainFormat)) return null;
   const candidates = await Promise.all(
     TTML_PLATFORMS.map(async (platform) => ({
       platform,
@@ -231,11 +236,15 @@ export const resolveTTMLOverlay = async (
     (candidate): candidate is typeof candidate & { response: { ok: true; data: string } } =>
       candidate.response.ok && !!candidate.response.data,
   );
-  if (!match) return null;
-  return {
-    source: { source: "online", format: "ttml", platform: match.platform },
-    input: { content: match.response.data },
-  };
+  if (match) {
+    return {
+      source: { source: "online", format: "ttml", platform: match.platform },
+      input: { content: match.response.data },
+    };
+  }
+  const searched = await requestTTMLSearch(track);
+  if (!searched.ok || !searched.data) return null;
+  return { source: { source: "online", format: "ttml" }, input: { content: searched.data } };
 };
 
 /**

@@ -136,14 +136,16 @@ export const stopMcpServer = async (): Promise<void> => {
   runningEndpoint = null;
   runningPort = null;
   publishStatus();
-  const serverClosed = new Promise<void>((resolve) => {
+  await endpoint?.close();
+  await new Promise<void>((resolve) => {
     server.close((error) => {
       if (error) serverLog.warn("MCP 服务关闭异常:", error);
       else serverLog.info("MCP 服务已关闭");
       resolve();
     });
+    // 客户端的 SSE 结束后仍保留 keep-alive 连接，server.close 会等到 keepAliveTimeout 才回调
+    server.closeAllConnections();
   });
-  await Promise.all([serverClosed, endpoint?.close()]);
 };
 
 /** 配置变更后重启 MCP 服务 */

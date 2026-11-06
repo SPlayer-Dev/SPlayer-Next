@@ -1,5 +1,5 @@
 import { ElectronAPI } from "@electron-toolkit/preload";
-import { PlayerApi, Track, TrackSource } from "@shared/types/player";
+import { MotionCoverSource, PlayerApi, Track, TrackSource } from "@shared/types/player";
 import {
   ConfigApi,
   ExternalApiStatus,
@@ -32,6 +32,7 @@ import { CommentsApi } from "@shared/types/comment";
 import { AiModelApi } from "@shared/types/ai";
 import { PlaylistApi } from "@shared/types/playlist";
 import { OpenccApi } from "@shared/types/opencc";
+import type { AutoMixApi } from "@shared/types/automix";
 
 declare global {
   interface Window {
@@ -39,6 +40,7 @@ declare global {
     api: {
       config: ConfigApi;
       player: PlayerApi;
+      automix: AutoMixApi;
       system: {
         installType: "nsis" | "portable" | "appx" | "dmg" | "appimage";
         platform: NodeJS.Platform;
@@ -62,7 +64,8 @@ declare global {
         saveFile: (
           data: ArrayBuffer,
           fileName: string,
-        ) => Promise<{ success: boolean; path?: string; error?: string }>;
+          title: string,
+        ) => Promise<{ success: boolean; path?: string; canceled?: boolean; error?: string }>;
         relaunch: () => Promise<void>;
         testNetworkProxy: () => Promise<boolean>;
         onProtocolUrl: (callback: (url: string) => void) => () => void;
@@ -85,6 +88,9 @@ declare global {
       opencc: OpenccApi;
       comments: CommentsApi;
       download: DownloadApi;
+      motionCover: {
+        resolve: (track: Track, source: MotionCoverSource) => Promise<string | null>;
+      };
       theme: {
         pickBackgroundImage: () => Promise<string | null>;
         clearBackgroundImages: () => Promise<void>;

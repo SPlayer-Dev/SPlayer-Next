@@ -121,10 +121,18 @@ describe("播放过渡设置", () => {
       });
       await wrapper.get("button").trigger("click");
       await flushPromises();
+      expect(mocks.confirm).toHaveBeenCalledOnce();
       expect(mocks.enabled).toBe(confirmed ? "crossfade" : "none");
       expect(mocks.player.preloadNextTrack).toBe(confirmed);
       expect(mocks.setSystem).toHaveBeenCalledTimes(confirmed ? 2 : 0);
       wrapper.unmount();
     });
   }
+
+  it("缓存已开启时切换到过渡仍提示高占用", () => {
+    mocks.cache = { enabled: true, cacheStreaming: true };
+    expect(transitionItem.confirm!.when!("crossfade")).toBe(true);
+    expect(transitionItem.confirm!.when!("automix")).toBe(true);
+    expect(transitionItem.confirm!.when!("none")).toBe(false);
+  });
 });

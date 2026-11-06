@@ -61,16 +61,16 @@ const mergeManifests = (docs) => {
 /**
  * 从版本号解析发布通道
  * @param {string} version - 应用版本
- * @returns {"latest" | "beta" | "alpha" | "nightly"} 发布通道
+ * @returns {"latest" | "beta" | "nightly"} 发布通道
  */
 const resolveChannel = (version) => {
   if (/-nightly(?:\.|$)/.test(version)) return "nightly";
-  if (/-alpha(?:\.|$)/.test(version)) return "alpha";
   if (/-beta(?:\.|$)/.test(version)) return "beta";
   if (version.includes("-")) throw new Error(`不支持的预发布版本格式: ${version}`);
   return "latest";
 };
 
+// 停发 Alpha 后仍生成 alpha 清单，让旧版 Alpha 通道客户端继续收到 Beta 与正式版
 const ALIAS_CHANNELS_MAP = {
   latest: ["beta", "alpha"],
   beta: ["alpha"],
@@ -79,14 +79,13 @@ const ALIAS_CHANNELS_MAP = {
 const VALIDATE_CHANNELS_MAP = {
   latest: ["latest", "beta", "alpha"],
   beta: ["beta", "alpha"],
-  alpha: ["alpha"],
   nightly: ["nightly"],
 };
 
 /**
  * 为更不稳定的订阅通道创建清单别名
  * @param {string} outDir - 发布资源目录
- * @param {"latest" | "beta" | "alpha" | "nightly"} channel - 发布通道
+ * @param {"latest" | "beta" | "nightly"} channel - 发布通道
  */
 const createChannelAliases = (outDir, channel) => {
   const aliases = ALIAS_CHANNELS_MAP[channel] ?? [];
@@ -103,7 +102,7 @@ const createChannelAliases = (outDir, channel) => {
  * 校验清单结构和引用资源
  * @param {string} outDir - 发布资源目录
  * @param {string} version - 应用版本
- * @param {"latest" | "beta" | "alpha" | "nightly"} channel - 发布通道
+ * @param {"latest" | "beta" | "nightly"} channel - 发布通道
  */
 const validateManifests = (outDir, version, channel) => {
   const channels = VALIDATE_CHANNELS_MAP[channel] ?? [channel];

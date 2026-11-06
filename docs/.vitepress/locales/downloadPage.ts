@@ -16,7 +16,6 @@ export const DOWNLOAD_PAGE_COPY = {
     channels: {
       stable: { name: "Stable 正式版", description: "稳定通道，只提供正式发布版本。" },
       beta: { name: "Beta 预览版", description: "功能基本可用，可能仍有已知问题。" },
-      alpha: { name: "Alpha 内测版", description: "包含最早期功能，仅建议测试使用。" },
     },
     formats: {
       installer: "Windows 安装版",
@@ -49,7 +48,6 @@ export const DOWNLOAD_PAGE_COPY = {
     channels: {
       stable: { name: "Stable", description: "Stable releases intended for everyday use." },
       beta: { name: "Beta", description: "Mostly complete features with possible known issues." },
-      alpha: { name: "Alpha", description: "Early features intended for testing only." },
     },
     formats: {
       installer: "Windows installer",

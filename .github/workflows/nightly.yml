@@ -137,7 +137,7 @@ jobs:
       # 动态注入递增的 Nightly 构建版本号
       - name: Generate Nightly Version
         shell: bash
-        run: node scripts/gen-nightly-version.cjs
+        run: node scripts/gen-version.cjs nightly
 
       # 构建并生成更新清单
       - name: Build ${{ matrix.name }}
@@ -206,7 +206,7 @@ jobs:
       - name: Read Nightly Version
         shell: bash
         run: |
-          node scripts/gen-nightly-version.cjs
+          node scripts/gen-version.cjs nightly
           VERSION="$(node -p "require('./package.json').version")"
           echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
 

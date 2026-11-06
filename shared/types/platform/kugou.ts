@@ -12,6 +12,10 @@ export interface KGSong {
   artists?: Array<{ id?: string | number; name: string }>;
   album: string;
   albumId: string | number;
+  /** 碟号，从 1 开始 */
+  disc?: number;
+  /** 碟片名称 */
+  discTitle?: string;
   cover?: string;
   coverOriginal?: string;
   interval: number;

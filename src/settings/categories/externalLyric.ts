@@ -58,12 +58,6 @@ const desktopLyricSection: SettingSection = {
       defaultValue: true,
     },
     {
-      key: "desktopLyricAutoGenerateWordByWord",
-      type: "switch",
-      binding: { store: "settings", path: "system.desktopLyric.autoGenerateWordByWord" },
-      defaultValue: true,
-    },
-    {
       key: "desktopLyricShowTranslation",
       type: "switch",
       binding: { store: "settings", path: "system.desktopLyric.showTranslation" },

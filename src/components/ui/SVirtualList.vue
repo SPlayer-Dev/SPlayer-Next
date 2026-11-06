@@ -19,6 +19,8 @@ export interface SVirtualListProps<T> {
   itemHeight: number;
   /** 定高模式（跳过 DOM 测量，性能更佳） */
   itemFixed?: boolean;
+  /** 不定高模式下每项的精确高度，提供后跳过 DOM 测量；需传引用稳定的数组 */
+  exactItemHeights?: number[];
   /** 容器高度，支持 CSS 值 */
   height?: number | string;
   /** 顶部内边距（px） */
@@ -71,11 +73,13 @@ const viewportHeight = computed(() => scrollViewportHeight.value || 0);
 const itemHeights = shallowRef<number[]>([]);
 const itemTops = shallowRef<number[]>([]);
 
-/** 初始化高度数组，复用已测量的值 */
+/** 初始化高度数组，优先使用外部精确高度，否则复用已测量的值 */
 const initializeHeights = (): void => {
   if (props.itemFixed) return;
   const length = props.items.length;
-  if (itemHeights.value.length !== length) {
+  if (props.exactItemHeights) {
+    itemHeights.value = props.exactItemHeights;
+  } else if (itemHeights.value.length !== length) {
     const old = itemHeights.value;
     itemHeights.value = Array.from({ length }, (_, idx) => old[idx] || props.itemHeight);
   }
@@ -174,7 +178,8 @@ const visibleItems = computed(() => {
 
 /** 测量可见项的真实 DOM 高度，允许 0.5px 误差 */
 const measureItemHeights = (): void => {
-  if (props.itemFixed || !itemRefs.value.length || props.items.length === 0) return;
+  if (props.itemFixed || props.exactItemHeights || !itemRefs.value.length || !props.items.length)
+    return;
   let hasChanges = false;
   itemRefs.value.forEach((element) => {
     if (!element) return;
@@ -284,15 +289,11 @@ const scrollToIndex = (index: number, behavior: ScrollBehavior = "auto"): void =
 /** 获取当前滚动位置 */
 const getScrollTop = (): number => scrollTop.value;
 
-watch(
-  () => props.items,
-  () => {
-    initializeHeights();
-    calculateVisibleRange(scrollTop.value);
-    nextTick(debouncedMeasure);
-  },
-  { deep: false },
-);
+watch([() => props.items, () => props.exactItemHeights], () => {
+  initializeHeights();
+  calculateVisibleRange(scrollTop.value);
+  nextTick(debouncedMeasure);
+});
 
 watch(
   () => props.items.length,

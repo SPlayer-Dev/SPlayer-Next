@@ -1,6 +1,6 @@
 import path from "node:path";
 import type { Track, Artist, Album, AudioQuality } from "@shared/types/player";
-import type { AlbumSummary, ArtistSummary } from "@shared/types/library";
+import type { AlbumSummary, ArtistSummary, LibraryQuickSearchResult } from "@shared/types/library";
 import type { LibraryStats } from "@shared/types/stats";
 import { getDb } from "./index";
 
@@ -227,6 +227,71 @@ export const searchTracks = (query: string): Track[] => {
     )
     .all(pattern, pattern, pattern) as TrackRow[];
   return rows.map(rowToTrack);
+};
+
+/**
+ * 搜索窗用的本地曲库分组搜索，只按名称字段匹配，避免命中 JSON 键名
+ * @param keyword - 搜索关键词
+ * @returns 歌曲、专辑、歌手各自的少量匹配结果
+ */
+export const quickSearchLibrary = (keyword: string): LibraryQuickSearchResult => {
+  const params = { pattern: `%${keyword.replace(/[%_\\]/g, "\\$&")}%` };
+  const database = getDb();
+  const trackRows = database
+    .prepare(
+      `SELECT * FROM tracks
+       WHERE (title LIKE @pattern ESCAPE '\\'
+         OR json_extract(album, '$.name') LIKE @pattern ESCAPE '\\'
+         OR EXISTS (
+           SELECT 1 FROM json_each(artists) a
+           WHERE json_extract(a.value, '$.name') LIKE @pattern ESCAPE '\\'
+         ))
+         AND ${excludeCueContainer()}
+       ORDER BY (title LIKE @pattern ESCAPE '\\') DESC
+       LIMIT 5`,
+    )
+    .all(params) as TrackRow[];
+  const albumRows = database
+    .prepare(
+      `SELECT
+         json_extract(album, '$.name') AS name,
+         MAX(CASE WHEN cover IS NOT NULL THEN cover END) AS cover,
+         MAX(artists) AS artists,
+         COUNT(*) AS trackCount
+       FROM tracks
+       WHERE json_extract(album, '$.name') LIKE @pattern ESCAPE '\\'
+         AND ${excludeCueContainer()}
+       GROUP BY name
+       LIMIT 3`,
+    )
+    .all(params) as { name: string; cover: string | null; artists: string; trackCount: number }[];
+  const artistRows = database
+    .prepare(
+      `SELECT
+         json_extract(a.value, '$.name') AS name,
+         COUNT(DISTINCT t.id) AS trackCount,
+         MAX(CASE WHEN t.cover IS NOT NULL THEN t.cover END) AS cover
+       FROM tracks t, json_each(t.artists) a
+       WHERE json_extract(a.value, '$.name') LIKE @pattern ESCAPE '\\'
+         AND ${excludeCueContainer("t.path")}
+       GROUP BY name
+       LIMIT 3`,
+    )
+    .all(params) as { name: string; trackCount: number; cover: string | null }[];
+  return {
+    tracks: trackRows.map(rowToTrack),
+    albums: albumRows.map((row) => ({
+      name: row.name,
+      cover: row.cover ?? undefined,
+      artist: (JSON.parse(row.artists) as Artist[]).map((artist) => artist.name).join(" / "),
+      trackCount: row.trackCount,
+    })),
+    artists: artistRows.map((row) => ({
+      name: row.name,
+      trackCount: row.trackCount,
+      cover: row.cover ?? undefined,
+    })),
+  };
 };
 
 /** 删除指定目录下的所有曲目 */

@@ -9,19 +9,20 @@ vi.mock("@/utils/color", () => ({ hexToRgb: () => "20, 20, 28" }));
  * @returns 字体加载桩、测量记录和绘制记录
  */
 const setupCanvas = () => {
-  const measured: Array<{ text: string; font: string }> = [];
-  const drawn: Array<{ text: string; font: string }> = [];
+  const measured: Array<{ text: string; font: string; lang: string }> = [];
+  const drawn: Array<{ text: string; font: string; lang: string }> = [];
   const load = vi.fn().mockResolvedValue([]);
   Object.defineProperty(document, "fonts", { configurable: true, value: { load } });
   const context = {
     font: "",
+    lang: "inherit",
     scale: vi.fn(),
     fillRect: vi.fn(),
     measureText: (text: string) => {
-      measured.push({ text, font: context.font });
+      measured.push({ text, font: context.font, lang: context.lang });
       return { width: text.length * (context.font.includes('"Wide"') ? 100 : 20) };
     },
-    fillText: (text: string) => drawn.push({ text, font: context.font }),
+    fillText: (text: string) => drawn.push({ text, font: context.font, lang: context.lang }),
   };
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
     context as unknown as CanvasRenderingContext2D,
@@ -65,6 +66,19 @@ describe("歌词海报字体", () => {
       );
     }
     expect(drawn.find((entry) => entry.text === "歌名")?.font).toContain('"Global"');
+  });
+
+  it("只为原文歌词设置语言，翻译和音译使用默认语言", async () => {
+    const { measured, drawn } = setupCanvas();
+    await createLyricPoster({
+      track,
+      lines: [{ text: "骨と直", language: "ja", translation: "骨与直", romaji: "hone to choku" }],
+    });
+
+    expect(drawn.find((entry) => entry.text === "骨と直")?.lang).toBe("ja");
+    expect(measured.some((entry) => entry.text === "骨と直" && entry.lang === "ja")).toBe(true);
+    expect(drawn.find((entry) => entry.text === "骨与直")?.lang).toBe("inherit");
+    expect(drawn.find((entry) => entry.text === "hone to choku")?.lang).toBe("inherit");
   });
 
   it("未设置歌词字体时使用全局字体", async () => {

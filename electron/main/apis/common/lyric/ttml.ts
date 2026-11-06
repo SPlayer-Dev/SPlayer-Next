@@ -2,15 +2,15 @@
  * AMLL TTML DB 抓取
  *
  * 设计：
- * - 用户配置的 URL 模板含 %p（平台目录）和 %s（id），代码替换
+ * - 默认请求官方 API（api.amll.dev），按平台 ID 查询，返回 JSON 中的 TTML 文本
+ * - 用户配置了镜像模板时改走镜像：模板含 %s（id），可选 %p（平台目录），代码替换
  *   - NCM → "ncm-lyrics"
  *   - QM  → "qq-lyrics"（mid 或数字 id 都可能命中，由调用方传入候选）
- * - 8s 超时，复用现有 AbortSignal.timeout pattern
- * - inflight Map 做并发去重：同 (platform, id) 的并发抓取共享同一个 Promise，
- *   这样后端 prefetchTTML 提前发出的请求和渲染端 fetchTTMLOverlay 的请求会合并
- * - 缓存策略见 lyricTtmlCache.ts：正缓存永久 / 负缓存 72h
+ * - 没有可用 ID 或 ID 未命中时按歌名搜索，镜像不提供搜索，始终走官方 API
  */
 
+import { buildFingerprint } from "@main/database/lyricMatchCache";
+import { appVersion } from "@main/utils/config";
 import { coreLog } from "@main/utils/logger";
 import { store } from "@main/store";
 import {
@@ -18,10 +18,46 @@ import {
   setCachedTTML,
   type Platform as TtmlPlatform,
 } from "@main/database/lyricTtmlCache";
+import type { Track } from "@shared/types/player";
+import { pickBestCandidate, type LyricCandidate } from "./utils";
 
 const TIMEOUT_MS = 8000;
 
+/** AMLL */
+const OFFICIAL_API = "https://api.amll.dev/v1/lyrics";
+
+const SEARCH_PAGE_SIZE = "50";
+
+const USER_AGENT = `SPlayer-Next/${appVersion} (https://github.com/SPlayer-Dev/SPlayer-Next)`;
+
+/** 搜索接口单条结果中用到的部分 */
+interface AmllSong {
+  id: number;
+  musicNames: string[];
+  artistNames: string[];
+  albumNames: string[];
+}
+
 const inflight = new Map<string, Promise<string | null>>();
+
+/**
+ * 拼装请求地址
+ * @param platform - 平台
+ * @param id - 平台歌曲 ID
+ * @returns 请求地址与是否为官方 API
+ */
+const buildUrl = (platform: TtmlPlatform, id: string): { url: string; official: boolean } => {
+  const mirror = store.get("lyric.amllDbServer");
+  if (mirror) {
+    const path = platform === "netease" ? "ncm-lyrics" : "qq-lyrics";
+    return {
+      url: mirror.replace("%p", path).replace("%s", encodeURIComponent(id)),
+      official: false,
+    };
+  }
+  const query = platform === "netease" ? "ncmMusicId" : "qqMusicId";
+  return { url: `${OFFICIAL_API}/get?${query}=${encodeURIComponent(id)}`, official: true };
+};
 
 /** 真正发起一次抓取，处理缓存读写、URL 拼装、错误分类 */
 const doFetch = async (platform: TtmlPlatform, id: string): Promise<string | null> => {
@@ -29,20 +65,21 @@ const doFetch = async (platform: TtmlPlatform, id: string): Promise<string | nul
   if (!store.get("lyric.enableOnlineTTMLLyric")) return null;
 
   const cached = getCachedTTML(platform, id);
-  if (cached !== "miss") return cached;
+  if (cached?.fresh) return cached.content;
+  const stale = cached?.content ?? null;
 
-  const tmpl = store.get("lyric.amllDbServer");
-  if (!tmpl || !tmpl.includes("%p") || !tmpl.includes("%s")) return null;
-
-  const path = platform === "netease" ? "ncm-lyrics" : "qq-lyrics";
-  const url = tmpl.replace("%p", path).replace("%s", encodeURIComponent(id));
-
+  const { url, official } = buildUrl(platform, id);
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+    const res = await fetch(url, {
+      headers: { "User-Agent": USER_AGENT },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
     if (res.status === 200) {
-      const content = await res.text();
+      const content = official
+        ? ((await res.json()) as { data?: { lyrics?: string } }).data?.lyrics
+        : await res.text();
       // 接口偶尔会返回 200 但 body 为空，按负缓存处理
-      if (!content.trim()) {
+      if (!content?.trim()) {
         setCachedTTML(platform, id, null);
         return null;
       }
@@ -53,12 +90,12 @@ const doFetch = async (platform: TtmlPlatform, id: string): Promise<string | nul
       setCachedTTML(platform, id, null);
       return null;
     }
-    // 其它状态码（5xx 等）不写缓存，下次重试
+    // 其它状态码（429 / 5xx 等）不写缓存，下次重试
     coreLog.warn(`[ttml] ${platform}:${id} HTTP ${res.status}`);
-    return null;
+    return stale;
   } catch (err) {
     coreLog.warn(`[ttml] ${platform}:${id} fetch failed:`, err);
-    return null;
+    return stale;
   }
 };
 
@@ -96,4 +133,52 @@ export const fetchTTML = async (
  */
 export const prefetchTTML = (platform: TtmlPlatform, ids: readonly string[]): void => {
   void fetchTTML(platform, ids);
+};
+
+/**
+ * 请求官方 API，非 2xx 抛错，避免把网络问题记成未命中
+ * @param path - 接口路径与查询参数
+ * @returns 响应中的 data
+ */
+const requestOfficial = async <T>(path: string): Promise<T> => {
+  const res = await fetch(`${OFFICIAL_API}/${path}`, {
+    headers: { "User-Agent": USER_AGENT },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${path}`);
+  return ((await res.json()) as { data: T }).data;
+};
+
+/**
+ * 按歌曲元数据搜索 TTML，用于没有可用平台 ID 或 ID 未命中的歌曲
+ * @param track - 歌曲信息
+ * @returns TTML 文本，未匹配时为 null
+ */
+export const searchTTML = async (track: Track): Promise<string | null> => {
+  if (!store.get("lyric.enableOnlineTTMLLyric") || !track.title) return null;
+  const fingerprint = buildFingerprint(track);
+  const cached = getCachedTTML("search", fingerprint);
+  if (cached?.fresh) return cached.content;
+  try {
+    const query = new URLSearchParams({ musicName: track.title, pageSize: SEARCH_PAGE_SIZE });
+    const { items } = await requestOfficial<{ items: AmllSong[] }>(`search?${query}`);
+    // 接口的歌手条件要求整串包含，多歌手会漏，交给本地比对
+    const candidates: LyricCandidate<number>[] = items.flatMap((item) =>
+      item.musicNames.map((name) => ({
+        name,
+        artist: item.artistNames.join("&"),
+        album: item.albumNames[0],
+        extra: item.id,
+      })),
+    );
+    const best = pickBestCandidate(candidates, track);
+    const content = best
+      ? (await requestOfficial<{ lyrics: string }>(`get?id=${best.extra}`)).lyrics
+      : null;
+    setCachedTTML("search", fingerprint, content);
+    return content;
+  } catch (err) {
+    coreLog.warn(`[ttml] search ${track.title} failed:`, err);
+    return cached?.content ?? null;
+  }
 };

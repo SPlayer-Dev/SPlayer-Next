@@ -1,5 +1,31 @@
 use napi_derive::napi;
 
+/// 由主进程根据模型分析结果提交的自动混音计划
+#[napi(object)]
+pub struct JsAutoMixPlan {
+    pub out_start_seconds: f64,
+    pub in_start_seconds: f64,
+    pub duration_seconds: f64,
+    pub outgoing_rate: f64,
+    pub level_ratio: f64,
+    pub envelopes: Vec<JsAutoMixEnvelope>,
+}
+
+/// 相对于混音起点的单个声部交接区间
+#[napi(object)]
+pub struct JsAutoMixEnvelope {
+    pub start_seconds: f64,
+    pub end_seconds: f64,
+}
+
+/// 分析进程生成的有限声部窗口，路径不暴露给渲染进程
+#[napi(object)]
+pub struct JsAutoMixStemWindow {
+    pub path: String,
+    pub start_seconds: f64,
+    pub frames: u32,
+}
+
 /// 一条外部歌词，返回给 JS 侧（仅格式和路径，内容按需加载）
 #[napi(object)]
 pub struct JsExternalLyric {
@@ -74,6 +100,8 @@ pub struct JsPlayerEvent {
     pub duration: Option<f64>,
     /// 实际交叉淡化状态（仅 transitionChanged 时有值）
     pub transition_active: Option<bool>,
+    /// 当前过渡模式，仅 transitionChanged 时有值
+    pub transition_mode: Option<String>,
     /// 交接点来源（仅 transitionChanged 开始时有值）
     pub transition_reason: Option<String>,
     /// 计划交叉淡化时长（秒，仅 transitionChanged 开始时有值）

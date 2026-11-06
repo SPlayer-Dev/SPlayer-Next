@@ -3,11 +3,12 @@
 //! 单后台线程接收 NAPI 命令，按 win10/win11 策略管理任务栏嵌入和 UIA 重扫，
 //! 自带去抖（聚合连续 Update）和 UIA 冷启动重试
 
+use std::ffi::c_void;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread;
 use std::time::Duration;
 
-use crate::strategy::{LayoutParams, LegacyStrategy, TaskbarStrategy, Win11Strategy};
+use crate::strategy::{LayoutParams, LegacyStrategy, TaskbarStrategy, Win11Strategy, sync_z_order};
 use crate::utils::{ComApartmentGuard, get_windows_build_number};
 use crate::{JsTaskbarLayout, take_valid_hwnd};
 use napi::{
@@ -16,6 +17,10 @@ use napi::{
     threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode, UnknownReturnValue},
 };
 use napi_derive::napi;
+use windows::Win32::Foundation::HWND;
+
+/// 置顶状态比对间隔：全屏应用切换时歌词窗口最多滞后这么久才随任务栏沉下/浮起
+const Z_ORDER_SYNC_INTERVAL: Duration = Duration::from_millis(250);
 
 type LayoutTsfn =
     ThreadsafeFunction<JsTaskbarLayout, UnknownReturnValue, JsTaskbarLayout, Status, false>;
@@ -98,7 +103,17 @@ fn worker_loop(rx: &Receiver<TaskbarCommand>, tsfn: &LayoutTsfn) {
     let mut last_hwnd: Option<usize> = None;
     let mut last_width: i32 = 0;
 
-    while let Ok(msg) = rx.recv() {
+    loop {
+        let msg = match rx.recv_timeout(Z_ORDER_SYNC_INTERVAL) {
+            Ok(msg) => msg,
+            Err(RecvTimeoutError::Timeout) => {
+                if let (Some(s), Some(hwnd)) = (strategy.as_ref(), last_hwnd) {
+                    sync_z_order(HWND(hwnd as *mut c_void), s.taskbar_hwnd());
+                }
+                continue;
+            }
+            Err(RecvTimeoutError::Disconnected) => break,
+        };
         match msg {
             TaskbarCommand::Embed { hwnd_ptr } => {
                 if let Some(hwnd) = take_valid_hwnd(hwnd_ptr) {

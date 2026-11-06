@@ -20,6 +20,7 @@ interface SubsonicSong {
   artistId?: string;
   album?: string;
   albumId?: string;
+  discNumber?: number;
   duration?: number;
   bitRate?: number;
   samplingRate?: number;
@@ -40,6 +41,8 @@ interface SubsonicAlbum {
   songCount?: number;
   year?: number;
   displayArtist?: string;
+  /** OpenSubsonic 扩展的碟片名称 */
+  discTitles?: { disc: number; title: string }[];
   song?: SubsonicSong[];
 }
 
@@ -174,6 +177,7 @@ const toTrack = (config: StreamingRuntimeConfig, song: SubsonicSong): Track => {
     title: song.title || "",
     artists,
     album: song.album ? { id: song.albumId, name: song.album, serverId: config.id } : undefined,
+    disc: song.discNumber || undefined,
     duration: Math.round((song.duration ?? 0) * 1000),
     cover: coverUrl(config, song.coverArt, 300),
     coverOriginal: coverUrl(config, song.coverArt, 1500),
@@ -435,7 +439,14 @@ export const subsonicAdapter: StreamingAdapter = {
    */
   async getAlbumSongs(config, albumId) {
     const result = await callApi<{ album?: SubsonicAlbum }>(config, "getAlbum", { id: albumId });
-    return (result.album?.song ?? []).map((song) => toTrack(config, song));
+    const discTitles = new Map(
+      result.album?.discTitles?.map((disc) => [disc.disc, disc.title.trim()]),
+    );
+    return (result.album?.song ?? []).map((song) => {
+      const track = toTrack(config, song);
+      const discTitle = track.disc && discTitles.get(track.disc);
+      return discTitle ? { ...track, discTitle } : track;
+    });
   },
 
   /**

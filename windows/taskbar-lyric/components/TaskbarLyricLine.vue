@@ -3,6 +3,10 @@ import type { LyricLine } from "lyric-kit";
 
 import { getWordSweepProgress } from "lyric-kit";
 import { getNowPlayingCurrentMs } from "@windows/shared/composables/useNowPlayingSync";
+import {
+  computeHorizontalScrollRange,
+  computeLyricScrollOffset,
+} from "@windows/shared/lyricScroll";
 
 const props = withDefaults(
   defineProps<{
@@ -10,23 +14,26 @@ const props = withDefaults(
     text?: string;
     wordByWord?: boolean;
     anchor?: "left" | "right";
+    /** 决定滚动进度的歌词行，翻译行传对应的原文行，缺省为 line */
+    timingLine?: LyricLine;
   }>(),
   { wordByWord: false, anchor: "left" },
 );
 
 const useKaraoke = computed(() => props.wordByWord && !!props.line);
 const plainText = computed(() => props.text ?? props.line?.words.map((w) => w.word).join("") ?? "");
+const scrollTiming = computed(() => props.timingLine ?? props.line);
 
 const wrapperRef = ref<HTMLElement | null>(null);
 const contentRef = ref<HTMLElement | null>(null);
 const overflowPx = ref(0);
 const isOverflow = computed(() => overflowPx.value > 0);
+/** 可见容器宽度，用于定位演唱焦点 */
+let containerWidth = 0;
+/** 成为当前行的时刻，迟到激活的行从此刻重新开始滚动 */
+let scrollActivatedAtMs = 0;
 
-/** 前 30% 停在开头 */
-const SCROLL_START_AT = 0.3;
-/** 比 endTime 早多少滚到底 */
-const END_MARGIN_MS = 2000;
-
+/** 溢出时强制左对齐，内容起点恒为 0，无需读取 offsetLeft */
 const measure = (): void => {
   const outer = wrapperRef.value;
   const inner = contentRef.value;
@@ -34,24 +41,22 @@ const measure = (): void => {
     overflowPx.value = 0;
     return;
   }
-  const diff = inner.getBoundingClientRect().width - outer.getBoundingClientRect().width;
-  overflowPx.value = diff > 0.5 ? diff : 0;
+  containerWidth = outer.clientWidth;
+  overflowPx.value = computeHorizontalScrollRange(containerWidth, inner.scrollWidth, 0).distance;
 };
 
-/** 根据进度计算平移量——溢出时始终向左滚（与桌面歌词一致），不做来回 */
+/** 溢出时向左滚动（与桌面歌词一致），有逐字时间时跟随演唱位置 */
 const getScrollTransform = (currentMs: number): string => {
-  const overflow = overflowPx.value;
-  if (overflow <= 0 || !props.line) return "translateX(0)";
-  const { startTime, endTime } = props.line;
-  if (endTime <= startTime) return "translateX(0)";
-  const end = Math.max(startTime + 1, endTime - END_MARGIN_MS);
-  const duration = end - startTime;
-  if (duration <= 0) return "translateX(0)";
-  const progress = Math.max(0, Math.min(1, (currentMs - startTime) / duration));
-  if (progress <= SCROLL_START_AT) return "translateX(0)";
-  const ratio = (progress - SCROLL_START_AT) / (1 - SCROLL_START_AT);
-  const offset = overflow * ratio;
-  return `translateX(-${offset.toFixed(3)}px)`;
+  const timing = scrollTiming.value;
+  if (overflowPx.value <= 0 || !timing) return "translateX(0)";
+  const offset = computeLyricScrollOffset({
+    currentMs,
+    activatedAtMs: scrollActivatedAtMs,
+    timingLine: timing,
+    containerWidth,
+    range: { startOffset: 0, distance: overflowPx.value },
+  });
+  return `translateX(${offset.toFixed(3)}px)`;
 };
 
 const wordRefs: HTMLSpanElement[] = [];
@@ -87,7 +92,17 @@ const resetRenderCache = (): void => {
   wordRefs.length = 0;
 };
 
+const needsRaf = (): boolean => useKaraoke.value || (overflowPx.value > 0 && !!scrollTiming.value);
+
 const renderFrame = (): void => {
+  if (!needsRaf()) {
+    rafId = 0;
+    if (contentRef.value && lastTransform !== "") {
+      lastTransform = "";
+      contentRef.value.style.transform = "";
+    }
+    return;
+  }
   const currentMs = getNowPlayingCurrentMs();
 
   if (contentRef.value) {
@@ -113,6 +128,15 @@ const renderFrame = (): void => {
   rafId = requestAnimationFrame(renderFrame);
 };
 
+const startRenderLoop = (): void => {
+  if (rafId === 0 && needsRaf()) rafId = requestAnimationFrame(renderFrame);
+};
+
+/** 从成为当前行的时刻重新开始横向滚动 */
+const activateScroll = (): void => {
+  scrollActivatedAtMs = Math.max(scrollTiming.value?.startTime ?? 0, getNowPlayingCurrentMs());
+};
+
 watch(
   () => props.line,
   () => {
@@ -120,6 +144,8 @@ watch(
     nextTick(measure);
   },
 );
+watch(scrollTiming, activateScroll);
+watch([overflowPx, useKaraoke, scrollTiming], startRenderLoop);
 watch(
   () => props.text,
   () => nextTick(measure),
@@ -129,8 +155,9 @@ onMounted(() => {
   resizeObserver = new ResizeObserver(measure);
   if (wrapperRef.value) resizeObserver.observe(wrapperRef.value);
   if (contentRef.value) resizeObserver.observe(contentRef.value);
+  activateScroll();
   measure();
-  rafId = requestAnimationFrame(renderFrame);
+  startRenderLoop();
 });
 
 onBeforeUnmount(() => {

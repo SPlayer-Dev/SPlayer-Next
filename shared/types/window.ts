@@ -90,6 +90,8 @@ export interface TaskbarLyricLayoutEvent {
   anchor: "left" | "right";
   /** 当前任务栏区域允许的最大窗口宽度 */
   maxWidth: number;
+  /** 任务栏可用高度（DIP），可能小于 Chromium 的最小窗口高度 */
+  height: number;
 }
 
 /** 任务栏歌词 API */

@@ -157,20 +157,9 @@ export const useLibraryStore = defineStore("library", () => {
   /** 添加扫描目录 */
   const addScanDir = async (): Promise<{ success: boolean; error?: string }> => {
     const res = await window.api.library.addScanDir();
+    // 嵌套目录由主进程在写入前拒绝，成功才同步到本地列表
     if (res.success) {
-      const newDir = res.data as string;
-      const nested = scanDirs.value.some(
-        (d) =>
-          newDir.startsWith(d + "\\") ||
-          newDir.startsWith(d + "/") ||
-          d.startsWith(newDir + "\\") ||
-          d.startsWith(newDir + "/"),
-      );
-      if (nested) {
-        await window.api.library.removeScanDir(newDir);
-        return { success: false, error: "nested" };
-      }
-      scanDirs.value = [...scanDirs.value, newDir];
+      scanDirs.value = [...scanDirs.value, res.data as string];
     }
     return res;
   };

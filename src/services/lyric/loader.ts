@@ -130,7 +130,6 @@ const commitIfBetter = (
 
   const prevSource = media.activeLyric;
   const prevInput = media.lyricContent;
-  const prevParsed = media.parsedLyric;
 
   commit(token, source, input);
 
@@ -138,10 +137,8 @@ const commitIfBetter = (
     return true;
   }
 
-  // 失败回滚
-  if (prevSource && prevParsed.length > 0) {
-    media.setLyric(prevSource, prevInput);
-  }
+  // 失败回滚，此前无歌词时也要清掉，否则空结果的格式会挡住后续来源
+  media.setLyric(prevSource, prevInput);
   return false;
 };
 
@@ -149,23 +146,46 @@ const commitIfBetter = (
 let ttmlTriggeredToken = -1;
 
 /**
- * 异步静默触发 TTML 覆盖并尝试升级
+ * 异步静默获取 TTML 覆盖并尝试升级
  * 非阻塞执行，不阻塞基础歌词展示与其它来源抢占
  * @param token - 竞态 token
  * @param track - 歌曲信息
- * @param online - 在线歌词基础结果
+ * @param mainFormat - 当前主歌词格式，没有歌词时为 null
  */
-const tryApplyTTMLOverlay = (token: number, track: Track, online: OnlineResult): void => {
-  if (token !== currentToken || ttmlTriggeredToken === token) return;
-  ttmlTriggeredToken = token;
-  resolveTTMLOverlay(track, online)
+const applyTTMLOverlay = (token: number, track: Track, mainFormat: LyricFormat | null): void => {
+  resolveTTMLOverlay(track, mainFormat)
     .then((ttml) => {
       if (token !== currentToken || !ttml) return;
       commitIfBetter(token, ttml.source, ttml.input);
     })
     .catch((err) => {
-      console.warn("[lyricLoader] tryApplyTTMLOverlay failed:", err);
+      console.warn("[lyricLoader] applyTTMLOverlay failed:", err);
     });
+};
+
+/**
+ * 本地歌曲按当前展示的歌词获取 TTML 覆盖，不等在线匹配
+ * @param token - 竞态 token
+ * @param track - 歌曲信息
+ */
+const applyLocalTTMLOverlay = (token: number, track: Track): void => {
+  const media = useMediaStore();
+  const shownFormat = media.parsedLyric.length > 0 ? (media.activeLyric?.format ?? null) : null;
+  // 关闭在线优先时不覆盖已有歌词
+  if (shownFormat && !useSettingsStore().lyric.smartPreferOnline) return;
+  applyTTMLOverlay(token, track, shownFormat);
+};
+
+/**
+ * 在线歌词就绪后触发 TTML 覆盖，同一轮加载只触发一次
+ * @param token - 竞态 token
+ * @param track - 歌曲信息
+ * @param mainFormat - 当前主歌词格式
+ */
+const tryApplyTTMLOverlay = (token: number, track: Track, mainFormat: LyricFormat): void => {
+  if (token !== currentToken || ttmlTriggeredToken === token) return;
+  ttmlTriggeredToken = token;
+  applyTTMLOverlay(token, track, mainFormat);
 };
 
 /**
@@ -194,7 +214,7 @@ const applyOnline = (
       commitLocal(token, fallbackLocal);
       return;
     }
-    tryApplyTTMLOverlay(token, track, online);
+    tryApplyTTMLOverlay(token, track, online.source.format);
     return;
   }
   // 尝试提交在线歌词
@@ -213,7 +233,7 @@ const applyOnline = (
     return;
   }
   // 尝试触发 TTML 覆盖
-  tryApplyTTMLOverlay(token, track, online);
+  tryApplyTTMLOverlay(token, track, online.source.format);
 };
 
 /**
@@ -283,10 +303,7 @@ const loadStreamingLyric = (
     const embeddedFallback = embeddedLyricFromDetail(detail);
     if (resolved && commitIfBetter(token, resolved.source, resolved.input)) {
       if (resolved.source.source === "online") {
-        tryApplyTTMLOverlay(token, track, {
-          source: resolved.source as OnlineResult["source"],
-          input: resolved.input,
-        });
+        tryApplyTTMLOverlay(token, track, resolved.source.format);
       }
       return;
     }
@@ -311,7 +328,7 @@ const loadPlatformLyric = (token: number, track: Track): Promise<void> =>
       localFormat: null,
       onCandidate: (result) => {
         if (commitIfBetter(token, result.source, result.input)) {
-          tryApplyTTMLOverlay(token, track, result);
+          tryApplyTTMLOverlay(token, track, result.source.format);
         }
       },
       shouldContinue: () => token === currentToken,
@@ -357,10 +374,7 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
     if (preloaded.hit) {
       if (commitIfBetter(token, preloaded.lyric.source, preloaded.lyric.input)) {
         if (preloaded.lyric.source.source === "online") {
-          tryApplyTTMLOverlay(token, track, {
-            source: preloaded.lyric.source as OnlineResult["source"],
-            input: preloaded.lyric.input,
-          });
+          tryApplyTTMLOverlay(token, track, preloaded.lyric.source.format);
         }
       }
     }
@@ -392,6 +406,8 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
     // 本地文件存在但解析后空
     const hasUsableLocal = !!local && media.parsedLyric.length > 0;
     const localFormat = local?.source.format ?? null;
+    // 在线匹配后拿到平台 ID 会再查一次
+    applyLocalTTMLOverlay(token, track);
 
     await withPluginPrefer(token, track, async () => {
       // 按偏好获取歌词
@@ -400,7 +416,7 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
         localFormat,
         onCandidate: (result) => {
           if (commitIfBetter(token, result.source, result.input)) {
-            tryApplyTTMLOverlay(token, track, result);
+            tryApplyTTMLOverlay(token, track, result.source.format);
           }
         },
         shouldContinue: () => token === currentToken,
@@ -409,6 +425,8 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
       // id 回查本地 TTML 库
       if (online && (await tryLocalRepo(token, track))) return;
       if (online) {
+        // TTML 先到时不被基础歌词盖掉
+        if (media.activeLyric?.source === "online" && media.activeLyric.format === "ttml") return;
         applyOnline(token, track, online, local);
       } else if (
         !hasUsableLocal &&
@@ -464,7 +482,7 @@ const refreshPreference = async (): Promise<void> => {
       localFormat,
       onCandidate: (result) => {
         if (commitIfBetter(token, result.source, result.input)) {
-          tryApplyTTMLOverlay(token, track, result);
+          tryApplyTTMLOverlay(token, track, result.source.format);
         }
       },
       shouldContinue: () => token === currentToken,
@@ -475,9 +493,11 @@ const refreshPreference = async (): Promise<void> => {
       return;
     }
     // 目标是本地
-    if (!showingOnline) return;
-    if (local) commitLocal(token, local);
-    else commit(token, null, null);
+    if (showingOnline) {
+      if (local) commitLocal(token, local);
+      else commit(token, null, null);
+    }
+    applyLocalTTMLOverlay(token, track);
   });
 };
 

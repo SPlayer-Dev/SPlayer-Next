@@ -48,6 +48,8 @@ jobs:
     steps:
       - name: Check out git repository
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -89,11 +91,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # 注入 -dev 版本号，使其低于同基准的 Nightly，可通过 Nightly 通道更新
+      - name: Generate Dev Version
+        shell: bash
+        run: node scripts/gen-version.cjs dev
+
       # 构建各平台代表性产物
       - name: Build ${{ matrix.name }}
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPDATE_CHANNEL: nightly
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: |
           case "${{ matrix.target }}" in

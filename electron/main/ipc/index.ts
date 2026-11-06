@@ -23,6 +23,8 @@ import { registerAiModelIpc } from "./aiModel";
 import { registerPlaylistIpc } from "./playlist";
 import { registerRecognitionIpc } from "./recognition";
 import { registerOpenccIpc } from "./opencc";
+import { registerMotionCoverIpc } from "./motionCover";
+import { registerAutoMixIpc } from "./automix";
 
 /**
  * 注册所有 IPC 处理
@@ -31,6 +33,7 @@ import { registerOpenccIpc } from "./opencc";
 export const registerIpcHandlers = (onStartupComplete: () => void): void => {
   registerSystemIpc();
   registerPlayerIpc();
+  registerAutoMixIpc();
   registerConfigIpc();
   registerLibraryIpc();
   registerNowPlayingIpc();
@@ -41,6 +44,7 @@ export const registerIpcHandlers = (onStartupComplete: () => void): void => {
   registerCommentsIpc();
   registerLyricsIpc();
   registerOpenccIpc();
+  registerMotionCoverIpc();
   registerHotkeyIpc();
   registerThemeIpc();
   registerStreamingIpc();

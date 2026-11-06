@@ -37,7 +37,8 @@ unsafe extern "system" fn win_event_proc(
         let len = unsafe { GetClassNameW(hwnd, &mut buffer) };
         if len > 0 {
             let name = String::from_utf16_lossy(&buffer[..len as usize]);
-            if name == "TrayNotifyWnd" {
+            // 歌词窗口只是任务栏的 owned 窗口，不随其移动，任务栏本体位移（自动隐藏等）也需重排
+            if name == "TrayNotifyWnd" || name == "Shell_TrayWnd" {
                 // 先 clone Arc 再释放锁，避免回调执行期间阻塞其它 GLOBAL_CALLBACK 访问
                 let callback = GLOBAL_CALLBACK
                     .lock()

@@ -60,7 +60,7 @@ const resolveLyricWidth = (): number => {
 
 /**
  * 初始窗口尺寸——故意设大，覆盖任何可能的任务栏宽度/高度
- * 关键原因：Electron BrowserWindow 在 `transparent:true`+SetParent 到任务栏后，
+ * 关键原因：Electron BrowserWindow 在 `transparent:true`+嵌入任务栏后，
  * Chromium 视口（layered window 的 compositor surface）不会随 setBounds 扩大，
  * 只会收缩初始尺寸小于后续 setBounds 目标时，超出初始尺寸的区域像素 alpha=0，
  * 按像素 alpha 命中测试会吞掉鼠标事件——即表现为"只有前面一点点可以操作"
@@ -102,10 +102,7 @@ const applyContentShape = (): void => {
       Math.round(adjustOccupiedSpace ? (contentWidth ?? region.maxWidth) : region.maxWidth),
     ),
   );
-  if (shapeWidth >= region.maxWidth) {
-    win.setShape([]);
-    return;
-  }
+  // 小任务栏可能低于 Chromium 最小窗口高度，始终按任务栏区域裁切渲染和命中范围
   const x = region.anchor === "right" ? region.maxWidth - shapeWidth : 0;
   win.setShape([{ x, y: 0, width: shapeWidth, height: region.height }]);
 };
@@ -166,7 +163,7 @@ const applyLayout = (layout: JsTaskbarLayout): void => {
     return;
   }
 
-  // Rust 返回物理像素，setBounds 用 DIP，需按 scaleFactor 转换
+  // Rust 返回屏幕物理像素，setBounds 用 DIP，需按 scaleFactor 转换
   // 副屏暂未支持：Rust 端只找主屏 Shell_TrayWnd，歌词窗口永远在主屏，主屏 scaleFactor 即所需
   const dpi = screen.getPrimaryDisplay().scaleFactor;
   // 用户自定义左右边距（DIP）：从可用空间两侧扣除
@@ -210,6 +207,7 @@ const applyLayout = (layout: JsTaskbarLayout): void => {
     isLight: layout.extra.isLight,
     anchor,
     maxWidth: windowWidth,
+    height: availHeight,
   });
 };
 

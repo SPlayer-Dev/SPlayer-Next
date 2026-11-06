@@ -130,6 +130,8 @@ export default defineConfig({
       }),
       Components({
         dirs: ["src/components"],
+        // 生产构建复用已提交的声明，避免并行转换重复写入同一文件
+        dts: process.env.NODE_ENV !== "production",
         resolvers: [RekaResolver(), IconsResolver({ prefix: "icon", customCollections: ["sp"] })],
       }),
     ],

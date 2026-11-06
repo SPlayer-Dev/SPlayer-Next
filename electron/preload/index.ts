@@ -13,7 +13,13 @@ import type {
   PluginMatchCoverArgs,
 } from "@shared/types/plugin";
 import type { HotkeyActionId, HotkeyBinding, HotkeyConflict } from "@shared/types/hotkey";
-import type { LoadOptions, Track, TrackSource, TransitionPreference } from "@shared/types/player";
+import type {
+  LoadOptions,
+  Track,
+  TrackSource,
+  TransitionPreference,
+  PreparedTrackResult,
+} from "@shared/types/player";
 import type {
   StreamingServerInput,
   StreamingFavoriteChange,
@@ -26,7 +32,7 @@ import type { UpdateEvent } from "@shared/types/update";
 import type { CloudUploadProgress } from "@shared/types/cloudUpload";
 import type { MusicCommentQuery } from "@shared/types/comment";
 import type { AiModelSaveInput } from "@shared/types/ai";
-import type { DesktopLyricUnlockButtonBounds } from "@shared/types/window";
+import type { DesktopLyricUnlockButtonBounds, TaskbarLyricLayoutEvent } from "@shared/types/window";
 import type {
   LegacyPlaylistRecord,
   PlaylistCreateInput,
@@ -34,6 +40,12 @@ import type {
 } from "@shared/types/playlist";
 import type { CjkTransformMode } from "@shared/types/opencc";
 import type { DownloadTrackIdentity } from "@shared/types/download";
+import type {
+  AutoMixComponentStatus,
+  AutoMixComponentId,
+  AutoMixPrepareOptions,
+  TransitionMode,
+} from "@shared/types/automix";
 
 /** 订阅主进程推送的事件 */
 const subscribe = <T>(channel: string, callback: (data: T) => void): (() => void) => {
@@ -56,6 +68,31 @@ const getInstallType = (): "nsis" | "portable" | "appx" | "dmg" | "appimage" => 
 
 // 暴露给渲染进程的自定义 API
 const api = {
+  automix: {
+    /**
+     * 查询分析组件状态，不触发下载
+     * @returns 组件安装状态
+     */
+    getStatus: (): Promise<AutoMixComponentStatus> => ipcRenderer.invoke("automix:getStatus"),
+    /**
+     * 手动下载选中的模型或独立运行时
+     * @param id - 组件标识
+     * @returns 更新后的组件状态
+     */
+    download: (id: AutoMixComponentId): Promise<AutoMixComponentStatus> =>
+      ipcRenderer.invoke("automix:download", id),
+    /** 取消本次下载 */
+    cancelDownload: (): Promise<void> => ipcRenderer.invoke("automix:cancelDownload"),
+    /**
+     * 订阅组件状态并清理 HMR 遗留监听器
+     * @param callback - 安装和下载状态回调
+     * @returns 解绑函数
+     */
+    onStatus: (callback: (status: AutoMixComponentStatus) => void): (() => void) => {
+      ipcRenderer.removeAllListeners("automix:componentStatus");
+      return subscribe("automix:componentStatus", callback);
+    },
+  },
   config: {
     get: (keyPath: string) => ipcRenderer.invoke("config:get", keyPath),
     set: (keyPath: string, value: unknown) => ipcRenderer.invoke("config:set", keyPath, value),
@@ -77,15 +114,17 @@ const api = {
      * @param source - 本地音频文件或缓存文件路径
      * @param startMs - 预载起点，单位为毫秒
      * @param preference - 交接偏好，省略时只预载音频
-     * @returns 音频就绪时返回 true，取消或失效时返回 false
+     * @param options - 自动混音模式和有效播放范围
+     * @returns PCM 槽位和自动混音计划各自的就绪状态
      */
     prepareNext: (
       id: string,
       source: string,
       startMs?: number,
       preference?: TransitionPreference,
-    ): Promise<boolean> =>
-      ipcRenderer.invoke("player:prepareNext", id, source, startMs, preference),
+      options?: AutoMixPrepareOptions,
+    ): Promise<PreparedTrackResult> =>
+      ipcRenderer.invoke("player:prepareNext", id, source, startMs, preference, options),
     /**
      * 请求主进程取消预载并释放对应的缓存租约
      * @param id - 要取消的预载任务标识
@@ -98,6 +137,7 @@ const api = {
      * @param remainingMs - 当前曲目剩余的墙钟时间
      * @param preference - 曲尾交接时机与淡化时长偏好
      * @param options - 下一曲的权威元数据和播放上下文
+     * @param mode - 过渡模式，省略时使用交叉过渡
      * @returns 交接成功时返回下一曲信息
      */
     transitionPrepared: (
@@ -106,8 +146,17 @@ const api = {
       remainingMs: number,
       preference: TransitionPreference,
       options: LoadOptions,
+      mode?: TransitionMode,
     ) =>
-      ipcRenderer.invoke("player:transitionPrepared", id, source, remainingMs, preference, options),
+      ipcRenderer.invoke(
+        "player:transitionPrepared",
+        id,
+        source,
+        remainingMs,
+        preference,
+        options,
+        mode,
+      ),
     // 加载音频（本地路径或网络地址）
     load: (source: string, options?: LoadOptions) =>
       ipcRenderer.invoke("player:load", source, options ?? {}),
@@ -229,9 +278,9 @@ const api = {
     listFonts: () => ipcRenderer.invoke("system:listFonts"),
     // 拉远端字节回渲染层
     fetchRemoteBytes: (url: string) => ipcRenderer.invoke("system:fetchRemoteBytes", url),
-    // 保存文件到下载目录
-    saveFile: (data: ArrayBuffer, defaultName: string) =>
-      ipcRenderer.invoke("system:saveFile", data, defaultName),
+    // 弹出保存对话框让用户选择位置
+    saveFile: (data: ArrayBuffer, defaultName: string, title: string) =>
+      ipcRenderer.invoke("system:saveFile", data, defaultName, title),
     // 重启应用
     relaunch: () => ipcRenderer.invoke("system:relaunch"),
     // 测试当前网络代理
@@ -271,6 +320,8 @@ const api = {
     getTracksByIds: (ids: string[]) => ipcRenderer.invoke("library:getTracksByIds", ids),
     // 搜索曲目
     searchTracks: (query: string) => ipcRenderer.invoke("library:searchTracks", query),
+    // 搜索窗分组搜索（歌曲 / 专辑 / 歌手）
+    quickSearch: (keyword: string) => ipcRenderer.invoke("library:quickSearch", keyword),
     // 获取曲目总数
     getTrackCount: () => ipcRenderer.invoke("library:getTrackCount"),
     // 随机取一首曲目
@@ -410,22 +461,8 @@ const api = {
   taskbarLyric: {
     setContentWidth: (width: number) => ipcRenderer.send("taskbarLyric:setContentWidth", width),
     // 订阅布局变化（锚定方向、是否居中、系统类型、任务栏主题）
-    onLayout: (
-      callback: (data: {
-        isCentered: boolean;
-        systemType: string;
-        isLight: boolean;
-        anchor: "left" | "right";
-        maxWidth: number;
-      }) => void,
-    ) =>
-      subscribe<{
-        isCentered: boolean;
-        systemType: string;
-        isLight: boolean;
-        anchor: "left" | "right";
-        maxWidth: number;
-      }>("taskbarLyric:layout", callback),
+    onLayout: (callback: (data: TaskbarLyricLayoutEvent) => void) =>
+      subscribe<TaskbarLyricLayoutEvent>("taskbarLyric:layout", callback),
     // 订阅任务栏歌词配置变化
     onConfigChange: (callback: (config: TaskbarLyricSettings) => void) =>
       subscribe<TaskbarLyricSettings>("taskbarLyric:configChange", callback),
@@ -516,6 +553,8 @@ const api = {
     // 获取 AMLL TTML DB 的 TTML
     fetchTTMLOverlay: (track: unknown, platform: string) =>
       ipcRenderer.invoke("lyrics:fetchTTMLOverlay", track, platform),
+    // 按元数据搜索 AMLL TTML DB
+    searchTTML: (track: unknown) => ipcRenderer.invoke("lyrics:searchTTML", track),
     // 在本地 TTML 歌词库目录中按元信息匹配
     matchLocalTTML: (track: unknown) => ipcRenderer.invoke("lyrics:matchLocalTTML", track),
     // 选择本地 TTML 歌词库目录
@@ -591,6 +630,11 @@ const api = {
     // 订阅当前曲目歌词偏移变化
     onLyricOffsetChange: (callback: (data: unknown) => void) =>
       subscribe("nowPlaying:lyric-offset-change", callback),
+  },
+  motionCover: {
+    // 解析曲目的动态封面
+    resolve: (track: unknown, source: string): Promise<string | null> =>
+      ipcRenderer.invoke("motionCover:resolve", track, source),
   },
   theme: {
     // 弹出文件选择框
@@ -849,6 +893,8 @@ const api = {
     getStatsSummary: () => ipcRenderer.invoke("stats:getStatsSummary"),
     // 取最常播放的曲目
     getTopTracks: (limit: number) => ipcRenderer.invoke("stats:getTopTracks", limit),
+    // 取最近播放的曲目
+    getRecentTracks: (limit: number) => ipcRenderer.invoke("stats:getRecentTracks", limit),
     // 取音乐库统计概览
     getLibraryStats: () => ipcRenderer.invoke("stats:getLibraryStats"),
     // 取最近 N 天的每日播放统计

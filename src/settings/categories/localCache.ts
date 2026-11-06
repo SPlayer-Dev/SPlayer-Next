@@ -20,7 +20,7 @@ const localCacheCategory: SettingCategory = {
             when: (next) => {
               if (next !== false) return false;
               const player = useSettingsStore().player;
-              return player.preloadNextTrack || player.transitionMode === "crossfade";
+              return player.preloadNextTrack || player.transitionMode !== "none";
             },
             titleKey: "settings.confirm.disableSongCacheTitle",
             contentKey: "settings.confirm.disableSongCacheContent",
@@ -30,7 +30,7 @@ const localCacheCategory: SettingCategory = {
             if (enabled !== false) return;
             const player = useSettingsStore().player;
             player.preloadNextTrack = false;
-            if (player.transitionMode === "crossfade") player.transitionMode = "none";
+            player.transitionMode = "none";
           },
           children: [
             {
@@ -62,6 +62,18 @@ const localCacheCategory: SettingCategory = {
     {
       id: "cache",
       items: [
+        {
+          key: "motionCoverSizeLimit",
+          type: "select",
+          binding: { store: "settings", path: "system.cache.motionCoverSizeLimitMb" },
+          options: [
+            { value: 100, label: "100 MB" },
+            { value: 300, label: "300 MB" },
+            { value: 500, label: "500 MB" },
+            { value: 1024, label: "1 GB" },
+          ],
+          defaultValue: 300,
+        },
         {
           key: "fileCacheManager",
           type: "custom",

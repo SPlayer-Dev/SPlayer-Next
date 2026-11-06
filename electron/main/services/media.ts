@@ -3,7 +3,13 @@ import { mediaLog, nativeLogsDir } from "@main/utils/logger";
 import { isDev } from "@main/utils/config";
 import { store } from "@main/store";
 import * as nowPlaying from "@main/services/nowPlaying";
-import type { MediaEvent, MetadataParam, PlayStateParam, TimelineParam } from "@splayer/media-ctrl";
+import type {
+  MediaEvent,
+  MetadataParam,
+  PlayModeParam,
+  PlayStateParam,
+  TimelineParam,
+} from "@splayer/media-ctrl";
 import type { DiscordDisplayMode, DiscordSettings } from "@shared/types/settings";
 
 type MediaCtrlModule = typeof import("@splayer/media-ctrl");
@@ -152,3 +158,6 @@ export const setRate = (rate: number): void => safeCall(() => mc?.setRate(rate))
 
 /** 更新音量 */
 export const setVolume = (volume: number): void => safeCall(() => mc?.setVolume(volume));
+
+/** 更新播放模式（随机 / 循环） */
+export const setPlayMode = (param: PlayModeParam): void => safeCall(() => mc?.setPlayMode(param));

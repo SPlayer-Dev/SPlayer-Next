@@ -72,26 +72,26 @@ describe("感知音量控制", () => {
     localStorage.setItem("status", JSON.stringify({ volume: 0.125 }));
     const { wrapper, status } = mountToolbar();
     expect(status.volume).toBe(0.125);
-    expect(wrapper.getComponent(SSlider).props("modelValue")).toBeCloseTo(0.5);
-    expect(wrapper.text()).toContain("50%");
+    expect(wrapper.getComponent(SSlider).props("modelValue")).toBeCloseTo(0.285739, 5);
+    expect(wrapper.text()).toContain("29%");
     expect(player.setVolume).not.toHaveBeenCalled();
   });
 
-  it("拖动到 50% 下发三次方增益，重建组件后恢复相同实际音量", async () => {
+  it("拖动到 50% 下发感知增益，重建组件后恢复相同实际音量", async () => {
     const { wrapper, status } = mountToolbar();
     const hitbox = wrapper.get(".s-slider-hitbox");
     Object.assign(hitbox.element, { setPointerCapture: vi.fn() });
     vi.spyOn(hitbox.element, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 15, 100));
     await hitbox.trigger("pointerdown", { pointerId: 1, clientY: 70 });
-    expect(status.volume).toBeCloseTo(0.027);
+    expect(status.volume).toBeCloseTo(0.13553, 4);
     await hitbox.trigger("pointermove", { pointerId: 1, clientY: 50 });
     await hitbox.trigger("pointerup", { pointerId: 1, clientY: 50 });
-    expect(player.setVolume).toHaveBeenLastCalledWith(0.125);
-    expect(status.volume).toBe(0.125);
-    expect(JSON.parse(localStorage.getItem("status")!).volume).toBe(0.125);
+    expect(player.setVolume).toHaveBeenLastCalledWith(expect.closeTo(0.316439, 5));
+    expect(status.volume).toBeCloseTo(0.316439, 5);
+    expect(JSON.parse(localStorage.getItem("status")!).volume).toBeCloseTo(0.316439, 5);
     wrapper.unmount();
     const restored = mountToolbar();
-    expect(restored.status.volume).toBe(0.125);
+    expect(restored.status.volume).toBeCloseTo(0.316439, 5);
     expect(restored.wrapper.text()).toContain("50%");
   });
 
@@ -100,14 +100,14 @@ describe("感知音量控制", () => {
     status.volume = 0.125;
     await nextTick();
     await wrapper.get(target).trigger("wheel", { deltaY: -100 });
-    expect(status.volume).toBeCloseTo(0.166375);
-    expect(wrapper.text()).toContain("55%");
+    expect(status.volume).toBeCloseTo(0.16682, 4);
+    expect(wrapper.text()).toContain("34%");
     expect(dispatch("player.volumeDown")).toBe(true);
     await nextTick();
     expect(status.volume).toBeCloseTo(0.125);
     expect(dispatch("player.volumeUp")).toBe(true);
     await nextTick();
-    expect(status.volume).toBeCloseTo(0.166375);
+    expect(status.volume).toBeCloseTo(0.16682, 4);
     await wrapper.get(target).trigger("wheel", { deltaY: 100 });
     expect(status.volume).toBeCloseTo(0.125);
   });
@@ -121,14 +121,14 @@ describe("感知音量控制", () => {
     expect(wrapper.text()).toContain("0%");
     await wrapper.get("button").trigger("click");
     expect(status.volume).toBe(0.027);
-    expect(wrapper.text()).toContain("30%");
+    expect(wrapper.text()).toContain("11%");
   });
 
-  it("低音量可细调，滚轮和快捷键均限制在静音和原始音量之间", async () => {
+  it("滚轮和快捷键均限制在静音与满音量之间", async () => {
     const { wrapper, status } = mountToolbar();
     status.volume = 0;
     expect(dispatch("player.volumeUp")).toBe(true);
-    expect(status.volume).toBeCloseTo(0.000125);
+    expect(status.volume).toBeCloseTo(0.006923, 5);
     await nextTick();
     await wrapper.get("button").trigger("wheel", { deltaY: 100 });
     expect(status.volume).toBe(0);

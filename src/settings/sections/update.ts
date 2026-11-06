@@ -18,7 +18,7 @@ export const updateSection: SettingSection = {
       })),
       defaultValue: "stable",
       confirm: {
-        when: (next) => next === "beta" || next === "alpha" || next === "nightly",
+        when: (next) => next === "beta" || next === "nightly",
         titleKey: "settings.confirm.testChannelTitle",
         contentKey: "settings.confirm.testChannelContent",
         type: "warning",

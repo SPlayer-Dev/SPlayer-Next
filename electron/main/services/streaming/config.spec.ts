@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({
   available: true,
+  syncAvailable: true,
   reEncrypt: false,
   persisted: "",
   initial: "",
@@ -9,7 +10,7 @@ const state = vi.hoisted(() => ({
 vi.mock("electron", () => ({
   safeStorage: {
     isAsyncEncryptionAvailable: async () => state.available,
-    getSelectedStorageBackend: () => "gnome_libsecret",
+    isEncryptionAvailable: () => state.syncAvailable,
     encryptStringAsync: async (text: string) => Buffer.from(`cipher:${text}`),
     decryptStringAsync: async (buffer: Buffer) => {
       if (!buffer.toString().startsWith("cipher:")) throw new Error("invalid ciphertext");
@@ -36,6 +37,7 @@ vi.mock("@main/utils/paths", () => ({ configDir: "test-config" }));
 beforeEach(() => {
   vi.resetModules();
   state.available = true;
+  state.syncAvailable = true;
   state.reEncrypt = false;
   state.initial = "";
   state.persisted = "";
@@ -128,5 +130,22 @@ describe("流媒体凭据存储", () => {
     await expect(legacy.getStreamingServer("server")).rejects.toThrow("重新输入密码");
     await legacy.updateStreamingServer("server", { ...input, password: "new" });
     expect((await legacy.getStreamingServer("server")).password).toBe("new");
+  });
+
+  it("同步安全存储不可用时迁移 1.1.0 的 base64 明文，系统密文仍要求重新输入", async () => {
+    state.syncAvailable = false;
+    state.initial = JSON.stringify({
+      servers: [
+        { ...input, id: "server", encryptedPassword: Buffer.from("old").toString("base64") },
+        { ...input, id: "cipher", encryptedPassword: Buffer.from("v11garbage").toString("base64") },
+      ],
+      activeServerId: "server",
+    });
+    const service = await import("./config");
+    expect((await service.getStreamingServer("server")).password).toBe("old");
+    expect(JSON.parse(state.persisted).servers[0].encryptedPassword).toBe(
+      `safe:v1:${Buffer.from("cipher:old").toString("base64")}`,
+    );
+    await expect(service.getStreamingServer("cipher")).rejects.toThrow("重新输入密码");
   });
 });

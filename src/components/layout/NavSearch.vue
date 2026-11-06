@@ -1,20 +1,15 @@
 <script setup lang="ts">
 import { useDataStore } from "@/stores/data";
 import { useStatusStore } from "@/stores/status";
-import { getHotSearches, type HotSearchItem } from "@/apis/search/hot";
-import { getSearchSuggest, type SuggestData, type SuggestSimpleItem } from "@/apis/search/suggest";
-import { songsByIds as getNeteaseSongsByIds } from "@/apis/song/netease";
-import { formatCompact } from "@/utils/format";
-import { navigateToAlbum, navigateToArtist, navigateToPlaylist } from "@/utils/navigate";
-import { parseMusicLink, type LinkType } from "@/utils/link";
-import type { TrackSource } from "@shared/types/player";
-import * as player from "@/core/player";
-import IconLucideMusic from "~icons/lucide/music";
-import IconLucideUser from "~icons/lucide/user";
-import IconLucideDisc from "~icons/lucide/disc";
-import IconLucideListMusic from "~icons/lucide/list-music";
+import { parseMusicLink } from "@/utils/link";
+import { dialog } from "@/composables/useDialog";
+import { useSearchCommands, type SearchCommandSection } from "@/composables/useSearchCommands";
+import { useSearchResults } from "@/composables/useSearchResults";
+import IconLucideZap from "~icons/lucide/zap";
+import IconLucideCommand from "~icons/lucide/command";
+import IconLucideSearch from "~icons/lucide/search";
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
 const router = useRouter();
 const route = useRoute();
 const data = useDataStore();
@@ -25,76 +20,25 @@ const dialogOpen = computed({
   get: () => status.searchOpen,
   set: (value: boolean) => (status.searchOpen = value),
 });
+const close = (): void => {
+  dialogOpen.value = false;
+};
 const searchQuery = ref("");
 const recognitionOpen = ref(false);
 
 const trimmedQuery = computed(() => searchQuery.value.trim());
 
+/** 以「/」开头进入命令模式 */
+const isCommand = computed(() => trimmedQuery.value.startsWith("/"));
+const commandKeyword = computed(() => trimmedQuery.value.slice(1).trim().toLowerCase());
+const { sections: commandSections } = useSearchCommands(commandKeyword, isCommand, close);
+const { resultSections, playedSections, loadPlayedTracks, openResource } = useSearchResults(
+  trimmedQuery,
+  close,
+);
+
 /** 音乐链接检测 */
 const parsedLink = computed(() => parseMusicLink(trimmedQuery.value));
-
-/** 热搜结果 */
-const hotItems = ref<HotSearchItem[]>([]);
-
-const loadHot = async (): Promise<void> => {
-  try {
-    hotItems.value = await getHotSearches();
-  } catch (err) {
-    console.warn("[NavSearch] hot search failed:", err);
-    hotItems.value = [];
-  }
-};
-
-/** 搜索建议 */
-const EMPTY_SUGGEST: SuggestData = { songs: [], albums: [], artists: [], playlists: [] };
-const suggest = ref<SuggestData>({ ...EMPTY_SUGGEST });
-
-const loadSuggest = useDebounceFn(async (keyword: string) => {
-  try {
-    suggest.value = await getSearchSuggest(keyword);
-  } catch (err) {
-    console.warn("[NavSearch] suggest failed:", err);
-  }
-}, 300);
-
-type SuggestKind = "song" | "artist" | "album" | "playlist";
-
-/**
- * 建议分类配置
- */
-const suggestSections = computed(() => {
-  const data = suggest.value;
-  return [
-    {
-      kind: "song" as SuggestKind,
-      icon: IconLucideMusic,
-      label: t("search.tabs.songs"),
-      items: data.songs.map<SuggestSimpleItem>((song) => ({
-        id: song.id,
-        name: song.name,
-        subtitle: [song.artist, song.album].filter(Boolean).join(" · ") || undefined,
-      })),
-    },
-    {
-      kind: "artist" as SuggestKind,
-      icon: IconLucideUser,
-      label: t("search.tabs.artists"),
-      items: data.artists,
-    },
-    {
-      kind: "album" as SuggestKind,
-      icon: IconLucideDisc,
-      label: t("search.tabs.albums"),
-      items: data.albums,
-    },
-    {
-      kind: "playlist" as SuggestKind,
-      icon: IconLucideListMusic,
-      label: t("search.tabs.playlists"),
-      items: data.playlists,
-    },
-  ].filter((sec) => sec.items.length > 0);
-});
 
 /**
  * 提交关键词并保留当前搜索来源
@@ -117,59 +61,76 @@ const submit = (raw: string): void => {
         : {}),
     },
   });
-  dialogOpen.value = false;
+  close();
 };
 
 const onSubmit = (): void => submit(trimmedQuery.value);
-const onPickKeyword = (keyword: string): void => submit(keyword);
-const onRemoveHistory = (keyword: string): void => data.removeSearchHistory(keyword);
-const onClearHistory = (): void => data.clearSearchHistory();
 
-/**
- * 建议点击
- * @param kind - 建议类型
- * @param id - 歌曲 id
- * @param name - 名称
- */
-const navigateToResource = async (
-  kind: SuggestKind | LinkType,
-  id: string,
-  source: TrackSource,
-  name?: string,
-): Promise<void> => {
-  dialogOpen.value = false;
-  switch (kind) {
-    case "song":
-      try {
-        const [track] = await getNeteaseSongsByIds([Number(id)]);
-        if (track) await player.playNow(track);
-      } catch (err) {
-        console.warn("[NavSearch] play song failed:", err);
-      }
-      break;
-    case "artist":
-      navigateToArtist(name, { source, artistId: id });
-      break;
-    case "album":
-      navigateToAlbum(name, { source, albumId: id });
-      break;
-    case "playlist":
-      navigateToPlaylist(id, { source, name });
-      break;
-  }
+/** 二次确认后清空搜索历史 */
+const onClearHistory = async (): Promise<void> => {
+  const ok = await dialog.confirm({
+    title: t("nav.searchSection.history"),
+    content: t("nav.searchHistoryClearConfirm"),
+    type: "warning",
+  });
+  if (ok) data.clearSearchHistory();
 };
 
-const onPickSuggest = (kind: SuggestKind, id: number, name: string): void => {
-  if (trimmedQuery.value) data.addSearchHistory(trimmedQuery.value);
-  navigateToResource(kind, String(id), "netease", name);
-};
-
-/** 音乐链接点击 */
-const onPickLink = (): void => {
+/** 快捷跳转：识别到的音乐链接与搜索当前关键词 */
+const quickSection = computed<SearchCommandSection>(() => {
   const link = parsedLink.value;
-  if (!link) return;
-  navigateToResource(link.type, link.id, link.source);
-};
+  return {
+    kind: "quick",
+    icon: IconLucideZap,
+    label: t("nav.searchSection.quick"),
+    items: [
+      ...(link
+        ? [
+            {
+              id: "parsed-link",
+              label: t(`nav.link.${link.type}`, { id: link.id }),
+              arrow: true,
+              action: () => openResource(link.type, link.id, link.source),
+            },
+          ]
+        : []),
+      {
+        id: "quick",
+        label: t("nav.searchGoto", { keyword: trimmedQuery.value }),
+        arrow: true,
+        action: onSubmit,
+      },
+    ],
+  };
+});
+
+/** 列表分组：命令模式为命令，有输入为快捷跳转与搜索结果，否则为播放记录 */
+const listSections = computed<SearchCommandSection[]>(() => {
+  if (isCommand.value) return commandSections.value;
+  if (trimmedQuery.value) return [quickSection.value, ...resultSections.value];
+  return playedSections.value;
+});
+
+/** 占位：命令模式无结果，或默认视图没有播放记录时展示 */
+const placeholder = computed(() => {
+  if (isCommand.value) {
+    if (commandSections.value.length > 0) return null;
+    return {
+      icon: IconLucideCommand,
+      text: commandKeyword.value ? t("common.noData") : t("nav.searchCommandTip"),
+    };
+  }
+  if (trimmedQuery.value || playedSections.value.length > 0) return null;
+  return { icon: IconLucideSearch, text: t("nav.searchCommandHint") };
+});
+
+/** 底部按键提示 */
+const footerHints = computed(() => [
+  { keys: "↑↓", label: t("nav.searchFooter.select") },
+  { keys: "↵", label: t("nav.searchFooter.run") },
+  ...(isCommand.value ? [] : [{ keys: "/", label: t("nav.searchFooter.command") }]),
+  { keys: "Esc", label: isCommand.value ? t("common.back") : t("common.close") },
+]);
 
 const bodyRef = ref<HTMLElement | null>(null);
 const bodyHeight = ref<number | null>(null);
@@ -186,106 +147,78 @@ const bodyStyle = computed(() =>
 
 const activeIndex = ref(-1);
 
-/** 键盘上下导航 */
-const keyboardItems = computed(() => {
-  const items: Array<{ id: string; action: () => void }> = [];
-  if (trimmedQuery.value) {
-    if (parsedLink.value) {
-      items.push({ id: "parsed-link", action: onPickLink });
-    }
-    items.push({ id: "quick", action: onSubmit });
-    for (const sec of suggestSections.value) {
-      for (const entry of sec.items) {
-        items.push({
-          id: `${sec.kind}-${entry.id}`,
-          action: () => onPickSuggest(sec.kind, entry.id, entry.name),
-        });
-      }
-    }
-  } else {
-    for (const word of data.searchHistory) {
-      items.push({ id: `history-${word}`, action: () => onPickKeyword(word) });
-    }
-    hotItems.value
-      .slice(0, 20)
-      .forEach((item, idx) =>
-        items.push({ id: `hot-${item.keyword}-${idx}`, action: () => onPickKeyword(item.keyword) }),
-      );
-  }
-  return items;
-});
+/** 键盘上下导航：默认视图的搜索历史在前，其后为列表分组 */
+const keyboardItems = computed(() => [
+  ...(trimmedQuery.value
+    ? []
+    : data.searchHistory.map((word) => ({ id: `history-${word}`, action: () => submit(word) }))),
+  ...listSections.value.flatMap((sec) => sec.items),
+]);
 
 watch(keyboardItems, () => {
   activeIndex.value = -1;
 });
 
-const isActive = (id: string) => {
-  return activeIndex.value >= 0 && keyboardItems.value[activeIndex.value]?.id === id;
-};
+const isActive = (id: string) =>
+  activeIndex.value >= 0 && keyboardItems.value[activeIndex.value]?.id === id;
 
 const scrollToActive = async () => {
   await nextTick();
   const id = keyboardItems.value[activeIndex.value]?.id;
-  if (!id || !bodyRef.value) return;
-  const safeId = id.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  const el = bodyRef.value.querySelector(`[data-search-id="${safeId}"]`) as HTMLElement;
-  if (el) {
-    el.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }
+  if (!id) return;
+  bodyRef.value
+    ?.querySelector(`[data-search-id="${CSS.escape(id)}"]`)
+    ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
 };
 
 const onKeydown = (e: KeyboardEvent) => {
-  if (e.key === "ArrowDown") {
+  const count = keyboardItems.value.length;
+  if (e.key === "Escape") {
+    if (!isCommand.value || e.isComposing) return;
+    // 阻止弹窗关闭，只退出命令模式；SInput 按 Esc 会失焦，需要重新聚焦
     e.preventDefault();
-    if (keyboardItems.value.length === 0) return;
-    activeIndex.value = (activeIndex.value + 1) % keyboardItems.value.length;
-    scrollToActive();
-  } else if (e.key === "ArrowUp") {
+    searchQuery.value = "";
+    (e.target as HTMLElement).focus();
+  } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
     e.preventDefault();
-    if (keyboardItems.value.length === 0) return;
-    activeIndex.value =
-      (activeIndex.value - 1 + keyboardItems.value.length) % keyboardItems.value.length;
+    if (count === 0) return;
+    const step = e.key === "ArrowDown" ? 1 : -1;
+    activeIndex.value = (activeIndex.value + step + count) % count;
     scrollToActive();
   } else if (e.key === "Enter") {
     if (e.isComposing) return;
     e.preventDefault();
-    if (activeIndex.value >= 0 && activeIndex.value < keyboardItems.value.length) {
+    if (activeIndex.value >= 0 && activeIndex.value < count) {
       keyboardItems.value[activeIndex.value].action();
+    } else if (isCommand.value) {
+      // 命令模式未选中时执行第一项，无结果则不响应
+      keyboardItems.value[0]?.action();
     } else {
       onSubmit();
     }
   }
 };
 
-const onMouseMove = () => {
-  if (activeIndex.value !== -1) {
-    activeIndex.value = -1;
-  }
-};
-
 watch(trimmedQuery, (kw, prev) => {
-  // 输入变化即清空建议
-  suggest.value = { ...EMPTY_SUGGEST };
-  if (kw) {
-    // 进入搜索建议
-    if (!prev) bodyHeight.value = 0;
-    loadSuggest(kw);
-  }
+  if (!kw || prev) return;
+  // 从默认视图进入输入时收起高度，内容高度不变时 ResizeObserver 不触发，下一帧主动测量一次
+  bodyHeight.value = 0;
+  requestAnimationFrame(() => {
+    if (bodyHeight.value === 0 && bodyRef.value) {
+      bodyHeight.value = bodyRef.value.offsetHeight;
+    }
+  });
 });
 
 watch(dialogOpen, (open) => {
   if (open) {
     searchQuery.value = "";
-    loadHot();
+    loadPlayedTracks();
   } else {
     // 关闭复位：下次开弹仍是 auto 起手
     bodyHeight.value = null;
     activeIndex.value = -1;
   }
-});
-
-onMounted(() => {
-  loadHot();
 });
 </script>
 
@@ -331,7 +264,7 @@ onMounted(() => {
       <div class="px-4 pt-4 pb-3">
         <NavSearchInput
           v-model="searchQuery"
-          :placeholder="t('nav.searchPlaceholder')"
+          :placeholder="t('nav.searchCommandHint')"
           @keydown="onKeydown"
           @search="submit"
         />
@@ -340,137 +273,87 @@ onMounted(() => {
         <div
           ref="bodyRef"
           class="max-h-[65vh] overflow-y-auto px-4 pb-4 flex flex-col gap-4"
-          @mousemove="onMouseMove"
+          @mousemove="activeIndex = -1"
         >
-          <template v-if="trimmedQuery">
-            <!-- 快捷跳转 -->
-            <div class="flex flex-col gap-1.5">
-              <div class="px-2 flex items-center gap-1.5 text-sm font-medium text-primary">
-                <IconLucideZap class="size-4" />
-                <span>{{ t("nav.searchSection.quick") }}</span>
+          <!-- 历史 -->
+          <div v-if="!trimmedQuery && data.searchHistory.length > 0" class="flex flex-col gap-2">
+            <div class="px-2 flex items-center justify-between">
+              <div class="flex items-center gap-1.5 text-sm font-medium text-primary">
+                <IconLucideHistory class="size-4" />
+                <span>{{ t("nav.searchSection.history") }}</span>
               </div>
-              <!-- 链接跳转 -->
-              <div
-                v-if="parsedLink"
-                class="min-w-0 flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-on-surface/5 transition-colors duration-200"
-                :class="{ 'bg-on-surface/5': isActive('parsed-link') }"
-                data-search-id="parsed-link"
-                @click="onPickLink"
-              >
-                <span class="flex-1 truncate text-sm text-on-surface">
-                  {{ t(`nav.link.${parsedLink.type}`, { id: parsedLink.id }) }}
-                </span>
-                <IconLucideArrowRight class="size-4 shrink-0 text-on-surface-variant" />
-              </div>
-              <!-- 搜索关键词 -->
-              <div
-                class="min-w-0 flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-on-surface/5 transition-colors duration-200"
-                :class="{ 'bg-on-surface/5': isActive('quick') }"
-                data-search-id="quick"
-                @click="onSubmit"
-              >
-                <span class="flex-1 truncate text-sm text-on-surface">
-                  {{ t("nav.searchGoto", { keyword: trimmedQuery }) }}
-                </span>
-                <IconLucideArrowRight class="size-4 shrink-0 text-on-surface-variant" />
-              </div>
+              <SButton variant="ghost" size="tiny" circle @click="onClearHistory">
+                <template #icon><IconLucideTrash2 /></template>
+              </SButton>
             </div>
-            <!-- 建议分类 -->
-            <div v-for="sec in suggestSections" :key="sec.kind" class="flex flex-col gap-1.5">
-              <div class="px-2 flex items-center gap-1.5 text-sm font-medium text-primary">
-                <component :is="sec.icon" class="size-4" />
-                <span>{{ sec.label }}</span>
-              </div>
-              <div
-                v-for="entry in sec.items"
-                :key="entry.id"
-                class="min-w-0 flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-on-surface/5 transition-colors duration-200"
-                :class="{ 'bg-on-surface/5': isActive(`${sec.kind}-${entry.id}`) }"
-                :data-search-id="`${sec.kind}-${entry.id}`"
-                @click="onPickSuggest(sec.kind, entry.id, entry.name)"
+            <div class="flex flex-wrap gap-1.5">
+              <STag
+                v-for="word in data.searchHistory"
+                :key="word"
+                type="default"
+                round
+                closable
+                class="max-w-50 cursor-pointer hover:bg-on-surface/20 transition-colors duration-200"
+                :class="{ 'bg-on-surface/20': isActive(`history-${word}`) }"
+                :data-search-id="`history-${word}`"
+                @click="submit(word)"
+                @close="data.removeSearchHistory(word)"
               >
-                <div class="flex-1 min-w-0 flex flex-col leading-tight">
-                  <span class="truncate text-sm text-on-surface">{{ entry.name }}</span>
-                  <span v-if="entry.subtitle" class="truncate text-xs text-on-surface-variant">
-                    {{ entry.subtitle }}
-                  </span>
-                </div>
-              </div>
+                <span class="truncate">{{ word }}</span>
+              </STag>
             </div>
-          </template>
-          <template v-else>
-            <!-- 历史 -->
-            <div v-if="data.searchHistory.length > 0" class="flex flex-col gap-2">
-              <div class="px-2 flex items-center justify-between">
-                <div class="flex items-center gap-1.5 text-sm font-medium text-primary">
-                  <IconLucideHistory class="size-4" />
-                  <span>{{ t("nav.searchSection.history") }}</span>
-                </div>
-                <SButton variant="ghost" size="tiny" circle @click="onClearHistory">
-                  <template #icon><IconLucideTrash2 /></template>
-                </SButton>
-              </div>
-              <div class="flex flex-wrap gap-1.5">
-                <STag
-                  v-for="word in data.searchHistory"
-                  :key="word"
-                  type="default"
-                  round
-                  closable
-                  class="max-w-50 cursor-pointer hover:bg-on-surface/20 transition-colors duration-200"
-                  :class="{ 'bg-on-surface/20': isActive(`history-${word}`) }"
-                  :data-search-id="`history-${word}`"
-                  @click="onPickKeyword(word)"
-                  @close="onRemoveHistory(word)"
-                >
-                  <span class="truncate">{{ word }}</span>
-                </STag>
-              </div>
+          </div>
+          <!-- 快捷跳转与搜索结果 / 命令 / 播放记录 -->
+          <div v-for="sec in listSections" :key="sec.kind" class="flex flex-col gap-1.5">
+            <div class="px-2 flex items-center gap-1.5 text-sm font-medium text-primary">
+              <component :is="sec.icon" class="size-4" />
+              <span>{{ sec.label }}</span>
             </div>
-            <!-- 空内容提示 -->
             <div
-              v-if="data.searchHistory.length === 0 && hotItems.length === 0"
-              class="py-10 flex flex-col items-center justify-center gap-2 text-on-surface-variant/40"
+              v-for="entry in sec.items"
+              :key="entry.id"
+              class="min-w-0 flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-on-surface/5 transition-colors duration-200"
+              :class="{ 'bg-on-surface/5': isActive(entry.id) }"
+              :data-search-id="entry.id"
+              @click="entry.action"
             >
-              <IconLucideSearch class="size-8" />
-              <span class="text-xs">{{ t("nav.searchEmpty") }}</span>
-            </div>
-            <!-- 热搜 -->
-            <div v-if="hotItems.length > 0" class="flex flex-col gap-2">
-              <div class="px-2 flex items-center gap-1.5 text-sm font-medium text-primary">
-                <IconLucideFlame class="size-4" />
-                <span>{{ t("nav.searchSection.hot") }}</span>
-              </div>
-              <div class="grid grid-cols-2 gap-x-2 gap-y-0.5">
-                <div
-                  v-for="(item, idx) in hotItems.slice(0, 20)"
-                  :key="`${item.keyword}-${idx}`"
-                  class="min-h-11 min-w-0 flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-on-surface/5 transition-colors duration-200"
-                  :class="{ 'bg-on-surface/5': isActive(`hot-${item.keyword}-${idx}`) }"
-                  :data-search-id="`hot-${item.keyword}-${idx}`"
-                  @click="onPickKeyword(item.keyword)"
-                >
-                  <span
-                    class="shrink-0 w-5 text-center text-sm font-semibold tabular-nums text-on-surface-variant/50"
-                  >
-                    {{ idx + 1 }}
-                  </span>
-                  <div class="flex-1 min-w-0 flex flex-col leading-tight">
-                    <span class="truncate text-sm text-on-surface">{{ item.keyword }}</span>
-                    <span v-if="item.content" class="truncate text-xs text-on-surface-variant">
-                      {{ item.content }}
-                    </span>
-                  </div>
-                  <span
-                    v-if="item.score"
-                    class="shrink-0 text-xs tabular-nums text-on-surface-variant/50"
-                  >
-                    {{ formatCompact(item.score, locale) }}
-                  </span>
+              <component
+                :is="entry.icon"
+                v-if="entry.icon"
+                class="size-4 shrink-0 text-on-surface-variant"
+              />
+              <div class="flex-1 min-w-0 flex flex-col leading-tight">
+                <div class="min-w-0 flex items-center gap-1.5">
+                  <span class="truncate text-sm text-on-surface">{{ entry.label }}</span>
+                  <STag v-if="entry.local" size="tiny" type="default" class="shrink-0">
+                    {{ t("collection.scope.local") }}
+                  </STag>
                 </div>
+                <span v-if="entry.subtitle" class="truncate text-xs text-on-surface-variant">
+                  {{ entry.subtitle }}
+                </span>
               </div>
+              <STag v-if="entry.shortcut" size="small" type="default" class="shrink-0">
+                {{ entry.shortcut }}
+              </STag>
+              <IconLucideArrowRight
+                v-if="entry.arrow"
+                class="size-4 shrink-0 text-on-surface-variant"
+              />
             </div>
-          </template>
+          </div>
+          <div v-if="placeholder" class="py-10 text-center text-on-surface-variant/50">
+            <component :is="placeholder.icon" class="size-10 mx-auto mb-2 opacity-30" />
+            <div class="text-sm">{{ placeholder.text }}</div>
+          </div>
+        </div>
+      </div>
+      <!-- 底部按键提示 -->
+      <SDivider />
+      <div class="px-4 py-2.5 flex items-center gap-4 text-xs text-on-surface-variant">
+        <div v-for="hint in footerHints" :key="hint.keys" class="flex items-center gap-1.5">
+          <STag size="tiny" type="default">{{ hint.keys }}</STag>
+          <span>{{ hint.label }}</span>
         </div>
       </div>
     </div>

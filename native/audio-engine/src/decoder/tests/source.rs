@@ -5,6 +5,8 @@ use crate::decoder::buffer::AudioChunk;
 fn returns_preprocessed_samples_without_copying() {
     let shared = Shared::new(48_000, 2);
     shared.push_output(AudioChunk {
+        normalization_gain: 1.0,
+        stem_samples: None,
         player_samples: vec![0.1, -0.1, 2.0, -2.0],
         fft_samples: vec![],
         source_sample_count: 4,
@@ -22,6 +24,8 @@ fn returns_preprocessed_samples_without_copying() {
 fn position_uses_source_sample_count_after_tempo_processing() {
     let shared = Shared::new(1000, 2);
     shared.push_output(AudioChunk {
+        normalization_gain: 1.0,
+        stem_samples: None,
         player_samples: vec![0.25, -0.25],
         fft_samples: vec![],
         source_sample_count: 8,
@@ -41,6 +45,8 @@ fn cue_end_stops_at_a_complete_frame_inside_a_chunk() {
     let shared = Shared::new(1000, 2);
     shared.set_end_position(0.003);
     shared.push_output(AudioChunk {
+        normalization_gain: 1.0,
+        stem_samples: None,
         player_samples: vec![0.25; 100],
         fft_samples: vec![],
         source_sample_count: 100,
@@ -58,6 +64,8 @@ fn cue_end_stops_at_a_complete_frame_inside_a_chunk() {
 fn tempo_warmup_without_output_still_advances_source_position() {
     let shared = Shared::new(1000, 2);
     shared.push_output(AudioChunk {
+        normalization_gain: 1.0,
+        stem_samples: None,
         player_samples: Vec::new(),
         fft_samples: Vec::new(),
         source_sample_count: 8,
@@ -75,6 +83,8 @@ fn underrun_recovers_at_next_callback_without_extending_silence() {
 
     assert_eq!(source.next(), Some(0.0));
     shared.push_output(AudioChunk {
+        normalization_gain: 1.0,
+        stem_samples: None,
         player_samples: vec![0.25, -0.25],
         fft_samples: vec![],
         source_sample_count: 2,
@@ -93,6 +103,8 @@ fn startup_waits_for_audio_but_short_track_drains_at_eof() {
     let shared = Shared::new(192_000, 2);
     let mut source = DecoderSource::new(Arc::clone(&shared));
     shared.push_output(AudioChunk {
+        normalization_gain: 1.0,
+        stem_samples: None,
         player_samples: vec![0.25; 2],
         fft_samples: vec![],
         source_sample_count: 2,
@@ -121,6 +133,8 @@ fn high_rate_underrun_does_not_delay_ready_audio_to_twenty_milliseconds() {
         }
         assert_eq!(shared.take_underruns(), 1);
         shared.push_output(AudioChunk {
+            normalization_gain: 1.0,
+            stem_samples: None,
             player_samples: vec![0.25, -0.25],
             fft_samples: vec![],
             source_sample_count: 2,

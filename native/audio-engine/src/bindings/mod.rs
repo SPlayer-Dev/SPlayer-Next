@@ -4,10 +4,12 @@ use napi::bindgen_prelude::Error;
 use napi_derive::napi;
 use tracing::info;
 
+mod analysis;
 mod player;
 mod scanner;
 mod tags;
 
+pub use analysis::*;
 pub use player::*;
 pub use scanner::*;
 pub use tags::*;
@@ -27,6 +29,15 @@ impl<T> IntoNapiResult<T> for anyhow::Result<T> {
             Error::from_reason(format!("[{}] {classified}", classified.code()))
         })
     }
+}
+
+/// 设置网络音频代理（http/https/socks5），为空时直连；对之后打开的音频流生效
+#[napi]
+pub fn set_http_proxy(proxy_url: Option<String>) {
+    *crate::decoder::HTTP_PROXY.write() = match proxy_url {
+        Some(url) => ffmpeg_audio::HttpProxy::Url(url),
+        None => ffmpeg_audio::HttpProxy::Direct,
+    };
 }
 
 /// 初始化原生日志系统。重复调用是无害的（HMR 重载时主进程可能多次注入）

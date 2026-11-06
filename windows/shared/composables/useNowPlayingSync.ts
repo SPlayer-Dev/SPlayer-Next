@@ -23,6 +23,7 @@ export interface NowPlayingSyncOptions {
 export interface NowPlayingSync {
   track: ShallowRef<Track | null>;
   lyric: ShallowRef<LyricLine[]>;
+  wordTimed: Ref<boolean>;
   playing: Ref<boolean>;
   primaryIndex: Ref<number>;
 }
@@ -36,6 +37,7 @@ export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSyn
 
   const track = shallowRef<Track | null>(null);
   const lyric = shallowRef<LyricLine[]>([]);
+  const wordTimed = ref(false);
   const playing = ref(false);
   const primaryIndex = ref(-1);
 
@@ -82,8 +84,13 @@ export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSyn
     }
   };
 
+  /**
+   * 应用歌词和播放快照，保留统一解析得到的逐字标记
+   * @param snap - 主进程同步的当前播放快照
+   */
   const applySnapshot = (snap: NowPlayingSnapshot): void => {
     track.value = snap.track;
+    wordTimed.value = snap.source?.wordTimed ?? false;
     const mainLines = snap.lyric.filter((line) => !line.isBG);
     lyric.value = clampLastLineEnd(mainLines, snap.track?.duration);
     playing.value = snap.playing;
@@ -148,5 +155,5 @@ export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSyn
     for (const off of unsubscribers) off();
   });
 
-  return { track, lyric, playing, primaryIndex };
+  return { track, lyric, wordTimed, playing, primaryIndex };
 };

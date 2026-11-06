@@ -68,7 +68,7 @@ export const clearQQMusicCache = (): void => {
 
 /**
  * 调用任意 QM API
- * @param name  见 modules/index.ts 中的 key（search / song_info / lyric / match / hot_search / leaderboard / song_list / user_detail / song_url）
+ * @param name  见 modules/index.ts 中的 key（search / song_info / lyric / match / leaderboard / song_list / user_detail / song_url）
  * @param params 业务参数；不想命中缓存可传 `timestamp: Date.now()`
  */
 export const callQQMusic = async (name: string, params: QMParams = {}): Promise<any> => {

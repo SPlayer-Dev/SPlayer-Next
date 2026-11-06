@@ -9,7 +9,7 @@
  */
 
 import { callNetease } from "@main/apis/netease";
-import { getCachedLyric, setCachedLyric } from "@main/database/lyricCache";
+import { withLyricCache } from "@main/database/lyricCache";
 import { buildFingerprint, getMatchedId, setMatchedId } from "@main/database/lyricMatchCache";
 import { coreLog } from "@main/utils/logger";
 import type { LyricMatchResult } from "@shared/types/lyrics";
@@ -50,38 +50,34 @@ const pickSub = (
 export const getByPlatformId = async (id: string): Promise<LyricMatchResult | null> => {
   // 立刻预热 TTML 抓取
   prefetchTTML("netease", [id]);
-  // 缓存命中直接返回
-  const cached = getCachedLyric("netease", id);
-  if (cached) {
-    // 纠正旧版本格式
-    if (cached.translationFormat === "yrc") cached.translationFormat = "lrc";
-    if (cached.romajiFormat === "yrc") cached.romajiFormat = "lrc";
-    return cached;
-  }
-  try {
-    const { status, body } = await callNetease("lyric_new", { id });
-    if (status !== 200 || body.code !== 200) return null;
-    // 主歌词：yrc > lrc
-    const main = pickMain(body.yrc?.lyric, body.lrc?.lyric);
-    if (!main) return null;
-    // 翻译 / 罗马音
-    const trans = pickSub(body.ytlrc?.lyric, body.tlyric?.lyric);
-    const roma = pickSub(body.yromalrc?.lyric, body.romalrc?.lyric);
-    const result: LyricMatchResult = {
-      platform: "netease",
-      format: main.format,
-      content: main.content,
-      translation: trans?.content,
-      translationFormat: trans?.format,
-      romaji: roma?.content,
-      romajiFormat: roma?.format,
-    };
-    setCachedLyric("netease", id, result);
-    return result;
-  } catch (err) {
-    coreLog.warn(`[lyric:netease] getByPlatformId(${id}) failed:`, err);
-    return null;
-  }
+  const result = await withLyricCache("netease", id, async () => {
+    try {
+      const { status, body } = await callNetease("lyric_new", { id });
+      if (status !== 200 || body.code !== 200) return null;
+      // 主歌词：yrc > lrc
+      const main = pickMain(body.yrc?.lyric, body.lrc?.lyric);
+      if (!main) return null;
+      // 翻译 / 罗马音
+      const trans = pickSub(body.ytlrc?.lyric, body.tlyric?.lyric);
+      const roma = pickSub(body.yromalrc?.lyric, body.romalrc?.lyric);
+      return {
+        platform: "netease",
+        format: main.format,
+        content: main.content,
+        translation: trans?.content,
+        translationFormat: trans?.format,
+        romaji: roma?.content,
+        romajiFormat: roma?.format,
+      };
+    } catch (err) {
+      coreLog.warn(`[lyric:netease] getByPlatformId(${id}) failed:`, err);
+      return null;
+    }
+  });
+  // 纠正旧版本缓存格式
+  if (result?.translationFormat === "yrc") result.translationFormat = "lrc";
+  if (result?.romajiFormat === "yrc") result.romajiFormat = "lrc";
+  return result;
 };
 
 /**

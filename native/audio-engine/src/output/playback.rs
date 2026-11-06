@@ -119,6 +119,11 @@ impl PlaybackHandle {
         self.transition.set_speed_ratio(ratio);
     }
 
+    /// 平滑撤回 AutoMix，继续输出原曲
+    pub fn cancel_transition(&self) {
+        self.transition.cancel();
+    }
+
     pub fn play(&self) {
         if let Err(error) = self.stream.play() {
             warn!(%error, "恢复音频输出失败");

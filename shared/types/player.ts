@@ -128,6 +128,10 @@ export interface Track {
   artists: Artist[];
   /** 专辑 */
   album?: Album;
+  /** 碟号，从 1 开始 */
+  disc?: number;
+  /** 碟片名称 */
+  discTitle?: string;
   /** 曲目编号 */
   track?: number;
   /** 时长（毫秒） */
@@ -227,11 +231,14 @@ export interface AudioDevice {
 /** 曲尾交接时机与淡化时长偏好 */
 export type TransitionPreference = "conservative" | "standard" | "eager";
 
+/** 动态封面来源 */
+export type MotionCoverSource = "off" | "ncm" | "am" | "amFirst";
+
 export type PlayerEvent =
   | { type: "status"; data: PlayerStatus }
   | { type: "position"; data: { position: number; duration: number } }
   | { type: "transitionReady"; data: { id: string; position: number; endPosition?: number } }
-  | { type: "transition"; data: { active: boolean; mode: "crossfade" } }
+  | { type: "transition"; data: { active: boolean; mode: "crossfade" | "automix" } }
   | { type: "seek"; data: { position: number } }
   | { type: "ended" }
   | { type: "sourceError" }
@@ -294,6 +301,13 @@ export interface AudioStreamInfo {
   isLimiterActive: boolean;
 }
 
+/** PCM 预载与自动混音分析的独立就绪状态 */
+export interface PreparedTrackResult {
+  ready: boolean;
+  /** 当前曲展示时间轴上的计划入场点，仅在 AutoMix 就绪时返回 */
+  autoMixStartMs?: number;
+}
+
 /** 播放器 API */
 export interface PlayerApi {
   /**
@@ -301,14 +315,17 @@ export interface PlayerApi {
    * @param id - 预载任务标识，用于取消或在加载时消费该槽位
    * @param source - 本地音频文件或已完成下载的缓存文件路径
    * @param startMs - 预载起点，单位为毫秒，默认为 0
-   * @returns 预载就绪时返回 true，任务被取消或取代时返回 false
+   * @param preference - 交叉过渡的曲尾交接偏好
+   * @param options - 自动混音模式和有效播放范围
+   * @returns PCM 槽位和自动混音计划各自的就绪状态
    */
   prepareNext(
     id: string,
     source: string,
     startMs?: number,
     preference?: TransitionPreference,
-  ): Promise<boolean>;
+    options?: import("./automix").AutoMixPrepareOptions,
+  ): Promise<PreparedTrackResult>;
   /**
    * 取消指定预载任务并释放缓存租约，不影响其他代次的任务
    * @param id - 要取消的预载任务标识
@@ -321,6 +338,7 @@ export interface PlayerApi {
    * @param remainingMs - 当前曲目剩余的墙钟时间
    * @param preference - 曲尾交接时机与淡化时长偏好
    * @param options - 下一曲的权威元数据和播放上下文
+   * @param mode - 过渡模式，省略时使用交叉过渡
    * @returns 交接成功时返回下一曲信息，未命中时返回失败响应
    */
   transitionPrepared(
@@ -329,6 +347,7 @@ export interface PlayerApi {
     remainingMs: number,
     preference: TransitionPreference,
     options: LoadOptions,
+    mode?: import("./automix").TransitionMode,
   ): Promise<IpcResponse<LoadResult>>;
   /** 加载音频（本地路径或网络地址）；可选下发权威 meta 用于 SMTC/托盘 */
   load: (source: string, options?: LoadOptions) => Promise<IpcResponse<LoadResult>>;
@@ -391,8 +410,8 @@ export interface PlayerApi {
   setOutputDevice: (deviceId: string | null, pauseBeforeSwitch?: boolean) => Promise<IpcResponse>;
   /** 获取当前选择的输出设备 ID（None = 跟随系统默认） */
   getSelectedDeviceName: () => Promise<IpcResponse<string | null>>;
-  /** 同步播放模式到托盘 */
-  syncPlayMode: (repeatMode: string, shuffleMode: string) => void;
+  /** 渲染进程同步播放模式到托盘与系统媒体控件 */
+  syncPlayMode: (repeatMode: RepeatMode, shuffleMode: ShuffleMode) => void;
   /**
    * 同步主窗口当前队列索引
    * @param index - 当前队列索引，无当前队列项时为 -1

@@ -79,6 +79,7 @@ export const qqSongToTrack = (song: QMSong): Track => {
         ? [{ name: song.artist }]
         : [],
     album: song.album ? { id: song.albumMid, name: song.album, cover } : undefined,
+    disc: song.disc,
     duration: song.duration ?? 0,
     quality: audio?.quality,
     fileSize: audio?.fileSize,

@@ -2,6 +2,10 @@ use super::*;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
+use crate::decoder::transition_source::{
+    MixEnvelope, TRANSITION_DECISION_BEAT, TRANSITION_DECISION_QUIET,
+};
+
 /// 只对持续无播放进展的输出计时，倍速变化和暂停不会耗尽交接预算。
 struct TransitionWatchdog {
     position: f64,
@@ -43,8 +47,10 @@ impl AudioPlayer {
     /// @param preference - 曲尾交接时机与淡化时长偏好
     /// @param nextEndSeconds - 下一曲的 CUE 结束位置
     /// @param currentEndSeconds - 当前曲目的 CUE 结束位置
+    /// @param automix - 已验证的对拍交接计划，省略时使用交叉过渡
     /// @returns 成功交接时返回下一曲元信息，槽位失效时返回空值
     #[napi]
+    #[allow(clippy::too_many_arguments)]
     pub async fn transition_to_prepared(
         &self,
         id: String,
@@ -53,6 +59,7 @@ impl AudioPlayer {
         preference: String,
         next_end_seconds: Option<f64>,
         current_end_seconds: Option<f64>,
+        automix: Option<JsAutoMixPlan>,
     ) -> Result<Option<JsMusicMetadata>> {
         let inner = Arc::clone(&self.inner);
         let expected_token = inner.lock().load_token_handle().load(Ordering::Acquire);
@@ -71,6 +78,21 @@ impl AudioPlayer {
                         &preference,
                         next_end_seconds,
                         current_end_seconds,
+                        automix.map(|plan| crate::player::AutoMixSettings {
+                            out_start: plan.out_start_seconds,
+                            in_start: plan.in_start_seconds,
+                            duration: plan.duration_seconds,
+                            rate: plan.outgoing_rate as f32,
+                            level_ratio: plan.level_ratio as f32,
+                            envelopes: plan
+                                .envelopes
+                                .iter()
+                                .map(|span| MixEnvelope {
+                                    start: (span.start_seconds / plan.duration_seconds) as f32,
+                                    end: (span.end_seconds / plan.duration_seconds) as f32,
+                                })
+                                .collect(),
+                        }),
                     )
                     .into_napi()?;
                 (armed, player.load_token_handle())
@@ -80,6 +102,7 @@ impl AudioPlayer {
             };
             let started = Arc::clone(&armed.started);
             let completed = Arc::clone(&armed.completed);
+            let cancelled = Arc::clone(&armed.cancelled);
             let decision = Arc::clone(&armed.decision);
             let fade_seconds = armed.fade_seconds;
             let token = armed.token;
@@ -97,16 +120,16 @@ impl AudioPlayer {
                         let player = inner.lock();
                         (player.position(), player.state() == PlayerState::Paused)
                     };
-                    if token_handle.load(Ordering::Acquire) != token {
+                    if token_handle.load(Ordering::Acquire) != token
+                        || cancelled.load(Ordering::Acquire)
+                    {
                         break (0_u8, announced);
                     }
                     if !announced && started.load(Ordering::Acquire) {
-                        let reason = if decision.load(Ordering::Acquire)
-                            == crate::decoder::transition_source::TRANSITION_DECISION_QUIET
-                        {
-                            "quiet"
-                        } else {
-                            "deadline"
+                        let reason = match decision.load(Ordering::Acquire) {
+                            TRANSITION_DECISION_QUIET => "quiet",
+                            TRANSITION_DECISION_BEAT => "planned",
+                            _ => "deadline",
                         };
                         let player = inner.lock();
                         if !player.is_load_token_current(token) {
@@ -135,7 +158,10 @@ impl AudioPlayer {
                 player.emit_transition_state(false, None, None);
             }
             match outcome.0 {
-                0 => return Ok(None),
+                0 => {
+                    player.finish_cancelled_transition();
+                    return Ok(None);
+                }
                 2 => {
                     player.stop();
                     return Err(Error::from_reason("播放过渡未能完成，已停止失效输出"));

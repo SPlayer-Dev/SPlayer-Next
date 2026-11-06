@@ -32,9 +32,11 @@ export interface MediaEvent {
   positionMs?: number
   rate?: number
   volume?: number
+  shuffle?: boolean
+  repeat?: RepeatMode
 }
 
-export type MediaEventType = 'Play' | 'Pause' | 'Stop' | 'NextTrack' | 'PrevTrack' | 'ToggleShuffle' | 'ToggleRepeat' | 'SetRate' | 'SetVolume' | 'Seek'
+export type MediaEventType = 'Play' | 'Pause' | 'Stop' | 'NextTrack' | 'PrevTrack' | 'SetShuffle' | 'SetRepeat' | 'SetRate' | 'SetVolume' | 'Seek'
 
 /** NAPI 层接收的元数据参数 */
 export interface MetadataParam {

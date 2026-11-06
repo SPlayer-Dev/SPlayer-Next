@@ -4,6 +4,7 @@ import { store } from "@main/store";
 import {
   getAllTracks,
   searchTracks,
+  quickSearchLibrary,
   getTrackCount,
   deleteTracksByDir,
   deleteTracksByPaths,
@@ -118,6 +119,15 @@ export const registerLibraryIpc = (): void => {
     }
   });
 
+  // 搜索窗分组搜索
+  ipcMain.handle("library:quickSearch", (_event, keyword: string) => {
+    try {
+      return { success: true, data: quickSearchLibrary(keyword) };
+    } catch (_error) {
+      return { success: false, error: ErrorCode.UNKNOWN };
+    }
+  });
+
   // 获取曲目总数
   ipcMain.handle("library:getTrackCount", () => {
     try {
@@ -163,6 +173,17 @@ export const registerLibraryIpc = (): void => {
     const dirs = store.get("library.scanDirs") as string[];
     if (dirs.includes(dir)) {
       return { success: false, error: ErrorCode.SCAN_DIR_EXISTS };
+    }
+    // 嵌套目录在写入前拒绝：撤销流程若已落库，会连带删掉另一目录覆盖下的已入库曲目
+    const nested = dirs.some(
+      (d) =>
+        dir.startsWith(d + "\\") ||
+        dir.startsWith(d + "/") ||
+        d.startsWith(dir + "\\") ||
+        d.startsWith(dir + "/"),
+    );
+    if (nested) {
+      return { success: false, error: ErrorCode.SCAN_DIR_NESTED };
     }
     dirs.push(dir);
     store.set("library.scanDirs", dirs);

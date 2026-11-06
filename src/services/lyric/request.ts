@@ -47,3 +47,10 @@ export const requestStreamingLyric = async (track: Track): Promise<string | null
  */
 export const requestTTMLOverlay = (track: Track, platform: "netease" | "qqmusic") =>
   window.api.lyrics.fetchTTMLOverlay(track, platform);
+
+/**
+ * 按歌曲元数据搜索 TTML 歌词
+ * @param track - 歌曲信息
+ * @returns IPC 请求结果
+ */
+export const requestTTMLSearch = (track: Track) => window.api.lyrics.searchTTML(track);

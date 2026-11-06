@@ -4,6 +4,7 @@ import {
   insertFavoriteEvent,
   getStatsSummary,
   getTopTracks,
+  getRecentTracks,
   getPlayHistoryDaily,
   getPlayHistoryHourly,
   getTopAlbums,
@@ -22,6 +23,7 @@ export const registerStatsIpc = (): void => {
   });
   ipcMain.handle("stats:getStatsSummary", () => getStatsSummary());
   ipcMain.handle("stats:getTopTracks", (_event, limit: number) => getTopTracks(limit));
+  ipcMain.handle("stats:getRecentTracks", (_event, limit: number) => getRecentTracks(limit));
   ipcMain.handle("stats:getLibraryStats", () => getLibraryStats());
   ipcMain.handle("stats:getPlayHistoryDaily", (_event, days: number) => getPlayHistoryDaily(days));
   ipcMain.handle("stats:getPlayHistoryHourly", () => getPlayHistoryHourly());

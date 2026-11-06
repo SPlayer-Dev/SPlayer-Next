@@ -1,11 +1,14 @@
 pub(crate) mod input;
 mod processing;
 mod reader;
+mod stem_processing;
 use processing::run_dsp_safely;
+pub(crate) use reader::HTTP_PROXY;
 use reader::{build_resamplers, open_source, run_decoding_loop};
 
 pub(crate) mod buffer;
 pub(crate) mod source;
+pub(crate) mod stems;
 pub(crate) mod tail;
 pub(crate) mod transition_source;
 
@@ -16,10 +19,10 @@ use std::time::Duration;
 
 use anyhow::{ensure, Context, Result};
 use ffmpeg_audio::{
-    sys, AudioError, AudioReader, HttpAudioSource, HttpCancelHandle, ResampleOptions, Resampler,
-    SeekMode,
+    sys, AudioError, AudioReader, HttpAudioSource, HttpCancelHandle, HttpProxy, ResampleOptions,
+    Resampler, SeekMode,
 };
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 use tracing::debug;
 
 use crate::decoder::buffer::{AudioChunk, Shared};

@@ -1,6 +1,7 @@
 import { loadNativeModule } from "@main/utils/nativeLoader";
 import { getCoverCacheDir, isDev } from "@main/utils/config";
 import { playerLog, nativeLogsDir } from "@main/utils/logger";
+import { getNetworkProxyUrl } from "@main/utils/proxy";
 
 type AudioEngineModule = typeof import("@splayer/audio-engine");
 type PlayerInstance = InstanceType<AudioEngineModule["AudioPlayer"]>;
@@ -30,8 +31,14 @@ export const getEngine = (): AudioEngineModule => {
       throw new Error("Failed to load audio-engine.node");
     }
     audioEngine.initLogger(nativeLogsDir, isDev);
+    syncEngineProxy();
   }
   return audioEngine;
+};
+
+/** 将应用代理设置同步到原生引擎，对之后打开的网络音频生效 */
+export const syncEngineProxy = (): void => {
+  audioEngine?.setHttpProxy(getNetworkProxyUrl());
 };
 
 /**

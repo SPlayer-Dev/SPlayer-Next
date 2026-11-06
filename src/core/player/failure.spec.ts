@@ -88,6 +88,7 @@ vi.mock("@/stores/queue", () => ({
 vi.mock("@/services/audioSource", () => ({ resolveTrackSource: mocks.resolve }));
 vi.mock("@/services/nextTrackPreloader", () => ({
   consumePreloadedTrack: () => null,
+  peekPreparedTrack: () => null,
   invalidateNextTrackPreload: vi.fn(),
   scheduleNextTrackPreload: vi.fn(),
   beginPreparedTransition: () => ({

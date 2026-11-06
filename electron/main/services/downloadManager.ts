@@ -18,7 +18,12 @@ import { getEngine } from "@main/services/engine";
 import { fetchBytes } from "@main/utils/fetchBytes";
 import { fetchStreamingDownload } from "@main/services/streaming/mediaSource";
 import { StreamingRequestError } from "@main/services/streaming/errors";
-import { renderDownloadPath, dedupePath, resolveExtension } from "@main/utils/filename";
+import {
+  renderDownloadPath,
+  dedupePath,
+  resolveExtension,
+  extensionFromDisposition,
+} from "@main/utils/filename";
 import * as db from "@main/database/downloads";
 import { ErrorCode } from "@shared/types/errors";
 import type { JsTagWriteRequest } from "@splayer/audio-engine";
@@ -325,9 +330,9 @@ const runTask = async (
       );
     }
     // 原文件格式以服务器文件名或 MIME 为准，不能套用界面选择的在线音质
-    const format = streamingDownload
-      ? response.headers.get("content-disposition")?.match(/\.([a-z\d]{2,5})(?="|;|$)/i)?.[1]
-      : req.declaredFormat;
+    // 插件音源给的地址常常没有后缀（下载接口 302 到 CDN），文件名是唯一的格式信号
+    const disposition = response.headers.get("content-disposition");
+    const format = req.declaredFormat || extensionFromDisposition(disposition);
     const ext = resolveExtension(format, mime, audioUrl);
     if (policy === "skip" && fs.existsSync(`${finalNoExt}${ext}`)) {
       await response.body.cancel();

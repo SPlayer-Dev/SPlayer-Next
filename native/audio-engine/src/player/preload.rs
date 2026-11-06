@@ -87,6 +87,17 @@ impl InnerPlayer {
         }
     }
 
+    /// 取消指定备用代次，同时释放为该次交接安装的当前曲声部
+    /// @param id - 需要取消的备用槽位标识
+    pub(crate) fn cancel_prepared(&mut self, id: &str) {
+        if self.preload.id.as_deref() == Some(id) {
+            self.preload.clear();
+            if let Some(shared) = &self.shared {
+                shared.set_stems(None);
+            }
+        }
+    }
+
     /// 取出标识、音源与配置均匹配的备用资源，同时使其他预载失效
     pub(crate) fn take_prepared(
         &mut self,

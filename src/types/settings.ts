@@ -2,7 +2,8 @@ import type { LyricFormat } from "lyric-kit";
 
 import { DEFAULT_LYRIC_FORMAT_ORDER as DEFAULT_LYRIC_FORMAT_ORDER_SHARED } from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
-import type { TransitionPreference } from "@shared/types/player";
+import type { MotionCoverSource, TransitionPreference } from "@shared/types/player";
+import type { TransitionMode } from "@shared/types/automix";
 import { ALL_PLATFORMS } from "@shared/types/platform";
 import type { CjkTransformMode } from "@shared/types/opencc";
 import type { QualityLevel } from "@/utils/quality";
@@ -12,7 +13,8 @@ import type { LyricAlignment } from "lyric-dom";
 export type PlayerBgType = "blur" | "solid" | "animation";
 /** 流体背景渲染引擎 */
 export type PlayerBgRenderer = "mesh" | "isolation" | "pixi";
-export type CoverLayout = "default" | "fullscreen";
+/** 全屏播放器布局 */
+export type PlayerLayout = "classic" | "fullCover" | "fullLyric" | "apple";
 
 /**
  * 歌曲播放时间显示格式
@@ -132,6 +134,8 @@ export interface LyricSettings {
   preferPluginLyric: boolean;
   /** 自动识别背景歌词 */
   detectBackgroundLyrics: boolean;
+  /** 为没有逐字时间的歌词统一生成字级时间戳 */
+  autoGenerateWordByWord: boolean;
   /** 中文繁简转换模式（基于 OpenCC） */
   cjkTransform: CjkTransformMode;
   /** 字号随窗口高度调整 */
@@ -168,6 +172,8 @@ export interface LyricSettings {
   enableScale: boolean;
   /** 是否始终将背景行置于主行下方 */
   bgAlwaysBelow: boolean;
+  /** 超长行智能换行 */
+  enableBalancedWrap: boolean;
   /** 逐字高亮效果 */
   enableWordHighlight: boolean;
   /** 逐字上浮动画 */
@@ -238,8 +244,8 @@ export interface PlayerSettings {
   playerBgFreezeOnPause: boolean;
   /** 流体背景随低频节拍脉动 */
   playerBgBeat: boolean;
-  /** 全屏播放器封面布局 */
-  coverLayout: CoverLayout;
+  /** 全屏播放器布局 */
+  layout: PlayerLayout;
   /** 播放页封面/歌词分栏占比（0-1，封面侧宽度） */
   coverLyricRatio: number;
   /** 无歌词时自动居中封面并隐藏歌词区域 */
@@ -248,6 +254,8 @@ export interface PlayerSettings {
   showPlaybackSource: boolean;
   /** 颜色是否跟随封面 */
   followCoverColor: boolean;
+  /** 全屏播放器动态封面来源 */
+  motionCoverSource: MotionCoverSource;
   /** 全屏播放器自动进入沉浸模式（隐藏顶/底栏与鼠标） */
   autoImmersive: boolean;
   /** 输出设备 ID（cpal DeviceId），null 表示跟随系统默认 */
@@ -276,12 +284,16 @@ export interface PlayerSettings {
   snapToLyric: boolean;
   /** 播放时底部显示歌词而非歌手名 */
   showLyricInBar: boolean;
+  /** 底部歌词展示模式 */
+  barLyricMode: "lyric" | "translation" | "word";
   /** 播放时提前获取下一首的播放数据 */
   preloadNextTrack: boolean;
   /** 相邻曲目的播放过渡方式 */
-  transitionMode: "none" | "crossfade";
+  transitionMode: TransitionMode;
   /** 曲尾交接时机与淡化时长偏好 */
   transitionPreference: TransitionPreference;
+  /** AutoMix 对拍与原速桥接都不适用时是否改用交叉过渡，关闭时直接切歌 */
+  automixCrossfadeFallback: boolean;
   /** 搜索页播放行为 */
   searchPlayBehavior: PlayBehavior;
   /** 歌曲列表行首播放按钮的行为 */

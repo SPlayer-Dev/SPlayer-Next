@@ -70,6 +70,13 @@ const zhTheme: DefaultTheme.Config = {
       ],
     },
     {
+      text: "播放过渡",
+      items: [
+        { text: "交叉过渡", link: "/crossfade" },
+        { text: "AutoMix", link: "/automix" },
+      ],
+    },
+    {
       text: "开发",
       items: [
         { text: "原生模块", link: "/native" },
@@ -211,6 +218,7 @@ export default defineConfig({
     plugins: llmstxt({ workDir: "en" }) as unknown as NonNullable<UserConfig["vite"]>["plugins"],
   },
   title: "SPlayer-Next",
+  markdown: { math: true },
   srcExclude: ["superpowers/**"],
   head: [
     ["link", { rel: "icon", href: "/favicon.png" }],

@@ -9,6 +9,10 @@ use parking_lot::{Condvar, Mutex};
 
 /// 解码后的 PCM 音频数据块
 pub struct AudioChunk {
+    /// 解码块实际使用的响度增益，声部在后台沿用相同值
+    pub normalization_gain: f32,
+    /// 与主路使用相同处理时序的鼓、贝斯和人声，普通播放不分配
+    pub stem_samples: Option<Box<[Vec<f32>; 3]>>,
     /// 交错排列的 f32 播放样本（L R L R ...）
     pub player_samples: Vec<f32>,
     /// 交错排列的 f32 FFT 样本（L R L R ...）
@@ -26,6 +30,7 @@ pub enum PopResult {
 
 /// 解码线程与播放迭代器之间的共享状态
 pub struct Shared {
+    stems: Mutex<Option<Arc<super::stems::StemWindow>>>,
     decoded_buffer: Mutex<VecDeque<AudioChunk>>,
     decoded_capacity: AtomicUsize,
     preloading: AtomicBool,
@@ -73,12 +78,29 @@ const OUTPUT_BUFFER_MS: u64 = 100;
 const BUFFER_POOL_CAPACITY: usize = FRAME_BUFFER_CAPACITY + OUTPUT_BUFFER_CAPACITY + 4;
 
 impl Shared {
+    /// 替换当前解码会话唯一的有限分离窗口
+    /// @param window - 已在控制线程载入的只读数据
+    pub fn set_stems(&self, window: Option<Arc<super::stems::StemWindow>>) {
+        *self.stems.lock() = window;
+    }
+
+    /// 获取当前解码块所用的分离窗口
+    /// @returns 当前会话的只读窗口
+    pub fn stems(&self) -> Option<Arc<super::stems::StemWindow>> {
+        self.stems.lock().clone()
+    }
+
+    /// 为单个解码会话创建固定格式的有限缓冲
+    /// @param sample_rate - 输出采样率
+    /// @param channels - 输出声道数
+    /// @returns 可在解码、处理与输出线程共享的会话
     pub fn new(sample_rate: u32, channels: u16) -> Arc<Self> {
         assert!(
             sample_rate > 0 && channels > 0,
             "sample_rate/channels 必须为正"
         );
         Arc::new(Self {
+            stems: Mutex::new(None),
             decoded_buffer: Mutex::new(VecDeque::with_capacity(FRAME_BUFFER_CAPACITY)),
             decoded_capacity: AtomicUsize::new(FRAME_BUFFER_CAPACITY),
             preloading: AtomicBool::new(false),
@@ -379,6 +401,7 @@ impl Shared {
 
     /// 清空缓冲区并释放内存（stop 后调用，避免 AudioChunk 在 Arc 引用存活期间持续占用内存）
     pub fn drain_buffer(&self) {
+        self.set_stems(None);
         // 控制线程等待生产者退出发布区，避免停止后仍留下最后一块
         let _output_guard = self.output_wait.lock();
         let mut decoded = self.decoded_buffer.lock();
