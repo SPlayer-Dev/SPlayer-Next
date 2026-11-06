@@ -307,6 +307,19 @@ const appearanceCategory: SettingCategory = {
           defaultValue: true,
         },
         {
+          key: "motionCover",
+          type: "select",
+          binding: { store: "settings", path: "player.motionCoverSource" },
+          options: [
+            { value: "off", labelKey: "settings.motionCover.off" },
+            { value: "ncm", labelKey: "settings.motionCover.ncm" },
+            { value: "am", labelKey: "settings.motionCover.am" },
+            { value: "amFirst", labelKey: "settings.motionCover.amFirst" },
+          ],
+          defaultValue: "off",
+          tag: { text: "Beta" },
+        },
+        {
           key: "autoImmersive",
           type: "switch",
           binding: { store: "settings", path: "player.autoImmersive" },

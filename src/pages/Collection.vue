@@ -312,7 +312,6 @@ onBeforeUnmount(() => {
                   variant="text"
                   size="auto"
                   block
-                  static
                   class="group max-w-full overflow-hidden text-left text-sm"
                   :aria-label="t('collection.viewIntroduction')"
                   @click="descriptionOpen = true"

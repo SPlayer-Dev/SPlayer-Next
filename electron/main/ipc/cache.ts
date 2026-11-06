@@ -10,12 +10,14 @@ import {
   getArtistCacheDir,
   getBackgroundsDir,
   getSongCacheDir,
+  getMotionCoverCacheDir,
 } from "@main/utils/config";
 import { syncCoverCacheDir } from "@main/services/engine";
 import { getDb } from "@main/database";
 import { clearLyricCache } from "@main/database/lyricCache";
 import { clearLyricTtmlCache } from "@main/database/lyricTtmlCache";
 import { clearLyricMatchCache } from "@main/database/lyricMatchCache";
+import { clearMotionCoverCache } from "@main/database/motionCoverCache";
 import * as songCache from "@main/services/songCache";
 import type { TrackSource } from "@shared/types/player";
 import { systemLog } from "@main/utils/logger";
@@ -23,7 +25,14 @@ import { defaultCacheDir } from "@main/utils/paths";
 
 /** 已知的缓存类别 */
 export type CacheCategory =
-  "covers" | "artists" | "backgrounds" | "songs" | "lyric" | "lyricTTML" | "lyricMatch";
+  | "covers"
+  | "artists"
+  | "backgrounds"
+  | "songs"
+  | "motionCovers"
+  | "lyric"
+  | "lyricTTML"
+  | "lyricMatch";
 
 /** 缓存介质 */
 export type CacheKind = "file" | "db";
@@ -141,6 +150,16 @@ const categoryHandlers: Record<
     clear: () => {
       cancelPreparedTrack();
       return songCache.clearAll();
+    },
+  },
+  motionCovers: {
+    kind: "file",
+    path: getMotionCoverCacheDir,
+    size: () => dirSize(getMotionCoverCacheDir()),
+    // 匹配记录一并清掉，下次播放重新匹配
+    clear: async () => {
+      clearMotionCoverCache();
+      await clearDir(getMotionCoverCacheDir());
     },
   },
   lyric: {

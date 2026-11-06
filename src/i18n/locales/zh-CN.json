@@ -518,7 +518,8 @@
       "copy": "复制",
       "copyRaw": "复制原文",
       "exportImage": "导出图片",
-      "saved": "已保存到下载文件夹",
+      "saveDialogTitle": "保存歌词图片",
+      "saved": "已保存到所选位置",
       "fileSuffix": "歌词分享",
       "exportFailed": "导出图片失败",
       "empty": "没有可复制的内容"
@@ -1031,7 +1032,7 @@
     "lyricSourceOrder": {
       "label": "音源排序",
       "description": "自定义音源优先级",
-      "hint": "「智能选择」时按此顺序依次尝试匹配，未命中则跳到下一个"
+      "hint": "歌曲自身平台优先，其余平台在「智能选择」且关闭自动升级时按此顺序依次尝试；开启自动升级后同时请求，按歌词格式优先级择优"
     },
     "lyricFormatOrder": {
       "label": "歌词格式优先级",
@@ -1040,7 +1041,7 @@
     },
     "smartPreferOnline": {
       "label": "自动升级歌词格式",
-      "description": "当前歌词格式较低时，从其他平台获取更高级的格式覆盖"
+      "description": "从其他平台获取更高级的格式，内容与当前歌词一致才会替换"
     },
     "preferPluginLyric": {
       "label": "优先使用插件歌词",
@@ -1268,6 +1269,14 @@
     "followCoverColor": {
       "label": "跟随封面颜色",
       "description": "歌词颜色跟随当前封面主色调"
+    },
+    "motionCover": {
+      "label": "动态封面",
+      "description": "在全屏播放器中播放专辑动态封面",
+      "off": "关闭",
+      "ncm": "仅 NCM",
+      "am": "仅 AM",
+      "amFirst": "AM 优先"
     },
     "autoImmersive": {
       "label": "自动沉浸模式",
@@ -2205,6 +2214,7 @@
       "artists": "歌手头像",
       "backgrounds": "背景图",
       "songs": "歌曲文件",
+      "motionCovers": "动态封面",
       "lyric": "歌词内容缓存",
       "lyricTTML": "TTML 歌词缓存",
       "lyricMatch": "歌词匹配缓存"
@@ -2216,6 +2226,10 @@
     "cacheStreaming": {
       "label": "缓存流媒体",
       "description": "播放个人流媒体服务器歌曲时缓存至本地"
+    },
+    "motionCoverSizeLimit": {
+      "label": "动态封面缓存上限",
+      "description": "超出后自动清理最久未播放的动态封面"
     },
     "songCacheSizeLimit": {
       "label": "缓存上限",

@@ -11,7 +11,7 @@ const preloadedResult = vi.hoisted(() => ({
 }));
 
 vi.mock("@/services/lyric/preload", () => ({
-  consumePreloadedLyric: vi.fn(async () => ({
+  consumePreloadedLyric: vi.fn(() => ({
     hit: preloadedResult.hit,
     lyric: preloadedResult.lyric,
   })),
@@ -320,6 +320,41 @@ describe("lyric loader", () => {
 
     expect(media.activeLyric).not.toBeNull();
     expect(media.parsedLyric[0].words[0].word).toContain("插件极速歌词");
+  });
+
+  it("时间校正：带校正量的歌词按校正后的时间展示", async () => {
+    const media = useMediaStore();
+    media.track = createTrack("song_shift");
+
+    mockResolveOnlineByPreference.mockResolvedValue({
+      source: { source: "online", format: "lrc", platform: "qqmusic", timeShiftMs: -3000 },
+      input: { content: "[00:05.00]偏晚的歌词" },
+    });
+
+    await loadForTrack(null);
+
+    expect(media.parsedLyric[0].startTime).toBe(2000);
+  });
+
+  it("流媒体：服务端歌词已提交后不再请求插件兜底", async () => {
+    const media = useMediaStore();
+    media.track = createTrack("song_streaming", "streaming");
+    const serverLyric = {
+      source: { source: "external", format: "lrc" },
+      input: { content: "[00:01.00]服务端歌词" },
+    };
+    mockResolveStreamingByPreference.mockImplementation(
+      async (_track, options: { onCandidate?: (res: unknown) => void }) => {
+        options.onCandidate?.(serverLyric);
+        expect(media.parsedLyric[0].words[0].word).toContain("服务端歌词");
+        return serverLyric;
+      },
+    );
+
+    await loadForTrack(null);
+
+    expect(mockResolvePluginLyric).not.toHaveBeenCalled();
+    expect(media.parsedLyric[0].words[0].word).toContain("服务端歌词");
   });
 
   it("TTML 拉取去重：onCandidate 与最终结果先后到达时，仅发起一次 TTML 请求", async () => {

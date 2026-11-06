@@ -2,7 +2,7 @@ import type { LyricFormat } from "lyric-kit";
 
 import { DEFAULT_LYRIC_FORMAT_ORDER as DEFAULT_LYRIC_FORMAT_ORDER_SHARED } from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
-import type { TransitionPreference } from "@shared/types/player";
+import type { MotionCoverSource, TransitionPreference } from "@shared/types/player";
 import type { TransitionMode } from "@shared/types/automix";
 import { ALL_PLATFORMS } from "@shared/types/platform";
 import type { CjkTransformMode } from "@shared/types/opencc";
@@ -254,6 +254,8 @@ export interface PlayerSettings {
   showPlaybackSource: boolean;
   /** 颜色是否跟随封面 */
   followCoverColor: boolean;
+  /** 全屏播放器动态封面来源 */
+  motionCoverSource: MotionCoverSource;
   /** 全屏播放器自动进入沉浸模式（隐藏顶/底栏与鼠标） */
   autoImmersive: boolean;
   /** 输出设备 ID（cpal DeviceId），null 表示跟随系统默认 */

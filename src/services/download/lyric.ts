@@ -24,11 +24,13 @@ import {
 /** 下载用歌词 */
 export interface DownloadLyric extends LyricInput {
   format: LyricFormat;
+  timeShiftMs?: number;
 }
 
 /** 转为下载歌词结构 */
 const toDownloadLyric = (lyric: ResolvedLyric): DownloadLyric => ({
   format: lyric.source.format,
+  timeShiftMs: lyric.source.timeShiftMs,
   ...lyric.input,
 });
 
@@ -48,7 +50,7 @@ const resolveOnlineDownloadLyric = async (
   online: OnlineResult | null,
 ): Promise<DownloadLyric | null> => {
   if (!online) return null;
-  const ttml = await resolveTTMLOverlay(track, online);
+  const ttml = await resolveTTMLOverlay(track, online.source.format);
   return (
     toUsableDownloadLyric(ttml) ??
     toUsableDownloadLyric({ source: online.source, input: online.input })
@@ -68,7 +70,9 @@ export const resolveDownloadLyric = async (track: Track): Promise<DownloadLyric 
   if (track.source === "streaming") {
     // 插件优选：请求先行发出，与正常来源并发
     const pluginTask = isPluginLyricPreferred() ? resolvePluginLyric(track) : null;
-    const streaming = toUsableDownloadLyric(await resolveStreamingByPreference(track));
+    const streaming = toUsableDownloadLyric(
+      await resolveStreamingByPreference(track, { sequential: true }),
+    );
     if (pluginTask) {
       const plugin = toUsableDownloadLyric(await pluginTask);
       if (plugin && isBetterFormat(plugin.format, streaming?.format ?? null)) return plugin;
@@ -81,7 +85,7 @@ export const resolveDownloadLyric = async (track: Track): Promise<DownloadLyric 
   if (isPlatform(track.source)) {
     // 插件优选：请求先行发出，与正常来源并发
     const pluginTask = isPluginLyricPreferred() ? resolvePluginLyric(track) : null;
-    const online = await resolveOnlineByPreference(track, { hasLocal: false, localFormat: null });
+    const online = await resolveOnlineByPreference(track, { sequential: true });
     const onlineLyric = await resolveOnlineDownloadLyric(track, online);
     if (pluginTask) {
       const plugin = toUsableDownloadLyric(await pluginTask);

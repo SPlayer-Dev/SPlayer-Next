@@ -3,7 +3,7 @@
  *
  * 表：lyric_ttml_cache(platform, id, content, fetched_at) PK (platform, id)
  *
- * - id：NCM 用 netease 数字 id；QM 用 mid
+ * - id：NCM 用 netease 数字 id；QM 用 mid；platform 为 search 时用曲目指纹
  * - content：TTML 文本，NULL 表示负缓存（DB 没有这首）
  * - 正缓存 7 天、负缓存 72h 后重新请求：按平台 ID 查询的结果会随词库更新变化
  */
@@ -20,12 +20,12 @@ export type Platform = "netease" | "qqmusic";
 
 /**
  * 读取缓存行
- * @param platform - 平台
- * @param id - 平台歌曲 ID
+ * @param platform - 平台或元数据搜索
+ * @param id - 平台歌曲 ID 或曲目指纹
  * @returns content 为 null 表示负缓存；fresh 表示仍在有效期内；未命中返回 null
  */
 export const getCachedTTML = (
-  platform: Platform,
+  platform: Platform | "search",
   id: string,
 ): { content: string | null; fresh: boolean } | null => {
   const row = getDb()
@@ -37,7 +37,11 @@ export const getCachedTTML = (
 };
 
 /** upsert TTML；content 为 null 表示负缓存 */
-export const setCachedTTML = (platform: Platform, id: string, content: string | null): void => {
+export const setCachedTTML = (
+  platform: Platform | "search",
+  id: string,
+  content: string | null,
+): void => {
   getDb()
     .prepare(
       `INSERT INTO lyric_ttml_cache (platform, id, content, fetched_at) VALUES (?, ?, ?, ?)

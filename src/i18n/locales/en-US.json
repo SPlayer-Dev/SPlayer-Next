@@ -518,7 +518,8 @@
       "copy": "Copy",
       "copyRaw": "Copy original",
       "exportImage": "Export image",
-      "saved": "Saved to Downloads",
+      "saveDialogTitle": "Save lyrics image",
+      "saved": "Saved to the selected location",
       "fileSuffix": "Lyrics",
       "exportFailed": "Failed to export image",
       "empty": "Nothing to copy"
@@ -1031,7 +1032,7 @@
     "lyricSourceOrder": {
       "label": "Source Order",
       "description": "Customize source priority",
-      "hint": "When using auto mode, sources are tried top-down; falls through to the next on miss"
+      "hint": "The track's own platform goes first. With auto mode and auto-upgrade off, the rest are tried top-down; with auto-upgrade on, they are requested together and picked by format priority"
     },
     "lyricFormatOrder": {
       "label": "Lyric Format Priority",
@@ -1040,7 +1041,7 @@
     },
     "smartPreferOnline": {
       "label": "Auto-Upgrade Lyric Format",
-      "description": "Fetch a higher-ranked format from other platforms when the current one is low"
+      "description": "Fetch a higher-ranked format from other platforms, replacing only when the content matches the current lyrics"
     },
     "preferPluginLyric": {
       "label": "Prefer Plugin Lyrics",
@@ -1268,6 +1269,14 @@
     "followCoverColor": {
       "label": "Follow Cover Color",
       "description": "Lyric color follows the current cover art"
+    },
+    "motionCover": {
+      "label": "Animated Cover",
+      "description": "Play the album's animated cover in the full player",
+      "off": "Off",
+      "ncm": "NCM Only",
+      "am": "AM Only",
+      "amFirst": "Prefer AM"
     },
     "autoImmersive": {
       "label": "Auto Immersive Mode",
@@ -2205,6 +2214,7 @@
       "artists": "Artist Avatars",
       "backgrounds": "Backgrounds",
       "songs": "Song Files",
+      "motionCovers": "Animated Covers",
       "lyric": "Lyric Content Cache",
       "lyricTTML": "TTML Lyric Cache",
       "lyricMatch": "Lyric Match Cache"
@@ -2216,6 +2226,10 @@
     "cacheStreaming": {
       "label": "Cache Streaming Tracks",
       "description": "Cache tracks from personal media servers locally during playback"
+    },
+    "motionCoverSizeLimit": {
+      "label": "Animated Cover Cache Limit",
+      "description": "Least recently played covers are removed when the limit is exceeded"
     },
     "songCacheSizeLimit": {
       "label": "Size Limit",

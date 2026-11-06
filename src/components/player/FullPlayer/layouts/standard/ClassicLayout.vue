@@ -2,23 +2,23 @@
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
-import { useFullPlayer } from "../../context";
 
 const status = useStatusStore();
 const media = useMediaStore();
 const settings = useSettingsStore();
 const { isPlaying, showLyric } = storeToRefs(status);
-const { onMainMove } = useFullPlayer();
 
 /** 加载中的歌曲使用队列当前项兜底 */
 const displayTrack = computed(() => media.track ?? status.currentTrack);
 const hasLyric = computed(() => media.parsedLyric.length > 0 || media.lyricLoading);
 const coverWidth = computed(() => `${settings.player.coverLyricRatio * 100}%`);
 
-const coverCentered = computed(() => {
-  if (status.fullQueueOpen) return false;
-  return !showLyric.value || (settings.player.autoCenterCover && !hasLyric.value);
-});
+/** 不看队列时封面是否居中 */
+const centeredWithoutQueue = computed(
+  () => !showLyric.value || (settings.player.autoCenterCover && !hasLyric.value),
+);
+
+const coverCentered = computed(() => !status.fullQueueOpen && centeredWithoutQueue.value);
 
 const lyricVisible = computed(() => showLyric.value && hasLyric.value && !status.fullQueueOpen);
 
@@ -48,7 +48,7 @@ const toggleLyric = (): void => {
       </SButton>
     </template>
   </PlayerTopBar>
-  <div class="absolute top-14 inset-x-0 bottom-20" @mousemove="onMainMove">
+  <div class="absolute top-14 inset-x-0 bottom-20">
     <!-- 左侧封面与信息 -->
     <div
       class="absolute inset-y-0 left-0 flex items-center justify-center px-12 transition-transform duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
@@ -89,7 +89,7 @@ const toggleLyric = (): void => {
       :style="{ width: `calc(100% - ${coverWidth})` }"
     >
       <Transition
-        enter-active-class="transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
+        :enter-active-class="`transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)] ${centeredWithoutQueue ? 'delay-300' : ''}`"
         enter-from-class="opacity-0"
         leave-active-class="transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
         leave-to-class="opacity-0"

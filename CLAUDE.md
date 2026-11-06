@@ -76,7 +76,7 @@ Server protocol clients live in the main process (`electron/main/services/stream
 
 - `useNowPlayingSync` — playback sync, lyric index, anchor interpolation
 - `getNowPlayingCurrentMs()` — non-reactive current time for RAF char highlight
-- Line selection: `pickPrimaryIndex` (desktop, considers overlap) vs. `pickLatestStartedIndex` (dynamic island, immediate switch)
+- Line selection: `pickPrimaryIndex` (desktop/taskbar, considers overlap) vs. `pickLatestStartedIndex` (dynamic island, immediate switch)
 
 Don't reimplement these inside individual windows.
 

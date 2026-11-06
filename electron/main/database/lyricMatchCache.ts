@@ -83,6 +83,13 @@ export const setMatchedId = (
     .run(fingerprint, platform, platformId, extraJson, Date.now());
 };
 
+/** 删除单条映射，用于内容验证不通过的匹配 */
+export const deleteMatchedId = (fingerprint: string, platform: Platform): void => {
+  getDb()
+    .prepare("DELETE FROM lyric_match_cache WHERE fingerprint = ? AND platform = ?")
+    .run(fingerprint, platform);
+};
+
 /** 清空全部映射缓存 */
 export const clearLyricMatchCache = (): void => {
   getDb().prepare("DELETE FROM lyric_match_cache").run();

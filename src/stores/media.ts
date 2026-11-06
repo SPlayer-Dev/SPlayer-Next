@@ -6,6 +6,7 @@ import { useSettingsStore } from "@/stores/settings";
 import { watchLyricPreference } from "@/services/lyric/loader";
 import {
   applyLyricLanguages,
+  applyTimestampOffset,
   clampLastLineEnd,
   extractLyricAuthors,
   findLyricIndex,
@@ -180,6 +181,7 @@ export const useMediaStore = defineStore("media", () => {
             extractMetadata: true,
           },
         );
+        if (source.timeShiftMs) applyTimestampOffset(result.lines, source.timeShiftMs);
         nextLines = applyLyricExclude(result.lines, track.value);
         normalizeLyricLines(nextLines);
         nextLines = clampLastLineEnd(nextLines, track.value?.duration);

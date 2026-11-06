@@ -1141,10 +1141,17 @@ const onQueueEnded = async (): Promise<void> => {
   status.position = status.duration;
 };
 
-/** 同步播放模式到主进程 */
+/**
+ * 同步播放模式到主进程，特殊模式下回推实际生效的模式
+ * 私人 FM 持续播放且不随机，心动模式不随机
+ */
 const syncPlayMode = (): void => {
   const status = useStatusStore();
-  window.api.player.syncPlayMode(status.repeatMode, status.shuffleMode);
+  const shuffleLocked = status.heartMode || status.fmMode;
+  window.api.player.syncPlayMode(
+    status.fmMode ? "list" : status.repeatMode,
+    shuffleLocked ? "off" : status.shuffleMode,
+  );
 };
 
 /**
@@ -1153,10 +1160,16 @@ const syncPlayMode = (): void => {
  */
 export const setRepeatMode = (mode: RepeatMode): void => {
   const status = useStatusStore();
-  if (status.repeatMode === mode) return;
+  // 私人 FM 无循环，忽略切换并回推真实模式纠正系统媒体控件
+  if (status.fmMode) {
+    syncPlayMode();
+    return;
+  }
+  const changed = status.repeatMode !== mode;
   status.repeatMode = mode;
+  // 无变化时也回推：系统媒体控件可能请求了应用不支持的模式，需要把真实模式纠正回去
   syncPlayMode();
-  toast.info(i18n.global.t(`player.repeatMode.${mode}`), { icon: false });
+  if (changed) toast.info(i18n.global.t(`player.repeatMode.${mode}`), { icon: false });
 };
 
 /** 循环切换循环模式：list → one → list */
@@ -1179,9 +1192,11 @@ export const toggleShuffleMode = (): void => {
  */
 export const setShuffleMode = (mode: ShuffleMode): void => {
   const status = useStatusStore();
-  // 心动模式下忽略
-  if (status.heartMode) return;
-  if (status.shuffleMode === mode) return;
+  // 心动 / 私人 FM 禁止随机、模式无变化时不必洗牌，但都要回推真实模式纠正系统媒体控件
+  if (status.heartMode || status.fmMode || status.shuffleMode === mode) {
+    syncPlayMode();
+    return;
+  }
   status.shuffleMode = mode;
   if (mode === "on") {
     // 洗牌，当前歌置顶
@@ -1387,6 +1402,7 @@ export const moveInQueue = (fromIndex: number, toIndex: number): void => {
 
 let unsubscribe: (() => void) | null = null;
 let stopQueueIndexSync: (() => void) | null = null;
+let stopPlayModeSync: (() => void) | null = null;
 let initialized = false;
 
 /** 初始化播放器 */
@@ -1406,6 +1422,8 @@ export const initPlayer = async (): Promise<void> => {
     (index) => window.api.player.syncQueueIndex(index),
     { immediate: true },
   );
+  // 进入或退出心动 / 私人 FM 时生效的随机、循环模式随之变化
+  stopPlayModeSync = watch([() => status.heartMode, () => status.fmMode], () => syncPlayMode());
   // 独立来源曲目恢复前等待所属插件，其余插件继续在后台启动。
   await usePluginsStore().load(
     status.currentTrack?.source === "plugin" ? status.currentTrack.plugin?.pluginId : undefined,
@@ -1524,6 +1542,8 @@ export const disposePlayer = (): void => {
   disposeNextTrackPreload();
   stopQueueIndexSync?.();
   stopQueueIndexSync = null;
+  stopPlayModeSync?.();
+  stopPlayModeSync = null;
   window.api.player.syncQueueIndex(-1);
   if (unsubscribe) {
     unsubscribe();

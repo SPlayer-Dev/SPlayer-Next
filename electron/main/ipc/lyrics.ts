@@ -4,6 +4,7 @@
  * - lyrics:matchById(platform, id)         按 id 直取
  * - lyrics:matchByQuery(platform, track)   按 Track 元数据模糊搜索
  * - lyrics:fetchTTMLOverlay(track, platform) 抓 AMLL TTML DB 的高质量 TTML
+ * - lyrics:searchTTML(track)               按 Track 元数据搜索 AMLL TTML DB
  *
  * 同 key 的并发请求会被 dedup：连按多次切歌只发一次网络。
  */
@@ -12,9 +13,9 @@ import { ipcMain, dialog } from "electron";
 import * as netease from "@main/apis/common/lyric/netease";
 import * as qqmusic from "@main/apis/common/lyric/qqmusic";
 import * as kugou from "@main/apis/common/lyric/kugou";
-import { fetchTTML } from "@main/apis/common/lyric/ttml";
+import { fetchTTML, searchTTML } from "@main/apis/common/lyric/ttml";
 import { matchLocalTTML } from "@main/services/localLyricRepo";
-import { buildFingerprint, getMatchedId } from "@main/database/lyricMatchCache";
+import { buildFingerprint, deleteMatchedId, getMatchedId } from "@main/database/lyricMatchCache";
 import { coreLog } from "@main/utils/logger";
 import type { LyricMatchResponse, LyricTTMLResponse } from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
@@ -44,7 +45,11 @@ const dedup = <T>(key: string, run: () => Promise<T>): Promise<T> => {
  * @param id 平台 id
  * @returns 歌词匹配结果
  */
-const resolveById = async (platform: Platform, id: string): Promise<LyricMatchResponse> => {
+const resolveById = async (
+  platform: Platform,
+  id: string,
+  track?: Track,
+): Promise<LyricMatchResponse> => {
   try {
     switch (platform) {
       case "netease":
@@ -52,7 +57,7 @@ const resolveById = async (platform: Platform, id: string): Promise<LyricMatchRe
       case "qqmusic":
         return { ok: true, data: await qqmusic.getByPlatformId(id) };
       case "kugou":
-        return { ok: true, data: await kugou.getByPlatformId(id) };
+        return { ok: true, data: await kugou.getByPlatformId(id, track) };
       default:
         return { ok: false, error: `unsupported platform: ${platform}` };
     }
@@ -112,14 +117,27 @@ const resolveTTMLOverlay = async (
 };
 
 export const registerLyricsIpc = (): void => {
-  ipcMain.handle("lyrics:matchById", (_evt, platform: Platform, id: string) =>
-    dedup(`byId:${platform}:${id}`, () => resolveById(platform, id)),
+  ipcMain.handle("lyrics:matchById", (_evt, platform: Platform, id: string, track?: Track) =>
+    dedup(`byId:${platform}:${id}`, () => resolveById(platform, id, track)),
   );
   ipcMain.handle("lyrics:matchByQuery", (_evt, platform: Platform, track: Track) =>
     dedup(`byQuery:${platform}:${track.id}`, () => resolveByQuery(platform, track)),
   );
+  ipcMain.handle("lyrics:forgetMatch", (_evt, track: Track, platform: Platform) =>
+    deleteMatchedId(buildFingerprint(track), platform),
+  );
   ipcMain.handle("lyrics:fetchTTMLOverlay", (_evt, track: Track, platform: "netease" | "qqmusic") =>
     dedup(`ttml:${platform}:${track.id}`, () => resolveTTMLOverlay(track, platform)),
+  );
+  ipcMain.handle("lyrics:searchTTML", (_evt, track: Track) =>
+    dedup(`ttmlSearch:${track.id}`, async (): Promise<LyricTTMLResponse> => {
+      try {
+        return { ok: true, data: await searchTTML(track) };
+      } catch (err) {
+        coreLog.warn(`[lyrics] searchTTML(${track.title}) failed:`, err);
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    }),
   );
   ipcMain.handle(
     "lyrics:matchLocalTTML",

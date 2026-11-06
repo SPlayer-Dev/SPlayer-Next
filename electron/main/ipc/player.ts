@@ -35,6 +35,7 @@ import {
   setTraySongName,
   setTrayPlayState,
   setTrayPlayMode,
+  getTrayPlayMode,
   setTrayLikeState,
 } from "@main/services/tray";
 import { setTaskbarThumbnailCover } from "@main/services/thumbnail";
@@ -1005,9 +1006,13 @@ export const registerPlayerIpc = (): void => {
     playerControl.syncQueueIndex(index);
   });
 
-  // 渲染进程同步播放模式到托盘
+  // 渲染进程同步播放模式到托盘与系统媒体控件
   ipcMain.on("player:syncPlayMode", (_event, repeat: RepeatMode, shuffle: ShuffleMode) => {
     setTrayPlayMode(repeat, shuffle);
+    mediaService.setPlayMode({
+      shuffle: shuffle === "on",
+      repeat: repeat === "one" ? "Track" : "List",
+    });
   });
 
   // 渲染进程同步当前歌曲喜欢状态到托盘与缩略图工具栏
@@ -1103,6 +1108,16 @@ export const registerPlayerIpc = (): void => {
           break;
         case "PrevTrack":
           sendToMain("player:event", { type: "prev" });
+          break;
+        case "SetShuffle":
+          if (event.shuffle != null) playerControl.setShuffle(event.shuffle ? "on" : "off");
+          break;
+        case "SetRepeat":
+          if (event.repeat === "Track") playerControl.setRepeat("one");
+          else if (event.repeat === "List") playerControl.setRepeat("list");
+          // 应用没有"不循环"，系统循环按钮切到 None 时视为在两种模式间切换，避免卡在列表循环
+          else if (event.repeat === "None")
+            playerControl.setRepeat(getTrayPlayMode().repeat === "one" ? "list" : "one");
           break;
       }
     } catch {}
