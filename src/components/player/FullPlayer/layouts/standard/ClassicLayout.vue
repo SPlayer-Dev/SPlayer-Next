@@ -48,7 +48,7 @@ const toggleLyric = (): void => {
       </SButton>
     </template>
   </PlayerTopBar>
-  <div class="absolute top-14 inset-x-0 bottom-20">
+  <div class="player-layout-content absolute inset-x-0 bottom-20">
     <!-- 左侧封面与信息 -->
     <div
       class="absolute inset-y-0 left-0 flex items-center justify-center px-12 transition-transform duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"

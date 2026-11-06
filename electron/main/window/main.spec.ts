@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   order: [] as string[],
   settings: {} as Record<string, unknown>,
   createWindow: vi.fn(),
+  platform: "darwin",
 }));
 
 vi.mock("electron", () => ({ shell: { openExternal: vi.fn() } }));
@@ -30,11 +31,18 @@ vi.mock("@main/utils/protocol", () => ({
   MAIN_PARTITION: "persist:main",
 }));
 vi.mock("@main/utils/lifecycle", () => ({ isAppQuitting: () => false }));
+vi.mock("@main/utils/config", () => ({
+  /** 是否使用 macOS 原生窗口按钮 */
+  get isMac() {
+    return mocks.platform === "darwin";
+  },
+}));
 vi.mock("@main/utils/broadcast", () => ({ broadcast: vi.fn() }));
 
 beforeEach(() => {
   vi.resetModules();
   mocks.order = [];
+  mocks.platform = "darwin";
   mocks.settings = { "system.onboardingCompleted": true, "system.agreedAgreementVersion": 100 };
   mocks.main = Object.assign(new EventEmitter(), {
     webContents: Object.assign(new EventEmitter(), {
@@ -50,12 +58,96 @@ beforeEach(() => {
       mocks.main.emit("show");
     }),
     focus: vi.fn(),
+    setWindowButtonVisibility: vi.fn(),
   });
   mocks.createWindow.mockClear();
   mocks.createWindow.mockImplementation(() => mocks.main);
 });
 
 describe("主窗口启动交接", () => {
+  it("macOS 有边框窗口在启动画面期间隐藏按钮，启动完成后恢复", async () => {
+    mocks.settings["system.borderlessWindow"] = false;
+    const service = await import("./main");
+    service.createMainWindow();
+    expect(mocks.main.setWindowButtonVisibility.mock.calls).toEqual([[false]]);
+    mocks.main.emit("ready-to-show");
+    await service.showReadyMainWindow();
+    service.focusMainWindow();
+    expect(mocks.main.setWindowButtonVisibility.mock.calls).toEqual([[false]]);
+    service.completeMainWindowStartup();
+    expect(mocks.main.setWindowButtonVisibility.mock.calls).toEqual([[false], [true]]);
+  });
+
+  it.each<[string, boolean]>([
+    ["darwin", true],
+    ["win32", false],
+    ["linux", false],
+  ])("%s 无原生标题栏时不操作窗口按钮", async (platform, borderlessWindow) => {
+    mocks.platform = platform;
+    mocks.settings["system.borderlessWindow"] = borderlessWindow;
+    const service = await import("./main");
+    service.createMainWindow();
+    mocks.main.emit("ready-to-show");
+    await service.showReadyMainWindow();
+    service.completeMainWindowStartup();
+    expect(mocks.main.setWindowButtonVisibility).not.toHaveBeenCalled();
+  });
+
+  it("启动完成前窗口销毁时不再恢复原生按钮", async () => {
+    mocks.settings["system.borderlessWindow"] = false;
+    const service = await import("./main");
+    service.createMainWindow();
+    mocks.main.isDestroyed = () => true;
+    service.completeMainWindowStartup();
+    expect(mocks.main.setWindowButtonVisibility.mock.calls).toEqual([[false]]);
+  });
+
+  it("启动完成前缓存沉浸状态，完成后才允许切换原生按钮", async () => {
+    mocks.settings["system.borderlessWindow"] = false;
+    const service = await import("./main");
+    service.createMainWindow();
+    service.setMainWindowTrafficLightsVisible(false);
+    expect(mocks.main.setWindowButtonVisibility.mock.calls).toEqual([[false]]);
+    service.completeMainWindowStartup();
+    expect(mocks.main.setWindowButtonVisibility).toHaveBeenLastCalledWith(false);
+    service.setMainWindowTrafficLightsVisible(true);
+    expect(mocks.main.setWindowButtonVisibility).toHaveBeenLastCalledWith(true);
+    service.setMainWindowTrafficLightsVisible(false);
+    expect(mocks.main.setWindowButtonVisibility).toHaveBeenLastCalledWith(false);
+    mocks.main.webContents.emit("render-process-gone");
+    expect(mocks.main.setWindowButtonVisibility).toHaveBeenLastCalledWith(true);
+  });
+
+  it.each(["darwin", "win32", "linux"])(
+    "%s 仅在 macOS 有边框模式叠加原生按钮",
+    async (platform) => {
+      mocks.platform = platform;
+      mocks.settings["system.borderlessWindow"] = false;
+      const service = await import("./main");
+      service.createMainWindow();
+      const options = mocks.createWindow.mock.calls.at(-1)?.[0];
+      expect(options.frame).toBe(true);
+      if (platform === "darwin") {
+        expect(options).toEqual(
+          expect.objectContaining({ titleBarStyle: "hidden", titleBarOverlay: { height: 32 } }),
+        );
+      } else {
+        expect(options).not.toHaveProperty("titleBarStyle");
+        expect(options).not.toHaveProperty("titleBarOverlay");
+      }
+    },
+  );
+
+  it("无边框模式保留现有窗口配置", async () => {
+    mocks.settings["system.borderlessWindow"] = true;
+    const service = await import("./main");
+    service.createMainWindow();
+    const options = mocks.createWindow.mock.calls.at(-1)?.[0];
+    expect(options.frame).toBe(false);
+    expect(options).not.toHaveProperty("titleBarStyle");
+    expect(options).not.toHaveProperty("titleBarOverlay");
+  });
+
   it("创建时设置缩放，导航重置后等首次绘制完成再校正", async () => {
     mocks.settings["system.uiZoom"] = 125;
     const service = await import("./main");
