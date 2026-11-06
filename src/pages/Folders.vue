@@ -6,6 +6,7 @@ import type { FolderNode } from "@/types/folder";
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import { useLibraryStore } from "@/stores/library";
 import { usePlaylistStore } from "@/stores/playlist";
+import { useSettingsStore } from "@/stores/settings";
 import { toast } from "@/composables/useToast";
 import SongList from "@/components/list/SongList.vue";
 import * as player from "@/core/player";
@@ -22,7 +23,49 @@ const { t } = useI18n();
 const router = useRouter();
 const libraryStore = useLibraryStore();
 const playlistStore = usePlaylistStore();
+const settingsStore = useSettingsStore();
 const { tracks, initialized, folderTree, folderCount } = storeToRefs(libraryStore);
+
+const TREE_DEFAULT_WIDTH = 256;
+const TREE_MIN_WIDTH = 200;
+const TREE_MAX_WIDTH = 640;
+
+// 拖拽过程只改本地宽度，松手再写入设置，避免每帧触发持久化
+const treeWidth = ref(settingsStore.appearance.folderTreeWidth);
+const resizing = ref(false);
+
+/**
+ * 拖拽分隔条调整目录树宽度
+ * @param event - 分隔条上的 pointerdown 事件
+ */
+const handleResizeStart = (event: PointerEvent): void => {
+  if (event.button !== 0) return;
+  const handle = event.currentTarget as HTMLElement;
+  handle.setPointerCapture(event.pointerId);
+  const startX = event.clientX;
+  const startWidth = treeWidth.value;
+  resizing.value = true;
+  const onMove = (e: PointerEvent): void => {
+    const next = startWidth + e.clientX - startX;
+    treeWidth.value = Math.round(Math.min(TREE_MAX_WIDTH, Math.max(TREE_MIN_WIDTH, next)));
+  };
+  handle.addEventListener("pointermove", onMove);
+  handle.addEventListener(
+    "lostpointercapture",
+    () => {
+      handle.removeEventListener("pointermove", onMove);
+      resizing.value = false;
+      settingsStore.appearance.folderTreeWidth = treeWidth.value;
+    },
+    { once: true },
+  );
+};
+
+/** 双击分隔条恢复默认宽度 */
+const handleResizeReset = (): void => {
+  treeWidth.value = TREE_DEFAULT_WIDTH;
+  settingsStore.appearance.folderTreeWidth = TREE_DEFAULT_WIDTH;
+};
 
 const trackCount = computed(() => tracks.value.filter((tr) => !!tr.path).length);
 
@@ -130,10 +173,15 @@ onMounted(async () => {
         </div>
       </div>
     </div>
-    <div v-if="folderTree.length > 0" class="flex-1 min-h-0 flex">
+    <div
+      v-if="folderTree.length > 0"
+      class="flex-1 min-h-0 flex"
+      :class="resizing ? 'cursor-col-resize select-none' : ''"
+    >
       <!-- 文件夹树 -->
       <div
-        class="w-64 shrink-0 bg-surface-panel border border-solid border-primary/12 rounded-xl ml-3 mb-3 overflow-hidden"
+        class="shrink-0 max-w-[50%] bg-surface-panel border border-solid border-primary/12 rounded-xl ml-3 mb-3 overflow-hidden"
+        :style="{ width: treeWidth + 'px' }"
       >
         <STree
           v-model="selectedFolder"
@@ -154,12 +202,27 @@ onMounted(async () => {
               :is="isExpanded && hasChildren ? IconLucideFolderOpen : IconLucideFolder"
               class="size-4 shrink-0"
             />
-            <span class="flex-1 min-w-0 truncate text-sm">{{ node.name }}</span>
+            <span class="flex-1 min-w-0 truncate text-sm" :title="node.name">{{ node.name }}</span>
             <span class="shrink-0 text-xs text-on-surface-variant/50 tabular-nums">
               {{ node.tracks.length }}
             </span>
           </template>
         </STree>
+      </div>
+      <!-- 宽度调整分隔条，占据目录树与列表之间的间隙 -->
+      <div class="relative w-0 shrink-0 mb-3">
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          class="group absolute inset-y-0 left-0 z-10 w-3 flex justify-center cursor-col-resize touch-none"
+          @pointerdown="handleResizeStart"
+          @dblclick="handleResizeReset"
+        >
+          <div
+            class="w-0.5 h-full rounded-full transition-colors duration-150"
+            :class="resizing ? 'bg-primary/60' : 'group-hover:bg-primary/30'"
+          />
+        </div>
       </div>
       <!-- 歌曲列表 -->
       <div class="flex-1 min-w-0">
