@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
+import PlayerComments from "../../shared/PlayerComments.vue";
 
 const status = useStatusStore();
 const media = useMediaStore();
@@ -16,7 +17,11 @@ const lyricVisible = computed(() => hasLyric.value && !status.fullQueueOpen);
   <div class="absolute top-14 inset-x-0 bottom-20">
     <div
       class="group absolute inset-0 px-20 flex flex-col transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
-      :class="status.fullQueueOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'"
+      :class="
+        status.fullQueueOpen || status.fullCommentsOpen
+          ? 'opacity-0 pointer-events-none'
+          : 'opacity-100'
+      "
     >
       <PlayerLyric :visible="lyricVisible">
         <template #header>
@@ -27,6 +32,8 @@ const lyricVisible = computed(() => hasLyric.value && !status.fullQueueOpen);
       </PlayerLyric>
       <LyricActions />
     </div>
+    <!-- 全屏内嵌评论 -->
+    <PlayerComments mode="full" />
     <!-- 播放队列 -->
     <div
       class="absolute inset-y-0 right-0 w-1/2 pl-4 py-6 flex items-center"

@@ -2,6 +2,7 @@
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import { useFullPlayer } from "../../context";
+import PlayerComments from "../../shared/PlayerComments.vue";
 
 const status = useStatusStore();
 const media = useMediaStore();
@@ -9,22 +10,38 @@ const { immersive } = useFullPlayer();
 
 const hasLyric = computed(() => media.parsedLyric.length > 0 || media.lyricLoading);
 
+/** 全屏内嵌评论布局：off 关闭、half 左半屏、full 全屏 */
+const commentsMode = computed<"off" | "half" | "full">(() => {
+  if (!status.fullCommentsOpen) return "off";
+  // 以实际就绪的歌词判定，避免歌词加载中导致面板宽度反复切换
+  return media.parsedLyric.length > 0 ? "half" : "full";
+});
+
 /** 全屏封面没有隐藏歌词的入口，歌词列仅让位给播放队列 */
 const lyricVisible = computed(() => hasLyric.value && !status.fullQueueOpen);
 </script>
 
 <template>
   <!-- 封面压在频谱与遮罩之下 -->
-  <div class="absolute inset-y-0 left-0 w-[60%] -z-1">
-    <PlayerCover class="full-cover size-full" />
-  </div>
+  <Transition
+    enter-active-class="transition-opacity duration-250"
+    enter-from-class="opacity-0"
+    leave-active-class="transition-opacity duration-250"
+    leave-to-class="opacity-0"
+  >
+    <div v-if="commentsMode === 'off'" class="absolute inset-y-0 left-0 w-[60%] -z-1">
+      <PlayerCover class="full-cover size-full" />
+    </div>
+  </Transition>
   <!-- 顶/底栏渐变遮罩 -->
   <div
+    v-if="commentsMode === 'off'"
     data-player-layout="mask-top"
     class="cover-mask-top absolute top-0 inset-x-0 h-20 z-5 pointer-events-none transition-opacity duration-400"
     :class="immersive ? 'opacity-0' : 'opacity-100'"
   />
   <div
+    v-if="commentsMode === 'off'"
     data-player-layout="mask-bottom"
     class="cover-mask-bottom absolute bottom-0 inset-x-0 h-48 z-5 pointer-events-none transition-opacity duration-400"
     :class="immersive ? 'opacity-0' : 'opacity-100'"
@@ -34,17 +51,30 @@ const lyricVisible = computed(() => hasLyric.value && !status.fullQueueOpen);
     <!-- 右侧信息与歌词 -->
     <div
       class="group absolute inset-y-0 right-0 w-1/2 pr-20 flex flex-col transition-opacity duration-600 ease-[cubic-bezier(0.4,0,0.2,1)]"
-      :class="status.fullQueueOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'"
+      :class="
+        status.fullQueueOpen || commentsMode === 'full'
+          ? 'opacity-0 pointer-events-none'
+          : 'opacity-100'
+      "
     >
       <PlayerLyric :visible="lyricVisible">
         <template #header>
-          <div class="shrink-0 pt-2 pb-6 pl-[calc(1em-0.5rem)]">
-            <PlayerData align="left" simple />
-          </div>
+          <Transition
+            enter-active-class="transition-opacity duration-250"
+            enter-from-class="opacity-0"
+            leave-active-class="transition-opacity duration-250"
+            leave-to-class="opacity-0"
+          >
+            <div v-if="commentsMode === 'off'" class="shrink-0 pt-2 pb-6 pl-[calc(1em-0.5rem)]">
+              <PlayerData align="left" simple />
+            </div>
+          </Transition>
         </template>
       </PlayerLyric>
       <LyricActions />
     </div>
+    <!-- 全屏内嵌评论 -->
+    <PlayerComments :mode="commentsMode === 'full' ? 'full' : 'half'" width="50%" />
     <!-- 播放队列 -->
     <div
       class="absolute inset-y-0 right-0 w-1/2 pl-4 py-6 flex items-center"

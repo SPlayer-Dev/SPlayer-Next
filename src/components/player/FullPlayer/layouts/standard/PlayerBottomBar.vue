@@ -56,10 +56,6 @@ const {
   mode: pickerMode,
   openPicker,
 } = usePlaylistPicker();
-
-const showComments = (): void => {
-  if (displayTrack.value) status.showComments(displayTrack.value);
-};
 </script>
 
 <template>
@@ -92,11 +88,11 @@ const showComments = (): void => {
       </SButton>
       <SButton
         type="cover"
-        variant="ghost"
+        :variant="status.fullCommentsOpen ? 'tertiary' : 'ghost'"
         size="large"
         circle
         :disabled="!hasTrack"
-        @click="showComments"
+        @click="status.toggleFullComments"
       >
         <template #icon><IconLucideMessageCircle /></template>
       </SButton>

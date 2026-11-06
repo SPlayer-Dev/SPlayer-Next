@@ -43,6 +43,11 @@ watch(
   { flush: "sync" },
 );
 
+// AM 布局不承载评论区，切换过去时收起残留状态
+watch(layout, (value) => {
+  if (value === "apple") status.fullCommentsOpen = false;
+});
+
 /** 歌词首帧就绪后在空闲时段创建可视化，避免布局测量与 WebGL 初始化争抢一帧 */
 const scheduleVisualizers = (): void => {
   if (
