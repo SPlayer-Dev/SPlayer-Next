@@ -436,6 +436,7 @@ const emit = defineEmits<{
 onActivated(batch.exit);
 
 defineExpose({
+  sortedItems,
   /** 进入批量管理模式 */
   enterBatch: batch.enter,
 });
