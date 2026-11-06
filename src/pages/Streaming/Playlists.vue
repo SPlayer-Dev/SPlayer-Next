@@ -5,10 +5,12 @@ import type { CoverItem } from "@/types/artist";
 import { useStreamingStore } from "@/stores/streaming";
 import { navigateToPlaylist } from "@/utils/navigate";
 import { playlistToCoverItem } from "@/utils/format/coverItem";
+import { useCoverPlay } from "@/composables/useCoverPlay";
 
 const { t } = useI18n();
 const streaming = useStreamingStore();
 const { playlists, loading, isConnected } = storeToRefs(streaming);
+const { playCover, pendingId } = useCoverPlay();
 
 const refreshKey = inject<{ value: number }>("streamingRefreshKey", { value: 0 });
 
@@ -41,6 +43,18 @@ const handleClick = (item: CoverItem): void => {
     serverId: streaming.activeServerId ?? undefined,
   });
 };
+
+/**
+ * 直接播放整个歌单
+ * @param item - 歌单封面条目
+ */
+const handlePlay = (item: CoverItem): void => {
+  void playCover(item, {
+    source: "streaming",
+    type: "playlist",
+    serverId: streaming.activeServerId ?? undefined,
+  });
+};
 </script>
 
 <template>
@@ -51,7 +65,10 @@ const handleClick = (item: CoverItem): void => {
       :padding-x="20"
       :padding-top="8"
       :padding-bottom="20"
+      playable
+      :pending-id="pendingId"
       @click="handleClick"
+      @play="handlePlay"
     />
     <div v-else class="h-full flex items-center justify-center">
       <div class="text-center text-on-surface-variant/60">

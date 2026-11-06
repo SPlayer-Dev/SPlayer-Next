@@ -123,6 +123,8 @@
     "copied": "Copied",
     "copyFailed": "Copy failed",
     "playAll": "Play All",
+    "play": "Play",
+    "playFailed": "Playback failed",
     "totalSongs": "{count} songs",
     "totalAlbums": "{count} albums",
     "totalArtists": "{count} artists",
