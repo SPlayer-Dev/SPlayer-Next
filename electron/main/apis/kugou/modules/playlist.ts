@@ -1,6 +1,7 @@
 import { decodeName, fillCover } from "../core/config";
 import { fetchAllPages } from "../core/pagination";
 import { kgGatewayRequest, kgRequest } from "../core/request";
+import { coreLog } from "@main/utils/logger";
 import { normalizeKGSong } from "../core/song";
 import type { KGSong } from "@shared/types/platform/kugou";
 import type { KGModule } from "../core/types";
@@ -12,6 +13,13 @@ interface RawPlaylistInfo {
   intro?: string;
   pic?: string;
   list_create_username?: string;
+  /** 全局 ID 歌单只在此处暴露数字 ID，播放次数需用它单独查询 */
+  specialid?: number | string;
+}
+
+interface RawSpecialInfo {
+  global_specialid: string;
+  playcount?: number | string;
 }
 
 interface RawPlaylistSong {
@@ -81,6 +89,24 @@ const normalizePlaylistSong = (raw: RawPlaylistSong): KGSong => {
 };
 
 /**
+ * 查询歌单播放次数，播放次数只用于展示，查询失败时不影响歌单主体
+ * @param specialId - 歌单数字 ID
+ * @returns 播放次数，未知时为 0
+ */
+const fetchPlayCount = async (specialId?: number | string): Promise<number> => {
+  if (!specialId) return 0;
+  try {
+    const response = await kgRequest<{ data?: RawSpecialInfo }>(
+      `http://mobilecdn.kugou.com/api/v3/special/info?specialid=${specialId}&format=json`,
+    );
+    return Number(response.data?.playcount ?? 0);
+  } catch (error) {
+    coreLog.warn(`[kg-playlist] 获取播放次数失败 (specialid=${specialId}):`, error);
+    return 0;
+  }
+};
+
+/**
  * 获取新版公开歌单及其完整歌曲，兼容旧版数字歌单 ID
  * @param params - 歌单 ID
  * @returns 歌单详情与完整的结构化歌曲列表
@@ -90,11 +116,13 @@ const playlist: KGModule = async (params) => {
   if (!id) return { code: 400, message: "id required" };
 
   let globalId = id;
+  let playCount: number | undefined;
   if (/^\d+$/.test(id)) {
-    const response = await kgRequest<{ data: { global_specialid: string } }>(
+    const response = await kgRequest<{ data: RawSpecialInfo }>(
       `http://mobilecdn.kugou.com/api/v3/special/info?specialid=${id}&format=json`,
     );
     globalId = response.data.global_specialid;
+    playCount = response.data.playcount === undefined ? undefined : Number(response.data.playcount);
     if (!globalId) throw new Error("KG 歌单不存在或不可访问");
   }
 
@@ -127,6 +155,7 @@ const playlist: KGModule = async (params) => {
     creator: decodeName(info?.list_create_username),
     cover: fillCover(info?.pic, 300),
     coverOriginal: fillCover(info?.pic, 480),
+    playCount: playCount ?? (await fetchPlayCount(info?.specialid)),
     total,
     songs,
   };

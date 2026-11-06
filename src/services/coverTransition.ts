@@ -1,7 +1,7 @@
 import type { Router, RouteLocationNormalized } from "vue-router";
 import type { CoverItem } from "@/types/artist";
 
-type CoverPreview = Pick<CoverItem, "title" | "cover" | "trackCount">;
+type CoverPreview = Pick<CoverItem, "title" | "cover" | "trackCount" | "playCount">;
 
 /** 只保留一次导航的头部摘要，不缓存歌曲和页面 DOM */
 interface CoverNavigation {
@@ -40,6 +40,7 @@ export const captureCover = (item: CoverItem, coverKey: string): void => {
       title: item.title,
       cover: item.cover,
       trackCount: item.trackCount,
+      playCount: item.playCount,
     },
   };
   pendingCover = captured;

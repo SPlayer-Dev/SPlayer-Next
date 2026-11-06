@@ -166,4 +166,5 @@ export const kgPlaylistToCoverItem = (playlist: KGPlaylistItem): CoverItem => ({
   cover: playlist.cover,
   subtitle: playlist.creator ?? "",
   trackCount: playlist.trackCount ?? 0,
+  playCount: playlist.playCount,
 });

@@ -439,7 +439,7 @@ const searchPlaylists = async (keywords: string, page: number, limit: number) =>
     cover: fillCover(raw.img, 300),
     creator: decodeName(raw.nickname),
     trackCount: raw.song_count ?? 0,
-    playCount: Number(raw.play_count || raw.total_play_count || 0),
+    playCount: Number(raw.total_play_count ?? raw.play_count ?? 0),
   }));
 
   return {

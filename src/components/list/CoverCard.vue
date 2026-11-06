@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { CoverItem } from "@/types/artist";
 import artistFallback from "@/assets/images/artist.jpg";
+import { formatPlayCount } from "@/utils/format/playCount";
 import { captureCover } from "@/services/coverTransition";
 
 export interface CoverCardProps {
@@ -19,6 +20,8 @@ const props = withDefaults(defineProps<CoverCardProps>(), {
   rounded: "rounded-xl",
 });
 
+const { locale } = useI18n();
+
 const emit = defineEmits<{ click: [] }>();
 /** 稳定的封面标识：页面重新挂载后仍能匹配，不能用组件实例 ID */
 const coverKey = computed(() => `${props.type}:${props.item.id}`);
@@ -31,14 +34,28 @@ const handleClick = (): void => {
 
 const coverRounded = computed(() => (props.type === "artist" ? "rounded-full" : props.rounded));
 const actualFallback = computed(() => (props.type === "artist" ? artistFallback : props.fallback));
+const showPlayBadge = computed(() => (props.item.playCount ?? 0) > 0);
+const displayPlayCount = computed(() =>
+  props.item.playCount != null ? formatPlayCount(props.item.playCount, locale.value) : "",
+);
 </script>
 
 <template>
   <div
-    class="cursor-pointer group rounded-xl transition-colors duration-300"
+    class="cursor-pointer group rounded-xl transition-colors duration-300 relative"
     :class="type !== 'artist' ? 'hover:bg-primary/10' : ''"
     @click="handleClick"
   >
+    <!-- 播放次数徽标（放在 SImg 外面，避免 overflow-hidden 裁剪） -->
+    <div
+      v-if="showPlayBadge"
+      class="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-lg bg-black/60 px-1.5 py-1 pointer-events-none"
+    >
+      <IconLucidePlay class="size-3 fill-current text-white" />
+      <span class="text-xs font-medium text-white tabular-nums">
+        {{ displayPlayCount }}
+      </span>
+    </div>
     <!-- 封面 -->
     <div class="relative overflow-hidden group-hover:will-change-transform" :class="coverRounded">
       <SImg

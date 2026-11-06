@@ -41,6 +41,7 @@ export const loadNeteaseCollection = async (
     description?: string;
     creator?: string;
     count?: number;
+    playCount?: number;
   };
   const current = (): Collection | null =>
     meta
@@ -54,6 +55,7 @@ export const loadNeteaseCollection = async (
           creator: meta.creator,
           tracks: [...tracks],
           trackCount: meta.count ?? tracks.length,
+          playCount: meta.playCount,
         }
       : null;
   await fetchPlaylist(id, {
@@ -65,6 +67,7 @@ export const loadNeteaseCollection = async (
         description: value.description,
         creator: value.owner,
         count: value.trackCount,
+        playCount: value.playCount,
       };
       if (!options.signal?.aborted) options.onUpdate(current());
     },
