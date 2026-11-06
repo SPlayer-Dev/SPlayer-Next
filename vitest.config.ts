@@ -13,6 +13,8 @@ export default defineConfig({
     __APP_AUTHOR__: JSON.stringify(pkg.author.name),
     __APP_HOMEPAGE__: JSON.stringify(pkg.homepage),
     __APP_AUTHOR_URL__: JSON.stringify(pkg.author.url),
+    MAIN_WINDOW_VITE_DEV_SERVER_URL: "undefined",
+    MAIN_WINDOW_VITE_NAME: JSON.stringify("main_window"),
   },
   resolve: {
     alias: {

@@ -1,4 +1,5 @@
 out
+.vite
 dist
 
 pnpm-lock.yaml

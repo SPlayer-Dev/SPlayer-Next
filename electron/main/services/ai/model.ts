@@ -49,7 +49,7 @@ const writePersisted = (state: PersistedAiModelState): void => {
     atomicWriteSync(STORAGE_FILE, JSON.stringify(state, null, 2));
   } catch (error) {
     ipcLog.error("写入 AI 模型配置失败:", error);
-    throw new Error("AI 模型配置保存失败");
+    throw new Error("AI 模型配置保存失败", { cause: error });
   }
 };
 

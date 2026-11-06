@@ -32,7 +32,7 @@ pnpm dev -- [参数]...
 基础命令
 
 ```bash
-pnpm build         # 完整构建：清理 → 原生模块 → 类型检查 → electron-vite
+pnpm build         # 完整构建：清理 → 原生模块 → 类型检查 → electron-forge package
 pnpm build:win     # 打包 Windows
 pnpm build:mac     # 打包 macOS
 pnpm build:linux   # 打包 Linux
@@ -41,15 +41,14 @@ pnpm build:linux   # 打包 Linux
 高级命令
 
 ```bash
-# 上面的构建命令默认会构建当前平台和架构的全部 target。可以通过下面的方法指定只打包某些 target
-pnpm build:win nsis       # 打包 Windows 的 nsis 格式
-pnpm build:mac dmg        # 打包 macOS 的 dmg 格式
-pnpm build:linux tar.gz   # 打包 Linux 的 tar.gz 格式
-# 全部 target 的列表详见 https://www.electron.build/docs/targets
+# 上面的构建命令默认构建当前架构，可以通过 --arch 指定
+pnpm build:win --arch=arm64
 
-# 仅构建未打包的程序目录，常用于本地测试（在 dist/xxx-unpacked 目录）
+# 仅构建未打包的程序目录，常用于本地测试（在 out/SPlayer-Next-<平台>-<架构> 目录）
 pnpm build:unpack
 ```
+
+Electron Forge 负责编译与打包，再把打包目录交给 electron-builder 生成 `scripts/forge/maker.ts` 中列出的全部安装包
 
 ## 常用脚本
 

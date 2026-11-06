@@ -1,7 +1,6 @@
 import { BrowserWindow, screen } from "electron";
-import { join } from "path";
-import { is } from "@electron-toolkit/utils";
 import { createWindow } from "./create";
+import { loadRendererPage } from "./renderer";
 import { store } from "@main/store";
 import { broadcast } from "@main/utils/broadcast";
 import { isMac } from "@main/utils/config";
@@ -555,13 +554,7 @@ export const createDynamicIslandWindow = (): BrowserWindow => {
     },
   });
 
-  if (is.dev && process.env["ELECTRON_RENDERER_URL"]) {
-    dynamicIslandWindow.loadURL(
-      `${process.env["ELECTRON_RENDERER_URL"]}/windows/dynamic-island/index.html`,
-    );
-  } else {
-    dynamicIslandWindow.loadFile(join(__dirname, "../renderer/windows/dynamic-island/index.html"));
-  }
+  loadRendererPage(dynamicIslandWindow, "windows/dynamic-island/index.html");
 
   dynamicIslandWindow.webContents.on("did-finish-load", () => {
     if (!dynamicIslandWindow) return;

@@ -1,7 +1,6 @@
 import { app, BrowserWindow, dialog, shell } from "electron";
-import { join } from "path";
-import { is } from "@electron-toolkit/utils";
 import { createWindow } from "./create";
+import { loadRendererPage } from "./renderer";
 import { initThumbar } from "@main/services/thumbar";
 import { enableTaskbarThumbnail } from "@main/services/thumbnail";
 import { initTray } from "@main/services/tray";
@@ -16,8 +15,7 @@ import { setMainWindowVisible, setPlayerExpanded } from "@main/utils/powerBlocke
 /** 判断是否应用内部导航 */
 const isInternalNavigation = (url: string): boolean => {
   if (url.startsWith("file://")) return true;
-  const devBase = process.env["ELECTRON_RENDERER_URL"];
-  return !!devBase && url.startsWith(devBase);
+  return !!MAIN_WINDOW_VITE_DEV_SERVER_URL && url.startsWith(MAIN_WINDOW_VITE_DEV_SERVER_URL);
 };
 
 let mainWindow: BrowserWindow | null = null;
@@ -128,14 +126,7 @@ export const createMainWindow = (): BrowserWindow => {
     initialHash = "/agreement-update";
   }
 
-  // 基于 electron-vite cli 的 HMR
-  let loading: Promise<void>;
-  if (is.dev && process.env["ELECTRON_RENDERER_URL"]) {
-    const base = process.env["ELECTRON_RENDERER_URL"];
-    loading = mainWindow.loadURL(`${base}#${initialHash}`);
-  } else {
-    loading = mainWindow.loadFile(join(__dirname, "../renderer/index.html"), { hash: initialHash });
-  }
+  const loading = loadRendererPage(mainWindow, "index.html", initialHash);
   void loading.catch((error) => {
     if (isAppQuitting()) return;
     coreLog.error("主窗口加载失败", error);

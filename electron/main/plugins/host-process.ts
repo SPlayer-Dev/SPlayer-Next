@@ -9,7 +9,7 @@
  */
 
 import path from "node:path";
-import { utilityProcess, type UtilityProcess, app } from "electron";
+import { utilityProcess, type UtilityProcess } from "electron";
 import type {
   HostCallMethod,
   PlaybackEventKind,
@@ -46,8 +46,7 @@ export interface PluginHostCallbacks {
 /** loadPlugin 入参（即 loadPlugin 消息去掉 kind） */
 export type PluginLoadSpec = Omit<Extract<SandboxIn, { kind: "loadPlugin" }>, "kind">;
 
-const resolveWorkerEntry = (): string =>
-  path.join(app.getAppPath(), "out", "main", "host.worker.js");
+const resolveWorkerEntry = (): string => path.join(import.meta.dirname, "host.worker.js");
 
 class PluginHost {
   private child: UtilityProcess | null = null;

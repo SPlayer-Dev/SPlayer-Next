@@ -243,7 +243,7 @@ const sortedItems = computed(() => {
   const toPathText = (track: Track): string => track.path ?? "";
 
   const compare = (a: Track, b: Track): number => {
-    let value = 0;
+    let value: number;
     if (field === "title") value = textCollator.compare(a.title, b.title);
     else if (field === "artist") value = textCollator.compare(toArtistText(a), toArtistText(b));
     else if (field === "album") value = textCollator.compare(toAlbumText(a), toAlbumText(b));

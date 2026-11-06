@@ -6,11 +6,11 @@
       "type": "node",
       "request": "launch",
       "cwd": "${workspaceRoot}",
-      "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/electron-vite",
+      "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/electron-forge",
       "windows": {
-        "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/electron-vite.cmd"
+        "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/electron-forge.cmd"
       },
-      "runtimeArgs": ["--sourcemap"],
+      "runtimeArgs": ["start"],
       "env": {
         "REMOTE_DEBUGGING_PORT": "9222"
       }

@@ -89,7 +89,10 @@ const send = (msg: SandboxOut): void => {
       parentPort.postMessage(sanitizeForIpc(msg) as SandboxOut);
       return;
     } catch (err2) {
-      throw new Error(`[host] postMessage failed for kind=${msg.kind}: ${(err2 as Error).message}`);
+      throw new Error(
+        `[host] postMessage failed for kind=${msg.kind}: ${(err2 as Error).message}`,
+        { cause: err2 },
+      );
     }
   }
 };

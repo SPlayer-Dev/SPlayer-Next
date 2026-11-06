@@ -1,7 +1,6 @@
 import { BrowserWindow, screen } from "electron";
-import { join } from "path";
-import { is } from "@electron-toolkit/utils";
 import { createWindow } from "./create";
+import { loadRendererPage } from "./renderer";
 import { loadNativeModule } from "@main/utils/nativeLoader";
 import { broadcast } from "@main/utils/broadcast";
 import { setTrayTaskbarLyric } from "@main/services/tray";
@@ -311,13 +310,7 @@ export const createTaskbarLyricWindow = (): BrowserWindow | null => {
     },
   });
 
-  if (is.dev && process.env["ELECTRON_RENDERER_URL"]) {
-    taskbarLyricWindow.loadURL(
-      `${process.env["ELECTRON_RENDERER_URL"]}/windows/taskbar-lyric/index.html`,
-    );
-  } else {
-    taskbarLyricWindow.loadFile(join(__dirname, "../renderer/windows/taskbar-lyric/index.html"));
-  }
+  loadRendererPage(taskbarLyricWindow, "windows/taskbar-lyric/index.html");
 
   taskbarLyricWindow.once("ready-to-show", () => {
     const win = taskbarLyricWindow;

@@ -66,7 +66,7 @@ pnpm dev
 ### Building
 
 ```bash
-pnpm build         # Full build: clean → native → typecheck → electron-vite
+pnpm build         # Full build: clean → native → typecheck → electron-forge package
 
 pnpm build:win     # Package for Windows
 pnpm build:mac     # Package for macOS

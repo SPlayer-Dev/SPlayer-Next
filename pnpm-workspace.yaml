@@ -1,4 +1,7 @@
 packages: []
+# 与 pnpm 默认值相同，显式声明以通过 Electron Forge 的包管理器检查
+hoistPattern:
+  - "*"
 minimumReleaseAge: 4320
 allowBuilds:
   "@parcel/watcher": false

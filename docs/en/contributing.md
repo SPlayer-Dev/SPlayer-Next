@@ -30,16 +30,15 @@ pnpm build:win
 pnpm build:mac
 pnpm build:linux
 
-# Build selected electron-builder targets
-pnpm build:win nsis
-pnpm build:mac dmg
-pnpm build:linux tar.gz
+# Build for a specific architecture
+pnpm build:win --arch=arm64
 
-# Build unpacked output for local testing
+# Build unpacked output for local testing (in out/SPlayer-Next-<platform>-<arch>)
 pnpm build:unpack
 ```
 
-See [electron-builder targets](https://www.electron.build/docs/targets) for all package targets.
+Electron Forge compiles and packages the app, then hands the packaged directory to electron-builder
+to produce every installer target listed in `scripts/forge/maker.ts`.
 
 ## Common scripts
 

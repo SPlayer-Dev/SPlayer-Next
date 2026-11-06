@@ -1,7 +1,6 @@
 import { BrowserWindow, screen } from "electron";
-import { join } from "path";
-import { is } from "@electron-toolkit/utils";
 import { createWindow } from "./create";
+import { loadRendererPage } from "./renderer";
 import { setTrayDesktopLyric } from "@main/services/tray";
 import { store } from "@main/store";
 import { broadcast } from "@main/utils/broadcast";
@@ -234,13 +233,7 @@ export const createDesktopLyricWindow = (): BrowserWindow => {
   cachedSize.width = initialWidth;
   cachedSize.height = initialHeight;
 
-  if (is.dev && process.env["ELECTRON_RENDERER_URL"]) {
-    desktopLyricWindow.loadURL(
-      `${process.env["ELECTRON_RENDERER_URL"]}/windows/desktop-lyric/index.html`,
-    );
-  } else {
-    desktopLyricWindow.loadFile(join(__dirname, "../renderer/windows/desktop-lyric/index.html"));
-  }
+  loadRendererPage(desktopLyricWindow, "windows/desktop-lyric/index.html");
 
   desktopLyricWindow.webContents.on("did-finish-load", () => {
     desktopLyricWindow?.webContents.setZoomFactor(1.0);

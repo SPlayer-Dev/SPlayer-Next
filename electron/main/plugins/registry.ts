@@ -168,7 +168,7 @@ class PluginRegistry extends EventEmitter {
     for (const [id, storedManifest] of Object.entries(stored.plugins)) {
       let manifest = storedManifest;
       const scriptPath = path.join(scriptsDir(), manifest.fileName);
-      let source = "";
+      let source: string;
       try {
         source = fs.readFileSync(scriptPath, "utf-8");
         // 重新解压（防止脚本外部被替换为 gz_）

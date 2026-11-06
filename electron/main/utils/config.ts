@@ -1,4 +1,3 @@
-import { is } from "@electron-toolkit/utils";
 import { app } from "electron";
 import path from "node:path";
 import { store } from "@main/store";
@@ -8,7 +7,7 @@ import { defaultCacheDir } from "./paths";
  * 是否为开发环境
  * @returns boolean
  */
-export const isDev = is.dev;
+export const isDev = !app.isPackaged;
 
 /** 是否为 Windows 系统 */
 export const isWin = process.platform === "win32";

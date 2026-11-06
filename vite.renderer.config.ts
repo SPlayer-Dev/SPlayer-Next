@@ -1,0 +1,100 @@
+import { resolve } from "path";
+import { execSync } from "child_process";
+import { defineConfig } from "vite";
+import UnoCSS from "unocss/vite";
+import vue from "@vitejs/plugin-vue";
+import AutoImport from "unplugin-auto-import/vite";
+import Icons from "unplugin-icons/vite";
+import IconsResolver from "unplugin-icons/resolver";
+import { FileSystemIconLoader } from "unplugin-icons/loaders";
+import RekaResolver from "reka-ui/resolver";
+import Components from "unplugin-vue-components/vite";
+import pkg from "./package.json" with { type: "json" };
+
+/** 获取当前 git 提交 */
+const getGitCommit = (): string => {
+  try {
+    return execSync("git rev-parse HEAD").toString().trim().slice(0, 7) || "unknown";
+  } catch {
+    return "unknown";
+  }
+};
+
+/** 获取当前 git 提交日期 */
+const getGitDate = (): string => {
+  try {
+    return execSync("git log -1 --format=%cI").toString().trim() || "unknown";
+  } catch {
+    return "unknown";
+  }
+};
+
+export default defineConfig(({ command }) => ({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+    __APP_REPO_URL__: JSON.stringify(pkg.repository.url),
+    __APP_REPO_NAME__: JSON.stringify(pkg.productName),
+    __APP_AUTHOR__: JSON.stringify(pkg.author.name),
+    __APP_HOMEPAGE__: JSON.stringify(pkg.homepage),
+    __APP_AUTHOR_URL__: JSON.stringify(pkg.author.url),
+    __COMMIT_HASH__: JSON.stringify(getGitCommit()),
+    __COMMIT_DATE__: JSON.stringify(getGitDate()),
+  },
+  server: {
+    port: 14558,
+    watch: {
+      // Rust workspace 在根目录生成 target，避免监听大量构建产物
+      ignored: ["**/target/**"],
+    },
+  },
+  optimizeDeps: {
+    // 自动注册的组件不在 HTML 的静态导入图中，需扫描其惰性加载依赖
+    entries: ["index.html", "windows/**/index.html", "src/components/**/*.vue"],
+    include: ["reka-ui"],
+  },
+  publicDir: resolve(__dirname, "public"),
+  build: {
+    rolldownOptions: {
+      input: {
+        index: resolve(__dirname, "index.html"),
+        "desktop-lyric": resolve(__dirname, "windows/desktop-lyric/index.html"),
+        "dynamic-island": resolve(__dirname, "windows/dynamic-island/index.html"),
+        "taskbar-lyric": resolve(__dirname, "windows/taskbar-lyric/index.html"),
+      },
+    },
+  },
+  resolve: {
+    // Forge 默认保留符号链接，pnpm 的间接依赖需按真实路径解析
+    preserveSymlinks: false,
+    alias: {
+      "@": resolve("src"),
+      "@shared": resolve(__dirname, "shared"),
+      "@windows": resolve(__dirname, "windows"),
+      "@root": resolve(__dirname),
+    },
+  },
+  plugins: [
+    vue(),
+    UnoCSS(),
+    AutoImport({
+      imports: ["vue", "pinia", "vue-router", "@vueuse/core", "vue-i18n"],
+      eslintrc: {
+        enabled: true,
+        filepath: "./auto-eslint.mjs",
+      },
+    }),
+    Icons({
+      compiler: "vue3",
+      scale: 1,
+      customCollections: {
+        sp: FileSystemIconLoader("./src/assets/icons"),
+      },
+    }),
+    Components({
+      dirs: ["src/components"],
+      // 生产构建复用已提交的声明，避免并行转换重复写入同一文件
+      dts: command === "serve",
+      resolvers: [RekaResolver(), IconsResolver({ prefix: "icon", customCollections: ["sp"] })],
+    }),
+  ],
+}));

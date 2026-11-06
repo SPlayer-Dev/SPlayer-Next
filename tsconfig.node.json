@@ -1,7 +1,9 @@
 {
-  "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
+  "extends": "./tsconfig.base.json",
   "include": [
-    "electron.vite.config.*",
+    "forge.config.ts",
+    "eslint.config.mts",
+    "vite.*.config.ts",
     "vitest.config.*",
     "electron/main/**/*",
     "electron/preload/**/*",
@@ -10,7 +12,7 @@
   ],
   "compilerOptions": {
     "tsBuildInfoFile": "node_modules/.cache/tsconfig.node.tsbuildinfo",
-    "types": ["electron-vite/node"],
+    "types": ["node"],
     "paths": {
       "@main/*": ["./electron/main/*"],
       "@shared/*": ["./shared/*"],

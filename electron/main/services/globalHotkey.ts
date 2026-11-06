@@ -173,7 +173,7 @@ export const probeAccelerator = (accelerator: string): HotkeyProbeResult => {
   if (wasRegistered) {
     globalShortcut.unregister(norm);
   }
-  let result: HotkeyProbeResult = "invalid";
+  let result: HotkeyProbeResult;
   try {
     if (globalShortcut.register(norm, () => {})) {
       globalShortcut.unregister(norm);

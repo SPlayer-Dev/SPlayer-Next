@@ -18,14 +18,14 @@ console.log(`检测到操作系统: ${platform}`);
 // 设置环境变量
 const env: NodeJS.ProcessEnv = { ...process.env };
 
-const startElectronVite = (): void => {
-  console.log("正在启动 Electron Vite 开发服务器...");
+const startForge = (): void => {
+  console.log("正在启动 Electron Forge 开发服务器...");
 
   // 设置 Node.js 选项
   env.NODE_OPTIONS = "--max-old-space-size=4096";
 
-  // 传递给 electron-vite 的参数
-  const runArgs = ["dev"];
+  // 传递给 electron-forge 的参数
+  const runArgs = ["start"];
   // 前两个参数分别是 node 和此脚本的路径，丢弃它们
   const args = process.argv.slice(2);
   // 添加参数
@@ -33,18 +33,18 @@ const startElectronVite = (): void => {
     runArgs.push(...args);
   }
 
-  const electronVite = spawn("electron-vite", runArgs, {
+  const forge = spawn("electron-forge", runArgs, {
     stdio: "inherit",
     shell: true,
     env,
   });
 
-  electronVite.on("close", (code) => {
+  forge.on("close", (code) => {
     console.log(`\n开发服务器已停止 (退出码: ${code})`);
     process.exit(code ?? 0);
   });
 
-  electronVite.on("error", (err) => {
+  forge.on("error", (err) => {
     console.error("启动失败:", err.message);
     process.exit(1);
   });
@@ -52,12 +52,12 @@ const startElectronVite = (): void => {
   // 优雅退出处理
   process.on("SIGINT", () => {
     console.log("\n正在停止开发服务器...");
-    electronVite.kill("SIGINT");
+    forge.kill("SIGINT");
   });
 
   process.on("SIGTERM", () => {
     console.log("\n正在停止开发服务器...");
-    electronVite.kill("SIGTERM");
+    forge.kill("SIGTERM");
   });
 };
 
@@ -73,10 +73,10 @@ if (isWindows) {
   chcp.on("close", (code) => {
     if (code === 0) {
       console.log("代码页设置成功");
-      startElectronVite();
+      startForge();
     } else {
       console.warn("代码页设置失败，继续启动...");
-      startElectronVite();
+      startForge();
     }
   });
 } else {
@@ -94,5 +94,5 @@ if (isWindows) {
       env.LANG = "en_US.UTF-8";
     }
   }
-  setTimeout(() => startElectronVite(), 0);
+  setTimeout(() => startForge(), 0);
 }

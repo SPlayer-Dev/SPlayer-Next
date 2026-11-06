@@ -643,7 +643,7 @@ export const registerPlayerIpc = (): void => {
             throw error;
           invalidateStreamingSession(authoritative.serverId);
           streamingSource = await streamingPlayback.prepareStreamingPlayback(authoritative, source);
-          if (seq !== loadSeq) throw new Error("[Cancelled]");
+          if (seq !== loadSeq) throw new Error("[Cancelled]", { cause: error });
           source = streamingSource!.url;
           return inst.load(source, cueRange ? false : autoPlay);
         }

@@ -58,14 +58,14 @@ export const withStreamingAdapter = async <T>(
     signal?.throwIfAborted();
     invalidateStreamingSession(serverId);
     if (getStreamingServerRevision(serverId) !== config.revision)
-      throw new Error("流媒体配置已更新，本次请求已作废");
+      throw new Error("流媒体配置已更新，本次请求已作废", { cause: error });
     const retried = await resolveStreamingAdapter(config);
     signal?.throwIfAborted();
     if (getStreamingServerRevision(serverId) !== config.revision)
-      throw new Error("流媒体配置已更新，本次请求已作废");
+      throw new Error("流媒体配置已更新，本次请求已作废", { cause: error });
     const result = await request(retried.config, retried.adapter);
     if (getStreamingServerRevision(serverId) !== config.revision)
-      throw new Error("流媒体配置已更新，本次请求已作废");
+      throw new Error("流媒体配置已更新，本次请求已作废", { cause: error });
     return result;
   }
 };
