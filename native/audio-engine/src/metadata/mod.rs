@@ -79,7 +79,7 @@ pub fn extract_tags(dict: &HashMap<String, String>) -> Tags {
         .or_else(|| dict_get(dict, "album_artist"))
         .map(ToString::to_string);
     let album = dict_get(dict, "album").map(ToString::to_string);
-    let track = dict_get(dict, "track").and_then(|s| s.parse().ok());
+    let track = dict_get(dict, "track").and_then(parse_track_number);
     let comment = dict_get(dict, "comment").map(ToString::to_string);
     Tags {
         title,
@@ -88,6 +88,16 @@ pub fn extract_tags(dict: &HashMap<String, String>) -> Tags {
         track,
         comment,
     }
+}
+
+/// 解析音轨号，只取「序号/总数」里的序号
+///
+/// MP4/M4A 的 `trkn` 与 MP3 的 `TRCK` 允许写成 `1/17`，ffmpeg 会把整串原样输出，
+/// 直接 `parse::<u16>()` 会失败并丢掉音轨号。
+fn parse_track_number(raw: &str) -> Option<u16> {
+    raw.split('/')
+        .next()
+        .and_then(|head| head.trim().parse().ok())
 }
 
 /// 大小写不敏感查找：原 ffmpeg-next 的 Dictionary::get 默认 case-insensitive，
