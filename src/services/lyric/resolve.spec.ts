@@ -14,8 +14,23 @@ vi.mock("./request", () => ({
   requestTTMLOverlay: vi.fn(),
 }));
 
+const mockGetManualMatch = vi.fn();
+const mockMatchById = vi.fn();
+const mockMatchLocalTTML = vi.fn();
+const mockFetchTTMLById = vi.fn();
+const mockSearchCandidates = vi.fn();
+const mockRememberMatch = vi.fn();
+
 const mockWindowApi = {
-  lyrics: { forgetMatch: (...args: unknown[]) => mockForgetMatch(...args) },
+  lyrics: {
+    fetchTTMLById: (...args: unknown[]) => mockFetchTTMLById(...args),
+    forgetMatch: (...args: unknown[]) => mockForgetMatch(...args),
+    getManualMatch: (...args: unknown[]) => mockGetManualMatch(...args),
+    matchById: (...args: unknown[]) => mockMatchById(...args),
+    matchLocalTTML: (...args: unknown[]) => mockMatchLocalTTML(...args),
+    rememberMatch: (...args: unknown[]) => mockRememberMatch(...args),
+    searchCandidates: (...args: unknown[]) => mockSearchCandidates(...args),
+  },
   opencc: { convertBatch: (...args: unknown[]) => mockConvertBatch(...args) },
   desktopLyric: { onConfigChange: vi.fn(() => () => {}) },
   taskbarLyric: { onConfigChange: vi.fn(() => () => {}) },
@@ -33,7 +48,11 @@ const mockWindowApi = {
 // @ts-expect-error test mock
 window.api = mockWindowApi;
 
-import { resolveOnlineByPreference, resolveStreamingByPreference } from "./resolve";
+import {
+  resolveOnlineByPreference,
+  resolveStreamingByPreference,
+  resolveUserLyric,
+} from "./resolve";
 
 const createTrack = (id: string): Track => ({
   id,
@@ -60,6 +79,88 @@ const plainTTML = (): string => {
   });
   return `<tt xmlns="http://www.w3.org/ns/ttml"><body><div>${lines.join("")}</div></body></tt>`;
 };
+
+describe("resolveUserLyric 手动选择优先", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    vi.clearAllMocks();
+    const settings = useSettingsStore();
+    settings.system.localLyric.enableLocalTTMLOverride = true;
+    settings.system.localLyric.repoDir = "D:/lyrics";
+    mockMatchLocalTTML.mockResolvedValue({ ok: true, data: "<tt></tt>" });
+  });
+
+  it("命中手动选择时优先于本地歌词库，并用候选的歌名和时长取词", async () => {
+    mockGetManualMatch.mockResolvedValue({
+      platform: "kugou",
+      id: "hash",
+      name: "候选歌名",
+      artist: "Artist",
+      duration: 200_000,
+    });
+    mockMatchById.mockResolvedValue({
+      ok: true,
+      data: { platform: "kugou", format: "krc", content: "krc" },
+    });
+
+    const result = await resolveUserLyric(createTrack("song"));
+
+    expect(result).toMatchObject({
+      pinned: true,
+      source: { source: "online", platform: "kugou", format: "krc" },
+    });
+    expect(mockMatchById).toHaveBeenCalledWith(
+      "kugou",
+      "hash",
+      expect.objectContaining({ title: "候选歌名", duration: 200_000 }),
+      false,
+    );
+    expect(mockMatchLocalTTML).not.toHaveBeenCalled();
+  });
+
+  it("手动选择 TTML 时按 AMLL id 取词", async () => {
+    mockGetManualMatch.mockResolvedValue({
+      platform: "ttml",
+      id: "719",
+      name: "候选歌名",
+      artist: "Artist",
+    });
+    mockFetchTTMLById.mockResolvedValue({ ok: true, data: "<tt>manual</tt>" });
+
+    const result = await resolveUserLyric(createTrack("song"));
+
+    expect(result).toEqual({
+      pinned: true,
+      source: { source: "online", format: "ttml" },
+      input: { content: "<tt>manual</tt>" },
+    });
+    expect(mockFetchTTMLById).toHaveBeenCalledWith("719");
+    expect(mockMatchById).not.toHaveBeenCalled();
+  });
+
+  it("没有手动选择时回退本地歌词库", async () => {
+    mockGetManualMatch.mockResolvedValue(null);
+
+    const result = await resolveUserLyric(createTrack("song"));
+
+    expect(result?.source).toEqual({ source: "external", format: "ttml" });
+    expect(mockMatchById).not.toHaveBeenCalled();
+  });
+
+  it("手动选择的歌词取不到时回退本地歌词库", async () => {
+    mockGetManualMatch.mockResolvedValue({
+      platform: "netease",
+      id: "1",
+      name: "Song",
+      artist: "Artist",
+    });
+    mockMatchById.mockResolvedValue({ ok: false, error: "network" });
+
+    const result = await resolveUserLyric(createTrack("song"));
+
+    expect(result?.source).toEqual({ source: "external", format: "ttml" });
+  });
+});
 
 describe("resolveOnlineByPreference 平台优先与智能回退", () => {
   beforeEach(() => {
@@ -159,6 +260,9 @@ describe("resolveOnlineByPreference 候选验证", () => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
     mockForgetMatch.mockReset();
+    mockSearchCandidates.mockReset();
+    mockSearchCandidates.mockResolvedValue({ ok: true, data: [] });
+    mockMatchById.mockReset();
     mockConvertBatch.mockReset();
     mockConvertBatch.mockImplementation(async (texts: string[]) => texts);
     const settings = useSettingsStore();
@@ -221,6 +325,49 @@ describe("resolveOnlineByPreference 候选验证", () => {
 
     expect(result?.source.platform).toBe("netease");
     expect(mockForgetMatch).toHaveBeenCalledWith(expect.anything(), "qqmusic");
+  });
+
+  it("最佳候选被拒绝时改用同平台通过验证的其他版本，并记住它", async () => {
+    mockPlatforms({
+      netease: { format: "lrc", content: plainLyric() },
+      qqmusic: { format: "qrc", content: timedLyric("other") },
+    });
+    mockSearchCandidates.mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          platform: "qqmusic",
+          id: "best",
+          name: "Song song",
+          artist: "Artist",
+          tags: ["name", "artist"],
+          best: true,
+          autoMatched: false,
+        },
+        {
+          platform: "qqmusic",
+          id: "alt",
+          name: "Song song (Version)",
+          artist: "Artist",
+          tags: ["name", "artist"],
+          best: false,
+          autoMatched: false,
+        },
+      ],
+    });
+    mockMatchById.mockResolvedValue({
+      ok: true,
+      data: { platform: "qqmusic", format: "qrc", content: timedLyric() },
+    });
+    const track = createTrack("song");
+
+    const result = await resolveOnlineByPreference(track);
+
+    expect(result?.source.platform).toBe("qqmusic");
+    expect(result?.source.format).toBe("qrc");
+    expect(mockMatchById).toHaveBeenCalledTimes(1);
+    expect(mockMatchById).toHaveBeenCalledWith("qqmusic", "alt", expect.anything(), false);
+    expect(mockRememberMatch).toHaveBeenCalledWith(track, "qqmusic", "alt");
   });
 
   it("基准不足以判断时保留基准", async () => {

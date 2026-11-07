@@ -501,6 +501,25 @@
       "title": "Lyric Offset",
       "hint": "Positive values advance lyrics, in milliseconds"
     },
+    "lyricMatch": {
+      "title": "Match Lyrics",
+      "searchPlaceholder": "Enter a song or artist name",
+      "search": "Search",
+      "searchFailed": "Search failed. Please try again later",
+      "saveFailed": "Could not save. Please try again later",
+      "noResults": "No candidates found",
+      "noLyric": "This song has no available lyrics",
+      "previewHint": "Select a candidate to preview its lyrics",
+      "current": "Current",
+      "tagBest": "Best match",
+      "tagName": "Title match",
+      "tagArtist": "Artist match",
+      "tagDuration": "Similar length",
+      "currentPick": "Manually selected: {name} ({platform})",
+      "restoreAuto": "Restore auto match",
+      "preferenceIgnored": "Lyrics manually selected",
+      "apply": "Use these lyrics"
+    },
     "lyricCredit": "Lyrics by",
     "collapse": "Collapse Player",
     "copyLyric": {

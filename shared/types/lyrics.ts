@@ -48,17 +48,69 @@ export interface LyricMatchResult extends LyricInput {
 export type LyricMatchResponse =
   { ok: true; data: LyricMatchResult | null } | { ok: false; error: string };
 
+/** 手动匹配的歌词来源，ttml 指 AMLL TTML DB */
+export type LyricMatchSource = Platform | "ttml";
+
+/** 用户手动选择的歌词 */
+export interface LyricManualMatch {
+  platform: LyricMatchSource;
+  /** 歌曲 id，KG 为 hash，TTML 为 AMLL 条目 id */
+  id: string;
+  name: string;
+  artist: string;
+  /** 毫秒 */
+  duration?: number;
+}
+
+/** 候选与歌曲吻合的方面 */
+export type LyricCandidateTag = "name" | "artist" | "duration";
+
+/** 歌词搜索候选 */
+export interface LyricSearchCandidate extends LyricManualMatch {
+  album?: string;
+  tags: LyricCandidateTag[];
+  /** 是否为自动匹配规则下的最佳候选 */
+  best: boolean;
+  /** 是否为自动流程在该来源实际使用的歌曲 */
+  autoMatched: boolean;
+}
+
+/** 歌词候选搜索 IPC 响应 */
+export type LyricSearchResponse =
+  { ok: true; data: LyricSearchCandidate[] } | { ok: false; error: string };
+
 /** TTML 抓取 IPC 响应 */
 export type LyricTTMLResponse = { ok: true; data: string | null } | { ok: false; error: string };
 
 /** 渲染端歌词匹配入口 */
 export interface LyricsApi {
-  /** 按 id 直取某平台歌词，KG 依赖 track 的歌名和时长 */
-  matchById: (platform: Platform, id: string, track?: Track) => Promise<LyricMatchResponse>;
+  /** 按 id 直取某平台歌词，KG 依赖 track 的歌名和时长，prefetch 为 false 时不预热 TTML */
+  matchById: (
+    platform: Platform,
+    id: string,
+    track?: Track,
+    prefetch?: boolean,
+  ) => Promise<LyricMatchResponse>;
   /** 按 Track 元数据在某平台模糊搜索歌词 */
   matchByQuery: (platform: Platform, track: Track) => Promise<LyricMatchResponse>;
   /** 清除验证不通过的模糊匹配映射 */
   forgetMatch: (track: Track, platform: Platform) => Promise<void>;
+  /** 记住验证通过的替代候选，下次直接使用 */
+  rememberMatch: (track: Track, platform: Platform, id: string) => Promise<void>;
+  /** 按关键词搜索某来源的歌词候选，并与歌曲比对 */
+  searchCandidates: (
+    platform: LyricMatchSource,
+    keyword: string,
+    track: Track,
+  ) => Promise<LyricSearchResponse>;
+  /** 按 AMLL 条目 id 取 TTML 歌词 */
+  fetchTTMLById: (id: string) => Promise<LyricTTMLResponse>;
+  /** 读取歌曲的手动选择 */
+  getManualMatch: (track: Track) => Promise<LyricManualMatch | null>;
+  /** 保存歌曲的手动选择 */
+  setManualMatch: (track: Track, match: LyricManualMatch) => Promise<void>;
+  /** 清除歌曲的手动选择 */
+  clearManualMatch: (track: Track) => Promise<void>;
   /** 抓取 AMLL TTML DB 的 TTML 歌词，仅 NCM/QM 适用 */
   fetchTTMLOverlay: (track: Track, platform: "netease" | "qqmusic") => Promise<LyricTTMLResponse>;
   /** 按 Track 元数据搜索 AMLL TTML DB，用于没有可用平台 ID 或 ID 未命中的歌曲 */

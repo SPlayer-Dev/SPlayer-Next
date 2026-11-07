@@ -19,7 +19,7 @@ import {
   type Platform as TtmlPlatform,
 } from "@main/database/lyricTtmlCache";
 import type { Track } from "@shared/types/player";
-import { pickBestCandidate, type LyricCandidate } from "./utils";
+import { getTTMLSearchText, normalize, pickBestCandidate, type LyricCandidate } from "./utils";
 
 const TIMEOUT_MS = 8000;
 
@@ -147,6 +147,52 @@ const requestOfficial = async <T>(path: string): Promise<T> => {
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} ${path}`);
   return ((await res.json()) as { data: T }).data;
+};
+
+/**
+ * 按关键词搜索 TTML 候选，开关关闭时不发请求
+ * @param keyword - 搜索关键词
+ * @param track - 歌曲信息，条目有多个歌名时优先展示与它一致的
+ * @returns 归一化后的候选列表，extra 为 AMLL 条目 id
+ */
+export const searchTTMLCandidates = async (
+  keyword: string,
+  track: Track,
+): Promise<LyricCandidate<string>[]> => {
+  if (!store.get("lyric.enableOnlineTTMLLyric")) return [];
+  const query = new URLSearchParams({
+    q: getTTMLSearchText(keyword, track),
+    pageSize: SEARCH_PAGE_SIZE,
+  });
+  const { items } = await requestOfficial<{ items: AmllSong[] }>(`search?${query}`);
+  const title = normalize(track.title);
+  return items.map((item) => ({
+    name: item.musicNames.find((name) => normalize(name) === title) ?? item.musicNames[0],
+    artist: item.artistNames.join(" / "),
+    album: item.albumNames[0],
+    extra: String(item.id),
+  }));
+};
+
+/**
+ * 按 AMLL 条目 id 取 TTML，开关关闭时不发请求
+ * @param id - AMLL 条目 id
+ * @returns TTML 文本，不存在时为 null
+ */
+export const fetchTTMLById = async (id: string): Promise<string | null> => {
+  if (!store.get("lyric.enableOnlineTTMLLyric")) return null;
+  const cached = getCachedTTML("amll", id);
+  if (cached?.fresh) return cached.content;
+  try {
+    const { lyrics } = await requestOfficial<{ lyrics: string }>(
+      `get?id=${encodeURIComponent(id)}`,
+    );
+    setCachedTTML("amll", id, lyrics);
+    return lyrics;
+  } catch (err) {
+    coreLog.warn(`[ttml] get ${id} failed:`, err);
+    return cached?.content ?? null;
+  }
 };
 
 /**

@@ -1,6 +1,6 @@
 import type { Track, TrackDetail } from "@shared/types/player";
 import type { LyricFormat, LyricInput } from "lyric-kit";
-import type { LyricData, LyricMatchResult } from "@shared/types/lyrics";
+import type { LyricData, LyricManualMatch, LyricMatchResult } from "@shared/types/lyrics";
 
 import type { Platform } from "@shared/types/platform";
 import { isPlatform } from "@shared/types/platform";
@@ -29,6 +29,8 @@ export interface OnlineResult {
 export interface ResolvedLyric {
   source: NonNullable<LyricData>;
   input: LyricInput;
+  /** 用户手动选择的歌词，不再被 TTML 升级覆盖 */
+  pinned?: boolean;
 }
 
 /** 本地歌词读取结果 */
@@ -120,6 +122,52 @@ export const isBetterFormat = (
   return candRank < currRank;
 };
 
+/** 最佳候选被拒时最多补试的同平台候选数 */
+const FALLBACK_CANDIDATE_LIMIT = 3;
+
+/**
+ * 最佳候选内容不符时，补试同平台其他同名同歌手的版本
+ * 通过验证的候选会记为该平台的匹配，下次直接使用
+ * @param platform - 平台
+ * @param track - 歌曲信息
+ * @param baselineLines - 验证基准
+ * @param isCurrent - 竞态检查
+ * @returns 通过验证的歌词及其主歌词行，没有则返回 null
+ */
+const resolveFallbackCandidate = async (
+  platform: Platform,
+  track: Track,
+  baselineLines: ReturnType<typeof parseMainLines>,
+  isCurrent: () => boolean,
+): Promise<{ result: OnlineResult; lines: ReturnType<typeof parseMainLines> } | null> => {
+  const keyword = [track.title, ...(track.artists ?? []).map((artist) => artist.name)].join(" ");
+  const resp = await window.api.lyrics.searchCandidates(platform, keyword, track);
+  if (!resp.ok || !isCurrent()) return null;
+  const title = track.title.toLowerCase();
+  const candidates = resp.data
+    .filter(
+      (candidate) =>
+        !candidate.best &&
+        candidate.tags.includes("artist") &&
+        candidate.name.toLowerCase().includes(title),
+    )
+    .slice(0, FALLBACK_CANDIDATE_LIMIT);
+  for (const candidate of candidates) {
+    const result = await requestPlatformMatch(track, platform, candidate);
+    if (!isCurrent()) return null;
+    const lines = result ? parseMainLines(result.source.format, result.input.content) : [];
+    if (!result || lines.length === 0) continue;
+    const accepted = await verifyCandidate(baselineLines, lines, result, track);
+    if (!isCurrent()) return null;
+    if (accepted) {
+      // ponytail: QM 只记 songid 不记 mid，本地 TTML 仓库按 mid 索引时会漏，需要时再补
+      void window.api.lyrics.rememberMatch(track, platform, candidate.id);
+      return { result: accepted, lines };
+    }
+  }
+  return null;
+};
+
 interface OnlinePreferenceOptions {
   /** 已有的本地或服务端歌词，作为候选的验证基准 */
   local?: ResolvedLyric | null;
@@ -178,15 +226,29 @@ const resolveVerifiedOnline = async (
     if (result) {
       const lines = parseMainLines(result.source.format, result.input.content);
       // 没有真实逐字时间的候选只相当于普通 LRC
-      const rank = formatRank(hasWordTiming(lines) ? result.source.format : "lrc");
+      const rankOf = (lyricLines: typeof lines, format: LyricFormat): number =>
+        formatRank(hasWordTiming(lyricLines) ? format : "lrc");
+      const rank = rankOf(lines, result.source.format);
       if (lines.length > 0 && rank < bestRank) {
-        const accepted = hasBaseline
+        let accepted = hasBaseline
           ? await verifyCandidate(baselineLines, lines, result, track)
           : result;
+        let acceptedRank = rank;
         if (!isCurrent()) return;
-        if (accepted && rank < bestRank) {
+        if (!accepted && hasBaseline) {
+          const fallback = await resolveFallbackCandidate(
+            platform,
+            track,
+            baselineLines,
+            isCurrent,
+          );
+          if (!isCurrent()) return;
+          accepted = fallback?.result ?? null;
+          acceptedRank = fallback ? rankOf(fallback.lines, fallback.result.source.format) : rank;
+        }
+        if (accepted && acceptedRank < bestRank) {
           best = accepted;
-          bestRank = rank;
+          bestRank = acceptedRank;
         }
       }
     }
@@ -341,7 +403,7 @@ export const resolveStreamingByPreference = async (
  * @param track - 歌曲信息
  * @returns 本地仓库歌词，不存在则返回 null
  */
-export const resolveLocalRepoLyric = async (track: Track): Promise<ResolvedLyric | null> => {
+const resolveLocalRepoLyric = async (track: Track): Promise<ResolvedLyric | null> => {
   const settings = useSettingsStore();
   if (
     !settings.system.localLyric?.enableLocalTTMLOverride ||
@@ -352,6 +414,59 @@ export const resolveLocalRepoLyric = async (track: Track): Promise<ResolvedLyric
   const resp = await window.api.lyrics.matchLocalTTML(track);
   if (!resp.ok || !resp.data) return null;
   return { source: { source: "external", format: "ttml" }, input: { content: resp.data } };
+};
+
+/**
+ * 按平台歌曲 id 请求歌词
+ * KG 取词依赖歌名和时长，歌曲信息与候选不一致时要用候选自己的信息
+ * @param track - 歌曲信息
+ * @param platform - 平台
+ * @param match - 候选
+ * @returns 对应歌词，不存在则返回 null
+ */
+const requestPlatformMatch = async (
+  track: Track,
+  platform: Platform,
+  match: LyricManualMatch,
+): Promise<OnlineResult | null> => {
+  const resp = await window.api.lyrics.matchById(
+    platform,
+    match.id,
+    { ...track, title: match.name, duration: match.duration ?? track.duration },
+    false,
+  );
+  return resp.ok && resp.data ? toOnlineResult(resp.data) : null;
+};
+
+/**
+ * 请求手动选择或候选对应的歌词
+ * @param track - 歌曲信息
+ * @param match - 手动选择或候选
+ * @returns 对应歌词，不存在则返回 null
+ */
+export const requestManualLyric = async (
+  track: Track,
+  match: LyricManualMatch,
+): Promise<ResolvedLyric | null> => {
+  if (match.platform === "ttml") {
+    const ttml = await window.api.lyrics.fetchTTMLById(match.id);
+    if (!ttml.ok || !ttml.data) return null;
+    return { source: { source: "online", format: "ttml" }, input: { content: ttml.data } };
+  }
+  return requestPlatformMatch(track, match.platform, match);
+};
+
+/**
+ * 解析用户指定的歌词，手动选择优先于本地歌词库
+ * 选择的歌词暂时取不到时不阻塞播放，继续走后续来源
+ * @param track - 歌曲信息
+ * @returns 用户指定的歌词，不存在则返回 null
+ */
+export const resolveUserLyric = async (track: Track): Promise<ResolvedLyric | null> => {
+  const match = await window.api.lyrics.getManualMatch(track);
+  const lyric = match && (await requestManualLyric(track, match));
+  if (lyric) return { ...lyric, pinned: true };
+  return resolveLocalRepoLyric(track);
 };
 
 /**
@@ -409,9 +524,9 @@ export const resolveLyricForPreload = async (
 ): Promise<ResolvedLyric | null> => {
   if (track.source === "local") return null;
 
-  const localRepo = await resolveLocalRepoLyric(track);
+  const userLyric = await resolveUserLyric(track);
   if (!shouldContinue()) return null;
-  if (localRepo) return localRepo;
+  if (userLyric) return userLyric;
 
   if (track.source === "plugin") {
     const plugin = await resolvePluginLyric(track);

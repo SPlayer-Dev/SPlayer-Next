@@ -46,10 +46,13 @@ const pickSub = (
 /**
  * 按 id 直取歌词
  * @param id 歌曲 id
+ * @param prefetch 是否预热 TTML，手动选择的歌词不做 TTML 升级，不需要预热
  */
-export const getByPlatformId = async (id: string): Promise<LyricMatchResult | null> => {
-  // 立刻预热 TTML 抓取
-  prefetchTTML("netease", [id]);
+export const getByPlatformId = async (
+  id: string,
+  prefetch = true,
+): Promise<LyricMatchResult | null> => {
+  if (prefetch) prefetchTTML("netease", [id]);
   const result = await withLyricCache("netease", id, async () => {
     try {
       const { status, body } = await callNetease("lyric_new", { id });
@@ -81,6 +84,37 @@ export const getByPlatformId = async (id: string): Promise<LyricMatchResult | nu
 };
 
 /**
+ * 搜索歌词候选
+ * @param keyword 搜索关键词
+ * @returns 归一化后的候选列表
+ */
+export const searchCandidates = async (
+  keyword: string,
+): Promise<LyricCandidate<{ id: string }>[]> => {
+  const { status, body } = await callNetease("cloudsearch", {
+    keywords: keyword,
+    type: 1,
+    limit: 20,
+  });
+  if (status !== 200) throw new Error(`cloudsearch status=${status}`);
+  return (body.result?.songs ?? []).map(
+    (song: {
+      id: number | string;
+      name: string;
+      ar?: { name: string }[];
+      al?: { name?: string };
+      dt?: number;
+    }) => ({
+      name: song.name,
+      artist: (song.ar ?? []).map((artist) => artist.name).join(" / "),
+      album: song.al?.name,
+      duration: song.dt,
+      extra: { id: String(song.id) },
+    }),
+  );
+};
+
+/**
  * 按 Track 元数据模糊搜索：search → 挑最佳 → 单次请求歌词
  * @param track 歌曲信息
  */
@@ -92,25 +126,9 @@ export const getByQuery = async (track: Track): Promise<LyricMatchResult | null>
 
   const keyword = buildLyricSearchKeyword(track);
   if (!keyword) return null;
-  // 搜索 + 归一化
-  const candidates: LyricCandidate<{ id: string }>[] = [];
+  let candidates: LyricCandidate<{ id: string }>[];
   try {
-    const { status, body } = await callNetease("search", {
-      keywords: keyword,
-      type: 1,
-      limit: 20,
-    });
-    if (status !== 200) return null;
-    const songs = body.result?.songs ?? [];
-    for (const song of songs) {
-      candidates.push({
-        name: song.name,
-        artist: (song.artists ?? []).map((artist: { name: string }) => artist.name).join(" / "),
-        album: song.album?.name,
-        duration: song.duration,
-        extra: { id: String(song.id) },
-      });
-    }
+    candidates = await searchCandidates(keyword);
   } catch (err) {
     coreLog.warn(`[lyric:netease] search("${keyword}") failed:`, err);
     return null;

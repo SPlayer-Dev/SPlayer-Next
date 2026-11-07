@@ -2,7 +2,13 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import type { Track } from "@shared/types/player";
-import { buildLyricSearchKeyword, pickBestCandidate, type LyricCandidate } from "./utils";
+import {
+  buildLyricSearchKeyword,
+  getCandidateTags,
+  getTTMLSearchText,
+  pickBestCandidate,
+  type LyricCandidate,
+} from "./utils";
 
 const track = (partial: Partial<Track>): Track => ({
   id: "local:1",
@@ -11,6 +17,34 @@ const track = (partial: Partial<Track>): Track => ({
   artists: [{ name: "目标歌手" }],
   duration: 180_000,
   ...partial,
+});
+
+describe("getCandidateTags", () => {
+  const candidate = (partial: Partial<LyricCandidate<string>>): LyricCandidate<string> => ({
+    name: "同名歌曲",
+    artist: "目标歌手",
+    duration: 182_000,
+    extra: "1",
+    ...partial,
+  });
+
+  it("歌名、歌手、时长都吻合时全部标记", () => {
+    assert.deepEqual(getCandidateTags(candidate({}), track({})), ["name", "artist", "duration"]);
+  });
+
+  it("不吻合或缺少信息的项不标记", () => {
+    assert.deepEqual(
+      getCandidateTags(
+        candidate({ name: "同名歌曲 Live", artist: "其他歌手", duration: 200_000 }),
+        track({}),
+      ),
+      [],
+    );
+    assert.deepEqual(getCandidateTags(candidate({ duration: undefined }), track({})), [
+      "name",
+      "artist",
+    ]);
+  });
 });
 
 describe("pickBestCandidate", () => {
@@ -69,5 +103,14 @@ describe("buildLyricSearchKeyword", () => {
       ),
       "歌名 歌手 A 歌手 B",
     );
+  });
+});
+
+describe("getTTMLSearchText", () => {
+  const song = track({ title: "Lemon", artists: [{ name: "米津玄師" }] });
+
+  it("默认关键词只搜歌名，手动输入的关键词原样使用", () => {
+    assert.equal(getTTMLSearchText("Lemon 米津玄師", song), "Lemon");
+    assert.equal(getTTMLSearchText("Lemon 其他", song), "Lemon 其他");
   });
 });

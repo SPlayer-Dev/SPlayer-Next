@@ -33,14 +33,16 @@ const pickFormatted = (
  * 按 QQMusic 数字 songID 直取歌词
  * @param id  数字 songID
  * @param mid 字符串 mid（用于 AMLL TTML DB 等外部映射）
+ * @param prefetch 是否预热 TTML，手动选择的歌词不做 TTML 升级，不需要预热
  */
 export const getByPlatformId = async (
   id: string,
   mid?: string,
+  prefetch = true,
 ): Promise<LyricMatchResult | null> => {
   // 立刻预热 TTML 抓取，与本接口的 lyric 调用并行
   // AMLL DB 里 QM 条目 mid / 数字 id 都可能是 key，依次试
-  prefetchTTML("qqmusic", mid ? [mid, id] : [id]);
+  if (prefetch) prefetchTTML("qqmusic", mid ? [mid, id] : [id]);
 
   return withLyricCache("qqmusic", id, async () => {
     try {
@@ -75,6 +77,25 @@ export const getByPlatformId = async (
   });
 };
 
+/**
+ * 搜索歌词候选
+ * @param keyword - 搜索关键词
+ * @returns 归一化后的候选列表
+ */
+export const searchCandidates = async (
+  keyword: string,
+): Promise<LyricCandidate<{ id: string; mid: string }>[]> => {
+  const body = await callQQMusic("search", { keywords: keyword, limit: 25 });
+  if (body.code !== 200) throw new Error(`search code=${body.code}`);
+  return (body.songs ?? []).map((song) => ({
+    name: song.name,
+    artist: song.artist,
+    album: song.album,
+    duration: song.duration,
+    extra: { id: song.id, mid: song.mid },
+  }));
+};
+
 /** 按 Track 元数据模糊搜索：search → 挑最佳 → 单次请求歌词 */
 export const getByQuery = async (track: Track): Promise<LyricMatchResult | null> => {
   const fingerprint = buildFingerprint(track);
@@ -84,19 +105,9 @@ export const getByQuery = async (track: Track): Promise<LyricMatchResult | null>
   const keyword = buildLyricSearchKeyword(track);
   if (!keyword) return null;
 
-  const candidates: LyricCandidate<{ id: string; mid: string }>[] = [];
+  let candidates: LyricCandidate<{ id: string; mid: string }>[];
   try {
-    const body = await callQQMusic("search", { keywords: keyword, limit: 25 });
-    if (body.code !== 200) return null;
-    for (const song of body.songs ?? []) {
-      candidates.push({
-        name: song.name,
-        artist: song.artist,
-        album: song.album,
-        duration: song.duration,
-        extra: { id: song.id, mid: song.mid },
-      });
-    }
+    candidates = await searchCandidates(keyword);
   } catch (err) {
     coreLog.warn(`[lyric:qqmusic] search("${keyword}") failed:`, err);
     return null;

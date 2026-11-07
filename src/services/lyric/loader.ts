@@ -14,11 +14,11 @@ import {
   embeddedLyricFromDetail,
   isBetterFormat,
   isPluginLyricPreferred,
-  resolveLocalRepoLyric,
   resolveOnlineByPreference,
   resolvePluginLyric,
   resolveStreamingByPreference,
   resolveTTMLOverlay,
+  resolveUserLyric,
   type LocalLyric,
   type OnlineResult,
   type ResolvedLyric,
@@ -113,6 +113,15 @@ const commitAndHasParsed = (
 const commitResolvedAndHasParsed = (token: number, resolved: ResolvedLyric): boolean =>
   commitAndHasParsed(token, resolved.source, resolved.input);
 
+/** 偏好切换前展示的歌词，新结果到来前仍留在屏幕上避免闪白 */
+let staleLyric: LyricData = null;
+
+/** 当前展示歌词的格式，偏好切换前的旧歌词不参与比较 */
+const shownLyricFormat = (): LyricFormat | null => {
+  const active = useMediaStore().activeLyric;
+  return active && active !== staleLyric ? active.format : null;
+};
+
 /**
  * 尝试以更优格式提交歌词候选
  * 仅当候选格式优于当前展示格式（或当前无歌词）时写入，避免低优先级结果覆盖优质歌词；
@@ -129,7 +138,7 @@ const commitIfBetter = (
 ): boolean => {
   if (token !== currentToken) return false;
   const media = useMediaStore();
-  const currentFormat = media.activeLyric?.format ?? null;
+  const currentFormat = shownLyricFormat();
   if (currentFormat && !isBetterFormat(source.format, currentFormat)) {
     return false;
   }
@@ -145,6 +154,7 @@ const commitIfBetter = (
 
   // 失败回滚，此前无歌词时也要清掉，否则空结果的格式会挡住后续来源
   media.setLyric(prevSource, prevInput);
+  if (prevSource && prevSource === staleLyric) staleLyric = media.activeLyric;
   return false;
 };
 
@@ -201,7 +211,11 @@ const tryApplyTTMLOverlay = (token: number, track: Track, mainFormat: LyricForma
  * @param lyric - 歌词候选
  */
 const commitCandidate = (token: number, track: Track, lyric: ResolvedLyric): void => {
-  if (commitIfBetter(token, lyric.source, lyric.input) && lyric.source.source === "online") {
+  if (
+    commitIfBetter(token, lyric.source, lyric.input) &&
+    lyric.source.source === "online" &&
+    !lyric.pinned
+  ) {
     tryApplyTTMLOverlay(token, track, lyric.source.format);
   }
 };
@@ -240,7 +254,8 @@ const applyOnline = (
   // 仅自动模式是智能选择，其余（含跟随自身）均为用户显式指令，来源权威高于格式优劣
   const isExplicit = preference !== "auto";
   // 自动模式下，若当前已展示更优歌词（如候选抢占或插件优选），不降级覆盖
-  if (!isExplicit && current && !isBetterFormat(online.source.format, current.format)) {
+  const shownFormat = shownLyricFormat();
+  if (!isExplicit && shownFormat && !isBetterFormat(online.source.format, shownFormat)) {
     return;
   }
   // 尝试提交在线歌词，若失败则回退本地
@@ -255,13 +270,13 @@ const applyOnline = (
 };
 
 /**
- * 本地 TTML 歌词库匹配：命中即以最高优先级提交，调用方据此跳过在线请求
+ * 手动选择或本地 TTML 歌词库匹配：命中即以最高优先级提交，调用方据此跳过在线请求
  * @param token - 竞态 token
  * @param track - 歌曲信息
  * @returns 是否命中
  */
-const tryLocalRepo = async (token: number, track: Track): Promise<boolean> => {
-  const resolved = await resolveLocalRepoLyric(track);
+const tryUserLyric = async (token: number, track: Track): Promise<boolean> => {
+  const resolved = await resolveUserLyric(track);
   if (token !== currentToken) return false;
   return resolved ? commitResolvedAndHasParsed(token, resolved) : false;
 };
@@ -381,8 +396,8 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
     }
     const preloaded = consumePreloadedLyric(track);
     if (preloaded.hit) commitCandidate(token, track, preloaded.lyric);
-    // 本地 TTML 歌词库最高优先
-    if (await tryLocalRepo(token, track)) return;
+    // 手动选择和本地 TTML 歌词库最高优先
+    if (await tryUserLyric(token, track)) return;
     if (token !== currentToken) return;
     if (track.source === "plugin") {
       const plugin = await resolvePluginLyric(track);
@@ -419,8 +434,8 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
         shouldContinue: () => token === currentToken,
       });
       if (token !== currentToken) return;
-      // id 回查本地 TTML 库
-      if (online && (await tryLocalRepo(token, track))) return;
+      // 在线匹配后再查一次手动选择和本地 TTML 库
+      if (online && (await tryUserLyric(token, track))) return;
       if (online) {
         // TTML 先到时不被基础歌词盖掉
         if (media.activeLyric?.source === "online" && media.activeLyric.format === "ttml") return;
@@ -446,8 +461,9 @@ const refreshPreference = async (): Promise<void> => {
   const media = useMediaStore();
   const track = media.track;
   if (!track) return;
-  // 本地 TTML 歌词库最高优先
-  if (await tryLocalRepo(token, track)) return;
+  staleLyric = media.activeLyric;
+  // 手动选择和本地 TTML 歌词库最高优先
+  if (await tryUserLyric(token, track)) return;
   if (token !== currentToken) return;
   if (track.source === "plugin") {
     const plugin = await resolvePluginLyric(track);

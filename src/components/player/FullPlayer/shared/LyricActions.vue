@@ -25,6 +25,9 @@ const hasLyric = computed(() => media.parsedLyric.length > 0);
 /** 复制歌词弹窗是否打开 */
 const copyDialogOpen = ref(false);
 
+/** 歌词匹配弹窗是否打开 */
+const matchDialogOpen = ref(false);
+
 /** 当前曲目偏移（ms） */
 const songOffset = computed(() => status.lyricOffsetMs);
 
@@ -66,6 +69,17 @@ const resetLyricOffset = (): void => writeOffset(0);
       @click="copyDialogOpen = true"
     >
       <template #icon><IconLucideCopy /></template>
+    </SButton>
+    <SButton
+      type="cover"
+      variant="ghost"
+      circle
+      :size="40"
+      :disabled="!hasTrack"
+      :title="t('player.lyricMatch.title')"
+      @click="matchDialogOpen = true"
+    >
+      <template #icon><IconLucideTextSearch /></template>
     </SButton>
     <div class="h-px w-6 bg-cover/25 my-1" />
     <SButton
@@ -129,5 +143,6 @@ const resetLyricOffset = (): void => writeOffset(0);
       <template #icon><IconLucideSettings2 /></template>
     </SButton>
     <CopyLyricsDialog v-model:open="copyDialogOpen" />
+    <LyricMatchDialog v-model:open="matchDialogOpen" />
   </div>
 </template>

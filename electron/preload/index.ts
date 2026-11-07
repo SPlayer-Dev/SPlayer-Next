@@ -545,14 +545,29 @@ const api = {
   },
   lyrics: {
     // 按 id 直取某平台歌词
-    matchById: (platform: string, id: string, track?: unknown) =>
-      ipcRenderer.invoke("lyrics:matchById", platform, id, track),
+    matchById: (platform: string, id: string, track?: unknown, prefetch?: boolean) =>
+      ipcRenderer.invoke("lyrics:matchById", platform, id, track, prefetch),
     // 按 Track 元数据在某平台模糊搜索歌词
     matchByQuery: (platform: string, track: unknown) =>
       ipcRenderer.invoke("lyrics:matchByQuery", platform, track),
     // 清除验证不通过的模糊匹配映射
     forgetMatch: (track: unknown, platform: string) =>
       ipcRenderer.invoke("lyrics:forgetMatch", track, platform),
+    // 记住验证通过的替代候选
+    rememberMatch: (track: unknown, platform: string, id: string) =>
+      ipcRenderer.invoke("lyrics:rememberMatch", track, platform, id),
+    // 按关键词搜索某平台的歌词候选
+    searchCandidates: (platform: string, keyword: string, track: unknown) =>
+      ipcRenderer.invoke("lyrics:searchCandidates", platform, keyword, track),
+    // 按 AMLL 条目 id 取 TTML
+    fetchTTMLById: (id: string) => ipcRenderer.invoke("lyrics:fetchTTMLById", id),
+    // 读取歌曲的手动选择
+    getManualMatch: (track: unknown) => ipcRenderer.invoke("lyrics:getManualMatch", track),
+    // 保存歌曲的手动选择
+    setManualMatch: (track: unknown, match: unknown) =>
+      ipcRenderer.invoke("lyrics:setManualMatch", track, match),
+    // 清除歌曲的手动选择
+    clearManualMatch: (track: unknown) => ipcRenderer.invoke("lyrics:clearManualMatch", track),
     // 获取 AMLL TTML DB 的 TTML
     fetchTTMLOverlay: (track: unknown, platform: string) =>
       ipcRenderer.invoke("lyrics:fetchTTMLOverlay", track, platform),

@@ -5,6 +5,7 @@
  * 用 pickBestCandidate 挑出最匹配当前 track 的那一个，避免对多个候选串行请求歌词。
  */
 
+import type { LyricCandidateTag } from "@shared/types/lyrics";
 import type { Track } from "@shared/types/player";
 
 /** 归一化后的候选项 */
@@ -45,6 +46,15 @@ export const buildLyricSearchKeyword = (track: Track): string =>
     .filter(Boolean)
     .join(" ");
 
+/**
+ * 取 TTML 搜索文本：接口对歌手名的匹配不稳定，默认关键词只搜歌名，歌手交给本地比对
+ * @param keyword - 搜索关键词
+ * @param track - 歌曲信息
+ * @returns 实际搜索文本，用户改过的关键词原样使用
+ */
+export const getTTMLSearchText = (keyword: string, track: Track): string =>
+  normalize(keyword) === normalize(buildLyricSearchKeyword(track)) ? track.title : keyword;
+
 /** 歌手是否有可用交集 */
 const artistMatches = (
   candidateArtist: string | undefined | null,
@@ -81,6 +91,25 @@ const durationClose = (leftMs?: number, rightMs?: number, tolMs = 5000): boolean
 const durationFar = (leftMs?: number, rightMs?: number, tolMs = 20000): boolean => {
   if (!leftMs || !rightMs) return false;
   return Math.abs(leftMs - rightMs) > tolMs;
+};
+
+/**
+ * 列出候选与歌曲吻合的方面，判断标准与自动匹配的打分一致
+ * @param candidate - 候选
+ * @param track - 歌曲信息
+ * @returns 吻合项
+ */
+export const getCandidateTags = <E>(
+  candidate: LyricCandidate<E>,
+  track: Track,
+): LyricCandidateTag[] => {
+  const tags: LyricCandidateTag[] = [];
+  const name = normalize(candidate.name);
+  if (name && name === normalize(track.title)) tags.push("name");
+  const artist = artistMatches(candidate.artist, normalizeTrackArtists(track));
+  if (artist.exact || artist.contains) tags.push("artist");
+  if (durationClose(candidate.duration, track.duration)) tags.push("duration");
+  return tags;
 };
 
 /** 子串命中时短串占长串的最低长度比，过低视为巧合 */

@@ -95,6 +95,25 @@ const fetchLyric = async (args: {
 export const getByPlatformId = (hash: string, track?: Track): Promise<LyricMatchResult | null> =>
   fetchLyric({ hash, name: track?.title, durationMs: track?.duration });
 
+/**
+ * 搜索歌词候选
+ * @param keyword - 搜索关键词
+ * @returns 归一化后的候选列表
+ */
+export const searchCandidates = async (
+  keyword: string,
+): Promise<LyricCandidate<{ hash: string }>[]> => {
+  const body = await callKugou<SearchResponse>("search", { keywords: keyword, limit: 25 });
+  if (body.code !== 200) throw new Error(`search code=${body.code}`);
+  return (body.songs ?? []).map((song) => ({
+    name: song.name,
+    artist: song.artist,
+    album: song.album,
+    duration: song.duration,
+    extra: { hash: song.hash },
+  }));
+};
+
 /** 按 Track 元数据模糊搜索：search → 挑最佳 → 单次请求歌词 */
 export const getByQuery = async (track: Track): Promise<LyricMatchResult | null> => {
   const fingerprint = buildFingerprint(track);
@@ -110,19 +129,9 @@ export const getByQuery = async (track: Track): Promise<LyricMatchResult | null>
   const keyword = buildLyricSearchKeyword(track);
   if (!keyword) return null;
 
-  const candidates: LyricCandidate<{ hash: string }>[] = [];
+  let candidates: LyricCandidate<{ hash: string }>[];
   try {
-    const body = await callKugou<SearchResponse>("search", { keywords: keyword, limit: 25 });
-    if (body.code !== 200) return null;
-    for (const song of body.songs ?? []) {
-      candidates.push({
-        name: song.name,
-        artist: song.artist,
-        album: song.album,
-        duration: song.duration,
-        extra: { hash: song.hash },
-      });
-    }
+    candidates = await searchCandidates(keyword);
   } catch (err) {
     coreLog.warn(`[lyric:kugou] search("${keyword}") failed:`, err);
     return null;
