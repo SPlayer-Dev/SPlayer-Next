@@ -19,6 +19,8 @@ declare module 'vue' {
     AppBackground: typeof import('./src/components/AppBackground.vue')['default']
     AppleControls: typeof import('./src/components/player/FullPlayer/layouts/apple/AppleControls.vue')['default']
     AppleLayout: typeof import('./src/components/player/FullPlayer/layouts/apple/AppleLayout.vue')['default']
+    AppleSlider: typeof import('./src/components/player/FullPlayer/layouts/apple/AppleSlider.vue')['default']
+    AppleThumb: typeof import('./src/components/player/FullPlayer/layouts/apple/AppleThumb.vue')['default']
     AudioInfoDialog: typeof import('./src/components/modals/AudioInfoDialog.vue')['default']
     AutoCloseDialog: typeof import('./src/components/modals/AutoCloseDialog.vue')['default']
     AutoMixComponents: typeof import('./src/components/settings/custom/AutoMixComponents.vue')['default']

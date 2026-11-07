@@ -1,0 +1,46 @@
+/* AMLL MediaButton 按压回弹（AGPL-3.0）：随机/循环、歌词/队列等圆形图标按钮共用
+ *
+ * 直接以全局类 .amll-media-btn / .amll-pressed 落在 SButton 的 <button> 上，
+ * 选择器命中其直接子元素（图标 svg）。keyframes 为全局单一定义。
+ */
+
+/* 图标常驻 transform 过渡，状态切换时（如 shuffle 开/关换图）才有弹性 */
+.amll-media-btn > * {
+  transition: transform 0.5s;
+  transform-origin: center;
+}
+
+/* 点击加 .amll-pressed：0.7s 回弹，accumulate 叠加在图标固有 transform 上 */
+.amll-pressed > * {
+  animation: amll-pressed 0.7s;
+  animation-composition: accumulate;
+}
+
+/* 按住期间压制动画（AMLL :active），松手瞬间才弹出来 */
+.amll-media-btn:active > * {
+  animation-name: none;
+}
+
+@keyframes amll-pressed {
+  0% {
+    transform: scale(1);
+  }
+
+  20% {
+    transform: scale(0.85);
+  }
+
+  50% {
+    transform: scale(1.1);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .amll-pressed > * {
+    animation: none;
+  }
+}
