@@ -23,6 +23,7 @@ import { registerAiModelIpc } from "./aiModel";
 import { registerPlaylistIpc } from "./playlist";
 import { registerRecognitionIpc } from "./recognition";
 import { registerOpenccIpc } from "./opencc";
+import { registerMotionCoverIpc } from "./motionCover";
 import { registerAutoMixIpc } from "./automix";
 
 /**
@@ -43,6 +44,7 @@ export const registerIpcHandlers = (onStartupComplete: () => void): void => {
   registerCommentsIpc();
   registerLyricsIpc();
   registerOpenccIpc();
+  registerMotionCoverIpc();
   registerHotkeyIpc();
   registerThemeIpc();
   registerStreamingIpc();

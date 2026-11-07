@@ -15,7 +15,9 @@ import {
   setEqualizerBands,
   setPreampGain,
   setExclusiveMode,
+  syncEngineProxy,
 } from "@main/services/engine";
+import { applyGlobalFetchProxy, applySessionsProxy } from "@main/utils/proxy";
 import {
   setTaskbarProgress,
   applyMainWindowZoom,
@@ -126,6 +128,11 @@ const applyConfigChange = (keyPath: string, value: unknown): void => {
     case "taskbarLyric.rightMargin":
       if (isWin) applyTaskbarLyricLayout();
       break;
+  }
+  if (keyPath.startsWith("system.networkProxy")) {
+    syncEngineProxy();
+    applyGlobalFetchProxy().catch((err) => systemLog.warn("[proxy] apply fetch proxy failed", err));
+    applySessionsProxy().catch((err) => systemLog.warn("[proxy] apply sessions proxy failed", err));
   }
   // 桌面歌词配置变更广播到所有窗口
   if (keyPath.startsWith("desktopLyric.")) {

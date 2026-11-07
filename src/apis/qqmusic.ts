@@ -11,7 +11,7 @@ import type { ApiCallResponse } from "@shared/types/apis";
 
 /**
  * 调用 QM API，返回业务数据
- * @param name 接口名（search / song_info / lyric / match / hot_search / leaderboard / song_list）
+ * @param name 接口名（search / song_info / lyric / match / leaderboard / song_list）
  * @param params 接口参数
  */
 export const qqmusicCall = async <T = unknown>(

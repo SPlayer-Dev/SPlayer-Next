@@ -17,6 +17,13 @@ export interface ArtistSummary {
   cover?: string;
 }
 
+/** 搜索窗本地分组搜索结果 */
+export interface LibraryQuickSearchResult {
+  tracks: Track[];
+  albums: AlbumSummary[];
+  artists: ArtistSummary[];
+}
+
 /** 扫描进度事件 */
 export interface ScanProgress {
   phase: "scanning" | "done" | "error";
@@ -53,6 +60,8 @@ export interface LibraryApi {
   getTracksByIds: (ids: string[]) => Promise<IpcResponse<Track[]>>;
   /** 搜索曲目 */
   searchTracks: (query: string) => Promise<IpcResponse<Track[]>>;
+  /** 搜索窗分组搜索（歌曲 / 专辑 / 歌手） */
+  quickSearch: (keyword: string) => Promise<IpcResponse<LibraryQuickSearchResult>>;
   /** 获取曲目总数 */
   getTrackCount: () => Promise<IpcResponse<number>>;
   /** 随机取一首曲目 */

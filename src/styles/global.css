@@ -1,6 +1,7 @@
 @import "/fonts/font.css";
 @import "./markdown.css";
 @import "./reduced-motion.css";
+@import "./view-transitions.css";
 
 * {
   margin: 0;

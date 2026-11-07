@@ -1,4 +1,5 @@
 import type { Component } from "vue";
+import type { SystemConfig } from "@shared/types/settings";
 import IconLucideHome from "~icons/lucide/home";
 import IconLucideMusic from "~icons/lucide/music";
 import IconLucideUser from "~icons/lucide/user";
@@ -19,34 +20,40 @@ export interface SidebarNavEntry {
   /** i18n key */
   labelKey: string;
   icon: Component;
-  /** 是否允许隐藏 */
-  hideable: boolean;
+  /** 固定显示，不允许隐藏 */
+  pinned?: true;
+  /** 依赖的可开关功能，功能关闭时入口不可用 */
+  feature?: "download" | "streaming";
 }
 
 const SIDEBAR_NAV_ENTRIES: SidebarNavEntry[] = [
-  { key: "/", labelKey: "nav.home", icon: IconLucideHome, hideable: false },
-  { key: "/library", labelKey: "nav.library", icon: IconLucideMusic, hideable: true },
-  { key: "/artists/local", labelKey: "artist.label", icon: IconLucideUser, hideable: true },
-  { key: "/albums/local", labelKey: "album.label", icon: IconLucideDisc3, hideable: true },
-  { key: "/folders", labelKey: "folder.label", icon: IconLucideFolder, hideable: true },
-  { key: "/stats", labelKey: "stats.label", icon: IconLucideChartPie, hideable: true },
-  {
-    key: "/liked",
-    labelKey: "nav.liked",
-    icon: IconMaterialSymbolsFavoriteOutline,
-    hideable: true,
-  },
-  { key: "/favorites", labelKey: "nav.favorites", icon: IconLucideStar, hideable: true },
-  { key: "/cloud", labelKey: "nav.cloud", icon: IconLucideCloud, hideable: true },
-  { key: "/download", labelKey: "nav.download", icon: IconLucideDownload, hideable: true },
-  { key: "/streaming", labelKey: "nav.streaming", icon: IconLucideLibrary, hideable: true },
-  { key: "/history", labelKey: "nav.history", icon: IconLucideHistory, hideable: true },
+  { key: "/", labelKey: "nav.home", icon: IconLucideHome, pinned: true },
+  { key: "/library", labelKey: "nav.library", icon: IconLucideMusic },
+  { key: "/artists/local", labelKey: "artist.label", icon: IconLucideUser },
+  { key: "/albums/local", labelKey: "album.label", icon: IconLucideDisc3 },
+  { key: "/folders", labelKey: "folder.label", icon: IconLucideFolder },
+  { key: "/stats", labelKey: "stats.label", icon: IconLucideChartPie },
+  { key: "/liked", labelKey: "nav.liked", icon: IconMaterialSymbolsFavoriteOutline },
+  { key: "/favorites", labelKey: "nav.favorites", icon: IconLucideStar },
+  { key: "/cloud", labelKey: "nav.cloud", icon: IconLucideCloud },
+  { key: "/download", labelKey: "nav.download", icon: IconLucideDownload, feature: "download" },
+  { key: "/streaming", labelKey: "nav.streaming", icon: IconLucideLibrary, feature: "streaming" },
+  { key: "/history", labelKey: "nav.history", icon: IconLucideHistory },
 ];
 
 /** key → 导航项元数据 */
 export const SIDEBAR_NAV_META: Record<string, SidebarNavEntry> = Object.fromEntries(
   SIDEBAR_NAV_ENTRIES.map((entry) => [entry.key, entry]),
 );
+
+/**
+ * 导航项依赖的功能是否已关闭
+ * @param entry - 导航项
+ * @param system - 系统配置
+ * @returns 功能关闭时为 true
+ */
+export const isNavFeatureOff = (entry: SidebarNavEntry, system: SystemConfig): boolean =>
+  !!entry.feature && !system[entry.feature].enabled;
 
 /**
  * 按存档顺序重排列表：存档中不存在的项排在最前

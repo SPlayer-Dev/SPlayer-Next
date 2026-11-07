@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   http: vi.fn(),
   socks: vi.fn(),
   close: vi.fn(),
+  setGlobal: vi.fn(),
 }));
 vi.mock("@main/store", () => ({ store: { get: () => mocks.config } }));
 vi.mock("@main/utils/logger", () => ({ systemLog: { info: vi.fn(), warn: vi.fn() } }));
@@ -15,6 +16,7 @@ vi.mock("undici", () => {
   mocks.load();
   return {
     fetch: mocks.fetch,
+    setGlobalDispatcher: mocks.setGlobal,
     Agent: class {
       constructor(options: unknown) {
         mocks.direct(options);
@@ -75,5 +77,21 @@ describe("延迟加载网络库", () => {
     expect(mocks.socks).toHaveBeenCalledWith("socks5://127.0.0.1:7890");
     expect(mocks.close).toHaveBeenCalledOnce();
     expect(mocks.fetch.mock.calls[0][1]).toMatchObject({ method: "POST", signal });
+  });
+
+  it("全局 fetch 跟随代理开关，未配置代理时不加载网络库", async () => {
+    const proxy = await import("./proxy");
+    await proxy.applyGlobalFetchProxy();
+    expect(mocks.load).not.toHaveBeenCalled();
+    mocks.config.protocol = "http";
+    await proxy.applyGlobalFetchProxy();
+    expect(mocks.http).toHaveBeenCalledWith("http://127.0.0.1:7890");
+    await proxy.fetchWithProxy("https://example.test");
+    expect(mocks.fetch.mock.calls[0][1].dispatcher).toBe(mocks.setGlobal.mock.calls[0][0]);
+    mocks.config.protocol = "off";
+    await proxy.applyGlobalFetchProxy();
+    expect(mocks.setGlobal).toHaveBeenCalledTimes(2);
+    expect(mocks.direct).toHaveBeenCalledWith(undefined);
+    expect(mocks.close).toHaveBeenCalledOnce();
   });
 });

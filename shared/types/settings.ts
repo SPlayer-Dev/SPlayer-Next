@@ -117,8 +117,6 @@ export interface DesktopLyricSettings {
   align: DesktopLyricAlign;
   /** 逐字高亮 */
   wordByWord: boolean;
-  /** 自动生成逐字效果 */
-  autoGenerateWordByWord: boolean;
   /** 已播放颜色 */
   playedColor: string;
   /** 未播放颜色 */
@@ -345,6 +343,8 @@ export interface CacheSettings {
   dir: string | null;
   /** 歌曲文件级缓存 */
   songCache: SongCacheSettings;
+  /** 动态封面缓存上限（MB），超限按最近使用淘汰 */
+  motionCoverSizeLimitMb: number;
 }
 
 /** 下载配置 */

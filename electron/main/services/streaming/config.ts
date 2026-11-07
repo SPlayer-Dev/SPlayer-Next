@@ -65,9 +65,6 @@ const encryptPassword = async (password: string): Promise<string> => {
   if (!(await isSecureStorageAvailable())) {
     throw new Error("系统安全存储不可用，无法保存流媒体密码");
   }
-  if (process.platform === "linux" && safeStorage.getSelectedStorageBackend() === "basic_text") {
-    throw new Error("请启用系统密钥环后保存流媒体密码");
-  }
   return `safe:v1:${(await encryptSecret(password)).toString("base64")}`;
 };
 
@@ -80,12 +77,21 @@ const decryptPassword = async (server: PersistedServer): Promise<string> => {
   if (!server.encryptedPassword) return "";
   if (!(await isSecureStorageAvailable()))
     throw new Error("系统安全存储不可用，无法读取流媒体密码");
+  const isLegacy = !server.encryptedPassword.startsWith("safe:v1:");
   const buffer = Buffer.from(server.encryptedPassword.replace(/^safe:v1:/, ""), "base64");
   let decrypted: { plainText: string; needsReEncrypt: boolean };
   try {
     decrypted = await decryptSecret(buffer);
   } catch {
-    throw new Error("无法解密流媒体密码，请在服务器设置中重新输入密码");
+    // 1.1.0 在同步安全存储不可用时（如 Linux basic_text）直接保存 base64 明文；v1x 前缀是系统密文
+    const isLegacyPlainText =
+      isLegacy &&
+      !safeStorage.isEncryptionAvailable() &&
+      !/^v1\d/.test(buffer.toString("latin1", 0, 3));
+    if (!isLegacyPlainText) {
+      throw new Error("无法解密流媒体密码，请在服务器设置中重新输入密码");
+    }
+    decrypted = { plainText: buffer.toString("utf-8"), needsReEncrypt: true };
   }
   if (decrypted.needsReEncrypt) {
     try {

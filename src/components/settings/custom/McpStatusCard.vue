@@ -25,7 +25,7 @@ const restart = async (): Promise<void> => {
     status.value = result;
     if (result.listening) {
       toast.success(t("settings.mcp.restarted"));
-    } else if (result.error?.code === "EADDRINUSE") {
+    } else if (result.error?.code === "EADDRINUSE" || result.error?.code === "EACCES") {
       toast.error(t("settings.mcp.portInUse", { port: settings.system.mcp.port }));
     } else if (result.error) {
       toast.error(result.error.message);

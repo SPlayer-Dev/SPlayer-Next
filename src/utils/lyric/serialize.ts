@@ -8,7 +8,7 @@
 import type { LyricFormat, LyricInput } from "lyric-kit";
 
 import type { DownloadLyricFormat } from "@shared/types/download";
-import { parseLyric, toEnhancedLRC, toLRC, toTTML } from "lyric-kit";
+import { applyTimestampOffset, parseLyric, toEnhancedLRC, toLRC, toTTML } from "lyric-kit";
 
 /**
  * 把下载到的歌词序列化为指定格式
@@ -20,7 +20,7 @@ import { parseLyric, toEnhancedLRC, toLRC, toTTML } from "lyric-kit";
  * @returns 歌词文本；无有效内容返回 null
  */
 export const buildDownloadLyric = (
-  input: LyricInput,
+  input: LyricInput & { timeShiftMs?: number },
   mainFormat: LyricFormat,
   target: DownloadLyricFormat | "ttml",
 ): string | null => {
@@ -39,6 +39,7 @@ export const buildDownloadLyric = (
     return null;
   }
   if (result.lines.length === 0) return null;
+  if (input.timeShiftMs) applyTimestampOffset(result.lines, input.timeShiftMs);
   if (target === "ttml") {
     return mainFormat === "ttml" ? input.content.trim() : toTTML(result);
   }

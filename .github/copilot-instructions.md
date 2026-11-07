@@ -52,7 +52,7 @@ SPlayer-Next 是基于 **Electron + Vue 3 + TypeScript** 的桌面音乐播放�
 
 - `@windows/shared/composables/useNowPlayingSync` 提供播放同步、歌词索引、锚点插值
 - `getNowPlayingCurrentMs()` 非响应式读当前时间，供逐字高亮 RAF 循环用
-- 歌词行选择算法按窗口语义选：桌面歌词用 `pickPrimaryIndex`（考虑 overlap）、灵动岛用 `pickLatestStartedIndex`（立即切换）
+- 歌词行选择算法按窗口语义选：桌面和任务栏歌词用 `pickPrimaryIndex`（考虑 overlap）、灵动岛用 `pickLatestStartedIndex`（立即切换）
 
 不要在窗口内重新实现上述逻辑，直接调用共享 composable。
 

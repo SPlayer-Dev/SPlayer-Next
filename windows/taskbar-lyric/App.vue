@@ -130,7 +130,7 @@ const setContentHovered = (hovered: boolean): void => {
   }, 40);
 };
 
-const { track, lyric, primaryIndex, playing } = useNowPlayingSync({
+const { track, lyric, wordTimed, primaryIndex, playing } = useNowPlayingSync({
   pickIndex: pickPrimaryIndex,
   logTag: "taskbar-lyric",
 });
@@ -334,7 +334,7 @@ onBeforeUnmount(() => {
               :line="item.line"
               :text="item.text"
               :timing-line="item.timingLine"
-              :word-by-word="config.wordByWord && !!item.line"
+              :word-by-word="config.wordByWord && wordTimed && !!item.line"
               :anchor="anchor"
             />
           </div>

@@ -49,7 +49,6 @@ export const defaultSystemConfig: SystemConfig = {
     doubleLine: true,
     align: "center",
     wordByWord: true,
-    autoGenerateWordByWord: true,
     playedColor: "rgb(254, 121, 113)",
     unplayedColor: "rgb(255, 255, 255)",
     strokeColor: "rgba(0, 0, 0, 0.5)",
@@ -111,6 +110,7 @@ export const defaultSystemConfig: SystemConfig = {
       cacheStreaming: false,
       sizeLimitGb: 10,
     },
+    motionCoverSizeLimitMb: 300,
   },
   download: {
     enabled: false,

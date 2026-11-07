@@ -31,6 +31,7 @@ const resolvePayload = async (payload: DownloadResolvePayload): Promise<Download
         translationFormat: lyric.translationFormat,
         romaji: lyric.romaji,
         romajiFormat: lyric.romajiFormat,
+        timeShiftMs: lyric.timeShiftMs,
       };
       // 内嵌与 .lrc 文件共用所选格式（lrc/增强 LRC）
       if (tagOptions.embedLyric || tagOptions.writeLrc) {

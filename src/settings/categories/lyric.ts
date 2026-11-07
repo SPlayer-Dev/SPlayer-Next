@@ -40,7 +40,7 @@ const lyricCategory: SettingCategory = {
               key: "smartPreferOnline",
               type: "switch",
               binding: { store: "settings", path: "lyric.smartPreferOnline" },
-              defaultValue: false,
+              defaultValue: true,
             },
           ],
         },
@@ -275,6 +275,12 @@ const lyricCategory: SettingCategory = {
           binding: { store: "settings", path: "lyric.enableBalancedWrap" },
           defaultValue: true,
           visible: () => lyricEngine() === "physics",
+        },
+        {
+          key: "autoGenerateWordByWord",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.autoGenerateWordByWord" },
+          defaultValue: false,
         },
         {
           key: "enableWordHighlight",

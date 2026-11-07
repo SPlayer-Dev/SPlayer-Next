@@ -9,7 +9,7 @@ crate-type = ["cdylib"]
 [dependencies]
 napi = { workspace = true, features = ["napi9", "serde-json", "tokio_rt"] }
 napi-derive = { workspace = true }
-ffmpeg_audio = { version = "0.3.1", default-features = false, features = [
+ffmpeg_audio = { git = "https://github.com/SPlayer-Dev/ffmpeg-audio", tag = "v0.4.0-spn.1", default-features = false, features = [
   "http",
   "tracing",
 ] }

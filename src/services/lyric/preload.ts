@@ -10,7 +10,8 @@ interface PreloadedLyric {
   trackKey: string;
   contextKey: string;
   controller: { cancelled: boolean };
-  result: Promise<ResolvedLyric | null | undefined>;
+  /** 预载结果，未完成时为 undefined */
+  lyric?: ResolvedLyric | null;
 }
 
 let preloaded: PreloadedLyric | null = null;
@@ -71,22 +72,27 @@ export const preloadLyricForTrack = (track: Track): void => {
   if (preloaded?.trackKey === trackKey && preloaded.contextKey === contextKey) return;
   invalidatePreloadedLyric();
   const controller = { cancelled: false };
-  const result = resolveLyricForPreload(track, () => !controller.cancelled).catch((err) => {
-    console.warn("[lyricPreload] 歌词预载失败:", err);
-    return undefined;
-  });
-  preloaded = { trackKey, contextKey, controller, result };
+  const entry: PreloadedLyric = { trackKey, contextKey, controller };
+  preloaded = entry;
+  resolveLyricForPreload(track, () => !controller.cancelled)
+    .then((lyric) => {
+      entry.lyric = lyric;
+    })
+    .catch((err) => {
+      console.warn("[lyricPreload] 歌词预载失败:", err);
+    });
 };
 
 /**
  * 消费目标歌曲的歌词预载结果
+ * 预载未完成时直接放弃，正常流程会复用主进程的请求去重和缓存，不必等待
  * @param track - 即将加载的歌曲
  * @returns 命中状态和歌词结果
  */
-export const consumePreloadedLyric = async (track: Track): Promise<PreloadedLyricResult> => {
+export const consumePreloadedLyric = (track: Track): PreloadedLyricResult => {
   const current = preloaded;
   if (
-    !current ||
+    !current?.lyric ||
     current.trackKey !== buildTrackKey(track) ||
     current.contextKey !== buildContextKey()
   ) {
@@ -94,6 +100,5 @@ export const consumePreloadedLyric = async (track: Track): Promise<PreloadedLyri
     return { hit: false };
   }
   preloaded = null;
-  const lyric = await current.result;
-  return lyric ? { hit: true, lyric } : { hit: false };
+  return { hit: true, lyric: current.lyric };
 };

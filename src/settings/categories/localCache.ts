@@ -63,6 +63,18 @@ const localCacheCategory: SettingCategory = {
       id: "cache",
       items: [
         {
+          key: "motionCoverSizeLimit",
+          type: "select",
+          binding: { store: "settings", path: "system.cache.motionCoverSizeLimitMb" },
+          options: [
+            { value: 100, label: "100 MB" },
+            { value: 300, label: "300 MB" },
+            { value: 500, label: "500 MB" },
+            { value: 1024, label: "1 GB" },
+          ],
+          defaultValue: 300,
+        },
+        {
           key: "fileCacheManager",
           type: "custom",
           component: FileCacheManager,

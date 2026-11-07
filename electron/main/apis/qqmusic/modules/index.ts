@@ -4,7 +4,6 @@
 
 import type { QMModule } from "../core/types";
 
-import hot_search from "./hot_search";
 import leaderboard from "./leaderboard";
 import lyric from "./lyric";
 import match from "./match";
@@ -19,7 +18,6 @@ import comment from "./comment";
 import { login_qr_key, login_qr_check } from "./login_qr";
 
 export const modules: Record<string, QMModule> = {
-  hot_search,
   leaderboard,
   lyric,
   match,

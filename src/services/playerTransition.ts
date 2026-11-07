@@ -6,6 +6,59 @@ export const fullPlayerReady = shallowRef(false);
 export const playerTransition = shallowRef<ViewTransition | null>(null);
 export const playerTransitionActive = computed(() => playerTransition.value !== null);
 let covers: HTMLElement[] = [];
+let layoutTransition: ViewTransition | null = null;
+
+/** 跳过进行中的布局过渡，避免与展开过渡的共享元素命名冲突 */
+const skipLayoutTransition = (): void => {
+  const active = layoutTransition;
+  if (!active) return;
+  layoutTransition = null;
+  active.skipTransition();
+  document.documentElement.removeAttribute("data-player-layout-transition");
+};
+
+/**
+ * 在全屏播放器布局之间做快照过渡，播放器不可见或动效关闭时直接切换
+ * @param update - 切换实际渲染布局的回调
+ */
+export const switchPlayerLayout = (update: () => void): void => {
+  skipLayoutTransition();
+  const status = useStatusStore();
+  const settings = useSettingsStore();
+  if (
+    !status.isPlayerExpanded ||
+    playerTransitionActive.value ||
+    !settings.appearance.seamlessTransition ||
+    settings.reducedMotion ||
+    !document.startViewTransition ||
+    document.hidden ||
+    coverTransitionActive.value
+  ) {
+    update();
+    return;
+  }
+  const root = document.documentElement;
+  const coverSelector = '[data-player-cover="full"] img[data-cover-image]';
+  const previousCover = document.querySelector<HTMLImageElement>(coverSelector)?.src;
+  root.setAttribute("data-player-layout-transition", "");
+  // 快照过渡只在合成层插值，歌词区域仅在切换瞬间重排一次
+  const active = document.startViewTransition(async () => {
+    update();
+    await nextTick();
+    // 新布局重建了封面节点；仅等待同地址原图的内存缓存解码，避免网络请求卡住过渡回调
+    const image = document.querySelector<HTMLImageElement>(coverSelector);
+    if (image && image.src === previousCover) await image.decode().catch(() => {});
+  });
+  layoutTransition = active;
+  void active.ready.catch(() => {});
+  void active.finished
+    .finally(() => {
+      if (layoutTransition !== active) return;
+      layoutTransition = null;
+      root.removeAttribute("data-player-layout-transition");
+    })
+    .catch(() => {});
+};
 
 /** 释放播放器快照和临时标记，取消尚未完成的封面匹配 */
 export const cancelPlayerTransition = (): void => {
@@ -27,15 +80,18 @@ export const cancelPlayerTransition = (): void => {
  */
 export const setPlayerExpanded = (expanded: boolean): void => {
   cancelPlayerTransition();
+  skipLayoutTransition();
   const status = useStatusStore();
   if (status.isPlayerExpanded === expanded) return;
   const settings = useSettingsStore();
+  // 全屏歌词没有可衔接的大封面，展开时沿用默认滑入动画
   if (
     !settings.appearance.seamlessTransition ||
     settings.reducedMotion ||
     !document.startViewTransition ||
     document.hidden ||
-    coverTransitionActive.value
+    coverTransitionActive.value ||
+    (expanded && settings.player.layout === "fullLyric")
   ) {
     status.isPlayerExpanded = expanded;
     return;
