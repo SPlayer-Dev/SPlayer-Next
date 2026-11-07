@@ -30,12 +30,14 @@ SPlayer-Next supports LRC, QRC, YRC, and TTML, including word-by-word highlighti
 - Configure the AMLL TTML DB URL template. It must contain `%p` for platform and `%s` for song ID.
 - When a match is found, its timed words, translation, and romanization are used.
 
-### Local TTML library
+### Local lyrics library
 
-If you maintain your own TTML files, select a local directory as a lyrics library:
+If you maintain your own lyric files, register one or more local folders as a lyrics library:
 
-- Enable **Settings → Lyrics → Local TTML lyrics library** (Beta).
-- Choose a folder containing `.ttml` files. Tracks are matched by metadata such as title and artist.
+- Enable **Settings → Lyrics → Local lyrics library** (Beta).
+- Add folders containing lyric files. `.ttml`, `.lrc`, `.lys`, `.ass`, and `.srt` are supported, and folders are scanned recursively.
+- Tracks are matched by metadata (TTML `<amll:meta>`, LRC / LyS `[ti:]` / `[ar:]`) or by the numeric song ID in the file name (`songID.ext` or `any-prefix.songID.ext`; the numeric QQ Music song ID works too).
+- When several files match, the one with the highest lyric format priority wins; earlier folders win over later ones.
 - A local match takes precedence over online lyrics.
 
 ### Lyrics windows

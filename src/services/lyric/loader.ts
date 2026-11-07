@@ -255,7 +255,7 @@ const applyOnline = (
 };
 
 /**
- * 本地 TTML 歌词库匹配：命中即以最高优先级提交，调用方据此跳过在线请求
+ * 本地歌词库匹配：命中即以最高优先级提交，调用方据此跳过在线请求
  * @param token - 竞态 token
  * @param track - 歌曲信息
  * @returns 是否命中
@@ -381,7 +381,7 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
     }
     const preloaded = consumePreloadedLyric(track);
     if (preloaded.hit) commitCandidate(token, track, preloaded.lyric);
-    // 本地 TTML 歌词库最高优先
+    // 本地歌词库最高优先
     if (await tryLocalRepo(token, track)) return;
     if (token !== currentToken) return;
     if (track.source === "plugin") {
@@ -446,7 +446,7 @@ const refreshPreference = async (): Promise<void> => {
   const media = useMediaStore();
   const track = media.track;
   if (!track) return;
-  // 本地 TTML 歌词库最高优先
+  // 本地歌词库最高优先
   if (await tryLocalRepo(token, track)) return;
   if (token !== currentToken) return;
   if (track.source === "plugin") {
@@ -504,8 +504,8 @@ export const watchLyricPreference = (): void => {
       settings.lyric.preferPluginLyric,
       settings.lyric.detectBackgroundLyrics,
       settings.system.lyric.enableOnlineTTMLLyric,
-      settings.system.localLyric.enableLocalTTMLOverride,
-      settings.system.localLyric.repoDir,
+      settings.system.localLyric.enableLocalLyricOverride,
+      settings.system.localLyric.repoDirs,
     ],
     () => {
       refreshPreference();

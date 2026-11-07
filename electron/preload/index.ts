@@ -558,9 +558,9 @@ const api = {
       ipcRenderer.invoke("lyrics:fetchTTMLOverlay", track, platform),
     // 按元数据搜索 AMLL TTML DB
     searchTTML: (track: unknown) => ipcRenderer.invoke("lyrics:searchTTML", track),
-    // 在本地 TTML 歌词库目录中按元信息匹配
-    matchLocalTTML: (track: unknown) => ipcRenderer.invoke("lyrics:matchLocalTTML", track),
-    // 选择本地 TTML 歌词库目录
+    // 在本地歌词库目录中按元信息或歌曲 ID 匹配
+    matchLocalLyric: (track: unknown) => ipcRenderer.invoke("lyrics:matchLocalLyric", track),
+    // 选择本地歌词库目录
     pickLyricRepoDir: () => ipcRenderer.invoke("lyrics:pickLyricRepoDir"),
   },
   opencc: {

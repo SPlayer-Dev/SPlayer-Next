@@ -28,4 +28,22 @@ export const migrations: Migration[] = [
       }
     },
   },
+  {
+    // 本地 TTML 歌词库扩展为通用歌词库：单目录改为多目录，旧开关改名
+    version: 3,
+    migrate: (data) => {
+      const localLyric = data.localLyric as unknown as {
+        repoDir?: string;
+        repoDirs?: string[];
+        enableLocalTTMLOverride?: boolean;
+        enableLocalLyricOverride?: boolean;
+      };
+      if (localLyric.repoDir) localLyric.repoDirs = [localLyric.repoDir];
+      if (localLyric.enableLocalTTMLOverride !== undefined) {
+        localLyric.enableLocalLyricOverride = localLyric.enableLocalTTMLOverride;
+      }
+      delete localLyric.repoDir;
+      delete localLyric.enableLocalTTMLOverride;
+    },
+  },
 ];

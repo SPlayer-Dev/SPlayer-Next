@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
     system: {
       cache: { songCache: { enabled: true, cacheStreaming: true } },
       lyric: { enableOnlineTTMLLyric: false },
-      localLyric: { enableLocalTTMLOverride: false, repoDir: "" },
+      localLyric: { enableLocalLyricOverride: false, repoDirs: [] },
     },
     lyric: {
       lyricSourcePreference: "auto",
