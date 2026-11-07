@@ -64,3 +64,11 @@ export interface JsTaskbarLayout {
   space: JsAvailableSpace
   extra: JsExtraLayoutInfo
 }
+
+/**
+ * 直接移动窗口位置，保持宽高不变
+ *
+ * Electron 对嵌入任务栏的透明无边框窗口，setBounds 的 move 部分在 compositor surface
+ * 已建立后不会真正移动 HWND；动画跟随需要直接调 SetWindowPos
+ */
+export declare function moveWindow(hwndPtr: number, x: number, y: number): boolean

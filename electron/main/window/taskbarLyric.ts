@@ -19,7 +19,10 @@ import type {
 } from "@splayer/taskbar-lyric";
 import { taskbarLog } from "@main/utils/logger";
 
-type TaskbarLyricNative = typeof import("@splayer/taskbar-lyric");
+type TaskbarLyricNative = typeof import("@splayer/taskbar-lyric") & {
+  /** 直接移动窗口位置（保持宽高不变） */
+  moveWindow?: (hwndPtr: number, x: number, y: number) => boolean;
+};
 
 const REG_SUBKEY_EXPLORER_ADVANCED =
   "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced";
@@ -142,9 +145,18 @@ const pickSpace = (layout: JsTaskbarLayout): PickedSpace | null => {
 /** 首次 applyLayout 成功后才 show 窗口——避免初始 3000x200 大窗口闪现 */
 let firstLayoutDone = false;
 
-/** 空间不足时安静隐藏窗口，避免残留旧位置的歌词残影 */
-const hideIfVisible = (win: BrowserWindow): void => {
-  if (win.isVisible()) win.hide();
+/**
+ * 收起态保持窗口可见，只把有效区域裁到远端 1×1
+ *
+ * hide/show 会让 Chromium 重新合成首帧，展开瞬间歌词内容先出现在偏移位置、
+ * 约 100ms 后才滑回原位；窗口保持可见时合成面持续有效，展开只恢复形状即可
+ * 直接呈现正确内容。1×1 区域落在窗口远端，不遮挡任务栏底缘的唤醒带
+ * @param win - 歌词窗口
+ */
+const parkWindow = (win: BrowserWindow): void => {
+  if (!firstLayoutDone || !win.isVisible()) return;
+  const { width } = win.getBounds();
+  win.setShape([{ x: Math.max(0, width - 1), y: 0, width: 1, height: 1 }]);
 };
 
 /** Rust 布局回调：把物理像素空间转为 DIP，<阈值则隐藏，≥阈值则 setBounds 并 show */
@@ -154,12 +166,12 @@ const applyLayout = (layout: JsTaskbarLayout): void => {
 
   const picked = pickSpace(layout);
   if (!picked) {
-    hideIfVisible(win);
+    parkWindow(win);
     return;
   }
   const { rect, anchor } = picked;
   if (rect.width <= 0 || rect.height <= 0) {
-    hideIfVisible(win);
+    parkWindow(win);
     return;
   }
 
@@ -175,7 +187,7 @@ const applyLayout = (layout: JsTaskbarLayout): void => {
   const availHeight = Math.round(rect.height / dpi);
 
   if (availWidth < MIN_LYRIC_WIDTH_DIP) {
-    hideIfVisible(win);
+    parkWindow(win);
     return;
   }
 
@@ -191,7 +203,14 @@ const applyLayout = (layout: JsTaskbarLayout): void => {
     height: availHeight,
     anchor,
   };
-  win.setBounds({ x: windowX, y: availY, width: windowWidth, height: availHeight });
+  const hwndPtr = Number(win.getNativeWindowHandle().readBigUInt64LE(0));
+  // Electron 的 setBounds 移动 owner 窗口不生效，交由 native 直接 SetWindowPos；
+  // 布局矩形与 SetWindowPos 同为物理像素，无需 DIP 换算
+  const moved =
+    !!nativeModule &&
+    typeof nativeModule.moveWindow === "function" &&
+    nativeModule.moveWindow(hwndPtr, rect.x, rect.y);
+  if (!moved) win.setBounds({ x: windowX, y: availY, width: windowWidth, height: availHeight });
   applyContentShape();
 
   if (!firstLayoutDone) {
@@ -336,6 +355,10 @@ export const createTaskbarLyricWindow = (): BrowserWindow | null => {
     const hwndPtr = Number(hwndPtrBigInt);
     taskbarLog.info(`嵌入窗口 hwnd=${hwndPtr}`);
     svc.embedWindowByPtr(hwndPtr);
+    // 首帧先以 1×1 形状显示窗口：Chromium 对首次 show 的合成可能使用旧内容位置，
+    // 先让窗口在不可见形状下完成首帧合成，之后应用真实形状时内容位置才是准确的
+    win.setShape([{ x: INITIAL_WIDTH - 1, y: 0, width: 1, height: 1 }]);
+    win.showInactive();
     svc.update(resolveLyricWidth());
     startWatchers(mod);
     taskbarCreatedWatcher = tryStart(

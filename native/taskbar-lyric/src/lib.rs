@@ -103,6 +103,32 @@ pub(crate) fn take_valid_hwnd(hwnd_ptr: usize) -> Option<HWND> {
     }
 }
 
+/// 直接移动窗口位置，保持宽高不变
+///
+/// Electron 对嵌入任务栏的透明无边框窗口，setBounds 的 move 部分在 compositor surface
+/// 已建立后不会真正移动 HWND；动画跟随需要直接调 SetWindowPos
+#[napi]
+pub fn move_window(hwnd_ptr: f64, x: i32, y: i32) -> bool {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SetWindowPos,
+    };
+    let Some(hwnd) = take_valid_hwnd(hwnd_ptr as usize) else {
+        return false;
+    };
+    unsafe {
+        SetWindowPos(
+            hwnd,
+            None,
+            x,
+            y,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+        )
+        .is_ok()
+    }
+}
+
 // --- NAPI Watcher 绑定 ---
 
 #[napi(js_name = "UiaWatcher")]
