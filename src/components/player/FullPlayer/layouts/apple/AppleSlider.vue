@@ -194,7 +194,7 @@ onBeforeUnmount(() => {
     role="slider"
     :aria-valuemin="min"
     :aria-valuemax="max"
-    :aria-valuenow="Math.round(modelValue)"
+    :aria-valuenow="modelValue"
     @pointerenter="hovering = true"
     @pointerleave="hovering = false"
     @pointerdown="onPointerDown"

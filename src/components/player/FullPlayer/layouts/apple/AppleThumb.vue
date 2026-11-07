@@ -152,8 +152,11 @@ onBeforeUnmount(() => {
         type="button"
         class="apple-thumb-btn"
         :class="{ 'is-hover': hovering }"
+        tabindex="0"
         :aria-label="t('player.collapse')"
         @click="setPlayerExpanded(false)"
+        @keydown.enter="setPlayerExpanded(false)"
+        @keydown.space="setPlayerExpanded(false)"
         @pointerdown="onPointerDown"
         @pointerup="onPointerUp"
         @pointercancel="onPointerUp"
@@ -202,8 +205,9 @@ onBeforeUnmount(() => {
     height 0.5s cubic-bezier(0.34, 1.3, 0.64, 1);
 }
 
-/* 悬停收拢为关闭方块，位置由弹簧驱动的内联 transform 跟随光标 */
-.apple-thumb-btn.is-hover {
+/* 悬停或键盘聚焦收拢为关闭方块，位置由弹簧驱动的内联 transform 跟随光标 */
+.apple-thumb-btn.is-hover,
+.apple-thumb-btn:focus-visible {
   width: 25px;
   height: 25px;
 }
@@ -224,16 +228,19 @@ onBeforeUnmount(() => {
     transform 0.5s cubic-bezier(0.34, 1.3, 0.64, 1);
 }
 
-.apple-thumb-btn.is-hover .apple-thumb-bar {
+.apple-thumb-btn.is-hover .apple-thumb-bar,
+.apple-thumb-btn:focus-visible .apple-thumb-bar {
   width: 15px;
   height: 2px;
 }
 
-.apple-thumb-btn.is-hover .apple-thumb-bar-first {
+.apple-thumb-btn.is-hover .apple-thumb-bar-first,
+.apple-thumb-btn:focus-visible .apple-thumb-bar-first {
   transform: translate(-50%, -50%) rotate(45deg);
 }
 
-.apple-thumb-btn.is-hover .apple-thumb-bar-second {
+.apple-thumb-btn.is-hover .apple-thumb-bar-second,
+.apple-thumb-btn:focus-visible .apple-thumb-bar-second {
   transform: translate(-50%, -50%) rotate(-45deg);
 }
 

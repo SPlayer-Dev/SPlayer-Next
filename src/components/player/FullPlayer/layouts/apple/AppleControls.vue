@@ -85,10 +85,10 @@ const nextTrack = (): void => {
 };
 
 /**
- * 随机播放按压缩放标记
+ * 随机播放/循环播放按压缩放标记
  *
- * 移植自 AMLL MediaButton（AGPL-3.0）：点击加类触发一次 0.7s 回弹动画，
- * animationend 后清除；动画进行中再次点击不重放
+ * 移植自 @applemusic-like-lyrics/react-full 的 MediaButton（AGPL-3.0）：点击加类触发一次
+ * 0.7s 回弹动画，animationend 后清除；动画进行中再次点击不重放
  */
 const shufflePressed = ref(false);
 /** 循环播放按压缩放标记（同 shufflePressed） */
