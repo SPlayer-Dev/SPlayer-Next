@@ -46,7 +46,7 @@ pub struct ExclusiveFormat {
     pub sample_rate: u32,
     /// 声道数
     pub channels: u16,
-    /// 容器位深（16 / 32）
+    /// 容器位深（16 / 24 / 32）
     pub container_bits: u16,
     /// 有效位深（16 / 24 / 32）
     pub valid_bits: u16,
