@@ -58,7 +58,7 @@ onUnmounted(() => {
 <template>
   <div
     ref="containerRef"
-    class="overflow-hidden"
+    class="overflow-x-clip overflow-y-visible"
     :class="[fit ? 'max-w-full' : 'w-full', isOverflowing && mask && 's-marquee-mask']"
     :style="{
       '--marquee-duration': animDuration,
