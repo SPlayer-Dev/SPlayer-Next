@@ -1,0 +1,44 @@
+/* 移植自 @applemusic-like-lyrics/react-full 的 MediaButton 按压回弹（AGPL-3.0）。
+    交互分三层：图标常驻 transform 0.5s 过渡（状态切换时有弹性）；
+    点击加 .amll-pressed 触发 0.7s 回弹（scale 1→0.85→1.1→1，accumulate 叠加
+    在图标固有 transform 上）；按住时 :active 压制动画，松手瞬间弹出，
+    animationend 后移除 .amll-pressed。以全局类 .amll-media-btn /
+    .amll-pressed 落在 SButton 的 <button> 上，选择器命中其直接子元素
+    （图标 svg）。keyframes 为全局单一定义，供 shuffle/repeat 等圆形
+    图标按钮复用。
+*/
+
+/* 图标常驻 transform 过渡，状态切换时（如 shuffle 开/关换图）才有弹性 */
+.amll-media-btn > * {
+  transition: transform 0.5s;
+  transform-origin: center;
+}
+
+/* 点击加 .amll-pressed：0.7s 回弹，accumulate 叠加在图标固有 transform 上 */
+.amll-pressed > * {
+  animation: amll-pressed 0.7s;
+  animation-composition: accumulate;
+}
+
+/* 按住期间压制动画（AMLL :active），松手瞬间才弹出来 */
+.amll-media-btn:active > * {
+  animation-name: none;
+}
+
+@keyframes amll-pressed {
+  0% {
+    transform: scale(1);
+  }
+
+  20% {
+    transform: scale(0.85);
+  }
+
+  50% {
+    transform: scale(1.1);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
