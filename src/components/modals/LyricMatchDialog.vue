@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { LyricLine } from "lyric-kit";
+import type { LyricLine, LyricWord } from "lyric-kit";
 import type {
   LyricCandidateTag,
   LyricManualMatch,
@@ -10,7 +10,9 @@ import type { Track } from "@shared/types/player";
 import { ALL_PLATFORMS, PLATFORM_SHORT_NAME } from "@shared/types/platform";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
+import { useStatusStore } from "@/stores/status";
 import { toast } from "@/composables/useToast";
+import { usePlaybackTime } from "@/composables/usePlaybackTime";
 import { loadForTrack } from "@/services/lyric/loader";
 import { invalidatePreloadedLyric } from "@/services/lyric/preload";
 import { requestManualLyric } from "@/services/lyric/resolve";
@@ -24,8 +26,18 @@ const emit = defineEmits<{ "update:open": [value: boolean] }>();
 const { t } = useI18n();
 const media = useMediaStore();
 const settings = useSettingsStore();
+const status = useStatusStore();
 
 const TTML_LABEL = "TTML";
+
+/** 预览用的歌词行 */
+interface PreviewLine {
+  text: string;
+  words: LyricWord[];
+  startTime: number;
+  /** 对唱行，靠右显示 */
+  isDuet: boolean;
+}
 
 const TAG_LABEL_KEYS: Record<LyricCandidateTag, string> = {
   name: "player.lyricMatch.tagName",
@@ -55,7 +67,8 @@ const searching = ref(false);
 const currentMatch = shallowRef<LyricManualMatch | null>(null);
 /** 当前预览的候选，为空时预览的是正在使用的歌词 */
 const selected = shallowRef<LyricSearchCandidate | null>(null);
-const previewLines = shallowRef<string[]>([]);
+const previewLines = shallowRef<PreviewLine[]>([]);
+const previewRef = useTemplateRef<HTMLElement>("previewRef");
 const previewFormat = ref("");
 const previewing = ref(false);
 const saving = ref(false);
@@ -90,20 +103,54 @@ const candidates = computed(() => {
 const previewingCurrent = computed(() => !selected.value || isCurrent(selected.value));
 
 /**
- * 提取歌词行的主文本
+ * 提取预览用的主歌词行
  * @param lines - 歌词行
- * @returns 非空的主歌词文本
+ * @returns 有文本的主歌词行
  */
-const toPreviewLines = (lines: LyricLine[]): string[] =>
+const toPreviewLines = (lines: LyricLine[]): PreviewLine[] =>
   lines
     .filter((line) => !line.isBG)
-    .map((line) =>
-      line.words
+    .map((line) => ({
+      text: line.words
         .map((word) => word.word)
         .join("")
         .trim(),
-    )
-    .filter(Boolean);
+      words: line.words,
+      startTime: line.startTime,
+      isDuet: line.isDuet,
+    }))
+    .filter((line) => line.text);
+
+/** 正在播放的行，未开始时为 -1 */
+const activeIndex = ref(-1);
+
+let lastTime = -1;
+let lastLines: PreviewLine[] = [];
+
+// 非响应式时间源，暂停时时间和内容都不变就跳过，避免每帧重复写样式
+const { start: startTick, stop: stopTick } = usePlaybackTime((currentMs) => {
+  const time = currentMs + status.lyricOffsetMs;
+  const lines = previewLines.value;
+  if (time === lastTime && lines === lastLines) return;
+  lastLines = lines;
+  const index = lines.findLastIndex((line) => line.startTime <= time);
+  // 换行后逐字节点下一帧才渲染出来，留到下一帧再写进度
+  if (index !== activeIndex.value) {
+    activeIndex.value = index;
+    lastTime = -1;
+    return;
+  }
+  lastTime = time;
+  const words = lines[index]?.words;
+  if (!words || words.length < 2) return;
+  previewRef.value
+    ?.querySelectorAll<HTMLElement>(`[data-index="${index}"] > span`)
+    .forEach((span, wordIndex) => {
+      const word = words[wordIndex];
+      const progress = (time - word.startTime) / Math.max(word.endTime - word.startTime, 1);
+      span.style.setProperty("--fill", `${Math.min(Math.max(progress, 0), 1) * 100}%`);
+    });
+});
 
 /** 预览正在使用的歌词，内容已在内存里，不用再请求 */
 const showCurrentLyric = (): void => {
@@ -229,6 +276,8 @@ const handleRestore = (): void => {
 watch(
   () => props.open,
   async (open) => {
+    if (open) startTick();
+    else stopTick();
     searchToken++;
     previewToken++;
     results.value = {};
@@ -252,6 +301,21 @@ watch(
       sourceTabs.value.find((tab) => tab.key === currentSource)?.key ?? ALL_PLATFORMS[0];
     void runSearch();
   },
+);
+
+/** 当前行变化时滚动到预览区中间 */
+watch(
+  [activeIndex, previewLines],
+  () => {
+    const container = previewRef.value;
+    const line = container?.querySelector<HTMLElement>(`[data-index="${activeIndex.value}"]`);
+    if (!container || !line) return;
+    container.scrollTo({
+      top: line.offsetTop - (container.clientHeight - line.clientHeight) / 2,
+      behavior: "smooth",
+    });
+  },
+  { flush: "post" },
 );
 
 /** 切歌后关闭，避免把选择写到下一首 */
@@ -335,36 +399,60 @@ watch(
             </span>
           </SCard>
         </div>
-        <div
-          class="flex flex-col min-h-0 overflow-y-auto rounded-md bg-on-surface/4 px-3 py-2.5 gap-1"
-        >
+        <div class="flex flex-col gap-2 min-h-0">
           <div
-            v-if="previewing"
-            class="flex-1 flex items-center justify-center text-xl text-on-surface/50"
+            v-if="!previewing && previewLines.length > 0"
+            class="shrink-0 flex items-center gap-1 rounded-md bg-on-surface/4 px-3 py-2"
           >
-            <SLoading />
+            <STag size="tiny">{{ previewFormat }}</STag>
+            <STag v-if="previewingCurrent" size="tiny">
+              {{ t("player.lyricMatch.current") }}
+            </STag>
           </div>
-          <p
-            v-else-if="previewLines.length === 0"
-            class="m-auto text-sm text-on-surface/50 text-center"
+          <div
+            ref="previewRef"
+            class="relative flex-1 flex flex-col min-h-0 overflow-y-auto rounded-md bg-on-surface/4 px-3 py-2.5 gap-1"
           >
-            {{ selected ? t("player.lyricMatch.noLyric") : t("player.lyricMatch.previewHint") }}
-          </p>
-          <template v-else>
-            <span class="flex items-center gap-1 mb-1">
-              <STag size="tiny">{{ previewFormat }}</STag>
-              <STag v-if="previewingCurrent" size="tiny">
-                {{ t("player.lyricMatch.current") }}
-              </STag>
-            </span>
-            <p
-              v-for="(line, index) in previewLines"
-              :key="index"
-              class="m-0 text-sm leading-relaxed text-on-surface"
+            <div
+              v-if="previewing"
+              class="flex-1 flex items-center justify-center text-xl text-on-surface/50"
             >
-              {{ line }}
+              <SLoading />
+            </div>
+            <p
+              v-else-if="previewLines.length === 0"
+              class="m-auto text-sm text-on-surface/50 text-center"
+            >
+              {{ selected ? t("player.lyricMatch.noLyric") : t("player.lyricMatch.previewHint") }}
             </p>
-          </template>
+            <template v-else>
+              <p
+                v-for="(line, index) in previewLines"
+                :key="index"
+                :data-index="index"
+                class="m-0 text-sm leading-relaxed transition-colors duration-200"
+                :class="[
+                  line.isDuet && 'text-right',
+                  index !== activeIndex
+                    ? 'text-on-surface/45'
+                    : line.words.length > 1
+                      ? 'text-on-surface'
+                      : 'text-primary',
+                ]"
+              >
+                <template v-if="index === activeIndex && line.words.length > 1">
+                  <span
+                    v-for="(word, wordIndex) in line.words"
+                    :key="wordIndex"
+                    class="preview-word"
+                  >
+                    {{ word.word }}
+                  </span>
+                </template>
+                <template v-else>{{ line.text }}</template>
+              </p>
+            </template>
+          </div>
         </div>
       </div>
     </div>
@@ -398,3 +486,15 @@ watch(
     </template>
   </SDialog>
 </template>
+
+<style scoped>
+.preview-word {
+  background-image: linear-gradient(
+    90deg,
+    rgb(var(--s-primary)) var(--fill, 0%),
+    rgb(var(--s-on-surface) / 0.45) var(--fill, 0%)
+  );
+  background-clip: text;
+  color: transparent;
+}
+</style>
