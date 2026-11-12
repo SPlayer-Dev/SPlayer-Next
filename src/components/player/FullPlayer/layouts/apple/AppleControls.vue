@@ -211,14 +211,7 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
           <template #trigger>
             <span
               class="inline-grid place-items-center overflow-hidden px-1.5 py-0.5 rounded-[4px] text-[max(1.5vh,13px)] leading-none text-cover/80 transition-colors duration-200"
-              :class="
-                status.transitioning
-                  ? 'cursor-default'
-                  : [
-                      'cursor-pointer hover:bg-cover/25',
-                      qualityMenuOpen ? 'bg-cover/25' : 'bg-cover/15',
-                    ]
-              "
+              :class="status.transitioning ? 'cursor-default' : 'cursor-pointer bg-cover/15'"
             >
               <span
                 class="[grid-area:1/1] flex items-center gap-1 transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none"
