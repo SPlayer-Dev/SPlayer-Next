@@ -2,12 +2,15 @@
 import type { Artist } from "@shared/types/player";
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
+import { useSettingsStore } from "@/stores/settings";
 import { useFavorite } from "@/composables/useFavorite";
 import { useTimeFormat } from "@/composables/useTimeFormat";
 import { useProgressLyric } from "@/composables/useProgressLyric";
 import * as player from "@/core/player";
 import { volumeGainToPosition, volumePositionToGain } from "@/utils/volume";
 import { getValidArtists } from "@shared/utils/track";
+import { isPlatform } from "@shared/types/platform";
+import type { QualityLevel } from "@/utils/quality";
 import { getQualityLabel, isLosslessQuality } from "@/utils/quality";
 import { usePlaylistPicker } from "@/composables/usePlaylistPicker";
 import { useDownload } from "@/composables/useDownload";
@@ -22,6 +25,7 @@ import { setPlayerExpanded } from "@/services/playerTransition";
 const { t } = useI18n();
 const status = useStatusStore();
 const media = useMediaStore();
+const settings = useSettingsStore();
 const fav = useFavorite();
 const { isPlaying, isLoading, position, duration, repeatMode, shuffleMode, heartMode, fmMode } =
   storeToRefs(status);
@@ -56,6 +60,45 @@ const goToArtist = (artist: Artist): void => {
 };
 
 const quality = computed(() => media.detail?.quality ?? displayTrack.value?.quality);
+
+/** 是否支持切换在线音质 */
+const canSwitchQuality = computed(() => isPlatform(media.track?.source) && !media.track?.cloud);
+
+/** 音质偏好选项 */
+const qualityOptions = computed<{ value: QualityLevel; label: string }[]>(() => [
+  { value: "lq", label: t("settings.songLevel.lq") },
+  { value: "sq", label: t("settings.songLevel.sq") },
+  { value: "hq", label: t("settings.songLevel.hq") },
+  { value: "lossless", label: t("settings.songLevel.lossless") },
+  { value: "hi-res", label: t("settings.songLevel.hi-res") },
+]);
+
+const qualityMenuOpen = ref(false);
+
+/** 切歌过渡时收起菜单，避免与音质标签的过渡动画重叠 */
+watch(
+  () => status.transitioning,
+  (transitioning) => {
+    if (transitioning) qualityMenuOpen.value = false;
+  },
+);
+
+/**
+ * 切换在线音质并从当前进度续播
+ * @param level - 目标音质档位
+ */
+const onQualityChange = (level: QualityLevel): void => {
+  qualityMenuOpen.value = false;
+  if (level === settings.player.songLevel) return;
+  settings.player.songLevel = level;
+  void player.reloadCurrentTrack();
+};
+
+/** 打开音频信息弹窗 */
+const openAudioInfo = (): void => {
+  qualityMenuOpen.value = false;
+  status.audioInfoOpen = true;
+};
 
 const volumePosition = computed(() => volumeGainToPosition(status.volume));
 
@@ -156,41 +199,96 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
         <span class="text-cover/50 cursor-pointer select-none" @click="toggleTimeFormat">
           {{ timeDisplay[0] }}
         </span>
-        <span
+        <SPopover
           v-if="quality || status.transitioning"
-          class="inline-grid place-items-center overflow-hidden px-1.5 py-0.5 rounded-[4px] text-[max(1.5vh,13px)] leading-none text-cover/80 transition-colors duration-200"
-          :class="status.transitioning ? 'cursor-default' : 'cursor-pointer bg-cover/15'"
-          @click="!status.transitioning && (status.audioInfoOpen = true)"
+          v-model:open="qualityMenuOpen"
+          trigger="click"
+          cover
+          side="top"
+          :side-offset="10"
+          content-class="!p-1 w-56"
         >
-          <span
-            class="[grid-area:1/1] flex items-center gap-1 transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none"
-            :class="status.transitioning ? 'opacity-0 -translate-y-1' : 'opacity-100 translate-y-0'"
-            :aria-hidden="status.transitioning"
-          >
-            <template v-if="quality">
-              <IconSpLossless v-if="isLosslessQuality(quality)" class="text-[1.2em]" />
-              {{ getQualityLabel(quality) }}
-            </template>
-          </span>
-          <Transition
-            enter-active-class="transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none"
-            leave-active-class="transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none"
-            enter-from-class="opacity-0 translate-y-1"
-            leave-to-class="opacity-0 translate-y-1"
-          >
+          <template #trigger>
             <span
-              v-if="status.transitioning"
-              class="apple-transition-shine [grid-area:1/1] whitespace-nowrap"
-              role="status"
+              class="inline-grid place-items-center overflow-hidden px-1.5 py-0.5 rounded-[4px] text-[max(1.5vh,13px)] leading-none text-cover/80 transition-colors duration-200"
+              :class="status.transitioning ? 'cursor-default' : 'cursor-pointer bg-cover/15'"
             >
-              {{
-                status.transitionMode === "automix"
-                  ? t("player.automixing")
-                  : t("player.transitioning")
-              }}
+              <span
+                class="[grid-area:1/1] flex items-center gap-1 transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none"
+                :class="
+                  status.transitioning ? 'opacity-0 -translate-y-1' : 'opacity-100 translate-y-0'
+                "
+                :aria-hidden="status.transitioning"
+              >
+                <template v-if="quality">
+                  <IconSpLossless v-if="isLosslessQuality(quality)" class="text-[1.2em]" />
+                  {{ getQualityLabel(quality) }}
+                </template>
+              </span>
+              <Transition
+                enter-active-class="transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none"
+                leave-active-class="transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none"
+                enter-from-class="opacity-0 translate-y-1"
+                leave-to-class="opacity-0 translate-y-1"
+              >
+                <span
+                  v-if="status.transitioning"
+                  class="apple-transition-shine [grid-area:1/1] whitespace-nowrap"
+                  role="status"
+                >
+                  {{
+                    status.transitionMode === "automix"
+                      ? t("player.automixing")
+                      : t("player.transitioning")
+                  }}
+                </span>
+              </Transition>
             </span>
-          </Transition>
-        </span>
+          </template>
+          <div
+            class="px-2.5 pt-2 pb-1.5 text-xs leading-snug border-b border-b-solid border-b-white/10 text-cover/55"
+          >
+            <div class="mb-0.5 text-sm font-medium text-cover">
+              {{ t("settings.songLevel.switchTitle") }}
+            </div>
+            {{
+              canSwitchQuality
+                ? t("settings.songLevel.switchHint")
+                : t("settings.songLevel.unsupportedHint")
+            }}
+          </div>
+          <div v-if="canSwitchQuality" class="py-1">
+            <button
+              v-for="option in qualityOptions"
+              :key="option.value"
+              type="button"
+              :aria-current="option.value === settings.player.songLevel ? 'true' : undefined"
+              class="relative flex items-center w-full h-8 px-2.5 pr-7 rounded-md text-left cursor-pointer outline-none transition-colors duration-200 hover:bg-white/10 focus-visible:bg-white/10"
+              :class="option.value === settings.player.songLevel ? 'text-cover' : 'text-cover/80'"
+              @click="onQualityChange(option.value)"
+            >
+              <span class="flex-1 truncate">{{ option.label }}</span>
+              <IconLucideCheck
+                v-if="option.value === settings.player.songLevel"
+                class="absolute right-2 size-3.5"
+              />
+            </button>
+          </div>
+          <div
+            :class="
+              canSwitchQuality ? 'mt-1 pt-1 border-t border-t-solid border-t-white/10' : 'pt-1'
+            "
+          >
+            <button
+              type="button"
+              class="flex items-center w-full h-8 px-2.5 rounded-md text-left cursor-pointer outline-none transition-colors duration-200 text-cover/55 hover:bg-white/10 hover:text-cover focus-visible:bg-white/10"
+              @click="openAudioInfo"
+            >
+              <span class="flex-1">{{ t("quality.outputInfo") }}</span>
+              <IconLucideChevronRight class="size-3.5 opacity-50" />
+            </button>
+          </div>
+        </SPopover>
         <span v-else />
         <span class="text-right text-cover/50 cursor-pointer select-none" @click="toggleTimeFormat">
           {{ timeDisplay[1] }}
