@@ -83,6 +83,7 @@ const onQualityChange = (value: string | number | boolean): void => {
     :content="t('settings.songLevel.unsupportedHint')"
     :side-offset="16"
     side="top"
+    :cover="cover"
   >
     <span
       :class="[

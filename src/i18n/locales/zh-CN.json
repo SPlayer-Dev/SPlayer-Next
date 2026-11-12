@@ -501,6 +501,25 @@
       "title": "歌词偏移",
       "hint": "正值为歌词提前，单位毫秒"
     },
+    "lyricMatch": {
+      "title": "匹配歌词",
+      "searchPlaceholder": "输入歌名或歌手",
+      "search": "搜索",
+      "searchFailed": "搜索失败，请稍后重试",
+      "saveFailed": "保存失败，请稍后重试",
+      "noResults": "没有找到候选",
+      "noLyric": "这首歌没有可用歌词",
+      "previewHint": "点击左侧候选预览歌词",
+      "current": "当前",
+      "tagBest": "最佳匹配",
+      "tagName": "歌名一致",
+      "tagArtist": "歌手一致",
+      "tagDuration": "时长接近",
+      "currentPick": "已手动选择：{name}（{platform}）",
+      "restoreAuto": "恢复自动匹配",
+      "preferenceIgnored": "已手动选择歌词",
+      "apply": "使用此歌词"
+    },
     "lyricCredit": "歌词制作",
     "collapse": "收起播放器",
     "copyLyric": {

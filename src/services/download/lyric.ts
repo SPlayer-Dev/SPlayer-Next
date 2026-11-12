@@ -12,11 +12,11 @@ import { buildDownloadLyric } from "@/utils/lyric/serialize";
 import {
   isBetterFormat,
   isPluginLyricPreferred,
-  resolveLocalRepoLyric,
   resolveOnlineByPreference,
   resolvePluginLyric,
   resolveStreamingByPreference,
   resolveTTMLOverlay,
+  resolveUserLyric,
   type OnlineResult,
   type ResolvedLyric,
 } from "@/services/lyric/resolve";
@@ -63,8 +63,8 @@ const resolveOnlineDownloadLyric = async (
  * @returns 歌词文本与格式；无歌词返回 null
  */
 export const resolveDownloadLyric = async (track: Track): Promise<DownloadLyric | null> => {
-  const local = toUsableDownloadLyric(await resolveLocalRepoLyric(track));
-  if (local) return local;
+  const userLyric = toUsableDownloadLyric(await resolveUserLyric(track));
+  if (userLyric) return userLyric;
 
   // 流媒体
   if (track.source === "streaming") {
