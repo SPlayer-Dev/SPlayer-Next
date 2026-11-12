@@ -2,8 +2,8 @@ import { applyLyricLanguages, type LyricLanguage, type LyricLine } from "lyric-k
 import type { Track } from "@shared/types/player";
 import { hexToRgb } from "@/utils/color";
 
-/** 海报中的一行歌词 */
-export interface LyricPosterLine {
+/** 海报中的一段文本（原文及其翻译、音译） */
+export interface LyricPosterTextLine {
   text: string;
   /** 原文语言，沿用播放器的识别结果 */
   language?: LyricLanguage;
@@ -11,8 +11,16 @@ export interface LyricPosterLine {
   translation?: string;
   /** 音译 */
   romaji?: string;
+}
+
+/** 海报中的一行歌词 */
+export interface LyricPosterLine extends LyricPosterTextLine {
   /** 对唱行 */
   duet?: boolean;
+  /** 所属主行下方的背景行，以弱化样式绘制 */
+  background?: LyricPosterTextLine;
+  /** 背景行起始早于主行（前置背景行），绘制在主行上方 */
+  backgroundFirst?: boolean;
 }
 
 export interface LyricPosterOptions {
@@ -51,9 +59,64 @@ const THUMB_TEXT_GAP = 18;
 const HEADER_GAP = 44;
 const WATERMARK_GAP = 26;
 const WATERMARK_H = 16;
+/** 背景行组与主行组之间的间距 */
+const BG_GROUP_GAP = 10;
 
 /** 内容区宽度 */
 const CONTENT_WIDTH = WIDTH - PAD_X * 2;
+
+/** 单个文本层级的排版参数，gap 为同组内位于上一层级下方的间距 */
+interface TextStyle {
+  /** Canvas 字形与字号，不含字体族 */
+  style: string;
+  lineHeight: number;
+  color: string;
+  gap: number;
+}
+
+interface StyleSet {
+  main: TextStyle;
+  translation: TextStyle;
+  romaji: TextStyle;
+}
+
+const LYRIC_STYLES: StyleSet = {
+  main: { style: "bold 34px", lineHeight: LYRIC_LH, color: "#ffffff", gap: 0 },
+  translation: {
+    style: "24px",
+    lineHeight: TRANS_LH,
+    color: "rgba(255, 255, 255, 0.6)",
+    gap: SUBLINE_GAP,
+  },
+  romaji: {
+    style: "italic 22px",
+    lineHeight: ROMAJI_LH,
+    color: "rgba(255, 255, 255, 0.45)",
+    gap: SUBLINE_GAP,
+  },
+};
+
+/** 背景行整体弱化：字号与透明度低于主行，主句加粗且比译文、音译更亮 */
+const BG_STYLES: StyleSet = {
+  main: { style: "bold 22px", lineHeight: 36, color: "rgba(255, 255, 255, 0.7)", gap: 0 },
+  translation: { style: "18px", lineHeight: 28, color: "rgba(255, 255, 255, 0.4)", gap: 4 },
+  romaji: { style: "italic 18px", lineHeight: 26, color: "rgba(255, 255, 255, 0.35)", gap: 4 },
+};
+
+/** 待测量的一段文本及其排版参数 */
+interface TextSpec {
+  text: string;
+  style: TextStyle;
+  language?: LyricLanguage;
+}
+
+/** 已折行的一段文本 */
+interface MeasuredRow {
+  lines: string[];
+  font: string;
+  lang: string;
+  style: TextStyle;
+}
 
 /** Blob 转 dataURL */
 const blobToDataUrl = (blob: Blob): Promise<string> =>
@@ -156,6 +219,12 @@ export const createLyricPoster = async (options: LyricPosterOptions): Promise<Bl
   const globalFont = `${fonts.global ? `${fonts.global}, ` : ""}${FONT_STACK}`;
   const lyricFont = `${fonts.lyric ? `${fonts.lyric}, ` : ""}${globalFont}`;
 
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("无法创建画布上下文");
+  // 当前 DOM 类型尚未声明 Canvas 文本语言属性
+  const textContext = ctx as CanvasRenderingContext2D & { lang: string };
+
   /**
    * 获取文本语言，缺少播放器语言信息时按歌词识别规则推断
    * @param text - 需要识别的歌词文本
@@ -198,65 +267,116 @@ export const createLyricPoster = async (options: LyricPosterOptions): Promise<Bl
       : undefined;
     return `${style} ${family ? `${family}, ` : ""}${lyricFont}`;
   };
+  /**
+   * 展开一组歌词的文本规格，主行始终保留，翻译和音译仅在有内容时生效
+   * @param textLine - 原文行，可以是主行或背景行
+   * @param styles - 该组使用的样式集
+   * @returns 按主行、翻译、音译排列的文本规格
+   */
+  const specsOf = (textLine: LyricPosterTextLine, styles: StyleSet): TextSpec[] => [
+    {
+      text: textLine.text,
+      style: styles.main,
+      language: languageForText(textLine.text, textLine.language),
+    },
+    ...(textLine.translation ? [{ text: textLine.translation, style: styles.translation }] : []),
+    ...(textLine.romaji ? [{ text: textLine.romaji, style: styles.romaji }] : []),
+  ];
+
+  /**
+   * 测量单段文本的折行结果，语言与字体规则与绘制保持一致
+   * @param spec - 文本规格
+   * @returns 已折行的文本段
+   */
+  const measureRow = ({ text, style, language }: TextSpec): MeasuredRow => {
+    const font = fontForText(text, style.style, language);
+    textContext.lang = language ?? "inherit";
+    ctx.font = font;
+    const lines = wrapText(ctx, text, CONTENT_WIDTH);
+    textContext.lang = "inherit";
+    return { lines, font, lang: language ?? "inherit", style };
+  };
+
+  /**
+   * 测量一组文本，译文与音译折行为空时不占位
+   * @param specs - 文本规格，首项为主行
+   * @returns 已折行的文本段，首项为主行
+   */
+  const measureGroup = (specs: TextSpec[]): MeasuredRow[] =>
+    specs.map(measureRow).filter((row, index) => index === 0 || row.lines.length > 0);
+
+  /**
+   * 计算一组文本高度，主行即使为空也保留一行高度
+   * @param rows - 已折行的文本段
+   * @returns 高度（像素）
+   */
+  const groupHeight = (rows: MeasuredRow[]): number =>
+    rows.reduce((height, row, index) => {
+      const lineCount = index === 0 ? Math.max(1, row.lines.length) : row.lines.length;
+      return height + (index > 0 ? row.style.gap : 0) + lineCount * row.style.lineHeight;
+    }, 0);
+
+  /**
+   * 绘制一组文本，返回绘制结束后的纵坐标
+   * @param rows - 已折行的文本段
+   * @param textX - 文本锚点横坐标
+   * @param startY - 起始纵坐标
+   * @returns 绘制结束后的纵坐标
+   */
+  const drawGroup = (rows: MeasuredRow[], textX: number, startY: number): number => {
+    let y = startY;
+    rows.forEach((row, index) => {
+      if (index > 0) y += row.style.gap;
+      ctx.fillStyle = row.style.color;
+      textContext.lang = row.lang;
+      ctx.font = row.font;
+      for (const text of row.lines) {
+        ctx.fillText(text, textX, y);
+        y += row.style.lineHeight;
+      }
+      textContext.lang = "inherit";
+    });
+    return y;
+  };
+
   const title = track.title;
   const artist = track.artists.map((item) => item.name).join(" / ");
   const coverDataUrl = await resolveCoverDataUrl(track);
   const coverImg = coverDataUrl ? await loadImage(coverDataUrl) : null;
 
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("无法创建画布上下文");
-  // 当前 DOM 类型尚未声明 Canvas 文本语言属性
-  const textContext = ctx as CanvasRenderingContext2D & { lang: string };
-
   // 字体就绪后再测量，避免首次导出使用回退字体的宽度
+  const groups = lines.map((line) => ({
+    rows: specsOf(line, LYRIC_STYLES),
+    background: line.background?.text ? specsOf(line.background, BG_STYLES) : [],
+    duet: !!line.duet,
+    backgroundFirst: !!line.backgroundFirst,
+  }));
   await Promise.all([
     document.fonts.load(`bold 28px ${globalFont}`, title),
     document.fonts.load(`22px ${globalFont}`, artist),
     document.fonts.load(`600 15px ${globalFont}`, "Made by SPlayer Next"),
-    ...lines.flatMap((line) => [
-      document.fonts.load(fontForText(line.text, "bold 34px", line.language), line.text),
-      ...(line.translation
-        ? [document.fonts.load(fontForText(line.translation, "24px"), line.translation)]
-        : []),
-      ...(line.romaji
-        ? [document.fonts.load(fontForText(line.romaji, "italic 22px"), line.romaji)]
-        : []),
-    ]),
+    ...groups.flatMap(({ rows, background }) =>
+      [...rows, ...background].map((spec) =>
+        document.fonts.load(fontForText(spec.text, spec.style.style, spec.language), spec.text),
+      ),
+    ),
   ]);
 
   // 预折行并量算高度
-  const layout = lines.map((line) => {
-    const mainLanguage = languageForText(line.text, line.language);
-    const mainFont = fontForText(line.text, "bold 34px", line.language);
-    const translationFont = fontForText(line.translation ?? "", "24px");
-    const romajiFont = fontForText(line.romaji ?? "", "italic 22px");
-    textContext.lang = mainLanguage ?? "inherit";
-    ctx.font = mainFont;
-    const main = wrapText(ctx, line.text || " ", CONTENT_WIDTH);
-    textContext.lang = "inherit";
-    ctx.font = translationFont;
-    const translation = line.translation ? wrapText(ctx, line.translation, CONTENT_WIDTH) : [];
-    ctx.font = romajiFont;
-    const romaji = line.romaji ? wrapText(ctx, line.romaji, CONTENT_WIDTH) : [];
-    return {
-      main,
-      translation,
-      romaji,
-      mainFont,
-      translationFont,
-      romajiFont,
-      mainLanguage,
-      duet: !!line.duet,
-    };
-  });
+  const layout = groups.map((group) => ({
+    rows: measureGroup(group.rows),
+    background: measureGroup(group.background),
+    duet: group.duet,
+    backgroundFirst: group.backgroundFirst,
+  }));
 
   let lyricsHeight = 0;
   layout.forEach((block, index) => {
     if (index > 0) lyricsHeight += BLOCK_GAP;
-    lyricsHeight += Math.max(1, block.main.length) * LYRIC_LH;
-    if (block.translation.length) lyricsHeight += SUBLINE_GAP + block.translation.length * TRANS_LH;
-    if (block.romaji.length) lyricsHeight += SUBLINE_GAP + block.romaji.length * ROMAJI_LH;
+    lyricsHeight += groupHeight(block.rows);
+    if (block.background.length) {
+      lyricsHeight += BG_GROUP_GAP + groupHeight(block.background);
+    }
   });
 
   const totalHeight =
@@ -309,31 +429,14 @@ export const createLyricPoster = async (options: LyricPosterOptions): Promise<Bl
     // 对唱行右对齐，其余左对齐
     const textX = block.duet ? WIDTH - PAD_X : PAD_X;
     ctx.textAlign = block.duet ? "right" : "left";
-    ctx.fillStyle = "#ffffff";
-    textContext.lang = block.mainLanguage ?? "inherit";
-    ctx.font = block.mainFont;
-    for (const text of block.main) {
-      ctx.fillText(text, textX, y);
-      y += LYRIC_LH;
+    if (block.backgroundFirst && block.background.length) {
+      y = drawGroup(block.background, textX, y);
+      y += BG_GROUP_GAP;
     }
-    textContext.lang = "inherit";
-    if (block.translation.length) {
-      y += SUBLINE_GAP;
-      ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
-      ctx.font = block.translationFont;
-      for (const text of block.translation) {
-        ctx.fillText(text, textX, y);
-        y += TRANS_LH;
-      }
-    }
-    if (block.romaji.length) {
-      y += SUBLINE_GAP;
-      ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
-      ctx.font = block.romajiFont;
-      for (const text of block.romaji) {
-        ctx.fillText(text, textX, y);
-        y += ROMAJI_LH;
-      }
+    y = drawGroup(block.rows, textX, y);
+    if (!block.backgroundFirst && block.background.length) {
+      y += BG_GROUP_GAP;
+      y = drawGroup(block.background, textX, y);
     }
   });
 
