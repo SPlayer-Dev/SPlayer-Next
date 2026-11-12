@@ -95,6 +95,11 @@ const config: Configuration = {
       filter: ["*.node"],
     },
     {
+      from: "native/window-monitor",
+      to: "native",
+      filter: ["*.node"],
+    },
+    {
       from: "native/opencc",
       to: "native",
       filter: ["*.node"],
