@@ -35,6 +35,7 @@ img {
 /* 应用主背景 */
 :root {
   --s-app-bg: rgb(var(--s-surface));
+  --s-native-titlebar-height: env(titlebar-area-height, 0px);
 }
 html[data-appearance-style="image"] {
   --s-app-bg: transparent;
@@ -52,6 +53,31 @@ body,
 #app {
   height: 100%;
   overflow: hidden;
+}
+
+/* 原生标题栏高度由应用按全屏状态与实际缩放维护 */
+#app {
+  padding-top: var(--s-native-titlebar-height);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: var(--s-native-titlebar-height);
+  z-index: 201;
+  -webkit-app-region: drag;
+}
+
+/* 背景保持铺满窗口，仅播放器控件与歌词避让原生标题栏 */
+.player-panel [data-player-layout="top-bar"] {
+  top: var(--s-native-titlebar-height);
+}
+
+.player-panel .player-layout-content {
+  top: calc(3.5rem + var(--s-native-titlebar-height));
 }
 
 /* 主区域容器 */

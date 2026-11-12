@@ -10,6 +10,8 @@ export {
   getMainWindow,
   focusMainWindow,
   showReadyMainWindow,
+  completeMainWindowStartup,
+  setMainWindowTrafficLightsVisible,
   setTaskbarProgress,
   applyMainWindowZoom,
   minimizeMainWindow,
