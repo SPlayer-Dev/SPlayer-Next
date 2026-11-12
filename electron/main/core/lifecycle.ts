@@ -8,6 +8,7 @@ import { stopMcpServer } from "@main/services/mcp/http";
 import { stopStreamingPlayback } from "@main/services/streaming/playback";
 import { disposeUpdater } from "@main/services/updater";
 import { coreLog } from "@main/utils/logger";
+import { isAppQuitting } from "@main/utils/lifecycle";
 
 const cleanupTasks: Array<[string, () => void | Promise<void>]> = [
   ["外部 API", stopServer],
@@ -47,7 +48,9 @@ const runCleanupTasks = async (): Promise<void> => {
 export const initAppLifecycle = (): void => {
   // 所有窗口关闭时退出应用
   app.on("window-all-closed", () => {
-    if (process.platform !== "darwin") {
+    // 退出流程中关掉的最后一个窗口会让 Electron 复位内部退出标记，关窗后不再进入
+    // will-quit；此时清理已完成，补一次退出调用把流程收尾
+    if (isAppQuitting() || process.platform !== "darwin") {
       app.quit();
     }
   });
