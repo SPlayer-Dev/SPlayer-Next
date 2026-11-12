@@ -100,8 +100,8 @@ export const defaultSystemConfig: SystemConfig = {
     amllDbServer: "",
   },
   localLyric: {
-    enableLocalTTMLOverride: false,
-    repoDir: "",
+    enableLocalLyricOverride: false,
+    repoDirs: [],
   },
   cache: {
     dir: null,

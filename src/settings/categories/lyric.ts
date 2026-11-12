@@ -108,17 +108,17 @@ const lyricCategory: SettingCategory = {
           ],
         },
         {
-          key: "enableLocalTTMLOverride",
+          key: "enableLocalLyricOverride",
           type: "switch",
-          binding: { store: "settings", path: "system.localLyric.enableLocalTTMLOverride" },
+          binding: { store: "settings", path: "system.localLyric.enableLocalLyricOverride" },
           defaultValue: false,
           tag: { text: "Beta" },
           children: [
             {
-              key: "localLyricRepoDir",
+              key: "localLyricRepoDirs",
               type: "custom",
               component: LocalLyricRepoConfig,
-              binding: { store: "settings", path: "system.localLyric.repoDir" },
+              binding: { store: "settings", path: "system.localLyric.repoDirs" },
             },
           ],
         },

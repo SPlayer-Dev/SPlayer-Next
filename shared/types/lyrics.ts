@@ -82,6 +82,9 @@ export type LyricSearchResponse =
 /** TTML 抓取 IPC 响应 */
 export type LyricTTMLResponse = { ok: true; data: string | null } | { ok: false; error: string };
 
+/** 本地歌词库匹配 IPC 响应 */
+export type LyricRepoResponse = { ok: true; data: string | null } | { ok: false; error: string };
+
 /** 渲染端歌词匹配入口 */
 export interface LyricsApi {
   /** 按 id 直取某平台歌词，KG 依赖 track 的歌名和时长，prefetch 为 false 时不预热 TTML */
@@ -115,8 +118,8 @@ export interface LyricsApi {
   fetchTTMLOverlay: (track: Track, platform: "netease" | "qqmusic") => Promise<LyricTTMLResponse>;
   /** 按 Track 元数据搜索 AMLL TTML DB，用于没有可用平台 ID 或 ID 未命中的歌曲 */
   searchTTML: (track: Track) => Promise<LyricTTMLResponse>;
-  /** 在本地 TTML 歌词库中按元信息匹配，命中返回 TTML 原文 */
-  matchLocalTTML: (track: Track) => Promise<LyricTTMLResponse>;
-  /** 弹出目录选择器，返回所选本地 TTML 歌词库目录 */
+  /** 在本地歌词库中按元信息或歌曲 ID 匹配，命中返回歌词原文 */
+  matchLocalLyric: (track: Track) => Promise<LyricRepoResponse>;
+  /** 弹出目录选择器，返回所选本地歌词库目录 */
   pickLyricRepoDir: () => Promise<string | null>;
 }

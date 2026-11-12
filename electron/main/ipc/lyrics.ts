@@ -28,7 +28,7 @@ import {
   pickBestCandidate,
   type LyricCandidate,
 } from "@main/apis/common/lyric/utils";
-import { matchLocalTTML } from "@main/services/localLyricRepo";
+import { matchLocalLyric } from "@main/services/localLyricRepo";
 import {
   buildFingerprint,
   deleteMatchedId,
@@ -41,6 +41,7 @@ import type {
   LyricManualMatch,
   LyricMatchResponse,
   LyricMatchSource,
+  LyricRepoResponse,
   LyricSearchResponse,
   LyricTTMLResponse,
 } from "@shared/types/lyrics";
@@ -266,19 +267,19 @@ export const registerLyricsIpc = (): void => {
     }),
   );
   ipcMain.handle(
-    "lyrics:matchLocalTTML",
-    async (_evt, track: Track): Promise<LyricTTMLResponse> => {
+    "lyrics:matchLocalLyric",
+    async (_evt, track: Track): Promise<LyricRepoResponse> => {
       try {
-        return { ok: true, data: await matchLocalTTML(track) };
+        return { ok: true, data: await matchLocalLyric(track) };
       } catch (err) {
-        coreLog.warn(`[lyrics] matchLocalTTML(${track.title}) failed:`, err);
+        coreLog.warn(`[lyrics] matchLocalLyric(${track.title}) failed:`, err);
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
       }
     },
   );
   ipcMain.handle("lyrics:pickLyricRepoDir", async (): Promise<string | null> => {
     const result = await dialog.showOpenDialog({
-      title: "选择本地 TTML 歌词库目录",
+      title: "选择本地歌词库目录",
       properties: ["openDirectory"],
     });
     if (result.canceled || result.filePaths.length === 0) return null;

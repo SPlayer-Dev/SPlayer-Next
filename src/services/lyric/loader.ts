@@ -270,7 +270,7 @@ const applyOnline = (
 };
 
 /**
- * 手动选择或本地 TTML 歌词库匹配：命中即以最高优先级提交，调用方据此跳过在线请求
+ * 手动选择或本地歌词库匹配：命中即以最高优先级提交，调用方据此跳过在线请求
  * @param token - 竞态 token
  * @param track - 歌曲信息
  * @returns 是否命中
@@ -396,7 +396,7 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
     }
     const preloaded = consumePreloadedLyric(track);
     if (preloaded.hit) commitCandidate(token, track, preloaded.lyric);
-    // 手动选择和本地 TTML 歌词库最高优先
+    // 手动选择和本地歌词库最高优先
     if (await tryUserLyric(token, track)) return;
     if (token !== currentToken) return;
     if (track.source === "plugin") {
@@ -434,7 +434,7 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
         shouldContinue: () => token === currentToken,
       });
       if (token !== currentToken) return;
-      // 在线匹配后再查一次手动选择和本地 TTML 库
+      // 在线匹配后再查一次手动选择和本地歌词库
       if (online && (await tryUserLyric(token, track))) return;
       if (online) {
         // TTML 先到时不被基础歌词盖掉
@@ -462,7 +462,7 @@ const refreshPreference = async (): Promise<void> => {
   const track = media.track;
   if (!track) return;
   staleLyric = media.activeLyric;
-  // 手动选择和本地 TTML 歌词库最高优先
+  // 手动选择和本地歌词库最高优先
   if (await tryUserLyric(token, track)) return;
   if (token !== currentToken) return;
   if (track.source === "plugin") {
@@ -520,8 +520,8 @@ export const watchLyricPreference = (): void => {
       settings.lyric.preferPluginLyric,
       settings.lyric.detectBackgroundLyrics,
       settings.system.lyric.enableOnlineTTMLLyric,
-      settings.system.localLyric.enableLocalTTMLOverride,
-      settings.system.localLyric.repoDir,
+      settings.system.localLyric.enableLocalLyricOverride,
+      settings.system.localLyric.repoDirs,
     ],
     () => {
       refreshPreference();
