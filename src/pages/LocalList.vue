@@ -6,6 +6,7 @@ import type { SSelectOption } from "@/components/ui/SSelect.vue";
 import type { AlbumSummary, ArtistSummary } from "@shared/types/library";
 import { useLibraryStore } from "@/stores/library";
 import CoverList from "@/components/list/CoverList.vue";
+import { useCoverPlay } from "@/composables/useCoverPlay";
 import { navigateToAlbum, navigateToArtist } from "@/utils/navigate";
 import IconLucideUsers from "~icons/lucide/users";
 import IconLucideUserRound from "~icons/lucide/user-round";
@@ -21,6 +22,7 @@ const route = useRoute();
 const router = useRouter();
 const libraryStore = useLibraryStore();
 const { artistAvatars } = storeToRefs(libraryStore);
+const { playCover, pendingId } = useCoverPlay();
 
 const mode: Mode = route.name === "album-list" ? "album" : "artist";
 
@@ -87,6 +89,15 @@ const handleClick = (item: CoverItem): void => {
   else navigateToAlbum(item.title);
 };
 
+/**
+ * 直接播放本地专辑
+ * @param item - 专辑封面条目
+ */
+const handlePlay = (item: CoverItem): void => {
+  if (mode === "artist") return;
+  void playCover(item, { source: "local", type: "album" });
+};
+
 onMounted(async () => {
   source.value =
     mode === "artist" ? await libraryStore.getArtistList() : await libraryStore.getAlbumList();
@@ -127,9 +138,12 @@ onMounted(async () => {
         :items="items"
         :type="config.coverType"
         :min-size="config.minSize"
+        :playable="mode === 'album'"
+        :pending-id="pendingId"
         :padding-x="20"
         :padding-bottom="24"
         @click="handleClick"
+        @play="handlePlay"
       />
       <div v-else class="h-full flex items-center justify-center">
         <div class="text-center text-on-surface-variant/50">
