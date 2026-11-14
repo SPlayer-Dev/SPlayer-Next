@@ -666,14 +666,11 @@ defineExpose({
           <div
             v-if="discLayout?.headers.has(index)"
             class="mx-6 h-10 flex items-center gap-3 text-on-surface-variant"
-            :class="!isCompactList && index > 0 ? 'pb-3' : ''"
+            :class="!isCompactList && index > 0 ? 'mb-3' : ''"
           >
-            <IconLucideDisc3
-              class="size-4 translate-y-px shrink-0 text-primary/70"
-              aria-hidden="true"
-            />
+            <IconLucideDisc3 class="size-4 shrink-0 text-primary/70" aria-hidden="true" />
             <h2
-              class="min-w-0 flex-1 truncate text-sm font-semibold"
+              class="min-w-0 flex-1 truncate text-sm font-semibold leading-4"
               :title="discLayout.headers.get(index)!.title"
             >
               {{ t("collection.disc", { disc: discLayout.headers.get(index)!.disc }) }}
@@ -684,7 +681,7 @@ defineExpose({
                 · {{ discLayout.headers.get(index)!.title }}
               </span>
             </h2>
-            <span class="shrink-0 text-xs tabular-nums text-on-surface-variant/50">
+            <span class="shrink-0 text-xs leading-4 tabular-nums text-on-surface-variant/50">
               {{ t("common.totalSongs", { count: discLayout.headers.get(index)!.count }) }}
             </span>
           </div>
