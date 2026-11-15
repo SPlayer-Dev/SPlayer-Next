@@ -7,6 +7,7 @@ import IconLucideRefreshCw from "~icons/lucide/refresh-cw";
 import IconLucideMic2 from "~icons/lucide/mic-2";
 import IconLucideFileText from "~icons/lucide/file-text";
 import IconLucideSearch from "~icons/lucide/search";
+import IconLucideLanguages from "~icons/lucide/languages";
 import IconLucideDatabase from "~icons/lucide/database";
 import { useCacheStats } from "@/composables/useCacheStats";
 
@@ -19,6 +20,7 @@ const iconMap: Record<string, Component> = {
   lyric: IconLucideMic2,
   lyricTTML: IconLucideFileText,
   lyricMatch: IconLucideSearch,
+  lyricAI: IconLucideLanguages,
 };
 
 const dbStats = computed(() => stats.value.filter((stat) => stat.kind === "db"));

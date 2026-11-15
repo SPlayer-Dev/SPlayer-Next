@@ -17,6 +17,7 @@ import { getDb } from "@main/database";
 import { clearLyricCache } from "@main/database/lyricCache";
 import { clearLyricTtmlCache } from "@main/database/lyricTtmlCache";
 import { clearLyricMatchCache } from "@main/database/lyricMatchCache";
+import { clearLyricAiTranslation } from "@main/database/lyricAiTranslation";
 import { clearMotionCoverCache } from "@main/database/motionCoverCache";
 import * as songCache from "@main/services/songCache";
 import type { TrackSource } from "@shared/types/player";
@@ -32,7 +33,8 @@ export type CacheCategory =
   | "motionCovers"
   | "lyric"
   | "lyricTTML"
-  | "lyricMatch";
+  | "lyricMatch"
+  | "lyricAI";
 
 /** 缓存介质 */
 export type CacheKind = "file" | "db";
@@ -179,6 +181,12 @@ const categoryHandlers: Record<
     path: () => "lyric_match_cache",
     size: () => tableSize("lyric_match_cache", ["fingerprint", "platform_id", "extra"]),
     clear: clearLyricMatchCache,
+  },
+  lyricAI: {
+    kind: "db",
+    path: () => "lyric_ai_translation",
+    size: () => tableSize("lyric_ai_translation", ["data"]),
+    clear: clearLyricAiTranslation,
   },
 };
 

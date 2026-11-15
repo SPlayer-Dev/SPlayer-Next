@@ -15,6 +15,10 @@ import {
 } from "lyric-kit";
 import { applyLyricExclude } from "@/utils/lyric/lyricStripper";
 import { applyLyricCjkTransform } from "@/utils/lyric/cjkTransform";
+import {
+  scheduleAutoLyricTranslation,
+  resetAutoLyricTranslation,
+} from "@/services/lyric/translate";
 
 export const useMediaStore = defineStore("media", () => {
   watchLyricPreference();
@@ -46,6 +50,9 @@ export const useMediaStore = defineStore("media", () => {
 
   /** 当前歌词解析结果 */
   const parsedLyric = shallowRef<LyricLine[]>([]);
+
+  /** 当前歌词中由 LLM 写入译文的行索引 */
+  const llmTranslationLines = new Set<number>();
 
   /** 当前歌词文件制作者列表 */
   const lyricAuthors = ref<string[]>([]);
@@ -130,6 +137,8 @@ export const useMediaStore = defineStore("media", () => {
   /** 重置歌词状态 */
   const resetLyricState = (): void => {
     transformToken++;
+    llmTranslationLines.clear();
+    resetAutoLyricTranslation();
     activeLyric.value = null;
     lyricContent.value = null;
     parsedLyric.value = [];
@@ -152,6 +161,28 @@ export const useMediaStore = defineStore("media", () => {
     },
   );
 
+  // 打开自动翻译时立即尝试补齐当前歌词
+  watch(
+    () => [useSettingsStore().lyric.llmTranslation, useSettingsStore().lyric.llmTranslationAuto],
+    () => {
+      scheduleAutoLyricTranslation();
+    },
+  );
+
+  // 目标语言变化时清掉旧译文，按新语言重新翻译
+  watch(
+    () => {
+      const settings = useSettingsStore();
+      return settings.lyric.llmTranslationTarget === "auto"
+        ? settings.locale
+        : settings.lyric.llmTranslationTarget;
+    },
+    () => {
+      clearLyricTranslation();
+      scheduleAutoLyricTranslation();
+    },
+  );
+
   /**
    * 原子写入歌词
    * @param source - 歌词源
@@ -159,6 +190,7 @@ export const useMediaStore = defineStore("media", () => {
    */
   const setLyric = (source: LyricData, input: LyricInput | null): void => {
     const token = ++transformToken;
+    resetAutoLyricTranslation();
     let nextLines: LyricLine[] = [];
     let authors: string[] = [];
     let hasWordTiming = false;
@@ -220,6 +252,7 @@ export const useMediaStore = defineStore("media", () => {
     }
     // 解析后无有效行视作无歌词
     const hasContent = nextLines.length > 0;
+    llmTranslationLines.clear();
     activeLyric.value = hasContent && source ? { ...source, wordTimed: hasWordTiming } : null;
     lyricContent.value = hasContent ? input : null;
     parsedLyric.value = nextLines;
@@ -235,8 +268,58 @@ export const useMediaStore = defineStore("media", () => {
         if (token !== transformToken) return;
         parsedLyric.value = transformed;
         syncToMain();
+        scheduleAutoLyricTranslation();
       });
+    } else if (hasContent) {
+      scheduleAutoLyricTranslation();
     }
+  };
+
+  /**
+   * 合并 LLM 翻译到当前解析歌词
+   * @param snapshot - 发起翻译时的歌词数组，用于避免旧结果覆盖新歌词
+   * @param indices - 待写入的歌词行索引
+   * @param translations - 与索引一一对应的译文
+   * @returns 是否写入了新译文
+   */
+  const applyLyricTranslation = (
+    snapshot: LyricLine[],
+    indices: number[],
+    translations: string[],
+  ): boolean => {
+    if (parsedLyric.value !== snapshot || indices.length === 0) return false;
+    const next = parsedLyric.value.slice();
+    let changed = false;
+    for (let i = 0; i < indices.length && i < translations.length; i++) {
+      const lineIndex = indices[i];
+      const text = translations[i]?.trim();
+      const line = next[lineIndex];
+      if (!line || !text || line.translatedLyric?.trim()) continue;
+      next[lineIndex] = { ...line, translatedLyric: text };
+      llmTranslationLines.add(lineIndex);
+      changed = true;
+    }
+    if (!changed) return false;
+    parsedLyric.value = next;
+    syncToMain();
+    return true;
+  };
+
+  /** 清除当前歌词中由 LLM 写入的译文 */
+  const clearLyricTranslation = (): void => {
+    if (llmTranslationLines.size === 0) return;
+    const next = parsedLyric.value.slice();
+    let changed = false;
+    for (const lineIndex of llmTranslationLines) {
+      const line = next[lineIndex];
+      if (!line?.translatedLyric?.trim()) continue;
+      next[lineIndex] = { ...line, translatedLyric: "" };
+      changed = true;
+    }
+    llmTranslationLines.clear();
+    if (!changed) return;
+    parsedLyric.value = next;
+    syncToMain();
   };
 
   /**
@@ -256,6 +339,8 @@ export const useMediaStore = defineStore("media", () => {
     activeLyric.value = null;
     lyricContent.value = null;
     parsedLyric.value = [];
+    llmTranslationLines.clear();
+    resetAutoLyricTranslation();
     lyricAuthors.value = [];
     lyricLoading.value = false;
     lyricIndex.value = -1;
@@ -280,6 +365,8 @@ export const useMediaStore = defineStore("media", () => {
     patchCover,
     resetLyricState,
     setLyric,
+    applyLyricTranslation,
+    clearLyricTranslation,
     updateLyricIndex,
     clear,
   };

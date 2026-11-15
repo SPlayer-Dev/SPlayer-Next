@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { writeFileSync as atomicWriteSync } from "atomically";
 import { configDir } from "@main/utils/paths";
 import { ipcLog } from "@main/utils/logger";
-import { encryptSecret, isSecureStorageAvailable } from "@main/utils/secureStorage";
+import { encryptSecret, decryptSecret, isSecureStorageAvailable } from "@main/utils/secureStorage";
 import type {
   AiModelConfig,
   AiModelProtocol,
@@ -58,6 +58,52 @@ const encryptApiKey = async (apiKey: string): Promise<string> => {
     throw new Error("系统安全存储不可用，无法保存 API Key");
   }
   return (await encryptSecret(apiKey)).toString("base64");
+};
+
+/**
+ * 解密 API Key
+ * @param encrypted - base64 密文
+ * @returns 明文 API Key
+ */
+const decryptApiKey = async (encrypted: string): Promise<string> => {
+  if (!encrypted) throw new Error("AI 模型缺少 API Key，请重新保存配置");
+  if (!(await isSecureStorageAvailable())) {
+    throw new Error("系统安全存储不可用，无法读取 API Key");
+  }
+  try {
+    const { plainText } = await decryptSecret(Buffer.from(encrypted, "base64"));
+    return plainText;
+  } catch {
+    throw new Error("无法解密 API Key，请重新保存模型配置");
+  }
+};
+
+/** 主进程运行时可用的 AI 模型配置 */
+export interface AiRuntimeModel {
+  id: string;
+  name: string;
+  protocol: AiModelProtocol;
+  baseUrl: string;
+  model: string;
+  apiKey: string;
+}
+
+/**
+ * 读取当前启用的 AI 模型并解密密钥
+ * @returns 含密钥的运行时配置，未启用时返回 null
+ */
+export const getActiveAiModel = async (): Promise<AiRuntimeModel | null> => {
+  const state = readPersisted();
+  const active = state.models.find((model) => model.id === state.activeModelId);
+  if (!active) return null;
+  return {
+    id: active.id,
+    name: active.name,
+    protocol: active.protocol,
+    baseUrl: active.baseUrl,
+    model: active.model,
+    apiKey: await decryptApiKey(active.encryptedApiKey),
+  };
 };
 
 const toPublicState = (state: PersistedAiModelState): AiModelState => ({
