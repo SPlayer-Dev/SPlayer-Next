@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Artist } from "@shared/types/player";
+import ExplicitTag from "@/components/list/ExplicitTag.vue";
 import { useMediaStore } from "@/stores/media";
 import { navigateToArtist } from "@/utils/navigate";
 import { getValidArtists } from "@shared/utils/track";
@@ -59,6 +60,7 @@ const isArtistLinkable = (artist: Artist): boolean => {
           >
             {{ media.track.title }}
           </SMarquee>
+          <ExplicitTag :explicit="media.track.explicit" class="ml-1 text-[0.8em]" />
           <slot name="title-trailing" />
         </div>
         <PlayerBarLyric :compact="compact">

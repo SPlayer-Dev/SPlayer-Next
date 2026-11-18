@@ -1,5 +1,6 @@
 import localforage from "localforage";
 import type { PlaybackContext, PlaybackQueueItem, Track } from "@shared/types/player";
+import { isExplicitLabel } from "@shared/utils/explicit";
 
 /** 持久化存储实例 */
 const db = localforage.createInstance({ name: "splayer", storeName: "queue" });
@@ -15,10 +16,21 @@ const shuffleArray = <T>(arr: T[]): T[] => {
 
 type PersistedQueueItem = Track | PlaybackQueueItem;
 
-/** 兼容旧版本直接持久化的 Track 队列 */
+/**
+ * 兼容旧版本直接持久化的 Track 队列；旧快照缺 explicit 时按歌名后缀回填
+ * @param value - 持久化队列项
+ * @returns 规范化后的队列项
+ */
 const restoreQueueItem = (value: PersistedQueueItem): PlaybackQueueItem => {
-  if (typeof value.track === "object" && value.track !== null) return value as PlaybackQueueItem;
-  return { track: value as Track };
+  if (typeof value.track === "object" && value.track !== null) {
+    const item = value as PlaybackQueueItem;
+    // ponytail: 仅回填歌名后缀可识别的脏标；netease mark 位等来源字段无法离线恢复，重新入队时由转换器补齐
+    item.track.explicit ??= isExplicitLabel(item.track.title) || undefined;
+    return item;
+  }
+  const track = value as Track;
+  track.explicit ??= isExplicitLabel(track.title) || undefined;
+  return { track };
 };
 
 const createQueueItem = (track: Track, context?: PlaybackContext): PlaybackQueueItem =>

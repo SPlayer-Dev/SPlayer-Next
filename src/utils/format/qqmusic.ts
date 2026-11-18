@@ -84,6 +84,7 @@ export const qqSongToTrack = (song: QMSong): Track => {
     quality: audio?.quality,
     fileSize: audio?.fileSize,
     fee: qqTrackFee(song),
+    explicit: song.explicit || undefined,
     cover,
     coverOriginal:
       song.coverOriginal || (song.albumMid ? qqAlbumCover(song.albumMid, 800) : undefined),

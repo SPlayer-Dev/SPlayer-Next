@@ -34,6 +34,10 @@ interface JellyItem {
   ParentIndexNumber?: number;
   ProductionYear?: number;
   ChildCount?: number;
+  /** 媒体条目标签（如 iTunes 脏标 ITUNESADVISORY） */
+  Tags?: string[];
+  /** 脏标识别用的官方分级（如 Explicit） */
+  OfficialRating?: string;
   ImageTags?: { Primary?: string };
   MediaSources?: {
     Id?: string;
@@ -208,6 +212,12 @@ const toTrack = (config: StreamingRuntimeConfig, item: JellyItem): Track => {
   const audioStream = mediaSource?.MediaStreams?.find((stream) => stream.Type === "Audio");
   const imageTag = item.ImageTags?.Primary ?? item.AlbumPrimaryImageTag;
   const coverId = item.ImageTags?.Primary ? item.Id : item.AlbumId;
+  /** 脏标识别：iTunes 脏标标签或官方分级包含 Explicit；ParentalRatingValue 为 0 表示未分级，不能用 */
+  const explicit =
+    item.Tags?.some((tag) => tag.toUpperCase() === "ITUNESADVISORY") ||
+    (item.OfficialRating?.toLowerCase().includes("explicit") ?? false)
+      ? true
+      : undefined;
   return {
     id: `${config.id}:${item.Id}`,
     source: "streaming",
@@ -232,6 +242,7 @@ const toTrack = (config: StreamingRuntimeConfig, item: JellyItem): Track => {
     cover: coverId ? imageUrl(config, coverId, imageTag, 300) : undefined,
     coverOriginal: coverId ? imageUrl(config, coverId, imageTag, 1500) : undefined,
     fileSize: mediaSource?.Size,
+    explicit,
     quality: {
       sampleRate: audioStream?.SampleRate ?? 0,
       channels: audioStream?.Channels ?? 2,

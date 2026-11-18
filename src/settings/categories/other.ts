@@ -83,6 +83,12 @@ const otherCategory: SettingCategory = {
           defaultValue: false,
         },
         {
+          key: "hideExplicitTag",
+          type: "switch",
+          binding: { store: "settings", path: "preset.hideExplicitTag" },
+          defaultValue: false,
+        },
+        {
           key: "showSubtitle",
           type: "switch",
           binding: { store: "settings", path: "preset.showSubtitle" },
