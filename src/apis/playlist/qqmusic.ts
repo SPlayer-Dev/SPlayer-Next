@@ -12,6 +12,7 @@ interface PlaylistResponse {
   creator?: string;
   cover?: string;
   total?: number;
+  playCount?: number;
   songs?: QMSong[];
 }
 
@@ -30,6 +31,7 @@ export const fetchQQMusicPlaylist = async (
       description: body.description,
       owner: body.creator,
       trackCount: body.total ?? tracks.length,
+      playCount: body.playCount,
     },
     tracks,
   };

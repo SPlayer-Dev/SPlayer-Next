@@ -62,6 +62,9 @@ interface RawRecommendPlaylist {
   picUrl?: string;
   copywriter?: string;
   trackCount?: number;
+  playCount?: number;
+  /** 专属歌单接口（recommend/resource）使用小写字段 */
+  playcount?: number;
 }
 
 /** 推荐歌单原始结构 → 封面卡片 */
@@ -71,6 +74,7 @@ const playlistToCover = (raw: RawRecommendPlaylist): CoverItem => ({
   cover: withPicSize(raw.picUrl),
   subtitle: raw.copywriter || undefined,
   trackCount: raw.trackCount ?? 0,
+  playCount: raw.playCount ?? raw.playcount,
 });
 
 /**

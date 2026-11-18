@@ -12,6 +12,8 @@ export interface CoverItem {
   subtitle?: string;
   /** 歌曲数量 */
   trackCount: number;
+  /** 播放次数（歌单专用） */
+  playCount?: number;
 }
 
 /** 歌手详情 */
