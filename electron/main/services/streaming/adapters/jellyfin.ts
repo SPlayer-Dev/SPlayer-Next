@@ -2,6 +2,7 @@ import type { Album, Artist, Playlist, Track } from "@shared/types/player";
 import type { StreamingPingResult } from "@shared/types/streaming";
 import type { StreamingRuntimeConfig } from "@shared/types/streaming";
 import type { StreamingAdapter } from "./types";
+import { isExplicitLabel, stripExplicitLabel } from "@shared/utils/explicit";
 import { StreamingRequestError, isUnsupportedEndpoint } from "../errors";
 import { streamPages } from "../pagination";
 import { toStreamingLyrics } from "../lyrics";
@@ -201,8 +202,20 @@ const imageUrl = (
   return `streaming-cover://image?${params.toString()}`;
 };
 
-/** Jellyfin/Emby 无标准 explicit 字段，脏标寄居在条目 Tags 中，社区写入值约定不一 */
-const EXPLICIT_TAGS = new Set(["EXPLICIT", "ITUNESADVISORY"]);
+/**
+ * 判断 Jellyfin/Emby 条目标签是否标记 Explicit
+ * MusicTags 等插件按「名称:值」写入条目标签，ITUNESADVISORY:1 为脏标、:2 为 clean
+ * @param tag - 服务端条目标签
+ * @returns 标签是否表示显式内容
+ */
+const isExplicitTag = (tag: string): boolean => {
+  const [rawName, rawValue] = tag.split(":", 2);
+  const name = rawName.trim().toUpperCase();
+  if (name === "EXPLICIT") return true;
+  if (name !== "ITUNESADVISORY") return false;
+  const value = rawValue?.trim();
+  return value === undefined || value === "" || value === "1";
+};
 
 /**
  * 转换 Jellyfin/Emby 歌曲
@@ -215,10 +228,16 @@ const toTrack = (config: StreamingRuntimeConfig, item: JellyItem): Track => {
   const audioStream = mediaSource?.MediaStreams?.find((stream) => stream.Type === "Audio");
   const imageTag = item.ImageTags?.Primary ?? item.AlbumPrimaryImageTag;
   const coverId = item.ImageTags?.Primary ? item.Id : item.AlbumId;
-  /** 脏标识别：Tags 命中约定值或官方分级包含 Explicit；ParentalRatingValue 为 0 表示未分级，不能用 */
+  const title = item.Name ?? "";
+  /**
+   * 脏标识别：Tags 命中约定值、官方分级包含 Explicit 或标题带 Explicit 后缀；
+   * ParentalRatingValue 为 0 表示未分级，不能用
+   */
+  const explicitFromTitle = isExplicitLabel(title);
   const explicit =
-    item.Tags?.some((tag) => EXPLICIT_TAGS.has(tag.toUpperCase())) ||
-    (item.OfficialRating?.toLowerCase().includes("explicit") ?? false)
+    item.Tags?.some(isExplicitTag) ||
+    (item.OfficialRating?.toLowerCase().includes("explicit") ?? false) ||
+    explicitFromTitle
       ? true
       : undefined;
   return {
@@ -228,7 +247,7 @@ const toTrack = (config: StreamingRuntimeConfig, item: JellyItem): Track => {
     originalId: item.Id,
     serverRevision: config.mediaRevision ?? 0,
     favorite: Boolean(item.UserData?.IsFavorite),
-    title: item.Name ?? "",
+    title: explicitFromTitle ? stripExplicitLabel(title) : title,
     artists:
       (item.ArtistItems?.length
         ? item.ArtistItems.map((artist) => ({
