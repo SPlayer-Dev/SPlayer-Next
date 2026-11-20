@@ -99,7 +99,7 @@ const {
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-1 min-w-0 text-base font-medium leading-snug">
                   <span class="truncate">{{ item.title }}</span>
-                  <ExplicitTag :explicit="item.explicit" />
+                  <ExplicitTag :explicit="item.explicit" tinted />
                 </div>
                 <div
                   class="text-sm truncate leading-snug mt-0.5"
