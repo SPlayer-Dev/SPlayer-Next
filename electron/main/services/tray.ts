@@ -1,10 +1,11 @@
 import { app, Menu, MenuItemConstructorOptions, nativeTheme, Tray } from "electron";
 import type { RepeatMode, ShuffleMode } from "@shared/types/player";
 import { sendToMain } from "@main/utils/broadcast";
-import { appName, isWin } from "@main/utils/config";
+import { appName, isLinux, isMac, isWin } from "@main/utils/config";
 import { loadIcon, loadThemedIcon } from "@main/utils/icon";
 import { t } from "@main/utils/i18n";
 import { trayLog } from "@main/utils/logger";
+import { watchTrayHostReady } from "@main/services/trayHost";
 import {
   toggleDesktopLyricWindow,
   toggleDynamicIslandWindow,
@@ -15,6 +16,7 @@ import {
 type PlayState = "playing" | "paused";
 
 let tray: Tray | null = null;
+let stopTrayHostWatch: (() => void) | null = null;
 let playState: PlayState = "paused";
 let songName = "";
 let liked = false;
@@ -146,9 +148,8 @@ export const refreshTray = (): void => {
   tray.setToolTip(songName || appName);
 };
 
-/** 初始化系统托盘 */
-export const initTray = (): void => {
-  const isMac = process.platform === "darwin";
+/** 创建托盘图标并绑定菜单 */
+const createTray = (): void => {
   let icon: string | Electron.NativeImage;
   if (isWin) {
     icon = loadIcon("tray/tray.ico");
@@ -166,6 +167,22 @@ export const initTray = (): void => {
   // 系统主题变化时刷新菜单图标
   nativeTheme.on("updated", refreshTray);
   trayLog.info("初始化系统托盘");
+};
+
+/**
+ * 初始化系统托盘
+ * Linux 下没有托盘宿主时 Chromium 只检查一次 StatusNotifierWatcher 就放弃注册，
+ * 因此等宿主就绪后再创建 Tray
+ */
+export const initTray = (): void => {
+  if (!isLinux) {
+    createTray();
+    return;
+  }
+  stopTrayHostWatch = watchTrayHostReady(() => {
+    stopTrayHostWatch = null;
+    createTray();
+  });
 };
 
 /**
@@ -238,6 +255,8 @@ export const setTrayTaskbarLyric = (open: boolean): void => {
 
 /** 销毁托盘 */
 export const destroyTray = (): void => {
+  stopTrayHostWatch?.();
+  stopTrayHostWatch = null;
   tray?.destroy();
   tray = null;
 };
