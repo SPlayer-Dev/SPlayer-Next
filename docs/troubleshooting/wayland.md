@@ -123,7 +123,7 @@ window-rule {
 
 在原生 Wayland 下，Electron 的全局快捷键通过 `xdg-desktop-portal` 实现。
 
-打开应用时，若有新的未申请的全局快捷键，应该会弹出授权请求，点击确定即可。也可以在系统设置中查看 SPlayer-Next 是否有注册全局快捷键（在 KDE Plasma Wayland 中是 **系统设置 → 键盘 → 快捷键 → SPlayer-Next**）
+启动应用、重新开启全局快捷键或修改组合时，系统可能请求授权。请在授权对话框中确认或设置实际生效的组合键。也可以在系统设置中查看 SPlayer-Next 是否有注册全局快捷键（在 KDE Plasma Wayland 中是 **系统设置 → 键盘 → 快捷键 → SPlayer-Next**）
 
 Electron 注册的快捷键名称格式为 `SPlayer-Next shortcut: <组合键>`，但这个名称**并非实际生效的组合键**。实际生效的组合键由**系统设置**中为该名称绑定的按键决定。应用内设置的全局快捷键只决定它在系统中注册的名称，不决定实际按键。
 
@@ -135,21 +135,37 @@ Electron 注册的快捷键名称格式为 `SPlayer-Next shortcut: <组合键>`�
 
 > [!TIP]
 >
-> 授权请求仅在开启应用时弹出。所以每次修改全局快捷键后，都需要重新启动应用以触发授权请求。
+> 系统可以沿用已有授权，不再弹出对话框。更改设置后，请实际按键验证；最终生效的组合键以系统侧的绑定为准
 
 > [!TIP]
 >
-> 若您的 `xdg-desktop-portal` 后端不支持全局快捷键，那我也没有办法咯
+> 全局快捷键需要合成器及其 `xdg-desktop-portal` 后端共同支持
 >
 > 可查看 [XDG Desktop Portal - ArchWiki](https://wiki.archlinux.org/title/XDG_Desktop_Portal#List_of_backends_and_interfaces) 了解支持情况
 >
-> 也可以使用以下命令检查
+> 也可以使用以下命令检查 portal 是否公布了接口
 >
 > ```bash
 > dbus-send --session --dest=org.freedesktop.portal.Desktop --print-reply --type=method_call /org/freedesktop/portal/desktop org.freedesktop.DBus.Introspectable.Introspect | grep GlobalShortcuts
 > ```
 >
 > 它应该输出 `<interface name="org.freedesktop.portal.GlobalShortcuts">`
+>
+> 接口可见只表示 portal 公布了这项能力，实际绑定还依赖合成器和后端使用的设置服务。应完成授权并验证按键确实能控制播放器
+
+### niri
+
+niri 在 [PR #4744](https://github.com/niri-wm/niri/pull/4744) 中加入了配合 `xdg-desktop-portal-gnome` 使用的全局快捷键支持。正式版 `26.04 (8ed0da4)` 早于这项改动，需要使用包含该改动的 niri 构建
+
+使用以下命令检查**正在运行**的合成器版本与提交。Git 构建可能沿用相同的主版本号，应同时核对提交；单独运行 `niri --version` 只显示当前命令对应的版本
+
+```bash
+niri msg version
+```
+
+使用 GNOME portal 51 时，还需要 `gnome-control-center` 提供的 `org.gnome.Settings.GlobalShortcutsProvider` 服务，并且该服务应能由当前会话的 D-Bus 按需启动。它负责快捷键授权与设置，niri 负责处理实际按键；仅安装 `xdg-desktop-portal-gnome` 无法补齐这条调用链
+
+确认当前会话使用了支持的 niri 构建和上述服务后，启动 SPlayer-Next，完成系统请求的授权，并验证按键能控制播放器
 
 ## 第三方 / 外部 API 替代
 

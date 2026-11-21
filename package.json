@@ -97,7 +97,7 @@
     "@vueuse/core": "^14.4.0",
     "@vueuse/integrations": "^14.4.0",
     "colord": "^2.9.3",
-    "electron": "~44.10.1",
+    "electron": "~45.2.3",
     "electron-builder": "^26.18.0",
     "electron-vite": "^6.0.0",
     "eslint": "^10.14.0",

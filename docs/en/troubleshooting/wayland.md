@@ -78,11 +78,11 @@ Click-through while locked is a known issue; Xwayland may help.
 
 ## Global shortcuts
 
-On native Wayland, Electron registers global shortcuts through `xdg-desktop-portal`. New shortcuts should trigger a permission request when the app starts. KDE lists them under **System Settings → Keyboard → Shortcuts → SPlayer-Next**.
+On native Wayland, Electron registers global shortcuts through `xdg-desktop-portal`. The system may request permission when the app starts, when global shortcuts are enabled again, or when a key combination changes. Confirm or configure the actual key combinations in the permission dialog. KDE lists them under **System Settings → Keyboard → Shortcuts → SPlayer-Next**.
 
-Electron registers a display name such as `SPlayer-Next shortcut: Ctrl+Shift+Left`. The actual key combination is the binding assigned to that entry in system settings. Changing a shortcut in the app changes the registered name; restart SPlayer-Next after each change so the portal can request permission again.
+Electron registers a display name such as `SPlayer-Next shortcut: Ctrl+Shift+Left`. The actual key combination is the binding assigned to that entry in system settings. Changing a shortcut in the app changes the registered name. The system may reuse an existing approval without another dialog; after changing settings, press the keys to verify the actual binding.
 
-Check whether the active portal backend exposes GlobalShortcuts:
+Check whether the portal advertises the GlobalShortcuts interface:
 
 ```bash
 dbus-send --session --dest=org.freedesktop.portal.Desktop --print-reply \
@@ -91,6 +91,24 @@ dbus-send --session --dest=org.freedesktop.portal.Desktop --print-reply \
 ```
 
 See the [XDG Desktop Portal ArchWiki page](https://wiki.archlinux.org/title/XDG_Desktop_Portal#List_of_backends_and_interfaces) for backend support.
+
+An advertised interface does not establish that shortcuts can be bound. Binding also requires support from the compositor and the settings service used by the backend. Complete the permission request and verify that the shortcuts actually control the player.
+
+### niri
+
+niri added global shortcut support through `xdg-desktop-portal-gnome` in [PR #4744](https://github.com/niri-wm/niri/pull/4744). The `26.04 (8ed0da4)` release predates that change; use a niri build that includes it.
+
+Check the version and commit of the **running compositor** with:
+
+```bash
+niri msg version
+```
+
+Git builds may retain the same version number, so check the commit as well. Running `niri --version` alone reports the version of the command being invoked.
+
+With GNOME portal 51, `gnome-control-center` must also provide the `org.gnome.Settings.GlobalShortcutsProvider` service, and the session D-Bus must be able to activate it on demand. This service handles shortcut permission and configuration, while niri handles the key events. Installing `xdg-desktop-portal-gnome` alone leaves the settings service unavailable.
+
+Once the current session is running a supported niri build and the required service is available, start SPlayer-Next, complete any permission request, and verify that the shortcuts control the player.
 
 ## External display alternatives
 
