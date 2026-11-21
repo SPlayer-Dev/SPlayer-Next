@@ -10,19 +10,27 @@ vi.mock("@/utils/color", () => ({ hexToRgb: () => "20, 20, 28" }));
  */
 const setupCanvas = () => {
   const measured: Array<{ text: string; font: string; lang: string }> = [];
-  const drawn: Array<{ text: string; font: string; lang: string }> = [];
+  const drawn: Array<{ text: string; font: string; lang: string; y: number; color: string }> = [];
   const load = vi.fn().mockResolvedValue([]);
   Object.defineProperty(document, "fonts", { configurable: true, value: { load } });
   const context = {
     font: "",
     lang: "inherit",
+    fillStyle: "",
     scale: vi.fn(),
     fillRect: vi.fn(),
     measureText: (text: string) => {
       measured.push({ text, font: context.font, lang: context.lang });
       return { width: text.length * (context.font.includes('"Wide"') ? 100 : 20) };
     },
-    fillText: (text: string) => drawn.push({ text, font: context.font, lang: context.lang }),
+    fillText: (text: string, _x: number, y: number) =>
+      drawn.push({
+        text,
+        font: context.font,
+        lang: context.lang,
+        y,
+        color: String(context.fillStyle),
+      }),
   };
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
     context as unknown as CanvasRenderingContext2D,
@@ -101,6 +109,47 @@ describe("歌词海报字体", () => {
     drawn.length = 0;
     await createLyricPoster({ track, lines: [{ text }] });
     expect(drawn.find((entry) => entry.text === text)?.font).not.toContain('"Wide"');
+  });
+
+  it("背景行绘制在所属主行下方，主句加粗且比译文和音译更亮", async () => {
+    const { drawn } = setupCanvas();
+    await createLyricPoster({
+      track,
+      lines: [
+        {
+          text: "主行歌词",
+          background: { text: "背景歌词", translation: "背景译文", romaji: "haikei romaji" },
+        },
+      ],
+    });
+    const main = drawn.find((entry) => entry.text === "主行歌词")!;
+    const background = drawn.find((entry) => entry.text === "背景歌词")!;
+    const translation = drawn.find((entry) => entry.text === "背景译文")!;
+    const romaji = drawn.find((entry) => entry.text === "haikei romaji")!;
+    const alpha = (color: string) => Number(color.match(/([\d.]+)\)$/)?.[1]);
+    expect(main.font).toMatch(/^bold 34px /);
+    expect(background.font).toMatch(/^bold 22px /);
+    expect(translation.font).toMatch(/^18px /);
+    expect(alpha(background.color)).toBeGreaterThan(alpha(translation.color));
+    expect(alpha(background.color)).toBeGreaterThan(alpha(romaji.color));
+    expect(background.y).toBeGreaterThan(main.y);
+  });
+
+  it("前置背景行绘制在主行上方", async () => {
+    const { drawn } = setupCanvas();
+    await createLyricPoster({
+      track,
+      lines: [
+        {
+          text: "主行歌词",
+          backgroundFirst: true,
+          background: { text: "前置背景歌词" },
+        },
+      ],
+    });
+    const main = drawn.find((entry) => entry.text === "主行歌词")!;
+    const background = drawn.find((entry) => entry.text === "前置背景歌词")!;
+    expect(background.y).toBeLessThan(main.y);
   });
 
   it("字体加载完成前不测量或绘制文字", async () => {
