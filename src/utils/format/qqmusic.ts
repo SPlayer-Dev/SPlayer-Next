@@ -116,4 +116,5 @@ export const qqPlaylistToCoverItem = (playlist: QMPlaylistItem): CoverItem => ({
   cover: playlist.cover,
   subtitle: playlist.creator ?? "",
   trackCount: playlist.trackCount ?? 0,
+  playCount: playlist.playCount,
 });

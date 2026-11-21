@@ -40,6 +40,7 @@ export const fetchKugouPlaylist = async (
       description: body.description,
       owner: body.creator,
       trackCount: body.total ?? tracks.length,
+      playCount: body.playCount,
     },
     tracks,
   };
