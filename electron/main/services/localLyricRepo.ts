@@ -50,14 +50,56 @@ interface TTMLMeta {
   qqIds: string[];
 }
 
-/** 从 TTML 文本头部提取 AMLL 元信息 */
+/** XML 预定义命名实体映射 */
+const XML_NAMED_ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+};
+
+/**
+ * 解码 XML 属性值中的命名实体与数字字符引用（单次扫描避免双重解码）
+ * @param text - 原始 XML 属性文本
+ * @returns 解码后的纯文本
+ */
+const decodeXmlEntities = (text: string): string =>
+  text.replace(
+    /&(?:#(\d+)|#x([0-9a-fA-F]+)|(amp|lt|gt|quot|apos));/gi,
+    (match, dec?: string, hex?: string, named?: string) => {
+      if (named) return XML_NAMED_ENTITIES[named.toLowerCase()] ?? match;
+      const code = dec ? Number.parseInt(dec, 10) : Number.parseInt(hex!, 16);
+      return Number.isFinite(code) && code >= 0 && code <= 0x10ffff
+        ? String.fromCodePoint(code)
+        : match;
+    },
+  );
+
+/**
+ * 从 XML 标签文本中读取并解码指定属性（兼容双引号与单引号包裹）
+ * @param tag - 单个标签文本
+ * @param name - 属性名
+ * @returns 解码后的属性值
+ */
+const readAttr = (tag: string, name: string): string | undefined => {
+  const match = tag.match(new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, "i"));
+  const raw = match?.[1] ?? match?.[2];
+  return raw === undefined ? undefined : decodeXmlEntities(raw);
+};
+
+/**
+ * 从 TTML 文本头部提取 AMLL 元信息
+ * @param text - TTML 原文
+ * @returns 提取出的标题、歌手与平台 ID
+ */
 const extractMeta = (text: string): TTMLMeta => {
   const bodyAt = text.indexOf("<body");
   const head = bodyAt > 0 ? text.slice(0, bodyAt) : text.slice(0, 8000);
   const meta: TTMLMeta = { ncmIds: [], qqIds: [] };
   for (const tag of head.matchAll(/<amll:meta\b[^>]*>/gi)) {
-    const key = tag[0].match(/\bkey="([^"]*)"/)?.[1];
-    const value = tag[0].match(/\bvalue="([^"]*)"/)?.[1];
+    const key = readAttr(tag[0], "key");
+    const value = readAttr(tag[0], "value");
     if (!key || !value) continue;
     if (key === "musicName" && !meta.name) meta.name = value;
     else if (key === "artists" && !meta.artist) meta.artist = value;
