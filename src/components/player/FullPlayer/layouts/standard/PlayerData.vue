@@ -164,7 +164,7 @@ const alignItems = computed(() => {
 <template>
   <div
     v-if="displayTrack"
-    class="w-full flex flex-col gap-[0.5em] overflow-hidden px-2"
+    class="w-full flex flex-col gap-[0.5em] overflow-x-clip overflow-y-visible px-2"
     style="font-size: clamp(12px, calc(14 / 1080 * 100vh), 16px)"
     :class="alignItems"
   >
