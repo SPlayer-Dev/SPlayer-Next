@@ -81,12 +81,21 @@ pub(super) fn build_wave_format(format: &ExclusiveFormat) -> WAVEFORMATEXTENSIBL
     }
 }
 
-/// 位深候选：优先音源位深，16bit 作通用兜底
+/// 位深候选：优先音源位深，其次更高位深，16bit 作通用兜底
 fn valid_bits_candidates(source_bits: u32) -> Vec<u16> {
     match source_bits {
-        0..=16 => vec![16, 24],
-        24 => vec![24, 16],
+        0..=16 => vec![16, 24, 32],
+        24 => vec![24, 32, 16],
         _ => vec![32, 24, 16],
+    }
+}
+
+/// 容器位深候选：先按 32bit 容器探测保持既有行为，再补打包 24bit——
+/// 大量 USB DAC 的独占格式表只接受 24-in-24，缺此候选会让协商恒落到 16bit
+fn container_candidates(valid_bits: u16) -> Vec<u16> {
+    match valid_bits {
+        24 => vec![32, 24],
+        bits => vec![bits],
     }
 }
 
@@ -116,30 +125,33 @@ fn negotiate_format(
         for &channels in &channels_candidates {
             for &valid_bits in &valid_bits_candidates(source_bits) {
                 for &rate in &sample_rate_candidates(source_rate) {
-                    let format = ExclusiveFormat {
-                        sample_rate: rate,
-                        channels,
-                        container_bits: if valid_bits == 16 { 16 } else { 32 },
-                        valid_bits,
-                    };
-                    let wave = build_wave_format(&format);
-                    // windows 0.62 中 IsFormatSupported 返回原始 HRESULT
-                    let hr = probe.IsFormatSupported(
-                        AUDCLNT_SHAREMODE_EXCLUSIVE,
-                        &wave as *const WAVEFORMATEXTENSIBLE as *const WAVEFORMATEX,
-                        None,
-                    );
-                    if hr.is_ok() {
-                        info!(
-                            rate = format.sample_rate,
-                            channels = format.channels,
-                            bits = format.valid_bits,
-                            "独占模式格式协商成功"
+                    // 容器只是打包形式，优先级最低：同一有效位深和采样率下先试宽容器
+                    for &container_bits in &container_candidates(valid_bits) {
+                        let format = ExclusiveFormat {
+                            sample_rate: rate,
+                            channels,
+                            container_bits,
+                            valid_bits,
+                        };
+                        let wave = build_wave_format(&format);
+                        // windows 0.62 中 IsFormatSupported 返回原始 HRESULT
+                        let hr = probe.IsFormatSupported(
+                            AUDCLNT_SHAREMODE_EXCLUSIVE,
+                            &wave as *const WAVEFORMATEXTENSIBLE as *const WAVEFORMATEX,
+                            None,
                         );
-                        return Ok(format);
-                    }
-                    if hr == AUDCLNT_E_DEVICE_IN_USE {
-                        return Err(ExclusiveOpenError::DeviceInUse);
+                        if hr.is_ok() {
+                            info!(
+                                rate = format.sample_rate,
+                                channels = format.channels,
+                                bits = format.valid_bits,
+                                "独占模式格式协商成功"
+                            );
+                            return Ok(format);
+                        }
+                        if hr == AUDCLNT_E_DEVICE_IN_USE {
+                            return Err(ExclusiveOpenError::DeviceInUse);
+                        }
                     }
                 }
             }
