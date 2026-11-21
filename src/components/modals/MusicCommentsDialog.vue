@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import type { CommentSource, CommentTab, MusicCommentPage } from "@shared/types/comment";
+import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import { useStatusStore } from "@/stores/status";
 import { toast } from "@/composables/useToast";
+import { useCopyText } from "@/composables/useCopyText";
 import { formatDate } from "@/utils/time";
 import IconLucideThumbsUp from "~icons/lucide/thumbs-up";
+import IconLucideCopy from "~icons/lucide/copy";
 
 const { t } = useI18n();
 const status = useStatusStore();
+const { copy } = useCopyText();
 
 const sources = shallowRef<CommentSource[]>([]);
 const sourceId = ref("");
@@ -148,6 +152,84 @@ watch(activeTab, async (next, prev) => {
   await nextTick();
   listScrollRef.value?.scrollTo({ top: 0 });
 });
+
+const selectedText = ref("");
+const contextCommentText = ref("");
+const contextReplyText = ref("");
+
+const contextMenuItems = computed<DropdownMenuItem[]>(() => {
+  const items: DropdownMenuItem[] = [];
+  if (selectedText.value) {
+    items.push({
+      key: "copySelection",
+      label: t("comments.copy"),
+      icon: markRaw(IconLucideCopy),
+    });
+  }
+  if (contextReplyText.value) {
+    items.push({
+      key: "copyReply",
+      label: t("comments.copyReply"),
+      icon: markRaw(IconLucideCopy),
+      separator: items.length > 0,
+    });
+  }
+  if (contextCommentText.value) {
+    items.push({
+      key: "copyComment",
+      label: t("comments.copyComment"),
+      icon: markRaw(IconLucideCopy),
+      separator: items.length > 0 && !contextReplyText.value,
+    });
+  }
+  return items;
+});
+
+/**
+ * 仅当右键命中评论、回复或文本选区时放行上下文菜单
+ * @param event - 鼠标右键事件
+ */
+const onCommentsContextMenu = (event: MouseEvent): void => {
+  const rawSelection = window.getSelection()?.toString() ?? "";
+  selectedText.value = rawSelection.trim().length > 0 ? rawSelection : "";
+
+  const target = event.target as HTMLElement | null;
+  const replyEl = target?.closest<HTMLElement>("[data-reply-id]");
+  const replyId = replyEl?.dataset.replyId;
+
+  const commentEl = target?.closest<HTMLElement>("[data-comment-id]");
+  const commentId = commentEl?.dataset.commentId;
+
+  const targetComment = commentId ? page.value.list.find((c) => c.id === commentId) : null;
+  const targetReply =
+    replyId && targetComment?.reply ? targetComment.reply.find((r) => r.id === replyId) : null;
+
+  contextCommentText.value = targetComment?.text ?? "";
+  contextReplyText.value = targetReply?.text ?? "";
+
+  if (!selectedText.value && !contextCommentText.value && !contextReplyText.value) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+};
+
+/**
+ * 执行评论右键菜单选中项
+ * @param key - 选中的菜单项标识
+ */
+const onContextMenuSelect = async (key: string): Promise<void> => {
+  switch (key) {
+    case "copySelection":
+      await copy(selectedText.value);
+      break;
+    case "copyReply":
+      await copy(contextReplyText.value);
+      break;
+    case "copyComment":
+      await copy(contextCommentText.value);
+      break;
+  }
+};
 </script>
 
 <template>
@@ -216,67 +298,110 @@ watch(activeTab, async (next, prev) => {
         </div>
       </div>
       <div v-else ref="listScrollRef" class="min-h-0 flex-1 overflow-y-auto pr-1">
-        <div class="space-y-1.5">
-          <SCard v-for="item in page.list" :key="item.id" size="small" radius="lg">
-            <div class="flex gap-3">
-              <SImg
-                v-if="item.avatar"
-                :src="item.avatar"
-                class="h-9 w-9 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/10"
-                alt=""
-              />
-              <div v-else class="h-9 w-9 shrink-0 rounded-full bg-on-surface/8" />
-              <div class="min-w-0 flex-1">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <div class="truncate text-sm font-medium">{{ item.userName }}</div>
-                    <div class="mt-0.5 flex gap-2 text-xs text-on-surface-variant">
-                      <span v-if="item.time">{{ formatDate(item.time) }}</span>
-                      <span v-if="item.location">
-                        {{ t("comments.location", { location: item.location }) }}
-                      </span>
+        <SContextMenu :items="contextMenuItems" @select="onContextMenuSelect">
+          <div class="space-y-1.5" @contextmenu.capture="onCommentsContextMenu">
+            <SCard
+              v-for="item in page.list"
+              :key="item.id"
+              size="small"
+              radius="lg"
+              class="group relative"
+              :data-comment-id="item.id"
+            >
+              <div class="flex gap-3">
+                <SImg
+                  v-if="item.avatar"
+                  :src="item.avatar"
+                  class="h-9 w-9 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/10"
+                  alt=""
+                />
+                <div v-else class="h-9 w-9 shrink-0 rounded-full bg-on-surface/8" />
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="truncate text-sm font-medium select-text">
+                        {{ item.userName }}
+                      </div>
+                      <div class="mt-0.5 flex gap-2 text-xs text-on-surface-variant">
+                        <span v-if="item.time">{{ formatDate(item.time) }}</span>
+                        <span v-if="item.location">
+                          {{ t("comments.location", { location: item.location }) }}
+                        </span>
+                      </div>
+                    </div>
+                    <div class="flex shrink-0 items-center gap-1.5">
+                      <div
+                        v-if="item.likedCount != null"
+                        class="flex items-center gap-1 text-xs tabular-nums text-on-surface-variant"
+                      >
+                        <IconLucideThumbsUp class="size-3.5" />
+                        <span>{{ item.likedCount }}</span>
+                      </div>
+                      <SButton
+                        variant="ghost"
+                        circle
+                        size="tiny"
+                        class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                        :title="t('comments.copyComment')"
+                        :aria-label="t('comments.copyComment')"
+                        @click.stop="copy(item.text)"
+                      >
+                        <template #icon><IconLucideCopy class="size-3.5" /></template>
+                      </SButton>
                     </div>
                   </div>
+                  <p class="mt-2 whitespace-pre-wrap break-words text-sm leading-6 select-text">
+                    {{ item.text }}
+                  </p>
                   <div
-                    v-if="item.likedCount != null"
-                    class="flex shrink-0 items-center gap-1 text-xs tabular-nums text-on-surface-variant"
+                    v-if="item.images?.length"
+                    class="mt-2 grid w-fit max-w-full grid-cols-3 gap-1.5"
                   >
-                    <IconLucideThumbsUp class="size-3.5" />
-                    <span>{{ item.likedCount }}</span>
+                    <SImg
+                      v-for="(image, index) in item.images"
+                      :key="image"
+                      :src="image"
+                      :alt="`${item.userName} ${index + 1}`"
+                      :class="[
+                        'aspect-square max-w-full rounded-lg ring-1 ring-black/10 dark:ring-white/10',
+                        item.images.length === 1 ? 'w-48' : 'w-24',
+                      ]"
+                    />
                   </div>
-                </div>
-                <p class="mt-2 whitespace-pre-wrap break-words text-sm leading-6">
-                  {{ item.text }}
-                </p>
-                <div
-                  v-if="item.images?.length"
-                  class="mt-2 grid w-fit max-w-full grid-cols-3 gap-1.5"
-                >
-                  <SImg
-                    v-for="(image, index) in item.images"
-                    :key="image"
-                    :src="image"
-                    :alt="`${item.userName} ${index + 1}`"
-                    :class="[
-                      'aspect-square max-w-full rounded-lg ring-1 ring-black/10 dark:ring-white/10',
-                      item.images.length === 1 ? 'w-48' : 'w-24',
-                    ]"
-                  />
-                </div>
-                <div v-if="item.reply?.length" class="mt-2 rounded-md bg-on-surface/5 px-3 py-2">
                   <div
-                    v-for="reply in item.reply"
-                    :key="reply.id"
-                    class="text-xs leading-5 text-on-surface-variant"
+                    v-if="item.reply?.length"
+                    class="mt-2 rounded-md bg-on-surface/5 px-3 py-2 space-y-1"
                   >
-                    <span class="font-medium text-on-surface">{{ reply.userName }}：</span>
-                    {{ reply.text }}
+                    <div
+                      v-for="reply in item.reply"
+                      :key="reply.id"
+                      class="group/reply flex items-start justify-between gap-2 text-xs leading-5 text-on-surface-variant"
+                      :data-reply-id="reply.id"
+                    >
+                      <div class="min-w-0 flex-1">
+                        <span class="font-medium text-on-surface select-text">
+                          {{ reply.userName }}：
+                        </span>
+                        <span class="select-text">{{ reply.text }}</span>
+                      </div>
+                      <SButton
+                        variant="ghost"
+                        circle
+                        size="tiny"
+                        class="opacity-0 group-hover/reply:opacity-100 focus-visible:opacity-100 transition-opacity shrink-0 -my-0.5"
+                        :title="t('comments.copyReply')"
+                        :aria-label="t('comments.copyReply')"
+                        @click.stop="copy(reply.text)"
+                      >
+                        <template #icon><IconLucideCopy class="size-3" /></template>
+                      </SButton>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </SCard>
-        </div>
+            </SCard>
+          </div>
+        </SContextMenu>
       </div>
 
       <div

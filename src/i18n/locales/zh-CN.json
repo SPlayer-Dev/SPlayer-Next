@@ -137,7 +137,10 @@
     "empty": "暂无评论",
     "noSource": "没有可用的评论来源",
     "location": "来自{location}",
-    "page": "第 {page} / {total} 页"
+    "page": "第 {page} / {total} 页",
+    "copy": "复制",
+    "copyComment": "复制评论",
+    "copyReply": "复制回复"
   },
   "equalizer": {
     "title": "均衡器",
