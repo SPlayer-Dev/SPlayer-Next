@@ -20,10 +20,10 @@ const dialogOpen = ref(false);
 const editingId = ref<string | null>(null);
 const formError = ref<string | null>(null);
 const EMPTY_FORM: AiModelSaveInput = {
-  name: "",
+  name: "DeepSeek",
   protocol: "openai-compatible",
-  baseUrl: "https://api.openai.com/v1",
-  model: "",
+  baseUrl: "https://api.deepseek.com",
+  model: "deepseek-chat",
   apiKey: "",
 };
 const form = ref<AiModelSaveInput>({ ...EMPTY_FORM });
@@ -44,15 +44,17 @@ const protocolLabels: Record<AiModelProtocol, string> = {
   anthropic: "Anthropic",
 };
 
+/** 各协议默认 API 地址 */
+const DEFAULT_BASE_URLS: Record<AiModelProtocol, string> = {
+  "openai-compatible": "https://api.deepseek.com",
+  anthropic: "https://api.anthropic.com/v1",
+};
+
 const handleProtocolChange = (protocol: AiModelProtocol): void => {
-  const previousDefault =
-    form.value.protocol === "anthropic"
-      ? "https://api.anthropic.com/v1"
-      : "https://api.openai.com/v1";
+  const previousDefault = DEFAULT_BASE_URLS[form.value.protocol];
   form.value.protocol = protocol;
   if (form.value.baseUrl === previousDefault) {
-    form.value.baseUrl =
-      protocol === "anthropic" ? "https://api.anthropic.com/v1" : "https://api.openai.com/v1";
+    form.value.baseUrl = DEFAULT_BASE_URLS[protocol];
   }
 };
 
@@ -263,7 +265,7 @@ onMounted(load);
         <SFormItem :label="t('settings.aiModel.baseUrl')">
           <SInput
             v-model="form.baseUrl"
-            placeholder="https://api.openai.com/v1"
+            placeholder="https://api.deepseek.com"
             spellcheck="false"
           />
         </SFormItem>
@@ -282,7 +284,7 @@ onMounted(load);
         <SFormItem :label="t('settings.aiModel.model')">
           <SInput
             v-model="form.model"
-            :placeholder="form.protocol === 'anthropic' ? 'claude-sonnet-4-5' : 'gpt-5.6'"
+            :placeholder="form.protocol === 'anthropic' ? 'claude-sonnet-4-5' : 'deepseek-chat'"
             spellcheck="false"
           />
         </SFormItem>

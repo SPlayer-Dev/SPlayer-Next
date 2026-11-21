@@ -520,6 +520,13 @@
       "preferenceIgnored": "Lyrics manually selected",
       "apply": "Use these lyrics"
     },
+    "lyricTranslate": {
+      "title": "AI Translate Lyrics",
+      "success": "AI translation applied",
+      "empty": "These lyrics do not need translation",
+      "stale": "Lyrics changed, so this translation was not applied",
+      "failed": "AI translation failed: {error}"
+    },
     "lyricCredit": "Lyrics by",
     "collapse": "Collapse Player",
     "copyLyric": {
@@ -797,6 +804,7 @@
       "scrobble": "Scrobble",
       "lyricContent": "Lyric Content",
       "lyricTTML": "TTML Lyrics",
+      "lyricLLM": "LLM Lyric Translation",
       "lyricExclude": "Metadata Stripping",
       "lyricGeneral": "Content & Style",
       "lyricDisplay": "Display Effects",
@@ -1088,6 +1096,23 @@
       "hk2t": "Traditional (Hong Kong) → Traditional",
       "jp2t": "Japanese Shinjitai → Traditional",
       "t2jp": "Traditional → Japanese Shinjitai"
+    },
+    "llmTranslation": {
+      "label": "LLM Lyric Translation",
+      "description": "Use the active AI model to translate lyrics that have no translation. Configure a model in AI Integration first. Lyric text is sent to the configured AI service"
+    },
+    "llmTranslationAuto": {
+      "label": "Auto Translate",
+      "description": "Fill in missing translations after lyrics load. Results are cached locally to avoid repeated requests"
+    },
+    "llmTranslationTarget": {
+      "label": "Target Language",
+      "description": "Follow the interface language or choose a fixed translation language",
+      "auto": "Follow Interface Language",
+      "zhCN": "简体中文",
+      "enUS": "English",
+      "jaJP": "日本語",
+      "koKR": "한국어"
     },
     "enableOnlineTTMLLyric": {
       "label": "Enable Online TTML Lyrics",
@@ -1989,14 +2014,14 @@
     },
     "aiModel": {
       "hint": "AI Model Configuration",
-      "hintDetail": "Provides model support for selected AI features in the app",
+      "hintDetail": "Provides models for AI features such as LLM lyric translation",
       "add": "Add model",
       "editModel": "Edit model",
       "empty": "No AI models configured",
-      "emptyHint": "Add an AI model configuration for the app to use",
+      "emptyHint": "Add an AI model configuration for the app to use. A DeepSeek preset is filled in by default",
       "protocol": "Protocol",
       "name": "Configuration name",
-      "namePlaceholder": "For example: OpenAI",
+      "namePlaceholder": "For example: DeepSeek",
       "baseUrl": "API URL",
       "apiKey": "API Key",
       "apiKeyPlaceholder": "Enter API Key",
@@ -2236,7 +2261,8 @@
       "motionCovers": "Animated Covers",
       "lyric": "Lyric Content Cache",
       "lyricTTML": "TTML Lyric Cache",
-      "lyricMatch": "Lyric Match Cache"
+      "lyricMatch": "Lyric Match Cache",
+      "lyricAI": "AI Lyric Translation Cache"
     },
     "enableSongCache": {
       "label": "Song Cache",

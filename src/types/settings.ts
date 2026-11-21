@@ -1,6 +1,9 @@
 import type { LyricFormat } from "lyric-kit";
 
-import { DEFAULT_LYRIC_FORMAT_ORDER as DEFAULT_LYRIC_FORMAT_ORDER_SHARED } from "@shared/types/lyrics";
+import {
+  DEFAULT_LYRIC_FORMAT_ORDER as DEFAULT_LYRIC_FORMAT_ORDER_SHARED,
+  type LyricTranslationLanguage,
+} from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
 import type { MotionCoverSource, TransitionPreference } from "@shared/types/player";
 import type { TransitionMode } from "@shared/types/automix";
@@ -120,6 +123,9 @@ export const DEFAULT_SIDEBAR_NAV_GROUPS: SidebarNavGroup[] = [
   },
 ];
 
+/** LLM 歌词翻译目标 */
+export type LyricTranslationTarget = "auto" | LyricTranslationLanguage;
+
 /** 歌词设置 */
 export interface LyricSettings {
   /** 歌词来源偏好 */
@@ -138,6 +144,12 @@ export interface LyricSettings {
   autoGenerateWordByWord: boolean;
   /** 中文繁简转换模式（基于 OpenCC） */
   cjkTransform: CjkTransformMode;
+  /** 允许使用 LLM 翻译歌词 */
+  llmTranslation: boolean;
+  /** 歌词加载后自动补齐缺失译文 */
+  llmTranslationAuto: boolean;
+  /** LLM 翻译目标语言，auto 跟随界面语言 */
+  llmTranslationTarget: LyricTranslationTarget;
   /** 字号随窗口高度调整 */
   adaptiveFontSize: boolean;
   /** 歌词主行字号（px） */

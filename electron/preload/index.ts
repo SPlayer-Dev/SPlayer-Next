@@ -32,6 +32,7 @@ import type { UpdateEvent } from "@shared/types/update";
 import type { CloudUploadProgress } from "@shared/types/cloudUpload";
 import type { MusicCommentQuery } from "@shared/types/comment";
 import type { AiModelSaveInput } from "@shared/types/ai";
+import type { LyricTranslationRequest } from "@shared/types/lyrics";
 import type { DesktopLyricUnlockButtonBounds, TaskbarLyricLayoutEvent } from "@shared/types/window";
 import type {
   LegacyPlaylistRecord,
@@ -577,6 +578,9 @@ const api = {
     matchLocalTTML: (track: unknown) => ipcRenderer.invoke("lyrics:matchLocalTTML", track),
     // 选择本地 TTML 歌词库目录
     pickLyricRepoDir: () => ipcRenderer.invoke("lyrics:pickLyricRepoDir"),
+    // 使用当前 AI 模型翻译歌词
+    translate: (request: LyricTranslationRequest) =>
+      ipcRenderer.invoke("lyrics:translate", request),
   },
   opencc: {
     // 转换单个文本
