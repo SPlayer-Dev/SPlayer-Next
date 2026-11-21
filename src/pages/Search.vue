@@ -7,6 +7,7 @@ import type { CoverItem } from "@/types/artist";
 import { searchSongs, searchAlbums, searchArtists, searchPlaylists } from "@/apis/search";
 import { useStatusStore } from "@/stores/status";
 import { usePluginsStore } from "@/stores/plugins";
+import { useCoverPlay } from "@/composables/useCoverPlay";
 import { navigateToAlbum, navigateToArtist, navigateToPlaylist } from "@/utils/navigate";
 
 const { t } = useI18n();
@@ -14,6 +15,7 @@ const route = useRoute();
 const router = useRouter();
 const status = useStatusStore();
 const plugins = usePluginsStore();
+const { playCover, pendingId } = useCoverPlay();
 
 type TabKey = "songs" | "albums" | "artists" | "playlists";
 
@@ -332,6 +334,22 @@ const playbackContext = computed<PlaybackContext>(() => ({
   originType: "page",
   originName: keyword.value ? `${t("search.title")}: ${keyword.value}` : t("search.title"),
 }));
+
+/**
+ * 直接播放搜索结果中的专辑
+ * @param item - 专辑封面条目
+ */
+const playAlbum = (item: CoverItem): void => {
+  void playCover(item, { source: status.searchPlatform, type: "album" });
+};
+
+/**
+ * 直接播放搜索结果中的歌单
+ * @param item - 歌单封面条目
+ */
+const playPlaylist = (item: CoverItem): void => {
+  void playCover(item, { source: status.searchPlatform, type: "playlist" });
+};
 </script>
 
 <template>
@@ -444,9 +462,12 @@ const playbackContext = computed<PlaybackContext>(() => ({
         :padding-bottom="20"
         :has-more="states.albums.hasMore"
         :loading-more="states.albums.loadingMore"
+        playable
+        :pending-id="pendingId"
         @click="
           (item) => navigateToAlbum(item.title, { source: status.searchPlatform, albumId: item.id })
         "
+        @play="playAlbum"
         @reach-bottom="onReachBottom('albums')"
       />
       <CoverList
@@ -473,9 +494,12 @@ const playbackContext = computed<PlaybackContext>(() => ({
         :padding-bottom="20"
         :has-more="states.playlists.hasMore"
         :loading-more="states.playlists.loadingMore"
+        playable
+        :pending-id="pendingId"
         @click="
           (item) => navigateToPlaylist(item.id, { source: status.searchPlatform, name: item.title })
         "
+        @play="playPlaylist"
         @reach-bottom="onReachBottom('playlists')"
       />
     </div>

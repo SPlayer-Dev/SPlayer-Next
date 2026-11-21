@@ -12,14 +12,23 @@ export interface CoverCardProps {
   rounded?: string;
   /** 封面占位图 */
   fallback?: string;
+  /** 是否显示可点击的播放按钮 */
+  playable?: boolean;
+  /** 是否正在加载播放内容 */
+  loading?: boolean;
 }
 
 const props = withDefaults(defineProps<CoverCardProps>(), {
   type: "default",
   rounded: "rounded-xl",
+  playable: false,
+  loading: false,
 });
 
-const emit = defineEmits<{ click: [] }>();
+const emit = defineEmits<{ click: []; play: [] }>();
+
+const { t } = useI18n();
+
 /** 稳定的封面标识：页面重新挂载后仍能匹配，不能用组件实例 ID */
 const coverKey = computed(() => `${props.type}:${props.item.id}`);
 
@@ -27,6 +36,11 @@ const coverKey = computed(() => `${props.type}:${props.item.id}`);
 const handleClick = (): void => {
   captureCover(props.item, coverKey.value);
   emit("click");
+};
+
+/** 播放按钮：阻止冒泡，避免同时触发卡片跳转 */
+const handlePlay = (): void => {
+  emit("play");
 };
 
 const coverRounded = computed(() => (props.type === "artist" ? "rounded-full" : props.rounded));
@@ -50,17 +64,26 @@ const actualFallback = computed(() => (props.type === "artist" ? artistFallback 
         :class="coverRounded"
       />
       <!-- 播放按钮 -->
-      <div
+      <button
+        v-if="type !== 'artist' && playable"
+        type="button"
         data-cover-action
-        class="absolute size-9 flex items-center justify-center rounded-full opacity-0 transition-[opacity,transform] duration-300 group-hover:opacity-100"
-        :class="
-          type === 'artist'
-            ? 'inset-0 m-auto'
-            : 'right-2 bottom-2 bg-white/50 translate-y-1.5 group-hover:translate-y-0'
-        "
+        :aria-label="t('common.play')"
+        :disabled="loading"
+        class="absolute right-2 bottom-2 size-9 flex items-center justify-center rounded-full border-none bg-white/50 opacity-0 translate-y-1.5 transition-[opacity,transform,background-color] duration-300 cursor-pointer group-hover:opacity-100 group-hover:translate-y-0 hover:bg-white/75 focus-visible:opacity-100 focus-visible:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        :class="loading ? 'opacity-100 translate-y-0' : ''"
+        @click.stop="handlePlay"
       >
-        <IconLucidePlay v-if="type !== 'artist'" class="size-4.5 text-white" />
-        <IconLucideUser v-else class="size-8 text-white" />
+        <SLoading v-if="loading" class="size-4 text-white" />
+        <IconLucidePlay v-else class="size-4.5 text-white" />
+      </button>
+      <!-- 歌手头像角标 -->
+      <div
+        v-else-if="type === 'artist'"
+        data-cover-action
+        class="absolute inset-0 m-auto size-9 flex items-center justify-center rounded-full opacity-0 transition-[opacity,transform] duration-300 group-hover:opacity-100"
+      >
+        <IconLucideUser class="size-8 text-white" />
       </div>
     </div>
     <!-- 信息 -->

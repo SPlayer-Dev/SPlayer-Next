@@ -9,6 +9,7 @@ import {
   playlistToCoverItem,
 } from "@/utils/format/coverItem";
 import CoverList from "@/components/list/CoverList.vue";
+import { useCoverPlay } from "@/composables/useCoverPlay";
 import IconLucideListMusic from "~icons/lucide/list-music";
 import IconLucideDisc3 from "~icons/lucide/disc-3";
 import IconLucideUser from "~icons/lucide/user";
@@ -18,6 +19,7 @@ const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const user = useUserStore();
+const { playCover, pendingId } = useCoverPlay();
 
 type FavTab = "playlist" | "album" | "artist";
 
@@ -86,6 +88,15 @@ const handleClick = (item: CoverItem): void => {
     router.push(`/collection/netease/${activeTab.value}/${encodeURIComponent(item.id)}`);
   }
 };
+
+/**
+ * 直接播放收藏的专辑或歌单
+ * @param item - 封面条目
+ */
+const handlePlay = (item: CoverItem): void => {
+  if (activeTab.value === "artist") return;
+  void playCover(item, { source: "netease", type: activeTab.value });
+};
 </script>
 
 <template>
@@ -123,10 +134,13 @@ const handleClick = (item: CoverItem): void => {
           :items="currentItems"
           :type="activeTab === 'artist' ? 'artist' : 'default'"
           :min-size="activeTab === 'artist' ? 120 : 140"
+          :playable="activeTab !== 'artist'"
+          :pending-id="pendingId"
           :padding-x="20"
           :padding-top="8"
           :padding-bottom="20"
           @click="handleClick"
+          @play="handlePlay"
         />
       </div>
       <div v-else key="empty" class="flex-1 flex items-center justify-center">

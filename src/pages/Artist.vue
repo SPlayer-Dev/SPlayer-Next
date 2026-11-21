@@ -4,6 +4,7 @@ import type { ArtistProfile, CoverItem } from "@/types/artist";
 import { useSettingsStore } from "@/stores/settings";
 import { useUserStore } from "@/stores/user";
 import { toast } from "@/composables/useToast";
+import { useCoverPlay } from "@/composables/useCoverPlay";
 import { loadArtist as loadArtistService } from "@/services/artistLoader";
 import { fetchArtistSongs } from "@/apis/artist/netease";
 import { fetchQQMusicArtistSongs } from "@/apis/artist/qqmusic";
@@ -21,6 +22,7 @@ const route = useRoute();
 const router = useRouter();
 const { appearance } = useSettingsStore();
 const userStore = useUserStore();
+const { playCover, pendingId } = useCoverPlay();
 
 const tabTransitionName = computed(() => {
   const transition = appearance.routeTransition;
@@ -231,6 +233,18 @@ const albumItems = computed<CoverItem[]>(() => {
     subtitle: t("common.totalSongs", { count: item.trackCount }),
   }));
 });
+
+/**
+ * 直接播放歌手名下的专辑
+ * @param item - 专辑封面条目
+ */
+const handlePlayAlbum = (item: CoverItem): void => {
+  void playCover(item, {
+    source,
+    type: "album",
+    serverId: typeof route.query.serverId === "string" ? route.query.serverId : undefined,
+  });
+};
 </script>
 
 <template>
@@ -387,6 +401,9 @@ const albumItems = computed<CoverItem[]>(() => {
               :items="albumItems"
               :padding-x="20"
               :padding-bottom="24"
+              playable
+              :pending-id="pendingId"
+              @play="handlePlayAlbum"
               @click="
                 (item) =>
                   navigateToAlbum(item.title, {

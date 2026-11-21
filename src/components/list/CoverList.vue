@@ -28,6 +28,10 @@ export interface CoverListProps {
   hasMore?: boolean;
   /** 触底加载中 */
   loadingMore?: boolean;
+  /** 是否显示可点击的播放按钮 */
+  playable?: boolean;
+  /** 正在加载播放内容的封面 ID */
+  pendingId?: string | null;
 }
 
 const props = withDefaults(defineProps<CoverListProps>(), {
@@ -41,6 +45,8 @@ const props = withDefaults(defineProps<CoverListProps>(), {
   paddingBottom: 0,
   hasMore: false,
   loadingMore: false,
+  playable: false,
+  pendingId: null,
 });
 
 const { t } = useI18n();
@@ -54,6 +60,7 @@ const virtualPaddingBottom = computed(() =>
 
 const emit = defineEmits<{
   click: [item: CoverItem];
+  play: [item: CoverItem];
   reachBottom: [];
 }>();
 
@@ -155,7 +162,10 @@ const getRowKey = (row: Row): string => row.id;
           :type="type"
           :rounded="rounded"
           :fallback="fallback"
+          :playable="playable"
+          :loading="pendingId === item.id"
           @click="emit('click', item)"
+          @play="emit('play', item)"
         />
       </div>
     </template>
@@ -177,7 +187,10 @@ const getRowKey = (row: Row): string => row.id;
       :type="type"
       :rounded="rounded"
       :fallback="fallback"
+      :playable="playable"
+      :loading="pendingId === item.id"
       @click="emit('click', item)"
+      @play="emit('play', item)"
     />
   </div>
 </template>
