@@ -13,7 +13,7 @@ import type { LyricAlignment } from "lyric-dom";
 /** 播放器背景类型 */
 export type PlayerBgType = "blur" | "solid" | "animation";
 /** 流体背景渲染引擎 */
-export type PlayerBgRenderer = "mesh" | "pixi" | "isolation" | "titanium";
+export type PlayerBgRenderer = "mesh" | "isolation" | "titanium";
 /** 全屏播放器布局 */
 export type PlayerLayout = "classic" | "fullCover" | "fullLyric" | "apple";
 

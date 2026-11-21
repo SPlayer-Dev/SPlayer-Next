@@ -1616,7 +1616,6 @@
       "label": "Render Engine",
       "description": "Select the rendering engine for fluid animation background",
       "mesh": "Mesh Gradient Renderer",
-      "pixi": "PixiJS Renderer",
       "isolation": "Isolation Renderer",
       "titanium": "Titanium Renderer"
     },

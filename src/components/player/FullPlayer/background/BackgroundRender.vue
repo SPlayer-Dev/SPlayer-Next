@@ -4,7 +4,6 @@ import {
   type TitaniumRendererOptions,
   BackgroundRender as CoreBackgroundRender,
   MeshGradientRenderer,
-  PixiRenderer,
   IsolationRenderer,
   TitaniumRenderer,
 } from "@applemusic-like-lyrics/core";
@@ -15,7 +14,6 @@ import { getBassPulse, toAmllLowFreqVolume } from "@/services/audioFeatures";
 
 const RENDERER_MAP: Record<PlayerBgRenderer, new (canvas: HTMLCanvasElement) => BaseRenderer> = {
   mesh: MeshGradientRenderer,
-  pixi: PixiRenderer,
   isolation: IsolationRenderer,
   titanium: TitaniumRenderer,
 };

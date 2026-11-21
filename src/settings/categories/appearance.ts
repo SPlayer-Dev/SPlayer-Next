@@ -361,7 +361,6 @@ const appearanceCategory: SettingCategory = {
               binding: { store: "settings", path: "player.playerBgRenderer" },
               options: [
                 { value: "mesh", labelKey: "settings.playerBgRenderer.mesh" },
-                { value: "pixi", labelKey: "settings.playerBgRenderer.pixi" },
                 { value: "isolation", labelKey: "settings.playerBgRenderer.isolation" },
                 { value: "titanium", labelKey: "settings.playerBgRenderer.titanium" },
               ],

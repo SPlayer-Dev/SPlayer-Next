@@ -1616,7 +1616,6 @@
       "label": "渲染引擎",
       "description": "选择流体背景渲染引擎",
       "mesh": "网格渐变渲染器",
-      "pixi": "PixiJS 渲染器",
       "isolation": "Isolation 渲染器",
       "titanium": "Titanium 流沙渲染器"
     },

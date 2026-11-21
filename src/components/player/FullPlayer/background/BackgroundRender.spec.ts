@@ -34,7 +34,6 @@ vi.mock("@/services/fftCapture", () => ({
 vi.mock("@applemusic-like-lyrics/core", () => ({
   BackgroundRender: { new: () => mocks.renderer },
   MeshGradientRenderer: class {},
-  PixiRenderer: class {},
   IsolationRenderer: class {},
   TitaniumRenderer: class {},
 }));
