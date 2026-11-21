@@ -384,19 +384,10 @@ export const useSettingsStore = defineStore(
       storage: localStorage,
       omit: ["system"],
       afterHydrate: ({ store }) => {
-        const { lyric, appearance, preset } = store as unknown as {
+        const { lyric, appearance } = store as unknown as {
           lyric: LyricSettings;
           appearance: AppearanceSettings;
-          preset: PresetSettings;
         };
-        // 旧存档的 showExplicitTag 迁移为 hideExplicitTag；afterHydrate 早于持久化订阅注册，
-        // 需手动写回一次，否则旧键留在存档中且每次启动重复迁移
-        const legacyPreset = preset as unknown as { showExplicitTag?: unknown };
-        if (typeof legacyPreset.showExplicitTag === "boolean") {
-          preset.hideExplicitTag = !legacyPreset.showExplicitTag;
-          delete legacyPreset.showExplicitTag;
-          store.$persist();
-        }
         lyric.lyricSourceOrder = reconcileOrder(lyric.lyricSourceOrder, ALL_PLATFORMS);
         lyric.lyricFormatOrder = reconcileOrder(lyric.lyricFormatOrder, DEFAULT_LYRIC_FORMAT_ORDER);
         appearance.sidebarNavGroups = reconcileNavGroups(appearance.sidebarNavGroups ?? []);
