@@ -55,6 +55,7 @@ export default defineConfig({
         "@splayer/media-ctrl": resolve(__dirname, "native/media-ctrl"),
         "@splayer/taskbar-lyric": resolve(__dirname, "native/taskbar-lyric"),
         "@splayer/taskbar-thumbnail": resolve(__dirname, "native/taskbar-thumbnail"),
+        "@splayer/window-monitor": resolve(__dirname, "native/window-monitor"),
         "@splayer/opencc": resolve(__dirname, "native/opencc"),
       },
     },

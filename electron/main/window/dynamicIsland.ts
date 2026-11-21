@@ -4,8 +4,12 @@ import { is } from "@electron-toolkit/utils";
 import { createWindow } from "./create";
 import { store } from "@main/store";
 import { broadcast } from "@main/utils/broadcast";
-import { isMac } from "@main/utils/config";
+import { isMac, isWin } from "@main/utils/config";
 import { setTrayDynamicIsland } from "@main/services/tray";
+import {
+  watchForegroundFullscreen,
+  type ForegroundFullscreenWatcher,
+} from "@main/services/foreground";
 import { isAppQuitting } from "@main/utils/lifecycle";
 import { DYNAMIC_ISLAND_BASE_HEIGHT } from "@shared/defaults/settings";
 
@@ -170,6 +174,78 @@ export const applyDynamicIslandAlwaysOnTop = (alwaysOnTop: boolean): void => {
   const win = getDynamicIslandWindow();
   if (!win) return;
   win.setAlwaysOnTop(alwaysOnTop, "screen-saver");
+};
+
+/** 读取窗口 HWND 数值，供原生模块排除自身窗口；失败返回 null */
+const getHwndPtr = (win: BrowserWindow): number | null => {
+  try {
+    const big = win.getNativeWindowHandle().readBigUInt64LE(0);
+    if (big > BigInt(Number.MAX_SAFE_INTEGER)) return null;
+    return Number(big);
+  } catch {
+    return null;
+  }
+};
+
+/** 前台全屏监听句柄 */
+let fullscreenWatcher: ForegroundFullscreenWatcher | null = null;
+
+/** 停止前台全屏监听 */
+const stopFullscreenWatch = (): void => {
+  fullscreenWatcher?.stop();
+  fullscreenWatcher = null;
+};
+
+/**
+ * 启动前台全屏监听
+ *
+ * 其他应用进入全屏（游戏 / 视频 / 演示 / 浏览器 F11）时隐藏灵动岛，
+ * 退出全屏后恢复显示并重新置顶。
+ *
+ * 之所以用 hide 而不是取消置顶：全屏窗口本身也是 topmost 竞争的输家，
+ * 只要灵动岛还在屏幕上就会被压住或反过来压住全屏内容，隐藏是唯一干净的做法。
+ */
+const startFullscreenWatch = (): void => {
+  stopFullscreenWatch();
+  if (!isWin) return;
+  if (!store.get("dynamicIsland.hideOnFullscreen")) return;
+  fullscreenWatcher = watchForegroundFullscreen({
+    // 灵动岛被点击后会成为前台窗口，必须排除，否则会把自己判定成全屏而自我隐藏
+    getExcludeHwnd: () =>
+      dynamicIslandWindow && !dynamicIslandWindow.isDestroyed()
+        ? getHwndPtr(dynamicIslandWindow)
+        : null,
+    onChange: (fullscreen) => {
+      if (!dynamicIslandWindow || dynamicIslandWindow.isDestroyed()) return;
+      if (fullscreen) {
+        dynamicIslandWindow.hide();
+        return;
+      }
+      // showInactive 不抢焦点，保持灵动岛非侵入定位
+      dynamicIslandWindow.showInactive();
+      dynamicIslandWindow.setAlwaysOnTop(store.get("dynamicIsland").alwaysOnTop, "screen-saver");
+    },
+  });
+};
+
+/**
+ * 应用"全屏时隐藏"配置：关闭时立即恢复显示，开启时立刻接管当前全屏状态
+ * @param enabled 是否启用全屏隐藏
+ */
+export const applyDynamicIslandHideOnFullscreen = (enabled: boolean): void => {
+  const win = getDynamicIslandWindow();
+  if (!win || win.isDestroyed()) return;
+  if (!enabled) {
+    stopFullscreenWatch();
+    if (!win.isVisible()) win.showInactive();
+    return;
+  }
+  startFullscreenWatch();
+  if (fullscreenWatcher?.isFullscreen()) {
+    win.hide();
+  } else if (!win.isVisible()) {
+    win.showInactive();
+  }
 };
 
 /**
@@ -478,6 +554,7 @@ export const saveDynamicIslandState = (): void => {
 /** 创建灵动岛窗口，如果窗口已存在则显示并聚焦 */
 export const createDynamicIslandWindow = (): BrowserWindow => {
   if (dynamicIslandWindow && !dynamicIslandWindow.isDestroyed()) {
+    // 用户主动唤起（托盘 / 设置开关），即便当前处于全屏也尊重这次操作直接显示
     dynamicIslandWindow.show();
     dynamicIslandWindow.focus();
     return dynamicIslandWindow;
@@ -555,6 +632,9 @@ export const createDynamicIslandWindow = (): BrowserWindow => {
     },
   });
 
+  // 窗口实例就绪即开始监听前台全屏，保证 ready-to-show 时能读到初始判定
+  startFullscreenWatch();
+
   if (is.dev && process.env["ELECTRON_RENDERER_URL"]) {
     dynamicIslandWindow.loadURL(
       `${process.env["ELECTRON_RENDERER_URL"]}/windows/dynamic-island/index.html`,
@@ -574,7 +654,10 @@ export const createDynamicIslandWindow = (): BrowserWindow => {
 
   dynamicIslandWindow.once("ready-to-show", () => {
     if (!dynamicIslandWindow) return;
-    dynamicIslandWindow.show();
+    // 创建时已有应用处于全屏则不显示，避免"先闪一下再消失"
+    if (!fullscreenWatcher?.isFullscreen()) {
+      dynamicIslandWindow.show();
+    }
     dynamicIslandWindow.setAlwaysOnTop(config.alwaysOnTop, "screen-saver");
     if (config.nonOcclusive) {
       dynamicIslandWindow.setIgnoreMouseEvents(true, { forward: true });
@@ -587,6 +670,7 @@ export const createDynamicIslandWindow = (): BrowserWindow => {
   store.set("windowStates.dynamicIsland.visible", true);
 
   dynamicIslandWindow.on("closed", () => {
+    stopFullscreenWatch();
     stopCursorPolling();
     activeShapeWidth = null;
     dynamicIslandWindow = null;
