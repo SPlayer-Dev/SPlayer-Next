@@ -892,7 +892,7 @@
     },
     "hideExplicitTag": {
       "label": "隐藏脏标",
-      "description": "歌曲列表中不显示 🅴 脏标"
+      "description": "不显示 Explicit 脏标"
     },
     "showSubtitle": {
       "label": "显示副标题",

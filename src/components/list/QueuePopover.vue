@@ -4,7 +4,6 @@ import type { SVirtualListExposed } from "@/components/ui/SVirtualList.vue";
 import { useQueuePanel } from "@/composables/useQueuePanel";
 import { useDragSort } from "@/composables/useDragSort";
 import * as player from "@/core/player";
-import ExplicitTag from "./ExplicitTag.vue";
 
 const emit = defineEmits<{ close: [] }>();
 
@@ -122,10 +121,7 @@ const onClear = (): void => {
             >
               <SImg :src="item.cover" class="size-9 rounded shrink-0" />
               <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-1 min-w-0 text-xs font-medium leading-tight">
-                  <span class="truncate">{{ item.title }}</span>
-                  <ExplicitTag :explicit="item.explicit" />
-                </div>
+                <div class="text-xs truncate font-medium leading-tight">{{ item.title }}</div>
                 <div
                   class="text-[11px] truncate leading-tight mt-0.5"
                   :class="

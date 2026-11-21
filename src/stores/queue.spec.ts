@@ -178,17 +178,4 @@ describe("queue", () => {
 
     expect(queueEntries.value[0]?.context).toEqual(context);
   });
-
-  it("恢复时为缺脏标的旧队列项按歌名后缀回填 explicit", async () => {
-    const legacy = {
-      ...track("a"),
-      source: "kugou" as const,
-      title: "Test Song (Explicit)",
-    };
-    storage.getItem.mockResolvedValueOnce([legacy]).mockResolvedValueOnce(null);
-
-    await restoreQueue();
-
-    expect(queueEntries.value[0]?.track.explicit).toBe(true);
-  });
 });

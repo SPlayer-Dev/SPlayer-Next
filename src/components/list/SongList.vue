@@ -5,7 +5,6 @@ import type { SongListSortKey, SongListSortPreference, SortField, SortOrder } fr
 import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
 import { useSettingsStore } from "@/stores/settings";
-import ExplicitTag from "./ExplicitTag.vue";
 import { useDownloadStore } from "@/stores/download";
 import { useTrackMenu } from "@/composables/useTrackMenu";
 import { useMultiSelect } from "@/composables/useMultiSelect";
@@ -749,16 +748,25 @@ defineExpose({
                   :class="['shrink-0', isCompactList ? 'size-9 rounded-md' : 'size-12 rounded-lg']"
                 />
                 <div class="flex-1 min-w-0">
-                  <div
-                    class="flex items-baseline gap-1.5 min-w-0"
-                    :class="isCompactList ? 'text-sm' : 'text-base'"
-                  >
+                  <div class="flex items-baseline gap-1.5 min-w-0">
                     <span
-                      :class="['font-medium truncate', playingId === item.id ? 'text-primary' : '']"
+                      :class="[
+                        'font-medium truncate',
+                        isCompactList ? 'text-sm' : 'text-base',
+                        playingId === item.id ? 'text-primary' : '',
+                      ]"
                     >
                       {{ item.title }}
                     </span>
-                    <ExplicitTag :explicit="item.explicit" />
+                    <IconSpExplicit
+                      v-if="item.explicit && !settings.preset.hideExplicitTag"
+                      :aria-label="t('songList.explicitTagLabel')"
+                      class="shrink-0 self-center"
+                      :class="[
+                        isCompactList ? 'size-3.5' : 'size-4',
+                        playingId === item.id ? 'text-primary/60' : 'text-on-surface-variant/55',
+                      ]"
+                    />
                     <IconLucideCloud
                       v-if="item.cloud"
                       class="size-3.5 shrink-0 self-center"

@@ -2,7 +2,6 @@
 import type { Track } from "@shared/types/player";
 import type { SVirtualListExposed } from "@/components/ui/SVirtualList.vue";
 import { useQueuePanel } from "@/composables/useQueuePanel";
-import ExplicitTag from "@/components/list/ExplicitTag.vue";
 
 defineEmits<{ close: [] }>();
 
@@ -97,10 +96,7 @@ const {
               />
               <SImg :src="item.cover" class="size-12 rounded-lg shrink-0" />
               <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-1 min-w-0 text-base font-medium leading-snug">
-                  <span class="truncate">{{ item.title }}</span>
-                  <ExplicitTag :explicit="item.explicit" tinted />
-                </div>
+                <div class="text-base truncate font-medium leading-snug">{{ item.title }}</div>
                 <div
                   class="text-sm truncate leading-snug mt-0.5"
                   :class="index === statusStore.playIndex ? 'text-cover/70' : 'text-cover/55'"

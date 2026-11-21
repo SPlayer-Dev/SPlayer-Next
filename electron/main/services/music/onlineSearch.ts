@@ -11,7 +11,7 @@ import type { OnlineSearchResult } from "@shared/types/music";
 const sizedNeteaseCover = (url: string | undefined, size: number): string | undefined =>
   url ? `${url}${url.includes("?param=") ? "" : `?param=${size}y${size}`}` : undefined;
 
-/** 网易云 mark 位标识中的脏标（1 << 20），与渲染层 netease.ts 保持一致 */
+/** NCM mark 位标识中的脏标（1 << 20），与渲染层 netease.ts 保持一致 */
 const NETEASE_EXPLICIT_MARK = 1 << 20;
 
 /**
