@@ -125,13 +125,15 @@ fn worker_loop(rx: &Receiver<TaskbarCommand>, tsfn: &LayoutTsfn) {
             }
 
             TaskbarCommand::Update { width } => {
-                let mut final_width = width;
+                let mut widths = vec![width];
                 let mut stop_signal = false;
                 let mut reinit_requested = false;
 
                 while let Ok(next_msg) = rx.try_recv() {
                     match next_msg {
-                        TaskbarCommand::Update { width: w } => final_width = w,
+                        TaskbarCommand::Update { width: w } => {
+                            widths.push(w);
+                        }
                         TaskbarCommand::Embed { hwnd_ptr } => {
                             if let Some(hwnd) = take_valid_hwnd(hwnd_ptr) {
                                 last_hwnd = Some(hwnd_ptr);
@@ -154,13 +156,27 @@ fn worker_loop(rx: &Receiver<TaskbarCommand>, tsfn: &LayoutTsfn) {
                     break;
                 }
 
-                last_width = final_width;
+                last_width = *widths.last().unwrap_or(&last_width);
 
                 if reinit_requested {
                     do_reinit(&mut strategy, last_hwnd);
+                    // 重建后历史帧对应的旧布局已无意义，只按最新宽度重放一次
+                    let last = widths.pop().unwrap_or(last_width);
+                    widths.clear();
+                    widths.push(last);
                 }
 
-                if !run_update_with_retry(&mut strategy, final_width, tsfn, rx) {
+                // 自动隐藏的滑动动画由 LOCATIONCHANGE 每帧驱动，每个 Update 都对应一帧位置；
+                // 合并成最后一帧会让歌词在动画期间钉在原地、等动画结束才跳到终点
+                let mut stop = false;
+                for w in widths {
+                    last_width = w;
+                    if !run_update_with_retry(&mut strategy, w, tsfn, rx) {
+                        stop = true;
+                        break;
+                    }
+                }
+                if stop {
                     break;
                 }
             }
