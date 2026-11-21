@@ -2,6 +2,13 @@ import type { DesktopLyricSettings, DynamicIslandSettings, TaskbarLyricSettings 
 
 /** 窗口管理 API */
 export interface WindowApi {
+  /** 获取当前渲染页面的实际缩放倍数 */
+  getZoomFactor: () => number;
+  /**
+   * 同步 macOS 原生窗口按钮的显隐状态
+   * @param visible - 是否显示按钮
+   */
+  setTrafficLightsVisible: (visible: boolean) => void;
   /** 静态启动层就绪后显示主窗口 */
   ready: () => Promise<void>;
   /** 启动层退出后启动非必要后台服务 */

@@ -10,7 +10,9 @@ import { MAIN_PARTITION } from "@main/utils/protocol";
 import { isAppQuitting } from "@main/utils/lifecycle";
 import { broadcast } from "@main/utils/broadcast";
 import { CURRENT_AGREEMENT_VERSION } from "@shared/constants/agreement";
+import { MACOS_TITLE_BAR_HEIGHT } from "@shared/constants/window";
 import { coreLog } from "@main/utils/logger";
+import { isMac } from "@main/utils/config";
 import { setMainWindowVisible, setPlayerExpanded } from "@main/utils/powerBlocker";
 
 /** 判断是否应用内部导航 */
@@ -23,9 +25,13 @@ const isInternalNavigation = (url: string): boolean => {
 let mainWindow: BrowserWindow | null = null;
 let firstPaint: Promise<void> = Promise.resolve();
 let startupShown = false;
+let nativeTitleBar = false;
+let startupComplete = false;
+let trafficLightsVisible = true;
 
 /**
  * 创建主窗口
+ * @returns 主窗口实例
  */
 export const createMainWindow = (): BrowserWindow => {
   const remember = store.get("system.rememberWindowState") ?? true;
@@ -33,6 +39,9 @@ export const createMainWindow = (): BrowserWindow => {
   const legacyState = remember ? store.get("windowStates.main") : undefined;
 
   const borderlessWindow = store.get("system.borderlessWindow") ?? true;
+  nativeTitleBar = isMac && !borderlessWindow;
+  startupComplete = false;
+  trafficLightsVisible = true;
 
   mainWindow = createWindow({
     width: legacyState?.width ?? 1280,
@@ -42,6 +51,10 @@ export const createMainWindow = (): BrowserWindow => {
     // 位置、尺寸与最大化状态
     ...(remember ? { name: "main-window", windowStatePersistence: true } : {}),
     frame: !borderlessWindow,
+    // 让网页背景延伸到原生按钮下方，并通过系统安全区避让按钮
+    ...(nativeTitleBar
+      ? { titleBarStyle: "hidden", titleBarOverlay: { height: MACOS_TITLE_BAR_HEIGHT } }
+      : {}),
     webPreferences: {
       partition: MAIN_PARTITION,
       webgl: true,
@@ -50,6 +63,8 @@ export const createMainWindow = (): BrowserWindow => {
     },
   });
 
+  // 原生按钮位于网页启动层之上，加载期间需由主进程隐藏
+  if (nativeTitleBar) mainWindow.setWindowButtonVisibility(false);
   startupShown = false;
   firstPaint = new Promise((resolve) => {
     mainWindow!.once("ready-to-show", resolve);
@@ -70,7 +85,10 @@ export const createMainWindow = (): BrowserWindow => {
   mainWindow.on("hide", () => setMainWindowVisible(false));
   mainWindow.on("minimize", () => setMainWindowVisible(false));
   mainWindow.on("restore", () => setMainWindowVisible(mainWindow!.isVisible()));
-  mainWindow.webContents.on("render-process-gone", () => setPlayerExpanded(false));
+  mainWindow.webContents.on("render-process-gone", () => {
+    setPlayerExpanded(false);
+    setMainWindowTrafficLightsVisible(true);
+  });
   mainWindow.webContents.on("did-start-navigation", (_event, _url, inPlace, isMainFrame) => {
     if (isMainFrame && !inPlace) setPlayerExpanded(false);
   });
@@ -173,6 +191,23 @@ export const showReadyMainWindow = async (): Promise<void> => {
   // file:// 导航可能重置构造参数中的缩放，只在首次绘制完成后校正。
   applyMainWindowZoom();
   win.show();
+};
+
+/** 启动画面退出后恢复主窗口的原生按钮 */
+export const completeMainWindowStartup = (): void => {
+  startupComplete = true;
+  setMainWindowTrafficLightsVisible(trafficLightsVisible);
+};
+
+/**
+ * 同步播放器控件的显隐状态，启动完成前保持原生按钮隐藏
+ * @param visible - 是否显示原生窗口按钮
+ */
+export const setMainWindowTrafficLightsVisible = (visible: boolean): void => {
+  trafficLightsVisible = visible;
+  if (nativeTitleBar && startupComplete) {
+    getMainWindow()?.setWindowButtonVisibility(visible);
+  }
 };
 
 /** 显示并聚焦主窗口（最小化时自动恢复） */

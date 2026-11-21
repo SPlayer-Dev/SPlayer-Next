@@ -1,6 +1,6 @@
 import os from "os";
 import type { PlaybackQueueSnapshot } from "@shared/types/music";
-import { contextBridge, ipcRenderer, webUtils } from "electron";
+import { contextBridge, ipcRenderer, webFrame, webUtils } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
 import type { ExternalApiStatus, McpStatus, TaskbarLyricSettings } from "@shared/types/settings";
 import type {
@@ -370,6 +370,17 @@ const api = {
     clear: () => ipcRenderer.invoke("playlist:clear"),
   },
   window: {
+    /**
+     * 获取当前渲染页面的实际缩放倍数
+     * @returns 界面缩放倍数
+     */
+    getZoomFactor: (): number => webFrame.getZoomFactor(),
+    /**
+     * 同步 macOS 原生窗口按钮的显隐状态
+     * @param visible - 是否显示按钮
+     */
+    setTrafficLightsVisible: (visible: boolean): void =>
+      ipcRenderer.send("window:setTrafficLightsVisible", visible),
     ready: (): Promise<void> => ipcRenderer.invoke("window:ready"),
     startupComplete: (): Promise<void> => ipcRenderer.invoke("window:startupComplete"),
     startupFailed: (error: string): void => ipcRenderer.send("window:startupFailed", error),

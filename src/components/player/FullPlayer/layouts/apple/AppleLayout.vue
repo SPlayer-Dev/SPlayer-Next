@@ -33,7 +33,10 @@ const toggleLyric = (): void => {
 <template>
   <PlayerTopBar />
   <!-- 收起把手 -->
-  <div class="app-no-drag absolute top-4 left-1/2 -translate-x-1/2 z-20">
+  <div
+    class="app-no-drag absolute left-1/2 -translate-x-1/2 z-20"
+    :style="{ top: 'calc(1rem + var(--s-native-titlebar-height))' }"
+  >
     <SButton
       type="cover"
       variant="ghost"
@@ -45,7 +48,7 @@ const toggleLyric = (): void => {
       <span class="block w-14 h-1.2 rounded-full bg-cover/40" />
     </SButton>
   </div>
-  <div class="absolute top-14 inset-x-0 bottom-16">
+  <div class="player-layout-content absolute inset-x-0 bottom-16">
     <!-- 左侧封面与控制 -->
     <div
       class="absolute inset-y-0 left-0 w-[45%] flex items-center justify-center transition-transform duration-500 ease-[cubic-bezier(0.5,0,0.5,1)]"

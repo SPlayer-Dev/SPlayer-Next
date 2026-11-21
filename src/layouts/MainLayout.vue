@@ -160,7 +160,7 @@ const playerBarInnerClass = computed(() => {
 <template>
   <!-- 主界面 -->
   <div
-    class="player-shell h-screen flex overflow-hidden bg-app text-on-surface transition-[transform,opacity] duration-360 ease-[cubic-bezier(0.25,1,0.35,1)] origin-center"
+    class="player-shell h-full flex overflow-hidden bg-app text-on-surface transition-[transform,opacity] duration-360 ease-[cubic-bezier(0.25,1,0.35,1)] origin-center"
     :style="playerTransitionActive ? { transition: 'none' } : undefined"
     :class="isPlayerExpanded && fullPlayerReady ? 'scale-95 opacity-0 pointer-events-none' : ''"
   >

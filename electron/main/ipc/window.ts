@@ -31,6 +31,8 @@ import {
   hideMainWindow,
   getMainWindow,
   showReadyMainWindow,
+  completeMainWindowStartup,
+  setMainWindowTrafficLightsVisible,
 } from "@main/window";
 
 /**
@@ -38,6 +40,11 @@ import {
  * @param onStartupComplete - 由应用核心提供的启动完成回调
  */
 export const registerWindowIpc = (onStartupComplete: () => void): void => {
+  ipcMain.on("window:setTrafficLightsVisible", (event, visible: boolean) => {
+    if (event.sender !== getMainWindow()?.webContents || typeof visible !== "boolean") return;
+    setMainWindowTrafficLightsVisible(visible);
+  });
+
   ipcMain.on("window:setPlayerExpanded", (event, expanded: boolean) => {
     if (event.sender !== getMainWindow()?.webContents || typeof expanded !== "boolean") return;
     setPlayerExpanded(expanded);
@@ -50,6 +57,7 @@ export const registerWindowIpc = (onStartupComplete: () => void): void => {
 
   ipcMain.handle("window:startupComplete", (event) => {
     if (event.sender !== getMainWindow()?.webContents) throw new Error("窗口来源无效");
+    completeMainWindowStartup();
     onStartupComplete();
   });
 

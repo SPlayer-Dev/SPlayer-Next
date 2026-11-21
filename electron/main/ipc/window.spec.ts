@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   on: vi.fn(),
   sender: {},
   showReady: vi.fn(),
+  completeStartup: vi.fn(),
+  setTrafficLightsVisible: vi.fn(),
   showError: vi.fn(),
   quit: vi.fn(),
   logError: vi.fn(),
@@ -22,6 +24,8 @@ vi.mock("@main/utils/powerBlocker", () => ({ setPlayerExpanded: vi.fn() }));
 vi.mock("@main/window", () => ({
   getMainWindow: () => ({ webContents: mocks.sender }),
   showReadyMainWindow: mocks.showReady,
+  completeMainWindowStartup: mocks.completeStartup,
+  setMainWindowTrafficLightsVisible: mocks.setTrafficLightsVisible,
 }));
 
 import { registerWindowIpc } from "./window";
@@ -42,15 +46,32 @@ describe("启动窗口 IPC 职责", () => {
     await shown;
     expect(mocks.showReady).toHaveBeenCalledOnce();
     expect(complete).not.toHaveBeenCalled();
+    expect(mocks.completeStartup).not.toHaveBeenCalled();
     expect(mocks.showError).not.toHaveBeenCalled();
   });
 
-  it("启动完成只通知应用核心调度后续任务", () => {
+  it("只接受主窗口发送的有效按钮显隐状态", () => {
+    const handler = mocks.on.mock.calls.find(
+      ([channel]) => channel === "window:setTrafficLightsVisible",
+    )![1];
+    handler({ sender: {} }, false);
+    handler({ sender: mocks.sender }, "false");
+    expect(mocks.setTrafficLightsVisible).not.toHaveBeenCalled();
+    handler({ sender: mocks.sender }, false);
+    handler({ sender: mocks.sender }, true);
+    expect(mocks.setTrafficLightsVisible.mock.calls).toEqual([[false], [true]]);
+  });
+
+  it("启动完成先恢复窗口按钮，再通知应用核心调度后续任务", () => {
     const handler = mocks.handle.mock.calls.find(
       ([channel]) => channel === "window:startupComplete",
     )![1];
     handler({ sender: mocks.sender });
     expect(complete).toHaveBeenCalledOnce();
+    expect(mocks.completeStartup).toHaveBeenCalledOnce();
+    expect(mocks.completeStartup.mock.invocationCallOrder[0]).toBeLessThan(
+      complete.mock.invocationCallOrder[0],
+    );
     expect(mocks.showReady).not.toHaveBeenCalled();
     expect(mocks.showError).not.toHaveBeenCalled();
   });
@@ -63,6 +84,7 @@ describe("启动窗口 IPC 职责", () => {
     const failed = mocks.on.mock.calls.find(([channel]) => channel === "window:startupFailed")![1];
     failed({ sender: {} }, "加载失败");
     expect(complete).not.toHaveBeenCalled();
+    expect(mocks.completeStartup).not.toHaveBeenCalled();
     expect(mocks.showReady).not.toHaveBeenCalled();
     expect(mocks.showError).not.toHaveBeenCalled();
     expect(mocks.quit).not.toHaveBeenCalled();
@@ -76,5 +98,6 @@ describe("启动窗口 IPC 职责", () => {
     expect(mocks.quit).toHaveBeenCalledOnce();
     expect(mocks.showReady).not.toHaveBeenCalled();
     expect(complete).not.toHaveBeenCalled();
+    expect(mocks.completeStartup).not.toHaveBeenCalled();
   });
 });

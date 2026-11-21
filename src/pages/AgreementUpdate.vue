@@ -23,7 +23,7 @@ const onAccept = async (): Promise<void> => {
 </script>
 
 <template>
-  <div class="flex flex-col h-screen w-screen bg-app text-on-surface overflow-hidden">
+  <div class="flex flex-col h-full w-screen bg-app text-on-surface overflow-hidden">
     <div class="app-drag-region h-16 shrink-0 flex items-center justify-end px-3">
       <WindowControls direct-quit />
     </div>
