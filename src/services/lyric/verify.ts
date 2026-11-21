@@ -7,7 +7,7 @@ import type { LyricFormat, LyricLine } from "lyric-kit";
 
 import { compareLyrics, parseLyric } from "lyric-kit";
 import { applyLyricCjkTransform } from "@/utils/lyric/cjkTransform";
-import type { OnlineResult } from "./resolve";
+import type { ResolvedLyric } from "./resolve";
 
 /** 自动平移上限，偏移再大更可能是不同版本 */
 const MAX_AUTO_SHIFT_MS = 10_000;
@@ -35,12 +35,12 @@ export const parseMainLines = (format: LyricFormat, content: string): LyricLine[
  * @param track - 歌曲信息
  * @returns 可用的候选歌词，需要平移时带上校正量；不通过时为 null
  */
-export const verifyCandidate = async (
+export const verifyCandidate = async <T extends ResolvedLyric>(
   baselineLines: LyricLine[],
   candidateLines: LyricLine[],
-  candidate: OnlineResult,
+  candidate: T,
   track: Track,
-): Promise<OnlineResult | null> => {
+): Promise<T | null> => {
   const options = {
     matchMetadata: { title: track.title, artists: track.artists.map((artist) => artist.name) },
   };
@@ -57,7 +57,7 @@ export const verifyCandidate = async (
   if (comparison.verdict === "shifted" && Math.abs(comparison.offsetMs) <= MAX_AUTO_SHIFT_MS) {
     return { ...candidate, source: { ...candidate.source, timeShiftMs: -comparison.offsetMs } };
   }
-  if (comparison.verdict === "different") {
+  if (comparison.verdict === "different" && candidate.source.platform) {
     // 错误映射还会影响 TTML 和本地歌词库查询
     void window.api.lyrics.forgetMatch(track, candidate.source.platform);
   }

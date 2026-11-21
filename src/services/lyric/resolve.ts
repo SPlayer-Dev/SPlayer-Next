@@ -334,18 +334,25 @@ const shouldTryTTMLByFormat = (mainFormat: LyricFormat | null): boolean => {
   return mainIdx === -1 || ttmlIdx < mainIdx;
 };
 
+/** 用于校验 TTML 覆盖的基准歌词，即当前展示的主歌词 */
+export interface LyricBaseline {
+  format: LyricFormat;
+  content: string;
+}
+
 /**
- * 获取歌曲的 TTML 覆盖版本，优先按平台 ID，未命中时按元数据搜索
+ * 获取歌曲的 TTML 覆盖版本，优先按平台 ID 直取，未命中时按元数据搜索
+ * ID 直取是精确匹配，直接采用；搜索是模糊匹配，有基准歌词时需比对版本
  * @param track - 歌曲信息
- * @param mainFormat - 当前主歌词格式，没有歌词时为 null
+ * @param baseline - 当前展示的主歌词，没有歌词时为 null
  * @returns 可用的 TTML 歌词，无覆盖版本时为 null
  */
 export const resolveTTMLOverlay = async (
   track: Track,
-  mainFormat: LyricFormat | null,
+  baseline: LyricBaseline | null,
 ): Promise<ResolvedLyric | null> => {
   if (track.source === "plugin") return null;
-  if (!shouldTryTTMLByFormat(mainFormat)) return null;
+  if (!shouldTryTTMLByFormat(baseline?.format ?? null)) return null;
   const candidates = await Promise.all(
     TTML_PLATFORMS.map(async (platform) => ({
       platform,
@@ -364,7 +371,14 @@ export const resolveTTMLOverlay = async (
   }
   const searched = await requestTTMLSearch(track);
   if (!searched.ok || !searched.data) return null;
-  return { source: { source: "online", format: "ttml" }, input: { content: searched.data } };
+  const lyric: ResolvedLyric = {
+    source: { source: "online", format: "ttml" },
+    input: { content: searched.data },
+  };
+  const baselineLines = baseline ? parseMainLines(baseline.format, baseline.content) : [];
+  // 无基准时无从比较，与平台搜索的处理保持一致
+  if (baselineLines.length === 0) return lyric;
+  return verifyCandidate(baselineLines, parseMainLines("ttml", searched.data), lyric, track);
 };
 
 /**
