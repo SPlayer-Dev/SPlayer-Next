@@ -5,13 +5,16 @@ import { useSettingsStore } from "@/stores/settings";
 
 const mockRequestPlatformLyric = vi.fn();
 const mockRequestStreamingLyric = vi.fn();
+const mockRequestTTMLOverlay = vi.fn();
+const mockRequestTTMLSearch = vi.fn();
 const mockForgetMatch = vi.fn();
 const mockConvertBatch = vi.fn();
 
 vi.mock("./request", () => ({
   requestPlatformLyric: (...args: unknown[]) => mockRequestPlatformLyric(...args),
   requestStreamingLyric: (...args: unknown[]) => mockRequestStreamingLyric(...args),
-  requestTTMLOverlay: vi.fn(),
+  requestTTMLOverlay: (...args: unknown[]) => mockRequestTTMLOverlay(...args),
+  requestTTMLSearch: (...args: unknown[]) => mockRequestTTMLSearch(...args),
 }));
 
 const mockGetManualMatch = vi.fn();
@@ -51,6 +54,7 @@ window.api = mockWindowApi;
 import {
   resolveOnlineByPreference,
   resolveStreamingByPreference,
+  resolveTTMLOverlay,
   resolveUserLyric,
 } from "./resolve";
 
@@ -513,6 +517,62 @@ describe("resolveOnlineByPreference 候选验证", () => {
 
     expect(result?.source.platform).toBe("qqmusic");
     expect(mockRequestPlatformLyric).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("resolveTTMLOverlay 版本校验", () => {
+  const lyricTexts = Array.from(
+    { length: 12 },
+    (_, index) => `line${index} alpha${index} bravo${index} charlie${index}`,
+  );
+  const baselineLRC = lyricTexts
+    .map((text, index) => `[00:${String(index * 4 + 1).padStart(2, "0")}.00]${text}`)
+    .join("\n");
+  const baseline = { format: "lrc" as const, content: baselineLRC };
+
+  /** 同名异版本：行数与时间相同，但歌词文本完全不同 */
+  const otherVersionTTML = (): string => {
+    const lines = Array.from({ length: 12 }, (_, index) => {
+      const begin = (1 + index * 4).toFixed(2);
+      const end = (4 + index * 4).toFixed(2);
+      return `<p begin="${begin}s" end="${end}s">夜空の向こう ${index} 歌詞 ${index}</p>`;
+    });
+    return `<tt xmlns="http://www.w3.org/ns/ttml"><body><div>${lines.join("")}</div></body></tt>`;
+  };
+
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    vi.clearAllMocks();
+    useSettingsStore().system.lyric.enableOnlineTTMLLyric = true;
+    mockRequestTTMLOverlay.mockResolvedValue({ ok: true, data: null });
+    mockRequestTTMLSearch.mockResolvedValue({ ok: true, data: null });
+  });
+
+  it("搜索到的 TTML 与基准歌词版本不同时不放行", async () => {
+    mockRequestTTMLSearch.mockResolvedValue({ ok: true, data: otherVersionTTML() });
+
+    const result = await resolveTTMLOverlay(createTrack("song"), baseline);
+
+    expect(result).toBeNull();
+  });
+
+  it("平台 ID 命中的 TTML 直接采用，不与基准比对也不走搜索", async () => {
+    mockRequestTTMLOverlay.mockImplementation(async (_track: Track, platform: string) =>
+      platform === "netease" ? { ok: true, data: otherVersionTTML() } : { ok: true, data: null },
+    );
+
+    const result = await resolveTTMLOverlay(createTrack("song"), baseline);
+
+    expect(result?.input.content).toBe(otherVersionTTML());
+    expect(mockRequestTTMLSearch).not.toHaveBeenCalled();
+  });
+
+  it("与基准同版本的 TTML 正常放行", async () => {
+    mockRequestTTMLSearch.mockResolvedValue({ ok: true, data: plainTTML() });
+
+    const result = await resolveTTMLOverlay(createTrack("song"), baseline);
+
+    expect(result?.source).toMatchObject({ source: "online", format: "ttml" });
   });
 });
 

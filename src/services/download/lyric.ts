@@ -50,7 +50,10 @@ const resolveOnlineDownloadLyric = async (
   online: OnlineResult | null,
 ): Promise<DownloadLyric | null> => {
   if (!online) return null;
-  const ttml = await resolveTTMLOverlay(track, online.source.format);
+  const ttml = await resolveTTMLOverlay(track, {
+    format: online.source.format,
+    content: online.input.content,
+  });
   return (
     toUsableDownloadLyric(ttml) ??
     toUsableDownloadLyric({ source: online.source, input: online.input })

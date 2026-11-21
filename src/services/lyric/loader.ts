@@ -20,6 +20,7 @@ import {
   resolveTTMLOverlay,
   resolveUserLyric,
   type LocalLyric,
+  type LyricBaseline,
   type OnlineResult,
   type ResolvedLyric,
 } from "@/services/lyric/resolve";
@@ -166,10 +167,10 @@ let ttmlTriggeredToken = -1;
  * 非阻塞执行，不阻塞基础歌词展示与其它来源抢占
  * @param token - 竞态 token
  * @param track - 歌曲信息
- * @param mainFormat - 当前主歌词格式，没有歌词时为 null
+ * @param baseline - 当前展示的主歌词，没有歌词时为 null
  */
-const applyTTMLOverlay = (token: number, track: Track, mainFormat: LyricFormat | null): void => {
-  resolveTTMLOverlay(track, mainFormat)
+const applyTTMLOverlay = (token: number, track: Track, baseline: LyricBaseline | null): void => {
+  resolveTTMLOverlay(track, baseline)
     .then((ttml) => {
       if (token !== currentToken || !ttml) return;
       commitIfBetter(token, ttml.source, ttml.input);
@@ -189,19 +190,22 @@ const applyLocalTTMLOverlay = (token: number, track: Track): void => {
   const shownFormat = media.parsedLyric.length > 0 ? (media.activeLyric?.format ?? null) : null;
   // 关闭在线优先时不覆盖已有歌词
   if (shownFormat && !useSettingsStore().lyric.smartPreferOnline) return;
-  applyTTMLOverlay(token, track, shownFormat);
+  const baseline = shownFormat
+    ? { format: shownFormat, content: media.lyricContent?.content ?? "" }
+    : null;
+  applyTTMLOverlay(token, track, baseline);
 };
 
 /**
  * 在线歌词就绪后触发 TTML 覆盖，同一轮加载只触发一次
  * @param token - 竞态 token
  * @param track - 歌曲信息
- * @param mainFormat - 当前主歌词格式
+ * @param baseline - 当前展示的主歌词
  */
-const tryApplyTTMLOverlay = (token: number, track: Track, mainFormat: LyricFormat): void => {
+const tryApplyTTMLOverlay = (token: number, track: Track, baseline: LyricBaseline): void => {
   if (token !== currentToken || ttmlTriggeredToken === token) return;
   ttmlTriggeredToken = token;
-  applyTTMLOverlay(token, track, mainFormat);
+  applyTTMLOverlay(token, track, baseline);
 };
 
 /**
@@ -216,7 +220,10 @@ const commitCandidate = (token: number, track: Track, lyric: ResolvedLyric): voi
     lyric.source.source === "online" &&
     !lyric.pinned
   ) {
-    tryApplyTTMLOverlay(token, track, lyric.source.format);
+    tryApplyTTMLOverlay(token, track, {
+      format: lyric.source.format,
+      content: lyric.input.content,
+    });
   }
 };
 
@@ -246,7 +253,10 @@ const applyOnline = (
       commitLocal(token, fallbackLocal);
       return;
     }
-    tryApplyTTMLOverlay(token, track, online.source.format);
+    tryApplyTTMLOverlay(token, track, {
+      format: online.source.format,
+      content: online.input.content,
+    });
     return;
   }
   // 尝试提交在线歌词
@@ -266,7 +276,10 @@ const applyOnline = (
     return;
   }
   // 尝试触发 TTML 覆盖
-  tryApplyTTMLOverlay(token, track, online.source.format);
+  tryApplyTTMLOverlay(token, track, {
+    format: online.source.format,
+    content: online.input.content,
+  });
 };
 
 /**
