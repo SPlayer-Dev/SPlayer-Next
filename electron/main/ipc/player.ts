@@ -43,7 +43,13 @@ import { getMainWindow, setTaskbarProgress } from "@main/window";
 import { store } from "@main/store";
 import { appName, getSongCacheDir } from "@main/utils/config";
 import * as songCache from "@main/services/songCache";
-import { parseArtists, parseAlbum, formatArtists, artistNames } from "@main/utils/metadata";
+import {
+  parseArtists,
+  parseAlbum,
+  formatArtists,
+  artistNames,
+  resolveTrackMprisUrl,
+} from "@main/utils/metadata";
 import { playerLog } from "@main/utils/logger";
 import { updatePowerBlocker, releasePowerBlocker } from "@main/utils/powerBlocker";
 import { ErrorCode } from "@shared/types/errors";
@@ -335,6 +341,10 @@ const completeTrackLoad = (
   const localCover = isRemote ? null : (getPlayer().getCoverRaw() ?? null);
   const artistText = formatArtists(displayArtists);
   const header = artistText ? `${displayTitle} - ${artistText}` : displayTitle || appName;
+  const trackUrl = store.get("media.mprisExtendedMetadata")
+    ? resolveTrackMprisUrl(authoritative, source)
+    : undefined;
+  const initialLyrics = store.get("media.mprisExtendedMetadata") ? meta.embeddedLyric : undefined;
   mediaService.setMetadata({
     title: displayTitle,
     artists: artistNames(displayArtists),
@@ -342,6 +352,8 @@ const completeTrackLoad = (
     coverData: localCover ?? undefined,
     coverUrl,
     durationMs,
+    url: trackUrl,
+    lyrics: initialLyrics,
   });
   mediaService.setPlayState({ status: autoPlay ? "Playing" : "Paused" });
   getMainWindow()?.setTitle(header);
@@ -366,6 +378,8 @@ const completeTrackLoad = (
         coverData: buf,
         coverUrl,
         durationMs,
+        url: trackUrl,
+        lyrics: mediaService.getCurrentMetadata()?.lyrics ?? initialLyrics,
       });
       setTaskbarThumbnailCover(buf);
     });
@@ -601,6 +615,9 @@ export const registerPlayerIpc = (): void => {
       ): void => {
         const artistText = formatArtists(artists);
         const header = artistText ? `${title} - ${artistText}` : title || appName;
+        const optimisticUrl = store.get("media.mprisExtendedMetadata")
+          ? resolveTrackMprisUrl(authoritative, source)
+          : undefined;
         mediaService.setMetadata({
           title,
           artists: artistNames(artists),
@@ -608,6 +625,7 @@ export const registerPlayerIpc = (): void => {
           coverData,
           coverUrl,
           durationMs,
+          url: optimisticUrl,
         });
         mediaService.setPlayState({ status: autoPlay ? "Playing" : "Paused" });
         getMainWindow()?.setTitle(header);
