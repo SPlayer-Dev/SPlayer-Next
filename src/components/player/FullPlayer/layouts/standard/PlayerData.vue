@@ -171,6 +171,11 @@ const alignItems = computed(() => {
     <!-- 标题 -->
     <SMarquee fit class="max-w-full text-[2em] font-semibold leading-tight">
       {{ displayTrack.title }}
+      <IconSpExplicit
+        v-if="displayTrack.explicit && !settings.preset.hideExplicitTag"
+        :aria-label="t('songList.explicitTagLabel')"
+        class="inline-block align-[-0.1em] ml-1.5 size-[0.65em] text-cover/75"
+      />
     </SMarquee>
     <!-- 副标题/注释 -->
     <div

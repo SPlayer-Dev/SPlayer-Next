@@ -1,4 +1,5 @@
 import type { QMSong } from "@shared/types/platform/qqmusic";
+import { isExplicitLabel, stripExplicitLabel } from "@shared/utils/explicit";
 import { formatSingerName } from "./config";
 
 /** 搜索、专辑与歌手接口共用的上游歌曲结构 */
@@ -7,6 +8,8 @@ export interface QMAudioInfo {
   mid?: string;
   title?: string;
   name?: string;
+  /** 标题中超出原名部分的展示后缀（如 Explicit 版本标记） */
+  title_extra?: string;
   interval?: number;
   singer?: Array<{ id?: number; mid?: string; name?: string }>;
   album?: { mid?: string; name?: string; title?: string; pmid?: string };
@@ -40,10 +43,13 @@ export interface QMAudioInfo {
 export const normalizeQMSong = (song: QMAudioInfo, albumMid = ""): QMSong => {
   const mid = song.album?.mid ?? albumMid;
   const pictureMid = mid || song.album?.pmid;
+  const rawTitle = song.title ?? song.name ?? "";
+  const explicit = isExplicitLabel(song.title_extra) || isExplicitLabel(rawTitle);
   return {
     id: String(song.id ?? ""),
     mid: song.mid ?? "",
-    name: song.title ?? song.name ?? "",
+    name: explicit ? stripExplicitLabel(rawTitle) : rawTitle,
+    explicit: explicit || undefined,
     artist: formatSingerName(song.singer),
     artists: song.singer ?? [],
     album: song.album?.name || song.album?.title || "",

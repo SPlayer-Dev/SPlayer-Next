@@ -2,6 +2,9 @@ import type { Album, Artist, AudioQuality, Playlist, Track } from "@shared/types
 import type { UserSubcount } from "@/types/user";
 import type { NeteaseSong } from "@shared/types/platform/netease";
 
+/** NCM mark 位标识中的脏标（1 << 20） */
+const NETEASE_EXPLICIT_MARK = 1 << 20;
+
 interface NeteaseError {
   code?: number;
   message?: string;
@@ -106,6 +109,7 @@ export const songToTrack = (song: NeteaseSong): Track => {
     coverOriginal,
     quality: pickQuality(song),
     fee: song.fee,
+    explicit: song.mark != null && (song.mark & NETEASE_EXPLICIT_MARK) !== 0 ? true : undefined,
     cloud: song.pc != null ? true : undefined,
   };
 };

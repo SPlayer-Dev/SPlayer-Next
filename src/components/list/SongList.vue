@@ -865,6 +865,15 @@ defineExpose({
                     >
                       {{ item.title }}
                     </span>
+                    <IconSpExplicit
+                      v-if="item.explicit && !settings.preset.hideExplicitTag"
+                      :aria-label="t('songList.explicitTagLabel')"
+                      class="shrink-0 self-center"
+                      :class="[
+                        isCompactList ? 'size-3.5' : 'size-4',
+                        playingId === item.id ? 'text-primary/60' : 'text-on-surface-variant/55',
+                      ]"
+                    />
                     <IconLucideCloud
                       v-if="item.cloud"
                       class="size-3.5 shrink-0 self-center"

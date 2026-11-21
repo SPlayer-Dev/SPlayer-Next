@@ -1,5 +1,6 @@
 import { decodeName, fillCover } from "./config";
 import type { KGSong, Quality } from "@shared/types/platform/kugou";
+import { isExplicitLabel, stripExplicitLabel } from "@shared/utils/explicit";
 
 export interface KGAudioInfo {
   hash?: string;
@@ -38,7 +39,7 @@ export interface KGResourceSong {
   album_info?: { album_name?: string; cover?: string };
   /** 专辑内碟片信息，disc 从 1 开始 */
   extend?: { disc?: number; cd_name?: string };
-  trans_param?: { union_cover?: string };
+  trans_param?: { union_cover?: string; songname_suffix?: string };
   deprecated?: {
     pay_type?: number;
     pkg_price?: number;
@@ -102,13 +103,16 @@ export const normalizeKGSong = (raw: KGResourceSong, defaults: SongDefaults = {}
         .filter(Boolean)
         .map((name) => ({ id: undefined, name: decodeName(name.trim()) }));
   const hash = audio.hash_128 || audio.hash || "";
+  const rawName = decodeName(base.audio_name);
+  const explicit = isExplicitLabel(raw.trans_param?.songname_suffix) || isExplicitLabel(rawName);
 
   return {
     id: String(base.audio_id || hash),
     audioId: base.audio_id ?? 0,
     albumAudioId: base.album_audio_id,
     hash,
-    name: decodeName(base.audio_name),
+    name: explicit ? stripExplicitLabel(rawName) : rawName,
+    explicit: explicit || undefined,
     artist: artists.map((artist) => artist.name).join(" / "),
     artistId: artists[0]?.id,
     artists,

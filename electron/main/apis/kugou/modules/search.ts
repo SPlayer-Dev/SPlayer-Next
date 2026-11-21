@@ -15,6 +15,7 @@ import {
   fillCover,
   formatSingerName,
 } from "../core/config";
+import { isExplicitLabel, stripExplicitLabel } from "@shared/utils/explicit";
 import { kgGatewayRequest, kgRequest } from "../core/request";
 import type {
   KGAlbumItem,
@@ -55,6 +56,8 @@ interface MobileSong {
   trans_param?: {
     union_cover?: string;
     pay_block_tpl?: number;
+    /** 歌名后缀（如 "(Explicit)"、"(Live)"） */
+    songname_suffix?: string;
   };
 }
 
@@ -176,13 +179,16 @@ const normalizeFromMobile = (raw: MobileSong): KGSong => {
   const coverTpl = raw.trans_param?.union_cover;
   const artistName = formatMobileArtist(raw.singername);
   const artists = artistName ? artistName.split(" / ").map((name) => ({ id: name, name })) : [];
+  const rawName = decodeName(raw.songname || raw.filename || "");
+  const explicit = isExplicitLabel(raw.trans_param?.songname_suffix) || isExplicitLabel(rawName);
 
   return {
     id: String(raw.audio_id || raw.hash || ""),
     audioId: raw.audio_id ?? 0,
     albumAudioId: raw.album_audio_id,
     hash: raw.hash ?? "",
-    name: decodeName(raw.songname || raw.filename || ""),
+    name: explicit ? stripExplicitLabel(rawName) : rawName,
+    explicit: explicit || undefined,
     artist: artistName,
     artists,
     album: decodeName(raw.album_name ?? ""),
@@ -236,12 +242,16 @@ const normalizeFromLegacy = (raw: LegacySong): KGSong => {
       ? [{ id: artistName, name: artistName }]
       : [];
 
+  const rawName = decodeName(raw.SongName);
+  const explicit = isExplicitLabel(rawName);
+
   return {
     id: String(raw.Audioid || raw.FileHash || ""),
     audioId: raw.Audioid,
     albumAudioId: raw.MixSongID ?? raw.AlbumAudioId,
     hash: raw.FileHash,
-    name: decodeName(raw.SongName),
+    name: explicit ? stripExplicitLabel(rawName) : rawName,
+    explicit: explicit || undefined,
     artist: artistName,
     artists,
     album: decodeName(raw.AlbumName ?? ""),
