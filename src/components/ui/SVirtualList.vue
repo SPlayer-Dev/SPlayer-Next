@@ -380,43 +380,55 @@ defineExpose({
       <div v-if="$slots.header" class="shrink-0">
         <slot name="header" />
       </div>
-      <div
-        ref="scrollRef"
-        class="flex-1 min-h-0 overflow-y-auto"
-        :class="[
-          hideScrollbar ? '[&::-webkit-scrollbar]:hidden' : '[scrollbar-gutter:stable]',
-          cover
-            ? '[&::-webkit-scrollbar-thumb]:bg-cover/25 [&::-webkit-scrollbar-thumb:hover]:bg-cover/45'
-            : '',
-        ]"
-        @scroll="handleScroll"
-      >
+      <div class="relative flex-1 min-h-0">
         <div
-          v-show="items.length > 0"
-          :style="{
-            height: `${totalHeight}px`,
-            position: 'relative',
-            transition: 'height 0.3s ease',
-          }"
+          v-if="$slots.sticky"
+          class="pointer-events-none absolute inset-x-0 top-0 z-10 overflow-hidden"
         >
-          <div ref="contentRef" class="absolute inset-x-0 top-0">
-            <div
-              v-for="(item, visibleIdx) in visibleItems"
-              :key="getItemKey(item, actualStartIndex + visibleIdx)"
-              ref="itemRefs"
-              :data-index="actualStartIndex + visibleIdx"
-              class="absolute inset-x-0 top-0 contain-[layout_paint]"
-              :style="{ transform: `translateY(${getItemTop(actualStartIndex + visibleIdx)}px)` }"
-            >
-              <slot :item="item" :index="actualStartIndex + visibleIdx" />
+          <slot name="sticky" />
+        </div>
+        <div
+          ref="scrollRef"
+          class="h-full overflow-y-auto"
+          :class="[
+            hideScrollbar ? '[&::-webkit-scrollbar]:hidden' : '[scrollbar-gutter:stable]',
+            cover
+              ? '[&::-webkit-scrollbar-thumb]:bg-cover/25 [&::-webkit-scrollbar-thumb:hover]:bg-cover/45'
+              : '',
+          ]"
+          @scroll="handleScroll"
+        >
+          <div
+            v-show="items.length > 0"
+            :style="{
+              height: `${totalHeight}px`,
+              position: 'relative',
+              transition: 'height 0.3s ease',
+            }"
+          >
+            <div ref="contentRef" class="absolute inset-x-0 top-0">
+              <div
+                v-for="(item, visibleIdx) in visibleItems"
+                :key="getItemKey(item, actualStartIndex + visibleIdx)"
+                ref="itemRefs"
+                :data-index="actualStartIndex + visibleIdx"
+                class="absolute inset-x-0 top-0 contain-[layout_paint]"
+                :style="{ transform: `translateY(${getItemTop(actualStartIndex + visibleIdx)}px)` }"
+              >
+                <slot :item="item" :index="actualStartIndex + visibleIdx" />
+              </div>
             </div>
           </div>
+          <div v-if="$slots.footer && items.length > 0" class="shrink-0">
+            <slot name="footer" />
+          </div>
+          <!-- 底部 spacer -->
+          <div
+            v-if="paddingBottom > 0"
+            class="shrink-0"
+            :style="{ height: `${paddingBottom}px` }"
+          />
         </div>
-        <div v-if="$slots.footer && items.length > 0" class="shrink-0">
-          <slot name="footer" />
-        </div>
-        <!-- 底部 spacer -->
-        <div v-if="paddingBottom > 0" class="shrink-0" :style="{ height: `${paddingBottom}px` }" />
       </div>
     </template>
   </div>
