@@ -29,6 +29,7 @@ interface RawPlaylistSong {
   privilege?: number;
   download?: Array<{ hash?: string; pay_type?: number }>;
   relate_goods?: Array<{ level?: number; hash?: string; size?: number }>;
+  trans_param?: { union_cover?: string; songname_suffix?: string };
 }
 
 interface PlaylistPageResponse {
@@ -72,6 +73,7 @@ const normalizePlaylistSong = (raw: RawPlaylistSong): KGSong => {
       author_name: singer.name,
     })),
     album_info: { album_name: raw.albuminfo?.name, cover: raw.cover },
+    trans_param: raw.trans_param,
     copyright: { privilege: raw.privilege },
     deprecated: {
       pay_type: raw.download?.find((item) => item.hash === raw.hash)?.pay_type,

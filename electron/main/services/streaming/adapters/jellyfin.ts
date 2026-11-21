@@ -2,6 +2,7 @@ import type { Album, Artist, Playlist, Track } from "@shared/types/player";
 import type { StreamingPingResult } from "@shared/types/streaming";
 import type { StreamingRuntimeConfig } from "@shared/types/streaming";
 import type { StreamingAdapter } from "./types";
+import { isExplicitLabel, stripExplicitLabel } from "@shared/utils/explicit";
 import { StreamingRequestError, isUnsupportedEndpoint } from "../errors";
 import { streamPages } from "../pagination";
 import { toStreamingLyrics } from "../lyrics";
@@ -34,6 +35,10 @@ interface JellyItem {
   ParentIndexNumber?: number;
   ProductionYear?: number;
   ChildCount?: number;
+  /** 媒体条目标签（如 iTunes 脏标 ITUNESADVISORY） */
+  Tags?: string[];
+  /** 脏标识别用的官方分级（如 Explicit） */
+  OfficialRating?: string;
   ImageTags?: { Primary?: string };
   MediaSources?: {
     Id?: string;
@@ -198,6 +203,21 @@ const imageUrl = (
 };
 
 /**
+ * 判断 Jellyfin/Emby 条目标签是否标记 Explicit
+ * MusicTags 等插件按「名称:值」写入条目标签，ITUNESADVISORY:1 为脏标、:2 为 clean
+ * @param tag - 服务端条目标签
+ * @returns 标签是否表示显式内容
+ */
+const isExplicitTag = (tag: string): boolean => {
+  const [rawName, rawValue] = tag.split(":", 2);
+  const name = rawName.trim().toUpperCase();
+  if (name === "EXPLICIT") return true;
+  if (name !== "ITUNESADVISORY") return false;
+  const value = rawValue?.trim();
+  return value === undefined || value === "" || value === "1";
+};
+
+/**
  * 转换 Jellyfin/Emby 歌曲
  * @param config - 主进程服务器配置
  * @param item - 服务端媒体条目
@@ -208,6 +228,18 @@ const toTrack = (config: StreamingRuntimeConfig, item: JellyItem): Track => {
   const audioStream = mediaSource?.MediaStreams?.find((stream) => stream.Type === "Audio");
   const imageTag = item.ImageTags?.Primary ?? item.AlbumPrimaryImageTag;
   const coverId = item.ImageTags?.Primary ? item.Id : item.AlbumId;
+  const title = item.Name ?? "";
+  /**
+   * 脏标识别：Tags 命中约定值、官方分级包含 Explicit 或标题带 Explicit 后缀；
+   * ParentalRatingValue 为 0 表示未分级，不能用
+   */
+  const explicitFromTitle = isExplicitLabel(title);
+  const explicit =
+    item.Tags?.some(isExplicitTag) ||
+    (item.OfficialRating?.toLowerCase().includes("explicit") ?? false) ||
+    explicitFromTitle
+      ? true
+      : undefined;
   return {
     id: `${config.id}:${item.Id}`,
     source: "streaming",
@@ -215,7 +247,7 @@ const toTrack = (config: StreamingRuntimeConfig, item: JellyItem): Track => {
     originalId: item.Id,
     serverRevision: config.mediaRevision ?? 0,
     favorite: Boolean(item.UserData?.IsFavorite),
-    title: item.Name ?? "",
+    title: explicitFromTitle ? stripExplicitLabel(title) : title,
     artists:
       (item.ArtistItems?.length
         ? item.ArtistItems.map((artist) => ({
@@ -232,6 +264,7 @@ const toTrack = (config: StreamingRuntimeConfig, item: JellyItem): Track => {
     cover: coverId ? imageUrl(config, coverId, imageTag, 300) : undefined,
     coverOriginal: coverId ? imageUrl(config, coverId, imageTag, 1500) : undefined,
     fileSize: mediaSource?.Size,
+    explicit,
     quality: {
       sampleRate: audioStream?.SampleRate ?? 0,
       channels: audioStream?.Channels ?? 2,
@@ -412,7 +445,7 @@ export const jellyfinAdapter: StreamingAdapter = {
       Recursive: "true",
       SortBy: "SortName",
       SortOrder: "Ascending",
-      Fields: "MediaSources",
+      Fields: "MediaSources,Tags",
       Limit: params?.limit ?? 100,
       StartIndex: params?.offset ?? 0,
     });
@@ -475,7 +508,7 @@ export const jellyfinAdapter: StreamingAdapter = {
     const items = await fetchAllItems(config, {
       ParentId: albumId,
       IncludeItemTypes: "Audio",
-      Fields: "MediaSources",
+      Fields: "MediaSources,Tags",
       SortBy: "ParentIndexNumber,IndexNumber,SortName",
     });
     return items.map((item) => toTrack(config, item));
@@ -490,7 +523,7 @@ export const jellyfinAdapter: StreamingAdapter = {
   async getPlaylistSongs(config, playlistId) {
     const items = await fetchAllItems(
       config,
-      { Fields: "MediaSources" },
+      { Fields: "MediaSources,Tags" },
       `Playlists/${playlistId}/Items`,
       (item) => item.PlaylistItemId,
     );
@@ -525,7 +558,7 @@ export const jellyfinAdapter: StreamingAdapter = {
       ArtistIds: artistId,
       IncludeItemTypes: "Audio",
       Recursive: "true",
-      Fields: "MediaSources",
+      Fields: "MediaSources,Tags",
       SortBy: "Album,ParentIndexNumber,IndexNumber,SortName",
     });
     return items.map((item) => toTrack(config, item));

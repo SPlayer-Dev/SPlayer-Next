@@ -9,6 +9,7 @@
 
 import { QM_HEADERS, formatSingerName } from "../core/config";
 import type { QMSong } from "@shared/types/platform/qqmusic";
+import { isExplicitLabel, stripExplicitLabel } from "@shared/utils/explicit";
 import type { QMModule } from "../core/types";
 
 interface CdSongItem {
@@ -72,23 +73,28 @@ const songList: QMModule = async (params) => {
   const cd = data.cdlist?.[0];
   if (!cd) return { code: 404, message: "歌单不存在" };
 
-  const songs: QMSong[] = (cd.songlist ?? []).map((item) => ({
-    id: String(item.songid ?? ""),
-    mid: item.songmid ?? "",
-    name: item.songname ?? "",
-    artist: formatSingerName(item.singer),
-    artists: item.singer ?? [],
-    album: item.albumname ?? "",
-    albumMid: item.albummid ?? "",
-    duration: (item.interval ?? 0) * 1000,
-    mediaMid: item.strMediaMid ?? "",
-    pay: item.pay,
-    size128: item.size128 ?? 0,
-    size320: item.size320 ?? 0,
-    sizeApe: item.sizeape ?? 0,
-    sizeFlac: item.sizeflac ?? 0,
-    sizeOgg: item.sizeogg ?? 0,
-  }));
+  const songs: QMSong[] = (cd.songlist ?? []).map((item) => {
+    const rawName = item.songname ?? "";
+    const explicit = isExplicitLabel(rawName);
+    return {
+      id: String(item.songid ?? ""),
+      mid: item.songmid ?? "",
+      name: explicit ? stripExplicitLabel(rawName) : rawName,
+      explicit: explicit || undefined,
+      artist: formatSingerName(item.singer),
+      artists: item.singer ?? [],
+      album: item.albumname ?? "",
+      albumMid: item.albummid ?? "",
+      duration: (item.interval ?? 0) * 1000,
+      mediaMid: item.strMediaMid ?? "",
+      pay: item.pay,
+      size128: item.size128 ?? 0,
+      size320: item.size320 ?? 0,
+      sizeApe: item.sizeape ?? 0,
+      sizeFlac: item.sizeflac ?? 0,
+      sizeOgg: item.sizeogg ?? 0,
+    };
+  });
 
   return {
     code: 200,

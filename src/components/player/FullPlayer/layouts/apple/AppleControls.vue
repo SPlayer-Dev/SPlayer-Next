@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Artist } from "@shared/types/player";
+import ExplicitTag from "@/components/list/ExplicitTag.vue";
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import { useFavorite } from "@/composables/useFavorite";
@@ -85,6 +86,7 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
       <div class="flex-1 min-w-0">
         <SMarquee fit class="max-w-full font-medium tracking-[0.4px] text-cover/90">
           {{ displayTrack?.title }}
+          <ExplicitTag :explicit="displayTrack?.explicit" tinted class="ml-1" />
         </SMarquee>
         <div class="truncate tracking-[0.4px] text-cover/45">
           <template v-if="artists.length">

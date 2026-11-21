@@ -11,6 +11,9 @@ import type { OnlineSearchResult } from "@shared/types/music";
 const sizedNeteaseCover = (url: string | undefined, size: number): string | undefined =>
   url ? `${url}${url.includes("?param=") ? "" : `?param=${size}y${size}`}` : undefined;
 
+/** 网易云 mark 位标识中的脏标（1 << 20），与渲染层 netease.ts 保持一致 */
+const NETEASE_EXPLICIT_MARK = 1 << 20;
+
 /**
  * 将 NCM 搜索歌曲转换为共用的轻量歌曲
  * @param song - NCM 歌曲
@@ -36,6 +39,7 @@ const neteaseToTrack = (song: NeteaseSong): Track => {
     cover,
     coverOriginal: sizedNeteaseCover(album?.picUrl, 1024),
     fee: song.fee,
+    explicit: song.mark != null && (song.mark & NETEASE_EXPLICIT_MARK) !== 0 ? true : undefined,
   };
 };
 
@@ -59,6 +63,7 @@ const qqMusicToTrack = (song: QMSong): Track => {
     duration: song.duration ?? 0,
     cover,
     coverOriginal: song.albumMid ? qqCover(song.albumMid, 800) : undefined,
+    explicit: song.explicit || undefined,
   };
 };
 
@@ -76,6 +81,7 @@ const kugouToTrack = (song: KGSong): Track => ({
   duration: song.duration ?? 0,
   cover: song.cover,
   coverOriginal: song.coverOriginal,
+  explicit: song.explicit || undefined,
 });
 
 /**

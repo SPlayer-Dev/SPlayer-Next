@@ -31,6 +31,8 @@ interface SubsonicSong {
   coverArt?: string;
   artists?: { id?: string; name: string }[];
   displayArtist?: string;
+  /** OpenSubsonic 露骨内容状态（explicit / clean / 空） */
+  explicitStatus?: string;
 }
 
 interface SubsonicAlbum {
@@ -182,6 +184,7 @@ const toTrack = (config: StreamingRuntimeConfig, song: SubsonicSong): Track => {
     cover: coverUrl(config, song.coverArt, 300),
     coverOriginal: coverUrl(config, song.coverArt, 1500),
     fileSize: song.size,
+    explicit: song.explicitStatus === "explicit" ? true : undefined,
     quality: {
       sampleRate: song.samplingRate ?? 0,
       channels: song.channelCount ?? 2,

@@ -116,6 +116,7 @@ export const kgSongToTrack = (song: KGSong): Track => {
     quality: audio?.quality,
     fileSize: audio?.fileSize,
     fee: kgTrackFee(song),
+    explicit: song.explicit || undefined,
     cover: song.cover,
     coverOriginal: song.coverOriginal,
   };

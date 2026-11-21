@@ -176,6 +176,7 @@ export const useSettingsStore = defineStore(
       skipTrackKeywords: [...DEFAULT_SKIP_TRACK_KEYWORDS],
       hideVipTag: false,
       hideQualityTag: false,
+      hideExplicitTag: false,
       showSubtitle: true,
     });
 

@@ -5,6 +5,7 @@ import type { SongListSortKey, SongListSortPreference, SortField, SortOrder } fr
 import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
 import { useSettingsStore } from "@/stores/settings";
+import ExplicitTag from "./ExplicitTag.vue";
 import { useDownloadStore } from "@/stores/download";
 import { useTrackMenu } from "@/composables/useTrackMenu";
 import { useMultiSelect } from "@/composables/useMultiSelect";
@@ -839,16 +840,16 @@ defineExpose({
                   :class="['shrink-0', isCompactList ? 'size-9 rounded-md' : 'size-12 rounded-lg']"
                 />
                 <div class="flex-1 min-w-0">
-                  <div class="flex items-baseline gap-1.5 min-w-0">
+                  <div
+                    class="flex items-baseline gap-1.5 min-w-0"
+                    :class="isCompactList ? 'text-sm' : 'text-base'"
+                  >
                     <span
-                      :class="[
-                        'font-medium truncate',
-                        isCompactList ? 'text-sm' : 'text-base',
-                        playingId === item.id ? 'text-primary' : '',
-                      ]"
+                      :class="['font-medium truncate', playingId === item.id ? 'text-primary' : '']"
                     >
                       {{ item.title }}
                     </span>
+                    <ExplicitTag :explicit="item.explicit" />
                     <IconLucideCloud
                       v-if="item.cloud"
                       class="size-3.5 shrink-0 self-center"

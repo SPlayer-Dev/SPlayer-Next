@@ -11,6 +11,7 @@
 
 import { qmRequest } from "../core/request";
 import { formatSingerName } from "../core/config";
+import { isExplicitLabel, stripExplicitLabel } from "@shared/utils/explicit";
 import type { QMModule } from "../core/types";
 
 interface ToplistSong {
@@ -48,15 +49,20 @@ const leaderboard: QMModule = async (params) => {
   const songs = (data?.songInfoList ?? [])
     .map((item) => item.songInfo)
     .filter((song): song is NonNullable<ToplistSong["songInfo"]> => !!song)
-    .map((song) => ({
-      id: String(song.id ?? ""),
-      mid: song.mid ?? "",
-      name: song.title ?? "",
-      artist: formatSingerName(song.singer),
-      album: song.album?.name ?? "",
-      albumMid: song.album?.mid ?? "",
-      duration: (song.interval ?? 0) * 1000,
-    }));
+    .map((song) => {
+      const rawTitle = song.title ?? "";
+      const explicit = isExplicitLabel(rawTitle);
+      return {
+        id: String(song.id ?? ""),
+        mid: song.mid ?? "",
+        name: explicit ? stripExplicitLabel(rawTitle) : rawTitle,
+        explicit: explicit || undefined,
+        artist: formatSingerName(song.singer),
+        album: song.album?.name ?? "",
+        albumMid: song.album?.mid ?? "",
+        duration: (song.interval ?? 0) * 1000,
+      };
+    });
 
   return {
     code: 200,
