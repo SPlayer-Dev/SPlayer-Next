@@ -434,7 +434,10 @@ const loadTrack = async (
       }
     }
   }
-  if (shouldSkip) await skipOnFailure(myToken, () => trackToken, autoPlay);
+  // 单曲循环重启的加载失败不自动跳曲（仅限被重启的那首曲目），避免打断单曲循环语义；
+  // 用户在窗口内手动切到其他歌的失败照常跳曲
+  const restartIntentApplies = inRestartIntentWindow() && track.id === restartIntentTrackId;
+  if (shouldSkip && !restartIntentApplies) await skipOnFailure(myToken, () => trackToken, autoPlay);
 };
 
 /**
@@ -499,11 +502,16 @@ let sourceRecoveryTrackId: string | null = null;
 /**
  * 源失效恢复
  * 重载一次后仍失败则放弃跳曲，保持恢复前的播放 / 暂停态
+ * 单曲循环重启期间的源失效按重启意图处理：重载后强制续播，仍失败则保持暂停不跳曲
  */
 export const recoverFromSourceFailure = async (): Promise<void> => {
   const track = useMediaStore().track;
   if (!track) return;
-  const wasPlaying = useStatusStore().isPlaying;
+  // 重启窗口内播放状态已被自然结束的 Stopped 通知置为停止，续播意图以重启为准
+  // 不能用进行中布尔标记：seek 返回清除标记和 sourceError 事件处理之间存在 IPC 时序差
+  const restarting = inRestartIntentWindow();
+  const wasPlaying = restarting || useStatusStore().isPlaying;
+  if (restarting) console.info("[player:recovery] 单曲重启源失效，重载本曲");
   const myPauseToken = pauseToken;
   // 本地文件源失效（文件被删/磁盘错误）没有重载意义，直接跳曲
   if (track.source === "local") {
@@ -514,7 +522,16 @@ export const recoverFromSourceFailure = async (): Promise<void> => {
     sourceRecoveryTrackId = track.id;
     sourceRecoveryCount = 0;
   }
-  // 最多重载一次
+  // 重启路径不受重载预算限制：URL 过期后每圈结束都应重新解析新地址，
+  // 病理性的连续失败由 15 秒意图窗口过期后转入常规路径兜底
+  // 用户在重启之后主动暂停过则只重载不强制续播，尊重暂停意图
+  if (restarting) {
+    const forcePlay = pauseToken === restartIntentPauseToken || undefined;
+    const ok = await reloadCurrentTrack(forcePlay);
+    if (!ok) console.info("[player:recovery] 单曲重启重载失败，保持暂停不跳曲");
+    return;
+  }
+  // 常规路径（非重启期的源失效）：同一首歌最多静默重载一次，再失败跳曲
   if (sourceRecoveryCount >= 1) {
     sourceRecoveryCount = 0;
     await nextTrack(wasPlaying);
@@ -561,6 +578,19 @@ export const play = async (): Promise<void> => {
   }
 };
 
+/** 单曲循环重启意图的有效窗口，需覆盖重启 seek 失败到 sourceError 到达的整段延迟 */
+const RESTART_INTENT_WINDOW_MS = 15000;
+/** 最近一次单曲循环重启发起的时间，0 表示近期没有重启 */
+let restartIntentAt = 0;
+/** 重启发起时的暂停代次，用户在重启之后主动暂停则不强制续播 */
+let restartIntentPauseToken = 0;
+/** 重启针对的曲目，重启窗口内仅对该曲自身的加载失败抑制自动跳曲 */
+let restartIntentTrackId: string | null = null;
+
+/** 是否处于单曲循环重启意图窗口内，窗口内的源失效按"继续播放本曲"处理 */
+const inRestartIntentWindow = (): boolean =>
+  Date.now() - restartIntentAt < RESTART_INTENT_WINDOW_MS;
+
 /** 自然结束后重播当前歌曲，流媒体重新取址并建立独立会话 */
 export const restartCurrentTrack = async (): Promise<void> => {
   const media = useMediaStore();
@@ -568,6 +598,9 @@ export const restartCurrentTrack = async (): Promise<void> => {
   if (!track) return;
   const status = useStatusStore();
   const myPauseToken = pauseToken;
+  restartIntentAt = Date.now();
+  restartIntentPauseToken = pauseToken;
+  restartIntentTrackId = track.id;
   if (track.source === "streaming") {
     const loading = loadTrack(track, media.playbackContext, false);
     const token = trackToken;
@@ -580,6 +613,8 @@ export const restartCurrentTrack = async (): Promise<void> => {
     if (token !== trackToken || myPauseToken !== pauseToken) return;
   }
   await play();
+  // 重启成功恢复播放，本曲的源失效重载预算重新计
+  sourceRecoveryCount = 0;
 };
 
 /** 切换播放/暂停 */
