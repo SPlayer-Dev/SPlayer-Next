@@ -84,6 +84,35 @@ describe("WikiSheets 交互链路", () => {
     wrapper.unmount();
   });
 
+  it("在途请求失败不会污染已切换到的其它乐谱状态", async () => {
+    let rejectA!: (error: Error) => void;
+    const pendingA = new Promise<unknown>((_, rej) => (rejectA = rej));
+    mocks.fetchSheetPreview.mockImplementation((id) =>
+      id === "13466" ? pendingA : Promise.resolve(["https://example.com/b.png"]),
+    );
+    const wrapper = mountSheets();
+
+    // 先打开 B 完成缓存
+    await wrapper.findAll("button")[1].trigger("click");
+    await flushPromises();
+    // 再打开 A，其预览请求仍在途
+    await wrapper.findAll("button")[0].trigger("click");
+    await flushPromises();
+    // 关闭后切回已缓存的 B，不会发起 B 的请求
+    await wrapper.findAll("button")[1].trigger("click");
+    await flushPromises();
+
+    rejectA(new Error("ipc failed"));
+    await flushPromises();
+
+    // B 的缓存图仍显示，不出现 A 的失败提示
+    expect(wrapper.text()).not.toContain("songWiki.sheet.loadFailed");
+    expect(previewImages(wrapper).map((img) => img.attributes("src"))).toEqual([
+      "https://example.com/b.png",
+    ]);
+    wrapper.unmount();
+  });
+
   it("空预览显示暂无内容且不重复请求", async () => {
     mocks.fetchSheetPreview.mockResolvedValue([]);
     const wrapper = mountSheets();

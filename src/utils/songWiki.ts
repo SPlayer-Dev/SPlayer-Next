@@ -141,7 +141,7 @@ const readStory = (wiki: WikiData | null, listen: MusicListenData | null): SongW
     const timestamp = listenFirst?.listenTime ?? first.timestamp;
     story.firstListen = {
       season: listenFirst?.season ?? first.season,
-      period: first.period,
+      period: listenFirst?.period ?? first.period,
       date: listenFirst?.date ?? (timestamp ? formatDateTime(timestamp) : undefined),
     };
   } else if (listenFirst) {

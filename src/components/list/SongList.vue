@@ -1070,7 +1070,7 @@ defineExpose({
       <!-- 定位歌曲 -->
       <Transition name="fade">
         <div
-          v-if="playingIndex >= 0 && !batch.active.value"
+          v-if="playingIndex >= 0 && !autoHeight && !batch.active.value"
           class="rounded-full bg-surface-panel backdrop-blur-2xl backdrop-saturate-150 shadow-lg border border-solid border-primary/10"
         >
           <SButton type="primary" variant="bordered" circle :size="40" @click="scrollToPlaying">

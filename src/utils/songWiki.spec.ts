@@ -204,6 +204,17 @@ describe("歌曲百科归一化", () => {
     expect(view.story?.firstListen?.date).toBe(formatDateTime(1700000000000));
   });
 
+  it("个人聆听接口覆盖构造块的故事时段", () => {
+    const listen: MusicListenData = {
+      musicFirstListenDto: { season: "2024 年", period: "清晨" },
+    };
+
+    const view = normalizeSongWiki(buildWiki(), listen);
+
+    expect(view.story?.firstListen?.season).toBe("2024 年");
+    expect(view.story?.firstListen?.period).toBe("清晨");
+  });
+
   it("未红心时不生成收藏卡片", () => {
     const listen: MusicListenData = {
       musicLikeSongDto: { like: false, text: "未收藏" },

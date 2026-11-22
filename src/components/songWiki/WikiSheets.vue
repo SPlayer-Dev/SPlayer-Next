@@ -64,18 +64,19 @@ const viewerTitle = computed(() =>
 const loadPreview = async (sheet: SongWikiSheet, force: boolean): Promise<void> => {
   const token = ++requestToken;
   sheetTokens.set(sheet.id, token);
+  // 共享的 loading/failed 只属于当前查看的乐谱；旧请求完成时可更新自身缓存，但不能改动别的乐谱的显示状态
+  const isCurrent = (): boolean =>
+    sheetTokens.get(sheet.id) === token && activeSheet.value?.id === sheet.id;
   loading.value = true;
   if (force) failed.value = false;
   try {
     const urls = await fetchSheetPreview(sheet.id);
-    if (sheetTokens.get(sheet.id) !== token) return;
     previews.value = { ...previews.value, [sheet.id]: urls };
-    failed.value = false;
+    if (isCurrent()) failed.value = false;
   } catch {
-    if (sheetTokens.get(sheet.id) !== token) return;
-    failed.value = true;
+    if (isCurrent()) failed.value = true;
   } finally {
-    if (sheetTokens.get(sheet.id) === token) loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 };
 
