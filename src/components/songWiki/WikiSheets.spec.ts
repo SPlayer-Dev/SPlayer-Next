@@ -5,11 +5,9 @@ import WikiSheets from "./WikiSheets.vue";
 
 const mocks = vi.hoisted(() => ({
   fetchSheetPreview: vi.fn(),
-  toastError: vi.fn(),
 }));
 
 vi.mock("@/apis/song/wiki", () => ({ fetchSheetPreview: mocks.fetchSheetPreview }));
-vi.mock("@/composables/useToast", () => ({ toast: { error: mocks.toastError } }));
 
 const SHEETS = [
   { id: "13466", name: "Guitar, 钢琴, 声音", totalPageSize: 5 },
@@ -25,42 +23,75 @@ const mountSheets = () =>
       ],
       stubs: {
         SLoading: { template: "<div class='loading-stub'/>" },
-        SButton: { template: "<button><slot/></button>" },
+        SButton: { template: '<button v-bind="$attrs"><slot name="icon"/><slot/></button>' },
         SDialog: { template: "<div><slot/></div>" },
-        IconLucideChevronDown: { template: "<i/>" },
+        IconLucideChevronRight: { template: "<i/>" },
+        IconLucideMusic: { template: "<i/>" },
+        IconLucideZoomIn: { template: "<i/>" },
+        IconLucideZoomOut: { template: "<i/>" },
       },
     },
   });
 
+const previewImages = (wrapper: ReturnType<typeof mountSheets>) =>
+  wrapper.findAll("img").filter((img) => img.attributes("src"));
+
 describe("WikiSheets 交互链路", () => {
-  it("点击乐谱展开并渲染预览图", async () => {
-    mocks.fetchSheetPreview.mockResolvedValue([
-      "https://example.com/a.png",
-      "https://example.com/b.png",
-    ]);
+  it("点击乐谱直接打开查看器并渲染预览", async () => {
+    mocks.fetchSheetPreview.mockResolvedValue(["https://example.com/a.png"]);
     const wrapper = mountSheets();
-    expect(wrapper.findAll("img").filter((i) => i.attributes("src"))).toHaveLength(0);
+    expect(previewImages(wrapper)).toHaveLength(0);
 
     await wrapper.findAll("button")[0].trigger("click");
     expect(mocks.fetchSheetPreview).toHaveBeenCalledWith("13466");
     await flushPromises();
 
-    const imgs = wrapper.findAll("img").filter((i) => i.attributes("src"));
-    expect(imgs).toHaveLength(2);
-    expect(wrapper.text()).not.toContain("songWiki.sheet.empty");
+    const images = previewImages(wrapper);
+    expect(images).toHaveLength(1);
+    expect(images[0].attributes("src")).toBe("https://example.com/a.png");
+    wrapper.unmount();
+  });
+
+  it("多页乐谱依次纵向渲染所有页", async () => {
+    mocks.fetchSheetPreview.mockResolvedValue([
+      "https://example.com/a.png",
+      "https://example.com/b.png",
+    ]);
+    const wrapper = mountSheets();
+    await wrapper.findAll("button")[0].trigger("click");
+    await flushPromises();
+
+    expect(previewImages(wrapper).map((img) => img.attributes("src"))).toEqual([
+      "https://example.com/a.png",
+      "https://example.com/b.png",
+    ]);
+    wrapper.unmount();
+  });
+
+  it("键盘缩放作用于整份乐谱", async () => {
+    mocks.fetchSheetPreview.mockResolvedValue([
+      "https://example.com/a.png",
+      "https://example.com/b.png",
+    ]);
+    const wrapper = mountSheets();
+    await wrapper.findAll("button")[0].trigger("click");
+    await flushPromises();
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "+" }));
+    await flushPromises();
+    expect(wrapper.text()).toContain("125%");
+    expect(previewImages(wrapper)).toHaveLength(2);
     wrapper.unmount();
   });
 
   it("空预览显示暂无内容且不重复请求", async () => {
     mocks.fetchSheetPreview.mockResolvedValue([]);
     const wrapper = mountSheets();
-    const first = wrapper.findAll("button")[0];
-    await first.trigger("click");
+    await wrapper.findAll("button")[0].trigger("click");
     await flushPromises();
     expect(wrapper.text()).toContain("songWiki.sheet.empty");
 
-    await first.trigger("click");
-    await first.trigger("click");
+    await wrapper.findAll("button")[0].trigger("click");
     await flushPromises();
     expect(mocks.fetchSheetPreview).toHaveBeenCalledTimes(1);
     wrapper.unmount();
@@ -71,14 +102,14 @@ describe("WikiSheets 交互链路", () => {
     const wrapper = mountSheets();
     await wrapper.findAll("button")[0].trigger("click");
     await flushPromises();
-    expect(mocks.toastError).toHaveBeenCalled();
+    expect(wrapper.text()).toContain("songWiki.sheet.loadFailed");
 
     mocks.fetchSheetPreview.mockResolvedValueOnce(["https://example.com/a.png"]);
     const retry = wrapper.findAll("button").find((button) => button.text() === "common.retry");
     expect(retry).toBeTruthy();
     await retry!.trigger("click");
     await flushPromises();
-    expect(wrapper.findAll("img").filter((i) => i.attributes("src"))).toHaveLength(1);
+    expect(previewImages(wrapper)).toHaveLength(1);
     wrapper.unmount();
   });
 });

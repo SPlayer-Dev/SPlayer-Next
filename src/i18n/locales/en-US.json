@@ -577,8 +577,11 @@
       "fallbackName": "Sheet {index}",
       "empty": "No online preview for this sheet",
       "loadFailed": "Failed to load sheet music",
-      "openPreview": "View preview sheet {index}",
-      "pageCount": "Pages: {count}"
+      "pageCount": "Pages: {count}",
+      "pageAlt": "Sheet music page {index}",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "zoomReset": "Fit width"
     }
   },
   "songList": {

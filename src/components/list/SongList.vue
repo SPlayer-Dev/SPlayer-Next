@@ -564,8 +564,8 @@ defineExpose({
         <template #header>
           <!-- 可选信息行 -->
           <slot name="topInfo" />
-          <!-- 补偿滚动条占据的边缘 -->
-          <div class="pr-1.5">
+          <!-- 补偿滚动条占据的边缘；自适应高度时没有内部滚动条 -->
+          <div :class="autoHeight ? '' : 'pr-1.5'">
             <!-- 批量模式 -->
             <div
               v-if="batch.active.value"

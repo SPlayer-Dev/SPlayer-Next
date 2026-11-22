@@ -68,8 +68,8 @@ export interface WikiSubElement {
   subTitle?: string | null;
   content?: string | null;
   imgUrl?: string | null;
-  /** 条目类型，如影视的「颁奖礼」「综艺」 */
-  type?: string | null;
+  /** 条目类型；影视类为字符串，乐谱类为乐器类型数组 */
+  type?: string | SheetInstrumentType[] | null;
   /** 资源类型，如影视的「插曲」「主题曲」 */
   resourceType?: string | null;
   id?: number | null;
@@ -117,7 +117,6 @@ export interface SongWikiStory {
     season?: string;
     period?: string;
     date?: string;
-    meetDurationDesc?: string;
   };
   totalPlay?: {
     playCount: number;
@@ -147,6 +146,37 @@ export interface SongWikiCreationItem {
   names: string[];
 }
 
+/** 乐谱乐器类型，如「吉他」「钢琴」「总谱」 */
+export interface SheetInstrumentType {
+  code?: number;
+  name?: string;
+  icon?: string;
+}
+
+/** music/sheet/list/v1 的 data */
+export interface SheetListData {
+  /** 该歌曲的全部乐谱 */
+  musicSheetSimpleInfoVOS?: SheetSimpleInfo[];
+  /** 乐器类型字典 */
+  sheetInstrumentTypeVOList?: SheetInstrumentType[];
+  errorCode?: unknown;
+  findSheet?: number;
+  uploadSheet?: number;
+}
+
+/** 乐谱列表接口中的单条乐谱 */
+export interface SheetSimpleInfo {
+  id?: number | string;
+  name?: string;
+  type?: SheetInstrumentType[] | null;
+  coverImageUrl?: string;
+  totalPageSize?: number;
+  difficulty?: string;
+  musicKey?: string;
+  playVersion?: string;
+  bpm?: number;
+}
+
 /** 视图层乐谱条目 */
 export interface SongWikiSheet {
   id: string;
@@ -154,6 +184,10 @@ export interface SongWikiSheet {
   playVersion?: string;
   totalPageSize?: number;
   coverImageUrl?: string;
+  /** 乐器类型名称，如「吉他」「钢琴」 */
+  typeName?: string;
+  /** 乐器类型图标 */
+  typeIcon?: string;
 }
 
 /** 视图层成就 / 影视综艺条目 */

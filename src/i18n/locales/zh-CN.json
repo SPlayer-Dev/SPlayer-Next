@@ -568,7 +568,7 @@
       "similar": "相似歌曲"
     },
     "story": {
-      "firstListen": "初次相遇",
+      "firstListen": "第一次听",
       "totalPlay": "播放计数",
       "totalPlayValue": "累计播放 {count} 次",
       "like": "红心收藏"
@@ -577,8 +577,11 @@
       "fallbackName": "乐谱 {index}",
       "empty": "该乐谱暂无在线预览",
       "loadFailed": "加载乐谱失败",
-      "openPreview": "查看第 {index} 张预览图",
-      "pageCount": "共 {count} 页"
+      "pageCount": "共 {count} 页",
+      "pageAlt": "第 {index} 页乐谱",
+      "zoomIn": "放大",
+      "zoomOut": "缩小",
+      "zoomReset": "适应宽度"
     }
   },
   "songList": {

@@ -1,5 +1,7 @@
 import type {
   MusicListenData,
+  SheetInstrumentType,
+  SheetListData,
   SongWikiAchievement,
   SongWikiBasicItem,
   SongWikiCreationItem,
@@ -10,7 +12,7 @@ import type {
   WikiSubElement,
   WikiSubBlock,
 } from "@/types/songWiki";
-import { formatDate } from "@/utils/time";
+import { formatDateTime } from "@/utils/time";
 
 /** 取主信息块（songDetailNewSongWiki）下的子块 */
 const findSubBlocks = (wiki: WikiData | null, blockCode: string): WikiSubBlock[] => {
@@ -75,16 +77,44 @@ const readAchievements = (
   return { awards, credentials };
 };
 
-/** 读取乐谱列表 */
+/** 乐谱元素的首个乐器类型 */
+const firstInstrumentType = (
+  element: Pick<WikiSubElement, "type">,
+): SheetInstrumentType | undefined => (Array.isArray(element.type) ? element.type[0] : undefined);
+
+/** 读取乐谱列表；构造式百科只返回部分乐谱，完整列表由 sheet_list 接口补齐 */
 const readSheets = (wiki: WikiData | null): SongWikiSheet[] =>
   findElements(wiki, "wikiSubBlockSheetInfoVo")
     .filter((element) => typeof element.id === "number")
-    .map((element) => ({
-      id: String(element.id),
-      name: element.name ?? element.title,
-      playVersion: element.playVersion,
-      totalPageSize: element.totalPageSize,
-      coverImageUrl: element.coverImageUrl,
+    .map((element) => {
+      const instrument = firstInstrumentType(element);
+      return {
+        id: String(element.id),
+        name: element.name ?? element.title,
+        playVersion: element.playVersion,
+        totalPageSize: element.totalPageSize,
+        coverImageUrl: element.coverImageUrl,
+        typeName: instrument?.name,
+        typeIcon: instrument?.icon,
+      };
+    });
+
+/**
+ * 归一化乐谱列表接口数据
+ * @param data - music/sheet/list/v1 的 data
+ * @returns 乐谱条目
+ */
+export const normalizeSheetList = (data: SheetListData | null): SongWikiSheet[] =>
+  (data?.musicSheetSimpleInfoVOS ?? [])
+    .filter((item) => item.id != null)
+    .map((item) => ({
+      id: String(item.id),
+      name: item.name,
+      playVersion: item.playVersion,
+      totalPageSize: item.totalPageSize,
+      coverImageUrl: item.coverImageUrl,
+      typeName: item.type?.[0]?.name,
+      typeIcon: item.type?.[0]?.icon,
     }));
 
 /** 读取相似歌曲 ID（相似歌曲块的 rnData.simSongs） */
@@ -108,18 +138,19 @@ const readStory = (wiki: WikiData | null, listen: MusicListenData | null): SongW
 
   if (rn?.firstListen) {
     const first = rn.firstListen;
+    const timestamp = listenFirst?.listenTime ?? first.timestamp;
     story.firstListen = {
       season: listenFirst?.season ?? first.season,
       period: first.period,
-      date: listenFirst?.date ?? (first.timestamp ? formatDate(first.timestamp) : undefined),
-      meetDurationDesc: listenFirst?.meetDurationDesc,
+      date: listenFirst?.date ?? (timestamp ? formatDateTime(timestamp) : undefined),
     };
   } else if (listenFirst) {
     story.firstListen = {
       season: listenFirst.season,
       period: listenFirst.period,
-      date: listenFirst.date,
-      meetDurationDesc: listenFirst.meetDurationDesc,
+      date:
+        listenFirst.date ??
+        (listenFirst.listenTime ? formatDateTime(listenFirst.listenTime) : undefined),
     };
   }
 

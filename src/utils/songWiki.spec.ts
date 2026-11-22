@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { MusicListenData, WikiData } from "@/types/songWiki";
-import { normalizeSongWiki } from "./songWiki";
+import { normalizeSheetList, normalizeSongWiki } from "./songWiki";
+import { formatDateTime } from "./time";
 
 /** 依据 2026 实测 construct/info 响应的 fixture（晴天 186016 / 起风了 1330348068） */
 const buildWiki = (overrides?: Partial<WikiData>): WikiData => {
@@ -79,8 +80,15 @@ const buildWiki = (overrides?: Partial<WikiData>): WikiData => {
                     playVersion: "弹唱版",
                     totalPageSize: 6,
                     coverImageUrl: "https://p101.music.126.net/sheet.jpg",
+                    type: [{ code: 100, name: "总谱", icon: "https://p6.music.126.net/staff.png" }],
                   },
-                  { id: 143985, name: "吉他谱", playVersion: "弹唱版", totalPageSize: 4 },
+                  {
+                    id: 143985,
+                    name: "吉他谱",
+                    playVersion: "弹唱版",
+                    totalPageSize: 4,
+                    type: [{ code: 4, name: "吉他", icon: "https://p5.music.126.net/guitar.png" }],
+                  },
                 ],
               },
             },
@@ -145,6 +153,8 @@ describe("歌曲百科归一化", () => {
         playVersion: "弹唱版",
         totalPageSize: 6,
         coverImageUrl: "https://p101.music.126.net/sheet.jpg",
+        typeName: "总谱",
+        typeIcon: "https://p6.music.126.net/staff.png",
       },
       {
         id: "143985",
@@ -152,6 +162,8 @@ describe("歌曲百科归一化", () => {
         playVersion: "弹唱版",
         totalPageSize: 4,
         coverImageUrl: undefined,
+        typeName: "吉他",
+        typeIcon: "https://p5.music.126.net/guitar.png",
       },
     ]);
   });
@@ -162,7 +174,7 @@ describe("歌曲百科归一化", () => {
     const story = view.story;
     expect(story?.firstListen?.season).toBe("初冬");
     expect(story?.firstListen?.period).toBe("深夜");
-    expect(typeof story?.firstListen?.date).toBe("string");
+    expect(story?.firstListen?.date).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
     expect(story?.totalPlay).toEqual({ playCount: 711122, text: "喜欢的歌，就要听到天荒地老！" });
     expect(story?.likeSong).toBeUndefined();
   });
@@ -179,6 +191,17 @@ describe("歌曲百科归一化", () => {
     expect(view.story?.firstListen?.season).toBe("2024 年");
     expect(view.story?.totalPlay?.playCount).toBe(999);
     expect(view.story?.likeSong).toEqual({ text: "已收藏", redDesc: "2024 年红心" });
+  });
+
+  it("个人聆听时间优先于构造块时间戳", () => {
+    const listen: MusicListenData = {
+      musicFirstListenDto: { listenTime: 1700000000000 },
+    };
+
+    const view = normalizeSongWiki(buildWiki(), listen);
+
+    expect(view.story?.firstListen?.date).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+    expect(view.story?.firstListen?.date).toBe(formatDateTime(1700000000000));
   });
 
   it("未红心时不生成收藏卡片", () => {
@@ -218,5 +241,52 @@ describe("歌曲百科归一化", () => {
       ],
     };
     expect(normalizeSongWiki(wiki, null).similarIds).toEqual(["5", "6"]);
+  });
+});
+
+describe("乐谱列表归一化", () => {
+  it("读取完整乐谱列表并提取乐器类型图标", () => {
+    const sheets = normalizeSheetList({
+      musicSheetSimpleInfoVOS: [
+        {
+          id: 144807,
+          name: "钢琴、小提琴谱",
+          playVersion: "弹唱版",
+          totalPageSize: 6,
+          type: [{ code: 100, name: "总谱", icon: "https://p6.music.126.net/staff.png" }],
+        },
+        {
+          id: "143985",
+          name: "吉他谱",
+          totalPageSize: 4,
+          type: [{ code: 4, name: "吉他" }],
+        },
+      ],
+    });
+    expect(sheets).toEqual([
+      {
+        id: "144807",
+        name: "钢琴、小提琴谱",
+        playVersion: "弹唱版",
+        totalPageSize: 6,
+        coverImageUrl: undefined,
+        typeName: "总谱",
+        typeIcon: "https://p6.music.126.net/staff.png",
+      },
+      {
+        id: "143985",
+        name: "吉他谱",
+        playVersion: undefined,
+        totalPageSize: 4,
+        coverImageUrl: undefined,
+        typeName: "吉他",
+        typeIcon: undefined,
+      },
+    ]);
+  });
+
+  it("缺少 id 的条目被丢弃，空数据返回空数组", () => {
+    expect(normalizeSheetList({ musicSheetSimpleInfoVOS: [{ name: "无 id" }] })).toEqual([]);
+    expect(normalizeSheetList(null)).toEqual([]);
   });
 });

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { Artist, PlaybackContext, Track } from "@shared/types/player";
-import type { SongWikiView, WikiSong } from "@/types/songWiki";
+import type { SongWikiSheet, SongWikiView, WikiSong } from "@/types/songWiki";
 import {
   fetchMusicListenData,
+  fetchSheetList,
   fetchWikiData,
   fetchWikiSong,
   WikiNotFoundError,
@@ -28,6 +29,8 @@ const id = route.params.id as string;
 const song = shallowRef<WikiSong | null>(null);
 /** 归一化后的百科数据 */
 const view = shallowRef<SongWikiView | null>(null);
+/** 完整乐谱列表，构造式百科只带部分乐谱 */
+const fullSheets = shallowRef<SongWikiSheet[] | null>(null);
 /** 相似歌曲 */
 const similarTracks = shallowRef<Track[]>([]);
 const loading = ref(true);
@@ -39,17 +42,18 @@ const currentTrack = computed(() => song.value?.track ?? null);
 const story = computed(() => view.value?.story ?? null);
 const basicInfo = computed(() => view.value?.basicInfo ?? []);
 const creationInfo = computed(() => view.value?.creationInfo ?? []);
-const sheets = computed(() => view.value?.sheets ?? []);
+const sheets = computed(() => fullSheets.value ?? view.value?.sheets ?? []);
 const releaseDate = computed(() => formatDate(song.value?.publishTime));
 const achievements = computed(() => [
   ...(view.value?.awards ?? []),
   ...(view.value?.credentials ?? []),
 ]);
-/** 初次相遇的「时段 · 日期」 */
-const firstListenText = computed(() => {
+/** 初次聆听的季节与时段，如「初夏的晚上」 */
+const firstListenMoment = computed(() => {
   const first = story.value?.firstListen;
   if (!first) return "";
-  return [first.period, first.date].filter(Boolean).join(" · ");
+  if (first.season && first.period) return `${first.season}的${first.period}`;
+  return first.season ?? first.period ?? "";
 });
 const hasSections = computed(
   () =>
@@ -74,19 +78,21 @@ const load = async (): Promise<void> => {
   error.value = "";
   song.value = null;
   view.value = null;
+  fullSheets.value = null;
   similarTracks.value = [];
   try {
     const [detail, results] = await Promise.all([
       fetchWikiSong(id),
-      Promise.allSettled([fetchWikiData(id), fetchMusicListenData(id)]),
+      Promise.allSettled([fetchWikiData(id), fetchMusicListenData(id), fetchSheetList(id)]),
     ]);
     if (token !== requestToken) return;
     song.value = detail;
-    const [wiki, listen] = results;
+    const [wiki, listen, sheetResult] = results;
     view.value = normalizeSongWiki(
       wiki.status === "fulfilled" ? wiki.value : null,
       listen.status === "fulfilled" ? listen.value : null,
     );
+    fullSheets.value = sheetResult.status === "fulfilled" ? sheetResult.value : null;
     if (view.value.similarIds.length > 0) {
       try {
         const tracks = await songsByIds(view.value.similarIds);
@@ -222,20 +228,15 @@ const goAlbum = (): void => {
               class="h-full"
               :title="t('songWiki.story.firstListen')"
             >
-              <template #header-extra>
-                <span v-if="story.firstListen.season" class="text-xs text-on-surface-variant/60">
-                  {{ story.firstListen.season }}
-                </span>
-              </template>
-              <div class="text-sm">{{ firstListenText || "-" }}</div>
-              <template #footer>
-                <div
-                  v-if="story.firstListen.meetDurationDesc"
-                  class="text-xs text-on-surface-variant/60"
+              <div class="flex flex-col gap-1 text-sm">
+                <span>{{ firstListenMoment || "-" }}</span>
+                <span
+                  v-if="story.firstListen.date"
+                  class="text-xs tabular-nums text-on-surface-variant/60"
                 >
-                  {{ story.firstListen.meetDurationDesc }}
-                </div>
-              </template>
+                  {{ story.firstListen.date }}
+                </span>
+              </div>
             </SCard>
             <SCard
               v-if="story.totalPlay"
@@ -339,8 +340,6 @@ const goAlbum = (): void => {
             :items="similarTracks"
             source="netease"
             :playback-context="playbackContext"
-            :show-index="false"
-            :enable-sort="false"
             flush
             auto-height
           />

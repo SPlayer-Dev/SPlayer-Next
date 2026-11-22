@@ -1,7 +1,15 @@
 import type { NeteaseSong } from "@shared/types/platform/netease";
-import type { MusicListenData, SheetPreviewPage, WikiData, WikiSong } from "@/types/songWiki";
+import type {
+  MusicListenData,
+  SheetListData,
+  SheetPreviewPage,
+  SongWikiSheet,
+  WikiData,
+  WikiSong,
+} from "@/types/songWiki";
 import { netease as neteaseApi } from "@/apis/netease";
 import { songToTrack } from "@/utils/format/netease";
+import { normalizeSheetList } from "@/utils/songWiki";
 
 /** 歌曲详情不存在时抛出，由调用方映射本地化文案 */
 export class WikiNotFoundError extends Error {
@@ -47,6 +55,16 @@ export const fetchMusicListenData = async (id: string): Promise<MusicListenData 
   });
   const data = body?.data;
   return data && typeof data === "object" ? data : null;
+};
+
+/**
+ * 拉取歌曲的完整乐谱列表
+ * @param songId - 平台 songId
+ * @returns 乐谱条目
+ */
+export const fetchSheetList = async (songId: string): Promise<SongWikiSheet[]> => {
+  const body = await neteaseApi.sheet_list<{ data?: SheetListData }>({ id: songId });
+  return normalizeSheetList(body?.data ?? null);
 };
 
 /**
