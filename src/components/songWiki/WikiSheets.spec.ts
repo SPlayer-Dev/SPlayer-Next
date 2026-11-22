@@ -113,6 +113,32 @@ describe("WikiSheets 交互链路", () => {
     wrapper.unmount();
   });
 
+  it("过期请求完成时不会覆盖较新的缓存", async () => {
+    let resolveA!: (value: string[]) => void;
+    const pendingA = new Promise<string[]>((res) => (resolveA = res));
+    let calls = 0;
+    mocks.fetchSheetPreview.mockImplementation(() => {
+      calls += 1;
+      return calls === 1 ? pendingA : Promise.resolve(["https://example.com/b.png"]);
+    });
+    const wrapper = mountSheets();
+
+    // 打开后重开同一乐谱，第一次请求仍在途，触发第二次请求
+    await wrapper.findAll("button")[0].trigger("click");
+    await flushPromises();
+    await wrapper.findAll("button")[0].trigger("click");
+    await flushPromises();
+
+    // 旧请求晚于新请求完成且结果为空，不应覆盖已缓存的新结果
+    resolveA([]);
+    await flushPromises();
+
+    expect(previewImages(wrapper).map((img) => img.attributes("src"))).toEqual([
+      "https://example.com/b.png",
+    ]);
+    wrapper.unmount();
+  });
+
   it("空预览显示暂无内容且不重复请求", async () => {
     mocks.fetchSheetPreview.mockResolvedValue([]);
     const wrapper = mountSheets();

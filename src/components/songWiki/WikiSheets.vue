@@ -71,7 +71,10 @@ const loadPreview = async (sheet: SongWikiSheet, force: boolean): Promise<void> 
   if (force) failed.value = false;
   try {
     const urls = await fetchSheetPreview(sheet.id);
-    previews.value = { ...previews.value, [sheet.id]: urls };
+    // 只有该乐谱的最新请求可写缓存，过期响应（关闭后重开触发的旧请求）不能覆盖新结果
+    if (sheetTokens.get(sheet.id) === token) {
+      previews.value = { ...previews.value, [sheet.id]: urls };
+    }
     if (isCurrent()) failed.value = false;
   } catch {
     if (isCurrent()) failed.value = true;
