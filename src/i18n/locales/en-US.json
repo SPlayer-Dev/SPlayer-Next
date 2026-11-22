@@ -552,6 +552,38 @@
       "off": "Shuffle off"
     }
   },
+  "songWiki": {
+    "title": "Song Wiki",
+    "play": "Play",
+    "releaseDate": "Release Date",
+    "empty": "No more information",
+    "loadFailed": "Failed to load information",
+    "notFound": "Song not found",
+    "sections": {
+      "story": "Music Story",
+      "basic": "Music Info",
+      "creation": "Creation Info",
+      "sheets": "Sheet Music",
+      "achievements": "Achievements",
+      "similar": "Similar Songs"
+    },
+    "story": {
+      "firstListen": "First Listen",
+      "totalPlay": "Play Count",
+      "totalPlayValue": "Played {count} times",
+      "like": "Favorites"
+    },
+    "sheet": {
+      "fallbackName": "Sheet {index}",
+      "empty": "No online preview for this sheet",
+      "loadFailed": "Failed to load sheet music",
+      "pageCount": "Pages: {count}",
+      "pageAlt": "Sheet music page {index}",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "zoomReset": "Fit width"
+    }
+  },
   "songList": {
     "title": "Title",
     "album": "Album",
@@ -588,6 +620,7 @@
       "download": "Download Song",
       "deleteFile": "Delete File",
       "searchSame": "Search by Name",
+      "wiki": "Song Wiki",
       "more": "More",
       "copyTitle": "Copy Title",
       "copyId": "Copy Song ID",

@@ -189,6 +189,8 @@ declare module 'vue' {
     IconLucideVolumeX: typeof import('~icons/lucide/volume-x')['default']
     IconLucideX: typeof import('~icons/lucide/x')['default']
     IconLucideZap: typeof import('~icons/lucide/zap')['default']
+    IconLucideZoomIn: typeof import('~icons/lucide/zoom-in')['default']
+    IconLucideZoomOut: typeof import('~icons/lucide/zoom-out')['default']
     IconMaterialSymbolsCancelRounded: typeof import('~icons/material-symbols/cancel-rounded')['default']
     IconMaterialSymbolsChatBubbleRounded: typeof import('~icons/material-symbols/chat-bubble-rounded')['default']
     IconMaterialSymbolsCheckCircleRounded: typeof import('~icons/material-symbols/check-circle-rounded')['default']
@@ -353,6 +355,8 @@ declare module 'vue' {
     TrackInfo: typeof import('./src/components/player/TrackInfo.vue')['default']
     UiZoomDialog: typeof import('./src/components/modals/UiZoomDialog.vue')['default']
     UpdateDialog: typeof import('./src/components/modals/UpdateDialog.vue')['default']
+    WikiSection: typeof import('./src/components/songWiki/WikiSection.vue')['default']
+    WikiSheets: typeof import('./src/components/songWiki/WikiSheets.vue')['default']
     WindowControls: typeof import('./src/components/layout/WindowControls.vue')['default']
   }
 }

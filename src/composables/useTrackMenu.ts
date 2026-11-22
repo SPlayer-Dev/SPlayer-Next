@@ -25,6 +25,7 @@ import IconListMinus from "~icons/lucide/list-minus";
 import IconCloudOff from "~icons/lucide/cloud-off";
 import IconSearch from "~icons/lucide/search";
 import IconMessageCircle from "~icons/lucide/message-circle";
+import IconBookOpen from "~icons/lucide/book-open";
 import IconMoreHorizontal from "~icons/lucide/more-horizontal";
 import IconPuzzle from "~icons/lucide/puzzle";
 
@@ -35,6 +36,8 @@ export interface TrackMenuOptions {
   canRemove?: boolean;
   /** 隐藏播放相关菜单项 */
   hidePlayActions?: boolean;
+  /** 隐藏歌曲百科入口（百科页自身菜单使用） */
+  hideWiki?: boolean;
   /** 播放来源上下文 */
   playbackContext?: Ref<PlaybackContext | undefined>;
   /** 添加到歌单 */
@@ -163,6 +166,12 @@ export const useTrackMenu = (
         key: "comments",
         label: t("comments.name"),
         icon: markRaw(IconMessageCircle),
+      },
+      {
+        key: "wiki",
+        label: t("songList.context.wiki"),
+        icon: markRaw(IconBookOpen),
+        show: source === "netease" && !options.hideWiki,
       },
       {
         key: "more",
@@ -294,6 +303,9 @@ export const useTrackMenu = (
         break;
       case "comments":
         status.showComments(current);
+        break;
+      case "wiki":
+        router.push({ name: "song-wiki", params: { id: current.id } });
         break;
       case "copyTitle":
         await copy(current.title);

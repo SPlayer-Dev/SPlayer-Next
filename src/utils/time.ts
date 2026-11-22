@@ -40,6 +40,18 @@ export const formatDate = (time?: number): string => {
 };
 
 /**
+ * 格式化完整日期时间
+ * @param time - 毫秒时间戳
+ * @returns YYYY-MM-DD HH:mm:ss
+ */
+export const formatDateTime = (time?: number): string => {
+  if (!time) return "";
+  const date = new Date(time);
+  const pad = (n: number): string => n.toString().padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
+
+/**
  * 倒计时格式化（输入秒），自动选择 m:ss 或 h:mm:ss
  * @param totalSec 总秒数
  * @returns 格式化后的时间
