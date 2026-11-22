@@ -552,6 +552,35 @@
       "off": "顺序播放"
     }
   },
+  "songWiki": {
+    "title": "歌曲百科",
+    "play": "播放",
+    "releaseDate": "发行日期",
+    "empty": "暂无更多信息",
+    "loadFailed": "加载信息失败",
+    "notFound": "未找到该歌曲",
+    "sections": {
+      "story": "音乐故事",
+      "basic": "音乐简介",
+      "creation": "创作信息",
+      "sheets": "乐谱",
+      "achievements": "相关成就",
+      "similar": "相似歌曲"
+    },
+    "story": {
+      "firstListen": "初次相遇",
+      "totalPlay": "播放计数",
+      "totalPlayValue": "累计播放 {count} 次",
+      "like": "红心收藏"
+    },
+    "sheet": {
+      "fallbackName": "乐谱 {index}",
+      "empty": "该乐谱暂无在线预览",
+      "loadFailed": "加载乐谱失败",
+      "openPreview": "查看第 {index} 张预览图",
+      "pageCount": "共 {count} 页"
+    }
+  },
   "songList": {
     "title": "标题",
     "album": "专辑",
@@ -588,6 +617,7 @@
       "download": "下载歌曲",
       "deleteFile": "删除文件",
       "searchSame": "同名搜索",
+      "wiki": "歌曲百科",
       "more": "更多操作",
       "copyTitle": "复制歌曲名称",
       "copyId": "复制歌曲 ID",

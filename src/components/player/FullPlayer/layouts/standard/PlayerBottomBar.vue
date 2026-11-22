@@ -16,6 +16,7 @@ const status = useStatusStore();
 const media = useMediaStore();
 const settings = useSettingsStore();
 const fav = useFavorite();
+const router = useRouter();
 const { enqueue: enqueueDownload } = useDownload();
 const { t } = useI18n();
 const { isPlaying, isLoading, position, duration, repeatMode, shuffleMode, heartMode, fmMode } =
@@ -60,6 +61,14 @@ const {
 const showComments = (): void => {
   if (displayTrack.value) status.showComments(displayTrack.value);
 };
+
+/** 从播放栏打开当前 NetEase 歌曲的百科 */
+const openWiki = (): void => {
+  const track = displayTrack.value;
+  if (track?.source === "netease") {
+    router.push({ name: "song-wiki", params: { id: track.id } });
+  }
+};
 </script>
 
 <template>
@@ -99,6 +108,17 @@ const showComments = (): void => {
         @click="showComments"
       >
         <template #icon><IconLucideMessageCircle /></template>
+      </SButton>
+      <SButton
+        v-if="displayTrack?.source === 'netease'"
+        type="cover"
+        variant="ghost"
+        size="large"
+        circle
+        :aria-label="t('songList.context.wiki')"
+        @click="openWiki"
+      >
+        <template #icon><IconLucideBookOpen /></template>
       </SButton>
       <SButton
         v-if="displayTrack?.source === 'local' || displayTrack?.source === 'netease'"

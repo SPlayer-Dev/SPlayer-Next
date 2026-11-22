@@ -243,7 +243,10 @@ export const callNetease = async (
           return createRequest(name, data, options);
         }
       : undefined;
-  if (!fn) throw new Error(`unknown netease api: ${name}`);
+  if (!fn) {
+    neteaseLog.warn(`未知的 netease 接口名: ${name}`);
+    throw new Error(`unknown netease api: ${name}`);
+  }
 
   const isSessionEndpoint =
     name.startsWith("login") ||

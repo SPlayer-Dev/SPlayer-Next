@@ -51,6 +51,10 @@ const props = withDefaults(
     hasMore?: boolean;
     /** 触底加载中 */
     loadingMore?: boolean;
+    /** 嵌入其他区块时去掉列表左右内边距 */
+    flush?: boolean;
+    /** 嵌入区块时按内容自适应高度，不产生内部滚动 */
+    autoHeight?: boolean;
   }>(),
   {
     searchQuery: "",
@@ -67,6 +71,8 @@ const props = withDefaults(
     canRemove: true,
     hasMore: false,
     loadingMore: false,
+    flush: false,
+    autoHeight: false,
   },
 );
 
@@ -332,11 +338,12 @@ const rowHeight = computed(() => (isCompactList.value ? 56 : 88));
 const DISC_HEADER_HEIGHT = 36;
 
 /** 碟片标题行条带样式 */
-const discHeaderClass = computed(() =>
-  isCompactList.value
-    ? "mx-3 pl-3 pr-4 h-8 rounded-lg bg-on-surface/[0.04] flex items-center gap-3 text-on-surface-variant"
-    : "mx-3 pl-3 pr-6 h-8 rounded-lg bg-on-surface/[0.04] flex items-center gap-3 text-on-surface-variant border-2 border-solid border-transparent",
-);
+const discHeaderClass = computed(() => {
+  const margin = props.flush ? "mx-0" : "mx-3";
+  return isCompactList.value
+    ? `${margin} pl-3 pr-4 h-8 rounded-lg bg-on-surface/[0.04] flex items-center gap-3 text-on-surface-variant`
+    : `${margin} pl-3 pr-6 h-8 rounded-lg bg-on-surface/[0.04] flex items-center gap-3 text-on-surface-variant border-2 border-solid border-transparent`;
+});
 
 /** 分碟时每行的精确高度，碟片首曲额外包含标题行 */
 const discItemHeights = computed(() => {
@@ -536,9 +543,10 @@ defineExpose({
         :item-height="rowHeight"
         :item-fixed="!discLayout"
         :exact-item-heights="discItemHeights"
-        :padding-bottom="isFloatingPlayerBar ? PLAYER_BAR_GAP : 80"
+        :padding-bottom="autoHeight ? 0 : isFloatingPlayerBar ? PLAYER_BAR_GAP : 80"
         :get-item-key="(item: Track) => item.id"
-        height="100%"
+        :auto-height="autoHeight"
+        :height="autoHeight ? 'auto' : '100%'"
         @scroll="onScroll"
         @reach-bottom="emit('reachBottom')"
       >
@@ -561,7 +569,8 @@ defineExpose({
             <!-- 批量模式 -->
             <div
               v-if="batch.active.value"
-              class="flex items-center gap-2 pl-3 pr-3 mx-3 h-10 text-sm"
+              class="flex items-center gap-2 pl-3 pr-3 h-10 text-sm"
+              :class="flush ? 'mx-0' : 'mx-3'"
             >
               <div v-if="showIndex" class="w-8 shrink-0 flex items-center justify-center">
                 <SCheckbox
@@ -658,11 +667,12 @@ defineExpose({
             <div
               v-else
               class="flex items-center gap-3 text-sm text-on-surface-variant/60"
-              :class="
+              :class="[
+                flush ? 'mx-0' : 'mx-3',
                 isCompactList
-                  ? 'pl-3 pr-4 mx-3 h-9'
-                  : 'pl-3 pr-6 mx-3 h-10 border-2 border-solid border-transparent'
-              "
+                  ? 'pl-3 pr-4 h-9'
+                  : 'pl-3 pr-6 h-10 border-2 border-solid border-transparent',
+              ]"
             >
               <div v-if="showIndex" class="w-8 shrink-0 flex items-center justify-center">
                 <span>#</span>
@@ -795,7 +805,7 @@ defineExpose({
               </span>
             </div>
           </div>
-          <div :class="isCompactList ? 'px-3' : 'px-3 pb-3'">
+          <div :class="[flush ? 'px-0' : 'px-3', isCompactList ? '' : 'pb-3']">
             <div
               data-song-item
               :class="trackRowClass(item)"
@@ -1024,7 +1034,7 @@ defineExpose({
               <span>{{ t("common.loading") }}</span>
             </div>
             <div
-              v-else-if="sortedItems.length > 0 && !hasMore"
+              v-else-if="!autoHeight && sortedItems.length > 0 && !hasMore"
               class="py-3 text-center text-sm text-on-surface-variant/40"
             >
               {{ t("common.noMore") }}

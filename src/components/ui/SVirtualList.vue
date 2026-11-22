@@ -23,6 +23,8 @@ export interface SVirtualListProps<T> {
   exactItemHeights?: number[];
   /** 容器高度，支持 CSS 值 */
   height?: number | string;
+  /** 自适应高度模式：按内容自然展开，不虚拟化、无内部滚动，适用于静态展示 */
+  autoHeight?: boolean;
   /** 顶部内边距（px） */
   paddingTop?: number;
   /** 底部内边距（px） */
@@ -42,6 +44,7 @@ export interface SVirtualListProps<T> {
 const props = withDefaults(defineProps<SVirtualListProps<T>>(), {
   itemFixed: false,
   height: "100%",
+  autoHeight: false,
   paddingTop: 0,
   paddingBottom: 0,
   bufferSize: 5,
@@ -63,9 +66,10 @@ const scrollTop = ref(0);
 // 测量滚动容器高度
 const { height: scrollViewportHeight } = useElementSize(scrollRef);
 
-const containerHeightStyle = computed(() =>
-  typeof props.height === "number" ? `${props.height}px` : props.height,
-);
+const containerHeightStyle = computed(() => {
+  if (props.autoHeight) return "auto";
+  return typeof props.height === "number" ? `${props.height}px` : props.height;
+});
 
 const viewportHeight = computed(() => scrollViewportHeight.value || 0);
 
@@ -370,7 +374,8 @@ defineExpose({
 <template>
   <div
     ref="wrapperRef"
-    class="w-full flex flex-col [overflow-anchor:none] contain-[layout_paint]"
+    class="w-full flex flex-col [overflow-anchor:none]"
+    :class="autoHeight ? '' : 'contain-[layout_paint]'"
     :style="{ height: containerHeightStyle }"
   >
     <div v-if="items.length === 0 && $slots.empty" class="flex-1 flex items-center justify-center">
@@ -380,7 +385,15 @@ defineExpose({
       <div v-if="$slots.header" class="shrink-0">
         <slot name="header" />
       </div>
-      <div class="relative flex-1 min-h-0">
+      <template v-if="autoHeight">
+        <div v-for="(item, index) in items" :key="getItemKey(item, index)">
+          <slot :item="item" :index="index" />
+        </div>
+        <div v-if="$slots.footer" class="shrink-0">
+          <slot name="footer" />
+        </div>
+      </template>
+      <div v-else class="relative flex-1 min-h-0">
         <div
           v-if="$slots.sticky"
           class="pointer-events-none absolute inset-x-0 top-0 z-10 overflow-hidden"
