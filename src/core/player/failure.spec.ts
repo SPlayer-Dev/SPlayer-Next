@@ -103,6 +103,7 @@ vi.mock("@/services/playback", () => ({
   setPlaying: vi.fn(),
   setSeeking: vi.fn(),
   setSpeed: vi.fn(),
+  getCurrentTime: vi.fn(() => 0),
   reset: vi.fn(),
 }));
 vi.mock("@/services/lyric/loader", () => ({ beginLoad: vi.fn(), loadForTrack: vi.fn() }));
@@ -202,6 +203,142 @@ describe("单曲失败自动跳曲", () => {
     await handleEvent({ type: "ended" });
     expect(mocks.seek).toHaveBeenCalledOnce();
     expect(mocks.play).toHaveBeenCalledOnce();
+  });
+
+  it("单曲循环重启期间源失效，按重启意图重载并自动续播", async () => {
+    mocks.media.track = { ...mocks.tracks[0]!, source: "netease" };
+    mocks.status.repeatMode = "one";
+    let releaseSeek!: (value: unknown) => void;
+    mocks.seek.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseSeek = resolve;
+        }),
+    );
+    const { handleEvent } = await import("./events");
+    const pending = handleEvent({ type: "ended" });
+    // 自然结束的停止通知先到达，重启 seek 仍在进行
+    await sendStatus("stopped");
+    mocks.resolve.mockResolvedValueOnce({
+      source: "https://fresh/song",
+      provider: "official",
+      fromCache: false,
+    });
+    // 引擎重启失败上报的 sourceError 晚于停止通知
+    await handleEvent({ type: "sourceError" });
+    releaseSeek({ success: true });
+    await pending;
+    expect(mocks.seek).toHaveBeenCalledExactlyOnceWith(0, true);
+    expect(mocks.load).toHaveBeenCalledExactlyOnceWith(
+      "https://fresh/song",
+      expect.objectContaining({ autoPlay: false }),
+    );
+    expect(mocks.play).toHaveBeenCalledOnce();
+    expect(mocks.media.track?.id).toBe("first");
+    expect(mocks.status.playIndex).toBe(0);
+    expect(mocks.status.state).toBe("playing");
+  });
+
+  it("单曲循环重启期间源失效且重载失败，保持暂停不跳曲", async () => {
+    mocks.media.track = { ...mocks.tracks[0]!, source: "netease" };
+    mocks.status.repeatMode = "one";
+    let releaseSeek!: (value: unknown) => void;
+    mocks.seek.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseSeek = resolve;
+        }),
+    );
+    mocks.resolve.mockResolvedValueOnce(null);
+    const { handleEvent } = await import("./events");
+    const pending = handleEvent({ type: "ended" });
+    await sendStatus("stopped");
+    await handleEvent({ type: "sourceError" });
+    releaseSeek({ success: true });
+    await pending;
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(mocks.load).not.toHaveBeenCalled();
+    expect(mocks.play).not.toHaveBeenCalled();
+    expect(mocks.media.track?.id).toBe("first");
+    expect(mocks.status.playIndex).toBe(0);
+    expect(mocks.status.state).toBe("stopped");
+  });
+
+  it("单曲循环连续两轮过期，每轮都重载并自动续播", async () => {
+    mocks.media.track = { ...mocks.tracks[0]!, source: "netease" };
+    mocks.status.repeatMode = "one";
+    const { handleEvent } = await import("./events");
+    for (const url of ["https://fresh/round-1", "https://fresh/round-2"]) {
+      let releaseSeek!: (value: unknown) => void;
+      mocks.seek.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseSeek = resolve;
+          }),
+      );
+      const pending = handleEvent({ type: "ended" });
+      await sendStatus("stopped");
+      mocks.resolve.mockResolvedValueOnce({ source: url, provider: "official", fromCache: false });
+      await handleEvent({ type: "sourceError" });
+      releaseSeek({ success: true });
+      await pending;
+    }
+    expect(mocks.load).toHaveBeenCalledTimes(2);
+    expect(mocks.play).toHaveBeenCalledTimes(2);
+    expect(mocks.media.track?.id).toBe("first");
+    expect(mocks.status.playIndex).toBe(0);
+  });
+
+  it("重启窗口内用户主动暂停后源失效，重载但不强制续播", async () => {
+    mocks.media.track = { ...mocks.tracks[0]!, source: "netease" };
+    mocks.status.repeatMode = "one";
+    let releaseSeek!: (value: unknown) => void;
+    mocks.seek.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseSeek = resolve;
+        }),
+    );
+    const { handleEvent } = await import("./events");
+    const player = await import("./index");
+    const pending = handleEvent({ type: "ended" });
+    await player.pause();
+    await sendStatus("stopped");
+    mocks.resolve.mockResolvedValueOnce({
+      source: "https://fresh/song",
+      provider: "official",
+      fromCache: false,
+    });
+    await handleEvent({ type: "sourceError" });
+    releaseSeek({ success: true });
+    await pending;
+    expect(mocks.load).toHaveBeenCalledExactlyOnceWith(
+      "https://fresh/song",
+      expect.objectContaining({ autoPlay: false }),
+    );
+    expect(mocks.play).not.toHaveBeenCalled();
+    expect(mocks.media.track?.id).toBe("first");
+    expect(mocks.status.state).toBe("paused");
+  });
+
+  it("流媒体单曲重启加载失败不自动跳曲", async () => {
+    mocks.media.track = {
+      ...mocks.tracks[0]!,
+      source: "streaming",
+      serverId: "server",
+      originalId: "song",
+    };
+    mocks.status.repeatMode = "one";
+    mocks.resolve.mockImplementationOnce((_track, options) => {
+      options.onError(ErrorCode.URL_RESOLVE_FAILED);
+      return null;
+    });
+    const { handleEvent } = await import("./events");
+    await handleEvent({ type: "ended" });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(mocks.load).not.toHaveBeenCalled();
+    expect(mocks.media.track?.id).toBe("first");
+    expect(mocks.status.playIndex).toBe(0);
   });
 
   it.each(["streaming://server/song", "C:/cache/song.flac"])(
