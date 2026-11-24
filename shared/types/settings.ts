@@ -321,10 +321,10 @@ export interface OnlineLyricSettings {
 
 /** 本地歌词配置 */
 export interface LocalLyricSettings {
-  /** 启用本地 TTML 歌词库：从指定目录按元信息匹配 .ttml，命中优先于在线源 */
-  enableLocalTTMLOverride: boolean;
-  /** 本地 TTML 歌词库目录 */
-  repoDir: string;
+  /** 启用本地歌词库：从指定目录按元信息或文件名中的歌曲 ID 匹配，命中优先于在线源 */
+  enableLocalLyricOverride: boolean;
+  /** 本地歌词库目录列表，靠前的目录优先 */
+  repoDirs: string[];
 }
 
 /** 歌曲缓存配置 */

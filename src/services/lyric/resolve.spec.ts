@@ -16,7 +16,7 @@ vi.mock("./request", () => ({
 
 const mockGetManualMatch = vi.fn();
 const mockMatchById = vi.fn();
-const mockMatchLocalTTML = vi.fn();
+const mockMatchLocalLyric = vi.fn();
 const mockFetchTTMLById = vi.fn();
 const mockSearchCandidates = vi.fn();
 const mockRememberMatch = vi.fn();
@@ -27,7 +27,7 @@ const mockWindowApi = {
     forgetMatch: (...args: unknown[]) => mockForgetMatch(...args),
     getManualMatch: (...args: unknown[]) => mockGetManualMatch(...args),
     matchById: (...args: unknown[]) => mockMatchById(...args),
-    matchLocalTTML: (...args: unknown[]) => mockMatchLocalTTML(...args),
+    matchLocalLyric: (...args: unknown[]) => mockMatchLocalLyric(...args),
     rememberMatch: (...args: unknown[]) => mockRememberMatch(...args),
     searchCandidates: (...args: unknown[]) => mockSearchCandidates(...args),
   },
@@ -85,9 +85,9 @@ describe("resolveUserLyric 手动选择优先", () => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
     const settings = useSettingsStore();
-    settings.system.localLyric.enableLocalTTMLOverride = true;
-    settings.system.localLyric.repoDir = "D:/lyrics";
-    mockMatchLocalTTML.mockResolvedValue({ ok: true, data: "<tt></tt>" });
+    settings.system.localLyric.enableLocalLyricOverride = true;
+    settings.system.localLyric.repoDirs = ["D:/lyrics"];
+    mockMatchLocalLyric.mockResolvedValue({ ok: true, data: "<tt></tt>" });
   });
 
   it("命中手动选择时优先于本地歌词库，并用候选的歌名和时长取词", async () => {
@@ -115,7 +115,7 @@ describe("resolveUserLyric 手动选择优先", () => {
       expect.objectContaining({ title: "候选歌名", duration: 200_000 }),
       false,
     );
-    expect(mockMatchLocalTTML).not.toHaveBeenCalled();
+    expect(mockMatchLocalLyric).not.toHaveBeenCalled();
   });
 
   it("手动选择 TTML 时按 AMLL id 取词", async () => {
