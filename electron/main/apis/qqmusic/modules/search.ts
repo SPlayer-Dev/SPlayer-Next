@@ -77,7 +77,6 @@ const searchMobile = (keywords: string, page: number, limit: number, searchType:
     },
     {
       session: false,
-      auth: false,
       signed: true,
       comm: {
         tmeAppID: "qqmusiclight",

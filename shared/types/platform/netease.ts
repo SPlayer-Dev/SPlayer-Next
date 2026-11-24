@@ -126,7 +126,7 @@ export interface NeteaseSong {
   cd?: string;
   /** 碟内序号 */
   no?: number;
-  /** 位标识（VIP、付费试听等位标） */
+  /** 位标识（VIP、付费试听、脏标等；1048576 对应脏标） */
   mark?: number;
   /** 发行时间（Unix ms），song 顶层有时也会返回 */
   publishTime?: number;

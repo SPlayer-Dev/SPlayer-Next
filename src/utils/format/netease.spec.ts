@@ -30,6 +30,21 @@ describe("NCM歌曲歌手格式化", () => {
   });
 });
 
+describe("NCM歌曲脏标解析", () => {
+  it("根据 mark 的脏标位识别 Explicit 版本", () => {
+    const track = songToTrack({ id: 1, name: "Lose Yourself", mark: 1 << 20 } as NeteaseSong);
+
+    expect(track).toMatchObject({ title: "Lose Yourself", explicit: true });
+  });
+
+  it("不通过歌名后缀猜测脏标", () => {
+    const track = songToTrack({ id: 1, name: "Lose Yourself (Explicit)" } as NeteaseSong);
+
+    expect(track.title).toBe("Lose Yourself (Explicit)");
+    expect(track.explicit).toBeUndefined();
+  });
+});
+
 describe("NCM歌曲碟片解析", () => {
   it.each([
     ["1 致天堂的信 Letters to Heaven", { disc: 1, discTitle: "致天堂的信 Letters to Heaven" }],

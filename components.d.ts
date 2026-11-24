@@ -213,6 +213,7 @@ declare module 'vue' {
     IconSpAmSpeakerMax: typeof import('~icons/sp/am-speaker-max')['default']
     IconSpAmStar: typeof import('~icons/sp/am-star')['default']
     IconSpAmStarFilled: typeof import('~icons/sp/am-star-filled')['default']
+    IconSpExplicit: typeof import('~icons/sp/explicit')['default']
     IconSpHeartMode: typeof import('~icons/sp/heart-mode')['default']
     IconSpLossless: typeof import('~icons/sp/lossless')['default']
     IconSpPlayOrder: typeof import('~icons/sp/play-order')['default']

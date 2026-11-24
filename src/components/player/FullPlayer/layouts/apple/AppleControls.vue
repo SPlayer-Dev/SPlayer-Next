@@ -2,6 +2,7 @@
 import type { Artist } from "@shared/types/player";
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
+import { useSettingsStore } from "@/stores/settings";
 import { useFavorite } from "@/composables/useFavorite";
 import { useTimeFormat } from "@/composables/useTimeFormat";
 import { useProgressLyric } from "@/composables/useProgressLyric";
@@ -22,6 +23,7 @@ import { setPlayerExpanded } from "@/services/playerTransition";
 const { t } = useI18n();
 const status = useStatusStore();
 const media = useMediaStore();
+const settings = useSettingsStore();
 const fav = useFavorite();
 const { isPlaying, isLoading, position, duration, repeatMode, shuffleMode, heartMode, fmMode } =
   storeToRefs(status);
@@ -85,6 +87,11 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
       <div class="flex-1 min-w-0">
         <SMarquee fit class="max-w-full font-medium tracking-[0.4px] text-cover/90">
           {{ displayTrack?.title }}
+          <IconSpExplicit
+            v-if="displayTrack?.explicit && !settings.preset.hideExplicitTag"
+            :aria-label="t('songList.explicitTagLabel')"
+            class="inline-block align-[-0.12em] ml-1 size-[0.85em] text-cover/70"
+          />
         </SMarquee>
         <div class="truncate tracking-[0.4px] text-cover/45">
           <template v-if="artists.length">

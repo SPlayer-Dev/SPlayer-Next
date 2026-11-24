@@ -98,6 +98,14 @@ describe("本地歌词库匹配", () => {
     );
   });
 
+  it("按解码后的标题匹配单引号属性的 TTML", async () => {
+    const dir = await makeDir();
+    const ttml = "<tt><head><amll:meta key='musicName' value='A &amp; B&#x21;'/></head></tt>";
+    await write(join(dir, "收藏.ttml"), ttml);
+    mocks.dirs = [dir];
+    await expect(matchLocalLyric(track({ title: "A & B!" }))).resolves.toBe(ttml);
+  });
+
   it("TTML 里多个 ncmMusicId 都会进索引", async () => {
     const dir = await makeDir();
     const ttml = [

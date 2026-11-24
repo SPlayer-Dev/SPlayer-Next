@@ -164,13 +164,18 @@ const alignItems = computed(() => {
 <template>
   <div
     v-if="displayTrack"
-    class="w-full flex flex-col gap-[0.5em] overflow-hidden px-2"
+    class="w-full flex flex-col gap-[0.5em] overflow-x-clip overflow-y-visible px-2"
     style="font-size: clamp(12px, calc(14 / 1080 * 100vh), 16px)"
     :class="alignItems"
   >
     <!-- 标题 -->
     <SMarquee fit class="max-w-full text-[2em] font-semibold leading-tight">
       {{ displayTrack.title }}
+      <IconSpExplicit
+        v-if="displayTrack.explicit && !settings.preset.hideExplicitTag"
+        :aria-label="t('songList.explicitTagLabel')"
+        class="inline-block align-[-0.1em] ml-1.5 size-[0.65em] text-cover/75"
+      />
     </SMarquee>
     <!-- 副标题/注释 -->
     <div

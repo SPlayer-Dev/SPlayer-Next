@@ -14,6 +14,8 @@ export interface QMSong {
   coverOriginal?: string;
   /** 歌曲时长，单位为毫秒 */
   duration: number;
+  /** 是否为 Explicit（脏标）版本 */
+  explicit?: boolean;
   pay?: {
     payalbum?: number;
     payplay?: number;

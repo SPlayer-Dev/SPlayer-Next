@@ -21,7 +21,7 @@ export interface LyricCandidate<Extra = unknown> {
 /** 字符串归一化 */
 export const normalize = (text: string | undefined | null): string => {
   if (!text) return "";
-  return text.toLowerCase().replace(/[、&;，,/|()·・\s\-_'"`~!?？！.。]+/g, "");
+  return text.toLowerCase().replace(/[、&;，,/|()·・\s\-_'"‘’“”`~!?？！.。]+/g, "");
 };
 
 /** 双向 includes 命中 */
