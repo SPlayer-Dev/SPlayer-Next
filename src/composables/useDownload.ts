@@ -13,7 +13,16 @@ interface EnqueueOptions {
 }
 
 /** 可下载音质档位（展示顺序） */
-const DOWNLOAD_QUALITY_LEVELS: QualityLevel[] = ["hi-res", "lossless", "hq", "sq", "lq"];
+const DOWNLOAD_QUALITY_LEVELS: QualityLevel[] = [
+  "jymaster",
+  "sky",
+  "jyeffect",
+  "hi-res",
+  "lossless",
+  "hq",
+  "sq",
+  "lq",
+];
 
 /**
  * 构建下载音质菜单项

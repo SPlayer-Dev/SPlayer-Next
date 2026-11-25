@@ -979,7 +979,10 @@
       "sq": "Higher (SQ)",
       "hq": "Extreme (HQ)",
       "lossless": "Lossless",
-      "hi-res": "Hi-Res"
+      "hi-res": "Hi-Res",
+      "jyeffect": "Premium HD",
+      "sky": "Spatial Audio",
+      "jymaster": "Ultra Master"
     },
     "allowTrialPlay": {
       "label": "Allow Trial Playback",

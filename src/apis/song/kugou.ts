@@ -15,9 +15,10 @@ const QUALITY_ORDER: QualityLevel[] = ["lq", "sq", "hq", "lossless", "hi-res"];
 
 const clampQuality = (requested: QualityLevel, track: Track): QualityLevel => {
   const available = getQualityLevel(track.quality);
-  return QUALITY_ORDER[
-    Math.min(QUALITY_ORDER.indexOf(requested), QUALITY_ORDER.indexOf(available))
-  ];
+  // 网易云专属档位不在酷狗档位序列中，按最高档处理
+  const requestedIndex = QUALITY_ORDER.indexOf(requested);
+  const effectiveIndex = requestedIndex < 0 ? QUALITY_ORDER.length - 1 : requestedIndex;
+  return QUALITY_ORDER[Math.min(effectiveIndex, QUALITY_ORDER.indexOf(available))];
 };
 
 export const resolveKugouUrl = async (
