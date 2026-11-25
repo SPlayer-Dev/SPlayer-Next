@@ -9,6 +9,7 @@ export {
   createMainWindow,
   getMainWindow,
   focusMainWindow,
+  hasHiddenLaunchArg,
   showReadyMainWindow,
   setTaskbarProgress,
   applyMainWindowZoom,

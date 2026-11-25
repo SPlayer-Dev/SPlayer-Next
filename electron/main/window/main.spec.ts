@@ -152,6 +152,27 @@ describe("主窗口启动交接", () => {
     await expect(shown).rejects.toThrow("主窗口已关闭");
     expect(mocks.main.show).not.toHaveBeenCalled();
   });
+
+  it("传入 --hidden 时跳过首次显示，后续仍可通过托盘正常唤起", async () => {
+    const argv = process.argv;
+    process.argv = [...argv, "--hidden"];
+    try {
+      mocks.settings["system.uiZoom"] = 125;
+      const service = await import("./main");
+      expect(service.hasHiddenLaunchArg()).toBe(true);
+      expect(service.hasHiddenLaunchArg(["splayer-next"])).toBe(false);
+      service.createMainWindow();
+      mocks.main.emit("ready-to-show");
+      await service.showReadyMainWindow();
+      expect(mocks.main.webContents.setZoomFactor).toHaveBeenCalledWith(1.25);
+      expect(mocks.main.show).not.toHaveBeenCalled();
+      service.focusMainWindow();
+      expect(mocks.main.show).toHaveBeenCalledOnce();
+      expect(mocks.main.focus).toHaveBeenCalledOnce();
+    } finally {
+      process.argv = argv;
+    }
+  });
 });
 
 it("macOS 全屏隐藏等待退出全屏事件，避免留下黑色空间", async () => {

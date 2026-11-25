@@ -20,6 +20,10 @@ const isInternalNavigation = (url: string): boolean => {
   return !!devBase && url.startsWith(devBase);
 };
 
+/** 判断命令行参数是否请求静默启动（不弹出主窗口，直接驻留托盘） */
+export const hasHiddenLaunchArg = (argv: readonly string[] = process.argv): boolean =>
+  argv.includes("--hidden");
+
 let mainWindow: BrowserWindow | null = null;
 let firstPaint: Promise<void> = Promise.resolve();
 let startupShown = false;
@@ -172,7 +176,9 @@ export const showReadyMainWindow = async (): Promise<void> => {
   startupShown = true;
   // file:// 导航可能重置构造参数中的缩放，只在首次绘制完成后校正。
   applyMainWindowZoom();
-  win.show();
+  if (!hasHiddenLaunchArg()) {
+    win.show();
+  }
 };
 
 /** 显示并聚焦主窗口（最小化时自动恢复） */
