@@ -16,6 +16,7 @@ const stats = ref<CacheStat[]>([
   { id: "lyric", kind: "db", path: "", size: 0 },
   { id: "lyricTTML", kind: "db", path: "", size: 0 },
   { id: "lyricMatch", kind: "db", path: "", size: 0 },
+  { id: "lyricAI", kind: "db", path: "", size: 0 },
 ]);
 const cacheDir = ref<string>("");
 const loading = ref(false);

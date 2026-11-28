@@ -9,6 +9,7 @@
  * - lyrics:searchCandidates(platform, keyword, track) 按关键词搜索手动匹配候选
  * - lyrics:fetchTTMLById(id)               按 AMLL 条目 id 取 TTML
  * - lyrics:get/set/clearManualMatch        读写歌曲的手动选择
+ * - lyrics:translate                       使用当前 AI 模型翻译歌词
  *
  * 同 key 的并发请求会被 dedup：连按多次切歌只发一次网络。
  */
@@ -36,12 +37,15 @@ import {
   setMatchedId,
 } from "@main/database/lyricMatchCache";
 import { clearManualMatch, getManualMatch, setManualMatch } from "@main/database/lyricManualMatch";
+import { translateLyrics } from "@main/services/ai/lyricTranslation";
 import { coreLog } from "@main/utils/logger";
 import type {
   LyricManualMatch,
   LyricMatchResponse,
   LyricMatchSource,
   LyricSearchResponse,
+  LyricTranslationRequest,
+  LyricTranslationResponse,
   LyricTTMLResponse,
 } from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
@@ -284,4 +288,15 @@ export const registerLyricsIpc = (): void => {
     if (result.canceled || result.filePaths.length === 0) return null;
     return result.filePaths[0];
   });
+  ipcMain.handle(
+    "lyrics:translate",
+    async (_evt, request: LyricTranslationRequest): Promise<LyricTranslationResponse> => {
+      try {
+        return { ok: true, data: await translateLyrics(request) };
+      } catch (err) {
+        coreLog.warn("[lyrics] translate failed:", err);
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+  );
 };

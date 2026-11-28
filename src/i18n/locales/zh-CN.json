@@ -520,6 +520,13 @@
       "preferenceIgnored": "已手动选择歌词",
       "apply": "使用此歌词"
     },
+    "lyricTranslate": {
+      "title": "AI 翻译歌词",
+      "success": "AI 翻译已应用",
+      "empty": "当前歌词无需翻译",
+      "stale": "歌词已更新，本次翻译未应用",
+      "failed": "AI 翻译失败：{error}"
+    },
     "lyricCredit": "歌词制作",
     "collapse": "收起播放器",
     "copyLyric": {
@@ -798,6 +805,7 @@
       "scrobble": "听歌打卡",
       "lyricContent": "歌词内容",
       "lyricTTML": "TTML 歌词",
+      "lyricLLM": "LLM 歌词翻译",
       "lyricExclude": "歌词排除",
       "lyricGeneral": "内容样式",
       "lyricDisplay": "显示效果",
@@ -1093,6 +1101,23 @@
       "hk2t": "香港繁体 → 繁体",
       "jp2t": "日本新字体 → 繁体",
       "t2jp": "繁体 → 日本新字体"
+    },
+    "llmTranslation": {
+      "label": "LLM 歌词翻译",
+      "description": "使用已启用的 AI 模型为缺少译文的歌词生成翻译，请先在「AI 集成」中配置模型；歌词内容会发送到所配置的 AI 服务"
+    },
+    "llmTranslationAuto": {
+      "label": "自动翻译",
+      "description": "歌词加载后自动补齐缺失译文，译文会缓存在本地避免重复请求"
+    },
+    "llmTranslationTarget": {
+      "label": "目标语言",
+      "description": "自动跟随界面语言，也可以指定固定的翻译语言",
+      "auto": "跟随界面语言",
+      "zhCN": "简体中文",
+      "enUS": "English",
+      "jaJP": "日本語",
+      "koKR": "한국어"
     },
     "enableOnlineTTMLLyric": {
       "label": "启用在线 TTML 歌词",
@@ -1994,14 +2019,14 @@
     },
     "aiModel": {
       "hint": "AI 模型配置",
-      "hintDetail": "可为项目中的部分 AI 功能提供支持",
+      "hintDetail": "可为歌词 LLM 翻译等 AI 功能提供模型",
       "add": "添加模型",
       "editModel": "编辑模型",
       "empty": "暂未配置 AI 模型",
-      "emptyHint": "添加一个 AI 模型配置以供应用使用",
+      "emptyHint": "添加一个 AI 模型配置以供应用使用，默认已填好 DeepSeek 预设",
       "protocol": "接口协议",
       "name": "配置名称",
-      "namePlaceholder": "例如：OpenAI",
+      "namePlaceholder": "例如：DeepSeek",
       "baseUrl": "API 地址",
       "apiKey": "API Key",
       "apiKeyPlaceholder": "输入 API Key",
@@ -2241,7 +2266,8 @@
       "motionCovers": "动态封面",
       "lyric": "歌词内容缓存",
       "lyricTTML": "TTML 歌词缓存",
-      "lyricMatch": "歌词匹配缓存"
+      "lyricMatch": "歌词匹配缓存",
+      "lyricAI": "AI 歌词翻译缓存"
     },
     "enableSongCache": {
       "label": "歌曲缓存",

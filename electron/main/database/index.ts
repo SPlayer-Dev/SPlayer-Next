@@ -105,6 +105,12 @@ export const initDatabase = (): void => {
       PRIMARY KEY (platform, id)
     );
 
+    CREATE TABLE IF NOT EXISTS lyric_ai_translation (
+      cache_key TEXT PRIMARY KEY,
+      data TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS song_cache (
       cache_key TEXT PRIMARY KEY,
       source TEXT NOT NULL,

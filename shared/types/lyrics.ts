@@ -14,6 +14,26 @@ export const DEFAULT_LYRIC_FORMAT_ORDER: readonly LyricFormat[] = [
   "srt",
 ];
 
+/** LLM 歌词翻译目标语言 */
+export type LyricTranslationLanguage = "zh-CN" | "en-US" | "ja-JP" | "ko-KR";
+
+/** LLM 歌词翻译请求 */
+export interface LyricTranslationRequest {
+  /** 待翻译的歌词行，按原顺序排列 */
+  lines: string[];
+  /** 目标语言 */
+  targetLanguage: LyricTranslationLanguage;
+  /** 用于提示词上下文的歌曲信息 */
+  track?: {
+    title?: string;
+    artists?: string[];
+    album?: string;
+  };
+}
+
+/** LLM 歌词翻译响应 */
+export type LyricTranslationResponse = { ok: true; data: string[] } | { ok: false; error: string };
+
 /** 歌词来源 */
 export type LyricSource = "external" | "embedded" | "online";
 
@@ -119,4 +139,6 @@ export interface LyricsApi {
   matchLocalTTML: (track: Track) => Promise<LyricTTMLResponse>;
   /** 弹出目录选择器，返回所选本地 TTML 歌词库目录 */
   pickLyricRepoDir: () => Promise<string | null>;
+  /** 使用当前启用的 AI 模型翻译歌词行 */
+  translate: (request: LyricTranslationRequest) => Promise<LyricTranslationResponse>;
 }

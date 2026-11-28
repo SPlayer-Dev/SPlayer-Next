@@ -125,6 +125,40 @@ const lyricCategory: SettingCategory = {
       ],
     },
     {
+      id: "lyricLLM",
+      items: [
+        {
+          key: "llmTranslation",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.llmTranslation" },
+          defaultValue: false,
+          tag: { text: "Beta" },
+          hideChildren: true,
+          children: [
+            {
+              key: "llmTranslationAuto",
+              type: "switch",
+              binding: { store: "settings", path: "lyric.llmTranslationAuto" },
+              defaultValue: false,
+            },
+            {
+              key: "llmTranslationTarget",
+              type: "select",
+              binding: { store: "settings", path: "lyric.llmTranslationTarget" },
+              options: [
+                { value: "auto", labelKey: "settings.llmTranslationTarget.auto" },
+                { value: "zh-CN", labelKey: "settings.llmTranslationTarget.zhCN" },
+                { value: "en-US", labelKey: "settings.llmTranslationTarget.enUS" },
+                { value: "ja-JP", labelKey: "settings.llmTranslationTarget.jaJP" },
+                { value: "ko-KR", labelKey: "settings.llmTranslationTarget.koKR" },
+              ],
+              defaultValue: "auto",
+            },
+          ],
+        },
+      ],
+    },
+    {
       id: "lyricExclude",
       items: [
         {

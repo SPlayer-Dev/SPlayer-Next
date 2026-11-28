@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
+import { useSettingsStore } from "@/stores/settings";
+import { useLyricTranslation } from "@/services/lyric/translate";
 import { useSettingsDialog } from "@/settings/useSettingsDialog";
 import { formatSignedSec } from "@/utils/time";
 import { useFullPlayer } from "../context";
@@ -8,7 +10,9 @@ import { useFullPlayer } from "../context";
 const { t } = useI18n();
 const media = useMediaStore();
 const status = useStatusStore();
+const settings = useSettingsStore();
 const settingsDialog = useSettingsDialog();
+const { translating, translateCurrentLyric } = useLyricTranslation();
 const { immersive } = useFullPlayer();
 
 /** 歌词偏移步长（ms） */
@@ -69,6 +73,19 @@ const resetLyricOffset = (): void => writeOffset(0);
       @click="copyDialogOpen = true"
     >
       <template #icon><IconLucideCopy /></template>
+    </SButton>
+    <SButton
+      v-if="settings.lyric.llmTranslation"
+      type="cover"
+      variant="ghost"
+      circle
+      :size="40"
+      :disabled="!hasLyric"
+      :loading="translating"
+      :title="t('player.lyricTranslate.title')"
+      @click="translateCurrentLyric()"
+    >
+      <template #icon><IconLucideLanguages /></template>
     </SButton>
     <SButton
       type="cover"
