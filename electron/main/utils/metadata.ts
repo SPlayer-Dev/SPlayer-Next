@@ -1,7 +1,7 @@
 import type { Artist, Album } from "@shared/types/player";
 
 /** 常见的歌手分隔符：/ & ; , × | 、 ， feat. ft. */
-const ARTIST_SEPARATOR = /\s*(?:feat\.?|ft\.?)\s+|[/&;,×|、，]\s*/i;
+const ARTIST_SEPARATOR = /\s*(?:\bfeat\.?|\bft\.?)\s+|\s*[/&;,×|、，]\s*/i;
 
 /**
  * 将歌手字符串按常见分隔符拆分为 Artist 数组
