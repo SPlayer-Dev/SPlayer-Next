@@ -21,7 +21,7 @@ minimumReleaseAgeExclude:
   - electron-to-chromium@1.5.403
   - lyric-dom
   - lyric-kit
-  - "@applemusic-like-lyrics/core@0.6.0"
+  - "@applemusic-like-lyrics/core"
 
 overrides:
   node-abi: ^4.33.0

@@ -141,6 +141,13 @@ export const useSettingsStore = defineStore(
       playerBgRenderScale: 0.5,
       playerBgFreezeOnPause: false,
       playerBgBeat: false,
+      playerBgTitaniumPaletteAlgorithm: "auto",
+      playerBgTitaniumGrain: 0.7,
+      playerBgTitaniumSparkle: 0.75,
+      playerBgTitaniumSheen: 0.5,
+      playerBgTitaniumMetalness: 0.35,
+      playerBgTitaniumCrestShiftMs: 2000,
+      playerBgTitaniumDithering: true,
       layout: "classic",
       coverLyricRatio: 0.45,
       autoCenterCover: true,
@@ -384,15 +391,19 @@ export const useSettingsStore = defineStore(
       storage: localStorage,
       omit: ["system"],
       afterHydrate: ({ store }) => {
-        const { lyric, appearance } = store as unknown as {
+        const { lyric, appearance, player } = store as unknown as {
           lyric: LyricSettings;
           appearance: AppearanceSettings;
+          player: PlayerSettings;
         };
         lyric.lyricSourceOrder = reconcileOrder(lyric.lyricSourceOrder, ALL_PLATFORMS);
         lyric.lyricFormatOrder = reconcileOrder(lyric.lyricFormatOrder, DEFAULT_LYRIC_FORMAT_ORDER);
         appearance.sidebarNavGroups = reconcileNavGroups(appearance.sidebarNavGroups ?? []);
         appearance.sidebarHiddenKeys = reconcileHiddenKeys(appearance.sidebarHiddenKeys ?? []);
         appearance.sidebarPlaylistOrder = reconcilePlaylistOrder(appearance.sidebarPlaylistOrder);
+        if (!["mesh", "isolation", "titanium"].includes(player.playerBgRenderer)) {
+          player.playerBgRenderer = "mesh";
+        }
       },
     },
   },

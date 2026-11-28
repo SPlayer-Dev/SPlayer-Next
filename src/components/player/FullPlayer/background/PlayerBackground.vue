@@ -3,6 +3,7 @@ import { useSettingsStore } from "@/stores/settings";
 import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
 import DEFAULT_COVER from "@/assets/images/song.jpg";
+import type { TitaniumRendererOptions } from "@applemusic-like-lyrics/core";
 
 /** 流体渲染器按需加载 */
 const BackgroundRender = defineAsyncComponent(() => import("./BackgroundRender.vue"));
@@ -19,6 +20,17 @@ const settings = useSettingsStore();
 const status = useStatusStore();
 
 const bgType = computed(() => settings.player.playerBgType as string);
+
+/** Titanium 渲染器选项，由设置面板驱动 */
+const titaniumOptions = computed<Partial<TitaniumRendererOptions>>(() => ({
+  paletteAlgorithm: settings.player.playerBgTitaniumPaletteAlgorithm,
+  grain: settings.player.playerBgTitaniumGrain,
+  sparkle: settings.player.playerBgTitaniumSparkle,
+  sheen: settings.player.playerBgTitaniumSheen,
+  metalness: settings.player.playerBgTitaniumMetalness,
+  crestShiftMs: settings.player.playerBgTitaniumCrestShiftMs,
+  dithering: settings.player.playerBgTitaniumDithering,
+}));
 
 const fluidReady = ref(false);
 const showBlurPreview = ref(true);
@@ -142,6 +154,7 @@ onBeforeUnmount(() => {
       :has-lyric="media.parsedLyric.length > 0"
       :enable-beat="settings.player.playerBgBeat"
       :render-engine="settings.player.playerBgRenderer"
+      :titanium-options="titaniumOptions"
       @ready="fluidReady = true"
     />
   </div>

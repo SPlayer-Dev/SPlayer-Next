@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
     resume: vi.fn(),
     dispose: vi.fn(),
     getElement: vi.fn(() => document.createElement("canvas")),
+    getRenderer: vi.fn(() => undefined),
   },
 }));
 
@@ -34,7 +35,7 @@ vi.mock("@applemusic-like-lyrics/core", () => ({
   BackgroundRender: { new: () => mocks.renderer },
   MeshGradientRenderer: class {},
   IsolationRenderer: class {},
-  PixiRenderer: class {},
+  TitaniumRenderer: class {},
 }));
 
 afterEach(() => {
