@@ -5,6 +5,7 @@ import {
   restoreLyricWindows,
   getMainWindow,
   focusMainWindow,
+  hasHiddenLaunchArg,
   getDesktopLyricWindow,
   getDynamicIslandWindow,
   getTaskbarLyricWindow,
@@ -88,7 +89,9 @@ export const initApp = (): void => {
     return;
   }
   app.on("second-instance", (_event, commandLine) => {
-    focusMainWindow();
+    if (!hasHiddenLaunchArg(commandLine)) {
+      focusMainWindow();
+    }
     const url = extractOrpheusUrl(commandLine);
     if (url) captureOrpheusUrl(url);
     const files = extractAudioFiles(commandLine);
@@ -134,9 +137,15 @@ export const initApp = (): void => {
     // 创建主窗口
     const mainWindow = createMainWindow();
     // 播放配置同步前准备系统媒体控件，对外服务等待启动层退出。
-    mainWindow.once("show", () => {
-      initMedia();
-    });
+    if (hasHiddenLaunchArg()) {
+      mainWindow.once("ready-to-show", () => {
+        initMedia();
+      });
+    } else {
+      mainWindow.once("show", () => {
+        initMedia();
+      });
+    }
     // 注册 orpheus 协议并处理冷启动唤起
     initOrpheusRegistration();
     const coldOrpheusUrl = extractOrpheusUrl(process.argv);
