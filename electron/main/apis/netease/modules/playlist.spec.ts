@@ -36,13 +36,14 @@ describe("收藏模块使用公共网页请求配置", () => {
       expect.objectContaining({ client: "web", crypto: "weapi" }),
     ]);
   });
-  it.each([1, "1", 2, "2"])("歌单订阅参数 %s 选择正确路径，SDK 是否启用交给公共层", async (t) => {
+  it.each([1, "1", 2, "2"])("歌单订阅参数 %s 选择正确路径，写入走客户端通道", async (t) => {
     await playlistSubscribe({ id: 1, t }, request);
     expect(request.mock.calls[0][0]).toBe(
       Number(t) === 2 ? "/api/playlist/unsubscribe" : "/api/playlist/subscribe",
     );
     expect(request.mock.calls[0][1]).toEqual({ id: 1 });
-    expect(request.mock.calls[0][2]).toMatchObject({ client: "web", crypto: "weapi" });
+    expect(request.mock.calls[0][2]).toMatchObject({ crypto: "eapi" });
+    expect(request.mock.calls[0][2].client).toBeUndefined();
   });
   it.each([1, "1", 2, "2"])("歌手和专辑参数 %s 都通过公共路径匹配", async (t) => {
     await artistSub({ id: 1, t }, request);
