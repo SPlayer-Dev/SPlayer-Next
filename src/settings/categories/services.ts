@@ -5,7 +5,7 @@ import i18n from "@/i18n";
 import ExternalApiStatusCard from "@/components/settings/custom/ExternalApiStatusCard.vue";
 import LastfmPanel from "@/components/settings/custom/LastfmPanel.vue";
 import IconLucideGlobe from "~icons/lucide/globe";
-
+import { isLinux } from "@/utils/config";
 const servicesCategory: SettingCategory = {
   id: "services",
   icon: IconLucideGlobe,
@@ -78,6 +78,15 @@ const servicesCategory: SettingCategory = {
           type: "switch",
           binding: { store: "settings", path: "system.media.systemMediaControls" },
           defaultValue: true,
+          children: [
+            {
+              key: "mprisExtendedMetadata",
+              type: "switch",
+              binding: { store: "settings", path: "system.media.mprisExtendedMetadata" },
+              defaultValue: true,
+              visible: () => isLinux,
+            },
+          ],
         },
       ],
     },
