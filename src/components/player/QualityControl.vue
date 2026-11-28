@@ -27,6 +27,9 @@ const qualityOptions = computed<SSelectOption[]>(() => [
   { value: "hq", label: t("settings.songLevel.hq") },
   { value: "lossless", label: t("settings.songLevel.lossless") },
   { value: "hi-res", label: t("settings.songLevel.hi-res") },
+  { value: "jyeffect", label: t("settings.songLevel.jyeffect") },
+  { value: "sky", label: t("settings.songLevel.sky") },
+  { value: "jymaster", label: t("settings.songLevel.jymaster") },
 ]);
 
 const chipBase =

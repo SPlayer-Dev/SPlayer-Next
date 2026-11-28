@@ -979,7 +979,10 @@
       "sq": "较高 (SQ)",
       "hq": "极高 (HQ)",
       "lossless": "无损 (Lossless)",
-      "hi-res": "高解析度无损 (Hi-Res)"
+      "hi-res": "高解析度无损 (Hi-Res)",
+      "jyeffect": "高清臻音",
+      "sky": "沉浸环绕声 (Sky)",
+      "jymaster": "超清母带 (Master)"
     },
     "allowTrialPlay": {
       "label": "允许播放试听",

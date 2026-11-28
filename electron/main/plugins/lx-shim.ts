@@ -13,6 +13,7 @@ import type {
   HostApi,
   MusicUrlReq,
   MusicUrlRes,
+  OnlineQualityLevel,
   PluginAction,
   PluginQuality,
   PluginUpdateInfo,
@@ -43,7 +44,7 @@ const LX_TO_HOST_QUALITY: Record<string, PluginQuality> = {
   "hi-res": "hi-res",
 };
 
-const HOST_TO_LX_QUALITY: Record<PluginQuality, string> = {
+const HOST_TO_LX_QUALITY: Partial<Record<OnlineQualityLevel, string>> = {
   lq: "128k",
   sq: "192k",
   hq: "320k",
@@ -54,7 +55,8 @@ const HOST_TO_LX_QUALITY: Record<PluginQuality, string> = {
 const mapLxQualityToHost = (q: string): PluginQuality | null =>
   LX_TO_HOST_QUALITY[String(q).toLowerCase()] ?? null;
 
-const mapHostQualityToLx = (q: PluginQuality): string => HOST_TO_LX_QUALITY[q] ?? "320k";
+// 网易云专属档位插件不认识，回退 320k
+const mapHostQualityToLx = (q: OnlineQualityLevel): string => HOST_TO_LX_QUALITY[q] ?? "320k";
 
 const DEFAULT_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";

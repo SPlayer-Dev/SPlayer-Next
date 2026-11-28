@@ -32,6 +32,9 @@ const downloadCategory: SettingCategory = {
           type: "select",
           binding: { store: "settings", path: "system.download.quality" },
           options: [
+            { value: "jymaster", label: "Master" },
+            { value: "sky", label: "Sky" },
+            { value: "jyeffect", label: "Premium HD" },
             { value: "hi-res", label: "Hi-Res" },
             { value: "lossless", label: "Lossless" },
             { value: "hq", label: "HQ" },

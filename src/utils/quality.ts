@@ -1,7 +1,8 @@
 import type { AudioQuality } from "@shared/types/player";
+import type { OnlineQualityLevel } from "@shared/types/plugin";
 
 /** 音质等级 */
-export type QualityLevel = "hi-res" | "lossless" | "hq" | "sq" | "lq";
+export type QualityLevel = OnlineQualityLevel;
 
 /** 无损编解码器 */
 const LOSSLESS_CODECS = new Set(["flac", "alac", "ape", "wav", "aiff", "wavpack", "tta"]);
@@ -15,6 +16,9 @@ export const isLosslessCodec = (codec: string): boolean => LOSSLESS_CODECS.has(c
 
 /** 等级短码文案 */
 export const QUALITY_LABELS: Record<QualityLevel, string> = {
+  jymaster: "Master",
+  sky: "Sky",
+  jyeffect: "Premium HD",
   "hi-res": "Hi-Res",
   lossless: "Lossless",
   hq: "HQ",
@@ -24,6 +28,9 @@ export const QUALITY_LABELS: Record<QualityLevel, string> = {
 
 /** 等级完整文案 */
 const QUALITY_FULL_LABELS: Record<QualityLevel, string> = {
+  jymaster: "Ultra Master",
+  sky: "Spatial Audio",
+  jyeffect: "Premium HD",
   "hi-res": "Hi-Res",
   lossless: "Lossless",
   hq: "High Quality",

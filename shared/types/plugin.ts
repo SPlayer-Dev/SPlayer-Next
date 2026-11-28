@@ -23,8 +23,7 @@ export type PluginAction =
   "musicUrl" | "menuClick" | "musicSearch" | "musicLyric" | "musicPic" | "musicComment";
 
 /**
- * 音质等级
- * 对齐 src/utils/quality.ts 的 QualityLevel（去掉 null），保持宿主与插件一致
+ * 插件识别的音质等级
  * - hi-res：高解析度无损（采样率 ≥ 96kHz + 位深 ≥ 24bit）
  * - lossless：无损（flac/ape/wav 等）
  * - hq：有损 ≥ 320kbps
@@ -32,6 +31,9 @@ export type PluginAction =
  * - lq：有损 < 192kbps
  */
 export type PluginQuality = "hi-res" | "lossless" | "hq" | "sq" | "lq";
+
+/** 在线音质偏好；jyeffect / sky / jymaster 为网易云专属档位，插件与其他音源按各自回退处理 */
+export type OnlineQualityLevel = PluginQuality | "jyeffect" | "sky" | "jymaster";
 
 /** 插件可声明的权限清单 */
 export const PLUGIN_GRANTS = ["network", "control", "ui", "library", "api"] as const;
@@ -225,7 +227,7 @@ export interface PluginInfo {
 
 export interface MusicUrlReq {
   source: string;
-  quality: PluginQuality;
+  quality: OnlineQualityLevel;
   musicInfo: {
     songmid: string;
     name?: string;
@@ -530,7 +532,7 @@ export interface PluginSearchResult {
 export interface PluginResolveUrlArgs {
   pluginId: string;
   source: string;
-  quality?: PluginQuality;
+  quality?: OnlineQualityLevel;
   musicInfo: { songmid: string; [key: string]: unknown };
 }
 
